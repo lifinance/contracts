@@ -34,7 +34,7 @@ config()
 // The backend team will need to use their own production ID for production integration.
 // Note: This is a test ID - production will use a different ID.
 const GARDEN_APP_ID =
-  '7648702b1997e55a3763afa5dd7ace3d4bd23348ee0423cc27a18ef3e28cb2b7'
+  '7648702b1997e55a3763afa5dd7ace3d4bd23348ee0423cc27a18ef3e28cb2b7' // [pre-commit-checker: not a secret]
 
 // Garden API types
 interface IGardenQuote {
@@ -135,9 +135,8 @@ const main = defineCommand({
       const amountStr = args.amount
 
       // Validate conflicting options
-      if (isNative && withSwap) 
+      if (isNative && withSwap)
         throw new Error('Please choose only one option: --native or --swap')
-      
 
       // Parse amount based on token type
       const amountInWei = isNative
@@ -351,7 +350,7 @@ const main = defineCommand({
       }
 
       // Step 4: If not swapping, check balance and approve tokens if needed
-      if (!withSwap) 
+      if (!withSwap)
         if (isNative) {
           consola.info('\n💰 Checking ETH balance...')
 
@@ -392,7 +391,6 @@ const main = defineCommand({
             consola.success('USDC approved')
           } else consola.info('Sufficient allowance already exists')
         }
-      
 
       // Step 5: Execute the bridge transaction
       consola.info('\n🚀 Executing bridge transaction...')
@@ -426,17 +424,15 @@ const main = defineCommand({
         consola.success(`\n✨ Bridge transaction successful!`)
         consola.info(`Transaction hash: ${tx.hash}`)
         consola.info(`View on Etherscan: https://etherscan.io/tx/${tx.hash}`)
-        if (withSwap) 
+        if (withSwap)
           consola.info(
             `Successfully swapped WETH to USDC and initiated bridge to Base`
           )
-         else if (isNative) 
+        else if (isNative)
           consola.info(
             `Successfully initiated ETH to USDC bridge to Base (ETH will be converted to USDC on destination)`
           )
-         else 
-          consola.info(`Successfully initiated USDC bridge to Base`)
-        
+        else consola.info(`Successfully initiated USDC bridge to Base`)
 
         consola.info(
           "\nNote: The bridge process will continue on Garden's infrastructure."
