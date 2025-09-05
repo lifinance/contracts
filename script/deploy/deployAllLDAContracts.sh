@@ -254,13 +254,6 @@ deployAllLDAContracts() {
     local DEPLOY_SCRIPT_PATH="script/deploy/facets/LDA/DeployLiFiDEXAggregatorDiamond.s.sol"
     local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
     
-    # For LDA contracts, modify FILE_SUFFIX to include "lda."
-    if [[ "$ENVIRONMENT" == "production" ]]; then
-      FILE_SUFFIX="lda."
-    else
-      FILE_SUFFIX="lda.staging."
-    fi
-    
     # Get required deployment variables
     local BYTECODE=$(getBytecodeFromArtifact "$LDA_DIAMOND_CONTRACT_NAME")
     local CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
@@ -280,17 +273,8 @@ deployAllLDAContracts() {
     
     echo "[info] $LDA_DIAMOND_CONTRACT_NAME deployed to $NETWORK at address $ADDRESS"
     
-    # Save contract in network-specific deployment files
+    # Save contract in regular network deployment file only
     saveContract "$NETWORK" "$LDA_DIAMOND_CONTRACT_NAME" "$ADDRESS" "$FILE_SUFFIX"
-    
-    # Also save to the regular network deployment file for complete network tracking
-    local REGULAR_FILE_SUFFIX
-    if [[ "$ENVIRONMENT" == "production" ]]; then
-      REGULAR_FILE_SUFFIX=""
-    else
-      REGULAR_FILE_SUFFIX="staging."
-    fi
-    saveContract "$NETWORK" "$LDA_DIAMOND_CONTRACT_NAME" "$ADDRESS" "$REGULAR_FILE_SUFFIX"
 
     # check if last command was executed successfully, otherwise exit script with error message
     checkFailure $? "deploy contract $LDA_DIAMOND_CONTRACT_NAME to network $NETWORK"

@@ -42,7 +42,6 @@ scriptMaster() {
   source script/deploy/deployAllLDAContracts.sh
   source script/helperFunctions.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
-  source script/deploy/deployFacetAndAddToLDADiamond.sh
   source script/deploy/deployPeripheryContracts.sh
   source script/deploy/deployUpgradesToSAFE.sh
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
@@ -210,13 +209,13 @@ scriptMaster() {
     if [[ "$ADD_TO_DIAMOND" == "yes"* ]]; then
       echo "[info] selected option: $ADD_TO_DIAMOND"
 
-      # determine the diamond type and call appropriate function
+      # determine the diamond type and call unified function
       if [[ "$ADD_TO_DIAMOND" == *"LiFiDEXAggregatorDiamond"* ]]; then
-        deployAndAddContractToLDADiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDEXAggregatorDiamond" "$VERSION"
+        deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDEXAggregatorDiamond" "$VERSION"
       elif [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
-        deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
+        deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
       else
-        deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
+        deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
       fi
     else
       # just deploy the contract (determine if LDA based on IS_LDA_CONTRACT)
@@ -641,8 +640,8 @@ scriptMaster() {
     # check if contract should be added after deployment
     if [[ "$ADD_TO_DIAMOND" == "yes"* ]]; then
       echo "[info] selected option: $ADD_TO_DIAMOND"
-      # deploy LDA facet and add to LDA diamond
-      deployAndAddContractToLDADiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDEXAggregatorDiamond" "$VERSION"
+      # deploy LDA facet and add to LDA diamond using unified function
+      deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDEXAggregatorDiamond" "$VERSION"
     else
       # just deploy the LDA contract
       deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false "true"

@@ -151,15 +151,6 @@ deploySingleContract() {
 
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-  
-  # For LDA contracts, modify FILE_SUFFIX to include "lda."
-  if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
-    if [[ "$ENVIRONMENT" == "production" ]]; then
-      FILE_SUFFIX="lda."
-    else
-      FILE_SUFFIX="lda.staging."
-    fi
-  fi
 
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
@@ -413,21 +404,6 @@ deploySingleContract() {
 
   # save contract in network-specific deployment files
   saveContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$FILE_SUFFIX"
-  
-  # For LDA contracts, also save to the regular network deployment file
-  # This ensures all contracts deployed to a network are tracked in the main deployment log
-  if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
-    # Get the regular file suffix (without "lda." prefix)
-    local REGULAR_FILE_SUFFIX
-    if [[ "$ENVIRONMENT" == "production" ]]; then
-      REGULAR_FILE_SUFFIX=""
-    else
-      REGULAR_FILE_SUFFIX="staging."
-    fi
-    
-    echo "[info] Also saving LDA contract $CONTRACT to regular deployment file for complete network tracking"
-    saveContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$REGULAR_FILE_SUFFIX"
-  fi
 
   return 0
 }
