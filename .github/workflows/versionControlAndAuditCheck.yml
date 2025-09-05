@@ -308,7 +308,7 @@ jobs:
         # ------------------------ end of version control checker ------------------------
 
   audit-verification:
-    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
+    if: ${{ github.event.pull_request.draft == false }}
     needs: version-control
     runs-on: ubuntu-latest
     env:
