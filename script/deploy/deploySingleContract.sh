@@ -26,7 +26,7 @@ deploySingleContract() {
       echo "    "
       echo "    "
       printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
-      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true"
+      printf '\033[33m%s\033[0m\n' " The config environment variable PRODUCTION is set to true"
       printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production"
       printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
       echo "    "
