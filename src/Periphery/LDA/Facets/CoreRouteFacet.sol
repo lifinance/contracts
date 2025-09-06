@@ -8,8 +8,7 @@ import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { LibDiamondLoupe } from "lifi/Libraries/LibDiamondLoupe.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
-import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
-import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title CoreRouteFacet
@@ -17,11 +16,7 @@ import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 /// @notice Orchestrates LDA route execution using direct function selector dispatch
 /// @dev Implements selector-based routing where each DEX facet's swap function is called directly via its selector
 /// @custom:version 1.0.0
-contract CoreRouteFacet is
-    BaseRouteConstants,
-    ReentrancyGuard,
-    WithdrawablePeriphery
-{
+contract CoreRouteFacet is BaseRouteConstants, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC20Permit;
     using LibPackedStream for uint256;
@@ -46,12 +41,6 @@ contract CoreRouteFacet is
     error UnknownCommandCode();
     error SwapFailed();
     error UnknownSelector();
-
-    /// @notice Constructor
-    /// @param _owner The address of the contract owner
-    constructor(address _owner) WithdrawablePeriphery(_owner) {
-        if (_owner == address(0)) revert InvalidConfig();
-    }
 
     // ==== External Functions ====
     /// @notice Process a route encoded with function selectors for direct DEX facet dispatch
@@ -273,24 +262,24 @@ contract CoreRouteFacet is
         realAmountIn = declaredAmountIn;
         uint256 step = 0;
 
-        uint256 cur = LibPackedStream.createStream(route);
+        uint256 stream = LibPackedStream.createStream(route);
         // Iterate until the packed route stream is fully consumed.
         // `isNotEmpty()` returns true while there are unread bytes left in the stream.
-        while (cur.isNotEmpty()) {
+        while (stream.isNotEmpty()) {
             // Read the next command byte that specifies how to handle tokens in this step
-            uint8 routeCommand = cur.readUint8();
+            uint8 routeCommand = stream.readUint8();
             if (routeCommand == 1) {
-                uint256 used = _distributeSelfERC20(cur);
+                uint256 used = _distributeSelfERC20(stream);
                 if (step == 0) realAmountIn = used;
             } else if (routeCommand == 2) {
-                _distributeUserERC20(cur, declaredAmountIn);
+                _distributeUserERC20(stream, declaredAmountIn);
             } else if (routeCommand == 3) {
-                uint256 usedNative = _distributeNative(cur);
+                uint256 usedNative = _distributeNative(stream);
                 if (step == 0) realAmountIn = usedNative;
             } else if (routeCommand == 4) {
-                _dispatchSinglePoolSwap(cur);
+                _dispatchSinglePoolSwap(stream);
             } else if (routeCommand == 5) {
-                _applyPermit(tokenIn, cur);
+                _applyPermit(tokenIn, stream);
             } else {
                 revert UnknownCommandCode();
             }
@@ -305,13 +294,13 @@ contract CoreRouteFacet is
     /// @notice Applies ERC20 permit for token approval
     /// @dev Reads permit parameters from the stream and calls permit on the token
     /// @param tokenIn The token to approve
-    /// @param cur The current position in the byte stream
-    function _applyPermit(address tokenIn, uint256 cur) private {
-        uint256 value = cur.readUint256();
-        uint256 deadline = cur.readUint256();
-        uint8 v = cur.readUint8();
-        bytes32 r = cur.readBytes32();
-        bytes32 s = cur.readBytes32();
+    /// @param stream The byte stream to read from
+    function _applyPermit(address tokenIn, uint256 stream) private {
+        uint256 value = stream.readUint256();
+        uint256 deadline = stream.readUint256();
+        uint8 v = stream.readUint8();
+        bytes32 r = stream.readBytes32();
+        bytes32 s = stream.readBytes32();
         IERC20Permit(tokenIn).safePermit(
             msg.sender,
             address(this),
@@ -325,21 +314,28 @@ contract CoreRouteFacet is
 
     /// @notice Distributes native ETH held by this contract across legs and dispatches swaps
     /// @dev Assumes ETH is already present on the contract
-    /// @param cur The current position in the byte stream
+    /// @param stream The byte stream to read from
     /// @return total The total amount of ETH to process
-    function _distributeNative(uint256 cur) private returns (uint256 total) {
+    function _distributeNative(
+        uint256 stream
+    ) private returns (uint256 total) {
         total = address(this).balance;
-        _distributeAndSwap(cur, address(this), LibAsset.NULL_ADDRESS, total);
+        _distributeAndSwap(
+            stream,
+            address(this),
+            LibAsset.NULL_ADDRESS,
+            total
+        );
     }
 
     /// @notice Distributes ERC20 tokens already on this contract
     /// @dev Includes protection against full balance draining
-    /// @param cur The current position in the byte stream
+    /// @param stream The byte stream to read from
     /// @return total The total amount of tokens to process
     function _distributeSelfERC20(
-        uint256 cur
+        uint256 stream
     ) private returns (uint256 total) {
-        address token = cur.readAddress();
+        address token = stream.readAddress();
         total = IERC20(token).balanceOf(address(this));
         unchecked {
             // Prevent swaps with uselessly small amounts (like 1 wei) that could:
@@ -348,22 +344,22 @@ contract CoreRouteFacet is
             // By subtracting 1 from any positive balance, we ensure a balance of 1 becomes a swap amount of 0 (effectively skipping the swap)
             if (total > 0) total -= 1;
         }
-        _distributeAndSwap(cur, address(this), token, total);
+        _distributeAndSwap(stream, address(this), token, total);
     }
 
     /// @notice Distributes ERC20 tokens from the caller
-    /// @param cur The current position in the byte stream
+    /// @param stream The byte stream to read from
     /// @param total The declared total to distribute from msg.sender
-    function _distributeUserERC20(uint256 cur, uint256 total) private {
-        address token = cur.readAddress();
-        _distributeAndSwap(cur, msg.sender, token, total);
+    function _distributeUserERC20(uint256 stream, uint256 total) private {
+        address token = stream.readAddress();
+        _distributeAndSwap(stream, msg.sender, token, total);
     }
 
     /// @notice Dispatches a single swap using tokens already in the pool
-    /// @param cur The current position in the byte stream
-    function _dispatchSinglePoolSwap(uint256 cur) private {
-        address token = cur.readAddress();
-        _dispatchSwap(cur, FUNDS_IN_RECEIVER, token, 0);
+    /// @param stream The byte stream to read from
+    function _dispatchSinglePoolSwap(uint256 stream) private {
+        address token = stream.readAddress();
+        _dispatchSwap(stream, FUNDS_IN_RECEIVER, token, 0);
     }
 
     /// @notice Distributes tokens across multiple pools based on share ratios
@@ -373,23 +369,23 @@ contract CoreRouteFacet is
     ///      - The last leg gets all remaining tokens to handle rounding errors
     ///      - Example: 60/40 split would use shares [39321, 26214] since:
     ///        39321/65535 ≈ 0.6 and 26214/65535 ≈ 0.4
-    /// @param cur The current position in the byte stream
+    /// @param stream The byte stream to read from
     /// @param from The source address for tokens
     /// @param tokenIn The token being distributed
     /// @param total The total amount to distribute across all legs
     function _distributeAndSwap(
-        uint256 cur,
+        uint256 stream,
         address from,
         address tokenIn,
         uint256 total
     ) private {
         // Read number of swap legs from the stream
-        uint8 n = cur.readUint8();
+        uint8 n = stream.readUint8();
         unchecked {
             uint256 remaining = total;
             for (uint256 i = 0; i < n; ++i) {
                 // Read the proportional share for this leg (0-65535 scale)
-                uint16 share = cur.readUint16();
+                uint16 share = stream.readUint16();
 
                 // Calculate amount for this leg:
                 // - For intermediate legs: proportional amount based on share
@@ -405,24 +401,24 @@ contract CoreRouteFacet is
                 remaining -= legAmount;
 
                 // Execute the swap for this leg with calculated amount
-                _dispatchSwap(cur, from, tokenIn, legAmount);
+                _dispatchSwap(stream, from, tokenIn, legAmount);
             }
         }
     }
 
     /// @notice Dispatches a swap call to the appropriate DEX facet
-    /// @param cur The current position in the byte stream
+    /// @param stream The byte stream to read from
     /// @param from The source address for tokens
     /// @param tokenIn The input token address
     /// @param amountIn The amount of tokens to swap
     function _dispatchSwap(
-        uint256 cur,
+        uint256 stream,
         address from,
         address tokenIn,
         uint256 amountIn
     ) private {
         // Read [selector | payload] blob for the specific DEX facet
-        bytes memory data = cur.readBytesWithLength();
+        bytes memory data = stream.readBytesWithLength();
 
         // Extract function selector (first 4 bytes of data)
         bytes4 selector = _readSelector(data);

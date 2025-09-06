@@ -6,8 +6,6 @@ import { TestBase } from "../utils/TestBase.sol";
 import { OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 
 contract OwnershipFacetTest is TestBase {
-    OwnershipFacet internal ownershipFacet;
-
     error NoNullOwner();
     error NewOwnerMustNotBeSelf();
     error NoPendingOwnershipTransfer();
@@ -16,11 +14,6 @@ contract OwnershipFacetTest is TestBase {
     event OwnershipTransferRequested(
         address indexed _from,
         address indexed _to
-    );
-
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
     );
 
     function setUp() public override {

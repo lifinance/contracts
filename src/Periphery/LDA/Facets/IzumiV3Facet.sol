@@ -6,15 +6,15 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibCallbackAuthenticator } from "lifi/Libraries/LibCallbackAuthenticator.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/Errors/Errors.sol";
-import { PoolCallbackAuthenticated } from "lifi/Periphery/LDA/PoolCallbackAuthenticated.sol";
+import { SwapCallbackNotExecuted } from "lifi/Periphery/LDA/LiFiDEXAggregatorErrors.sol";
+import { PoolCallbackAuthenticator } from "lifi/Periphery/LDA/PoolCallbackAuthenticator.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
 
 /// @title IzumiV3Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Handles IzumiV3 swaps with callback management
 /// @custom:version 1.0.0
-contract IzumiV3Facet is BaseRouteConstants, PoolCallbackAuthenticated {
+contract IzumiV3Facet is BaseRouteConstants, PoolCallbackAuthenticator {
     using LibPackedStream for uint256;
     using LibCallbackAuthenticator for *;
 

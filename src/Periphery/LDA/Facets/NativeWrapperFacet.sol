@@ -28,12 +28,11 @@ contract NativeWrapperFacet is BaseRouteConstants {
         address tokenIn,
         uint256 amountIn
     ) external {
-        uint256 stream = LibPackedStream.createStream(swapData);
-
-        address destinationAddress = stream.readAddress();
-
-        if (destinationAddress == address(0)) {
-            revert InvalidCallData();
+        address destinationAddress;
+        assembly {
+            // swapData layout: [length (32 bytes)][data...]
+            // We want the first 20 bytes of data, right-shifted to get address
+            destinationAddress := shr(96, mload(add(swapData, 32)))
         }
 
         if (from == msg.sender) {
@@ -69,7 +68,7 @@ contract NativeWrapperFacet is BaseRouteConstants {
         address wrappedNative = stream.readAddress();
         address destinationAddress = stream.readAddress();
 
-        if (wrappedNative == address(0) || destinationAddress == address(0)) {
+        if (wrappedNative == address(0)) {
             revert InvalidCallData();
         }
 

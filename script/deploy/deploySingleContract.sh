@@ -2,12 +2,13 @@
 
 # deploys a single contract
 # should be called like this:
-# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
+# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true false)
 deploySingleContract() {
   # load config & helper functions
   source script/config.sh
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh
+  source script/deploy/deployAllLDAContracts.sh
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -15,7 +16,6 @@ deploySingleContract() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
-
   # load env variables
   source .env
 
@@ -67,12 +67,39 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Handle ZkEVM Chains
-  # We need to use zksync specific scripts that are able to be compiled for
-  # the zkvm
+  # Determine deployment script directory based on network type and contract type
+  # We need to support 4 combinations:
+  # 1. Regular + Non-zkEVM = script/deploy/facets/
+  # 2. Regular + zkEVM = script/deploy/zksync/
+  # 3. LDA + Non-zkEVM = script/deploy/facets/LDA/
+  # 4. LDA + zkEVM = script/deploy/zksync/LDA/
+
+  # Helper function to check if contract is LDA-related
+  isLDAContract() {
+    local contract_name="$1"
+    # Check if contract name contains LDA-related patterns or is in LDA facets list
+    if [[ "$contract_name" == "LiFiDEXAggregatorDiamond" ]] || 
+       [[ "$contract_name" == *"LDA"* ]] ||
+       [[ -f "script/deploy/facets/LDA/Deploy${contract_name}.s.sol" ]]; then
+      return 0  # true
+    else
+      return 1  # false
+    fi
+  }
+  
   if isZkEvmNetwork "$NETWORK"; then
-    DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+    if isLDAContract "$CONTRACT"; then
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/LDA/"
+    else
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+    fi
     FILE_EXTENSION=".zksync.s.sol"
+  else
+    if isLDAContract "$CONTRACT"; then
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/LDA/"
+    else
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
+    fi
   fi
 
   if [[ -z "$CONTRACT" ]]; then
@@ -95,6 +122,30 @@ deploySingleContract() {
     warning "${!CONTRACT}"
     printf '\033[31m%s\031\n' "-----------------------------------------------------------------------------------------------------------"
     echo -e "\n\n"
+  fi
+
+  # Special case: LiFiDEXAggregatorDiamond is treated as a single external contract
+  # that triggers the full LDA deployment process
+  if [[ "$CONTRACT" == "LiFiDEXAggregatorDiamond" ]]; then
+    echo "[info] LiFiDEXAggregatorDiamond detected - deploying full LDA diamond with all contracts"
+    echo "[info] Calling deployAllLDAContracts script..."
+    
+    # Call the full LDA deployment script
+    deployAllLDAContracts "$NETWORK" "$ENVIRONMENT"
+    
+    # Check if deployment was successful
+    local LDA_DEPLOYMENT_RESULT=$?
+    if [[ $LDA_DEPLOYMENT_RESULT -eq 0 ]]; then
+      echo "[info] LiFiDEXAggregatorDiamond (full LDA deployment) completed successfully"
+      return 0
+    else
+      error "LiFiDEXAggregatorDiamond (full LDA deployment) failed"
+      if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+        return 1
+      else
+        exit 1
+      fi
+    fi
   fi
 
   # check if deploy script exists

@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { stdJson } from "forge-std/Script.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
 
 interface IContractDeployer {
     function getNewAddressCreate2(

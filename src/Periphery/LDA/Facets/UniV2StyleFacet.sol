@@ -7,7 +7,7 @@ import { LibPackedStream } from "lifi/Libraries/LibPackedStream.sol";
 import { IUniV2StylePool } from "lifi/Interfaces/IUniV2StylePool.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { BaseRouteConstants } from "../BaseRouteConstants.sol";
-import { WrongPoolReserves } from "../Errors/Errors.sol";
+import { WrongPoolReserves } from "../LiFiDEXAggregatorErrors.sol";
 
 /// @title UniV2StyleFacet
 /// @author LI.FI (https://li.fi)

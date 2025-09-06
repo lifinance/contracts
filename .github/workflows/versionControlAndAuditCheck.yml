@@ -1,14 +1,14 @@
 # This git action combines version control and audit checks
-# Version Control:
+# Version Control (runs on all branches):
 # - will check all modified or new contracts in src/*
 # - makes sure that all contracts that have changes in audit-relevant code require a contract version update
 # - relevant changes => anything except for single (//) or multi-line (/*) comments and changes in solidity pragma
 # - fails if contract version was not updated despite relevant changes
 # - fails if a new contract was added without a ///custom:version tag
 # - will update the PR title to contain contract names with version changes (incl. their new version)
-# Audit Checker:
+# Audit Checker (runs only on PRs targeting main branch):
 # - will check all modified or new contracts in src/*, except for interfaces (src/Interfaces/**) as these do not require an audit
-# - will only run if version-control job passed successfully
+# - will only run if version-control job passed successfully AND PR targets main branch
 # - will remove the (protected) "AuditCompleted" label in the beginning to prevent erroneous states
 # - reuses the list of relevant contracts identified by the version-control job
 # - will assign "AuditRequired" label if relevant contracts were identified, otherwise it wil assign "AuditNotRequired"
@@ -308,7 +308,7 @@ jobs:
         # ------------------------ end of version control checker ------------------------
 
   audit-verification:
-    if: ${{ github.event.pull_request.draft == false }}
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     needs: version-control
     runs-on: ubuntu-latest
     env:
