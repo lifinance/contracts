@@ -25,37 +25,16 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // LDA Diamond uses DiamondCutFacet from regular deployment (shared with regular LiFi Diamond)
-        // Construct path to regular deployment file: <network>.json or <network>.<environment>.json
-
-        string memory regularPath;
-
-        // Check if fileSuffix is provided (non-production environment)
-        if (bytes(fileSuffix).length > 0) {
-            // Non-production: network.<environment>.json (e.g., network.staging.json, network.testnet.json)
-            // Note: fileSuffix already includes trailing dot (e.g., "staging.")
-            regularPath = string.concat(
-                root,
-                "/deployments/",
-                network,
-                ".",
-                fileSuffix,
-                "json"
-            );
-        } else {
-            // Production: network.json
-            regularPath = string.concat(
-                root,
-                "/deployments/",
-                network,
-                ".json"
-            );
-        }
-
-        emit log_named_string("regularPath", regularPath);
-
-        // Get DiamondCutFacet address from regular deployment file
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         address diamondCut = _getConfigContractAddress(
-            regularPath,
+            path,
             ".DiamondCutFacet"
         );
 

@@ -254,7 +254,7 @@ deployAllLDAContracts() {
     
     echo "[info] Transferring LDA Diamond ownership to multisig: $SAFE_ADDRESS"
     
-    # Transfer ownership directly to multisig (not timelock)
+    # Transfer ownership directly to multisig
     cast send "$LDA_DIAMOND_ADDRESS" "transferOwnership(address)" "$SAFE_ADDRESS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$(getRPCUrl "$NETWORK")" --legacy
     
     if [ $? -eq 0 ]; then

@@ -5,6 +5,8 @@ import { execSync } from 'child_process'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import type { SupportedChain } from '../common/types.js'
+
 const errors: string[] = []
 
 // Helper function to get RPC URL from networks.json
@@ -322,9 +324,12 @@ const main = defineCommand({
         logError(`LDA Non-Core Facet ${facet} not registered in Diamond`)
       else consola.success(`LDA Non-Core Facet ${facet} registered in Diamond`)
 
-    // Basic ownership check using cast
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │              Check LDA Diamond ownership                 │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking LDA Diamond ownership...')
+
     try {
-      consola.box('Checking LDA Diamond ownership...')
       const owner = execSync(
         `cast call "${diamondAddress}" "owner() returns (address)" --rpc-url "${rpcUrl}"`,
         { encoding: 'utf8', stdio: 'pipe' }
@@ -332,39 +337,41 @@ const main = defineCommand({
 
       consola.info(`LiFiDEXAggregatorDiamond current owner: ${owner}`)
 
-      // Check if timelock is deployed and compare (timelock is in main deployments, not LDA deployments)
-      const timelockAddress = mainDeployedContracts['LiFiTimelockController']
-      if (timelockAddress) {
-        consola.info(`Found LiFiTimelockController at: ${timelockAddress}`)
-        if (owner.toLowerCase() === timelockAddress.toLowerCase())
-          consola.success(
-            'LiFiDEXAggregatorDiamond is owned by LiFiTimelockController'
+      // Get expected multisig address from networks.json
+      const expectedMultisigAddress =
+        networksConfig[network.toLowerCase() as SupportedChain]?.safeAddress
+
+      if (!expectedMultisigAddress) {
+        if (environment === 'production') {
+          logError(
+            `No multisig address (safeAddress) found in networks.json for network ${network}`
           )
-        else if (environment === 'production')
-          consola.error(
-            `LiFiDEXAggregatorDiamond owner is ${owner}, expected ${timelockAddress}`
-          )
-        else {
+        } else {
           consola.warn(
-            `LiFiDEXAggregatorDiamond owner is ${owner}, expected ${timelockAddress} for production`
+            `No multisig address (safeAddress) found in networks.json for network ${network}`
           )
-          consola.info(
-            'For staging environment, ownership transfer to timelock is typically done later'
-          )
+          consola.info('For staging environment, this is acceptable')
         }
       } else {
-        if (environment === 'production')
-          consola.error(
-            'LiFiTimelockController not found in main deployments, so LDA diamond ownership cannot be verified'
-          )
-        else
-          consola.warn(
-            'LiFiTimelockController not found in main deployments, so LDA diamond ownership cannot be verified'
-          )
-
         consola.info(
-          'Note: LiFiTimelockController should be deployed as shared infrastructure before LDA deployment'
+          `Expected multisig address from networks.json: ${expectedMultisigAddress}`
         )
+
+        if (owner.toLowerCase() === expectedMultisigAddress.toLowerCase()) {
+          consola.success(
+            `✅ LiFiDEXAggregatorDiamond is correctly owned by multisig: ${expectedMultisigAddress}`
+          )
+        } else {
+          if (environment === 'production') {
+            logError(
+              `❌ LiFiDEXAggregatorDiamond ownership mismatch! Current owner: ${owner}, Expected multisig: ${expectedMultisigAddress}`
+            )
+          } else {
+            consola.info(
+              'For staging environment, ownership transfer to multisig is not done'
+            )
+          }
+        }
       }
     } catch (error) {
       logError(

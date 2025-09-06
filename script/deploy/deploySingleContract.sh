@@ -67,6 +67,13 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
+  # Determine deployment script directory based on network type and contract type
+  # We need to support 4 combinations:
+  # 1. Regular + Non-zkEVM = script/deploy/facets/
+  # 2. Regular + zkEVM = script/deploy/zksync/
+  # 3. LDA + Non-zkEVM = script/deploy/facets/LDA/
+  # 4. LDA + zkEVM = script/deploy/zksync/LDA/
+
   # Helper function to check if contract is LDA-related
   isLDAContract() {
     local contract_name="$1"
@@ -79,13 +86,6 @@ deploySingleContract() {
       return 1  # false
     fi
   }
-
-  # Determine deployment script directory based on network type and contract type
-  # We need to support 4 combinations:
-  # 1. Regular + Non-zkEVM = script/deploy/facets/
-  # 2. Regular + zkEVM = script/deploy/zksync/
-  # 3. LDA + Non-zkEVM = script/deploy/facets/LDA/
-  # 4. LDA + zkEVM = script/deploy/zksync/LDA/
   
   if isZkEvmNetwork "$NETWORK"; then
     if isLDAContract "$CONTRACT"; then
