@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { LiFiDiamond } from "../../LiFiDiamond.sol";
-    
+
 /// @title LiFiDEXAggregatorDiamond
 /// @author LI.FI (https://li.fi)
 /// @notice Base EIP-2535 Diamond Proxy Contract for LDA (LiFi DEX Aggregator).

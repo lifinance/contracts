@@ -74,7 +74,7 @@ abstract contract BaseUniV2StyleDEXFacetTest is BaseDEXFacetTest {
     /// @return Packed payload starting with `swapUniV2` selector.
     function _buildUniV2SwapData(
         UniV2SwapParams memory params
-    ) internal returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         return
             abi.encodePacked(
                 uniV2Facet.swapUniV2.selector,
