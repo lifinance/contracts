@@ -8,44 +8,6 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 contract UpdateLDACoreFacets is UpdateLDAScriptBase {
     using stdJson for string;
 
-    /// @notice Get regular deployment file path (without lda. prefix)
-    function getRegularDeploymentPath() internal view returns (string memory) {
-        // Need to construct regular deployment path by removing "lda." prefix from fileSuffix
-        string memory regularFileSuffix;
-        bytes memory fileSuffixBytes = bytes(fileSuffix);
-
-        // Check if fileSuffix starts with "lda." and remove it
-        if (
-            fileSuffixBytes.length >= 4 &&
-            fileSuffixBytes[0] == "l" &&
-            fileSuffixBytes[1] == "d" &&
-            fileSuffixBytes[2] == "a" &&
-            fileSuffixBytes[3] == "."
-        ) {
-            // Extract everything after "lda." by creating new bytes array
-            bytes memory remainingBytes = new bytes(
-                fileSuffixBytes.length - 4
-            );
-            for (uint256 i = 4; i < fileSuffixBytes.length; i++) {
-                remainingBytes[i - 4] = fileSuffixBytes[i];
-            }
-            regularFileSuffix = string(remainingBytes);
-        } else {
-            // If no "lda." prefix, use as is
-            regularFileSuffix = fileSuffix;
-        }
-
-        return
-            string.concat(
-                root,
-                "/deployments/",
-                network,
-                ".",
-                regularFileSuffix,
-                "json"
-            );
-    }
-
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -62,13 +24,6 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
 
         emit log("LDA core facets found in config/global.json: ");
         emit log_uint(ldaCoreFacets.length);
-
-        // Get regular deployment path for reading core facets
-        string memory regularDeploymentPath = getRegularDeploymentPath();
-        emit log_named_string(
-            "Reading core facets from regular deployment file",
-            regularDeploymentPath
-        );
 
         bytes4[] memory exclude;
 
@@ -87,7 +42,7 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
             emit log("DiamondLoupeFacet does not exist on diamond yet");
             // Read DiamondLoupeFacet from regular deployment file
             address ldaDiamondLoupeAddress = _getConfigContractAddress(
-                regularDeploymentPath,
+                path,
                 ".DiamondLoupeFacet"
             );
             bytes4[] memory loupeSelectors = getSelectors(
@@ -129,12 +84,13 @@ contract UpdateLDACoreFacets is UpdateLDAScriptBase {
             emit log(facetName);
             // Read core facets from regular deployment file, not LDA file
             address facetAddress = _getConfigContractAddress(
-                regularDeploymentPath,
+                path,
                 string.concat(".", facetName)
             );
+
             bytes4[] memory selectors = getSelectors(facetName, exclude);
 
-            // at this point we know for sure that LDA diamond loupe exists on diamond
+            // at this point we know for sure that diamond loupe exists on diamond
             buildDiamondCut(selectors, facetAddress);
         }
 

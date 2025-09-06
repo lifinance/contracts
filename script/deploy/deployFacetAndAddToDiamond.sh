@@ -76,17 +76,8 @@ function deployFacetAndAddToDiamond() {
 
   # get diamond address from deployments script (handle both regular and LDA diamonds)
   local DIAMOND_ADDRESS
-  local DEPLOYMENT_FILE
-  
-  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
-    # For LDA diamond, look in regular deployment file (not .lda.diamond.json)
-    DEPLOYMENT_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
-    DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$DEPLOYMENT_FILE")
-  else
-    # For regular diamonds, use regular deployment file
-    DEPLOYMENT_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
-    DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$DEPLOYMENT_FILE")
-  fi
+  local DEPLOYMENT_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+  local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$DEPLOYMENT_FILE")
 
   # if no diamond address was found, throw an error and exit this script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then

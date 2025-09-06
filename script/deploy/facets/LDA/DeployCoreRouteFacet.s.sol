@@ -10,12 +10,7 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("CoreRouteFacet") {}
 
-    function run()
-        public
-        returns (CoreRouteFacet deployed, bytes memory constructorArgs)
-    {
-        constructorArgs = getConstructorArgs();
-
+    function run() public returns (CoreRouteFacet deployed) {
         deployed = CoreRouteFacet(deploy(type(CoreRouteFacet).creationCode));
     }
 }

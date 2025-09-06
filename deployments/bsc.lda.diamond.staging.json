@@ -13,43 +13,43 @@
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xa392B9e5f22e0a28a9De5C213D4CB627A97eE14e": {
+      "0x5363c2db9eB0e9080574915b4C486B9851BA4326": {
         "Name": "AlgebraFacet",
         "Version": "1.0.0"
       },
-      "0x505fF7139b9e4dd2a2C20C6BA9202b134046F240": {
+      "0x07497D2C0B32537B0162dc35a4794F4B089a53Aa": {
         "Name": "CoreRouteFacet",
         "Version": "1.0.0"
       },
-      "0x8a1E84Af1c25b6b4f829e5f05559C76E481543E8": {
+      "0x7B383eD28261835e63D2aed3b4A415B29438354B": {
         "Name": "CurveFacet",
         "Version": "1.0.0"
       },
-      "0x373F947eecC311Ee1abd4C5278BaCf2d9275D286": {
+      "0xC1D230b7De7Eba42E9f4d0F20512193875Ff6F26": {
         "Name": "IzumiV3Facet",
         "Version": "1.0.0"
       },
-      "0xd96561d0bBb6E0D32Cc50C3e37F17B6831bF1798": {
+      "0x2a528a7dDa49D45f9B766e131460a36e060861B2": {
         "Name": "KatanaV3Facet",
         "Version": "1.0.0"
       },
-      "0xD076794b7731995135EAa9a55F10A4d2fFC4f431": {
+      "0xd13d6DF1ef271dC887Df5499e4059e1AeC42Ea11": {
         "Name": "NativeWrapperFacet",
         "Version": "1.0.0"
       },
-      "0x067d334ee93DAC0A87b9e9191878C8e70F85E90f": {
+      "0xdFc21dcEc5220bfaB06D865312991F6058f5dfC6": {
         "Name": "SyncSwapV2Facet",
         "Version": "1.0.0"
       },
-      "0x7f46986bCd79dCB121eeB692262303EB91b3dCD8": {
+      "0x8ee5946F6d0818557cc49A862470D89A34b986d0": {
         "Name": "UniV2StyleFacet",
         "Version": "1.0.0"
       },
-      "0x86bf822B011313e24332B7c2afae6dB55fF9A325": {
+      "0x2AA70A1115F9bA6008bD04511AAF7d81E5251d21": {
         "Name": "UniV3StyleFacet",
         "Version": "1.0.0"
       },
-      "0x597E0b62Ae957452264A19D59c8C30818755D56c": {
+      "0x8CFB30c9A05357DAd207600A577f5251Fa7bCeab": {
         "Name": "VelodromeV2Facet",
         "Version": "1.0.0"
       }
