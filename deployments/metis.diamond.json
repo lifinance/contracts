@@ -84,6 +84,10 @@
       "0x44a1f8744c85665553eFb8C24fd4428B1D3D8e1B": {
         "Name": "RelayFacet",
         "Version": "1.0.0"
+      },
+      "0x9fCFD2F51726a8Be04217967Ab25B797947825ef": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -93,6 +97,7 @@
       "GasZipPeriphery": "0x799525cE72B5cc9eb310dc8c7b9e7A3128a6dA79",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x9E4c63c9a0EDE2Ca2e772ee48C819Ca5CB4529AC",
+      "Patcher": "",
       "Permit2Proxy": "0x82D7dD86603A6344b82a3914Fe02fEF7b6CDe2E2",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",

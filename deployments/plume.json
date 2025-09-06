@@ -22,5 +22,6 @@
   "LiFiDEXAggregator": "0x9d376fd8077fF2475FD635185723A4B274fcB61C",
   "GasZipPeriphery": "0x1665f83E6fBd6bd6C550fCbd81B652bcb1b5d9F2",
   "GasZipFacet": "0x39B717fc6058D56D95eBd1aAe58d9bE15D44F2a5",
-  "LiFiTimelockController": "0x2204771020fceD17dff15980a910D926D9993B4d"
+  "LiFiTimelockController": "0x2204771020fceD17dff15980a910D926D9993B4d",
+  "RelayDepositoryFacet": "0x136928f3d4251840FbF44ce42ffe9D5928a812AF"
 }

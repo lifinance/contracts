@@ -27,8 +27,6 @@ script = "script/deploy/zksync"
 cache_path = "./zkcache"
 out = "out/zksync"
 
-lint_on_build=false
-
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
 abstract = "${ETH_NODE_URI_ABSTRACT}"
@@ -96,10 +94,6 @@ scroll = "${ETH_NODE_URI_SCROLL}"
 
 # testnets
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
-
-[lint]
-lint_on_build=false
-
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }

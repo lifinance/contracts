@@ -21,5 +21,6 @@
   "GasZipPeriphery": "0x410793b81623DFbfa6702C31128012560D6f257b",
   "GlacisFacet": "0xcC9b58959574009deFde35FC3446425aa10eAc31",
   "LiFiTimelockController": "0xA2FC19bce44975d3180414ef29b69f93325A9595",
-  "GasZipFacet": "0xC7fF0661C9fF1Da5472e71e5ee6dAdB6afa87d02"
+  "GasZipFacet": "0xC7fF0661C9fF1Da5472e71e5ee6dAdB6afa87d02",
+  "RelayDepositoryFacet": "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647"
 }
