@@ -25,40 +25,30 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // LDA Diamond uses DiamondCutFacet from regular deployment (shared with regular LiFi Diamond)
-        // Need to construct regular deployment path by removing "lda." prefix from fileSuffix
+        // Construct path to regular deployment file: <network>.json or <network>.<environment>.json
 
-        string memory regularFileSuffix;
-        bytes memory fileSuffixBytes = bytes(fileSuffix);
+        string memory regularPath;
 
-        // Check if fileSuffix starts with "lda." and remove it
-        if (
-            fileSuffixBytes.length >= 4 &&
-            fileSuffixBytes[0] == "l" &&
-            fileSuffixBytes[1] == "d" &&
-            fileSuffixBytes[2] == "a" &&
-            fileSuffixBytes[3] == "."
-        ) {
-            // Extract everything after "lda." by creating new bytes array
-            bytes memory remainingBytes = new bytes(
-                fileSuffixBytes.length - 4
+        // Check if fileSuffix is provided (non-production environment)
+        if (bytes(fileSuffix).length > 0) {
+            // Non-production: network.<environment>.json (e.g., network.staging.json, network.testnet.json)
+            regularPath = string.concat(
+                root,
+                "/deployments/",
+                network,
+                ".",
+                fileSuffix,
+                "json"
             );
-            for (uint256 i = 4; i < fileSuffixBytes.length; i++) {
-                remainingBytes[i - 4] = fileSuffixBytes[i];
-            }
-            regularFileSuffix = string(remainingBytes);
         } else {
-            // If no "lda." prefix, use as is
-            regularFileSuffix = fileSuffix;
+            // Production: network.json
+            regularPath = string.concat(
+                root,
+                "/deployments/",
+                network,
+                ".json"
+            );
         }
-
-        string memory regularPath = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            regularFileSuffix,
-            "json"
-        );
 
         emit log_named_string("regularPath", regularPath);
 

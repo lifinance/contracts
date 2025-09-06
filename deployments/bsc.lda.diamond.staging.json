@@ -1,55 +1,55 @@
 {
   "LiFiDEXAggregatorDiamond": {
     "Facets": {
-      "0xB2A8517734CDf985d53F303A1f7759A34fdC772F": {
+      "0x06045F5FA6EA7c6AcEb104b55BcD6C3dE3a08831": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0x3B75025167b5fEc275266F43c132709d58329cf4": {
+      "0x8938CEa23C3c5eAABb895765f5B0b2b07D680402": {
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x050cd05AFf1367e6DC4c20dA96fFD31FCB39e219": {
+      "0x53d4Bcd5BEa4e863376b7eA43D7465351a4d71B0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xfeE467d825052aa8347ee7Ed2D90D2568DA96EbF": {
+      "0x333363586Ff2dEa2a3791beFcc7D169D2AE13c25": {
         "Name": "AlgebraFacet",
         "Version": "1.0.0"
       },
-      "0xCaC140589393C15DA1C8E45942B3b8228CBA95C8": {
+      "0x768da7f151a99E746Fbbb4d8D6785a2ee328972f": {
         "Name": "CoreRouteFacet",
         "Version": "1.0.0"
       },
-      "0x02B8238bE17F05E9578D1F06876aE4BDc465dF7d": {
+      "0x68B0996A57dC60BC6358e23a02e46D9Fd5Bf7803": {
         "Name": "CurveFacet",
         "Version": "1.0.0"
       },
-      "0x7a7D7101a9A56882b34C0AC06328367f2356BB41": {
+      "0xe23b098834bEA96e79fF1Ef6f52EC37c37709fd3": {
         "Name": "IzumiV3Facet",
         "Version": "1.0.0"
       },
-      "0xf33C1c24ccc5A137231d89272a2383c28B1dd046": {
+      "0x7F276261b4e1Fe615694c0FaAeBf7CbE10B21942": {
         "Name": "KatanaV3Facet",
         "Version": "1.0.0"
       },
-      "0x59A1514CD90a4c3662b3003450C8878448E6D6dD": {
+      "0x52fC2aC27F6C4c532fE2B8D124c62D9103453ECc": {
         "Name": "NativeWrapperFacet",
         "Version": "1.0.0"
       },
-      "0x283831120F19fd293206AB6FaEF1C45Cf83487D0": {
+      "0xA7dC3f8e88C2468be1D5C9B3559dF845B1596833": {
         "Name": "SyncSwapV2Facet",
         "Version": "1.0.0"
       },
-      "0x181a353054883D9DdE6864Ba074226E5b77cf511": {
+      "0x098C5Fbb3A212650b903e42973A1381E6D00f585": {
         "Name": "UniV2StyleFacet",
         "Version": "1.0.0"
       },
-      "0xbE76705E06154dAb3A95837166ef04d890bDeA15": {
+      "0xA47F2C0b1fF018668C2D99DcF34e709A46078cC5": {
         "Name": "UniV3StyleFacet",
         "Version": "1.0.0"
       },
-      "0xb516E77032DC56Ff21eeb3F18463b9a120E5C374": {
+      "0x2dd5ea4b12A0D6fB689f0FD8B5287D4FF31B73d4": {
         "Name": "VelodromeV2Facet",
         "Version": "1.0.0"
       }

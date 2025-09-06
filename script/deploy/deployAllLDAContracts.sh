@@ -102,18 +102,39 @@ deployAllLDAContracts() {
   # get current LDA diamond contract version
   local VERSION=$(getCurrentContractVersion "$LDA_DIAMOND_CONTRACT_NAME")
   
-  # Call the deploy script directly to avoid infinite loop
-  local DEPLOY_SCRIPT_PATH="script/deploy/facets/LDA/DeployLiFiDEXAggregatorDiamond.s.sol"
-  
-  # Get required deployment variables
-  local BYTECODE=$(getBytecodeFromArtifact "$LDA_DIAMOND_CONTRACT_NAME")
-  local CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
-  local SALT_INPUT="$BYTECODE""$SALT"
-  local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
-  
-  # Deploy the LDA diamond using forge script directly
-  echo "[info] Deploying $LDA_DIAMOND_CONTRACT_NAME..."
-  local RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$DEPLOY_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "${GAS_ESTIMATE_MULTIPLIER:-130}")
+  # Determine the correct deploy script path based on network type
+  if isZkEvmNetwork "$NETWORK"; then
+    local DEPLOY_SCRIPT_PATH="script/deploy/zksync/LDA/DeployLiFiDEXAggregatorDiamond.zksync.s.sol"
+    echo "[info] Deploying $LDA_DIAMOND_CONTRACT_NAME using ZkSync script..."
+    
+    # Compile contracts with ZkSync compiler first
+    echo "[info] Compiling contracts with ZkSync compiler..."
+    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
+    checkFailure $? "compile contracts with ZkSync compiler"
+    
+    # Get required deployment variables for ZkSync deployment
+    local BYTECODE=$(getBytecodeFromArtifact "$LDA_DIAMOND_CONTRACT_NAME")
+    local SALT_INPUT="$BYTECODE""$SALT"
+    local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
+    
+    # For ZkSync networks, pass the regular FILE_SUFFIX so the script can construct the correct path to read DiamondCutFacet
+    # The ZkSync script will use this to read from the regular deployment file (e.g., zksync.staging.json)
+    
+    # For ZkSync networks, use ZkSync-specific deployment with DEPLOYSALT and regular file suffix
+    local RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE ./foundry-zksync/forge script "$DEPLOY_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "${GAS_ESTIMATE_MULTIPLIER:-130}")
+  else
+    local DEPLOY_SCRIPT_PATH="script/deploy/facets/LDA/DeployLiFiDEXAggregatorDiamond.s.sol"
+    
+    # Get required deployment variables for CREATE3 deployment
+    local BYTECODE=$(getBytecodeFromArtifact "$LDA_DIAMOND_CONTRACT_NAME")
+    local CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
+    local SALT_INPUT="$BYTECODE""$SALT"
+    local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
+    
+    echo "[info] Deploying $LDA_DIAMOND_CONTRACT_NAME using CREATE3 factory..."
+    # Deploy the LDA diamond using CREATE3 factory
+    local RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$DEPLOY_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "${GAS_ESTIMATE_MULTIPLIER:-130}")
+  fi
   
   # Extract deployed address
   local LDA_DIAMOND_ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")

@@ -18,22 +18,4 @@ contract DeployScript is DeployLDAScriptBase {
 
         deployed = CoreRouteFacet(deploy(type(CoreRouteFacet).creationCode));
     }
-
-    function getConstructorArgs() internal override returns (bytes memory) {
-        // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
-
-        // read file into json variable
-        string memory globalConfigJson = vm.readFile(globalConfigPath);
-
-        // extract refundWallet address as owner
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
-
-        return abi.encode(refundWalletAddress);
-    }
 }

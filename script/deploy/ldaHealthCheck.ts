@@ -90,7 +90,9 @@ const main = defineCommand({
       const stagingFile = `../../deployments/${network.toLowerCase()}.staging.json`
       consola.info(`Loading staging deployment file: ${stagingFile}`)
       try {
-        const { default: contracts } = await import(stagingFile)
+        const { default: contracts } = await import(stagingFile, {
+          with: { type: 'json' },
+        })
         mainDeployedContracts = contracts
         consola.info(
           `Successfully loaded ${
@@ -109,7 +111,9 @@ const main = defineCommand({
           consola.info(
             `Falling back to main deployment file: ${mainDeploymentFile}`
           )
-          const { default: contracts } = await import(mainDeploymentFile)
+          const { default: contracts } = await import(mainDeploymentFile, {
+            with: { type: 'json' },
+          })
           mainDeployedContracts = contracts
           consola.info(
             `Successfully loaded ${
@@ -135,7 +139,9 @@ const main = defineCommand({
     // Production - use main deployment file
     else
       try {
-        const { default: contracts } = await import(mainDeploymentFile)
+        const { default: contracts } = await import(mainDeploymentFile, {
+          with: { type: 'json' },
+        })
         mainDeployedContracts = contracts
       } catch (error) {
         consola.error(
@@ -156,7 +162,9 @@ const main = defineCommand({
     > = {}
 
     try {
-      const { default: ldaData } = await import(ldaDeploymentFile)
+      const { default: ldaData } = await import(ldaDeploymentFile, {
+        with: { type: 'json' },
+      })
       ldaFacetInfo = ldaData
     } catch (error) {
       consola.error(`Failed to load LDA facet file: ${ldaDeploymentFile}`)
@@ -167,8 +175,12 @@ const main = defineCommand({
     }
 
     // Load global config for LDA core facets
-    const globalConfig = await import('../../config/global.json')
-    const networksConfigModule = await import('../../config/networks.json')
+    const globalConfig = await import('../../config/global.json', {
+      with: { type: 'json' },
+    })
+    const networksConfigModule = await import('../../config/networks.json', {
+      with: { type: 'json' },
+    })
     const networksConfig = networksConfigModule.default
 
     // Get LDA core facets from global config

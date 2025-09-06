@@ -65,8 +65,12 @@ function ldaDiamondUpdateFacet() {
     UPDATE_SCRIPT="$SCRIPT"
   fi
 
-  # set LDA-specific script directory
-  LDA_UPDATE_SCRIPT_PATH="script/deploy/facets/LDA/${UPDATE_SCRIPT}.s.sol"
+  # set LDA-specific script directory (use ZkSync path for ZkSync networks)
+  if isZkEvmNetwork "$NETWORK"; then
+    LDA_UPDATE_SCRIPT_PATH="script/deploy/zksync/LDA/${UPDATE_SCRIPT}.zksync.s.sol"
+  else
+    LDA_UPDATE_SCRIPT_PATH="script/deploy/facets/LDA/${UPDATE_SCRIPT}.s.sol"
+  fi
 
   # check if LDA update script exists
   if ! checkIfFileExists "$LDA_UPDATE_SCRIPT_PATH" >/dev/null; then
@@ -74,8 +78,7 @@ function ldaDiamondUpdateFacet() {
     return 1
   fi
 
-  # get LDA diamond address from LDA diamond deployment file
-  local LDA_DEPLOYMENT_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
+  local LDA_DEPLOYMENT_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
   local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$LDA_DEPLOYMENT_FILE")
 
   # if no diamond address was found, throw an error and exit this script
@@ -116,8 +119,16 @@ function ldaDiamondUpdateFacet() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-    # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+    # try to execute call (use ZkSync forge for ZkSync networks)
+    if isZkEvmNetwork "$NETWORK"; then
+      # For ZkSync networks, use ZkSync-specific forge and compile first
+      echo "[info] Compiling contracts with ZkSync compiler for LDA diamond update..."
+      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+    else
+      # For regular networks, use regular forge
+      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$LDA_UPDATE_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+    fi
 
     local RETURN_CODE=$?
 
@@ -144,7 +155,8 @@ function ldaDiamondUpdateFacet() {
       if [[ $FACETS != "{}" ]]; then
         echo "[info] LDA diamond update was successful"
         if [[ $SHOW_LOGS == "true" ]]; then
-          echo "[info] Updated diamond now has $(echo "$FACETS" | jq -r '. | length') facets"
+          FACET_COUNT=$(echo "$FACETS" | jq -r '. | length' 2>/dev/null || echo "unknown")
+          echo "[info] Updated diamond now has $FACET_COUNT facets"
         fi
         return 0 # exit the loop if the operation was successful
       fi

@@ -150,12 +150,16 @@ scriptMaster() {
     # We need to make sure that the zksync fork of foundry is available before
     # we can deploy contracts to zksync.
     if isZkEvmNetwork "$NETWORK"; then
-      # Use zksync specific scripts
-      DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
       install_foundry_zksync
-      # get user-selected deploy script and contract from list
-      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+      
+      # Combine regular ZkSync contracts and LDA ZkSync contracts in the selection
+      REGULAR_ZKSYNC_SCRIPTS=$(ls -1 "script/deploy/zksync/" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy')
+      LDA_ZKSYNC_SCRIPTS=$(ls -1 "script/deploy/zksync/LDA/" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy')
+      
+      # Combine both lists and let user select
+      ALL_ZKSYNC_SCRIPTS=$(echo -e "$REGULAR_ZKSYNC_SCRIPTS\n$LDA_ZKSYNC_SCRIPTS")
+      SCRIPT=$(echo "$ALL_ZKSYNC_SCRIPTS" | gum filter --placeholder "Deploy Script")
     else
       # Combine regular LiFi contracts and LDA contracts in the selection
       REGULAR_SCRIPTS=$(ls -1 "script/deploy/facets/" | sed -e 's/\.s.sol$//' | grep 'Deploy')
@@ -169,11 +173,21 @@ scriptMaster() {
     # get user-selected deploy script and contract from list
     CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
     
-    # Set appropriate directory (deploySingleContract will auto-detect LDA based on contract name)
-    if echo "$LDA_SCRIPTS" | grep -q "^$SCRIPT$"; then
-      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/LDA/"
+    # Set appropriate directory based on network type and script location
+    if isZkEvmNetwork "$NETWORK"; then
+      # For ZkSync networks, check if it's an LDA script
+      if echo "$LDA_ZKSYNC_SCRIPTS" | grep -q "^$SCRIPT$"; then
+        DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/LDA/"
+      else
+        DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+      fi
     else
-      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
+      # For regular networks, check if it's an LDA script
+      if echo "$LDA_SCRIPTS" | grep -q "^$SCRIPT$"; then
+        DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/LDA/"
+      else
+        DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
+      fi
     fi
 
     # check if new contract should be added to diamond after deployment
@@ -181,8 +195,19 @@ scriptMaster() {
     if [[ ! "$CONTRACT" == "LiFiDiamond"* && ! "$CONTRACT" == "LiFiDEXAggregatorDiamond" ]]; then
       echo ""
       echo "Do you want to add this contract to a diamond after deployment?"
-      # Check if this is an LDA contract based on script directory
-      if echo "$LDA_SCRIPTS" | grep -q "^Deploy${CONTRACT}$"; then
+      # Check if this is an LDA contract based on network type and script
+      IS_LDA_CONTRACT=false
+      if isZkEvmNetwork "$NETWORK"; then
+        if echo "$LDA_ZKSYNC_SCRIPTS" | grep -q "^Deploy${CONTRACT}$"; then
+          IS_LDA_CONTRACT=true
+        fi
+      else
+        if echo "$LDA_SCRIPTS" | grep -q "^Deploy${CONTRACT}$"; then
+          IS_LDA_CONTRACT=true
+        fi
+      fi
+      
+      if [[ "$IS_LDA_CONTRACT" == "true" ]]; then
         # For LDA contracts, offer LDA diamond option
         ADD_TO_DIAMOND=$(
           gum choose \
