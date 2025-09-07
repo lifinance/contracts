@@ -2,9 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { stdJson } from "forge-std/StdJson.sol";
-import { BaseZkSyncUpdateScript } from "./BaseZkSyncUpdateScript.sol";
+import { BaseUpdateScript } from "./BaseUpdateScript.sol";
 
-contract UpdateScriptBase is BaseZkSyncUpdateScript {
+contract UpdateScriptBase is BaseUpdateScript {
     using stdJson for string;
 
     function _getDiamondAddress() internal override returns (address) {

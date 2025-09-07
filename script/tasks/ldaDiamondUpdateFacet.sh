@@ -12,7 +12,6 @@ function ldaDiamondUpdateFacet() {
   local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
   local UPDATE_SCRIPT="$4"
-  local SHOW_LOGS="$5"
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
@@ -94,22 +93,6 @@ function ldaDiamondUpdateFacet() {
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
   fi
 
-  # logging for debug purposes
-  if [[ $SHOW_LOGS == "true" ]]; then
-    echo ""
-    echoDebug "in function ldaDiamondUpdateFacet"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echoDebug "UPDATE_SCRIPT=$UPDATE_SCRIPT"
-    echoDebug "LDA_UPDATE_SCRIPT_PATH=$LDA_UPDATE_SCRIPT_PATH"
-    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-    echoDebug "USE_LDA_DIAMOND=$USE_LDA_DIAMOND"
-    echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
-    echo ""
-  fi
-
   # execute LDA diamond update script
   local attempts=1
 
@@ -154,10 +137,6 @@ function ldaDiamondUpdateFacet() {
       FACETS=$(echo "$RETURN_DATA" | jq -r '.facets.value // "{}"')
       if [[ $FACETS != "{}" ]]; then
         echo "[info] LDA diamond update was successful"
-        if [[ $SHOW_LOGS == "true" ]]; then
-          FACET_COUNT=$(echo "$FACETS" | jq -r '. | length' 2>/dev/null || echo "unknown")
-          echo "[info] Updated diamond now has $FACET_COUNT facets"
-        fi
         return 0 # exit the loop if the operation was successful
       fi
     fi

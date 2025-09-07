@@ -155,7 +155,7 @@ deployAllLDAContracts() {
   echo ""
   echo "[info] STEP 3: Adding core facets to LDA Diamond..."
   
-  ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$LDA_DIAMOND_CONTRACT_NAME" "UpdateLDACoreFacets" false
+  ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$LDA_DIAMOND_CONTRACT_NAME" "UpdateLDACoreFacets"
   
   if [ $? -ne 0 ]; then
     error "❌ Failed to add core facets to LDA Diamond"
@@ -174,20 +174,9 @@ deployAllLDAContracts() {
   local LDA_FACETS_PATH="src/Periphery/LDA/Facets/"
   echo "[info] Getting LDA facets from directory: $LDA_FACETS_PATH"
   
-  # prepare regExp to exclude LDA core facets (they're already added)
-  local EXCLUDED_LDA_FACETS_REGEXP="^($(echo "${LDA_CORE_FACETS[@]}" | tr ' ' '|'))$"
-  
-  echo "[info] Excluding core facets: ${LDA_CORE_FACETS[*]}"
-  
   # Deploy all non-core LDA facets and add to diamond
   for FACET_NAME in $(getContractNamesInFolder "$LDA_FACETS_PATH"); do
     echo "[info] Processing LDA facet: $FACET_NAME"
-    
-    # Skip if this is a core facet (already handled)
-    if [[ "$FACET_NAME" =~ $EXCLUDED_LDA_FACETS_REGEXP ]]; then
-      echo "[info] Skipping core facet: $FACET_NAME (already added)"
-      continue
-    fi
     
     echo "[info] Deploying and adding LDA facet: $FACET_NAME"
     
@@ -214,8 +203,8 @@ deployAllLDAContracts() {
   echo ""
   echo "[info] STEP 5: Creating LDA diamond deployment logs..."
   
-  # Update LDA diamond logs to create/populate the .lda.diamond.json file
-  updateLDADiamondLogs "$ENVIRONMENT" "$NETWORK"
+  # Update LDA diamond logs to create/populate the <network>.lda.diamond.json file
+  updateDiamondLogs "$ENVIRONMENT" "$NETWORK" "LiFiDEXAggregatorDiamond"
   
   if [ $? -ne 0 ]; then
     error "❌ Failed to update LDA diamond logs"

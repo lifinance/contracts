@@ -4457,6 +4457,7 @@ function updateDiamondLogs() {
   # read function arguments into variable
   local ENVIRONMENT=$1
   local NETWORK=$2
+  local DIAMOND_TYPE=${3:-"LiFiDiamond"}  # Optional parameter, defaults to regular diamond
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -4467,7 +4468,7 @@ function updateDiamondLogs() {
   fi
 
   echo ""
-  echo "Now updating all diamond logs on network(s): ${NETWORKS[*]}"
+  echo "Now updating all $DIAMOND_TYPE logs on network(s): ${NETWORKS[*]}"
   echo ""
 
   # ENVIRONMENTS=("production" "staging")
@@ -4492,7 +4493,7 @@ function updateDiamondLogs() {
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
       # Call the helper function in background for parallel execution
-      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" &
+      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE" &
 
       # Store the PID and job info
       pids+=($!)
@@ -4502,7 +4503,7 @@ function updateDiamondLogs() {
   done
 
   # Wait for all background jobs to complete and capture exit codes
-  echo "Waiting for all diamond log updates to complete..."
+  echo "Waiting for all $DIAMOND_TYPE log updates to complete..."
   local failed_jobs=()
   local job_count=${#pids[@]}
 
@@ -4521,12 +4522,12 @@ function updateDiamondLogs() {
 
   # Check if any jobs failed
   if [ ${#failed_jobs[@]} -gt 0 ]; then
-    error "Some diamond log updates failed: ${failed_jobs[*]}"
-    echo "All diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
+    error "Some $DIAMOND_TYPE log updates failed: ${failed_jobs[*]}"
+    echo "All $DIAMOND_TYPE log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
     playNotificationSound
     return 1
   else
-    echo "All diamond log updates completed successfully ($job_count jobs)"
+    echo "All $DIAMOND_TYPE log updates completed successfully ($job_count jobs)"
     playNotificationSound
     return 0
   fi
@@ -4839,139 +4840,4 @@ function removeNetworkFromTargetStateJSON() {
     rm "$FILE_PATH.tmp" >/dev/null 2>&1
     return 1
   fi
-}
-
-# ==== LDA-SPECIFIC HELPER FUNCTIONS ====
-
-# Deploy and add contract to LDA Diamond
-deployAndAddContractToLDADiamond() {
-  local NETWORK="$1"
-  local ENVIRONMENT="$2"
-  local CONTRACT="$3"
-  local DIAMOND_NAME="$4"
-  local VERSION="$5"
-  
-  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployAndAddContractToLDADiamond"
-  
-  # load required resources
-  source script/config.sh
-  source script/helperFunctions.sh
-  source script/deploy/deploySingleContract.sh
-  source script/tasks/ldaDiamondUpdateFacet.sh
-  
-  # Deploy the contract (LDA contract)
-  deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "true"
-  checkFailure $? "deploy contract $CONTRACT to network $NETWORK"
-  
-  # Add contract to LDA Diamond
-  ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "Update${CONTRACT}" false
-  checkFailure $? "add contract $CONTRACT to $DIAMOND_NAME on network $NETWORK"
-  
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAndAddContractToLDADiamond completed"
-  
-  return 0
-}
-
-# Deploy facet and add to LDA Diamond
-deployFacetAndAddToLDADiamond() {
-  local NETWORK="$1"
-  local ENVIRONMENT="$2"
-  local FACET_NAME="$3"
-  local DIAMOND_NAME="$4"
-  local VERSION="$5"
-  
-  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployFacetAndAddToLDADiamond for $FACET_NAME"
-  
-  # Deploy the facet and add it to LDA Diamond
-  deployAndAddContractToLDADiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_NAME" "$VERSION"
-  
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployFacetAndAddToLDADiamond completed for $FACET_NAME"
-  
-  return 0
-}
-
-
-# Update LDA diamond logs
-updateLDADiamondLogs() {
-  local ENVIRONMENT="$1"
-  local NETWORK="$2"
-  
-  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start updateLDADiamondLogs"
-  
-  # if no network was passed to this function, update all networks
-  if [[ -z $NETWORK ]]; then
-    # get array with all network names
-    NETWORKS=($(getIncludedNetworksArray))
-  else
-    NETWORKS=($NETWORK)
-  fi
-
-  echo ""
-  echo "Now updating all LDA diamond logs on network(s): ${NETWORKS[*]}"
-  echo ""
-
-  # ENVIRONMENTS=("production" "staging")
-  if [[ "$ENVIRONMENT" == "production" || -z "$ENVIRONMENT" ]]; then
-    ENVIRONMENTS=("production")
-  else
-    ENVIRONMENTS=("staging")
-  fi
-
-  # Create arrays to store background job PIDs and their corresponding network/environment info
-  local pids=()
-  local job_info=()
-  local job_index=0
-
-  # loop through all networks
-  for NETWORK in "${NETWORKS[@]}"; do
-    echo ""
-    echo "current Network: $NETWORK"
-
-    for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
-      echo " -----------------------"
-      echo " current ENVIRONMENT: $ENVIRONMENT"
-
-      # Call the helper function in background for parallel execution with LDA diamond type
-      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" "LiFiDEXAggregatorDiamond" &
-
-      # Store the PID and job info
-      pids+=($!)
-      job_info+=("$NETWORK:$ENVIRONMENT")
-      job_index=$((job_index + 1))
-    done
-  done
-
-  # Wait for all background jobs to complete and capture exit codes
-  echo "Waiting for all LDA diamond log updates to complete..."
-  local failed_jobs=()
-  local job_count=${#pids[@]}
-
-  for i in "${!pids[@]}"; do
-    local pid="${pids[$i]}"
-    local info="${job_info[$i]}"
-
-    # Wait for this specific job and capture its exit code
-    if wait "$pid"; then
-      echo "[$info] Completed successfully"
-    else
-      echo "[$info] Failed with exit code $?"
-      failed_jobs+=("$info")
-    fi
-  done
-
-  # Check if any jobs failed
-  if [ ${#failed_jobs[@]} -gt 0 ]; then
-    error "Some LDA diamond log updates failed: ${failed_jobs[*]}"
-    echo "All LDA diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
-    playNotificationSound
-    return 1
-  else
-    echo "All LDA diamond log updates completed successfully ($job_count jobs)"
-    playNotificationSound
-    return 0
-  fi
-  
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updateLDADiamondLogs completed"
-  
-  return 0
 }

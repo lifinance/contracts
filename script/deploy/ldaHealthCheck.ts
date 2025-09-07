@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// LiFi DEX Aggregator (LDA) diamond health check script
+// - validates LDA diamond contract deployment
+// - checks availability of LDA core facets (shared with regular LiFi Diamond)
+// - verifies all facets are properly registered in the diamond
+// - validates diamond ownership (multisig for production, deployer for staging)
+
 import { execSync } from 'child_process'
 
 import { defineCommand, runMain } from 'citty'

@@ -75,7 +75,6 @@ function deployFacetAndAddToDiamond() {
   fi
 
   # get diamond address from deployments script (handle both regular and LDA diamonds)
-  local DIAMOND_ADDRESS
   local DEPLOYMENT_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
   local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$DEPLOYMENT_FILE")
 
@@ -102,7 +101,7 @@ function deployFacetAndAddToDiamond() {
 
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
-  # deploy facet (deploySingleContract will auto-detect if it's LDA based on contract name)
+  # deploy facet
   deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
 
   # check if function call was successful
@@ -118,7 +117,7 @@ function deployFacetAndAddToDiamond() {
   # update diamond (use appropriate function based on diamond type)
   if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
     # Use LDA-specific update function
-    ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT" true
+    ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT"
     
     if [ $? -ne 0 ]; then
       warning "this call was not successful: ldaDiamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"

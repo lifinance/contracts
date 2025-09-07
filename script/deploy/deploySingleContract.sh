@@ -67,8 +67,9 @@ deploySingleContract() {
 
   FILE_EXTENSION=".s.sol"
 
-  # Determine deployment script directory based on network type and contract type
-  # We need to support 4 combinations:
+  # Handle ZkEVM Chains
+  # We need to use zksync specific scripts that are able to be compiled for the zkvm.
+  # Supports 4 combinations:
   # 1. Regular + Non-zkEVM = script/deploy/facets/
   # 2. Regular + zkEVM = script/deploy/zksync/
   # 3. LDA + Non-zkEVM = script/deploy/facets/LDA/
