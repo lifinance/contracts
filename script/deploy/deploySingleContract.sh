@@ -78,9 +78,8 @@ deploySingleContract() {
   # Helper function to check if contract is LDA-related
   isLDAContract() {
     local contract_name="$1"
-    # Check if contract name contains LDA-related patterns or is in LDA facets list
+    # Check if contract name is LDA diamond or is in LDA facet
     if [[ "$contract_name" == "LiFiDEXAggregatorDiamond" ]] || 
-       [[ "$contract_name" == *"LDA"* ]] ||
        [[ -f "script/deploy/facets/LDA/Deploy${contract_name}.s.sol" ]]; then
       return 0  # true
     else
