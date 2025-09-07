@@ -220,7 +220,6 @@ scriptMaster() {
           gum choose \
             "yes - to LiFiDiamond" \
             "yes - to LiFiDiamondImmutable" \
-            "yes - to LiFiDEXAggregatorDiamond" \
             " no - do not update any diamond"
         )
       fi
