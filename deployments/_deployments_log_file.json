@@ -40002,11 +40002,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xC1D230b7De7Eba42E9f4d0F20512193875Ff6F26",
+            "ADDRESS": "0x0e5898bAa8CAf208292a9f7b0C5DA7BbDFc95F4b",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-09-06 19:23:13",
+            "TIMESTAMP": "2025-09-07 12:00:18",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "22345121",
+            "SALT": "22345120",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
