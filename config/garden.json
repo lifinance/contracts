@@ -1,23 +1,23 @@
 {
   "mainnet": {
-    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+    "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
   "base": {
-    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+    "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
   "bera": {
-    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+    "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
   "bsc": {
-    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+    "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
   "botanix": {
-    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+    "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
   "core": {
-    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+    "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
   "corn": {
-    "htlcRegistry": "0x8C4Bb269d2800edeeF6dDE3851b777760101ABBD"
+    "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   }
 }
