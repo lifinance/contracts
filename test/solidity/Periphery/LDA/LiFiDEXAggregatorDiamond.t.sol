@@ -4,10 +4,10 @@ pragma solidity ^0.8.17;
 import { LiFiDEXAggregatorDiamond } from "lifi/Periphery/LDA/LiFiDEXAggregatorDiamond.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { CommonDiamondTest } from "../../utils/CommonDiamondTest.sol";
+import { BaseDiamondTest } from "../../utils/BaseDiamondTest.sol";
 
 /// @notice Spins up a minimal LDA (LiFi DEX Aggregator) Diamond with loupe, ownership, and emergency pause facets for periphery tests.
-contract LiFiDEXAggregatorDiamondTest is CommonDiamondTest {
+contract LiFiDEXAggregatorDiamondTest is BaseDiamondTest {
     LiFiDEXAggregatorDiamond public ldaDiamond;
 
     function setUp() public virtual override {
