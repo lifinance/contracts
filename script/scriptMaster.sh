@@ -147,27 +147,10 @@ scriptMaster() {
     checkRequiredVariablesInDotEnv "$NETWORK"
 
     # Handle ZkSync
-    # We need to make sure that the zksync fork of foundry is available before
-    # we can deploy contracts to zksync.
     if isZkEvmNetwork "$NETWORK"; then
-      # Check if the foundry-zksync binaries exist, if not fetch them
-      install_foundry_zksync
-      
-      # Combine regular ZkSync contracts and LDA ZkSync contracts in the selection
-      REGULAR_ZKSYNC_SCRIPTS=$(ls -1 "script/deploy/zksync/" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy')
-      LDA_ZKSYNC_SCRIPTS=$(ls -1 "script/deploy/zksync/LDA/" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy')
-      
-      # Combine both lists and let user select
-      ALL_ZKSYNC_SCRIPTS=$(echo -e "$REGULAR_ZKSYNC_SCRIPTS\n$LDA_ZKSYNC_SCRIPTS")
-      SCRIPT=$(echo "$ALL_ZKSYNC_SCRIPTS" | gum filter --placeholder "Deploy Script")
+      SCRIPT=$(ls -1 "script/deploy/zksync/" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     else
-      # Combine regular LiFi contracts and LDA contracts in the selection
-      REGULAR_SCRIPTS=$(ls -1 "script/deploy/facets/" | sed -e 's/\.s.sol$//' | grep 'Deploy')
-      LDA_SCRIPTS=$(ls -1 "script/deploy/facets/LDA/" | sed -e 's/\.s.sol$//' | grep 'Deploy')
-      
-      # Combine both lists and let user select
-      ALL_SCRIPTS=$(echo -e "$REGULAR_SCRIPTS\n$LDA_SCRIPTS")
-      SCRIPT=$(echo "$ALL_SCRIPTS" | gum filter --placeholder "Deploy Script")
+      SCRIPT=$(ls -1 "script/deploy/facets/" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     fi
 
     # get user-selected deploy script and contract from list

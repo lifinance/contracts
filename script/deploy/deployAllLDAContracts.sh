@@ -18,7 +18,7 @@ deployAllLDAContracts() {
   source script/config.sh
   source script/helperFunctions.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
-  source script/tasks/ldaDiamondUpdateFacet.sh
+  source script/tasks/diamondUpdateFacet.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -155,7 +155,7 @@ deployAllLDAContracts() {
   echo ""
   echo "[info] STEP 3: Adding core facets to LDA Diamond..."
   
-  ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$LDA_DIAMOND_CONTRACT_NAME" "UpdateLDACoreFacets"
+  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$LDA_DIAMOND_CONTRACT_NAME" "UpdateLDACoreFacets"
   
   if [ $? -ne 0 ]; then
     error "❌ Failed to add core facets to LDA Diamond"

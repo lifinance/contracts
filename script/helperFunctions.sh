@@ -915,6 +915,7 @@ function saveDiamondFacets() {
   ENVIRONMENT=$2
   USE_MUTABLE_DIAMOND=$3
   FACETS=$4
+  DIAMOND_CONTRACT_NAME=$5  # Optional: "LiFiDEXAggregatorDiamond" for LDA diamonds
 
   # logging for debug purposes
   echo ""
@@ -923,6 +924,7 @@ function saveDiamondFacets() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
   echoDebug "FACETS=$FACETS"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -931,11 +933,17 @@ function saveDiamondFacets() {
   FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
   FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
 
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
+  # define path for json file based on diamond contract name
+  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
+    # LDA diamond
+    DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
+    DIAMOND_NAME="LiFiDEXAggregatorDiamond"
+  elif [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
+    # Regular mutable diamond
     DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
     DIAMOND_NAME="LiFiDiamond"
   else
+    # Regular immutable diamond
     DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
     DIAMOND_NAME="LiFiDiamondImmutable"
   fi
@@ -973,9 +981,12 @@ function saveDiamondFacets() {
     printf %s "$result" >"$DIAMOND_FILE"
   done
 
-  # add information about registered periphery contracts
-  saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+  # add information about registered periphery contracts (only for regular diamonds, not LDA)
+  if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+  fi
 }
+
 function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   # read function arguments into variables
   NETWORK=$1
@@ -1127,65 +1138,6 @@ function saveDiamondPeriphery() {
 
     # add new entry to JSON file
     result=$(cat "$DIAMOND_FILE" | jq -r ".$DIAMOND_NAME.Periphery += {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$DIAMOND_FILE")
-    printf %s "$result" >"$DIAMOND_FILE"
-  done
-}
-
-# LDA-specific diamond save functions
-function saveLDADiamondFacets() {
-  # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  FACETS=$3
-
-  # logging for debug purposes
-  echo ""
-  echoDebug "in function saveLDADiamondFacets"
-  echoDebug "NETWORK=$NETWORK"
-  echoDebug "ENVIRONMENT=$ENVIRONMENT"
-  echoDebug "FACETS=$FACETS"
-
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # store function arguments in variables
-  FACETS=$(echo "$3" | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
-
-  # define path for LDA diamond json file
-  DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
-  DIAMOND_NAME="LiFiDEXAggregatorDiamond"
-
-  # create an empty json that replaces the existing file
-  echo "{}" >"$DIAMOND_FILE"
-
-  # create an iterable FACETS array
-  # Remove brackets from FACETS string
-  FACETS_ADJ="${3#\[}"
-  FACETS_ADJ="${FACETS_ADJ%\]}"
-  # Split string into array
-  IFS=', ' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
-
-  # loop through all facets
-  for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
-    # get a JSON entry from log file
-    JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-
-    # check if contract was found in log file
-    if [[ $? -ne 0 ]]; then
-      warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
-
-      # try to find name of contract from network-specific deployments file
-      # load JSON FILE that contains deployment addresses
-      NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-
-      # create JSON entry manually with limited information (address only)
-      JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
-    fi
-
-    # add new entry to JSON file
-    result=$(cat "$DIAMOND_FILE" | jq -r --argjson json_entry "$JSON_ENTRY" '.[$diamond_name] |= . + {Facets: (.Facets + $json_entry)}' --arg diamond_name "$DIAMOND_NAME" || cat "$DIAMOND_FILE")
-
     printf %s "$result" >"$DIAMOND_FILE"
   done
 }
@@ -2544,7 +2496,7 @@ function updateAllContractsToTargetState() {
 
           # update diamond with core facets
           echo ""
-          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" false 2>/dev/null
+          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" 2>/dev/null
 
           # check if last command was executed successfully, otherwise exit script with error message
           checkFailure $? "update core facets in $DIAMOND_NAME on network $NETWORK"
@@ -4432,7 +4384,7 @@ function updateDiamondLogForNetwork() {
       local DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
       echo "{\"$DIAMOND_TYPE\": {\"Facets\": {}}}" >"$DIAMOND_FILE"
     else
-      saveLDADiamondFacets "$NETWORK" "$ENVIRONMENT" "$KNOWN_FACET_ADDRESSES"
+      saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "LiFiDEXAggregatorDiamond"
     fi
   else
     # For regular diamonds, use existing save functions
@@ -4457,7 +4409,7 @@ function updateDiamondLogs() {
   # read function arguments into variable
   local ENVIRONMENT=$1
   local NETWORK=$2
-  local DIAMOND_TYPE=${3:-"LiFiDiamond"}  # Optional parameter, defaults to regular diamond
+  local DIAMOND_TYPE=${3:-"LiFiDiamond"}  # Default to LiFiDiamond, can be "LiFiDEXAggregatorDiamond" for LDA
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then

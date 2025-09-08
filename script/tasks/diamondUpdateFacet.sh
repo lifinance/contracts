@@ -11,7 +11,6 @@ diamondUpdateFacet() {
   local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
   local SCRIPT="$4"
-  local REPLACE_EXISTING_FACET="$5"
 
   # if no ENVIRONMENT was passed to this function, determine it
   if [[ -z "$ENVIRONMENT" ]]; then
@@ -82,22 +81,37 @@ diamondUpdateFacet() {
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
     echo "Please select which facet you would like to update"
-    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
+      SCRIPT=$(ls -1 "script/deploy/facets/LDA/" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update LDA Script")
+    else
+      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
+    fi
   fi
 
-  # Handle script paths and extensions based on network type
+  # Handle script paths and extensions based on network type and diamond type
   if isZkEvmNetwork "$NETWORK"; then
-    SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
+      SCRIPT_PATH="script/deploy/zksync/LDA/$SCRIPT.zksync.s.sol"
+    else
+      SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
+    fi
     # Check if the foundry-zksync binaries exist, if not fetch them
     install_foundry_zksync
   else
-    SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
+      SCRIPT_PATH="script/deploy/facets/LDA/$SCRIPT.s.sol"
+    else
+      SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
+    fi
   fi
 
   CONTRACT_NAME=$(basename "$SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//' | sed 's/\.s\.sol$//')
 
   # set flag for mutable/immutable diamond
-  USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
+  USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" || "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]] && echo true || echo false)
+
+  # set flag for LDA diamond
+  USE_LDA_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]] && echo false || echo true)
 
   # logging for debug purposes
   echoDebug "updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
@@ -121,10 +135,10 @@ diamondUpdateFacet() {
 
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync)
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
       fi
 
       # Extract JSON starting with {"logs": from mixed output
@@ -162,9 +176,9 @@ diamondUpdateFacet() {
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync USE_DEF_DIAMOND=$USE_LDA_DIAMOND ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
       else
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --broadcast --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_LDA_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --broadcast --legacy)
       fi
     fi
     RETURN_CODE=$?
@@ -201,7 +215,7 @@ diamondUpdateFacet() {
 
   # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
   if [[ "$ENVIRONMENT" != "production" ]]; then
-    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS" "$DIAMOND_CONTRACT_NAME"
   fi
 
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"

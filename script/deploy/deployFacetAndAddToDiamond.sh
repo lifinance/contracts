@@ -10,8 +10,6 @@ function deployFacetAndAddToDiamond() {
   source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
   source script/tasks/diamondUpdatePeriphery.sh
-  source script/tasks/ldaDiamondUpdateFacet.sh
-
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -114,23 +112,11 @@ function deployFacetAndAddToDiamond() {
   # prepare update script name
   local UPDATE_SCRIPT="Update$FACET_CONTRACT_NAME"
 
-  # update diamond (use appropriate function based on diamond type)
-  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
-    # Use LDA-specific update function
-    ldaDiamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT"
-    
-    if [ $? -ne 0 ]; then
-      warning "this call was not successful: ldaDiamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
-      return 1
-    fi
-  else
-    # Use regular diamond update function
-    diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT" true
-    
-    if [ $? -ne 0 ]; then
-      warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
-      return 1
-    fi
+  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT"
+  
+  if [ $? -ne 0 ]; then
+    warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT"
+    return 1
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME successfully deployed and added to $DIAMOND_CONTRACT_NAME"
