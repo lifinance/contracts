@@ -123,7 +123,7 @@ scriptMaster() {
       "11) Update diamond log(s)" \
       "12) Propose upgrade TX to Gnosis SAFE" \
       "13) Remove facets or periphery from diamond" \
-      "14) Deploy LDA facet to one selected network" \
+      "14) Deploy LDA contract to one selected network" \
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -592,10 +592,10 @@ scriptMaster() {
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 14: Deploy LDA facet to one selected network
+  # use case 14: Deploy LDA contract to one selected network
   elif [[ "$SELECTION" == "14)"* ]]; then
     echo ""
-    echo "[info] selected use case: Deploy LDA facet to one selected network"
+    echo "[info] selected use case: Deploy LDA contract to one selected network"
 
     checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
     # get user-selected network from list
