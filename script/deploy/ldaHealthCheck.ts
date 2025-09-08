@@ -82,10 +82,9 @@ const main = defineCommand({
       process.exit(1)
     }
 
-    // Load main deployment file (contains LiFiDEXAggregatorDiamond address and shared infrastructure)
-    // For staging, try environment-specific file first, then fallback to main
-    let mainDeployedContracts: Record<string, string> = {}
-    const mainDeploymentFile = `../../deployments/${network.toLowerCase()}.json`
+    // Load deployment file (contains LiFiDEXAggregatorDiamond address and shared infrastructure)
+    let deployedContracts: Record<string, string> = {}
+    const productionDeploymentFile = `../../deployments/${network.toLowerCase()}.json`
 
     if (environment === 'staging') {
       const stagingFile = `../../deployments/${network.toLowerCase()}.staging.json`
@@ -94,63 +93,45 @@ const main = defineCommand({
         const { default: contracts } = await import(stagingFile, {
           with: { type: 'json' },
         })
-        mainDeployedContracts = contracts
+        deployedContracts = contracts
         consola.info(
           `Successfully loaded ${
             Object.keys(contracts).length
           } contracts from staging file`
         )
-        consola.info(
-          `LiFiDEXAggregatorDiamond address: ${
-            contracts['LiFiDEXAggregatorDiamond'] || 'NOT FOUND'
-          }`
-        )
       } catch (error) {
-        consola.warn(`Failed to load staging file: ${error}`)
-        // Fallback to main deployment file for staging
-        try {
-          consola.info(
-            `Falling back to main deployment file: ${mainDeploymentFile}`
-          )
-          const { default: contracts } = await import(mainDeploymentFile, {
-            with: { type: 'json' },
-          })
-          mainDeployedContracts = contracts
-          consola.info(
-            `Successfully loaded ${
-              Object.keys(contracts).length
-            } contracts from main file`
-          )
-          consola.info(
-            `LiFiDEXAggregatorDiamond address: ${
-              contracts['LiFiDEXAggregatorDiamond'] || 'NOT FOUND'
-            }`
-          )
-        } catch (fallbackError) {
-          consola.error(
-            `Failed to load deployment files: ${stagingFile} and ${mainDeploymentFile}`
-          )
-          consola.error(
-            'Cannot verify LDA diamond and core facets availability.'
-          )
-          process.exit(1)
-        }
+        consola.error(`Failed to load staging deployment file: ${stagingFile}`)
+        consola.error(`Error: ${error}`)
+        consola.error(
+          'Cannot proceed with staging environment without staging deployment file.'
+        )
+        process.exit(1)
       }
     }
-    // Production - use main deployment file
-    else
+    // Production - use production deployment file
+    else {
+      consola.info(
+        `Loading production deployment file: ${productionDeploymentFile}`
+      )
       try {
-        const { default: contracts } = await import(mainDeploymentFile, {
+        const { default: contracts } = await import(productionDeploymentFile, {
           with: { type: 'json' },
         })
-        mainDeployedContracts = contracts
+        deployedContracts = contracts
+        consola.info(
+          `Successfully loaded ${
+            Object.keys(contracts).length
+          } contracts from production file`
+        )
       } catch (error) {
         consola.error(
-          `Failed to load main deployment file: ${mainDeploymentFile}`
+          `Failed to load production deployment file: ${productionDeploymentFile}`
         )
+        consola.error(`Error: ${error}`)
         consola.error('Cannot verify LDA diamond and core facets availability.')
         process.exit(1)
       }
+    }
 
     // Load LDA-specific facet information
     const ldaDeploymentFile =
@@ -203,13 +184,13 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking LDA diamond contract full deployment...')
 
-    const diamondAddress = mainDeployedContracts['LiFiDEXAggregatorDiamond']
+    const diamondAddress = deployedContracts['LiFiDEXAggregatorDiamond']
     consola.info(
       `Looking for LiFiDEXAggregatorDiamond at address: ${diamondAddress}`
     )
     consola.info(
-      `Available contracts in mainDeployedContracts: ${Object.keys(
-        mainDeployedContracts
+      `Available contracts in deployedContracts: ${Object.keys(
+        deployedContracts
       )
         .filter((k) => k.includes('LiFi'))
         .join(', ')}`
@@ -217,7 +198,7 @@ const main = defineCommand({
 
     const diamondDeployed = await checkIsDeployedWithCast(
       'LiFiDEXAggregatorDiamond',
-      mainDeployedContracts,
+      deployedContracts,
       rpcUrl
     )
 
@@ -238,7 +219,7 @@ const main = defineCommand({
       // Check if core facet is deployed in regular deployment file (shared with LiFi Diamond)
       const isDeployed = await checkIsDeployedWithCast(
         facet,
-        mainDeployedContracts,
+        deployedContracts,
         rpcUrl
       )
 
@@ -273,13 +254,13 @@ const main = defineCommand({
 
       if (Array.isArray(onChainFacets)) {
         // Create mapping from addresses to facet names
-        // For core facets, use addresses from main deployment file
+        // For core facets, use addresses from production deployment file
         // For non-core facets, use addresses from LDA deployment file
         const configFacetsByAddress: Record<string, string> = {}
 
-        // Add core facets from main deployment file
+        // Add core facets from production deployment file
         for (const facet of ldaCoreFacets) {
-          const address = mainDeployedContracts[facet]
+          const address = deployedContracts[facet]
           if (address) configFacetsByAddress[address.toLowerCase()] = facet
         }
 
