@@ -2,7 +2,7 @@
 
 # deploys a single contract
 # should be called like this:
-# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true false)
+# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
   # load config & helper functions
   source script/config.sh

@@ -176,8 +176,6 @@ deployAllLDAContracts() {
   
   # Deploy all non-core LDA facets and add to diamond
   for FACET_NAME in $(getContractNamesInFolder "$LDA_FACETS_PATH"); do
-    echo "[info] Processing LDA facet: $FACET_NAME"
-    
     echo "[info] Deploying and adding LDA facet: $FACET_NAME"
     
     # get current contract version
