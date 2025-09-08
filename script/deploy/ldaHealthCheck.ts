@@ -307,57 +307,51 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │              Check LDA Diamond ownership                 │
     //          ╰─────────────────────────────────────────────────────────╯
-    consola.box('Checking LDA Diamond ownership...')
 
-    try {
-      const owner = execSync(
-        `cast call "${diamondAddress}" "owner() returns (address)" --rpc-url "${rpcUrl}"`,
-        { encoding: 'utf8', stdio: 'pipe' }
-      ).trim()
+    if (environment === 'production') {
+      consola.box('Checking LDA Diamond ownership...')
 
-      consola.info(`LiFiDEXAggregatorDiamond current owner: ${owner}`)
+      try {
+        const owner = execSync(
+          `cast call "${diamondAddress}" "owner() returns (address)" --rpc-url "${rpcUrl}"`,
+          { encoding: 'utf8', stdio: 'pipe' }
+        ).trim()
 
-      // Get expected multisig address from networks.json
-      const expectedMultisigAddress =
-        networksConfig[network.toLowerCase() as SupportedChain]?.safeAddress
+        consola.info(`LiFiDEXAggregatorDiamond current owner: ${owner}`)
 
-      if (!expectedMultisigAddress) {
-        if (environment === 'production') {
+        // Get expected multisig address from networks.json
+        const expectedMultisigAddress =
+          networksConfig[network.toLowerCase() as SupportedChain]?.safeAddress
+
+        if (!expectedMultisigAddress) {
           logError(
             `No multisig address (safeAddress) found in networks.json for network ${network}`
           )
         } else {
-          consola.warn(
-            `No multisig address (safeAddress) found in networks.json for network ${network}`
+          consola.info(
+            `Expected multisig address from networks.json: ${expectedMultisigAddress}`
           )
-          consola.info('For staging environment, this is acceptable')
-        }
-      } else {
-        consola.info(
-          `Expected multisig address from networks.json: ${expectedMultisigAddress}`
-        )
 
-        if (owner.toLowerCase() === expectedMultisigAddress.toLowerCase()) {
-          consola.success(
-            `✅ LiFiDEXAggregatorDiamond is correctly owned by multisig: ${expectedMultisigAddress}`
-          )
-        } else {
-          if (environment === 'production') {
+          if (owner.toLowerCase() === expectedMultisigAddress.toLowerCase()) {
+            consola.success(
+              `✅ LiFiDEXAggregatorDiamond is correctly owned by multisig: ${expectedMultisigAddress}`
+            )
+          } else {
             logError(
               `❌ LiFiDEXAggregatorDiamond ownership mismatch! Current owner: ${owner}, Expected multisig: ${expectedMultisigAddress}`
             )
-          } else {
-            consola.info(
-              'For staging environment, ownership transfer to multisig is not done'
-            )
           }
         }
+      } catch (error) {
+        logError(
+          `Failed to check LiFiDEXAggregatorDiamond ownership: ${
+            (error as Error).message
+          }`
+        )
       }
-    } catch (error) {
-      logError(
-        `Failed to check LiFiDEXAggregatorDiamond ownership: ${
-          (error as Error).message
-        }`
+    } else {
+      consola.info(
+        '⏭️  Skipping LDA Diamond ownership check for staging environment'
       )
     }
 
