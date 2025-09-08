@@ -271,7 +271,10 @@ abstract contract UpdateScriptBase is ScriptBase {
         virtual
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(string.concat(".", name));
+        address facet = _getConfigContractAddress(
+            path,
+            string.concat(".", name)
+        );
 
         bytes4[] memory excludes = getExcludes();
         bytes memory callData = getCallData();
