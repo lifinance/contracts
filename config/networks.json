@@ -17,7 +17,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.05
   },
   "abstract": {
     "name": "abstract",
@@ -36,7 +37,8 @@
     "gasZipChainId": 110,
     "isZkEVM": true,
     "deployedWithEvmVersion": "shanghai",
-    "deployedWithSolcVersion": "0.8.26"
+    "deployedWithSolcVersion": "0.8.26",
+    "balanceThreshold": 0.01
   },
   "apechain": {
     "name": "apechain",
@@ -56,7 +58,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 10
   },
   "arbitrum": {
     "name": "arbitrum",
@@ -76,7 +79,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "aurora": {
     "name": "aurora",
@@ -96,7 +100,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "avalanche": {
     "name": "avalanche",
@@ -116,7 +121,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.5
   },
   "base": {
     "name": "base",
@@ -136,7 +142,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "berachain": {
     "name": "berachain",
@@ -156,7 +163,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.26",
-    "create3Factory": "0x5f63A2d7850776465b84Bc0fe6284BBC8188dbC7"
+    "create3Factory": "0x5f63A2d7850776465b84Bc0fe6284BBC8188dbC7",
+    "balanceThreshold": 0.5
   },
   "blast": {
     "name": "blast",
@@ -176,7 +184,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "bob": {
     "name": "bob",
@@ -198,7 +207,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "balanceThreshold": 0.01
   },
   "boba": {
     "name": "boba",
@@ -218,7 +228,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "bsc": {
     "name": "bsc",
@@ -238,7 +249,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.05
   },
   "celo": {
     "name": "celo",
@@ -258,7 +270,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 1
   },
   "corn": {
     "name": "corn",
@@ -278,7 +291,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C"
+    "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C",
+    "balanceThreshold": 0.1
   },
   "cronos": {
     "name": "cronos",
@@ -298,7 +312,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.1
   },
   "etherlink": {
     "name": "etherlink",
@@ -318,7 +333,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": "0x95d0A9c49A990514cB6FDAA7FfB49550BD23F148"
+    "create3Factory": "0x95d0A9c49A990514cB6FDAA7FfB49550BD23F148",
+    "balanceThreshold": 0.1
   },
   "fantom": {
     "name": "fantom",
@@ -339,7 +355,8 @@
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
-    "devNotes": "Automatic verification does not work. This network will be decommissioned soon. We will not introduce TimelockController here"
+    "devNotes": "Automatic verification does not work. This network will be decommissioned soon. We will not introduce TimelockController here",
+    "balanceThreshold": 5
   },
   "flare": {
     "name": "flare",
@@ -359,7 +376,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "balanceThreshold": 0.1
   },
   "fraxtal": {
     "name": "fraxtal",
@@ -379,7 +397,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "fuse": {
     "name": "fuse",
@@ -399,7 +418,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 5
   },
   "gnosis": {
     "name": "gnosis",
@@ -419,7 +439,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.5
   },
   "gravity": {
     "name": "gravity",
@@ -439,7 +460,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 1
   },
   "hyperevm": {
     "name": "hyperevm",
@@ -462,7 +484,8 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xf1469bEc8cDccEC511C0DdAaBa88B63f5841137a",
-    "devNotes": "To switch between smaller blocks (2M max gas limit, fast) and bigger blocks (30m gas limit, slow, for contract deployments, use this FE to toggle: https://hyperevm-block-toggle.vercel.app/"
+    "devNotes": "To switch between smaller blocks (2M max gas limit, fast) and bigger blocks (30m gas limit, slow, for contract deployments, use this FE to toggle: https://hyperevm-block-toggle.vercel.app/",
+    "balanceThreshold": 0.1
   },
   "immutablezkevm": {
     "name": "immutablezkevm",
@@ -482,7 +505,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.1
   },
   "ink": {
     "name": "ink",
@@ -502,7 +526,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "balanceThreshold": 0.01
   },
   "kaia": {
     "name": "kaia",
@@ -523,7 +548,8 @@
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0xC3C73FEE9Cef413880696e6C39365BDf8cD564f9",
-    "devNotes": "Verification seems to fail but contracts are sometimes still verified. For deployments, it sometimes help to set GAS_ESTIMATE_MULTIPLIER in .env to 200 or higher"
+    "devNotes": "Verification seems to fail but contracts are sometimes still verified. For deployments, it sometimes help to set GAS_ESTIMATE_MULTIPLIER in .env to 200 or higher",
+    "balanceThreshold": 0.1
   },
   "katana": {
     "name": "katana",
@@ -543,7 +569,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208"
+    "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208",
+    "balanceThreshold": 0.1
   },
   "lens": {
     "name": "lens",
@@ -562,7 +589,8 @@
     "gasZipChainId": 442,
     "isZkEVM": true,
     "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.26"
+    "deployedWithSolcVersion": "0.8.26",
+    "balanceThreshold": 0.1
   },
   "linea": {
     "name": "linea",
@@ -582,7 +610,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
+    "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499",
+    "balanceThreshold": 0.01
   },
   "lisk": {
     "name": "lisk",
@@ -602,7 +631,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "mantle": {
     "name": "mantle",
@@ -623,7 +653,8 @@
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
-    "devNotes": "When using LDA 1.11.0 in evm=cancun some transactions were failing. So probably better to always use 0.8.17 and evm=london"
+    "devNotes": "When using LDA 1.11.0 in evm=cancun some transactions were failing. So probably better to always use 0.8.17 and evm=london",
+    "balanceThreshold": 0.01
   },
   "metis": {
     "name": "metis",
@@ -643,7 +674,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x763f212f355433C59d734C71247d16fCE74D8785"
+    "create3Factory": "0x763f212f355433C59d734C71247d16fCE74D8785",
+    "balanceThreshold": 0.5
   },
   "mode": {
     "name": "mode",
@@ -663,7 +695,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "moonbeam": {
     "name": "moonbeam",
@@ -683,7 +716,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.5
   },
   "moonriver": {
     "name": "moonriver",
@@ -703,7 +737,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.5
   },
   "nibiru": {
     "name": "nibiru",
@@ -723,7 +758,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
+    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287",
+    "balanceThreshold": 0.1
   },
   "optimism": {
     "name": "optimism",
@@ -743,7 +779,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "opbnb": {
     "name": "opbnb",
@@ -763,7 +800,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.1
   },
   "plume": {
     "name": "plume",
@@ -783,7 +821,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C"
+    "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C",
+    "balanceThreshold": 0.1
   },
   "polygon": {
     "name": "polygon",
@@ -803,7 +842,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 5
   },
   "polygonzkevm": {
     "name": "polygonzkevm",
@@ -823,7 +863,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.5
   },
   "ronin": {
     "name": "ronin",
@@ -844,7 +885,8 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
-    "devNotes": "Contract verification is not working, but it is deployed. Only supports Sourcify verification but couldnt get it work. Details in helperFunctions.sh"
+    "devNotes": "Contract verification is not working, but it is deployed. Only supports Sourcify verification but couldnt get it work. Details in helperFunctions.sh",
+    "balanceThreshold": 0.1
   },
   "rootstock": {
     "name": "rootstock",
@@ -864,7 +906,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.001
   },
   "scroll": {
     "name": "scroll",
@@ -884,7 +927,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "sei": {
     "name": "sei",
@@ -904,7 +948,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 1
   },
   "soneium": {
     "name": "soneium",
@@ -924,7 +969,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "balanceThreshold": 0.1
   },
   "sonic": {
     "name": "sonic",
@@ -944,7 +990,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.1
   },
   "sophon": {
     "name": "sophon",
@@ -964,7 +1011,8 @@
     "isZkEVM": true,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "devNotes": "Contract verification is not working. In contact with the team to find a resolution. "
+    "devNotes": "Contract verification is not working. In contact with the team to find a resolution. ",
+    "balanceThreshold": 0.1
   },
   "superposition": {
     "name": "superposition",
@@ -984,7 +1032,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "balanceThreshold": 0.1
   },
   "swellchain": {
     "name": "swellchain",
@@ -1004,7 +1053,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": "0x6f4108819C19e1f218E45DE89e728ce0240a8593"
+    "create3Factory": "0x6f4108819C19e1f218E45DE89e728ce0240a8593",
+    "balanceThreshold": 0.1
   },
   "taiko": {
     "name": "taiko",
@@ -1024,7 +1074,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
+    "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499",
+    "balanceThreshold": 0.01
   },
   "unichain": {
     "name": "unichain",
@@ -1044,7 +1095,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.28",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "balanceThreshold": 0.1
   },
   "vana": {
     "name": "vana",
@@ -1064,7 +1116,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "balanceThreshold": 0.1
   },
   "viction": {
     "name": "viction",
@@ -1085,7 +1138,8 @@
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
-    "devNotes": "Contract Verification does not work correctly. It appears like it fails but it doesnt. Need to manually update deploy log (verify flag) after. Contract deployments work only after removing --skip-simulation flag when calling forge scripts. Sometimes removing --json flag helped to push a script through"
+    "devNotes": "Contract Verification does not work correctly. It appears like it fails but it doesnt. Need to manually update deploy log (verify flag) after. Contract deployments work only after removing --skip-simulation flag when calling forge scripts. Sometimes removing --json flag helped to push a script through",
+    "balanceThreshold": 0.1
   },
   "worldchain": {
     "name": "worldchain",
@@ -1105,7 +1159,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.01
   },
   "xdc": {
     "name": "xdc",
@@ -1125,7 +1180,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
+    "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287",
+    "balanceThreshold": 0.1
   },
   "xlayer": {
     "name": "xlayer",
@@ -1145,7 +1201,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "balanceThreshold": 0.1
   },
   "tron": {
     "name": "tron",
@@ -1165,7 +1222,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs"
+    "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs",
+    "balanceThreshold": 50
   },
   "tronshasta": {
     "name": "tronshasta",
@@ -1185,7 +1243,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": ""
+    "create3Factory": "",
+    "balanceThreshold": 100
   },
   "zksync": {
     "name": "zksync",
@@ -1204,7 +1263,8 @@
     "gasZipChainId": 51,
     "isZkEVM": true,
     "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17"
+    "deployedWithSolcVersion": "0.8.17",
+    "balanceThreshold": 0.01
   },
   "localanvil": {
     "name": "localanvil",
@@ -1224,6 +1284,7 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "",
     "deployedWithSolcVersion": "",
-    "create3Factory": ""
+    "create3Factory": "",
+    "balanceThreshold": 0.1
   }
 }

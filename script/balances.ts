@@ -38,6 +38,7 @@ interface INetworkConfig {
   deployedWithSolcVersion: string
   create3Factory?: string
   devNotes?: string
+  balanceThreshold?: number
 }
 
 interface IBalanceResult {
@@ -46,6 +47,8 @@ interface IBalanceResult {
   nativeCurrency: string
   balance: string
   formattedBalance: string
+  threshold?: number
+  isBelowThreshold?: boolean
   error?: string
 }
 
@@ -70,6 +73,11 @@ async function getTronBalance(
       nativeCurrency: network.nativeCurrency,
       balance: balanceInSun.toString(),
       formattedBalance: balanceInTrx.toFixed(6),
+      threshold: network.balanceThreshold,
+      isBelowThreshold:
+        network.balanceThreshold !== undefined
+          ? balanceInTrx < network.balanceThreshold
+          : undefined,
     }
   } catch (error) {
     return {
@@ -78,6 +86,9 @@ async function getTronBalance(
       nativeCurrency: network.nativeCurrency,
       balance: '0',
       formattedBalance: '0',
+      threshold: network.balanceThreshold,
+      isBelowThreshold:
+        network.balanceThreshold !== undefined ? true : undefined,
       error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
@@ -104,6 +115,7 @@ async function getEvmBalance(
     })
 
     const formattedBalance = formatEther(balance)
+    const balanceNum = parseFloat(formattedBalance)
 
     return {
       network: network.name,
@@ -111,6 +123,11 @@ async function getEvmBalance(
       nativeCurrency: network.nativeCurrency,
       balance: balance.toString(),
       formattedBalance: formattedBalance,
+      threshold: network.balanceThreshold,
+      isBelowThreshold:
+        network.balanceThreshold !== undefined
+          ? balanceNum < network.balanceThreshold
+          : undefined,
     }
   } catch (error) {
     return {
@@ -119,12 +136,94 @@ async function getEvmBalance(
       nativeCurrency: network.nativeCurrency,
       balance: '0',
       formattedBalance: '0',
+      threshold: network.balanceThreshold,
+      isBelowThreshold:
+        network.balanceThreshold !== undefined ? true : undefined,
       error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }
 
-function printTable(results: IBalanceResult[]) {
+function printMonitoringResults(results: IBalanceResult[]) {
+  const belowThresholdNetworks = results.filter(
+    (r) => !r.error && r.isBelowThreshold
+  )
+
+  if (belowThresholdNetworks.length === 0) {
+    console.log(chalk.green('\n✅ All networks have sufficient balance'))
+    return
+  }
+
+  console.log(
+    chalk.red(
+      `\n⚠️  ${belowThresholdNetworks.length} network(s) below threshold:\n`
+    )
+  )
+  console.log('─'.repeat(90))
+  console.log(
+    `${chalk.bold('Network'.padEnd(20))} ${chalk.bold(
+      'Currency'.padEnd(10)
+    )} ${chalk.bold('Current Balance'.padStart(20))} ${chalk.bold(
+      'Threshold'.padStart(20)
+    )} ${chalk.bold('Deficit'.padStart(20))}`
+  )
+  console.log('─'.repeat(90))
+
+  belowThresholdNetworks
+    .sort((a, b) => {
+      // Sort by deficit ratio (how much below threshold)
+      const deficitA = (a.threshold || 0) - parseFloat(a.formattedBalance)
+      const deficitB = (b.threshold || 0) - parseFloat(b.formattedBalance)
+      return deficitB - deficitA
+    })
+    .forEach((result) => {
+      const balance = parseFloat(result.formattedBalance)
+      const threshold = result.threshold || 0
+      const deficit = threshold - balance
+
+      console.log(
+        `${result.network.padEnd(20)} ${result.nativeCurrency.padEnd(
+          10
+        )} ${chalk.red(balance.toFixed(6).padStart(20))} ${threshold
+          .toFixed(6)
+          .padStart(20)} ${chalk.yellow(deficit.toFixed(6).padStart(20))}`
+      )
+    })
+
+  console.log('─'.repeat(90))
+
+  // Calculate total funding needed (rough estimate in USD terms)
+  console.log('\n📊 Summary:')
+  console.log(`  Networks below threshold: ${belowThresholdNetworks.length}`)
+
+  // Group by currency for summary
+  const byCurrency = belowThresholdNetworks.reduce((acc, net) => {
+    const currency = net.nativeCurrency
+    if (!acc[currency]) 
+      acc[currency] = []
+    
+    acc[currency].push(net)
+    return acc
+  }, {} as Record<string, IBalanceResult[]>)
+
+  console.log('\n  By currency:')
+  Object.entries(byCurrency).forEach(([currency, networks]) => {
+    const totalDeficit = networks.reduce((sum, net) => {
+      const deficit = (net.threshold || 0) - parseFloat(net.formattedBalance)
+      return sum + deficit
+    }, 0)
+    console.log(
+      `    ${currency}: ${
+        networks.length
+      } network(s), total deficit: ${totalDeficit.toFixed(6)}`
+    )
+  })
+
+  // Exit with error code if any networks are below threshold
+  process.exit(1)
+}
+
+function printTable(results: IBalanceResult[], monitorMode = false) {
   // Sort results by network name
   const sortedResults = [...results].sort((a, b) =>
     a.network.localeCompare(b.network)
@@ -133,34 +232,42 @@ function printTable(results: IBalanceResult[]) {
   // Filter out networks with errors for the main table
   const successfulResults = sortedResults.filter((r) => !r.error)
 
-  console.log('\nBalance Results:')
-  console.log('─'.repeat(70))
-  console.log(
-    `${chalk.bold('Network'.padEnd(20))} ${chalk.bold(
-      'Chain ID'.padEnd(12)
-    )} ${chalk.bold('Currency'.padEnd(10))} ${chalk.bold(
-      'Balance'.padStart(20)
-    )}`
-  )
-  console.log('─'.repeat(70))
-
-  successfulResults.forEach((result) => {
-    const balance = parseFloat(result.formattedBalance)
-    const formattedBalance = balance.toFixed(6)
-
-    // Color balances: red for zero, green for positive
-    const coloredBalance =
-      balance === 0
-        ? chalk.red(formattedBalance.padStart(20))
-        : chalk.green(formattedBalance.padStart(20))
-
+  if (!monitorMode) {
+    console.log('\nBalance Results:')
+    console.log('─'.repeat(70))
     console.log(
-      `${result.network.padEnd(20)} ${result.chainId
-        .toString()
-        .padEnd(12)} ${result.nativeCurrency.padEnd(10)} ${coloredBalance}`
+      `${chalk.bold('Network'.padEnd(20))} ${chalk.bold(
+        'Chain ID'.padEnd(12)
+      )} ${chalk.bold('Currency'.padEnd(10))} ${chalk.bold(
+        'Balance'.padStart(20)
+      )}`
     )
-  })
-  console.log('─'.repeat(70))
+    console.log('─'.repeat(70))
+
+    successfulResults.forEach((result) => {
+      const balance = parseFloat(result.formattedBalance)
+      const formattedBalance = balance.toFixed(6)
+
+      // Color balances: red for zero or below threshold, yellow for near threshold, green for healthy
+      let coloredBalance
+      if (result.isBelowThreshold) 
+        coloredBalance = chalk.red(formattedBalance.padStart(20))
+       else if (result.threshold && balance < result.threshold * 1.5) 
+        coloredBalance = chalk.yellow(formattedBalance.padStart(20))
+       else if (balance === 0) 
+        coloredBalance = chalk.red(formattedBalance.padStart(20))
+       else 
+        coloredBalance = chalk.green(formattedBalance.padStart(20))
+      
+
+      console.log(
+        `${result.network.padEnd(20)} ${result.chainId
+          .toString()
+          .padEnd(12)} ${result.nativeCurrency.padEnd(10)} ${coloredBalance}`
+      )
+    })
+    console.log('─'.repeat(70))
+  }
 
   // Summary
   const successCount = results.filter((r) => !r.error).length
@@ -168,16 +275,28 @@ function printTable(results: IBalanceResult[]) {
   const nonZeroBalances = results.filter(
     (r) => !r.error && parseFloat(r.formattedBalance) > 0
   )
+  const belowThresholdNetworks = results.filter(
+    (r) => !r.error && r.isBelowThreshold
+  )
 
-  console.log('\nSummary:')
-  console.log(`  Total chains checked: ${results.length}`)
-  console.log(`  Successful queries: ${successCount}`)
-  console.log(`  Failed queries: ${errorCount}`)
-  console.log(`  Chains with non-zero balance: ${nonZeroBalances.length}`)
+  if (!monitorMode) {
+    console.log('\nSummary:')
+    console.log(`  Total chains checked: ${results.length}`)
+    console.log(`  Successful queries: ${successCount}`)
+    console.log(`  Failed queries: ${errorCount}`)
+    console.log(`  Chains with non-zero balance: ${nonZeroBalances.length}`)
+    if (belowThresholdNetworks.length > 0) 
+      console.log(
+        chalk.red(
+          `  ⚠️  Chains below threshold: ${belowThresholdNetworks.length}`
+        )
+      )
+    
+  }
 
   // Print unsuccessful networks
   const failedNetworks = results.filter((r) => r.error)
-  if (failedNetworks.length > 0) {
+  if (failedNetworks.length > 0 && !monitorMode) {
     console.log('\nUnsuccessful networks:')
     failedNetworks.forEach((result) => {
       console.log(`  - ${result.network}: ${result.error}`)
@@ -207,6 +326,11 @@ const main = defineCommand({
         'Fetch balances in parallel (faster but may hit rate limits)',
       default: true,
     },
+    'monitor-balances': {
+      type: 'boolean',
+      description: 'Monitor mode: show only networks below threshold',
+      default: false,
+    },
   },
   async run({ args }) {
     const address = args.address as string
@@ -219,7 +343,11 @@ const main = defineCommand({
       process.exit(1)
     }
 
-    consola.info(`Fetching balances for address: ${address}`)
+    if (args['monitor-balances']) 
+      consola.info(`🔍 Monitoring balances for address: ${address}`)
+     else 
+      consola.info(`Fetching balances for address: ${address}`)
+    
 
     // Filter networks
     const networks = Object.entries(
@@ -243,7 +371,9 @@ const main = defineCommand({
       process.exit(1)
     }
 
-    consola.info(`Checking ${networks.length} networks...`)
+    if (!args['monitor-balances']) 
+      consola.info(`Checking ${networks.length} networks...`)
+    
 
     const results: IBalanceResult[] = []
 
@@ -263,6 +393,9 @@ const main = defineCommand({
               nativeCurrency: network.nativeCurrency,
               balance: '0',
               formattedBalance: '0',
+              threshold: network.balanceThreshold,
+              isBelowThreshold:
+                network.balanceThreshold !== undefined ? true : undefined,
               error: 'Failed to initialize TronWeb',
             }
           }
@@ -275,7 +408,9 @@ const main = defineCommand({
     // Fetch balances sequentially
     else
       for (const network of networks) {
-        consola.start(`Checking ${network.name}...`)
+        if (!args['monitor-balances']) 
+          consola.start(`Checking ${network.name}...`)
+        
 
         let result: IBalanceResult
         if (network.name === 'tron' || network.name === 'tronshasta')
@@ -291,6 +426,9 @@ const main = defineCommand({
               nativeCurrency: network.nativeCurrency,
               balance: '0',
               formattedBalance: '0',
+              threshold: network.balanceThreshold,
+              isBelowThreshold:
+                network.balanceThreshold !== undefined ? true : undefined,
               error: 'Failed to initialize TronWeb',
             }
           }
@@ -298,16 +436,22 @@ const main = defineCommand({
 
         results.push(result)
 
-        if (result.error) consola.fail(`${network.name}: Error`)
-        else if (parseFloat(result.formattedBalance) > 0)
-          consola.success(
-            `${network.name}: ${result.formattedBalance} ${network.nativeCurrency}`
-          )
-        else consola.info(`${network.name}: 0 ${network.nativeCurrency}`)
+        if (!args['monitor-balances']) 
+          if (result.error) consola.fail(`${network.name}: Error`)
+          else if (parseFloat(result.formattedBalance) > 0)
+            consola.success(
+              `${network.name}: ${result.formattedBalance} ${network.nativeCurrency}`
+            )
+          else consola.info(`${network.name}: 0 ${network.nativeCurrency}`)
+        
       }
 
-    // Print results table
-    printTable(results)
+    // Print results based on mode
+    if (args['monitor-balances']) 
+      printMonitoringResults(results)
+     else 
+      printTable(results)
+    
   },
 })
 
