@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import chalk from 'chalk'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -46,14 +47,6 @@ interface IBalanceResult {
   balance: string
   formattedBalance: string
   error?: string
-}
-
-interface ITableRow {
-  Network: string
-  'Chain ID': number
-  Currency: string
-  Balance: string
-  Status: string
 }
 
 async function getTronBalance(
@@ -137,19 +130,37 @@ function printTable(results: IBalanceResult[]) {
     a.network.localeCompare(b.network)
   )
 
-  // Convert to table format
-  const tableData: ITableRow[] = sortedResults.map((result) => ({
-    Network: result.network,
-    'Chain ID': result.chainId,
-    Currency: result.nativeCurrency,
-    Balance: parseFloat(result.formattedBalance).toFixed(6),
-    Status: result.error
-      ? `Error: ${result.error.substring(0, 30)}...`
-      : 'Success',
-  }))
+  // Filter out networks with errors for the main table
+  const successfulResults = sortedResults.filter((r) => !r.error)
 
   console.log('\nBalance Results:')
-  console.table(tableData)
+  console.log('─'.repeat(70))
+  console.log(
+    `${chalk.bold('Network'.padEnd(20))} ${chalk.bold(
+      'Chain ID'.padEnd(12)
+    )} ${chalk.bold('Currency'.padEnd(10))} ${chalk.bold(
+      'Balance'.padStart(20)
+    )}`
+  )
+  console.log('─'.repeat(70))
+
+  successfulResults.forEach((result) => {
+    const balance = parseFloat(result.formattedBalance)
+    const formattedBalance = balance.toFixed(6)
+
+    // Color balances: red for zero, green for positive
+    const coloredBalance =
+      balance === 0
+        ? chalk.red(formattedBalance.padStart(20))
+        : chalk.green(formattedBalance.padStart(20))
+
+    console.log(
+      `${result.network.padEnd(20)} ${result.chainId
+        .toString()
+        .padEnd(12)} ${result.nativeCurrency.padEnd(10)} ${coloredBalance}`
+    )
+  })
+  console.log('─'.repeat(70))
 
   // Summary
   const successCount = results.filter((r) => !r.error).length
@@ -164,15 +175,13 @@ function printTable(results: IBalanceResult[]) {
   console.log(`  Failed queries: ${errorCount}`)
   console.log(`  Chains with non-zero balance: ${nonZeroBalances.length}`)
 
-  if (nonZeroBalances.length > 0) {
-    console.log('\nNon-zero balances:')
-    const nonZeroTable = nonZeroBalances.map((result) => ({
-      Network: result.network,
-      Balance: `${parseFloat(result.formattedBalance).toFixed(6)} ${
-        result.nativeCurrency
-      }`,
-    }))
-    console.table(nonZeroTable)
+  // Print unsuccessful networks
+  const failedNetworks = results.filter((r) => r.error)
+  if (failedNetworks.length > 0) {
+    console.log('\nUnsuccessful networks:')
+    failedNetworks.forEach((result) => {
+      console.log(`  - ${result.network}: ${result.error}`)
+    })
   }
 }
 
@@ -222,9 +231,9 @@ const main = defineCommand({
         // Skip inactive networks
         if (config.status !== 'active') return false
         // Apply custom filter if provided
-        if (args.filter) 
+        if (args.filter)
           return name.toLowerCase().includes(args.filter.toLowerCase())
-        
+
         return true
       })
       .map(([_, config]) => config)
@@ -241,7 +250,7 @@ const main = defineCommand({
     if (args.parallel) {
       // Fetch balances in parallel
       const promises = networks.map(async (network) => {
-        if (network.name === 'tron' || network.name === 'tronshasta') 
+        if (network.name === 'tron' || network.name === 'tronshasta')
           try {
             const env = network.name === 'tron' ? 'mainnet' : 'testnet'
             // initTronWeb will use environment variables if rpcUrl is not provided
@@ -257,20 +266,19 @@ const main = defineCommand({
               error: 'Failed to initialize TronWeb',
             }
           }
-         else 
-          return getEvmBalance(network, address)
-        
+        else return getEvmBalance(network, address)
       })
 
       const batchResults = await Promise.all(promises)
       results.push(...batchResults)
-    } else 
-      // Fetch balances sequentially
+    }
+    // Fetch balances sequentially
+    else
       for (const network of networks) {
         consola.start(`Checking ${network.name}...`)
 
         let result: IBalanceResult
-        if (network.name === 'tron' || network.name === 'tronshasta') 
+        if (network.name === 'tron' || network.name === 'tronshasta')
           try {
             const env = network.name === 'tron' ? 'mainnet' : 'testnet'
             // initTronWeb will use environment variables if rpcUrl is not provided
@@ -286,23 +294,17 @@ const main = defineCommand({
               error: 'Failed to initialize TronWeb',
             }
           }
-         else 
-          result = await getEvmBalance(network, address)
-        
+        else result = await getEvmBalance(network, address)
 
         results.push(result)
 
-        if (result.error) 
-          consola.fail(`${network.name}: Error`)
-         else if (parseFloat(result.formattedBalance) > 0) 
+        if (result.error) consola.fail(`${network.name}: Error`)
+        else if (parseFloat(result.formattedBalance) > 0)
           consola.success(
             `${network.name}: ${result.formattedBalance} ${network.nativeCurrency}`
           )
-         else 
-          consola.info(`${network.name}: 0 ${network.nativeCurrency}`)
-        
+        else consola.info(`${network.name}: 0 ${network.nativeCurrency}`)
       }
-    
 
     // Print results table
     printTable(results)
