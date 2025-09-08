@@ -6,7 +6,7 @@ echo "Running 'forge build' and 'typechain generation'..."
 
 # Run forge build first (required for typechain)
 echo "Building contracts with forge..."
-forge build src
+forge build
 
 if [ $? -ne 0 ]; then
   printf '\n%s\n\n' "Forge build failed. Aborting commit."
