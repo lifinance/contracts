@@ -149,9 +149,9 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0xa884c21873A671bD010567cf97c937b153F842Cc": {
+      "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
         "Name": "ChainflipFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
         "Name": "PioneerFacet",
