@@ -11,17 +11,10 @@ import { execSync } from 'child_process'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
-import type { SupportedChain } from '../common/types.js'
+import type { SupportedChain } from '../common/types'
+import { getRpcUrl } from '../demoScripts/utils/demoScriptHelpers'
 
 const errors: string[] = []
-
-// Helper function to get RPC URL from networks.json
-const getRpcUrl = (
-  network: string,
-  networksConfig: Record<string, { rpcUrl?: string }>
-): string => {
-  return networksConfig[network.toLowerCase()]?.rpcUrl || ''
-}
 
 // Helper function to check if contract is deployed using cast
 const checkIsDeployedWithCast = async (
@@ -195,7 +188,7 @@ const main = defineCommand({
     const ldaCoreFacets = globalConfig.ldaCoreFacets || []
 
     // Get RPC URL
-    const rpcUrl = getRpcUrl(network, networksConfig)
+    const rpcUrl = getRpcUrl(network as SupportedChain)
     if (!rpcUrl) {
       consola.error(`No RPC URL found for network: ${network}`)
       process.exit(1)

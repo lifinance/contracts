@@ -595,12 +595,30 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
 }
 
 /**
- * Return the correct RPC environment variable
- * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
+ * Get RPC URL for a chain, with fallback from environment variable to networks.json
+ * @param chain - The supported chain name
+ * @returns RPC URL string
  */
-const getRpcUrl = (chain: SupportedChain) => {
+export const getRpcUrl = (chain: SupportedChain): string => {
+  // First, try to get from environment variable
   const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
-  return getEnvVar(envKey)
+  const envRpcUrl = process.env[envKey]
+
+  if (envRpcUrl) {
+    return envRpcUrl
+  }
+
+  // Fallback to networks.json
+  const networksConfig = networks as Record<string, { rpcUrl?: string }>
+  const networkRpcUrl = networksConfig[chain.toLowerCase()]?.rpcUrl
+
+  if (networkRpcUrl) {
+    return networkRpcUrl
+  }
+
+  throw new Error(
+    `No RPC URL found for chain '${chain}' in environment variable '${envKey}' or networks.json`
+  )
 }
 
 /**
