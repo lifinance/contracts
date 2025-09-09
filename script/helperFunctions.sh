@@ -7,8 +7,6 @@ source .env
 # load script
 source script/config.sh
 
-
-
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
@@ -115,9 +113,9 @@ function logContractDeploymentInfo {
 
   # Create lock file path
   local LOCK_FILE="${LOG_FILE_PATH}.lock"
-  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_TIMEOUT=30 # 30 seconds timeout
   local LOCK_ATTEMPTS=0
-  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+  local MAX_LOCK_ATTEMPTS=60 # 60 attempts = 30 seconds total
 
   # Wait for lock to be available
   while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
@@ -132,7 +130,7 @@ function logContractDeploymentInfo {
   fi
 
   # Create lock file
-  echo "$$" > "$LOCK_FILE"
+  echo "$$" >"$LOCK_FILE"
 
   # Ensure lock is released on exit
   trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
@@ -578,7 +576,6 @@ function isMongoLoggingEnabled() {
   fi
 }
 
-
 function queryMongoDeployment() {
   local CONTRACT="$1"
   local NETWORK="$2"
@@ -618,14 +615,6 @@ function getLatestMongoDeployment() {
     --network="$NETWORK" 2>/dev/null
   return $?
 }
-
-
-
-
-
-
-
-
 
 function getUnverifiedContractsFromMongo() {
   local ENVIRONMENT="$1"
@@ -877,45 +866,15 @@ function getConstructorArgsFromMasterLog() {
   return 0
 }
 
-function saveDiamond_DEPRECATED() {
-  :'
-  This contract version only saves the facet addresses as an array in the JSON file
-  without any further information (such as version or name, like in the new function)
-  '
-  # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  USE_MUTABLE_DIAMOND=$3
-  FACETS=$4
-
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # store function arguments in variables
-  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
-
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-  else
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-  fi
-
-  # create an empty json if it does not exist
-  if [[ ! -e $DIAMOND_FILE ]]; then
-    echo "{}" >"$DIAMOND_FILE"
-  fi
-  result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
-  printf %s "$result" >"$DIAMOND_FILE"
-}
 function saveDiamondFacets() {
   # read function arguments into variables
   NETWORK=$1
   ENVIRONMENT=$2
   USE_MUTABLE_DIAMOND=$3
   FACETS=$4
-  DIAMOND_CONTRACT_NAME=$5  # Optional: "LiFiDEXAggregatorDiamond" for LDA diamonds
+  # optional: output control for parallel orchestration
+  local OUTPUT_MODE="$5" # "facets-only" to write only facets JSON to OUTPUT_PATH
+  local OUTPUT_PATH="$6" # path to write facets JSON when in facets-only mode
 
   # logging for debug purposes
   echo ""
@@ -929,60 +888,100 @@ function saveDiamondFacets() {
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
-  # store function arguments in variables
-  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
-
-  # define path for json file based on diamond contract name
+  # define path for json file based on which diamond was used
   if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDEXAggregatorDiamond" ]]; then
-    # LDA diamond
-    DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
+    DIAMOND_FILE="./deployments/${NETWORK}.diamond.lda.${FILE_SUFFIX}json"
     DIAMOND_NAME="LiFiDEXAggregatorDiamond"
-  elif [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    # Regular mutable diamond
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamond"
   else
-    # Regular immutable diamond
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamondImmutable"
+    if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
+      DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+      DIAMOND_NAME="LiFiDiamond"
+    else
+      # Regular immutable diamond
+      DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
+      DIAMOND_NAME="LiFiDiamondImmutable"
+    fi
   fi
-
-  # create an empty json that replaces the existing file
-  echo "{}" >"$DIAMOND_FILE"
-
+  
   # create an iterable FACETS array
-  # Remove brackets from FACETS string
+  # Remove brackets from FACETS string and split into array
   FACETS_ADJ="${4#\[}"
   FACETS_ADJ="${FACETS_ADJ%\]}"
-  # Split string into array
-  IFS=', ' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
 
-  # loop through all facets
-  for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
-    # get a JSON entry from log file
-    JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+  # Set up a temp directory to collect facet entries (avoid concurrent writes)
+  local TEMP_DIR
+  TEMP_DIR=$(mktemp -d)
+  trap 'rm -rf "$TEMP_DIR" 2>/dev/null' EXIT
+  local FACETS_DIR="$TEMP_DIR/facets"
+  mkdir -p "$FACETS_DIR"
 
-    # check if contract was found in log file
-    if [[ $? -ne 0 ]]; then
-      warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
+  # determine concurrency (fallback to 10 if not set)
+  local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
+  if [[ -z "$CONCURRENCY" || "$CONCURRENCY" -le 0 ]]; then
+    CONCURRENCY=10
+  fi
 
-      # try to find name of contract from network-specific deployments file
-      # load JSON FILE that contains deployment addresses
-      NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-
-      # create JSON entry manually with limited information (address only)
-      JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
+  # resolve each facet in parallel and write individual JSON files
+  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
+    # sanitize address (strip quotes, spaces)
+    FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
+    if [[ -z "$FACET_ADDRESS" ]]; then
+      continue
     fi
 
-    # add new entry to JSON file
-    result=$(cat "$DIAMOND_FILE" | jq -r --argjson json_entry "$JSON_ENTRY" '.[$diamond_name] |= . + {Facets: (.Facets + $json_entry)}' --arg diamond_name "$DIAMOND_NAME" || cat "$DIAMOND_FILE")
+    # throttle background jobs
+    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+      sleep 0.1
+    done
 
-    printf %s "$result" >"$DIAMOND_FILE"
+    (
+      JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+      if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
+        warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
+        NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+        JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
+      fi
+      echo "$JSON_ENTRY" >"$FACETS_DIR/${FACET_ADDRESS}.json"
+    ) &
   done
 
-  # add information about registered periphery contracts (only for regular diamonds, not LDA)
-  if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
+  # wait for all background jobs to complete
+  wait
+
+  # merge all facet JSON entries into a single object preserving original order
+  local MERGE_FILES=()
+  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
+    ADDR=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
+    [[ -z "$ADDR" ]] && continue
+    FILEPATH="$FACETS_DIR/${ADDR}.json"
+    if [[ -s "$FILEPATH" ]]; then
+      MERGE_FILES+=("$FILEPATH")
+    fi
+  done
+
+  local FACETS_JSON='{}'
+  if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
+    FACETS_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+  fi
+
+  # if called in facets-only mode, output to path and skip touching DIAMOND_FILE or periphery
+  if [[ "$OUTPUT_MODE" == "facets-only" && -n "$OUTPUT_PATH" ]]; then
+    printf %s "$FACETS_JSON" >"$OUTPUT_PATH"
+  else
+    # ensure diamond file exists
+    if [[ ! -e $DIAMOND_FILE ]]; then
+      echo "{}" >"$DIAMOND_FILE"
+    fi
+
+    # write merged facets to diamond file in a single atomic update
+    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
+        .[$diamond_name] = (.[$diamond_name] // {}) |
+        .[$diamond_name].Facets = ((.[$diamond_name].Facets // {}) + $facets_obj)
+      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
+    printf %s "$result" >"$DIAMOND_FILE"
+
+    # add information about registered periphery contracts
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
   fi
 }
@@ -1084,6 +1083,9 @@ function saveDiamondPeriphery() {
   NETWORK=$1
   ENVIRONMENT=$2
   USE_MUTABLE_DIAMOND=$3
+  # optional: output control for parallel orchestration
+  local OUTPUT_MODE="$4" # "periphery-only" to write only periphery JSON to OUTPUT_PATH
+  local OUTPUT_PATH="$5" # path to write periphery JSON when in periphery-only mode
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -1118,28 +1120,72 @@ function saveDiamondPeriphery() {
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
-  # create an empty json if it does not exist
-  if [[ ! -e $DIAMOND_FILE ]]; then
-    echo "{}" >"$DIAMOND_FILE"
-  fi
-
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
 
-  # loop through periphery contracts
-  for CONTRACT in $PERIPHERY_CONTRACTS; do
-    # get the address of this contract from diamond (will return ZERO_ADDRESS, if not registered)
-    ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL")
+  # prepare temp dir to collect per-contract JSON snippets
+  local TEMP_DIR
+  TEMP_DIR=$(mktemp -d)
+  local PERIPHERY_DIR="$TEMP_DIR/periphery"
+  mkdir -p "$PERIPHERY_DIR"
 
-    # check if address is ZERO_ADDRESS
-    if [[ "$ADDRESS" == $ZERO_ADDRESS ]]; then
-      ADDRESS=""
-    fi
+  # determine concurrency (fallback to 10 if not set)
+  local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
+  if [[ -z "$CONCURRENCY" || "$CONCURRENCY" -le 0 ]]; then
+    CONCURRENCY=10
+  fi
 
-    # add new entry to JSON file
-    result=$(cat "$DIAMOND_FILE" | jq -r ".$DIAMOND_NAME.Periphery += {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$DIAMOND_FILE")
-    printf %s "$result" >"$DIAMOND_FILE"
+  # resolve each periphery address in parallel and write to temp files
+  for CONTRACT in ${PERIPHERY_CONTRACTS}; do
+    # throttle background jobs
+    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+      sleep 0.1
+    done
+
+    (
+      ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL" 2>/dev/null)
+      if [[ "$ADDRESS" == "$ZERO_ADDRESS" || -z "$ADDRESS" ]]; then
+        ADDRESS=""
+      fi
+      echo "{\"$CONTRACT\": \"$ADDRESS\"}" >"$PERIPHERY_DIR/${CONTRACT}.json"
+    ) &
   done
+
+  # wait for all background jobs
+  wait
+
+  # merge all periphery JSON entries in the same order as contract list
+  local MERGE_FILES=()
+  for CONTRACT in ${PERIPHERY_CONTRACTS}; do
+    FILEPATH="$PERIPHERY_DIR/${CONTRACT}.json"
+    if [[ -s "$FILEPATH" ]]; then
+      MERGE_FILES+=("$FILEPATH")
+    fi
+  done
+
+  local PERIPHERY_JSON='{}'
+  if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
+    PERIPHERY_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+  fi
+
+  if [[ "$OUTPUT_MODE" == "periphery-only" && -n "$OUTPUT_PATH" ]]; then
+    # write only the periphery object to the given path
+    printf %s "$PERIPHERY_JSON" >"$OUTPUT_PATH"
+  else
+    # ensure diamond file exists
+    if [[ ! -e $DIAMOND_FILE ]]; then
+      echo "{}" >"$DIAMOND_FILE"
+    fi
+    # update diamond file in a single atomic write
+    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
+        .[$diamond_name] = (.[$diamond_name] // {}) |
+        .[$diamond_name].Periphery = $periphery_obj
+      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
+    printf %s "$result" >"$DIAMOND_FILE"
+  fi
+
+  # cleanup
+  rm -rf "$TEMP_DIR"
 }
 
 function saveContract() {
@@ -1168,9 +1214,9 @@ function saveContract() {
 
   # Create lock file path
   local LOCK_FILE="${ADDRESSES_FILE}.lock"
-  local LOCK_TIMEOUT=30  # 30 seconds timeout
+  local LOCK_TIMEOUT=30 # 30 seconds timeout
   local LOCK_ATTEMPTS=0
-  local MAX_LOCK_ATTEMPTS=60  # 60 attempts = 30 seconds total
+  local MAX_LOCK_ATTEMPTS=60 # 60 attempts = 30 seconds total
 
   # Wait for lock to be available
   while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
@@ -1185,7 +1231,7 @@ function saveContract() {
   fi
 
   # Create lock file
-  echo "$$" > "$LOCK_FILE"
+  echo "$$" >"$LOCK_FILE"
 
   # Ensure lock is released on exit
   trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
@@ -1648,9 +1694,9 @@ function parseTargetStateGoogleSpreadsheet() {
   # Wait for all background jobs and check for failures
   wait
   if [ $? -ne 0 ]; then
-      error "One or more network processing jobs failed"
-      rm -rf "$TEMP_DIR"
-      return 1
+    error "One or more network processing jobs failed"
+    rm -rf "$TEMP_DIR"
+    return 1
   fi
 
   echo ""
@@ -1668,8 +1714,6 @@ function parseTargetStateGoogleSpreadsheet() {
   echo "Processing completed successfully!"
   return 0
 }
-
-
 
 function processNetworkLine() {
   # Function: processNetworkLine
@@ -1690,13 +1734,13 @@ function processNetworkLine() {
   local CONTRACTS_ARRAY_STR="$6"
 
   # Convert contracts array string back to array
-  IFS=$'\n' read -d '' -r -a CONTRACTS_ARRAY <<< "$CONTRACTS_ARRAY_STR"
+  IFS=$'\n' read -d '' -r -a CONTRACTS_ARRAY <<<"$CONTRACTS_ARRAY_STR"
 
   echo "[$NETWORK] Starting processing..."
 
   # Create temporary JSON file for this network
   local NETWORK_JSON_FILE="$TEMP_DIR/${NETWORK}.json"
-  echo "{}" > "$NETWORK_JSON_FILE"
+  echo "{}" >"$NETWORK_JSON_FILE"
 
   # Split the line by comma into an array
   IFS=',' read -ra LINE_ARRAY <<<"$LINE"
@@ -1746,7 +1790,6 @@ function processNetworkLine() {
     # check if cell value is "latest" >> find version
     if [[ "$CELL_VALUE" == "latest" ]]; then
 
-
       # echo warning that sheet needs to be updated
       echo "[$NETWORK] Warning: the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet" >&2
 
@@ -1794,17 +1837,17 @@ function addContractVersionToNetworkJSON() {
 
   # Use jq to add the contract version to the network JSON file
   jq --arg NETWORK "$NETWORK" \
-     --arg ENVIRONMENT "$ENVIRONMENT" \
-     --arg CONTRACT "$CONTRACT" \
-     --arg DIAMOND_TYPE "$DIAMOND_TYPE" \
-     --arg VERSION "$VERSION" \
-     '
+    --arg ENVIRONMENT "$ENVIRONMENT" \
+    --arg CONTRACT "$CONTRACT" \
+    --arg DIAMOND_TYPE "$DIAMOND_TYPE" \
+    --arg VERSION "$VERSION" \
+    '
        .[$NETWORK]                 //= {}
        | .[$NETWORK][$ENVIRONMENT] //= {}
        | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE] //= {}
        | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE][$CONTRACT] = $VERSION
      ' \
-     "$JSON_FILE" > "${JSON_FILE}.tmp" && mv "${JSON_FILE}.tmp" "$JSON_FILE"
+    "$JSON_FILE" >"${JSON_FILE}.tmp" && mv "${JSON_FILE}.tmp" "$JSON_FILE"
 }
 
 function mergeNetworkResults() {
@@ -1826,14 +1869,12 @@ function mergeNetworkResults() {
   for NETWORK_JSON in "$TEMP_DIR"/*.json; do
     if [[ -f "$NETWORK_JSON" ]]; then
       # Merge this network's data into the main target state file
-      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" > "${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
+      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" >"${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
     fi
   done
 
   echo "All network results merged into $TARGET_STATE_PATH"
 }
-
-
 
 function getBytecodeFromArtifact() {
   # read function arguments into variables
@@ -1879,7 +1920,6 @@ function addPeripheryToDexsJson() {
   # get number of periphery contracts to be added
   local ADD_COUNTER=${#CONTRACTS[@]}
 
-
   # get number of existing DEX addresses in the file for the given network
   local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
 
@@ -1907,9 +1947,8 @@ function addPeripheryToDexsJson() {
     else
       # add the address to dexs.json
       local TMP_FILE="tmp.$$.json"
-      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
+      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS >"$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
       rm -f "$TMP_FILE"
-
 
       success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
     fi
@@ -2029,9 +2068,9 @@ function verifyContract() {
     VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
   fi
 
-    echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
+  echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
-    # Attempt verification with retries (for cases where block explorer isn't synced)
+  # Attempt verification with retries (for cases where block explorer isn't synced)
   while [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
     echo "[info] Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Submitting verification for [$FULL_PATH] $ADDRESS..."
     echo "[info] ...using the following command: "
@@ -2721,7 +2760,6 @@ function checkNetworksJsonFilePath() {
   fi
 }
 
-
 function getIncludedNetworksArray() {
   # prepare required variables
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
@@ -3204,7 +3242,6 @@ function doesDiamondHaveCoreFacetsRegistered() {
   FACETS_NAMES=($(getCoreFacetsArray))
   checkFailure $? "retrieve core facets array from global.json"
 
-
   # get a list of all facets that the diamond knows
   KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
   local CAST_EXIT_CODE=$?
@@ -3640,13 +3677,13 @@ function isZkEvmNetwork() {
   local NETWORK="$1"
 
   # Check if the network exists in networks.json
-  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
     error "Network '$NETWORK' not found in networks.json"
     return 1
   fi
 
   # Check if isZkEVM property exists for this network
-  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+  if ! jq -e --arg network "$NETWORK" '.[$network].isZkEVM != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
     error "isZkEVM property not defined for network '$NETWORK' in networks.json"
     return 1
   fi
@@ -3655,9 +3692,9 @@ function isZkEvmNetwork() {
   local IS_ZK_EVM=$(jq -r --arg network "$NETWORK" '.[$network].isZkEVM' "$NETWORKS_JSON_FILE_PATH")
 
   if [[ "$IS_ZK_EVM" == "true" ]]; then
-    return 0  # Success (true)
+    return 0 # Success (true)
   else
-    return 1  # Failure (false)
+    return 1 # Failure (false)
   fi
 }
 
@@ -3666,9 +3703,9 @@ function isActiveMainnet() {
   local NETWORK="$1"
 
   # Check if the network exists in the JSON
-  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
     error "Network '$NETWORK' not found in networks.json"
-    return 1  # false
+    return 1 # false
   fi
 
   local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
@@ -3676,9 +3713,9 @@ function isActiveMainnet() {
 
   # Check if both values are present and match required conditions
   if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
-    return 0  # true
+    return 0 # true
   else
-    return 1  # false
+    return 1 # false
   fi
 }
 
@@ -3767,105 +3804,103 @@ function extractDeployedAddressFromRawReturnData() {
   fi
 }
 
-
 # transfers ownership of the given contract from old wallet to new wallet (e.g. new tester wallet)
 # will fail if old wallet is not owner
 # will transfer native funds from new owner to old owner, if old wallet has insufficient funds
 # will send all remaining native funds from old owner to new owner after ownership transfer
 transferContractOwnership() {
-    local PRIV_KEY_OLD_OWNER="$1"
-    local PRIV_KEY_NEW_OWNER="$2"
-    local CONTRACT_ADDRESS="$3"
-    local NETWORK="$4"
+  local PRIV_KEY_OLD_OWNER="$1"
+  local PRIV_KEY_NEW_OWNER="$2"
+  local CONTRACT_ADDRESS="$3"
+  local NETWORK="$4"
 
-    # Define minimum native balance
-    local MIN_NATIVE_BALANCE=$(convertToBcInt "100000000000000") # 100,000 Gwei
-    local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
-    local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
+  # Define minimum native balance
+  local MIN_NATIVE_BALANCE=$(convertToBcInt "100000000000000")         # 100,000 Gwei
+  local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
+  local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
 
-    local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-    # Get address of old and new owner
-    local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
-    local ADDRESS_NEW_OWNER=$(cast wallet address --private-key "$PRIV_KEY_NEW_OWNER")
-    echo "Transferring ownership of contract $CONTRACT_ADDRESS on $NETWORK from $ADDRESS_OLD_OWNER to $ADDRESS_NEW_OWNER now"
+  # Get address of old and new owner
+  local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
+  local ADDRESS_NEW_OWNER=$(cast wallet address --private-key "$PRIV_KEY_NEW_OWNER")
+  echo "Transferring ownership of contract $CONTRACT_ADDRESS on $NETWORK from $ADDRESS_OLD_OWNER to $ADDRESS_NEW_OWNER now"
 
-    # make sure OLD_OWNER is actually contract owner
-    local CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
-    if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
-      error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
+  # make sure OLD_OWNER is actually contract owner
+  local CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
+    error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
+    return 1
+  fi
+
+  # Check native funds of old owner wallet
+  local NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+  local NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
+
+  echo "native balance old owner: $NATIVE_BALANCE_OLD"
+  echo "native balance new owner: $NATIVE_BALANCE_NEW"
+
+  # make sure that sufficient native balances are available on both wallets
+  if (($(echo "$NATIVE_BALANCE_OLD < $MIN_NATIVE_BALANCE" | bc -l))); then
+    echo "old balance is low"
+    if (($(echo "$NATIVE_BALANCE_NEW < $MIN_NATIVE_BALANCE_DOUBLE" | bc -l))); then
+      echo "balance of new owner wallet is too low. Cannot continue"
       return 1
-    fi
+    else
+      echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
+      # Send some funds from new to old wallet
+      cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
 
-    # Check native funds of old owner wallet
-    local NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-    local NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
-
-    echo "native balance old owner: $NATIVE_BALANCE_OLD"
-    echo "native balance new owner: $NATIVE_BALANCE_NEW"
-
-    # make sure that sufficient native balances are available on both wallets
-    if (( $(echo "$NATIVE_BALANCE_OLD < $MIN_NATIVE_BALANCE" | bc -l) )); then
-        echo "old balance is low"
-        if (( $(echo "$NATIVE_BALANCE_NEW < $MIN_NATIVE_BALANCE_DOUBLE" | bc -l) )); then
-            echo "balance of new owner wallet is too low. Cannot continue"
-            return 1
-        else
-            echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
-            # Send some funds from new to old wallet
-            cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
-
-            NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-            NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
-            echo ""
-            echo "native balance old owner: $NATIVE_BALANCE_OLD"
-            echo "native balance new owner: $NATIVE_BALANCE_NEW"
-        fi
-    fi
-
-    # # transfer ownership to new owner
-    echo ""
-    echo "[info] calling transferOwnership() function from old owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
-    echo ""
-
-    # # accept ownership transfer
-    echo ""
-    echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
-    cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
-    echo ""
-    echo ""
-
-    # send remaining native tokens from old owner wallet to new owner wallet
-    NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-    SENDABLE_BALANCE=$(convertToBcInt "$NATIVE_BALANCE_OLD - $NATIVE_TRANSFER_GAS_STIPEND")
-    if [[ $SENDABLE_BALANCE -gt 0 ]]; then
+      NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+      NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
       echo ""
-      echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
-      cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
-    else
-      echo "remaining native balance in old wallet is too low to send back to new wallet"
+      echo "native balance old owner: $NATIVE_BALANCE_OLD"
+      echo "native balance new owner: $NATIVE_BALANCE_NEW"
     fi
+  fi
 
-    # check balances
-    NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
-    NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
-    echo ""
-    echo "native balance old owner: $NATIVE_BALANCE_OLD"
-    echo "native balance new owner: $NATIVE_BALANCE_NEW"
+  # # transfer ownership to new owner
+  echo ""
+  echo "[info] calling transferOwnership() function from old owner wallet now"
+  cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+  echo ""
 
-    # make sure NEW OWNER is actually contract owner
-    CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  # # accept ownership transfer
+  echo ""
+  echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
+  cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
+  echo ""
+  echo ""
+
+  # send remaining native tokens from old owner wallet to new owner wallet
+  NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+  SENDABLE_BALANCE=$(convertToBcInt "$NATIVE_BALANCE_OLD - $NATIVE_TRANSFER_GAS_STIPEND")
+  if [[ $SENDABLE_BALANCE -gt 0 ]]; then
     echo ""
-    if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
-      error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
-      return 1
-    else
-      echo "Ownership transfer executed successfully"
-      return 0
-    fi
+    echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
+    cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+  else
+    echo "remaining native balance in old wallet is too low to send back to new wallet"
+  fi
+
+  # check balances
+  NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+  NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
+  echo ""
+  echo "native balance old owner: $NATIVE_BALANCE_OLD"
+  echo "native balance new owner: $NATIVE_BALANCE_NEW"
+
+  # make sure NEW OWNER is actually contract owner
+  CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  echo ""
+  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
+    error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
+    return 1
+  else
+    echo "Ownership transfer executed successfully"
+    return 0
+  fi
 }
-
 
 function printDeploymentsStatus() {
   # read function arguments into variables
@@ -4297,9 +4332,9 @@ function sendMessageToSlackSmartContractsChannel() {
 
   # Send the message
   curl -H "Content-Type: application/json" \
-     -X POST \
-     -d "{\"text\": \"$MESSAGE\"}" \
-     "$SLACK_WEBHOOK_SC_GENERAL"
+    -X POST \
+    -d "{\"text\": \"$MESSAGE\"}" \
+    "$SLACK_WEBHOOK_SC_GENERAL"
 
   echoDebug "Log message sent to Slack"
 
@@ -4313,7 +4348,7 @@ function getUserInfo() {
   # log Github email address
   EMAIL=$(git config --global user.email)
   if [ -z "$EMAIL" ]; then
-      EMAIL=$(git config --local user.email)
+    EMAIL=$(git config --local user.email)
   fi
 
   # return collected info
@@ -4334,7 +4369,6 @@ function updateDiamondLogForNetwork() {
   # read function arguments into variable
   local NETWORK=$1
   local ENVIRONMENT=$2
-  local DIAMOND_TYPE=${3:-"LiFiDiamond"}  # Default to LiFiDiamond, can be "LiFiDEXAggregatorDiamond" for LDA
 
   # get RPC URL
   local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
@@ -4344,64 +4378,153 @@ function updateDiamondLogForNetwork() {
     return 1
   fi
 
-  # get diamond address
-  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE")
+  echo "[$NETWORK] Starting diamond logs update for both diamond types..."
 
-  if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] Failed to get $DIAMOND_TYPE address on $NETWORK in $ENVIRONMENT environment"
-    return 1
-  fi
+  # Define diamond types to process
+  local DIAMOND_TYPES=("LiFiDiamond" "LiFiDEXAggregatorDiamond")
+  
+  # Create main temp directory for this network
+  local MAIN_TEMP_DIR
+  MAIN_TEMP_DIR=$(mktemp -d)
+  trap 'rm -rf "$MAIN_TEMP_DIR" 2>/dev/null' EXIT
 
-  # get list of facets
-  # execute script
-  attempts=0 # initialize attempts to 0
+  # Arrays to store background job PIDs and info
+  local pids=()
+  local diamond_info=()
 
-  while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-    echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts+1))"
-    # try to execute call
-    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+  # Process each diamond type in parallel
+  for DIAMOND_TYPE in "${DIAMOND_TYPES[@]}"; do
+    echo "[$NETWORK] Processing $DIAMOND_TYPE..."
+    
+    # Start background job for each diamond type
+    (
+      # get diamond address
+      local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE")
+      
+      if [[ $? -ne 0 ]]; then
+        warning "[$NETWORK] Failed to get $DIAMOND_TYPE address - skipping"
+        exit 1
+      fi
 
-    # check the return code the last call
-    if [ $? -eq 0 ]; then
-      break # exit the loop if the operation was successful
-    fi
+      echo "[$NETWORK] Found $DIAMOND_TYPE at address: $DIAMOND_ADDRESS"
 
-    attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
+      # get list of facets with retry logic
+      local attempts=0
+      local KNOWN_FACET_ADDRESSES=""
+      
+      while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+        echo "[$NETWORK] Trying to get facets for $DIAMOND_TYPE $DIAMOND_ADDRESS - attempt $((attempts + 1))"
+        KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+        
+        if [ $? -eq 0 ]; then
+          break
+        fi
+        
+        attempts=$((attempts + 1))
+        sleep 1
+      done
+
+      if [ $attempts -eq $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; then
+        warning "[$NETWORK] Failed to get facets from $DIAMOND_TYPE $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+        exit 1
+      fi
+
+      # Create temp directory for this diamond type
+      local DIAMOND_TEMP_DIR="$MAIN_TEMP_DIR/$DIAMOND_TYPE"
+      mkdir -p "$DIAMOND_TEMP_DIR"
+      local FACETS_TMP="$DIAMOND_TEMP_DIR/facets.json"
+      local PERIPHERY_TMP="$DIAMOND_TEMP_DIR/periphery.json"
+
+      # Determine diamond file path and name based on type
+      local FILE_SUFFIX
+      FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+      local DIAMOND_FILE
+      local USE_MUTABLE_DIAMOND
+      
+      if [[ "$DIAMOND_TYPE" == "LiFiDiamond" ]]; then
+        DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+        USE_MUTABLE_DIAMOND="true"
+      elif [[ "$DIAMOND_TYPE" == "LiFiDiamondImmutable" ]]; then
+        DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
+        USE_MUTABLE_DIAMOND="false"
+      else
+        # LiFiDEXAggregatorDiamond
+        DIAMOND_FILE="./deployments/${NETWORK}.diamond.lda.${FILE_SUFFIX}json"
+        USE_MUTABLE_DIAMOND="false"
+      fi
+
+      # Start periphery and facets resolution in parallel for this diamond
+      local diamond_pids=()
+      
+      # Start periphery resolution
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "periphery-only" "$PERIPHERY_TMP" &
+      diamond_pids+=($!)
+
+      # Start facets resolution
+      if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+        warning "[$NETWORK] no facets found in $DIAMOND_TYPE $DIAMOND_ADDRESS"
+        echo '{}' >"$FACETS_TMP"
+      else
+        saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" &
+        diamond_pids+=($!)
+      fi
+
+      # Wait for both facets and periphery processing to complete
+      for pid in "${diamond_pids[@]}"; do
+        wait "$pid"
+      done
+
+      # Validate temp outputs exist
+      if [[ ! -s "$FACETS_TMP" ]]; then echo '{}' >"$FACETS_TMP"; fi
+      if [[ ! -s "$PERIPHERY_TMP" ]]; then echo '{}' >"$PERIPHERY_TMP"; fi
+
+      # Ensure diamond file exists
+      if [[ ! -e $DIAMOND_FILE ]]; then
+        echo "{}" >"$DIAMOND_FILE"
+      fi
+
+      # Merge facets and periphery into diamond file atomically
+      local MERGED
+      MERGED=$(jq -r --arg diamond_name "$DIAMOND_TYPE" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
+          .[$diamond_name] = (.[$diamond_name] // {}) |
+          .[$diamond_name].Facets = $facets[0] |
+          .[$diamond_name].Periphery = $periphery[0]
+        ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
+      printf %s "$MERGED" >"$DIAMOND_FILE"
+
+      echo "[$NETWORK] Successfully updated $DIAMOND_TYPE diamond log"
+      
+    ) &
+    
+    # Store PID and info for this diamond type
+    pids+=($!)
+    diamond_info+=("$NETWORK:$DIAMOND_TYPE")
   done
 
-  if [ $attempts -eq $((MAX_ATTEMPTS_PER_SCRIPT_EXECUTION+1)) ]; then
-    warning "[$NETWORK] Failed to get facets from diamond $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
-  fi
-
-  # Determine if this is an LDA diamond to use the correct save function
-  if [[ "$DIAMOND_TYPE" == "LiFiDEXAggregatorDiamond" ]]; then
-    # For LDA diamonds, use LDA-specific save functions (no peripheries)
-    if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-      warning "[$NETWORK] no facets found in LDA diamond $DIAMOND_ADDRESS"
-      # LDA diamonds don't have peripheries, so just create empty diamond file
-      local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-      local DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
-      echo "{\"$DIAMOND_TYPE\": {\"Facets\": {}}}" >"$DIAMOND_FILE"
+  # Wait for all diamond processing jobs to complete
+  local failed_diamonds=()
+  for i in "${!pids[@]}"; do
+    local pid="${pids[$i]}"
+    local info="${diamond_info[$i]}"
+    
+    if wait "$pid"; then
+      echo "[$info] Completed successfully"
     else
-      saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "LiFiDEXAggregatorDiamond"
+      echo "[$info] Failed with exit code $?"
+      failed_diamonds+=("$info")
     fi
-  else
-    # For regular diamonds, use existing save functions
-    if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-      warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
-      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
-    else
-      saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
-      # saveDiamondPeriphery is executed as part of saveDiamondFacets
-    fi
-  fi
+  done
 
-  # check result
-  if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] failed to update diamond log"
+  # Clean up main temp directory
+  rm -rf "$MAIN_TEMP_DIR"
+
+  # Report results
+  if [ ${#failed_diamonds[@]} -gt 0 ]; then
+    warning "[$NETWORK] Some diamond updates failed: ${failed_diamonds[*]}"
+    return 1
   else
-    success "[$NETWORK] updated diamond log"
+    success "[$NETWORK] All diamond logs updated successfully"
+    return 0
   fi
 }
 
@@ -4409,7 +4532,6 @@ function updateDiamondLogs() {
   # read function arguments into variable
   local ENVIRONMENT=$1
   local NETWORK=$2
-  local DIAMOND_TYPE=${3:-"LiFiDiamond"}  # Default to LiFiDiamond, can be "LiFiDEXAggregatorDiamond" for LDA
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -4420,7 +4542,7 @@ function updateDiamondLogs() {
   fi
 
   echo ""
-  echo "Now updating all $DIAMOND_TYPE logs on network(s): ${NETWORKS[*]}"
+  echo "Now updating all diamond logs on network(s): ${NETWORKS[*]}"
   echo ""
 
   # ENVIRONMENTS=("production" "staging")
@@ -4445,7 +4567,7 @@ function updateDiamondLogs() {
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
       # Call the helper function in background for parallel execution
-      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE" &
+      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" &
 
       # Store the PID and job info
       pids+=($!)
@@ -4455,7 +4577,7 @@ function updateDiamondLogs() {
   done
 
   # Wait for all background jobs to complete and capture exit codes
-  echo "Waiting for all $DIAMOND_TYPE log updates to complete..."
+  echo "Waiting for all diamond log updates to complete..."
   local failed_jobs=()
   local job_count=${#pids[@]}
 
@@ -4474,12 +4596,12 @@ function updateDiamondLogs() {
 
   # Check if any jobs failed
   if [ ${#failed_jobs[@]} -gt 0 ]; then
-    error "Some $DIAMOND_TYPE log updates failed: ${failed_jobs[*]}"
-    echo "All $DIAMOND_TYPE log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
+    error "Some diamond log updates failed: ${failed_jobs[*]}"
+    echo "All diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
     playNotificationSound
     return 1
   else
-    echo "All $DIAMOND_TYPE log updates completed successfully ($job_count jobs)"
+    echo "All diamond log updates completed successfully ($job_count jobs)"
     playNotificationSound
     return 0
   fi
@@ -4503,8 +4625,8 @@ install_foundry_zksync() {
 
   # Verify that FOUNDRY_ZKSYNC_VERSION is set
   if [ -z "${FOUNDRY_ZKSYNC_VERSION}" ]; then
-      echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
-      return 1
+    echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
+    return 1
   fi
 
   echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
@@ -4512,37 +4634,37 @@ install_foundry_zksync() {
   # Check if binaries already exist and are executable
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
-      echo "forge and cast binaries already exist in ${install_dir} and are executable"
-      echo "Skipping download and installation"
-      return 0
+    echo "forge and cast binaries already exist in ${install_dir} and are executable"
+    echo "Skipping download and installation"
+    return 0
   fi
 
   # Detect operating system
   # $OSTYPE is a bash variable that contains the operating system type
   local os
   if [[ "$OSTYPE" == "darwin"* ]]; then
-      os="darwin"
+    os="darwin"
   elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      os="linux"
+    os="linux"
   else
-      echo "Unsupported operating system"
-      return 1
+    echo "Unsupported operating system"
+    return 1
   fi
 
   # Detect CPU architecture
   # uname -m returns the machine hardware name
   local arch
   case $(uname -m) in
-      x86_64)  # Intel/AMD 64-bit
-          arch="amd64"
-          ;;
-      arm64|aarch64)  # ARM 64-bit (e.g., Apple Silicon, AWS Graviton)
-          arch="arm64"
-          ;;
-      *)
-          echo "Unsupported architecture: $(uname -m)"
-          return 1
-          ;;
+  x86_64) # Intel/AMD 64-bit
+    arch="amd64"
+    ;;
+  arm64 | aarch64) # ARM 64-bit (e.g., Apple Silicon, AWS Graviton)
+    arch="arm64"
+    ;;
+  *)
+    echo "Unsupported architecture: $(uname -m)"
+    return 1
+    ;;
   esac
 
   # Construct download URL using the specified version
@@ -4563,22 +4685,22 @@ install_foundry_zksync() {
   # Download the file using curl or wget, whichever is available
   # command -v checks if a command exists
   # &> /dev/null redirects both stdout and stderr to null
-  if command -v curl &> /dev/null; then
-      # -L flag follows redirects, -o specifies output file
-      curl -L -o "${install_dir}/${filename}" "$download_url"
-  elif command -v wget &> /dev/null; then
-      # -O specifies output file
-      wget -O "${install_dir}/${filename}" "$download_url"
+  if command -v curl &>/dev/null; then
+    # -L flag follows redirects, -o specifies output file
+    curl -L -o "${install_dir}/${filename}" "$download_url"
+  elif command -v wget &>/dev/null; then
+    # -O specifies output file
+    wget -O "${install_dir}/${filename}" "$download_url"
   else
-      echo "Neither curl nor wget is installed"
-      return 1
+    echo "Neither curl nor wget is installed"
+    return 1
   fi
 
   # Check if download was successful
   # $? contains the return status of the last command
   if [ $? -ne 0 ]; then
-      echo "Download failed"
-      return 1
+    echo "Download failed"
+    return 1
   fi
 
   echo "Download completed successfully"
@@ -4589,8 +4711,8 @@ install_foundry_zksync() {
   tar -xzf "${install_dir}/${filename}" -C "$install_dir"
 
   if [ $? -ne 0 ]; then
-      echo "Extraction failed"
-      return 1
+    echo "Extraction failed"
+    return 1
   fi
 
   # Make binaries executable
@@ -4599,8 +4721,8 @@ install_foundry_zksync() {
   chmod +x "${install_dir}/forge" "${install_dir}/cast"
 
   if [ $? -ne 0 ]; then
-      echo "Failed to set executable permissions"
-      return 1
+    echo "Failed to set executable permissions"
+    return 1
   fi
 
   # Clean up by removing the downloaded archive
@@ -4608,15 +4730,15 @@ install_foundry_zksync() {
   rm "${install_dir}/${filename}"
 
   if [ $? -ne 0 ]; then
-      echo "Cleanup failed"
-      return 1
+    echo "Cleanup failed"
+    return 1
   fi
 
   # Verify that binaries are executable
   # This is a final check to ensure everything worked
   if [ ! -x "${install_dir}/forge" ] || [ ! -x "${install_dir}/cast" ]; then
-      echo "Installation completed but binaries are not executable. Please check permissions."
-      return 1
+    echo "Installation completed but binaries are not executable. Please check permissions."
+    return 1
   fi
 
   echo "Installation completed successfully"
@@ -4679,7 +4801,7 @@ getContractDeploymentStatusSummary() {
   printf "%-20s %-10s %-10s %-42s\n" "NETWORK" "DEPLOYED" "VERIFIED" "ADDRESS"
   printf "%-20s %-10s %-10s %-42s\n" "--------------------" "----------" "----------" "------------------------------------------"
 
-    # Check each network
+  # Check each network
   for network in "${NETWORKS[@]}"; do
     # Check if contract is deployed - use a more robust approach
     local LOG_ENTRY=""

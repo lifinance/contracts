@@ -201,8 +201,8 @@ deployAllLDAContracts() {
   echo ""
   echo "[info] STEP 5: Creating LDA diamond deployment logs..."
   
-  # Update LDA diamond logs to create/populate the <network>.lda.diamond.json file
-  updateDiamondLogs "$ENVIRONMENT" "$NETWORK" "LiFiDEXAggregatorDiamond"
+  # Update diamond logs
+  updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
   
   if [ $? -ne 0 ]; then
     error "❌ Failed to update LDA diamond logs"
