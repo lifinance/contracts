@@ -4374,7 +4374,7 @@ function updateDiamondLogForNetwork() {
 
   if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" ]]; then
     warning "[$NETWORK] Failed to get $DIAMOND_CONTRACT_NAME address on $NETWORK in $ENVIRONMENT environment - contract may not be deployed. Skipping."
-    return 0 # Return success but skip processing
+    return 2 # Return a special exit code (2) for "skipped" instead of 0 (success)
   fi
 
   # get list of facets
@@ -4544,22 +4544,29 @@ function updateDiamondLogs() {
 
   # Wait for all background jobs to complete and capture exit codes
   echo "Waiting for all diamond log updates to complete..."
+  echo "Waiting for all diamond log updates to complete..."
   local failed_jobs=()
   local job_count=${#pids[@]}
 
   for i in "${!pids[@]}"; do
     local pid="${pids[$i]}"
     local info="${job_info[$i]}"
+    local exit_code=0 # Default to success
 
-    # Wait for this specific job and capture its exit code
-    if wait "$pid"; then
+    # wait for this specific job and then capture its exit code from the '$?' variable
+    wait "$pid"
+    exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
       echo "[$info] Completed successfully"
+    elif [[ $exit_code -eq 2 ]]; then
+      # Handle our custom "skipped" code
+      echo "[$info] Skipped (contract not found in deployments)"
     else
-      echo "[$info] Failed with exit code $?"
+      echo "[$info] Failed with exit code $exit_code"
       failed_jobs+=("$info")
     fi
   done
-
   # Check if any jobs failed
   if [ ${#failed_jobs[@]} -gt 0 ]; then
     error "Some diamond log updates failed: ${failed_jobs[*]}"
