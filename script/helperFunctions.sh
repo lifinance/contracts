@@ -4432,7 +4432,8 @@ function updateDiamondLogForNetwork() {
   fi
 
   # prepare for parallel facet/periphery processing and final merge
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  local FILE_SUFFIX
+  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
   local DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
   local DIAMOND_NAME="LiFiDiamond"
   local TEMP_DIR
@@ -4445,13 +4446,14 @@ function updateDiamondLogForNetwork() {
   local PID_PERIPHERY=$!
 
   # start facets resolution (if available) in background
+  local PID_FACETS
   if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
     warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
     echo '{}' >"$FACETS_TMP"
   else
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" &
+    PID_FACETS=$!
   fi
-  local PID_FACETS=$!
 
   # wait for both background jobs to complete
   if [[ -n "$PID_PERIPHERY" ]]; then wait "$PID_PERIPHERY"; fi
