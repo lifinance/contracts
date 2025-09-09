@@ -900,10 +900,10 @@ function saveDiamond_DEPRECATED() {
 }
 function saveDiamondFacets() {
   # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  USE_MUTABLE_DIAMOND=$3
-  FACETS=$4
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+  local USE_MUTABLE_DIAMOND=$3
+  local FACETS=$4
   # optional: output control for parallel orchestration
   local OUTPUT_MODE="$5" # "facets-only" to write only facets JSON to OUTPUT_PATH
   local OUTPUT_PATH="$6" # path to write facets JSON when in facets-only mode
