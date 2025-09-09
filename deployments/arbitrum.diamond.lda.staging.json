@@ -37,7 +37,7 @@
         "Name": "NativeWrapperFacet",
         "Version": "1.0.0"
       },
-      "0x283831120F19fd293206AB6FaEF1C45Cf83487D0": {
+      "0xAF8479A8edb34D606A0Ef40bD823dC1804BC4DA9": {
         "Name": "SyncSwapV2Facet",
         "Version": "1.0.0"
       },
@@ -53,7 +53,6 @@
         "Name": "VelodromeV2Facet",
         "Version": "1.0.0"
       }
-    },
-    "Periphery": {}
+    }
   }
 }

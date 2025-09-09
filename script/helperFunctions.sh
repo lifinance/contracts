@@ -924,6 +924,8 @@ function saveDiamondFacets() {
       JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
       if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
         warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
+        # try to find name of contract from network-specific deployments file
+        # load JSON FILE that contains deployment addresses
         NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
         JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
       fi
@@ -961,14 +963,16 @@ function saveDiamondFacets() {
     fi
 
     # write merged facets to diamond file in a single atomic update
-    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
+    result=$(jq -r --arg diamond_name "$DIAMOND_CONTRACT_NAME" --argjson facets_obj "$FACETS_JSON" '
         .[$diamond_name] = (.[$diamond_name] // {}) |
         .[$diamond_name].Facets = ((.[$diamond_name].Facets // {}) + $facets_obj)
       ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
     printf %s "$result" >"$DIAMOND_FILE"
 
-    # add information about registered periphery contracts
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+    # add information about registered periphery contracts (only for regular diamonds, not LDA)
+    if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+    fi
   fi
 }
 
@@ -1101,8 +1105,11 @@ function saveDiamondPeriphery() {
   echoDebug "in function saveDiamondPeriphery"
   echoDebug "NETWORK=$NETWORK"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "RPC_URL=$RPC_URL"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-  echoDebug "PERIPHERY_DIR=$PERIPHERY_DIR" # +++ ADD THIS for debugging
+  echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
@@ -4441,9 +4448,6 @@ function updateDiamondLogForNetwork() {
   if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "periphery-only" "$PERIPHERY_TMP" "$PERIPHERY_SUBDIR" &
     pids+=($!)
-  else
-    # For LiFiDEXAggregatorDiamond, create empty periphery file
-    echo '{}' >"$PERIPHERY_TMP"
   fi
 
   # Start facets resolution (for all diamond types)
@@ -4476,7 +4480,12 @@ function updateDiamondLogForNetwork() {
   MERGED=$(jq -r --arg diamond_name "$DIAMOND_CONTRACT_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
       .[$diamond_name] = (.[$diamond_name] // {}) |
       .[$diamond_name].Facets = $facets[0] |
-      .[$diamond_name].Periphery = $periphery[0]
+      # Conditionally add the Periphery key only if it is not the LDA diamond
+      if $diamond_name != "LiFiDEXAggregatorDiamond" then
+        .[$diamond_name].Periphery = $periphery[0]
+      else
+        . # Otherwise, pass the object through without adding the Periphery key
+      end
     ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
   printf %s "$MERGED" >"$DIAMOND_FILE"
 
