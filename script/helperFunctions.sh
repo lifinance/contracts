@@ -4445,7 +4445,7 @@ function updateDiamondLogForNetwork() {
   local pids=()
 
   # only process periphery for LiFiDiamond and LiFiDiamondImmutable, skip for LiFiDEXAggregatorDiamond
-  if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond " ]]; then
+  if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "periphery-only" "$PERIPHERY_TMP" "$PERIPHERY_SUBDIR" &
     pids+=($!)
   fi
