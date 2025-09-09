@@ -4443,29 +4443,6 @@ function updateDiamondLogForNetwork() {
     warning "[$NETWORK] Failed to get facets from diamond $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
   fi
 
-<<<<<<< HEAD
-  # Determine if this is an LDA diamond to use the correct save function
-  if [[ "$DIAMOND_TYPE" == "LiFiDEXAggregatorDiamond" ]]; then
-    # For LDA diamonds, use LDA-specific save functions (no peripheries)
-    if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-      warning "[$NETWORK] no facets found in LDA diamond $DIAMOND_ADDRESS"
-      # LDA diamonds don't have peripheries, so just create empty diamond file
-      local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-      local DIAMOND_FILE="./deployments/${NETWORK}.lda.diamond.${FILE_SUFFIX}json"
-      echo "{\"$DIAMOND_TYPE\": {\"Facets\": {}}}" >"$DIAMOND_FILE"
-    else
-      saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "LiFiDEXAggregatorDiamond"
-    fi
-  else
-    # For regular diamonds, use existing save functions
-    if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-      warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
-      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
-    else
-      saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
-      # saveDiamondPeriphery is executed as part of saveDiamondFacets
-    fi
-=======
   # prepare for parallel facet/periphery processing and final merge
   local FILE_SUFFIX
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -4488,7 +4465,6 @@ function updateDiamondLogForNetwork() {
   else
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" &
     PID_FACETS=$!
->>>>>>> lf-13997-lda-2.0-addressed-comments
   fi
 
   # wait for both background jobs to complete
