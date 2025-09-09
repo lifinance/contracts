@@ -215,12 +215,8 @@ diamondUpdateFacet() {
 
   # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
   if [[ "$ENVIRONMENT" != "production" ]]; then
-<<<<<<< HEAD
-    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS" "$DIAMOND_CONTRACT_NAME"
-=======
     # Using default behavior: update diamond file (not facets-only mode)
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS" "" ""
->>>>>>> lf-13997-lda-2.0-addressed-comments
   fi
 
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
