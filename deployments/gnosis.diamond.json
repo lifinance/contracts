@@ -112,6 +112,10 @@
       "0xf34B594fDBC0dD8477756Cb7C6e77CF9A71691d6": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
