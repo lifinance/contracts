@@ -40231,11 +40231,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x283831120F19fd293206AB6FaEF1C45Cf83487D0",
+            "ADDRESS": "0xAF8479A8edb34D606A0Ef40bD823dC1804BC4DA9",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-09-04 14:26:30",
+            "TIMESTAMP": "2025-09-09 22:25:23",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
+            "SALT": "22345116",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
