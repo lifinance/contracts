@@ -54,18 +54,6 @@
         "Version": "1.0.0"
       }
     },
-    "Periphery": {
-      "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
-      "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
-      "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
-      "GasZipPeriphery": "",
-      "LidoWrapper": "",
-      "Patcher": "",
-      "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
-      "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
-      "ReceiverChainflip": "",
-      "ReceiverStargateV2": "",
-      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
-    }
+    "Periphery": {}
   }
 }
