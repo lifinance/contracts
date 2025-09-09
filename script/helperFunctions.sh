@@ -915,6 +915,9 @@ function saveDiamondFacets() {
   ENVIRONMENT=$2
   USE_MUTABLE_DIAMOND=$3
   FACETS=$4
+  # optional: output control for parallel orchestration
+  local OUTPUT_MODE="$5"    # "facets-only" to write only facets JSON to OUTPUT_PATH
+  local OUTPUT_PATH="$6"    # path to write facets JSON when in facets-only mode
 
   # logging for debug purposes
   echo ""
@@ -927,10 +930,6 @@ function saveDiamondFacets() {
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
-  # store function arguments in variables
-  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
-
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
     DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
@@ -940,41 +939,87 @@ function saveDiamondFacets() {
     DIAMOND_NAME="LiFiDiamondImmutable"
   fi
 
-  # create an empty json that replaces the existing file
-  echo "{}" >"$DIAMOND_FILE"
-
   # create an iterable FACETS array
-  # Remove brackets from FACETS string
+  # Remove brackets from FACETS string and split into array
   FACETS_ADJ="${4#\[}"
   FACETS_ADJ="${FACETS_ADJ%\]}"
-  # Split string into array
-  IFS=', ' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
 
-  # loop through all facets
-  for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
-    # get a JSON entry from log file
-    JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+  # Set up a temp directory to collect facet entries (avoid concurrent writes)
+  local TEMP_DIR
+  TEMP_DIR=$(mktemp -d)
+  trap 'rm -rf "$TEMP_DIR" 2>/dev/null' EXIT
+  local FACETS_DIR="$TEMP_DIR/facets"
+  mkdir -p "$FACETS_DIR"
 
-    # check if contract was found in log file
-    if [[ $? -ne 0 ]]; then
-      warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
+  # determine concurrency (fallback to 10 if not set)
+  local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
+  if [[ -z "$CONCURRENCY" || "$CONCURRENCY" -le 0 ]]; then
+    CONCURRENCY=10
+  fi
 
-      # try to find name of contract from network-specific deployments file
-      # load JSON FILE that contains deployment addresses
-      NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-
-      # create JSON entry manually with limited information (address only)
-      JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
+  # resolve each facet in parallel and write individual JSON files
+  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
+    # sanitize address (strip quotes, spaces)
+    FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
+    if [[ -z "$FACET_ADDRESS" ]]; then
+      continue
     fi
 
-    # add new entry to JSON file
-    result=$(cat "$DIAMOND_FILE" | jq -r --argjson json_entry "$JSON_ENTRY" '.[$diamond_name] |= . + {Facets: (.Facets + $json_entry)}' --arg diamond_name "$DIAMOND_NAME" || cat "$DIAMOND_FILE")
+    # throttle background jobs
+    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+      sleep 0.1
+    done
 
-    printf %s "$result" >"$DIAMOND_FILE"
+    (
+      JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+      if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
+        warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
+        NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+        JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
+      fi
+      echo "$JSON_ENTRY" > "$FACETS_DIR/${FACET_ADDRESS}.json"
+    ) &
   done
 
-  # add information about registered periphery contracts
-  saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+  # wait for all background jobs to complete
+  wait
+
+  # merge all facet JSON entries into a single object preserving original order
+  local MERGE_FILES=()
+  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
+    ADDR=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
+    [[ -z "$ADDR" ]] && continue
+    FILEPATH="$FACETS_DIR/${ADDR}.json"
+    if [[ -s "$FILEPATH" ]]; then
+      MERGE_FILES+=("$FILEPATH")
+    fi
+  done
+
+  local FACETS_JSON='{}'
+  if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
+    FACETS_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+  fi
+
+  # if called in facets-only mode, output to path and skip touching DIAMOND_FILE or periphery
+  if [[ "$OUTPUT_MODE" == "facets-only" && -n "$OUTPUT_PATH" ]]; then
+    printf %s "$FACETS_JSON" > "$OUTPUT_PATH"
+  else
+    # ensure diamond file exists
+    if [[ ! -e $DIAMOND_FILE ]]; then
+      echo "{}" >"$DIAMOND_FILE"
+    fi
+
+    # write merged facets to diamond file in a single atomic update
+    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
+        .[$diamond_name] = (.[$diamond_name] // {}) |
+        .[$diamond_name].Facets = ((.[$diamond_name].Facets // {}) + $facets_obj)
+      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
+    printf %s "$result" >"$DIAMOND_FILE"
+
+    # add information about registered periphery contracts
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+  fi
 }
 function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   # read function arguments into variables
@@ -1073,6 +1118,9 @@ function saveDiamondPeriphery() {
   NETWORK=$1
   ENVIRONMENT=$2
   USE_MUTABLE_DIAMOND=$3
+  # optional: output control for parallel orchestration
+  local OUTPUT_MODE="$4"    # "periphery-only" to write only periphery JSON to OUTPUT_PATH
+  local OUTPUT_PATH="$5"    # path to write periphery JSON when in periphery-only mode
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -1107,28 +1155,72 @@ function saveDiamondPeriphery() {
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
-  # create an empty json if it does not exist
-  if [[ ! -e $DIAMOND_FILE ]]; then
-    echo "{}" >"$DIAMOND_FILE"
-  fi
-
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
 
-  # loop through periphery contracts
+  # prepare temp dir to collect per-contract JSON snippets
+  local TEMP_DIR
+  TEMP_DIR=$(mktemp -d)
+  local PERIPHERY_DIR="$TEMP_DIR/periphery"
+  mkdir -p "$PERIPHERY_DIR"
+
+  # determine concurrency (fallback to 10 if not set)
+  local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
+  if [[ -z "$CONCURRENCY" || "$CONCURRENCY" -le 0 ]]; then
+    CONCURRENCY=10
+  fi
+
+  # resolve each periphery address in parallel and write to temp files
   for CONTRACT in $PERIPHERY_CONTRACTS; do
-    # get the address of this contract from diamond (will return ZERO_ADDRESS, if not registered)
-    ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL")
+    # throttle background jobs
+    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+      sleep 0.1
+    done
 
-    # check if address is ZERO_ADDRESS
-    if [[ "$ADDRESS" == $ZERO_ADDRESS ]]; then
-      ADDRESS=""
-    fi
-
-    # add new entry to JSON file
-    result=$(cat "$DIAMOND_FILE" | jq -r ".$DIAMOND_NAME.Periphery += {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$DIAMOND_FILE")
-    printf %s "$result" >"$DIAMOND_FILE"
+    (
+      ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL" 2>/dev/null)
+      if [[ "$ADDRESS" == $ZERO_ADDRESS || -z "$ADDRESS" ]]; then
+        ADDRESS=""
+      fi
+      echo "{\"$CONTRACT\": \"$ADDRESS\"}" > "$PERIPHERY_DIR/${CONTRACT}.json"
+    ) &
   done
+
+  # wait for all background jobs
+  wait
+
+  # merge all periphery JSON entries in the same order as contract list
+  local MERGE_FILES=()
+  for CONTRACT in $PERIPHERY_CONTRACTS; do
+    FILEPATH="$PERIPHERY_DIR/${CONTRACT}.json"
+    if [[ -s "$FILEPATH" ]]; then
+      MERGE_FILES+=("$FILEPATH")
+    fi
+  done
+
+  local PERIPHERY_JSON='{}'
+  if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
+    PERIPHERY_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+  fi
+
+  if [[ "$OUTPUT_MODE" == "periphery-only" && -n "$OUTPUT_PATH" ]]; then
+    # write only the periphery object to the given path
+    printf %s "$PERIPHERY_JSON" > "$OUTPUT_PATH"
+  else
+    # ensure diamond file exists
+    if [[ ! -e $DIAMOND_FILE ]]; then
+      echo "{}" >"$DIAMOND_FILE"
+    fi
+    # update diamond file in a single atomic write
+    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
+        .[$diamond_name] = (.[$diamond_name] // {}) |
+        .[$diamond_name].Periphery = $periphery_obj
+      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
+    printf %s "$result" >"$DIAMOND_FILE"
+  fi
+
+  # cleanup
+  rm -rf "$TEMP_DIR"
 }
 function saveContract() {
   # read function arguments into variables
@@ -4361,20 +4453,54 @@ function updateDiamondLogForNetwork() {
     warning "[$NETWORK] Failed to get facets from diamond $DIAMOND_ADDRESS after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
   fi
 
+  # prepare for parallel facet/periphery processing and final merge
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  local DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+  local DIAMOND_NAME="LiFiDiamond"
+  local TEMP_DIR
+  TEMP_DIR=$(mktemp -d)
+  local FACETS_TMP="$TEMP_DIR/facets.json"
+  local PERIPHERY_TMP="$TEMP_DIR/periphery.json"
+
+  # start periphery resolution in background
+  saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true" "periphery-only" "$PERIPHERY_TMP" &
+  local PID_PERIPHERY=$!
+
+  # start facets resolution (if available) in background
   if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
     warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true"
+    echo '{}' > "$FACETS_TMP"
   else
-    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES"
-    # saveDiamondPeriphery is executed as part of saveDiamondFacets
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" &
+  fi
+  local PID_FACETS=$!
+
+  # wait for both background jobs to complete
+  if [[ -n "$PID_PERIPHERY" ]]; then wait "$PID_PERIPHERY"; fi
+  if [[ -n "$PID_FACETS" ]]; then wait "$PID_FACETS"; fi
+
+  # validate temp outputs exist
+  if [[ ! -s "$FACETS_TMP" ]]; then echo '{}' > "$FACETS_TMP"; fi
+  if [[ ! -s "$PERIPHERY_TMP" ]]; then echo '{}' > "$PERIPHERY_TMP"; fi
+
+  # ensure diamond file exists
+  if [[ ! -e $DIAMOND_FILE ]]; then
+    echo "{}" > "$DIAMOND_FILE"
   fi
 
-  # check result
-  if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] failed to update diamond log"
-  else
-    success "[$NETWORK] updated diamond log"
-  fi
+  # merge facets and periphery into diamond file atomically
+  local MERGED
+  MERGED=$(jq -r --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
+      .[$diamond_name] = (.[$diamond_name] // {}) |
+      .[$diamond_name].Facets = $facets[0] |
+      .[$diamond_name].Periphery = $periphery[0]
+    ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
+  printf %s "$MERGED" > "$DIAMOND_FILE"
+
+  # clean up
+  rm -rf "$TEMP_DIR"
+
+  success "[$NETWORK] updated diamond log"
 }
 
 function updateDiamondLogs() {
