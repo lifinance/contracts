@@ -53,6 +53,7 @@
         "Name": "VelodromeV2Facet",
         "Version": "1.0.0"
       }
-    }
+    },
+    "Periphery": {}
   }
 }

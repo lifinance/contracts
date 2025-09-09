@@ -4440,24 +4440,32 @@ function updateDiamondLogForNetwork() {
   local FACETS_TMP="$TEMP_DIR/facets_${DIAMOND_CONTRACT_NAME}.json"
   local PERIPHERY_TMP="$TEMP_DIR/periphery_${DIAMOND_CONTRACT_NAME}.json"
 
+  # export DIAMOND_CONTRACT_NAME for the functions to use
+  export DIAMOND_CONTRACT_NAME="$DIAMOND_CONTRACT_NAME"
 
-  # start periphery resolution in background
-  saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true" "periphery-only" "$PERIPHERY_TMP" &
-  local PID_PERIPHERY=$!
+  # start periphery and facets resolution in parallel
+  local pids=()
 
-  # start facets resolution (if available) in background
-  local PID_FACETS
+  # only process periphery for LiFiDiamond and LiFiDiamondImmutable, skip for LiFiDEXAggregatorDiamond
+  if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "periphery-only" "$PERIPHERY_TMP" &
+    pids+=($!)
+  else
+    # For LiFiDEXAggregatorDiamond, create empty periphery file
+    echo '{}' >"$PERIPHERY_TMP"
+  fi
+
+  # Start facets resolution (for all diamond types)
   if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-    warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
+    warning "[$NETWORK] no facets found in $DIAMOND_CONTRACT_NAME $DIAMOND_ADDRESS"
     echo '{}' >"$FACETS_TMP"
   else
-    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" &
-    PID_FACETS=$!
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" &
+    pids+=($!)
   fi
 
   # wait for both background jobs to complete
-  if [[ -n "$PID_PERIPHERY" ]]; then wait "$PID_PERIPHERY"; fi
-  if [[ -n "$PID_FACETS" ]]; then wait "$PID_FACETS"; fi
+  if [[ -n "$pids" ]]; then wait "$pids"; fi
 
   # validate temp outputs exist
   if [[ ! -s "$FACETS_TMP" ]]; then echo '{}' >"$FACETS_TMP"; fi
