@@ -5607,12 +5607,13 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B",
+            "ADDRESS": "0x94eF6D1702ac7E30a5CeF39dEE26FAb180C251Fe",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-25 21:50:54",
+            "TIMESTAMP": "2025-09-09 08:30:31",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "true"
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       },
@@ -9761,12 +9762,13 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xE0c5e721b40D54f2aA09418B1237db9d88220C73",
+            "ADDRESS": "0xa74c9C1B2194F27c372B0892839624852dE21687",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-25 21:51:46",
+            "TIMESTAMP": "2025-09-09 08:29:56",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "true"
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       },
