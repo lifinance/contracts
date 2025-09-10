@@ -1,0 +1,64 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "TLqbL8MKosbLxrJ9iTDTpZTzcXRWq8bFJ3": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "TFJLkNo9rHYTkp6w5G5ETnTBzzybRTqwQf": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
+      },
+      "TPDdY4Qqy9gU8eD3bJ63pUFhHr4WWnabks": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.2"
+      },
+      "TNGUuj9GYbeUDn4GbTH2711kNyE4WcMbb4": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "TSFek3JXzdwPHH6bs9TBF7wviJ71ZxRC5j": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "TGyX2ysGYjKG8PLWiW7exXv3gesV8DJEA4": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "TPccg9MTwWVxcSrMA3dYRxzpAGaiLeZmxS": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.2"
+      },
+      "TVofq5iFiwsDf4M3xcucpV7HCX5M6XpcHW": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "TA9z2Lmg6g4tAwn31CK57ekjpmVXCr8kum": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "TZ35GFtD5rw1YGBbqaeWUW4dgPGpphUrAw": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
+      },
+      "TQndJ9R38eoosx6kuG5nU3ecfdPhL7gY1C": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
+      "Executor": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
+      "FeeCollector": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
+      "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2"
+    }
+  }
+}
