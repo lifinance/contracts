@@ -2,26 +2,18 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub AcrossFacet Contract
-contract TestAcrossFacet is AcrossFacet {
+contract TestAcrossFacet is AcrossFacet, TestWhitelistManagerBase {
     address internal constant ADDRESS_WRAPPED_NATIVE =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(
         IAcrossSpokePool _spokePool
     ) AcrossFacet(_spokePool, ADDRESS_WRAPPED_NATIVE) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract AcrossFacetTest is TestBaseFacet {
@@ -45,21 +37,21 @@ contract AcrossFacetTest is TestBaseFacet {
         functionSelectors[1] = acrossFacet
             .swapAndStartBridgeTokensViaAcross
             .selector;
-        functionSelectors[2] = acrossFacet.addDex.selector;
+        functionSelectors[2] = acrossFacet.addToWhitelist.selector;
         functionSelectors[3] = acrossFacet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(acrossFacet), functionSelectors);
         acrossFacet = TestAcrossFacet(address(diamond));
-        acrossFacet.addDex(ADDRESS_UNISWAP);
-        acrossFacet.setFunctionApprovalBySignature(
+        acrossFacet.addToWhitelist(ADDRESS_UNISWAP);
+        acrossFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacet.setFunctionApprovalBySignature(
+        acrossFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        acrossFacet.setFunctionApprovalBySignature(
+        acrossFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

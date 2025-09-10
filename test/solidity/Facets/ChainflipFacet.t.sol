@@ -1,28 +1,20 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
 import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ChainflipFacet Contract
-contract TestChainflipFacet is ChainflipFacet {
+contract TestChainflipFacet is ChainflipFacet, TestWhitelistManagerBase {
     constructor(
         address _chainflipVault
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract ChainflipFacetTest is TestBaseFacet, LiFiData {
@@ -55,21 +47,21 @@ contract ChainflipFacetTest is TestBaseFacet, LiFiData {
         functionSelectors[1] = chainflipFacet
             .swapAndStartBridgeTokensViaChainflip
             .selector;
-        functionSelectors[2] = chainflipFacet.addDex.selector;
+        functionSelectors[2] = chainflipFacet.addToWhitelist.selector;
         functionSelectors[3] = chainflipFacet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
-        chainflipFacet.addDex(ADDRESS_UNISWAP);
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addToWhitelist(ADDRESS_UNISWAP);
+        chainflipFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 
