@@ -11,6 +11,7 @@ import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import { type ObjectId } from 'mongodb'
 import type { Address, Hex, PublicClient, WalletClient } from 'viem'
 import {
   decodeFunctionData,
@@ -22,11 +23,16 @@ import {
 } from 'viem'
 
 import data from '../../../config/networks.json'
-import { EnvironmentEnum } from '../../common/types'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
 
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
+import {
+  SlackNotifier,
+  type INetworkResult,
+  type IProcessingStats,
+} from './slack-notifier'
 
 // Define interfaces for network configuration
 interface INetworkConfig {
@@ -66,8 +72,22 @@ const SCHEDULE_ABI = parseAbi([
 
 // Extend the interface to include MongoDB's _id field and timelockIsExecuted
 interface ISafeTxDocumentWithId extends ISafeTxDocument {
-  _id: any
+  _id: ObjectId
   timelockIsExecuted?: boolean
+}
+
+// Define the operation type
+interface ITimelockOperation {
+  id: Hex
+  target: Address
+  value: bigint
+  data: Hex
+  index: bigint
+  predecessor: Hex
+  delay: bigint
+  salt?: Hex
+  mongoId?: ObjectId
+  functionName?: string | null
 }
 
 // Define the command
@@ -114,6 +134,12 @@ const cmd = defineCommand({
       description: 'Override RPC URL for the network',
       required: false,
     },
+    notify: {
+      type: 'string',
+      description:
+        'Slack webhook URL for sending notifications (only used with --executeAll)',
+      required: false,
+    },
   },
   async run({ args }) {
     // setupEnvironment handles private key management internally based on environment
@@ -122,6 +148,7 @@ const cmd = defineCommand({
     const executeAll = Boolean(args?.executeAll)
     const rejectAll = Boolean(args?.rejectAll)
     const rpcUrlOverride = args?.rpcUrl
+    const notifyWebhook = args?.notify
 
     // Validate conflicting flags
     if (executeAll && rejectAll) {
@@ -135,6 +162,24 @@ const cmd = defineCommand({
       consola.error('❌ --rpc-url can only be used with --network')
       process.exit(1)
     }
+
+    // Validate notify flag
+    if (notifyWebhook && !executeAll) {
+      consola.error('❌ --notify flag can only be used with --executeAll')
+      process.exit(1)
+    }
+
+    // Initialize Slack notifier if webhook URL provided
+    let slackNotifier: SlackNotifier | undefined
+    if (notifyWebhook)
+      try {
+        new URL(notifyWebhook) // Validate webhook URL format
+        slackNotifier = new SlackNotifier(notifyWebhook)
+        consola.info('📢 Slack notifications enabled')
+      } catch (error) {
+        consola.error('❌ Invalid Slack webhook URL provided')
+        process.exit(1)
+      }
 
     // Log execution mode
     if (isDryRun)
@@ -182,6 +227,16 @@ const cmd = defineCommand({
     if (executeAll || rejectAll) {
       consola.info('🚀 Processing networks in parallel for auto-execution mode')
 
+      // Send batch start notification if Slack is enabled
+      if (slackNotifier)
+        try {
+          await slackNotifier.notifyBatchStart(
+            networksToProcess.map((n) => n.name)
+          )
+        } catch (error) {
+          consola.warn('Failed to send batch start notification:', error)
+        }
+
       // Process all networks in parallel
       const networkPromises = networksToProcess.map(async (network) => {
         return processNetwork(
@@ -190,7 +245,8 @@ const cmd = defineCommand({
           specificOperationId,
           executeAll,
           rejectAll,
-          rpcUrlOverride
+          rpcUrlOverride,
+          slackNotifier
         )
       })
 
@@ -205,6 +261,14 @@ const cmd = defineCommand({
       consola.info(`   ✅ Successful networks: ${successfulNetworks}`)
       consola.info(`   ❌ Failed networks: ${failedNetworks}`)
       consola.info(`   📋 Total networks processed: ${results.length}`)
+
+      // Send batch summary notification if Slack is enabled
+      if (slackNotifier)
+        try {
+          await slackNotifier.notifyBatchSummary(results)
+        } catch (error) {
+          consola.warn('Failed to send batch summary notification:', error)
+        }
     } else {
       consola.info('🔄 Processing networks sequentially for interactive mode')
 
@@ -217,7 +281,8 @@ const cmd = defineCommand({
             specificOperationId,
             executeAll,
             rejectAll,
-            rpcUrlOverride
+            rpcUrlOverride,
+            undefined // No Slack notifier in sequential mode
           )
         } catch (error) {
           consola.error(`Error processing network ${network.name}:`, error)
@@ -317,13 +382,9 @@ async function processNetwork(
   specificOperationId?: Hex,
   executeAll?: boolean,
   rejectAll?: boolean,
-  rpcUrlOverride?: string
-): Promise<{
-  network: string
-  success: boolean
-  operationsProcessed?: number
-  error?: any
-}> {
+  rpcUrlOverride?: string,
+  slackNotifier?: SlackNotifier
+): Promise<INetworkResult> {
   // Only show network header in sequential mode (when not using auto-execute flags)
   const isSequentialMode = !executeAll && !rejectAll
   if (isSequentialMode)
@@ -334,7 +395,7 @@ async function processNetwork(
   try {
     // Load deployment data for the network using getDeployments
     const deploymentData = (await getDeployments(
-      network.name as any, // Cast to SupportedChain type
+      network.name as SupportedChain,
       EnvironmentEnum.production
     )) as IDeploymentData
 
@@ -343,6 +404,15 @@ async function processNetwork(
       consola.warn(
         `[${network.name}] ⚠️  No timelock controller deployed on ${network.name}`
       )
+
+      // Send Slack notification if enabled
+      if (slackNotifier)
+        try {
+          await slackNotifier.notifyNoOperations(network.name, 'no-timelock')
+        } catch (error) {
+          consola.warn('Failed to send no-timelock notification:', error)
+        }
+
       return {
         network: network.name,
         success: true,
@@ -355,7 +425,7 @@ async function processNetwork(
     // Setup environment for viem clients using setupEnvironment
     // Note: setupEnvironment manages private keys internally based on environment
     const { publicClient, walletClient } = await setupEnvironment(
-      network.name as any, // Cast to SupportedChain type
+      network.name as SupportedChain,
       null, // No facet ABI needed for timelock operations
       EnvironmentEnum.production,
       rpcUrlOverride
@@ -371,12 +441,33 @@ async function processNetwork(
     )
 
     if (readyOperations.length === 0) {
-      if (totalPendingCount === 0)
+      if (totalPendingCount === 0) {
         consola.info(`[${network.name}] ✅ No pending operations found`)
-      else
+
+        // Send Slack notification if enabled
+        if (slackNotifier)
+          try {
+            await slackNotifier.notifyNoOperations(network.name, 'no-pending')
+          } catch (error) {
+            consola.warn('Failed to send no-pending notification:', error)
+          }
+      } else {
         consola.info(
           `[${network.name}] ✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
         )
+
+        // Send Slack notification if enabled
+        if (slackNotifier)
+          try {
+            await slackNotifier.notifyNoOperations(
+              network.name,
+              'no-ready',
+              totalPendingCount
+            )
+          } catch (error) {
+            consola.warn('Failed to send no-ready notification:', error)
+          }
+      }
 
       return {
         network: network.name,
@@ -393,8 +484,12 @@ async function processNetwork(
 
     // Execute or reject each ready operation
     let operationsProcessed = 0
-    for (const operation of readyOperations) {
-      if (rejectAll)
+    let operationsSucceeded = 0
+    let operationsFailed = 0
+    const totalGasUsed = 0n
+
+    for (const operation of readyOperations)
+      if (rejectAll) {
         await rejectOperation(
           publicClient,
           walletClient,
@@ -402,7 +497,8 @@ async function processNetwork(
           operation,
           isDryRun
         )
-      else {
+        operationsProcessed++
+      } else {
         // Determine if we should use interactive mode
         const isInteractive = !executeAll && !rejectAll
 
@@ -413,15 +509,33 @@ async function processNetwork(
           operation,
           isDryRun,
           isInteractive,
-          network.name
+          network.name,
+          slackNotifier
         )
 
         // Log the result for interactive mode
         if (isInteractive)
           consola.info(`[${network.name}] Operation ${operation.id}: ${result}`)
+
+        // Track statistics
+        operationsProcessed++
+        if (result === 'executed') operationsSucceeded++
+        else if (result === 'failed') operationsFailed++
       }
-      operationsProcessed++
-    }
+
+    // Send network completion notification if Slack is enabled
+    if (slackNotifier && operationsProcessed > 0)
+      try {
+        const stats: IProcessingStats = {
+          operationsProcessed,
+          operationsSucceeded,
+          operationsFailed,
+          totalGasUsed,
+        }
+        await slackNotifier.notifyNetworkProcessingComplete(network.name, stats)
+      } catch (error) {
+        consola.warn('Failed to send network completion notification:', error)
+      }
 
     return {
       network: network.name,
@@ -447,7 +561,10 @@ async function getPendingOperations(
   networkName: string,
   specificOperationId?: Hex,
   isCancellingOperations?: boolean
-): Promise<{ readyOperations: any[]; totalPendingCount: number }> {
+): Promise<{
+  readyOperations: ITimelockOperation[]
+  totalPendingCount: number
+}> {
   // Fetch Safe transactions with schedule data from MongoDB
   consola.info(
     `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching Safe transactions with schedule data from MongoDB...`
@@ -544,6 +661,13 @@ async function getPendingOperations(
           consola.info(
             `[${networkName}] ✅ Operation ${opId} is ready for execution`
           )
+
+          // Try to decode function name
+          let functionName: string | null = null
+          try {
+            functionName = await decodeFunctionCall(innerData)
+          } catch {}
+
           readyOperations.push({
             id: opId,
             target: target as Address,
@@ -554,6 +678,7 @@ async function getPendingOperations(
             delay: delay,
             salt: salt, // Store the actual salt from the schedule call
             mongoId: tx._id, // Store MongoDB ID for later updates
+            functionName,
           })
         } else if (isCancellingOperations && status.isPending) {
           // Get the timestamp when the operation will be ready
@@ -572,6 +697,13 @@ async function getPendingOperations(
               remainingTime
             )} remaining) - will be cancelled`
           )
+
+          // Try to decode function name
+          let functionName: string | null = null
+          try {
+            functionName = await decodeFunctionCall(innerData)
+          } catch {}
+
           readyOperations.push({
             id: opId,
             target: target as Address,
@@ -582,6 +714,7 @@ async function getPendingOperations(
             delay: delay,
             salt: salt, // Store the actual salt from the schedule call
             mongoId: tx._id,
+            functionName,
           })
         } else if (status.isPending) {
           // Get the timestamp when the operation will be ready
@@ -601,9 +734,11 @@ async function getPendingOperations(
             )} remaining)`
           )
         }
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
         consola.error(
-          `[${networkName}] Error processing transaction ${tx._id}: ${error.message}`
+          `[${networkName}] Error processing transaction ${tx._id}: ${errorMessage}`
         )
       }
   } finally {
@@ -626,20 +761,11 @@ async function executeOperation(
   publicClient: PublicClient,
   walletClient: WalletClient,
   timelockAddress: Address,
-  operation: {
-    id: Hex
-    target: Address
-    value: bigint
-    data: Hex
-    index: bigint
-    predecessor: Hex
-    delay: bigint
-    salt?: Hex
-    mongoId?: any
-  },
+  operation: ITimelockOperation,
   isDryRun: boolean,
   interactive?: boolean,
-  networkName?: string
+  networkName?: string,
+  slackNotifier?: SlackNotifier
 ): Promise<'executed' | 'rejected' | 'skipped' | 'failed'> {
   const networkPrefix = networkName ? `[${networkName}]` : ''
   consola.info(`\n${networkPrefix} ⚡ Processing operation: ${operation.id}`)
@@ -677,8 +803,10 @@ async function executeOperation(
   try {
     // Try to decode the function call
     const functionName = await decodeFunctionCall(operation.data)
-    if (functionName)
+    if (functionName) {
       consola.info(`${networkPrefix}    Function: ${functionName}`)
+      operation.functionName = functionName
+    }
 
     // Use the salt from the operation if available, otherwise use default
     const salt =
@@ -739,6 +867,29 @@ async function executeOperation(
           `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
         )
 
+        // Send Slack notification if enabled
+        if (slackNotifier && networkName)
+          try {
+            await slackNotifier.notifyOperationExecuted({
+              network: networkName,
+              operation: {
+                id: operation.id,
+                target: operation.target,
+                value: operation.value,
+                data: operation.data,
+                functionName: operation.functionName,
+              },
+              status: 'success',
+              transactionHash: hash,
+              gasUsed: receipt.gasUsed,
+            })
+          } catch (error) {
+            consola.warn(
+              'Failed to send operation success notification:',
+              error
+            )
+          }
+
         // Update MongoDB to mark the operation as executed
         if (operation.mongoId)
           try {
@@ -772,6 +923,29 @@ async function executeOperation(
       `${networkPrefix} Failed to execute operation ${operation.id}:`,
       error
     )
+
+    // Send Slack notification for failure if enabled
+    if (slackNotifier && networkName && !isDryRun)
+      try {
+        await slackNotifier.notifyOperationFailed({
+          network: networkName,
+          operation: {
+            id: operation.id,
+            target: operation.target,
+            value: operation.value,
+            data: operation.data,
+            functionName: operation.functionName,
+          },
+          status: 'failed',
+          error,
+        })
+      } catch (notifyError) {
+        consola.warn(
+          'Failed to send operation failure notification:',
+          notifyError
+        )
+      }
+
     return 'failed'
   }
 }
@@ -780,17 +954,7 @@ async function rejectOperation(
   publicClient: PublicClient,
   walletClient: WalletClient,
   timelockAddress: Address,
-  operation: {
-    id: Hex
-    target: Address
-    value: bigint
-    data: Hex
-    index: bigint
-    predecessor: Hex
-    delay: bigint
-    salt?: Hex
-    mongoId?: any
-  },
+  operation: ITimelockOperation,
   isDryRun: boolean
 ) {
   consola.info(`\n❌ Rejecting operation: ${operation.id}`)
