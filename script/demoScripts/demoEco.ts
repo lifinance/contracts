@@ -26,9 +26,135 @@ const ECO_FACET_ABI = ecoFacetArtifact.abi as Narrow<
 >
 // #endregion
 
-// Portal address is the same on every chain
-const ECO_PORTAL_ADDRESS = '0x90F0c8aCC1E083Bcb4F487f84FC349ae8d5e28D7'
-const ECO_PROVER_ADDRESS = '0xC09483299100ab9960eA1F641b0f94B9E6e0923C'
+// Chain IDs mapping
+const CHAIN_IDS: Record<string, number> = {
+  optimism: 10,
+  base: 8453,
+  arbitrum: 42161,
+  ethereum: 1,
+  polygon: 137,
+}
+
+// Token addresses per chain
+const USDC_ADDRESSES: Record<string, string> = {
+  optimism: ADDRESS_USDC_OPT,
+  base: ADDRESS_USDC_BASE,
+  arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+  ethereum: '0xA0b86991c59218FddE44e6996C8a21e9D5AA5F6dd5',
+  polygon: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+}
+
+// Eco API configuration
+const ECO_API_URL = process.env.ECO_API_URL || 'https://quotes.eco.com'
+const DAPP_ID = process.env.ECO_DAPP_ID || 'lifi-demo'
+
+interface IEcoQuoteRequest {
+  dAppID: string
+  quoteRequest: {
+    sourceChainID: number
+    destinationChainID: number
+    sourceToken: string
+    destinationToken: string
+    sourceAmount: string
+    funder: string
+    refundRecipient: string
+    recipient: string
+  }
+  contracts?: {
+    sourcePortal?: string
+    destinationPortal?: string
+    prover?: string
+  }
+}
+
+interface IEcoQuoteResponse {
+  quoteResponse: {
+    intentExecutionType: string
+    sourceChainID: number
+    destinationChainID: number
+    sourceToken: string
+    destinationToken: string
+    sourceAmount: string
+    destinationAmount: string
+    funder: string
+    refundRecipient: string
+    recipient: string
+    fees: Array<{
+      name: string
+      description: string
+      token: {
+        address: string
+        decimals: number
+        symbol: string
+      }
+      amount: string
+    }>
+    deadline: number
+    estimatedFulfillTimeSec: number
+  }
+  contracts: {
+    sourcePortal: string
+    destinationPortal: string
+    prover: string
+  }
+}
+
+async function getEcoQuote(
+  sourceChain: string,
+  destinationChain: string,
+  amount: bigint,
+  signerAddress: string
+): Promise<IEcoQuoteResponse> {
+  const sourceChainId = CHAIN_IDS[sourceChain]
+  const destinationChainId = CHAIN_IDS[destinationChain]
+  const sourceToken = USDC_ADDRESSES[sourceChain]
+  const destinationToken = USDC_ADDRESSES[destinationChain]
+
+  if (!sourceChainId || !destinationChainId) 
+    throw new Error(`Unsupported chain: ${sourceChain} or ${destinationChain}`)
+  
+
+  if (!sourceToken || !destinationToken) 
+    throw new Error(
+      `USDC address not found for chain: ${sourceChain} or ${destinationChain}`
+    )
+  
+
+  const quoteRequest: IEcoQuoteRequest = {
+    dAppID: DAPP_ID,
+    quoteRequest: {
+      sourceChainID: sourceChainId,
+      destinationChainID: destinationChainId,
+      sourceToken,
+      destinationToken,
+      sourceAmount: amount.toString(),
+      funder: signerAddress,
+      refundRecipient: signerAddress,
+      recipient: signerAddress,
+    },
+  }
+
+  console.log('Fetching quote from Eco API...')
+  console.log('Quote request:', JSON.stringify(quoteRequest, null, 2))
+
+  const response = await fetch(`${ECO_API_URL}/api/v3/quotes/getQuote`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(quoteRequest),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to get quote: ${response.status} - ${errorText}`)
+  }
+
+  const data = (await response.json()) as IEcoQuoteResponse
+  console.log('Quote received:', JSON.stringify(data, null, 2))
+
+  return data
+}
 
 async function main(args: {
   srcChain: SupportedChain
@@ -50,10 +176,26 @@ async function main(args: {
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  // === Contract addresses ===
-  const SRC_TOKEN_ADDRESS = ADDRESS_USDC_OPT as `0x${string}`
+  // === Get quote from Eco API ===
   const amount = parseUnits(args.amount, 6) // USDC has 6 decimals
-  const feeAmount = parseUnits('0.015', 6) // 0.25 USDC fee
+  const quote = await getEcoQuote(
+    srcChain,
+    args.dstChain,
+    amount,
+    signerAddress
+  )
+
+  // Extract fee amount from quote
+  const solverFee = quote.quoteResponse.fees.find(
+    (f) => f.name === 'Solver Fee'
+  )
+  if (!solverFee) 
+    throw new Error('No solver fee found in quote')
+  
+  const feeAmount = BigInt(solverFee.amount)
+
+  // === Contract addresses ===
+  const SRC_TOKEN_ADDRESS = USDC_ADDRESSES[srcChain] as `0x${string}`
 
   // Ensure wallet has sufficient USDC balance (amount + fee)
   const totalAmount = amount + feeAmount
@@ -81,7 +223,7 @@ async function main(args: {
     referrer: zeroAddress,
     sendingAssetId: SRC_TOKEN_ADDRESS,
     receiver: signerAddress, // Receiver on destination chain (same as signer)
-    destinationChainId: args.dstChain === 'base' ? 8453 : 8453, // Default to Base for now
+    destinationChainId: BigInt(quote.quoteResponse.destinationChainID),
     minAmount: amount,
     hasSourceSwaps: false,
     hasDestinationCall: false,
@@ -91,13 +233,12 @@ async function main(args: {
   const ecoData = {
     receiverAddress: signerAddress, // Receiver on destination chain (same as signer)
     nonEVMReceiver: '0x', // Empty for EVM chains
-    receivingAssetId: ADDRESS_USDC_BASE, // USDC token on Base
+    receivingAssetId: quote.quoteResponse.destinationToken, // USDC token on destination chain
     salt: `0x${randomBytes(32).toString('hex')}`, // Unique identifier
-    routeDeadline: BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour from now
-    destinationPortal: ECO_PORTAL_ADDRESS,
-    prover: ECO_PROVER_ADDRESS,
-    rewardDeadline: BigInt(Math.floor(Date.now() / 1000) + 7200), // 2 hours from now
-    solverReward: feeAmount, // 0.25 USDC fee instead of ETH
+    destinationInbox: quote.contracts.destinationPortal, // Inbox address on destination chain from quote
+    prover: quote.contracts.prover, // Prover address from quote
+    rewardDeadline: BigInt(quote.quoteResponse.deadline), // Deadline from quote
+    solverReward: feeAmount, // Solver fee from quote
     destinationCalls: [], // No destination calls for this demo
   }
 
@@ -139,7 +280,14 @@ async function main(args: {
 
   // === Start bridging ===
   console.log('Transaction details:')
-  console.log('  USDC fee:', ecoData.solverReward.toString())
+  console.log('  Source amount:', amount.toString())
+  console.log('  Destination amount:', quote.quoteResponse.destinationAmount)
+  console.log('  Solver fee:', ecoData.solverReward.toString())
+  console.log(
+    '  Estimated fulfillment time:',
+    quote.quoteResponse.estimatedFulfillTimeSec,
+    'seconds'
+  )
   console.log('  Bridge data:', bridgeData)
   console.log('  Eco data:', ecoData)
 

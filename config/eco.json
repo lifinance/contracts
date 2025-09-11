@@ -1,8 +1,32 @@
 {
   "optimism": {
-    "portal": "0x90F0c8aCC1E083Bcb4F487f84FC349ae8d5e28D7"
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
   },
   "base": {
-    "portal": "0x90F0c8aCC1E083Bcb4F487f84FC349ae8d5e28D7"
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+  },
+  "arbitrum": {
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+  },
+  "celo": {
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+  },
+  "mainnet": {
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+  },
+  "ink": {
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+  },
+  "polygon": {
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+  },
+  "unichain": {
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+  },
+  "worldchain": {
+    "intentSource": "0xeA5a5D21c9A4C7AEa216f63e0A6f9550092675aB"
+  },
+  "sonic": {
+    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
   }
 }

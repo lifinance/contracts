@@ -23,11 +23,11 @@ contract DeployScript is DeployScriptBase {
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/eco.json");
 
-        address portal = _getConfigContractAddress(
+        address intentSource = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".portal")
+            string.concat(".", network, ".intentSource")
         );
 
-        return abi.encode(portal);
+        return abi.encode(intentSource);
     }
 }
