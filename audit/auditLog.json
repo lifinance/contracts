@@ -336,6 +336,13 @@
       "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.1.0).pdf",
       "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
     },
+    "audit20250728": {
+      "auditCompletedOn": "28.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.28_LiFiDexAggregator(v1.12.0).pdf",
+      "auditCommitHash": "da57cb55dbbb6103a00ba662c76dd8a03abdc8d1"
+    },
     "audit20250730": {
       "auditCompletedOn": "30.07.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -349,6 +356,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.08.22_GlacisFacet(v1.1.0).pdf",
       "auditCommitHash": "15f4a1c3fe53e344245f3c1834df81643dde7830"
+    },
+    "audit20250825": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.25_MayanFacet(v1.2.2).pdf",
+      "auditCommitHash": "b7e4b66ae83961f2873454f0bf09347e9ac8959d"
+    },
+    "audit20250825_1": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.08.25_RelayDepositoryFacet(v1.0.0).pdf",
+      "auditCommitHash": "4837b45b3ae705dee625015b1a084b3c69dee2a2"
     }
   },
   "auditedContracts": {
@@ -484,7 +505,8 @@
       "1.0.2": ["audit20250110_1", "audit20250508"],
       "2.0.0": ["audit20250506"],
       "2.1.0": ["audit20250620"],
-      "2.1.1": ["audit20250718"]
+      "2.1.1": ["audit20250718"],
+      "2.1.2": ["audit20250728"]
     },
     "LibBytes": {
       "1.0.0": ["audit20250508"]
@@ -521,7 +543,8 @@
       "1.8.0": ["audit20250422"],
       "1.9.0": ["audit20250510"],
       "1.10.0": ["audit20250608"],
-      "1.11.0": ["audit20250630"]
+      "1.11.0": ["audit20250630"],
+      "1.12.0": ["audit20250728"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],
@@ -540,7 +563,8 @@
       "1.0.0": ["audit20250508"],
       "1.1.0": ["audit20250228"],
       "1.2.0": ["audit20250327"],
-      "1.2.1": ["audit20250718"]
+      "1.2.1": ["audit20250718"],
+      "1.2.2": ["audit20250825"]
     },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
@@ -590,6 +614,9 @@
     "ReceiverStargateV2": {
       "1.0.1": ["audit20250109_3"],
       "1.1.0": ["audit20250109_2", "audit20250508"]
+    },
+    "RelayDepositoryFacet": {
+      "1.0.0": ["audit20250825_1"]
     },
     "RelayFacet": {
       "1.0.0": ["audit20241202", "audit20250508"],

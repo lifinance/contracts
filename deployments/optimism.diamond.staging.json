@@ -150,8 +150,8 @@
         "Version": ""
       },
       "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
-        "Name": "",
-        "Version": ""
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       },
       "0x36e1375B0755162d720276dFF6893DF02bd49225": {
         "Name": "GlacisFacet",
@@ -162,8 +162,12 @@
         "Version": ""
       },
       "0x59A1Bcaa32EdB1a233fEF945857529BBD6df247f": {
-        "Name": "",
-        "Version": ""
+        "Name": "MayanFacet",
+        "Version": "1.2.2"
+      },
+      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
       },
       "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA": {
         "Name": "EcoFacet",

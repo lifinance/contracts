@@ -149,9 +149,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
+      "0x29BEDC1Be2EeCB654F7a9CD3f21B466c148186c2": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.2"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
