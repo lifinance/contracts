@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaEco(BridgeData calldata _bridgeData, EcoData calldata _ecoData)`
+- `function startBridgeTokensViaEco(BridgeData memory _bridgeData, EcoData calldata _ecoData)`
   - Bridges tokens using Eco Protocol without performing any swaps
-- `swapAndStartBridgeTokensViaEco(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, EcoData memory _ecoData)`
+- `function swapAndStartBridgeTokensViaEco(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, EcoData calldata _ecoData)`
   - Performs swap(s) before bridging tokens using Eco Protocol
 
 ## Eco Specific Parameters
@@ -26,9 +26,8 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param receiverAddress Address that will receive tokens on destination chain
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
 /// @param receivingAssetId Address of the token to receive on destination
-/// @param salt Unique identifier for the intent (prevents duplicates)
-/// @param routeDeadline Timestamp by which route must be executed
-/// @param destinationPortal Portal address on destination chain
+/// @param salt Unique identifier for the intent (prevent duplicates)
+/// @param destinationInbox Inbox address on destination chain
 /// @param prover Address of the prover contract for validation
 /// @param rewardDeadline Timestamp for reward claim eligibility
 /// @param solverReward Native token amount to reward the solver
@@ -38,8 +37,7 @@ struct EcoData {
   bytes nonEVMReceiver;
   address receivingAssetId;
   bytes32 salt;
-  uint64 routeDeadline;
-  address destinationPortal;
+  address destinationInbox;
   address prover;
   uint64 rewardDeadline;
   uint256 solverReward;
@@ -49,10 +47,13 @@ struct EcoData {
 
 ### Important Notes
 
-- **Solver Reward**: The `solverReward` must be sent as `msg.value` with the transaction. This incentivizes solvers to fulfill the intent on the destination chain.
-- **Non-EVM Destinations**: For non-EVM chains, set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (inherit from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
+- **Solver Reward**:
+  - For native token transfers: The entire amount (bridge amount + solver reward) must be sent as `msg.value`
+  - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the facet handles the split internally
+- **Non-EVM Destinations**: For non-EVM chains, set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (constant from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
 - **Native Token Bridging**: When bridging native tokens, the bridge amount plus the solver reward must be sent as `msg.value`.
-- **Token Approvals**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the required amount.
+- **ERC20 Token Bridging**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the total amount (bridge amount + solver reward).
+- **Destination Calls**: The `destinationCalls` array allows for arbitrary contract calls on the destination chain. The `hasDestinationCall` flag in `BridgeData` must match whether destination calls are provided.
 
 ## Swap Data
 

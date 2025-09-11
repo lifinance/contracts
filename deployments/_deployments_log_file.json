@@ -39767,10 +39767,10 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA",
+            "ADDRESS": "0x5b932C7566AeEBaA00bD14fBF6678F7f721BDD97",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-08-27 11:52:17",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000090f0c8acc1e083bcb4f487f84fc349ae8d5e28d7",
+            "TIMESTAMP": "2025-09-11 16:35:42",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002020ae689ed3e017450280cea110d0ef6e640da4",
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
