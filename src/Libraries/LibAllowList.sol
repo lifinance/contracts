@@ -27,7 +27,6 @@ library LibAllowList {
         mapping(bytes4 => bool) selectorAllowList;
         /// @dev [BACKWARD COMPATIBILITY] The global list of all unique whitelisted contracts for older facets.
         address[] contracts;
-
         // --- NEW GRANULAR STORAGE & SYNCHRONIZATION ---
         // These variables form the new, secure, and preferred whitelist system.
 
@@ -46,12 +45,9 @@ library LibAllowList {
         mapping(address => bytes4[]) whitelistedSelectorsByContract;
         /// @dev 1-based index for `whitelistedSelectorsByContract` array for efficient removal.
         mapping(address => mapping(bytes4 => uint256)) selectorIndices;
-
         /// @dev Flag to indicate completion of a one-time data migration.
         bool migrated;
     }
-
-    ///  Primary Interface ///
 
     // All new contracts and facets should exclusively use these functions. They operate
     // on the granular `contractSelectorAllowList` and handle all synchronization logic.
@@ -61,7 +57,10 @@ library LibAllowList {
     /// mapping and synchronizes the global arrays (for backward compatibility) via reference counting.
     /// @param _contract The contract address.
     /// @param _selector The function selector.
-    function addAllowedContractSelector(address _contract, bytes4 _selector) internal {
+    function addAllowedContractSelector(
+        address _contract,
+        bytes4 _selector
+    ) internal {
         // Validate contract address is not zero address.
         if (_contract == address(0)) revert InvalidCallData();
         AllowListStorage storage als = _getStorage();
@@ -86,7 +85,9 @@ library LibAllowList {
         // 4. Update the iterable list used by the on-chain getter.
         als.whitelistedSelectorsByContract[_contract].push(_selector);
         // Store 1-based index for efficient removal later.
-        als.selectorIndices[_contract][_selector] = als.whitelistedSelectorsByContract[_contract].length;
+        als.selectorIndices[_contract][_selector] = als
+            .whitelistedSelectorsByContract[_contract]
+            .length;
     }
 
     /// @notice Removes a specific contract-selector pair from the allow list.
@@ -94,7 +95,10 @@ library LibAllowList {
     /// mapping and synchronizes the global arrays (for backward compatibility) via reference counting.
     /// @param _contract The contract address.
     /// @param _selector The function selector.
-    function removeAllowedContractSelector(address _contract, bytes4 _selector) internal {
+    function removeAllowedContractSelector(
+        address _contract,
+        bytes4 _selector
+    ) internal {
         AllowListStorage storage als = _getStorage();
         // Skip if the pair is not currently allowed.
         if (!als.contractSelectorAllowList[_contract][_selector]) return;
@@ -123,7 +127,10 @@ library LibAllowList {
     /// @param _contract The contract address.
     /// @param _selector The function selector.
     /// @return isAllowed True if the contract-selector pair is allowed, false otherwise.
-    function contractSelectorIsAllowed(address _contract, bytes4 _selector) internal view returns (bool) {
+    function contractSelectorIsAllowed(
+        address _contract,
+        bytes4 _selector
+    ) internal view returns (bool) {
         return _getStorage().contractSelectorAllowList[_contract][_selector];
     }
 
@@ -131,10 +138,11 @@ library LibAllowList {
     /// @dev Used by the on-chain getter in the facet for backend synchronization.
     /// @param _contract The contract address.
     /// @return selectors The whitelisted selectors for the contract.
-    function getWhitelistedSelectorsForContract(address _contract) internal view returns (bytes4[] memory) {
+    function getWhitelistedSelectorsForContract(
+        address _contract
+    ) internal view returns (bytes4[] memory) {
         return _getStorage().whitelistedSelectorsByContract[_contract];
     }
-
 
     /// Backward Compatibility Interface ///
 
@@ -147,7 +155,9 @@ library LibAllowList {
     /// older, deployed facets to function correctly. Avoid use in new code.
     /// @param _contract The contract address.
     /// @return isAllowed True if the contract is allowed, false otherwise.
-    function contractIsAllowed(address _contract) internal view returns (bool) {
+    function contractIsAllowed(
+        address _contract
+    ) internal view returns (bool) {
         return _getStorage().contractToIndex[_contract] > 0;
     }
 
@@ -234,7 +244,11 @@ library LibAllowList {
         AllowListStorage storage als = _getStorage();
         // Get the 1-based index; return if not found.
         uint256 oneBasedIndex = als.selectorToIndex[_selector];
-        if (oneBasedIndex == 0) return;
+        if (oneBasedIndex == 0) {
+            // legacy cleanup: clear stale boolean if present
+            als.selectorAllowList[_selector] = false;
+            return;
+        }
         // Convert to 0-based index for array operations.
         uint256 index = oneBasedIndex - 1;
         uint256 lastIndex = als.selectors.length - 1;
@@ -250,18 +264,23 @@ library LibAllowList {
         als.selectors.pop();
         delete als.selectorToIndex[_selector];
     }
-    
+
     /// @dev Internal helper to manage the iterable array for the getter function.
     /// @param _contract The contract address.
     /// @param _selector The function selector.
-    function _removeSelectorFromIterableList(address _contract, bytes4 _selector) private {
+    function _removeSelectorFromIterableList(
+        address _contract,
+        bytes4 _selector
+    ) private {
         AllowListStorage storage als = _getStorage();
         // Get the 1-based index; return if not found.
         uint256 oneBasedIndex = als.selectorIndices[_contract][_selector];
         if (oneBasedIndex == 0) return;
         // Convert to 0-based index for array operations.
         uint256 index = oneBasedIndex - 1;
-        bytes4[] storage selectorsArray = als.whitelistedSelectorsByContract[_contract];
+        bytes4[] storage selectorsArray = als.whitelistedSelectorsByContract[
+            _contract
+        ];
         uint256 lastIndex = selectorsArray.length - 1;
 
         // If the selector to remove isn't the last one,
@@ -278,11 +297,14 @@ library LibAllowList {
 
     /// @dev Fetches the storage pointer for this library.
     /// @return als The storage pointer.
-    function _getStorage() internal pure returns (AllowListStorage storage als) {
+    function _getStorage()
+        internal
+        pure
+        returns (AllowListStorage storage als)
+    {
         bytes32 position = NAMESPACE;
         assembly {
             als.slot := position
         }
     }
 }
-

@@ -590,9 +590,7 @@ contract LibAllowListTest is Test {
         );
     }
 
-    // =================================================================
-    // ============== COMPLEX SCENARIOS & EDGE CASES ===================
-    // =================================================================
+    /// Complex Scenarios  ///
 
     function test_MultipleContractsWithOverlappingSelectors() public {
         TestContract contract2 = new TestContract();
