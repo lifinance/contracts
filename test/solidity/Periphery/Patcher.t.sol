@@ -7,7 +7,7 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
 import { RelayFacet } from "../../../src/Facets/RelayFacet.sol";
 import { LiFiData } from "../../../src/Helpers/LiFiData.sol";
-import { LibAllowList } from "../../../src/Libraries/LibAllowList.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 error MockFailure();
 error TargetFailure();
@@ -158,19 +158,11 @@ contract MockPriceOracle {
     }
 }
 
-contract TestRelayFacet is RelayFacet {
+contract TestRelayFacet is RelayFacet, TestWhitelistManagerBase {
     constructor(
         address _relayReceiver,
         address _relaySolver
     ) RelayFacet(_relayReceiver, _relaySolver) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract MockSilentFailTarget {

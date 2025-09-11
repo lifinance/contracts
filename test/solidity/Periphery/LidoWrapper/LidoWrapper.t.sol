@@ -87,17 +87,14 @@ contract LidoWrapperTest is TestBase, LiFiData {
         // slither-disable-next-line reentrancy
         relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
 
-        bytes4[] memory functionSelectors = new bytes4[](6);
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = relayFacet.startBridgeTokensViaRelay.selector;
         functionSelectors[1] = relayFacet
             .swapAndStartBridgeTokensViaRelay
             .selector;
-        functionSelectors[2] = relayFacet.addToWhitelist.selector;
-        functionSelectors[3] = relayFacet
-            .setFunctionWhitelistBySelector
-            .selector;
-        functionSelectors[4] = relayFacet.getMappedChainId.selector;
-        functionSelectors[5] = relayFacet.setConsumedId.selector;
+        functionSelectors[2] = relayFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] = relayFacet.getMappedChainId.selector;
+        functionSelectors[4] = relayFacet.setConsumedId.selector;
 
         addFacet(diamond, address(relayFacet), functionSelectors);
         // slither-disable-next-line reentrancy-no-eth
@@ -123,13 +120,8 @@ contract LidoWrapperTest is TestBase, LiFiData {
         });
 
         // whitelist LidoWrapper as periphery
-        relayFacet.addToWhitelist(address(lidoWrapper));
-        relayFacet.setFunctionWhitelistBySelector(
-            lidoWrapper.wrapStETHToWstETH.selector
-        );
-        relayFacet.setFunctionWhitelistBySelector(
-            lidoWrapper.unwrapWstETHToStETH.selector
-        );
+        relayFacet.addAllowedContractSelector(address(lidoWrapper), lidoWrapper.wrapStETHToWstETH.selector);
+        relayFacet.addAllowedContractSelector(address(lidoWrapper), lidoWrapper.unwrapWstETHToStETH.selector);
 
         vm.stopPrank();
 

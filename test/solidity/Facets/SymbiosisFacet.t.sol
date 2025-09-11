@@ -44,28 +44,19 @@ contract SymbiosisFacetTest is TestBaseFacet {
         functionSelectors[1] = symbiosisFacet
             .swapAndStartBridgeTokensViaSymbiosis
             .selector;
-        functionSelectors[2] = symbiosisFacet.addToWhitelist.selector;
+        functionSelectors[2] = symbiosisFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = symbiosisFacet
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(symbiosisFacet), functionSelectors);
 
         symbiosisFacet = TestSymbiosisFacet(address(diamond));
 
-        symbiosisFacet.addToWhitelist(address(uniswap));
-        symbiosisFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        symbiosisFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForETH.selector
-        );
-        symbiosisFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
-        symbiosisFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
+        symbiosisFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        symbiosisFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForETH.selector);
+        symbiosisFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
+        symbiosisFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
 
         setFacetAddressInTestBase(address(symbiosisFacet), "SymbiosisFacet");
 

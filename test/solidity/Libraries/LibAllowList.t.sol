@@ -20,7 +20,7 @@ contract LibAllowListTest is Test {
 
     function test_SucceedsIfOwnerAddsAndRemovesContract() public {
         // Add contract to allow list
-        LibAllowList.addAllowedContract(address(testContract));
+        LibAllowList.addAllowedContractSelector(address(testContract), TEST_SELECTOR);
         assertTrue(LibAllowList.contractIsAllowed(address(testContract)));
 
         address[] memory allowedContracts = LibAllowList.getAllowedContracts();
@@ -28,7 +28,7 @@ contract LibAllowListTest is Test {
         assertEq(allowedContracts[0], address(testContract));
 
         // Remove contract from allow list
-        LibAllowList.removeAllowedContract(address(testContract));
+        LibAllowList.removeAllowedContractSelector(address(testContract), TEST_SELECTOR);
         assertFalse(LibAllowList.contractIsAllowed(address(testContract)));
 
         allowedContracts = LibAllowList.getAllowedContracts();
@@ -37,7 +37,7 @@ contract LibAllowListTest is Test {
 
     function test_SucceedsIfRemovingNonExistentContract() public {
         // Try to remove a contract that was never added
-        LibAllowList.removeAllowedContract(address(testContract));
+        LibAllowList.removeAllowedContractSelector(address(testContract), TEST_SELECTOR);
         assertFalse(LibAllowList.contractIsAllowed(address(testContract)));
 
         address[] memory allowedContracts = LibAllowList.getAllowedContracts();
@@ -49,12 +49,12 @@ contract LibAllowListTest is Test {
         TestContract testContract3 = new TestContract();
 
         // Add multiple contracts
-        LibAllowList.addAllowedContract(address(testContract));
-        LibAllowList.addAllowedContract(address(testContract2));
-        LibAllowList.addAllowedContract(address(testContract3));
+        LibAllowList.addAllowedContractSelector(address(testContract), TEST_SELECTOR);
+        LibAllowList.addAllowedContractSelector(address(testContract2), TEST_SELECTOR);
+        LibAllowList.addAllowedContractSelector(address(testContract3), TEST_SELECTOR);
 
         // Remove middle contract
-        LibAllowList.removeAllowedContract(address(testContract2));
+        LibAllowList.removeAllowedContractSelector(address(testContract2), TEST_SELECTOR);
 
         address[] memory allowedContracts = LibAllowList.getAllowedContracts();
         assertEq(allowedContracts.length, 2);
@@ -65,7 +65,7 @@ contract LibAllowListTest is Test {
 
     function test_SucceedsIfAddingAndRemovingSelector() public {
         // Add selector to allow list
-        LibAllowList.addAllowedSelector(TEST_SELECTOR);
+        LibAllowList.addAllowedContractSelector(address(testContract), TEST_SELECTOR);
         assertTrue(LibAllowList.selectorIsAllowed(TEST_SELECTOR));
 
         bytes4[] memory allowedSelectors = LibAllowList.getAllowedSelectors();
@@ -73,7 +73,7 @@ contract LibAllowListTest is Test {
         assertEq(allowedSelectors[0], TEST_SELECTOR);
 
         // Remove selector from allow list
-        LibAllowList.removeAllowedSelector(TEST_SELECTOR);
+        LibAllowList.removeAllowedContractSelector(address(testContract), TEST_SELECTOR);
         assertFalse(LibAllowList.selectorIsAllowed(TEST_SELECTOR));
 
         allowedSelectors = LibAllowList.getAllowedSelectors();
@@ -82,7 +82,7 @@ contract LibAllowListTest is Test {
 
     function test_SucceedsIfRemovingNonExistentSelector() public {
         // Try to remove a selector that was never added
-        LibAllowList.removeAllowedSelector(TEST_SELECTOR);
+        LibAllowList.removeAllowedContractSelector(address(testContract), TEST_SELECTOR);
         assertFalse(LibAllowList.selectorIsAllowed(TEST_SELECTOR));
 
         bytes4[] memory allowedSelectors = LibAllowList.getAllowedSelectors();
@@ -94,12 +94,12 @@ contract LibAllowListTest is Test {
         bytes4 selector3 = bytes4(keccak256("test3()"));
 
         // Add multiple selectors
-        LibAllowList.addAllowedSelector(TEST_SELECTOR);
-        LibAllowList.addAllowedSelector(selector2);
-        LibAllowList.addAllowedSelector(selector3);
+        LibAllowList.addAllowedContractSelector(address(testContract), TEST_SELECTOR);
+        LibAllowList.addAllowedContractSelector(address(testContract), selector2);
+        LibAllowList.addAllowedContractSelector(address(testContract), selector3);
 
         // Remove middle selector
-        LibAllowList.removeAllowedSelector(selector2);
+        LibAllowList.removeAllowedContractSelector(address(testContract), selector2);
 
         bytes4[] memory allowedSelectors = LibAllowList.getAllowedSelectors();
         assertEq(allowedSelectors.length, 2);

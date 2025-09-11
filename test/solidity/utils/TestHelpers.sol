@@ -48,28 +48,13 @@ contract TestHelpers is Test {
             amountInActual
         );
         // whitelist DEX & function selector
-        TestWhitelistManagerBase(diamond).addToWhitelist(address(mockDex));
-        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
-            mockDex.swapTokensForExactTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
-            mockDex.swapExactTokensForTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
-            mockDex.swapETHForExactTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
-            mockDex.swapExactETHForTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
-            mockDex.swapExactTokensForETH.selector
-        );
-        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
-            mockDex.swapTokensForExactETH.selector
-        );
-        TestWhitelistManagerBase(diamond).setFunctionWhitelistBySelector(
-            mockDex.mockSwapWillRevertWithReason.selector
-        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapTokensForExactTokens.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactTokensForTokens.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapETHForExactTokens.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactETHForTokens.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactTokensForETH.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapTokensForExactETH.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.mockSwapWillRevertWithReason.selector);
     }
 }
 

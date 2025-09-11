@@ -43,28 +43,21 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             .swapAndStartBridgeTokensViaHopL1Native
             .selector;
         functionSelectors[4] = hopFacet.setApprovalForBridges.selector;
-        functionSelectors[5] = hopFacet.addToWhitelist.selector;
+        functionSelectors[5] = hopFacet.addAllowedContractSelector.selector;
         functionSelectors[6] = hopFacet
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
         hopFacet = TestHopFacet(address(diamond));
 
-        hopFacet.addToWhitelist(address(uniswap));
-        hopFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        hopFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        hopFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
-        hopFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactETHForTokens.selector
-        );
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactETHForTokens.selector);
+        
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         // Set approval for all bridges

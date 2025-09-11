@@ -45,23 +45,17 @@ contract SquidFacetTest is TestBaseFacet {
         functionSelectors[1] = squidFacet
             .swapAndStartBridgeTokensViaSquid
             .selector;
-        functionSelectors[2] = squidFacet.addToWhitelist.selector;
+        functionSelectors[2] = squidFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = squidFacet
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(squidFacet), functionSelectors);
         squidFacet = TestSquidFacet(address(diamond));
-        squidFacet.addToWhitelist(ADDRESS_UNISWAP);
-        squidFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        squidFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        squidFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForETH.selector);
 
         setFacetAddressInTestBase(address(squidFacet), "SquidFacet");
 

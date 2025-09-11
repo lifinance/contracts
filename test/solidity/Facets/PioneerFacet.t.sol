@@ -3,22 +3,14 @@ pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { PioneerFacet } from "lifi/Facets/PioneerFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub PioneerFacet Contract
-contract TestPioneerFacet is PioneerFacet {
+contract TestPioneerFacet is PioneerFacet, TestWhitelistManagerBase {
     constructor(address payable destination) PioneerFacet(destination) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract PioneerFacetTest is TestBaseFacet {
@@ -38,30 +30,20 @@ contract PioneerFacetTest is TestBaseFacet {
         destination = payable(address(uint160(uint256(keccak256("Pioneer")))));
 
         basePioneerFacet = new TestPioneerFacet(destination);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = basePioneerFacet
             .startBridgeTokensViaPioneer
             .selector;
         functionSelectors[1] = basePioneerFacet
             .swapAndStartBridgeTokensViaPioneer
             .selector;
-        functionSelectors[2] = basePioneerFacet.addDex.selector;
-        functionSelectors[3] = basePioneerFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[2] = basePioneerFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(basePioneerFacet), functionSelectors);
         pioneerFacet = TestPioneerFacet(address(diamond));
-        pioneerFacet.addDex(ADDRESS_UNISWAP);
-        pioneerFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        pioneerFacet.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        pioneerFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
+        pioneerFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        pioneerFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        pioneerFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(address(pioneerFacet), "PioneerFacet");
 

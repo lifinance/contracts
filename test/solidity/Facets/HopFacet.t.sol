@@ -41,9 +41,9 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
-        functionSelectors[4] = hopFacet.addToWhitelist.selector;
+        functionSelectors[4] = hopFacet.addAllowedContractSelector.selector;
         functionSelectors[5] = hopFacet
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
@@ -56,16 +56,11 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet = TestHopFacet(address(diamond));
         hopFacet.initHop(configs);
 
-        hopFacet.addToWhitelist(address(uniswap));
-        hopFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        hopFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        hopFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
+        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactETHForTokens.selector);
+
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         vm.makePersistent(address(hopFacet));
@@ -234,9 +229,9 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
-        functionSelectors[4] = hopFacet2.addToWhitelist.selector;
+        functionSelectors[4] = hopFacet2.addAllowedContractSelector.selector;
         functionSelectors[5] = hopFacet2
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond2, address(hopFacet2), functionSelectors);

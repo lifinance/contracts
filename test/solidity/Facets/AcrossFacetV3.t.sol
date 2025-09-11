@@ -36,30 +36,20 @@ contract AcrossFacetV3Test is TestBaseFacet {
         initTestBase();
 
         acrossFacetV3 = new TestAcrossFacetV3(IAcrossSpokePool(SPOKE_POOL));
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = acrossFacetV3
             .startBridgeTokensViaAcrossV3
             .selector;
         functionSelectors[1] = acrossFacetV3
             .swapAndStartBridgeTokensViaAcrossV3
             .selector;
-        functionSelectors[2] = acrossFacetV3.addToWhitelist.selector;
-        functionSelectors[3] = acrossFacetV3
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = acrossFacetV3.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(acrossFacetV3), functionSelectors);
         acrossFacetV3 = TestAcrossFacetV3(address(diamond));
-        acrossFacetV3.addToWhitelist(ADDRESS_UNISWAP);
-        acrossFacetV3.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        acrossFacetV3.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        acrossFacetV3.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        acrossFacetV3.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        acrossFacetV3.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        acrossFacetV3.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(address(acrossFacetV3), "AcrossFacetV3");
 
