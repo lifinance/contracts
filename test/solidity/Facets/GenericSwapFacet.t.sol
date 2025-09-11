@@ -28,18 +28,12 @@ contract GenericSwapFacetTest is TestBase {
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[1] = genericSwapFacet.addToWhitelist.selector;
-        functionSelectors[2] = genericSwapFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[1] = genericSwapFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(genericSwapFacet), functionSelectors);
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
-        genericSwapFacet.addToWhitelist(address(uniswap));
-        genericSwapFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
+        genericSwapFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
 
         // set facet address in TestBase
         setFacetAddressInTestBase(

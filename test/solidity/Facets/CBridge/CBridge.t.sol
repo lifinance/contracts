@@ -72,28 +72,20 @@ contract CBridgeFacetTest is TestBaseFacet {
     function setUp() public {
         initTestBase();
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
-        functionSelectors[2] = cBridge.addToWhitelist.selector;
-        functionSelectors[3] = cBridge.setFunctionWhitelistBySelector.selector;
-        functionSelectors[4] = cBridge.triggerRefund.selector;
+        functionSelectors[2] = cBridge.addAllowedContractSelector.selector;
+        functionSelectors[3] = cBridge.triggerRefund.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addToWhitelist(address(uniswap));
-        cBridge.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        cBridge.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        cBridge.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
         setFacetAddressInTestBase(address(cBridge), "cBridgeFacet");
     }
 

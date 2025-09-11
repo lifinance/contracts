@@ -30,25 +30,18 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[1] = thorSwapFacet
             .swapAndStartBridgeTokensViaThorSwap
             .selector;
-        functionSelectors[2] = thorSwapFacet.addToWhitelist.selector;
+        functionSelectors[2] = thorSwapFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = thorSwapFacet
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
-        thorSwapFacet.addToWhitelist(ADDRESS_UNISWAP);
-        thorSwapFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        thorSwapFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        thorSwapFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
-
+        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        
         setFacetAddressInTestBase(address(thorSwapFacet), "ThorSwapFacet");
 
         // adjust bridgeData

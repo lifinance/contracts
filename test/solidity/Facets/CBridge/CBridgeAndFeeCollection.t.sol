@@ -27,31 +27,21 @@ contract CBridgeAndFeeCollectionTest is TestBase {
 
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
-        functionSelectors[2] = cBridge.addToWhitelist.selector;
-        functionSelectors[3] = cBridge.setFunctionWhitelistBySelector.selector;
+        functionSelectors[2] = cBridge.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addToWhitelist(address(uniswap));
-        cBridge.addToWhitelist(address(feeCollector));
-        cBridge.setFunctionWhitelistBySelector(
-            bytes4(feeCollector.collectTokenFees.selector)
-        );
-        cBridge.setFunctionWhitelistBySelector(
-            bytes4(feeCollector.collectNativeFees.selector)
-        );
-        cBridge.setFunctionWhitelistBySelector(
-            bytes4(uniswap.swapExactTokensForTokens.selector)
-        );
-        cBridge.setFunctionWhitelistBySelector(
-            bytes4(uniswap.swapETHForExactTokens.selector)
-        );
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        cBridge.addAllowedContractSelector(address(feeCollector), feeCollector.collectTokenFees.selector);
+        cBridge.addAllowedContractSelector(address(feeCollector), feeCollector.collectNativeFees.selector);
     }
 
     function testCanCollectTokenFeesAndBridgeTokens() public {

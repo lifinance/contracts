@@ -37,32 +37,22 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             ADDRESS_USDC
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = celerCircleBridgeFacet
             .startBridgeTokensViaCelerCircleBridge
             .selector;
         functionSelectors[1] = celerCircleBridgeFacet
             .swapAndStartBridgeTokensViaCelerCircleBridge
             .selector;
-        functionSelectors[2] = celerCircleBridgeFacet.addToWhitelist.selector;
-        functionSelectors[3] = celerCircleBridgeFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = celerCircleBridgeFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
-        celerCircleBridgeFacet.addToWhitelist(address(uniswap));
-        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForETH.selector
-        );
-        celerCircleBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForETH.selector);
+        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(
             address(celerCircleBridgeFacet),

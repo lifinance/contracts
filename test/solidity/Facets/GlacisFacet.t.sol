@@ -47,23 +47,14 @@ abstract contract GlacisFacetTestBase is TestBaseFacet, LiFiData {
         functionSelectors[1] = glacisFacet
             .swapAndStartBridgeTokensViaGlacis
             .selector;
-        functionSelectors[2] = glacisFacet.addToWhitelist.selector;
-        functionSelectors[3] = glacisFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = glacisFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] = glacisFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
-        glacisFacet.addToWhitelist(ADDRESS_UNISWAP);
-        glacisFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        glacisFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        glacisFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        glacisFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        glacisFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        glacisFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
         _facetTestContractAddress = address(glacisFacet);
         vm.label(address(glacisFacet), "GlacisFacet");
 

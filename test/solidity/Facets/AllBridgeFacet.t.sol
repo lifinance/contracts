@@ -57,31 +57,21 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         initTestBase();
 
         allBridgeFacet = new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = allBridgeFacet
             .startBridgeTokensViaAllBridge
             .selector;
         functionSelectors[1] = allBridgeFacet
             .swapAndStartBridgeTokensViaAllBridge
             .selector;
-        functionSelectors[2] = allBridgeFacet.addToWhitelist.selector;
-        functionSelectors[3] = allBridgeFacet
-            .setFunctionWhitelistBySelector
-            .selector;
-        functionSelectors[4] = allBridgeFacet.getAllBridgeChainId.selector;
+        functionSelectors[2] = allBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] = allBridgeFacet.getAllBridgeChainId.selector;
 
         addFacet(diamond, address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
-        allBridgeFacet.addToWhitelist(ADDRESS_UNISWAP);
-        allBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        allBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        allBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        allBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        allBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        allBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
 
         setFacetAddressInTestBase(address(allBridgeFacet), "AllBridgeFacet");
 

@@ -61,9 +61,9 @@ contract StargateFacetV2Test is TestBaseFacet {
         functionSelectors[1] = stargateFacetV2
             .swapAndStartBridgeTokensViaStargate
             .selector;
-        functionSelectors[2] = stargateFacetV2.addToWhitelist.selector;
+        functionSelectors[2] = stargateFacetV2.addAllowedContractSelector.selector;
         functionSelectors[3] = stargateFacetV2
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
         functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
 
@@ -71,26 +71,12 @@ contract StargateFacetV2Test is TestBaseFacet {
         stargateFacetV2 = TestStargateFacetV2(payable(address(diamond)));
 
         // whitelist DEX and feeCollector addresses and function selectors in diamond
-        stargateFacetV2.addToWhitelist(address(uniswap));
-        stargateFacetV2.addToWhitelist(address(feeCollector));
-        stargateFacetV2.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        stargateFacetV2.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
-        stargateFacetV2.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForETH.selector
-        );
-        stargateFacetV2.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        stargateFacetV2.setFunctionWhitelistBySelector(
-            feeCollector.collectNativeFees.selector
-        );
-        stargateFacetV2.setFunctionWhitelistBySelector(
-            feeCollector.collectTokenFees.selector
-        );
+        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
+        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForETH.selector);
+        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
+        stargateFacetV2.addAllowedContractSelector(address(feeCollector), feeCollector.collectNativeFees.selector);
+        stargateFacetV2.addAllowedContractSelector(address(feeCollector), feeCollector.collectTokenFees.selector);
 
         // set facet address in TestBase
         setFacetAddressInTestBase(address(stargateFacetV2), "StargateFacetV2");

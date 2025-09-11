@@ -84,20 +84,17 @@ contract SwapperV2Test is TestBase {
         functionSelectors[1] = TestSwapperV2.doSwapsWithLowSlippage.selector;
         functionSelectors[2] = TestSwapperV2.doSwapsWithReserve.selector;
         functionSelectors[3] = TestWhitelistManagerBase
-            .addToWhitelist
+            .addAllowedContractSelector
             .selector;
         functionSelectors[4] = TestWhitelistManagerBase
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
-        swapper.addToWhitelist(address(amm));
-        swapper.setFunctionWhitelistBySelector(bytes4(amm.swap.selector));
-        swapper.setFunctionWhitelistBySelector(
-            bytes4(amm.partialSwap.selector)
-        );
+        swapper.addAllowedContractSelector(address(amm), amm.swap.selector);
+        swapper.addAllowedContractSelector(address(amm), amm.partialSwap.selector);
     }
 
     function test_SwapCleanup() public {

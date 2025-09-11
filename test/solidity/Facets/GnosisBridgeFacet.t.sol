@@ -49,25 +49,19 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = gnosisBridgeFacet
             .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
-        functionSelectors[2] = gnosisBridgeFacet.addToWhitelist.selector;
+        functionSelectors[2] = gnosisBridgeFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = gnosisBridgeFacet
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        gnosisBridgeFacet.addToWhitelist(address(uniswap));
-        gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForETH.selector
-        );
-        gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForETH.selector);
+        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
+        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(address(gnosisBridgeFacet), "GnosisFacet");
 

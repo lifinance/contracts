@@ -6,58 +6,52 @@ pragma solidity ^0.8.17;
 /// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and function selectors.
 /// @custom:version 1.0.0
 interface IWhitelistManagerFacet {
+    /// Events ///
+
     /// @notice Emitted when a new address is added to the whitelist.
     event AddressWhitelisted(address indexed whitelistedAddress);
 
-    /// @notice Emitted when an address is removed from the whitelist.
-    event AddressRemoved(address indexed removedAddress);
+    /// @notice Emitted when a function selector is added to the whitelist.
+    event FunctionSelectorWhitelistChanged(bytes4 indexed selector, bool indexed whitelisted);
 
-    /// @notice Emitted when a function selector whitelist status is changed.
-    event FunctionSelectorWhitelistChanged(
-        bytes4 indexed functionSelector,
+    /// @notice Emitted when a contract and selector pair is whitelisted or unwhitelisted.
+    event ContractSelectorWhitelistChanged(
+        address indexed contractAddress,
+        bytes4 indexed selector,
         bool indexed whitelisted
     );
 
-    /// @notice Register an address to be approved for interactions.
-    /// @param _contractAddress The contract address to be whitelisted.
-    function addToWhitelist(address _contractAddress) external;
-
-    /// @notice Batch register addresses to be approved for interactions.
-    /// @param _addresses The addresses to be whitelisted.
-    function batchAddToWhitelist(address[] calldata _addresses) external;
-
-    /// @notice Unregister an address from the whitelist.
-    /// @param _address The address to be removed from the whitelist.
-    function removeFromWhitelist(address _address) external;
-
-    /// @notice Batch unregister addresses from the whitelist.
-    /// @param _addresses The addresses to be removed from the whitelist.
-    function batchRemoveFromWhitelist(address[] calldata _addresses) external;
-
-    /// @notice Adds or removes a specific function selector to/from the whitelist.
+    /// @notice Sets the whitelist status for a specific contract and selector pair.
+    /// @param _contract The contract address to whitelist or unwhitelist.
     /// @param _selector The function selector to whitelist or unwhitelist.
-    /// @param _whitelisted Whether the function selector should be whitelisted.
-    function setFunctionWhitelistBySelector(
+    /// @param _whitelisted Whether the contract and selector pair should be whitelisted.
+    /// @dev TODO write about 0xDEADDEAD selector for contract used for approveTo
+    function setContractSelectorWhitelist(
+        address _contract,
         bytes4 _selector,
         bool _whitelisted
     ) external;
 
-    /// @notice Batch adds or removes specific function selectors to/from the whitelist.
-    /// @param _selectors The function selectors to whitelist or unwhitelist.
-    /// @param _whitelisted Whether the function selectors should be whitelisted.
-    function batchSetFunctionWhitelistBySelector(
+    /// @notice Sets the whitelist status for multiple contract and selector pairs.
+    /// @param _contracts Array of contract addresses to whitelist or unwhitelist.
+    /// @param _selectors Array of function selectors to whitelist or unwhitelist.
+    /// @param _whitelisted Whether the contract and selector pairs should be whitelisted.
+    function batchSetContractSelectorWhitelist(
+        address[] calldata _contracts,
         bytes4[] calldata _selectors,
         bool _whitelisted
     ) external;
 
-    /// @notice Returns whether a function selector is approved.
+    /// @notice Returns whether a specific contract and selector pair is whitelisted.
+    /// @param _contract The contract address to query.
     /// @param _selector The function selector to query.
-    /// @return whitelisted Whitelisted or not.
-    function isFunctionSelectorWhitelisted(
+    /// @return whitelisted Whether the pair is whitelisted.
+    function isContractSelectorWhitelisted(
+        address _contract,
         bytes4 _selector
     ) external view returns (bool whitelisted);
 
-    /// @notice Returns a list of all whitelisted addresses.
+    /// @notice LEGACY: Returns a list of all whitelisted addresses. 
     /// @dev WARNING: this does a full read of stored addresses.
     ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
     ///      the call may run out of gas. Do not rely on it for unbounded iteration.
@@ -84,6 +78,13 @@ interface IWhitelistManagerFacet {
         view
         returns (bytes4[] memory selectors);
 
+    /// @notice Returns a list of whitelisted selectors for a specific contract.
+    /// @param _contract The contract address to query.
+    /// @return selectors List of whitelisted selectors for the contract.
+    function getWhitelistedSelectorsForContract(
+        address _contract
+    ) external view returns (bytes4[] memory selectors);
+
     /// @notice Migrate the allow list configuration with new contracts and selectors.
     /// @dev This function can only be called by the diamond owner or authorized addresses.
     /// @param _selectorsToRemove Array of selectors to remove from the allow list.
@@ -98,4 +99,11 @@ interface IWhitelistManagerFacet {
     /// @notice Check if the allow list has been migrated.
     /// @return True if the allow list has been migrated, false otherwise.
     function isMigrated() external view returns (bool);
+
+    /// @notice Returns whether a function selector is whitelisted.
+    /// @param _selector The function selector to query.
+    /// @return whitelisted Whitelisted or not.
+    function isFunctionSelectorWhitelisted(
+        bytes4 _selector
+    ) external view returns (bool whitelisted);
 }

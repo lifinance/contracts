@@ -40,32 +40,22 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             IGatewayRouter(INBOX)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = arbitrumBridgeFacet
             .startBridgeTokensViaArbitrumBridge
             .selector;
         functionSelectors[1] = arbitrumBridgeFacet
             .swapAndStartBridgeTokensViaArbitrumBridge
             .selector;
-        functionSelectors[2] = arbitrumBridgeFacet.addToWhitelist.selector;
-        functionSelectors[3] = arbitrumBridgeFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = arbitrumBridgeFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
 
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
-        arbitrumBridgeFacet.addToWhitelist(address(uniswap));
-        arbitrumBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        arbitrumBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        arbitrumBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        arbitrumBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        arbitrumBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        arbitrumBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(
             address(arbitrumBridgeFacet),

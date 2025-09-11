@@ -40,30 +40,20 @@ contract ChainflipFacetTest is TestBaseFacet, LiFiData {
         vm.label(chainflipVault, "Chainflip Vault");
 
         chainflipFacet = new TestChainflipFacet(chainflipVault);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = chainflipFacet
             .startBridgeTokensViaChainflip
             .selector;
         functionSelectors[1] = chainflipFacet
             .swapAndStartBridgeTokensViaChainflip
             .selector;
-        functionSelectors[2] = chainflipFacet.addToWhitelist.selector;
-        functionSelectors[3] = chainflipFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = chainflipFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
-        chainflipFacet.addToWhitelist(ADDRESS_UNISWAP);
-        chainflipFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        chainflipFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        chainflipFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        chainflipFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        chainflipFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        chainflipFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(address(chainflipFacet), "ChainflipFacet");
 
