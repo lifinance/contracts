@@ -32,6 +32,25 @@ interface IWhitelistManagerFacet {
         bool _whitelisted
     ) external;
 
+    /// @notice Sets the whitelist status for multiple contract and selector pairs.
+    /// @param _contracts Array of contract addresses to whitelist or unwhitelist.
+    /// @param _selectors Array of function selectors to whitelist or unwhitelist.
+    /// @param _whitelisted Whether the contract and selector pairs should be whitelisted.
+    function batchSetContractSelectorWhitelist(
+        address[] calldata _contracts,
+        bytes4[] calldata _selectors,
+        bool _whitelisted
+    ) external;
+
+    /// @notice Returns whether a specific contract and selector pair is whitelisted.
+    /// @param _contract The contract address to query.
+    /// @param _selector The function selector to query.
+    /// @return whitelisted Whether the pair is whitelisted.
+    function isContractSelectorWhitelisted(
+        address _contract,
+        bytes4 _selector
+    ) external view returns (bool whitelisted);
+
     /// @notice LEGACY: Returns a list of all whitelisted addresses. 
     /// @dev WARNING: this does a full read of stored addresses.
     ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
@@ -58,6 +77,13 @@ interface IWhitelistManagerFacet {
         external
         view
         returns (bytes4[] memory selectors);
+
+    /// @notice Returns a list of whitelisted selectors for a specific contract.
+    /// @param _contract The contract address to query.
+    /// @return selectors List of whitelisted selectors for the contract.
+    function getWhitelistedSelectorsForContract(
+        address _contract
+    ) external view returns (bytes4[] memory selectors);
 
     /// @notice Migrate the allow list configuration with new contracts and selectors.
     /// @dev This function can only be called by the diamond owner or authorized addresses.

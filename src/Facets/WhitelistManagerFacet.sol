@@ -14,7 +14,7 @@ import { CannotAuthoriseSelf, InvalidConfig } from "../Errors/GenericErrors.sol"
 contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
-    /// @notice Sets the whitelist status for a specific contract and selector pair.
+    /// @inheritdoc IWhitelistManagerFacet
     function setContractSelectorWhitelist(
         address _contract,
         bytes4 _selector,
@@ -26,6 +26,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         _setContractSelectorWhitelist(_contract, _selector, _whitelisted);
     }
 
+    /// @inheritdoc IWhitelistManagerFacet
     function batchSetContractSelectorWhitelist(
         address[] calldata _contracts,
         bytes4[] calldata _selectors,
@@ -47,6 +48,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
     }
 
+    /// @inheritdoc IWhitelistManagerFacet
     function isContractSelectorWhitelisted(
         address _contract,
         bytes4 _selector
@@ -84,6 +86,13 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         returns (bytes4[] memory selectors)
     {
         return LibAllowList.getAllowedSelectors();
+    }
+
+    /// @inheritdoc IWhitelistManagerFacet
+    function getWhitelistedSelectorsForContract(
+        address _contract
+    ) external view returns (bytes4[] memory selectors) {
+        return LibAllowList.getWhitelistedSelectorsForContract(_contract);
     }
 
     /// Internal Logic ///
