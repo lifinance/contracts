@@ -519,6 +519,27 @@ async function getPendingOperations(
           continue
         }
 
+        // Check if operation exists on-chain when not ready and not marked as executed
+        if (!status.isPending && !status.isReady && !tx.timelockIsExecuted) {
+          // Operation doesn't exist on-chain at all
+          const isOperation = await publicClient.readContract({
+            address: timelockAddress,
+            abi: TIMELOCK_ABI,
+            functionName: 'isOperation',
+            args: [opId],
+          })
+
+          if (!isOperation) {
+            consola.error(
+              `[${networkName}] ❌ Operation ${opId} does not exist on-chain! The timelock transaction was never scheduled. Transaction ID: ${tx._id}`
+            )
+            consola.error(
+              `[${networkName}]    This Safe transaction needs to be re-executed to schedule it in the timelock.`
+            )
+            continue
+          }
+        }
+
         if (status.isReady) {
           consola.info(
             `[${networkName}] ✅ Operation ${opId} is ready for execution`
