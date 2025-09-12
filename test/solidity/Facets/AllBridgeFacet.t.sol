@@ -6,7 +6,6 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
 import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
-import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 
 // Stub AllBridgeFacet Contract
 contract TestAllBridgeFacet is AllBridgeFacet {
@@ -27,7 +26,7 @@ contract TestAllBridgeFacet is AllBridgeFacet {
     }
 }
 
-contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
+contract AllBridgeFacetTest is TestBaseFacet {
     IAllBridge internal constant ALLBRIDGE_ROUTER =
         IAllBridge(0x609c690e8F7D68a59885c9132e812eEbDaAf0c9e);
     address internal constant ALLBRIDGE_POOL =
