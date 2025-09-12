@@ -46,7 +46,7 @@ cronos = "${ETH_NODE_URI_CRONOS}"
 evmos = "${ETH_NODE_URI_EVMOS}"
 fantom = "${ETH_NODE_URI_FANTOM}"
 flare = "${ETH_NODE_URI_FLARE}"
-flow = "${ETH_NODE_URI_FLOW"
+flow = "${ETH_NODE_URI_FLOW}"
 fraxtal = "${ETH_NODE_URI_FRAXTAL}"
 fuse = "${ETH_NODE_URI_FUSE}"
 harmony = "${ETH_NODE_URI_HARMONY}"
@@ -95,10 +95,6 @@ scroll = "${ETH_NODE_URI_SCROLL}"
 
 # testnets
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
-
-[lint]
-lint_on_build=false
-
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
