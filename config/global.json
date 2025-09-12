@@ -5,6 +5,7 @@
   "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+  "devWallet": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62",
   "approvedSigsForRefundWallet": [
     {
       "sig": "0x0d19e519",
@@ -71,5 +72,6 @@
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "OwnershipFacet"
-  ]
+  ],
+  "blacklistedFunctionSelectors": ["0x23b872dd"]
 }

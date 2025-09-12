@@ -4599,7 +4599,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="nightly-ae9cfd10d906b5ab350258533219da1f4775c118"
+  local FOUNDRY_ZKSYNC_VERSION="v0.0.26"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
@@ -4611,12 +4611,32 @@ install_foundry_zksync() {
 
   echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
 
-  # Check if binaries already exist and are executable
+  # Check if binaries already exist and verify their version
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
-    echo "forge and cast binaries already exist in ${install_dir} and are executable"
-    echo "Skipping download and installation"
-    return 0
+      echo "forge and cast binaries found in ${install_dir}"
+
+      # Check the version of the existing binary
+      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
+
+      # If we couldn't extract version or it doesn't match expected version
+      if [ -z "$CURRENT_VERSION" ]; then
+          echo "Could not determine version of existing foundry-zksync binary"
+          echo "Removing existing binaries and redownloading..."
+          # Remove everything except .gitignore
+          find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
+      elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+          echo "Version mismatch detected!"
+          echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "  Current:  ${CURRENT_VERSION}"
+          echo "Removing existing binaries and redownloading..."
+          # Remove everything except .gitignore
+          find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
+      else
+          echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "Skipping download and installation"
+          return 0
+      fi
   fi
 
   # Detect operating system
@@ -4648,8 +4668,8 @@ install_foundry_zksync() {
   esac
 
   # Construct download URL using the specified version
-  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_zksync_nightly_${os}_${arch}.tar.gz"
+  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${FOUNDRY_ZKSYNC_VERSION}"
+  local filename="foundry_zksync_${FOUNDRY_ZKSYNC_VERSION}_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist

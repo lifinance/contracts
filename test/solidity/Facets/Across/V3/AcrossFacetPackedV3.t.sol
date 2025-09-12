@@ -8,7 +8,7 @@ import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBase } from "../../../utils/TestBase.sol";
 
 contract TestClaimContract {
     using SafeERC20 for IERC20;

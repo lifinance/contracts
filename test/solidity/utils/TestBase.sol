@@ -15,6 +15,7 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 import { TestHelpers } from "./TestHelpers.sol";
+import { LiFiData } from "src/Helpers/LiFiData.sol";
 
 using stdJson for string;
 
@@ -98,7 +99,8 @@ abstract contract TestBase is
     TestBaseRandomConstants,
     TestHelpers,
     LiFiDEXAggregatorDiamondTest,
-    ILiFi
+    ILiFi,
+    LiFiData
 {
     address internal _facetTestContractAddress;
     uint64 internal currentTxId;
@@ -137,11 +139,7 @@ abstract contract TestBase is
     // MODIFIERS
 
     //@dev token == address(0) => check balance of native token
-    modifier assertBalanceChange(
-        address token,
-        address user,
-        int256 amount
-    ) {
+    modifier assertBalanceChange(address token, address user, int256 amount) {
         // store initial balance
         if (token == address(0)) {
             initialBalances[token][user] = user.balance;

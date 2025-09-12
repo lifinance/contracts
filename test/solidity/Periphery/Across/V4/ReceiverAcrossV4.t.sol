@@ -1,21 +1,21 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBase, LibSwap } from "../utils/TestBase.sol";
-import { UnAuthorized } from "src/Errors/GenericErrors.sol";
+import { TestBase, LibSwap } from "../../../utils/TestBase.sol";
+import { UnAuthorized, InvalidConfig } from "src/Errors/GenericErrors.sol";
 
-import { ReceiverAcrossV3 } from "lifi/Periphery/ReceiverAcrossV3.sol";
+import { ReceiverAcrossV4 } from "lifi/Periphery/ReceiverAcrossV4.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
-import { MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
+import { MockUniswapDEX, NonETHReceiver } from "../../../utils/TestHelpers.sol";
 
 address constant SPOKEPOOL_MAINNET = 0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
 
-contract ReceiverAcrossV3Test is TestBase {
+contract ReceiverAcrossV4Test is TestBase {
     using stdJson for string;
 
-    ReceiverAcrossV3 internal receiver;
+    ReceiverAcrossV4 internal receiver;
     bytes32 internal guid = bytes32("12345");
     address internal receiverAddress = USER_RECEIVER;
 
@@ -26,30 +26,44 @@ contract ReceiverAcrossV3Test is TestBase {
     event ExecutorSet(address indexed executor);
 
     function setUp() public override {
-        customBlockNumberForForking = 20024274;
+        customBlockNumberForForking = 22989702;
         initTestBase();
 
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy), address(this));
-        receiver = new ReceiverAcrossV3(
+        receiver = new ReceiverAcrossV4(
             address(this),
             address(executor),
             SPOKEPOOL_MAINNET
         );
-        vm.label(address(receiver), "ReceiverAcrossV3");
+        vm.label(address(receiver), "ReceiverAcrossV4");
         vm.label(address(executor), "Executor");
         vm.label(address(erc20Proxy), "ERC20Proxy");
     }
 
+    function testRevert_WhenInvalidConfig() public {
+        // Test with zero executor
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverAcrossV4(address(this), address(0), SPOKEPOOL_MAINNET);
+
+        // Test with zero spokepool
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverAcrossV4(address(this), address(executor), address(0));
+
+        // Test with zero owner
+        vm.expectRevert(InvalidConfig.selector);
+        new ReceiverAcrossV4(address(0), address(executor), SPOKEPOOL_MAINNET);
+    }
+
     function test_contractIsSetUpCorrectly() public {
-        receiver = new ReceiverAcrossV3(
+        receiver = new ReceiverAcrossV4(
             address(this),
             address(executor),
             SPOKEPOOL_MAINNET
         );
 
-        assertEq(address(receiver.executor()) == address(executor), true);
-        assertEq(receiver.spokepool() == SPOKEPOOL_MAINNET, true);
+        assertEq(address(receiver.EXECUTOR()) == address(executor), true);
+        assertEq(receiver.SPOKEPOOL() == SPOKEPOOL_MAINNET, true);
     }
 
     function test_OwnerCanPullERC20Token() public {
@@ -80,7 +94,7 @@ contract ReceiverAcrossV3Test is TestBase {
         assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
     }
 
-    function test_WithdrawTokenWillRevertIfExternalCallFails() public {
+    function testRevert_WithdrawTokenWillRevertIfExternalCallFails() public {
         vm.deal(address(receiver), 1 ether);
 
         // deploy contract that cannot receive ETH
@@ -97,17 +111,17 @@ contract ReceiverAcrossV3Test is TestBase {
         );
     }
 
-    function test_revert_WithdrawTokenNonOwner() public {
+    function testRevert_WithdrawTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
         receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
-    function test_revert_OnlySpokepoolCanCallHandleV3AcrossMessage() public {
+    function testRevert_OnlySpokepoolCanCallHandleV3AcrossMessage() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
 
-        // call from deployer of ReceiverAcrossV3
+        // call from deployer of ReceiverAcrossV4
         vm.startPrank(address(this));
         vm.expectRevert(UnAuthorized.selector);
 
@@ -138,7 +152,7 @@ contract ReceiverAcrossV3Test is TestBase {
         (
             bytes memory payload,
             uint256 amountOutMin
-        ) = _getValidAcrossV3Payload(ADDRESS_USDC, ADDRESS_DAI);
+        ) = _getValidAcrossV4Payload(ADDRESS_USDC, ADDRESS_DAI);
 
         // fake a sendCompose from USDC pool on ETH mainnet
         vm.startPrank(SPOKEPOOL_MAINNET);
@@ -206,7 +220,7 @@ contract ReceiverAcrossV3Test is TestBase {
     }
 
     // HELPER FUNCTIONS
-    function _getValidAcrossV3Payload(
+    function _getValidAcrossV4Payload(
         address _sendingAssetId,
         address _receivingAssetId
     ) public view returns (bytes memory callData, uint256 amountOutMin) {

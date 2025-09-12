@@ -7,8 +7,8 @@ import { AcrossFacetPacked } from "lifi/Facets/AcrossFacetPacked.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
-import { TestBase } from "../utils/TestBase.sol";
-import { MockFailingContract } from "../utils/MockFailingContract.sol";
+import { TestBase } from "../../../utils/TestBase.sol";
+import { MockFailingContract } from "../../../utils/MockFailingContract.sol";
 
 contract TestClaimContract {
     using SafeERC20 for IERC20;
