@@ -86,9 +86,14 @@ const main = defineCommand({
       `../../config/global.json`
     )
 
+    // Convert blacklisted selectors to lowercase once for efficiency
+    const blacklistedSelectorsLower = blacklistedFunctionSelectors.map((s) =>
+      s.toLowerCase()
+    )
+
     // Security check: Prevent whitelisting of dangerous function selectors
     for (const sig of sigs)
-      if (blacklistedFunctionSelectors.includes(sig.toLowerCase())) {
+      if (blacklistedSelectorsLower.includes(sig.toLowerCase())) {
         consola.error(
           `❌ ERROR: Blacklisted function selector (${sig}) detected in signatures!`
         )
