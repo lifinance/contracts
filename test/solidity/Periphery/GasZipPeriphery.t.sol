@@ -1,19 +1,19 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
-import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
-import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { LDADiamondTest } from "./LDA/utils/LDADiamondTest.sol";
 import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
 import { UniV2StyleFacet } from "lifi/Periphery/LDA/Facets/UniV2StyleFacet.sol";
 import { NativeWrapperFacet } from "lifi/Periphery/LDA/Facets/NativeWrapperFacet.sol";
+import { TestBase, ILiFi } from "../utils/TestBase.sol";
+import { NonETHReceiver } from "../utils/TestHelpers.sol";
+import { LiFiDEXAggregatorDiamondTest } from "./LDA/LiFiDEXAggregatorDiamond.t.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipPeriphery is GasZipPeriphery {
@@ -61,7 +61,7 @@ contract GasZipPeripheryTest is TestBase {
     function setUp() public override {
         customBlockNumberForForking = 22566858;
         initTestBase();
-        LDADiamondTest.setUp();
+        LiFiDEXAggregatorDiamondTest.setUp();
 
         // deploy contracts
         gasZipPeriphery = new TestGasZipPeriphery(
@@ -513,7 +513,7 @@ contract GasZipPeripheryTest is TestBase {
     function _wireLDARouteFacets() internal {
         bytes4[] memory selectors;
 
-        CoreRouteFacet core = new CoreRouteFacet(USER_DIAMOND_OWNER);
+        CoreRouteFacet core = new CoreRouteFacet();
         selectors = new bytes4[](1);
         selectors[0] = CoreRouteFacet.processRoute.selector;
         addFacet(address(ldaDiamond), address(core), selectors);
@@ -653,7 +653,7 @@ contract GasZipPeripheryTest is TestBase {
 
         return
             LibSwap.SwapData({
-                callTo: address(ldaDiamond), // LDA diamond address (CoreRouteFacet lives here)
+                callTo: address(ldaDiamond), // LiFiDEXAggregator diamond address (CoreRouteFacet lives here)
                 approveTo: address(ldaDiamond),
                 sendingAssetId: tokenIn,
                 receivingAssetId: address(0), // native

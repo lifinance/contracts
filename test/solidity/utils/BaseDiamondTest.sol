@@ -1,120 +1,221 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
+import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
+import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { Test } from "forge-std/Test.sol";
+import { DiamondTestHelpers } from "./DiamondTestHelpers.sol";
 
-/// @title BaseDiamondTest
-/// @notice Minimal helper to compose a test Diamond and add facets/selectors for test scenarios.
-/// @dev Provides overloads to add facets with or without init calldata.
-///      This contract is used by higher-level LDA test scaffolding to assemble the test Diamond.
-abstract contract BaseDiamondTest is Test {
-    LibDiamond.FacetCut[] internal cut;
+/// @notice Base contract with common diamond test functions to reduce code duplication
+/// @dev Provides standard test patterns that work with any diamond implementation
+abstract contract BaseDiamondTest is DiamondTestHelpers {
+    // Main diamond instance - accessible to all inheriting contracts including TestBase
+    LiFiDiamond internal diamond;
 
-    /// @notice Adds standard Diamond Loupe selectors to the `cut` buffer.
-    /// @param _diamondLoupe Address of a deployed `DiamondLoupeFacet`.
-    /// @dev Call this before invoking diamondCut with the buffered `cut`.
-    function _addDiamondLoupeSelectors(address _diamondLoupe) internal {
-        bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = DiamondLoupeFacet
-            .facetFunctionSelectors
+    // Common facet instances
+    DiamondCutFacet internal diamondCutFacet;
+    OwnershipFacet internal ownershipFacet;
+    DiamondLoupeFacet internal diamondLoupeFacet;
+    PeripheryRegistryFacet internal peripheryFacet;
+    EmergencyPauseFacet internal emergencyPauseFacet;
+
+    // Events
+    event DiamondCut(
+        LibDiamond.FacetCut[] _diamondCut,
+        address _init,
+        bytes _calldata
+    );
+
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
+    // Errors
+    error FunctionDoesNotExist();
+    error ShouldNotReachThisCode();
+    error InvalidDiamondSetup();
+    error ExternalCallFailed();
+
+    function setUp() public virtual {
+        // Create the main LiFiDiamond that TestBase and other facet tests expect
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+    }
+
+    /// @notice Creates a fully configured diamond with all standard facets
+    /// @param _diamondOwner Owner address for the diamond
+    /// @param _pauserWallet Pauser wallet address for emergency pause facet
+    /// @return The created LiFiDiamond instance
+    function createDiamond(
+        address _diamondOwner,
+        address _pauserWallet
+    ) internal returns (LiFiDiamond) {
+        vm.startPrank(_diamondOwner);
+
+        // Recreate facets with the specified pauser
+        diamondCutFacet = new DiamondCutFacet();
+        diamondLoupeFacet = new DiamondLoupeFacet();
+        ownershipFacet = new OwnershipFacet();
+        peripheryFacet = new PeripheryRegistryFacet();
+        emergencyPauseFacet = new EmergencyPauseFacet(_pauserWallet);
+
+        // Create new diamond
+        diamond = new LiFiDiamond(_diamondOwner, address(diamondCutFacet));
+
+        // Add Diamond Loupe
+        _addDiamondLoupeSelectors(address(diamondLoupeFacet));
+
+        // Add Ownership
+        _addOwnershipSelectors(address(ownershipFacet));
+
+        // Add PeripheryRegistry
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = PeripheryRegistryFacet
+            .registerPeripheryContract
             .selector;
-        functionSelectors[1] = DiamondLoupeFacet.facets.selector;
-        functionSelectors[2] = DiamondLoupeFacet.facetAddress.selector;
-        functionSelectors[3] = DiamondLoupeFacet.facetAddresses.selector;
-        functionSelectors[4] = DiamondLoupeFacet.supportsInterface.selector;
-
+        functionSelectors[1] = PeripheryRegistryFacet
+            .getPeripheryContract
+            .selector;
         cut.push(
             LibDiamond.FacetCut({
-                facetAddress: _diamondLoupe,
+                facetAddress: address(peripheryFacet),
                 action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
-    }
 
-    /// @notice Adds standard Ownership selectors to the `cut` buffer.
-    /// @param _ownership Address of a deployed `OwnershipFacet`.
-    /// @dev Call this before invoking diamondCut with the buffered `cut`.
-    function _addOwnershipSelectors(address _ownership) internal {
-        bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
-        functionSelectors[1] = OwnershipFacet.cancelOwnershipTransfer.selector;
-        functionSelectors[2] = OwnershipFacet
-            .confirmOwnershipTransfer
-            .selector;
-        functionSelectors[3] = OwnershipFacet.owner.selector;
-
+        // Add EmergencyPause
+        functionSelectors = new bytes4[](3);
+        functionSelectors[0] = emergencyPauseFacet.removeFacet.selector;
+        functionSelectors[1] = emergencyPauseFacet.pauseDiamond.selector;
+        functionSelectors[2] = emergencyPauseFacet.unpauseDiamond.selector;
         cut.push(
             LibDiamond.FacetCut({
-                facetAddress: _ownership,
+                facetAddress: address(emergencyPauseFacet),
                 action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
-    }
 
-    /// @notice Adds a facet and function selectors to the target diamond.
-    /// @param _diamond Address of the diamond proxy.
-    /// @param _facet Address of the facet implementation to add.
-    /// @param _selectors Function selectors to expose in the diamond.
-    /// @dev Convenience overload with no initializer; see the 5-arg overload for init flows.
-    function addFacet(
-        address _diamond,
-        address _facet,
-        bytes4[] memory _selectors
-    ) public virtual {
-        _addFacet(_diamond, _facet, _selectors, address(0), "");
-    }
-
-    /// @notice Adds a facet and function selectors to the target diamond, optionally executing an initializer.
-    /// @param _diamond Address of the diamond proxy.
-    /// @param _facet Address of the facet implementation to add.
-    /// @param _selectors Function selectors to expose in the diamond.
-    /// @param _init Address of an initializer (can be facet or another contract).
-    /// @param _initCallData ABI-encoded calldata for the initializer.
-    /// @dev Owner is impersonated via vm.startPrank for the duration of the diamondCut.
-    function addFacet(
-        address _diamond,
-        address _facet,
-        bytes4[] memory _selectors,
-        address _init,
-        bytes memory _initCallData
-    ) public virtual {
-        _addFacet(_diamond, _facet, _selectors, _init, _initCallData);
-    }
-
-    /// @notice Performs diamondCut with an appended `FacetCut`.
-    /// @param _diamond Address of the diamond proxy.
-    /// @param _facet Address of the facet implementation to add.
-    /// @param _selectors Function selectors to expose in the diamond.
-    /// @param _init Address of an initializer (address(0) for none).
-    /// @param _initCallData ABI-encoded calldata for the initializer (empty if none).
-    /// @dev Example:
-    ///      - Append loupe + ownership cuts first.
-    ///      - Then call `_addFacet(diamond, address(myFacet), selectors, address(0), "")`.
-    function _addFacet(
-        address _diamond,
-        address _facet,
-        bytes4[] memory _selectors,
-        address _init,
-        bytes memory _initCallData
-    ) internal virtual {
-        vm.startPrank(OwnershipFacet(_diamond).owner());
-        cut.push(
-            LibDiamond.FacetCut({
-                facetAddress: _facet,
-                action: LibDiamond.FacetCutAction.Add,
-                functionSelectors: _selectors
-            })
-        );
-
-        DiamondCutFacet(_diamond).diamondCut(cut, _init, _initCallData);
-
+        DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
         delete cut;
         vm.stopPrank();
+        return diamond;
+    }
+
+    /// @notice Override this to return the diamond address for testing
+    function getDiamondAddress() internal view virtual returns (address) {
+        return address(diamond);
+    }
+
+    /// @notice Override this to return the diamond owner address
+    function getDiamondOwner() internal view virtual returns (address) {
+        return USER_DIAMOND_OWNER;
+    }
+
+    /// @notice Test that diamond deployment works without errors
+    function test_DeploysWithoutErrors() public virtual {
+        assertTrue(
+            getDiamondAddress() != address(0),
+            "Diamond should be deployed"
+        );
+    }
+
+    /// @notice Test that diamond forwards calls via delegate call
+    function test_ForwardsCallsViaDelegateCall() public {
+        address diamondAddr = getDiamondAddress();
+        address owner = getDiamondOwner();
+
+        vm.startPrank(owner);
+
+        DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
+
+        // Check if DiamondLoupeFacet is already installed
+        bool loupeAlreadyInstalled = false;
+        try DiamondLoupeFacet(diamondAddr).facetAddresses() returns (
+            address[] memory
+        ) {
+            loupeAlreadyInstalled = true;
+        } catch {
+            // Loupe not installed, which is expected for basic diamonds
+        }
+
+        if (!loupeAlreadyInstalled) {
+            // prepare function selectors
+            bytes4[] memory functionSelectors = new bytes4[](4);
+            functionSelectors[0] = diamondLoupe.facets.selector;
+            functionSelectors[1] = diamondLoupe
+                .facetFunctionSelectors
+                .selector;
+            functionSelectors[2] = diamondLoupe.facetAddresses.selector;
+            functionSelectors[3] = diamondLoupe.facetAddress.selector;
+
+            // prepare diamondCut
+            LibDiamond.FacetCut[] memory cuts = new LibDiamond.FacetCut[](1);
+            cuts[0] = LibDiamond.FacetCut({
+                facetAddress: address(diamondLoupe),
+                action: LibDiamond.FacetCutAction.Add,
+                functionSelectors: functionSelectors
+            });
+
+            DiamondCutFacet(diamondAddr).diamondCut(cuts, address(0), "");
+        }
+
+        // Now the call should succeed
+        address[] memory facetAddresses = DiamondLoupeFacet(diamondAddr)
+            .facetAddresses();
+        assertTrue(
+            facetAddresses.length > 0,
+            "Should have facets after adding DiamondLoupe"
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test that diamond reverts on unknown function selectors
+    function test_RevertsOnUnknownFunctionSelector() public {
+        address diamondAddr = getDiamondAddress();
+
+        // Use a completely random selector that definitely doesn't exist
+        bytes memory callData = hex"deadbeef";
+
+        vm.expectRevert(FunctionDoesNotExist.selector);
+        (bool success, ) = diamondAddr.call(callData);
+        if (!success) {
+            vm.expectRevert("Diamond: Function does not exist");
+            (bool success2, ) = diamondAddr.call(callData);
+            if (!success2) {
+                revert ShouldNotReachThisCode();
+            }
+        }
+    }
+
+    /// @notice Test that diamond can receive ETH
+    function test_CanReceiveETH() public {
+        address diamondAddr = getDiamondAddress();
+        uint256 balanceBefore = diamondAddr.balance;
+        (bool success, ) = diamondAddr.call{ value: 1 ether }("");
+        if (!success) revert ExternalCallFailed();
+
+        assertEq(address(diamond).balance, balanceBefore + 1 ether);
+    }
+
+    /// @notice Test that diamond owner was correctly registered
+    function test_DiamondOwnerIsCorrectlyRegistered() public {
+        address diamondAddr = getDiamondAddress();
+        address expectedOwner = getDiamondOwner();
+
+        // Get the actual owner from the diamond
+        address actualOwner = OwnershipFacet(diamondAddr).owner();
+
+        assertEq(
+            actualOwner,
+            expectedOwner,
+            "Diamond owner should match expected owner"
+        );
     }
 }

@@ -293,7 +293,7 @@ contract Permit2ProxyTest is TestBase {
             ADDRESS_USDC,
             defaultUSDCAmount,
             testdata.deadline,
-            testdata.v + 1, // invalid v value
+            30, // invalid v value (valid values are 27, 28)
             testdata.r,
             testdata.s,
             testdata.diamondCalldata

@@ -6,8 +6,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20PermitMock } from "lib/Permit2/lib/openzeppelin-contracts/contracts/mocks/ERC20PermitMock.sol";
 import { CoreRouteFacet } from "lifi/Periphery/LDA/Facets/CoreRouteFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
-import { BaseCoreRouteTest } from "../BaseCoreRouteTest.t.sol";
+import { BaseCoreRouteTest } from "../BaseCoreRoute.t.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 /// @title CoreRouteFacetTest
@@ -94,22 +93,6 @@ contract CoreRouteFacetTest is BaseCoreRouteTest {
     }
 
     // ==== Test Cases ====
-
-    /// @notice Sanity-checks deployment wiring and ownership.
-    function test_ContractIsSetUpCorrectly() public {
-        // Test that owner is set correctly
-        assertEq(
-            coreRouteFacet.owner(),
-            USER_LDA_DIAMOND_OWNER,
-            "owner not set correctly"
-        );
-    }
-
-    /// @notice Constructor must revert on zero owner; verifies InvalidConfig.
-    function testRevert_WhenConstructedWithZeroAddress() public {
-        vm.expectRevert(InvalidConfig.selector);
-        new CoreRouteFacet(address(0));
-    }
 
     /// @notice Verifies DistributeNative command passes ETH to receiver and emits Route with exact out.
     /// @dev Builds a route with a mock native handler and funds USER_SENDER with 1 ETH.
