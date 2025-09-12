@@ -39792,6 +39792,21 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x15ca6F88f76A788c3e976a27B5a2b899059C81cd",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-12 17:19:29",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d524a49274d7b55852a2195d7622457fd77ba9bd0000000000000000000000006bdc36e20d267ff0dd6097799f82e78907105e2f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "ReceiverAcrossV4": {
@@ -39824,6 +39839,21 @@
           }
         ]
       }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x628E85a5144edba27c8808424D24B5955B426c96",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-12 17:25:47",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ab30c390671f509d89527f2ffea6f9a072e3b636000000000000000000000000d524a49274d7b55852a2195d7622457fd77ba9bd00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "AcrossFacetPackedV4": {
@@ -39853,6 +39883,21 @@
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x476F22A12af3C2bd9d959AC8fee5a068BD6b4437",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-12 17:22:39",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d524a49274d7b55852a2195d7622457fd77ba9bd0000000000000000000000006bdc36e20d267ff0dd6097799f82e78907105e2f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
