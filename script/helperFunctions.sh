@@ -896,7 +896,8 @@ function saveDiamondFacets() {
   if [[ -n "$FACETS_DIR" ]]; then
     mkdir -p "$FACETS_DIR"
   else
-    # fallback for safety, though the caller should always provide it now
+    # fallback for safety, for single-threaded operation where FACETS_DIR is not provided
+    # for parallel operation, the caller should always provide it
     FACETS_DIR=$(mktemp -d)
     trap 'rm -rf "$FACETS_DIR" 2>/dev/null' EXIT
   fi
@@ -4392,7 +4393,6 @@ function updateDiamondLogForNetwork() {
     echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
     local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
-    echoDebug "KNOWN_FACET_ADDRESSES=$KNOWN_FACET_ADDRESSES"
     # check the return code the last call
     if [ $? -eq 0 ]; then
       break # exit the loop if the operation was successful
@@ -4499,7 +4499,7 @@ function updateDiamondLogs() {
   local NETWORK=$2
 
   # Define all diamond contract names to process
-  local DIAMOND_CONTRACT_NAMES=("LiFiDiamond" "LiFiDiamondImmutable" "LiFiDEXAggregatorDiamond")
+  local DIAMOND_CONTRACT_NAMES=("LiFiDiamond" "LiFiDEXAggregatorDiamond")
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -4534,7 +4534,6 @@ function updateDiamondLogs() {
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
-      echo " current ENVIRONMENT: $ENVIRONMENT"
 
       # Process all diamond contract names for this network/environment in parallel
       for DIAMOND_CONTRACT_NAME in "${DIAMOND_CONTRACT_NAMES[@]}"; do
@@ -4552,7 +4551,6 @@ function updateDiamondLogs() {
   done
 
   # Wait for all background jobs to complete and capture exit codes
-  echo "Waiting for all diamond log updates to complete..."
   echo "Waiting for all diamond log updates to complete..."
   local failed_jobs=()
   local job_count=${#pids[@]}
