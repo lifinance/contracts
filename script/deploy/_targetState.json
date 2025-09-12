@@ -908,7 +908,8 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0"
+        "AcrossFacetPackedV3": "1.2.0",
+        "ReceiverAcrossV3": "1.1.0"
       }
     }
   },
