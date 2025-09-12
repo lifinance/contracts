@@ -58,6 +58,10 @@
     "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5",
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
+  "flow": {
+    "relayReceiver": "0xb4528b01af9c92f49435f88890a82b0b0ce90479",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "gnosis": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
