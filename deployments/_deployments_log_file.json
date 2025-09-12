@@ -37434,6 +37434,17 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.2": [
+          {
+            "ADDRESS": "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-12 14:50:00",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a5f565650890fba1824ee0f21ebbbf660a179934000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "22345116",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       },
       "production": {
