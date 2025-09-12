@@ -895,8 +895,7 @@ function saveDiamond_DEPRECATED() {
   if [[ ! -e $DIAMOND_FILE ]]; then
     echo "{}" >"$DIAMOND_FILE"
   fi
-  result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
-  printf %s "$result" >"$DIAMOND_FILE"
+  jq -r ". + {\"facets\": [$FACETS] }" "$DIAMOND_FILE" >"${DIAMOND_FILE}.tmp" && mv "${DIAMOND_FILE}.tmp" "$DIAMOND_FILE"
 }
 function saveDiamondFacets() {
   # read function arguments into variables
@@ -1264,9 +1263,13 @@ function saveContract() {
     echo "{}" >"$ADDRESSES_FILE"
   fi
 
-  # add new address to address log FILE
-  RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
-  printf %s "$RESULT" >"$ADDRESSES_FILE"
+  # add new address to address log FILE (atomic operation)
+  if ! jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" "$ADDRESSES_FILE" >"${ADDRESSES_FILE}.tmp"; then
+    error "Failed to update $ADDRESSES_FILE with jq"
+    rm -f "${ADDRESSES_FILE}.tmp"
+    return 1
+  fi
+  mv "${ADDRESSES_FILE}.tmp" "$ADDRESSES_FILE"
 
   # Remove lock file
   rm -f "$LOCK_FILE"
@@ -2068,6 +2071,10 @@ function verifyContract() {
   fi
 
   # Add verification method based on API key
+  if [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
+    VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+  fi
+
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD+=("--verifier" "blockscout")
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then

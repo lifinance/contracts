@@ -132,6 +132,10 @@
       "0xa1E1A3b1d19f2e957d6a462fA419F85354ebE717": {
         "Name": "MayanFacet",
         "Version": "1.2.0"
+      },
+      "0xb7777277Ec16688Fe8C599813a69e8D1478369C6": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -141,6 +145,7 @@
       "GasZipPeriphery": "0xd65312fa0DB664C7057AfF91087A4164749C057C",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
+      "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
       "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",
       "ReceiverChainflip": "",
