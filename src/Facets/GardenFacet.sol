@@ -22,6 +22,10 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Immutable registry address
     IGardenRegistry private immutable REGISTRY;
 
+    /// @dev Garden's standard address for native token HTLCs
+    address private constant NATIVE_TOKEN_ADDRESS =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     /// Constructor ///
 
     /// @notice Constructor initializes the immutable registry
@@ -34,7 +38,7 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param redeemer Address that will receive the funds (solver/filler address on source chain)
-    /// @param timelock Block number after which refund is possible
+    /// @param timelock Number of blocks after which refund is possible (relative to current block)
     /// @param secretHash SHA256 hash of the secret for the HTLC
     struct GardenData {
         address redeemer;
@@ -109,15 +113,21 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         GardenData calldata _gardenData
     ) internal {
         // Validate Garden-specific parameters
-        // Note: timelock can be current block or future to allow immediate withdrawal
+        // Note: timelock represents the number of blocks after which refund is possible
         if (
             _gardenData.redeemer == address(0) ||
-            _gardenData.timelock < block.number ||
+            _gardenData.timelock == 0 ||
             _gardenData.secretHash == bytes32(0)
         ) revert InvalidGardenData();
 
         // Get HTLC address from registry
-        address htlcAddress = REGISTRY.htlcs(_bridgeData.sendingAssetId);
+        // For native assets, use Garden's standard native token address
+        address assetForGarden = LibAsset.isNativeAsset(
+            _bridgeData.sendingAssetId
+        )
+            ? NATIVE_TOKEN_ADDRESS
+            : _bridgeData.sendingAssetId;
+        address htlcAddress = REGISTRY.htlcs(assetForGarden);
 
         // Validate asset is supported
         if (htlcAddress == address(0)) {

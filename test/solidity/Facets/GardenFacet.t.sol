@@ -34,7 +34,7 @@ contract GardenFacetTest is TestBaseFacet {
     address internal constant WBTC_ADDRESS =
         0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
     address internal constant HTLC_REGISTRY =
-        0xFF5e0B09255292078C01913d837236D7fa0a86b4;
+        0x57291A5Cc9e08f63C72e9F6044770C69E62d0366;
     uint256 internal constant DSTCHAIN_ID = 137;
     // -----
 
@@ -43,7 +43,7 @@ contract GardenFacetTest is TestBaseFacet {
     GardenFacet.GardenData internal validGardenData;
 
     function setUp() public {
-        customBlockNumberForForking = 23296173;
+        customBlockNumberForForking = 23346384;
         initTestBase();
 
         gardenFacet = new TestGardenFacet(HTLC_REGISTRY);
@@ -82,7 +82,7 @@ contract GardenFacetTest is TestBaseFacet {
         // produce valid GardenData
         validGardenData = GardenFacet.GardenData({
             redeemer: 0x1234567890123456789012345678901234567890, // Random address for redeemer
-            timelock: block.number + 1000,
+            timelock: 1000, // Number of blocks after which refund is possible
             secretHash: keccak256(abi.encodePacked("test_secret"))
         });
     }
@@ -129,7 +129,7 @@ contract GardenFacetTest is TestBaseFacet {
         GardenFacet.GardenData memory invalidGardenData = GardenFacet
             .GardenData({
                 redeemer: address(0),
-                timelock: block.number + 1000,
+                timelock: 1000, // Number of blocks for refund
                 secretHash: keccak256(abi.encodePacked("test_secret"))
             });
 
@@ -149,12 +149,12 @@ contract GardenFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidGardenDataPastTimelock() public {
-        // Setup invalid garden data with past timelock
+    function testRevert_InvalidGardenDataZeroTimelock() public {
+        // Setup invalid garden data with zero timelock
         GardenFacet.GardenData memory invalidGardenData = GardenFacet
             .GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
-                timelock: block.number - 1, // Past timelock
+                timelock: 0, // Zero timelock (invalid)
                 secretHash: keccak256(abi.encodePacked("test_secret"))
             });
 
@@ -179,7 +179,7 @@ contract GardenFacetTest is TestBaseFacet {
         GardenFacet.GardenData memory invalidGardenData = GardenFacet
             .GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
-                timelock: block.number + 1000,
+                timelock: 1000, // Number of blocks for refund
                 secretHash: bytes32(0) // Zero secret hash
             });
 
@@ -225,7 +225,7 @@ contract GardenFacetTest is TestBaseFacet {
         GardenFacet.GardenData memory invalidGardenData = GardenFacet
             .GardenData({
                 redeemer: address(0),
-                timelock: block.number + 1000,
+                timelock: 1000, // Number of blocks for refund
                 secretHash: keccak256(abi.encodePacked("test_secret"))
             });
 
@@ -245,18 +245,18 @@ contract GardenFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_SwapAndBridgeWithPastTimelock() public {
+    function testRevert_SwapAndBridgeWithZeroTimelock() public {
         // Setup swap data
         setDefaultSwapDataSingleDAItoUSDC();
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = defaultUSDCAmount;
         bridgeData.hasSourceSwaps = true;
 
-        // Setup invalid garden data with past timelock
+        // Setup invalid garden data with zero timelock
         GardenFacet.GardenData memory invalidGardenData = GardenFacet
             .GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
-                timelock: block.number - 100, // Past timelock
+                timelock: 0, // Zero timelock (invalid)
                 secretHash: keccak256(abi.encodePacked("test_secret"))
             });
 
@@ -287,7 +287,7 @@ contract GardenFacetTest is TestBaseFacet {
         GardenFacet.GardenData memory invalidGardenData = GardenFacet
             .GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
-                timelock: block.number + 1000,
+                timelock: 1000, // Number of blocks for refund
                 secretHash: bytes32(0) // Zero secret hash
             });
 
@@ -307,13 +307,13 @@ contract GardenFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    // Positive edge case: Valid data with current block timelock (immediate withdrawal)
-    function test_ValidDataWithCurrentBlockTimelock() public {
-        // Setup valid garden data with current block timelock for immediate withdrawal
-        GardenFacet.GardenData memory currentBlockData = GardenFacet
+    // Positive edge case: Valid data with minimum timelock (1 block)
+    function test_ValidDataWithMinimumTimelock() public {
+        // Setup valid garden data with minimum timelock for immediate withdrawal
+        GardenFacet.GardenData memory minTimelockData = GardenFacet
             .GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
-                timelock: block.number, // Current block for immediate withdrawal
+                timelock: 1, // Minimum valid timelock (1 block)
                 secretHash: keccak256(abi.encodePacked("test_secret"))
             });
 
@@ -325,22 +325,22 @@ contract GardenFacetTest is TestBaseFacet {
         deal(ADDRESS_USDC, USER_SENDER, bridgeData.minAmount);
         usdc.approve(address(gardenFacet), bridgeData.minAmount);
 
-        // Should not revert - current block is now allowed
+        // Should not revert - minimum timelock is 1 block
         vm.expectEmit(true, true, true, true, address(gardenFacet));
         emit LiFiTransferStarted(bridgeData);
 
-        gardenFacet.startBridgeTokensViaGarden(bridgeData, currentBlockData);
+        gardenFacet.startBridgeTokensViaGarden(bridgeData, minTimelockData);
 
         vm.stopPrank();
     }
 
-    // Positive edge case: Valid data with minimum future timelock
-    function test_ValidDataWithMinimumFutureTimelock() public {
-        // Setup valid garden data with minimum future timelock (next block)
-        GardenFacet.GardenData memory minTimelockData = GardenFacet
+    // Positive edge case: Valid data with larger timelock
+    function test_ValidDataWithLargerTimelock() public {
+        // Setup valid garden data with larger timelock
+        GardenFacet.GardenData memory largerTimelockData = GardenFacet
             .GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
-                timelock: block.number + 1, // Minimum valid future timelock
+                timelock: 10000, // Larger timelock value
                 secretHash: keccak256(abi.encodePacked("test_secret"))
             });
 
@@ -356,7 +356,7 @@ contract GardenFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, address(gardenFacet));
         emit LiFiTransferStarted(bridgeData);
 
-        gardenFacet.startBridgeTokensViaGarden(bridgeData, minTimelockData);
+        gardenFacet.startBridgeTokensViaGarden(bridgeData, largerTimelockData);
 
         vm.stopPrank();
     }
@@ -366,7 +366,7 @@ contract GardenFacetTest is TestBaseFacet {
         // Setup garden data with all invalid parameters
         GardenFacet.GardenData memory allInvalidData = GardenFacet.GardenData({
             redeemer: address(0), // Invalid
-            timelock: block.number - 1, // Invalid
+            timelock: 0, // Invalid (zero timelock)
             secretHash: bytes32(0) // Invalid
         });
 
