@@ -3,11 +3,11 @@ pragma solidity ^0.8.17;
 
 import { UpdateLDAScriptBase } from "./utils/UpdateLDAScriptBase.sol";
 
-contract DeployScript is UpdateLDAScriptBase {
+contract UpdateLDACoreFacets is UpdateLDAScriptBase {
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        return update("UniV3StyleFacet");
+        return updateCoreFacets(".ldaCoreFacets");
     }
 }

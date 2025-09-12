@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ScriptBase } from "./ScriptBase.sol";
@@ -8,7 +8,7 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
-contract UpdateScriptBase is ScriptBase {
+abstract contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
 
     error InvalidHexDigit(uint8 d);
@@ -36,7 +36,7 @@ contract UpdateScriptBase is ScriptBase {
     bool internal useDefaultDiamond;
 
     constructor() {
-        useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
+        useDefaultDiamond = _shouldUseDefaultDiamond();
         noBroadcast = vm.envOr("NO_BROADCAST", false);
 
         path = string.concat(
@@ -48,11 +48,220 @@ contract UpdateScriptBase is ScriptBase {
             "json"
         );
         json = vm.readFile(path);
-        diamond = useDefaultDiamond
-            ? json.readAddress(".LiFiDiamond")
-            : json.readAddress(".LiFiDiamondImmutable");
+        diamond = _getDiamondAddress();
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);
+    }
+
+    /// @notice Gets the diamond address based on configuration
+    /// @dev Override this method to customize diamond address selection
+    function _getDiamondAddress() internal virtual returns (address) {
+        // Default implementation for regular UpdateScript behavior
+        return
+            useDefaultDiamond
+                ? json.readAddress(".LiFiDiamond")
+                : json.readAddress(".LiFiDiamondImmutable");
+    }
+
+    /// @notice Determines if default diamond should be used
+    /// @dev Override this method to customize diamond selection logic
+    function _shouldUseDefaultDiamond() internal virtual returns (bool) {
+        return vm.envOr("USE_DEF_DIAMOND", true);
+    }
+
+    /// @notice Approves refund wallet for specific function signatures
+    function approveRefundWallet() internal {
+        // get refund wallet address from global config file
+        string memory globalPath = string.concat(root, "/config/global.json");
+        string memory globalJson = vm.readFile(globalPath);
+        address refundWallet = globalJson.readAddress(".refundWallet");
+
+        // get function signatures that should be approved for refundWallet
+        bytes memory rawConfig = globalJson.parseRaw(
+            ".approvedSigsForRefundWallet"
+        );
+
+        // parse raw data from config into FunctionSignature array
+        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSignature[])
+        );
+
+        // go through array with function signatures
+        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
+            // Register refundWallet as authorized wallet to call these functions
+            AccessManagerFacet(diamond).setCanExecute(
+                bytes4(funcSigsToBeApproved[i].sig),
+                refundWallet,
+                true
+            );
+        }
+    }
+
+    /// @notice Approves deployer wallet for specific function signatures
+    function approveDeployerWallet() internal {
+        // get deployer wallet address from global config file
+        string memory globalPath = string.concat(root, "/config/global.json");
+        string memory globalJson = vm.readFile(globalPath);
+        address deployerWallet = globalJson.readAddress(".deployerWallet");
+
+        // get function signatures that should be approved for deployerWallet
+        bytes memory rawConfig = globalJson.parseRaw(
+            ".approvedSigsForDeployerWallet"
+        );
+
+        // parse raw data from config into FunctionSignature array
+        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSignature[])
+        );
+
+        // go through array with function signatures
+        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
+            // Register deployerWallet as authorized wallet to call these functions
+            AccessManagerFacet(diamond).setCanExecute(
+                bytes4(funcSigsToBeApproved[i].sig),
+                deployerWallet,
+                true
+            );
+        }
+    }
+
+    /// @notice Updates multiple core facets from global.json configuration
+    /// @param configKey The key in global.json to read facets from (e.g., ".coreFacets" or ".ldaCoreFacets")
+    /// @return facets Array of facet addresses after update
+    /// @return cutData Encoded diamond cut calldata (if noBroadcast is true)
+    function updateCoreFacets(
+        string memory configKey
+    )
+        internal
+        virtual
+        returns (address[] memory facets, bytes memory cutData)
+    {
+        // Read core facets dynamically from global.json config
+        string memory globalConfigPath = string.concat(
+            vm.projectRoot(),
+            "/config/global.json"
+        );
+        string memory globalConfig = vm.readFile(globalConfigPath);
+        string[] memory coreFacets = globalConfig.readStringArray(configKey);
+
+        emit log_uint(coreFacets.length);
+
+        bytes4[] memory exclude;
+
+        // Check if the loupe was already added to the diamond
+        bool loupeExists = _checkLoupeExists();
+
+        // Handle DiamondLoupeFacet separately as it needs special treatment
+        if (!loupeExists) {
+            _handleLoupeInstallation();
+        }
+
+        // Process all core facets dynamically
+        for (uint256 i = 0; i < coreFacets.length; i++) {
+            string memory facetName = coreFacets[i];
+
+            // Skip DiamondCutFacet and DiamondLoupeFacet as they were already handled
+            if (_shouldSkipCoreFacet(facetName)) {
+                continue;
+            }
+
+            emit log(facetName);
+
+            address facetAddress = _getConfigContractAddress(
+                path,
+                string.concat(".", facetName)
+            );
+
+            bytes4[] memory selectors = getSelectors(facetName, exclude);
+
+            // at this point we know for sure that diamond loupe exists on diamond
+            buildDiamondCut(selectors, facetAddress);
+        }
+
+        // Handle noBroadcast mode and broadcasting
+        return _finalizeCut();
+    }
+
+    /// @notice Checks if DiamondLoupeFacet exists on the diamond
+    /// @return loupeExists True if loupe exists, false otherwise
+    function _checkLoupeExists() internal virtual returns (bool loupeExists) {
+        try loupe.facetAddresses() returns (address[] memory) {
+            // If call was successful, loupe exists on diamond already
+            emit log("DiamondLoupeFacet exists on diamond already");
+            loupeExists = true;
+        } catch {
+            // No need to do anything, just making sure that the flow continues in both cases with try/catch
+        }
+    }
+
+    /// @notice Handles DiamondLoupeFacet installation if it doesn't exist
+    function _handleLoupeInstallation() internal virtual {
+        emit log("DiamondLoupeFacet does not exist on diamond yet");
+        address diamondLoupeAddress = _getConfigContractAddress(
+            path,
+            ".DiamondLoupeFacet"
+        );
+        bytes4[] memory loupeSelectors = getSelectors(
+            "DiamondLoupeFacet",
+            new bytes4[](0)
+        );
+
+        buildInitialCut(loupeSelectors, diamondLoupeAddress);
+        vm.startBroadcast(deployerPrivateKey);
+        if (cut.length > 0) {
+            cutter.diamondCut(cut, address(0), "");
+        }
+        vm.stopBroadcast();
+
+        // Reset diamond cut variable to remove diamondLoupe information
+        delete cut;
+    }
+
+    /// @notice Determines if a facet should be skipped during core facets update
+    /// @param facetName The name of the facet to check
+    /// @return True if facet should be skipped, false otherwise
+    function _shouldSkipCoreFacet(
+        string memory facetName
+    ) internal pure virtual returns (bool) {
+        return (keccak256(bytes(facetName)) ==
+            keccak256(bytes("DiamondLoupeFacet")) ||
+            keccak256(bytes(facetName)) ==
+            keccak256(bytes("DiamondCutFacet")));
+    }
+
+    /// @notice Finalizes the diamond cut operation
+    /// @return facets Array of facet addresses after update
+    /// @return cutData Encoded diamond cut calldata (if noBroadcast is true)
+    function _finalizeCut()
+        internal
+        virtual
+        returns (address[] memory facets, bytes memory cutData)
+    {
+        // If noBroadcast is activated, we only prepare calldata for sending it to multisig SAFE
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            emit log("=== DIAMOND CUT CALLDATA FOR MANUAL EXECUTION ===");
+            emit log_bytes(cutData);
+            emit log("=== END CALLDATA ===");
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
+        if (cut.length > 0) {
+            cutter.diamondCut(cut, address(0), "");
+        }
+        vm.stopBroadcast();
+
+        facets = loupe.facetAddresses();
     }
 
     function update(
@@ -62,7 +271,10 @@ contract UpdateScriptBase is ScriptBase {
         virtual
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(string.concat(".", name));
+        address facet = _getConfigContractAddress(
+            path,
+            string.concat(".", name)
+        );
 
         bytes4[] memory excludes = getExcludes();
         bytes memory callData = getCallData();
@@ -220,59 +432,5 @@ contract UpdateScriptBase is ScriptBase {
             result[2 * i + 3] = toHexDigit(uint8(code[i]) % 16);
         }
         return string(result);
-    }
-
-    function approveRefundWallet() internal {
-        // get refund wallet address from global config file
-        path = string.concat(root, "/config/global.json");
-        json = vm.readFile(path);
-        address refundWallet = json.readAddress(".refundWallet");
-
-        // get function signatures that should be approved for refundWallet
-        bytes memory rawConfig = json.parseRaw(".approvedSigsForRefundWallet");
-
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSignature[])
-        );
-
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
-            // Register refundWallet as authorized wallet to call these functions
-            AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
-                refundWallet,
-                true
-            );
-        }
-    }
-
-    function approveDeployerWallet() internal {
-        // get refund wallet address from global config file
-        path = string.concat(root, "/config/global.json");
-        json = vm.readFile(path);
-        address refundWallet = json.readAddress(".deployerWallet");
-
-        // get function signatures that should be approved for refundWallet
-        bytes memory rawConfig = json.parseRaw(
-            ".approvedSigsForDeployerWallet"
-        );
-
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSignature[])
-        );
-
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
-            // Register refundWallet as authorized wallet to call these functions
-            AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
-                refundWallet,
-                true
-            );
-        }
     }
 }

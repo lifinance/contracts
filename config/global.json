@@ -66,5 +66,10 @@
     "LiFiTimelockController",
     "Permit2Proxy",
     "TokenWrapper"
+  ],
+  "ldaCoreFacets": [
+    "DiamondCutFacet",
+    "DiamondLoupeFacet",
+    "OwnershipFacet"
   ]
 }

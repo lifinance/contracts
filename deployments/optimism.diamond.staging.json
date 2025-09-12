@@ -85,6 +85,10 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
+      "0x2Af20933E5886aFe275c0EEE4A2e65daA4E8b169": {
+        "Name": "CelerIMFacetMutable",
+        "Version": ""
+      },
       "0x380157643592725677F165b67642448CDCAeE026": {
         "Name": "HopFacet",
         "Version": "2.0.0"
@@ -145,6 +149,10 @@
         "Name": "",
         "Version": ""
       },
+      "0xf536ed5A4310455FF39dBf90336e17d11550E7b4": {
+        "Name": "",
+        "Version": ""
+      },
       "0x36e1375B0755162d720276dFF6893DF02bd49225": {
         "Name": "GlacisFacet",
         "Version": "1.1.0"
@@ -157,13 +165,9 @@
         "Name": "MayanFacet",
         "Version": "1.2.2"
       },
-      "0xc2A0D799744536C621Af9B2933CdB4Ad959980bF": {
-        "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
-        "Name": "AcrossFacetPackedV4",
-        "Version": "1.0.0"
+      "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -172,7 +176,6 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "",
       "Patcher": "",
       "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
