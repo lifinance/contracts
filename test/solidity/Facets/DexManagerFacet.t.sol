@@ -2,19 +2,16 @@
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { LiFiDiamondTest } from "../LiFiDiamond.t.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { InvalidContract, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract Foo {}
 
-contract DexManagerFacetTest is DSTest, DiamondTest {
-    address internal constant USER_PAUSER = address(0xdeadbeef);
-    address internal constant USER_DIAMOND_OWNER = address(0x123456);
+contract DexManagerFacetTest is DSTest, LiFiDiamondTest {
     address internal constant NOT_DIAMOND_OWNER = address(0xabc123456);
 
-    LiFiDiamond internal diamond;
     DexManagerFacet internal dexMgr;
     AccessManagerFacet internal accessMgr;
     Foo internal c1;
@@ -28,7 +25,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         bool indexed approved
     );
 
-    function setUp() public {
+    function setUp() public override {
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         dexMgr = new DexManagerFacet();
         c1 = new Foo();
@@ -49,7 +46,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
             .selector;
         functionSelectors[7] = DexManagerFacet.isFunctionApproved.selector;
 
-        addFacet(diamond, address(dexMgr), functionSelectors);
+        addFacet(address(diamond), address(dexMgr), functionSelectors);
 
         // add AccessManagerFacet to be able to whitelist addresses for execution of protected functions
         accessMgr = new AccessManagerFacet();
@@ -57,7 +54,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         functionSelectors = new bytes4[](2);
         functionSelectors[0] = accessMgr.setCanExecute.selector;
         functionSelectors[1] = accessMgr.addressCanExecuteMethod.selector;
-        addFacet(diamond, address(accessMgr), functionSelectors);
+        addFacet(address(diamond), address(accessMgr), functionSelectors);
 
         accessMgr = AccessManagerFacet(address(diamond));
         dexMgr = DexManagerFacet(address(diamond));

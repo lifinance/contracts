@@ -6,17 +6,13 @@ pragma solidity ^0.8.17;
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
 interface IAlgebraPool {
-    /**
-     * @notice The first of the two tokens of the pool, sorted by address
-     * @return The token contract address
-     */
+    /// @notice The first of the two tokens of the pool, sorted by address
+    /// @return The token contract address
     function token0() external view returns (address);
 
-    /**
-     * @notice Sets the initial price for the pool
-     * @dev Price is represented as a sqrt(amountToken1/amountToken0) Q64.96 value
-     * @param price the initial sqrt price of the pool as a Q64.96
-     */
+    /// @notice Sets the initial price for the pool
+    /// @dev Price is represented as a sqrt(amountToken1/amountToken0) Q64.96 value
+    /// @param price the initial sqrt price of the pool as a Q64.96
     function initialize(uint160 price) external;
 
     /// @notice Swaps tokens supporting fee on input tokens

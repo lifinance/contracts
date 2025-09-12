@@ -1,0 +1,58 @@
+{
+  "LiFiDEXAggregatorDiamond": {
+    "Facets": {
+      "0x06045F5FA6EA7c6AcEb104b55BcD6C3dE3a08831": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x8938CEa23C3c5eAABb895765f5B0b2b07D680402": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x53d4Bcd5BEa4e863376b7eA43D7465351a4d71B0": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x5363c2db9eB0e9080574915b4C486B9851BA4326": {
+        "Name": "AlgebraFacet",
+        "Version": "1.0.0"
+      },
+      "0x07497D2C0B32537B0162dc35a4794F4B089a53Aa": {
+        "Name": "CoreRouteFacet",
+        "Version": "1.0.0"
+      },
+      "0x7B383eD28261835e63D2aed3b4A415B29438354B": {
+        "Name": "CurveFacet",
+        "Version": "1.0.0"
+      },
+      "0x0e5898bAa8CAf208292a9f7b0C5DA7BbDFc95F4b": {
+        "Name": "IzumiV3Facet",
+        "Version": "1.0.0"
+      },
+      "0x4582E5095D17980D213c5Fb3959466C745593244": {
+        "Name": "KatanaV3Facet",
+        "Version": "1.0.0"
+      },
+      "0xd13d6DF1ef271dC887Df5499e4059e1AeC42Ea11": {
+        "Name": "NativeWrapperFacet",
+        "Version": "1.0.0"
+      },
+      "0xdFc21dcEc5220bfaB06D865312991F6058f5dfC6": {
+        "Name": "SyncSwapV2Facet",
+        "Version": "1.0.0"
+      },
+      "0x8ee5946F6d0818557cc49A862470D89A34b986d0": {
+        "Name": "UniV2StyleFacet",
+        "Version": "1.0.0"
+      },
+      "0x2AA70A1115F9bA6008bD04511AAF7d81E5251d21": {
+        "Name": "UniV3StyleFacet",
+        "Version": "1.0.0"
+      },
+      "0x8CFB30c9A05357DAd207600A577f5251Fa7bCeab": {
+        "Name": "VelodromeV2Facet",
+        "Version": "1.0.0"
+      }
+    }
+  }
+}

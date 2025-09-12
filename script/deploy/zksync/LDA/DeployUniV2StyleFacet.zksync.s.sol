@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
+
+import { UniV2StyleFacet } from "lifi/Periphery/LDA/Facets/UniV2StyleFacet.sol";
+import { DeployScriptBase } from "../utils/DeployScriptBase.sol";
+
+contract DeployScript is DeployScriptBase {
+    constructor() DeployScriptBase("UniV2StyleFacet") {}
+
+    function run() public returns (UniV2StyleFacet deployed) {
+        deployed = UniV2StyleFacet(deploy(type(UniV2StyleFacet).creationCode));
+    }
+}

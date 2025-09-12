@@ -2,12 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { OnlyContractOwner, InvalidConfig, InvalidAmount } from "src/Errors/GenericErrors.sol";
-import { LiFiDiamond } from "../utils/DiamondTest.sol";
+import { OnlyContractOwner, InvalidConfig, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {
@@ -39,7 +39,7 @@ contract HopFacetTest is TestBaseFacet {
     ILiFi.BridgeData internal validBridgeData;
     HopFacet.HopData internal validHopData;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
@@ -54,7 +54,7 @@ contract HopFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(hopFacet), functionSelectors);
+        addFacet(address(diamond), address(hopFacet), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](3);
         configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
@@ -247,7 +247,7 @@ contract HopFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond2, address(hopFacet2), functionSelectors);
+        addFacet(address(diamond2), address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](3);
         configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
@@ -282,7 +282,7 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
 
-        addFacet(diamond, address(hopFacet2), functionSelectors);
+        addFacet(address(diamond), address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](1);
         configs[0] = HopFacet.Config(addressUSDCPolygon, ammWrapperPolygon);
