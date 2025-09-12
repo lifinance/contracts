@@ -734,6 +734,12 @@ contract RelayFacetTest is TestBaseFacet {
             return;
         }
 
+        // Sui
+        if (chainId == 9270000000000000) {
+            assertEq(mapped, 103665049);
+            return;
+        }
+
         assertEq(mapped, chainId);
     }
 

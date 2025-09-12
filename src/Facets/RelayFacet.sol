@@ -219,19 +219,24 @@ contract RelayFacet is
     }
 
     /// @notice get Relay specific chain id for non-EVM chains
-    ///         IDs found here  https://li.quest/v1/chains?chainTypes=UTXO,SVM
+    ///         IDs found here  https://api.relay.link/chains
     /// @param chainId LIFI specific chain id
     function _getMappedChainId(
         uint256 chainId
     ) internal pure returns (uint256) {
         // Bitcoin
-        if (chainId == 20000000000001) {
+        if (chainId == LIFI_CHAIN_ID_BTC) {
             return 8253038;
         }
 
         // Solana
-        if (chainId == 1151111081099710) {
+        if (chainId == LIFI_CHAIN_ID_SOLANA) {
             return 792703809;
+        }
+
+        // Sui
+        if (chainId == LIFI_CHAIN_ID_SUI) {
+            return 103665049;
         }
 
         return chainId;
