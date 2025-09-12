@@ -28,9 +28,9 @@ interface IEcoPortal {
     }
 
     struct Reward {
+        uint64 deadline;
         address creator;
         address prover;
-        uint64 deadline;
         uint256 nativeAmount;
         TokenAmount[] tokens;
     }
