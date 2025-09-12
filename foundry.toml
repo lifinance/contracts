@@ -22,6 +22,8 @@ cache = true
 [profile.zksync]
 solc_version = '0.8.26'
 zksolc = '1.5.15'
+sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
+tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
@@ -94,10 +96,6 @@ scroll = "${ETH_NODE_URI_SCROLL}"
 
 # testnets
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
-
-[lint]
-lint_on_build=false
-
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }

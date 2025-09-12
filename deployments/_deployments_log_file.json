@@ -39807,6 +39807,21 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2536Fc04bD53fA858C068f096313C2Ec240114cB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-12 18:14:58",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e0b015e54d54fc84a6cb9b666099c46ade9335ff0000000000000000000000005aea5775959fbc2557cc8789bc1bf90a239d9a91",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "ReceiverAcrossV4": {
@@ -39854,6 +39869,21 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA39624C9E08099b397676F0830dcF3c33a6d19AC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-12 18:23:12",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000a9bfa49f26733271f4fd34a4b57bb7c563ae056a000000000000000000000000e0b015e54d54fc84a6cb9b666099c46ade9335ff00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "AcrossFacetPackedV4": {
@@ -39897,6 +39927,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d524a49274d7b55852a2195d7622457fd77ba9bd0000000000000000000000006bdc36e20d267ff0dd6097799f82e78907105e2f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x009d1fEf749Be881AC7F683Ae79E9deb4162b207",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-12 18:19:28",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e0b015e54d54fc84a6cb9b666099c46ade9335ff0000000000000000000000005aea5775959fbc2557cc8789bc1bf90a239d9a9100000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
