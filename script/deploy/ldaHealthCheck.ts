@@ -136,8 +136,8 @@ const main = defineCommand({
     // Load LDA-specific facet information
     const ldaDeploymentFile =
       environment === 'production'
-        ? `../../deployments/${network.toLowerCase()}.lda.diamond.json`
-        : `../../deployments/${network.toLowerCase()}.lda.diamond.${environment}.json`
+        ? `../../deployments/${network.toLowerCase()}.diamond.lda.json`
+        : `../../deployments/${network.toLowerCase()}.diamond.lda.${environment}.json`
     let ldaFacetInfo: Record<
       string,
       { Facets?: Record<string, { Name?: string; Version?: string }> }
