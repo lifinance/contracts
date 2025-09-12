@@ -15,7 +15,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title RelayFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Relay Protocol
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract RelayFacet is
     ILiFi,
     ReentrancyGuard,
