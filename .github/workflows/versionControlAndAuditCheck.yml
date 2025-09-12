@@ -36,7 +36,7 @@ permissions:
 
 jobs:
   version-control:
-    if: ${{ github.event.pull_request.draft == false }}
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     runs-on: ubuntu-latest
     concurrency:
       group: sc-core-dev-approval-${{ github.event.pull_request.number }}
