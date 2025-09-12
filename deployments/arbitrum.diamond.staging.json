@@ -125,9 +125,9 @@
         "Name": "MayanFacet",
         "Version": "1.2.0"
       },
-      "0x681a3409c35F12224c436D50Ce14F25f954B6Ea2": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
+      "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
+        "Name": "",
+        "Version": ""
       },
       "0x7C27b0FD92dbC5a1cA268255A649320E8C649e70": {
         "Name": "GasZipFacet",
