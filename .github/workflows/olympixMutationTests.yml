@@ -1,0 +1,218 @@
+name: Olympix Mutation Testing
+
+# - runs the olympix mutation testing on chain-facing solidity contracts inside the src/ folder
+# - evaluates test suite quality by introducing code mutations and checking if tests catch them
+# - always scans relevant solidity files in src/ to maintain consistent GitHub Code Scanning state
+# - uploads mutation testing results to github code scanning for review and discussion within the PR
+
+# Configuration: Directories to exclude from mutation testing
+# These typically contain interfaces, utility code, tests, or mocks that aren't chain-facing
+env:
+  EXCLUDED_DIRS: "Interfaces interfaces Libraries libraries Helpers helpers Errors errors Test test Tests tests Mock mock Mocks mocks"  # Space-separated list of directory names to ignore
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/**/*.sol'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run on simplest contract only (for testing)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  security-events: write
+  checks: write
+
+jobs:
+  mutation-testing:
+    name: Check for Solidity Files
+    runs-on: ubuntu-latest
+    outputs:
+      SHOULD_RUN: ${{ steps.check-files.outputs.SHOULD_RUN }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Check for Solidity Files
+        id: check-files
+        run: |
+          # Check if this is a dry run
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            echo "DRY RUN MODE: Testing with simplest contract only"
+            # Use AccessManagerFacet.sol as it's typically the simplest
+            files="src/Facets/AccessManagerFacet.sol"
+            
+            if [[ -f "$files" ]]; then
+              echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
+              echo "Dry run: Using $files for testing"
+            else
+              echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
+              echo "Dry run: Test file $files not found"
+            fi
+          else
+            # Normal mode: Configuration: Define excluded directories
+            echo "Excluded directories: ${EXCLUDED_DIRS}"
+            
+            # Build find command with exclusions
+            FIND_CMD="find src/ -name '*.sol' -type f"
+            
+            # Add exclusions for each directory and file pattern
+            for dir in ${EXCLUDED_DIRS}; do
+              FIND_CMD="$FIND_CMD ! -path 'src/$dir/*'"
+              echo "Excluding: src/$dir/*"
+            done
+            
+            # Exclude test files and interface naming convention
+            FIND_CMD="$FIND_CMD ! -name '*.t.sol' ! -name 'I*.sol'"
+            
+            echo "Find command: $FIND_CMD"
+            
+            # Execute the find command
+            files=$(eval "$FIND_CMD" 2>/dev/null || true)
+            
+            if [[ -n "$files" && $(echo "$files" | wc -w) -gt 0 ]]; then
+              echo "SHOULD_RUN=true" >> $GITHUB_OUTPUT
+              echo "Found $(echo "$files" | wc -w) chain-facing Solidity files to analyze"
+              
+              # Show what we're including
+              echo "Chain-facing files found:"
+              echo "$files" | head -10
+              if [[ $(echo "$files" | wc -l) -gt 10 ]]; then
+                echo "... and $(($(echo "$files" | wc -l) - 10)) more files"
+              fi
+            else
+              echo "SHOULD_RUN=false" >> $GITHUB_OUTPUT
+              echo "No chain-facing Solidity files found in src/"
+            fi
+          fi
+
+  # Process chain-facing files only
+  mutation-testing-execution:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    needs: mutation-testing
+    if: needs.mutation-testing.outputs.SHOULD_RUN == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
+          bun fetch-rpcs || {
+            echo "Warning: MongoDB RPC fetch failed, but fallback to networks.json should have occurred"
+            echo "Continuing with mutation testing..."
+          }
+          # Only inject RPC endpoint variables into the GitHub Actions environment
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              echo "$line" >> "$GITHUB_ENV"
+            fi
+          done < ".env" 2>/dev/null || echo "No .env file created, using default RPC configuration"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI || '' }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1.3.1
+
+      - name: Install forge Dependencies
+        run: forge install
+
+      - name: Verify Forge Compilation
+        run: |
+          echo "Verifying Forge compilation..."
+          forge build --force
+          
+          echo "Testing basic forge test execution..."
+          forge test --list | head -10
+          
+          echo "Forge compilation and test discovery successful"
+
+      - name: Generate File Arguments
+        id: file-args
+        run: |
+          # Check if this is a dry run
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            echo "DRY RUN MODE: Generating arguments for single test file"
+            files="src/Facets/AccessManagerFacet.sol"
+            
+            # Generate CLI arguments for single file
+            args="generate-mutation-tests -w . -env -p $files"
+            
+            echo "MUTATION_ARGS=$args" >> $GITHUB_OUTPUT
+            echo "Generated dry run arguments: $args"
+          else
+            # Normal mode: Configuration: Define excluded directories
+            echo "Building file list with exclusions: ${EXCLUDED_DIRS}"
+            
+            # Build find command with exclusions
+            FIND_CMD="find src/ -name '*.sol' -type f"
+            
+            # Add exclusions for each directory and file pattern
+            for dir in ${EXCLUDED_DIRS}; do
+              FIND_CMD="$FIND_CMD ! -path 'src/$dir/*'"
+            done
+            
+            # Exclude test files and interface naming convention
+            FIND_CMD="$FIND_CMD ! -name '*.t.sol' ! -name 'I*.sol'"
+            
+            # Get chain-facing Solidity files (limit to 100 for CLI compatibility)
+            files=$(eval "$FIND_CMD" | head -100)
+            total_files=$(echo "$files" | wc -l)
+            
+            echo "Running mutation testing on chain-facing Solidity files"
+            echo "Found $total_files chain-facing files to analyze (limited to first 100)"
+            
+            # Show excluded vs included breakdown
+            all_files=$(find src/ -name "*.sol" -type f | wc -l)
+            excluded_files=$(eval "$FIND_CMD" | wc -l)
+            excluded_count=$((all_files - excluded_files))
+            echo "File breakdown: $total_files included, $excluded_count excluded (total: $all_files)"
+            
+            # Generate CLI arguments with explicit file paths
+            args="generate-mutation-tests -w . -env"
+            for file in $files; do
+              args="$args -p $file"
+            done
+            
+            echo "MUTATION_ARGS=$args" >> $GITHUB_OUTPUT
+            echo "Generated arguments for chain-facing files only"
+          fi
+
+      - name: Run Olympix Mutation Testing
+        uses: olympix/mutation-test-generator@main
+        env:
+          OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
+          GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+          OLYMPIX_GITHUB_COMMIT_HEAD_SHA: ${{ github.sha }}
+          OPIX_DEBUG: true
+        with:
+          args: ${{ steps.file-args.outputs.MUTATION_ARGS }}
+
+      - name: Success Summary
+        run: |
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            echo "DRY RUN: Mutation testing completed successfully"
+            echo "Tested single file: src/Facets/AccessManagerFacet.sol"
+            echo "Results uploaded to GitHub Code Scanning"
+            echo "Check the Security tab for mutation testing alerts"
+            echo "Note: This was a dry run with minimal scope for testing"
+          else
+            echo "Mutation testing completed successfully"
+            echo "Excluded directories: ${EXCLUDED_DIRS}"
+            echo "Processed chain-facing Solidity files only"
+            echo "Results uploaded to GitHub Code Scanning"
+            echo "Check the Security tab for mutation testing alerts"
+          fi 
