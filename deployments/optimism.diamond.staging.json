@@ -85,6 +85,10 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
+      "0x2Af20933E5886aFe275c0EEE4A2e65daA4E8b169": {
+        "Name": "CelerIMFacetMutable",
+        "Version": ""
+      },
       "0x380157643592725677F165b67642448CDCAeE026": {
         "Name": "HopFacet",
         "Version": "2.0.0"
@@ -114,8 +118,8 @@
         "Version": ""
       },
       "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
       "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
         "Name": "AcrossFacetPackedV3",
@@ -145,6 +149,10 @@
         "Name": "",
         "Version": ""
       },
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
+      },
       "0x36e1375B0755162d720276dFF6893DF02bd49225": {
         "Name": "GlacisFacet",
         "Version": "1.1.0"
@@ -161,8 +169,16 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
-        "Name": "AcrossFacetPackedV4",
+      "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xf536ed5A4310455FF39dBf90336e17d11550E7b4": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x5b932C7566AeEBaA00bD14fBF6678F7f721BDD97": {
+        "Name": "EcoFacet",
         "Version": "1.0.0"
       }
     },
