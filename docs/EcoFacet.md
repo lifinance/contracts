@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Eco Facet enables cross-chain token transfers using the Eco Protocol's intent-based bridging system. It creates an intent that specifies the desired outcome on the destination chain, which solvers then fulfill in exchange for a reward. The facet supports both EVM and non-EVM destination chains, as well as optional destination calls for complex cross-chain workflows.
+The Eco Facet enables cross-chain token transfers using the Eco Protocol Portal V2's intent-based bridging system. It creates an intent that specifies the desired outcome on the destination chain, which solvers then fulfill in exchange for a reward. The facet supports both EVM and non-EVM destination chains, as well as optional destination calls for complex cross-chain workflows.
 
 ```mermaid
 graph LR;
@@ -27,8 +27,9 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
 /// @param receivingAssetId Address of the token to receive on destination
 /// @param salt Unique identifier for the intent (prevent duplicates)
-/// @param destinationInbox Inbox address on destination chain
+/// @param destinationPortal Portal address on destination chain
 /// @param prover Address of the prover contract for validation
+/// @param routeDeadline Timestamp for route execution
 /// @param rewardDeadline Timestamp for reward claim eligibility
 /// @param solverReward Native token amount to reward the solver
 /// @param destinationCalls Optional calls to execute on destination
@@ -37,8 +38,9 @@ struct EcoData {
   bytes nonEVMReceiver;
   address receivingAssetId;
   bytes32 salt;
-  address destinationInbox;
+  address destinationPortal;
   address prover;
+  uint64 routeDeadline;
   uint64 rewardDeadline;
   uint256 solverReward;
   IEcoPortal.Call[] destinationCalls;

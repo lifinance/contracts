@@ -21,7 +21,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Storage ///
 
     // solhint-disable-next-line immutable-vars-naming
-    IEcoPortal public immutable intentSource;
+    IEcoPortal public immutable portal;
 
     /// Types ///
 
@@ -30,8 +30,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
     /// @param receivingAssetId Address of the token to receive on destination
     /// @param salt Unique identifier for the intent (prevent duplicates)
-    /// @param destinationInbox Inbox address on destination chain
+    /// @param destinationPortal Portal address on destination chain
     /// @param prover Address of the prover contract for validation
+    /// @param routeDeadline Timestamp for route execution
     /// @param rewardDeadline Timestamp for reward claim eligibility
     /// @param solverReward Native token amount to reward the solver
     /// @param destinationCalls Optional calls to execute on destination
@@ -40,8 +41,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         bytes nonEVMReceiver;
         address receivingAssetId;
         bytes32 salt;
-        address destinationInbox;
+        address destinationPortal;
         address prover;
+        uint64 routeDeadline;
         uint64 rewardDeadline;
         uint256 solverReward;
         IEcoPortal.Call[] destinationCalls;
@@ -49,11 +51,11 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     /// Constructor ///
 
-    constructor(IEcoPortal _intentSource) {
-        if (address(_intentSource) == address(0)) {
+    constructor(IEcoPortal _portal) {
+        if (address(_portal) == address(0)) {
             revert InvalidConfig();
         }
-        intentSource = _intentSource;
+        portal = _portal;
     }
 
     /// External Methods ///
@@ -263,13 +265,19 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             rewardTokens = new IEcoPortal.TokenAmount[](0);
         }
 
+        // Calculate native amount for route
+        uint256 routeNativeAmount = LibAsset.isNativeAsset(_ecoData.receivingAssetId)
+            ? _bridgeData.minAmount
+            : 0;
+
         return
             IEcoPortal.Intent({
+                destination: uint64(_bridgeData.destinationChainId),
                 route: IEcoPortal.Route({
                     salt: _ecoData.salt,
-                    source: block.chainid,
-                    destination: _bridgeData.destinationChainId,
-                    inbox: _ecoData.destinationInbox,
+                    deadline: _ecoData.routeDeadline,
+                    portal: _ecoData.destinationPortal,
+                    nativeAmount: routeNativeAmount,
                     tokens: routeTokens,
                     calls: routeCalls
                 }),
@@ -277,7 +285,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                     creator: msg.sender, // Address that can cancel/retrieve refund
                     prover: _ecoData.prover,
                     deadline: _ecoData.rewardDeadline,
-                    nativeValue: isNative
+                    nativeAmount: isNative
                         ? _ecoData.solverReward + _bridgeData.minAmount
                         : 0, // No native amount for ERC20
                     tokens: rewardTokens // Include token reward for ERC20
@@ -293,7 +301,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
 
         if (isNative) {
-            intentSource.publishAndFund{
+            portal.publishAndFund{
                 value: _bridgeData.minAmount + _ecoData.solverReward
             }(intent, false);
         } else {
@@ -302,12 +310,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 _ecoData.solverReward;
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(intentSource),
+                address(portal),
                 totalAmount
             );
 
             // No native value needed for ERC20 rewards
-            intentSource.publishAndFund(intent, false);
+            portal.publishAndFund(intent, false);
         }
     }
 
