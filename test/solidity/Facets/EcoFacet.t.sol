@@ -11,7 +11,7 @@ import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
-    constructor(IEcoPortal _intentSource) EcoFacet(_intentSource) {}
+    constructor(IEcoPortal _portal) EcoFacet(_portal) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -24,7 +24,7 @@ contract TestEcoFacet is EcoFacet {
 
 contract EcoFacetTest is TestBaseFacet {
     TestEcoFacet internal ecoFacet;
-    address internal constant INTENT_SOURCE =
+    address internal constant PORTAL =
         0x2020ae689ED3e017450280CEA110d0ef6E640Da4;
     uint256 internal constant NATIVE_SOLVER_REWARD = 0.0001 ether;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
@@ -46,7 +46,7 @@ contract EcoFacetTest is TestBaseFacet {
             1000000 * 10 ** ERC20(ADDRESS_USDC).decimals()
         );
 
-        ecoFacet = new TestEcoFacet(IEcoPortal(INTENT_SOURCE));
+        ecoFacet = new TestEcoFacet(IEcoPortal(PORTAL));
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = ecoFacet.startBridgeTokensViaEco.selector;
@@ -96,8 +96,9 @@ contract EcoFacetTest is TestBaseFacet {
                 nonEVMReceiver: "",
                 receivingAssetId: ADDRESS_USDC_OPTIMISM,
                 salt: keccak256(abi.encode(block.timestamp)),
-                destinationInbox: INTENT_SOURCE, // Same on OP,
+                destinationPortal: PORTAL, // Same on OP,
                 prover: address(0x1234),
+                routeDeadline: uint64(block.timestamp + 1 days),
                 rewardDeadline: uint64(block.timestamp + 2 days),
                 solverReward: solverReward,
                 destinationCalls: emptyCalls

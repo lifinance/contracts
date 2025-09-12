@@ -3,7 +3,7 @@
 pragma solidity ^0.8.17;
 
 /// @title IEcoPortal
-/// @notice Interface for Eco Protocol IntentSource
+/// @notice Interface for Eco Protocol Portal
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
 interface IEcoPortal {
@@ -20,9 +20,9 @@ interface IEcoPortal {
 
     struct Route {
         bytes32 salt;
-        uint256 source;
-        uint256 destination;
-        address inbox;
+        uint64 deadline;
+        address portal;
+        uint256 nativeAmount;
         TokenAmount[] tokens;
         Call[] calls;
     }
@@ -30,12 +30,13 @@ interface IEcoPortal {
     struct Reward {
         address creator;
         address prover;
-        uint256 deadline;
-        uint256 nativeValue;
+        uint64 deadline;
+        uint256 nativeAmount;
         TokenAmount[] tokens;
     }
 
     struct Intent {
+        uint64 destination;
         Route route;
         Reward reward;
     }
@@ -43,5 +44,5 @@ interface IEcoPortal {
     function publishAndFund(
         Intent calldata intent,
         bool allowPartial
-    ) external payable returns (bytes32 intentHash);
+    ) external payable returns (bytes32 intentHash, address vault);
 }
