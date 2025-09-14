@@ -27,7 +27,7 @@ contract CBridgeGasARBTest is TestBase {
     uint256 internal amountUSDC;
     bytes internal packedUSDC;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 58467500;
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
         initTestBase();
@@ -57,7 +57,11 @@ contract CBridgeGasARBTest is TestBase {
             .encode_startBridgeTokensViaCBridgeERC20Packed
             .selector;
 
-        addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(cBridgeFacetPacked),
+            functionSelectors
+        );
         cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare parameters

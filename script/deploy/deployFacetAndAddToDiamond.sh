@@ -11,7 +11,6 @@ function deployFacetAndAddToDiamond() {
   source script/deploy/deploySingleContract.sh
   source script/tasks/diamondUpdatePeriphery.sh
 
-
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -73,12 +72,13 @@ function deployFacetAndAddToDiamond() {
     echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
   fi
 
-  # get diamond address from deployments script
-  local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+  # get diamond address from deployments script (handle both regular and LDA diamonds)
+  local DEPLOYMENT_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+  local DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "$DEPLOYMENT_FILE")
 
   # if no diamond address was found, throw an error and exit this script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting script now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file '$DEPLOYMENT_FILE' - exiting script now"
     return 1
   fi
 
@@ -100,7 +100,7 @@ function deployFacetAndAddToDiamond() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
   # deploy facet
-  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
+  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
 
   # check if function call was successful
   if [ $? -ne 0 ]
@@ -112,12 +112,10 @@ function deployFacetAndAddToDiamond() {
   # prepare update script name
   local UPDATE_SCRIPT="Update$FACET_CONTRACT_NAME"
 
-  # update diamond
-  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT" true
-
-  if [ $? -ne 0 ]
-  then
-    warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
+  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT"
+  
+  if [ $? -ne 0 ]; then
+    warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT"
     return 1
   fi
 

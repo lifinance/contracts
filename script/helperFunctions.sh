@@ -866,38 +866,6 @@ function getConstructorArgsFromMasterLog() {
   return 0
 }
 
-function saveDiamond_DEPRECATED() {
-  :'
-  This contract version only saves the facet addresses as an array in the JSON file
-  without any further information (such as version or name, like in the new function)
-  '
-  # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  USE_MUTABLE_DIAMOND=$3
-  FACETS=$4
-
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # store function arguments in variables
-  FACETS=$(echo "$4" | tr -d '[' | tr -d ']' | tr -d ',')
-  FACETS=$(printf '"%s",' "$FACETS" | sed 's/,*$//')
-
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-  else
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-  fi
-
-  # create an empty json if it does not exist
-  if [[ ! -e $DIAMOND_FILE ]]; then
-    echo "{}" >"$DIAMOND_FILE"
-  fi
-  result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
-  printf %s "$result" >"$DIAMOND_FILE"
-}
 function saveDiamondFacets() {
   # read function arguments into variables
   local NETWORK=$1
@@ -905,8 +873,9 @@ function saveDiamondFacets() {
   local USE_MUTABLE_DIAMOND=$3
   local FACETS=$4
   # optional: output control for parallel orchestration
-  local OUTPUT_MODE="$5" # "facets-only" to write only facets JSON to OUTPUT_PATH
-  local OUTPUT_PATH="$6" # path to write facets JSON when in facets-only mode
+  local OUTPUT_MODE="$5"   # "facets-only" to write only facets JSON to OUTPUT_PATH
+  local OUTPUT_PATH="$6"   # path to write facets JSON when in facets-only mode
+  local FACETS_DIR="$7" # path for intermediate files, provided by the caller
 
   # logging for debug purposes
   echo ""
@@ -915,31 +884,23 @@ function saveDiamondFacets() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
   echoDebug "FACETS=$FACETS"
-
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamond"
-  else
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamondImmutable"
-  fi
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+  echoDebug "FACETS_DIR=$FACETS_DIR"
 
   # create an iterable FACETS array
-  # Remove brackets from FACETS string and split into array
   FACETS_ADJ="${4#\[}"
   FACETS_ADJ="${FACETS_ADJ%\]}"
   IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
 
-  # Set up a temp directory to collect facet entries (avoid concurrent writes)
-  local TEMP_DIR
-  TEMP_DIR=$(mktemp -d)
-  trap 'rm -rf "$TEMP_DIR" 2>/dev/null' EXIT
-  local FACETS_DIR="$TEMP_DIR/facets"
-  mkdir -p "$FACETS_DIR"
+  # ensure the directory for intermediate files exists
+  if [[ -n "$FACETS_DIR" ]]; then
+    mkdir -p "$FACETS_DIR"
+  else
+    # fallback for safety, for single-threaded operation where FACETS_DIR is not provided
+    # for parallel operation, the caller should always provide it
+    FACETS_DIR=$(mktemp -d)
+    trap 'rm -rf "$FACETS_DIR" 2>/dev/null' EXIT
+  fi
 
   # determine concurrency (fallback to 10 if not set)
   local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
@@ -964,9 +925,12 @@ function saveDiamondFacets() {
       JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
       if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
         warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
+        # try to find name of contract from network-specific deployments file
+        # load JSON FILE that contains deployment addresses
         NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
         JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
       fi
+      # This now writes to the directory passed in by the parent function
       echo "$JSON_ENTRY" >"$FACETS_DIR/${FACET_ADDRESS}.json"
     ) &
   done
@@ -1000,16 +964,19 @@ function saveDiamondFacets() {
     fi
 
     # write merged facets to diamond file in a single atomic update
-    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
+    result=$(jq -r --arg diamond_name "$DIAMOND_CONTRACT_NAME" --argjson facets_obj "$FACETS_JSON" '
         .[$diamond_name] = (.[$diamond_name] // {}) |
         .[$diamond_name].Facets = ((.[$diamond_name].Facets // {}) + $facets_obj)
       ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
     printf %s "$result" >"$DIAMOND_FILE"
 
-    # add information about registered periphery contracts
-    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+    # add information about registered periphery contracts (only for regular diamonds, not LDA)
+    if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+    fi
   fi
 }
+
 function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   # read function arguments into variables
   NETWORK=$1
@@ -1110,6 +1077,7 @@ function saveDiamondPeriphery() {
   # optional: output control for parallel orchestration
   local OUTPUT_MODE="$4" # "periphery-only" to write only periphery JSON to OUTPUT_PATH
   local OUTPUT_PATH="$5" # path to write periphery JSON when in periphery-only mode
+  local PERIPHERY_DIR="$6" # path for intermediate files, provided by the caller
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -1147,11 +1115,13 @@ function saveDiamondPeriphery() {
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
 
-  # prepare temp dir to collect per-contract JSON snippets
-  local TEMP_DIR
-  TEMP_DIR=$(mktemp -d)
-  local PERIPHERY_DIR="$TEMP_DIR/periphery"
-  mkdir -p "$PERIPHERY_DIR"
+  if [[ -n "$PERIPHERY_DIR" ]]; then
+    mkdir -p "$PERIPHERY_DIR"
+  else
+    PERIPHERY_DIR=$(mktemp -d)
+    # use a trap here as a fallback since it's self-contained if no dir is passed
+    trap 'rm -rf "$PERIPHERY_DIR" 2>/dev/null' EXIT
+  fi
 
   # determine concurrency (fallback to 10 if not set)
   local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
@@ -1207,10 +1177,8 @@ function saveDiamondPeriphery() {
       ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
     printf %s "$result" >"$DIAMOND_FILE"
   fi
-
-  # cleanup
-  rm -rf "$TEMP_DIR"
 }
+
 function saveContract() {
   # read function arguments into variables
   local NETWORK=$1
@@ -2558,7 +2526,7 @@ function updateAllContractsToTargetState() {
 
           # update diamond with core facets
           echo ""
-          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" false 2>/dev/null
+          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" 2>/dev/null
 
           # check if last command was executed successfully, otherwise exit script with error message
           checkFailure $? "update core facets in $DIAMOND_NAME on network $NETWORK"
@@ -4392,6 +4360,12 @@ function updateDiamondLogForNetwork() {
   # read function arguments into variable
   local NETWORK=$1
   local ENVIRONMENT=$2
+  local DIAMOND_CONTRACT_NAME=$3
+
+  echoDebug "in function updateDiamondLogForNetwork"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
 
   # get RPC URL
   local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
@@ -4402,11 +4376,13 @@ function updateDiamondLogForNetwork() {
   fi
 
   # get diamond address
-  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
+  local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
-  if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] Failed to get LiFiDiamond address on $NETWORK in $ENVIRONMENT environment"
-    return 1
+  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+
+  if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" ]]; then
+    warning "[$NETWORK] Failed to get $DIAMOND_CONTRACT_NAME address on $NETWORK in $ENVIRONMENT environment - contract may not be deployed. Skipping."
+    return 2 # Return a special exit code (2) for "skipped" instead of 0 (success)
   fi
 
   # get list of facets
@@ -4417,7 +4393,6 @@ function updateDiamondLogForNetwork() {
     echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
     local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
-
     # check the return code the last call
     if [ $? -eq 0 ]; then
       break # exit the loop if the operation was successful
@@ -4434,30 +4409,62 @@ function updateDiamondLogForNetwork() {
   # prepare for parallel facet/periphery processing and final merge
   local FILE_SUFFIX
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-  local DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-  local DIAMOND_NAME="LiFiDiamond"
+
+  # Determine file path and settings based on diamond contract name
+  local DIAMOND_FILE
+  local USE_MUTABLE_DIAMOND
+
+  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+    USE_MUTABLE_DIAMOND="true"
+  elif [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamondImmutable" ]]; then
+    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
+    USE_MUTABLE_DIAMOND="false"
+  else
+    # LiFiDEXAggregatorDiamond
+    DIAMOND_FILE="./deployments/${NETWORK}.diamond.lda.${FILE_SUFFIX}json"
+    USE_MUTABLE_DIAMOND="false"
+  fi
+
+  # create one isolated temp directory for this entire parallel operation
   local TEMP_DIR
-  TEMP_DIR=$(mktemp -d)
-  local FACETS_TMP="$TEMP_DIR/facets.json"
-  local PERIPHERY_TMP="$TEMP_DIR/periphery.json"
+  TEMP_DIR=$(mktemp -d -t "diamond_${DIAMOND_CONTRACT_NAME}_${NETWORK}_${ENVIRONMENT}_XXXXXX")
+  # ensure this directory is cleaned up when this function exits
+  trap 'rm -rf "$TEMP_DIR" 2>/dev/null' RETURN
 
-  # start periphery resolution in background
-  saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "true" "periphery-only" "$PERIPHERY_TMP" &
-  local PID_PERIPHERY=$!
+  local FACETS_TMP="$TEMP_DIR/facets_${DIAMOND_CONTRACT_NAME}.json"
+  local PERIPHERY_TMP="$TEMP_DIR/periphery_${DIAMOND_CONTRACT_NAME}.json"
+  # define paths for the intermediate files within the isolated directory
+  local FACETS_SUBDIR="$TEMP_DIR/facets-intermediate"
+  local PERIPHERY_SUBDIR="$TEMP_DIR/periphery-intermediate"
 
-  # start facets resolution (if available) in background
-  local PID_FACETS
+  # export DIAMOND_CONTRACT_NAME for the functions to use
+  export DIAMOND_CONTRACT_NAME="$DIAMOND_CONTRACT_NAME"
+
+  # start periphery and facets resolution in parallel
+  local pids=()
+
+  # only process periphery for LiFiDiamond and LiFiDiamondImmutable, skip for LiFiDEXAggregatorDiamond
+  if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDEXAggregatorDiamond" ]]; then
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "periphery-only" "$PERIPHERY_TMP" "$PERIPHERY_SUBDIR" &
+    pids+=($!)
+  fi
+
+  # Start facets resolution (for all diamond types)
   if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
-    warning "[$NETWORK] no facets found in diamond $DIAMOND_ADDRESS"
+    warning "[$NETWORK] no facets found in $DIAMOND_CONTRACT_NAME $DIAMOND_ADDRESS"
     echo '{}' >"$FACETS_TMP"
   else
-    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "true" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" &
-    PID_FACETS=$!
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES" "facets-only" "$FACETS_TMP" "$FACETS_SUBDIR" &
+    pids+=($!)
   fi
 
   # wait for both background jobs to complete
-  if [[ -n "$PID_PERIPHERY" ]]; then wait "$PID_PERIPHERY"; fi
-  if [[ -n "$PID_FACETS" ]]; then wait "$PID_FACETS"; fi
+  if [[ -n "${pids[*]}" ]]; then
+    for pid in "${pids[@]}"; do
+        wait "$pid"
+    done
+  fi
 
   # validate temp outputs exist
   if [[ ! -s "$FACETS_TMP" ]]; then echo '{}' >"$FACETS_TMP"; fi
@@ -4470,23 +4477,29 @@ function updateDiamondLogForNetwork() {
 
   # merge facets and periphery into diamond file atomically
   local MERGED
-  MERGED=$(jq -r --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
+  MERGED=$(jq -r --arg diamond_name "$DIAMOND_CONTRACT_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
       .[$diamond_name] = (.[$diamond_name] // {}) |
       .[$diamond_name].Facets = $facets[0] |
-      .[$diamond_name].Periphery = $periphery[0]
+      # Conditionally add the Periphery key only if it is not the LDA diamond
+      if $diamond_name != "LiFiDEXAggregatorDiamond" then
+        .[$diamond_name].Periphery = $periphery[0]
+      else
+        . # Otherwise, pass the object through without adding the Periphery key
+      end
     ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
   printf %s "$MERGED" >"$DIAMOND_FILE"
 
-  # clean up
-  rm -rf "$TEMP_DIR"
-
-  success "[$NETWORK] updated diamond log"
+  # the trap automatically cleans up the TEMP_DIR
+  success "[$NETWORK] updated diamond log for $DIAMOND_CONTRACT_NAME"
 }
 
 function updateDiamondLogs() {
   # read function arguments into variable
   local ENVIRONMENT=$1
   local NETWORK=$2
+
+  # Define all diamond contract names to process
+  local DIAMOND_CONTRACT_NAMES=("LiFiDiamond" "LiFiDEXAggregatorDiamond")
 
   # if no network was passed to this function, update all networks
   if [[ -z $NETWORK ]]; then
@@ -4497,7 +4510,8 @@ function updateDiamondLogs() {
   fi
 
   echo ""
-  echo "Now updating all diamond logs on network(s): ${NETWORKS[*]}"
+  echo "Now updating all diamond logs for diamond contracts: ${DIAMOND_CONTRACT_NAMES[*]}"
+  echo "Networks: ${NETWORKS[*]}"
   echo ""
 
   # ENVIRONMENTS=("production" "staging")
@@ -4512,7 +4526,7 @@ function updateDiamondLogs() {
   local job_info=()
   local job_index=0
 
-  # loop through all networks
+  # Loop through all networks and environments
   for NETWORK in "${NETWORKS[@]}"; do
     echo ""
     echo "current Network: $NETWORK"
@@ -4521,13 +4535,18 @@ function updateDiamondLogs() {
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
-      # Call the helper function in background for parallel execution
-      updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" &
+      # Process all diamond contract names for this network/environment in parallel
+      for DIAMOND_CONTRACT_NAME in "${DIAMOND_CONTRACT_NAMES[@]}"; do
+        echo "   Processing $DIAMOND_CONTRACT_NAME..."
+        
+        # Call the helper function in background for parallel execution
+        updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" &
 
-      # Store the PID and job info
-      pids+=($!)
-      job_info+=("$NETWORK:$ENVIRONMENT")
-      job_index=$((job_index + 1))
+        # Store the PID and job info
+        pids+=($!)
+        job_info+=("$NETWORK:$ENVIRONMENT:$DIAMOND_CONTRACT_NAME")
+        job_index=$((job_index + 1))
+      done
     done
   done
 
@@ -4539,16 +4558,22 @@ function updateDiamondLogs() {
   for i in "${!pids[@]}"; do
     local pid="${pids[$i]}"
     local info="${job_info[$i]}"
+    local exit_code=0 # Default to success
 
-    # Wait for this specific job and capture its exit code
-    if wait "$pid"; then
+    # wait for this specific job and then capture its exit code from the '$?' variable
+    wait "$pid"
+    exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
       echo "[$info] Completed successfully"
+    elif [[ $exit_code -eq 2 ]]; then
+      # Handle our custom "skipped" code
+      echo "[$info] Skipped (contract not found in deployments)"
     else
-      echo "[$info] Failed with exit code $?"
+      echo "[$info] Failed with exit code $exit_code"
       failed_jobs+=("$info")
     fi
   done
-
   # Check if any jobs failed
   if [ ${#failed_jobs[@]} -gt 0 ]; then
     error "Some diamond log updates failed: ${failed_jobs[*]}"

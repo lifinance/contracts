@@ -26,7 +26,7 @@ contract GenericSwapFacetTest is TestBase {
 
     TestGenericSwapFacet internal genericSwapFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 15588208;
         initTestBase();
 
@@ -40,7 +40,11 @@ contract GenericSwapFacetTest is TestBase {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(genericSwapFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacet),
+            functionSelectors
+        );
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         genericSwapFacet.addDex(address(uniswap));

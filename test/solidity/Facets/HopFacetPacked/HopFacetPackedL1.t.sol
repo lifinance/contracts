@@ -59,7 +59,7 @@ contract HopFacetPackedL1Test is TestBase {
     BridgeParams internal usdtParams;
     BridgeParams internal nativeParams;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 15588208;
         initTestBase();
@@ -113,7 +113,7 @@ contract HopFacetPackedL1Test is TestBase {
             .encode_startBridgeTokensViaHopL1ERC20Packed
             .selector;
 
-        addFacet(diamond, address(hopFacetPacked), functionSelectors);
+        addFacet(address(diamond), address(hopFacetPacked), functionSelectors);
         hopFacetPacked = HopFacetPacked(address(diamond));
 
         /// Approval
@@ -131,7 +131,7 @@ contract HopFacetPackedL1Test is TestBase {
             .setApprovalForBridges
             .selector;
         addFacet(
-            diamond,
+            address(diamond),
             address(hopFacetOptimized),
             functionSelectorsApproval
         );

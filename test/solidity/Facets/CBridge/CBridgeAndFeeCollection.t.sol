@@ -29,7 +29,7 @@ contract CBridgeAndFeeCollectionTest is TestBase {
 
     TestCBridgeFacet internal cBridge;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 14847528;
         initTestBase();
 
@@ -43,7 +43,7 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         functionSelectors[2] = cBridge.addDex.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
 
-        addFacet(diamond, address(cBridge), functionSelectors);
+        addFacet(address(diamond), address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));

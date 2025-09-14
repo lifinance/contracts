@@ -38,7 +38,7 @@ contract ReceiverStargateV2Test is TestBase {
     event ExecutorSet(address indexed executor);
     event RecoverGasSet(uint256 indexed recoverGas);
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 20024274;
         initTestBase();
 
