@@ -45,4 +45,11 @@ interface IEcoPortal {
         Intent calldata intent,
         bool allowPartial
     ) external payable returns (bytes32 intentHash, address vault);
+
+    function publishAndFund(
+        uint64 destination,
+        bytes memory route,
+        Reward calldata reward,
+        bool allowPartial
+    ) external payable returns (bytes32 intentHash, address vault);
 }
