@@ -23,7 +23,7 @@ contract KatanaV3Facet is BaseRouteConstants {
     // ==== External Functions ====
     /// @notice Performs a swap through KatanaV3 pools
     /// @dev This function handles swaps through KatanaV3 pools.
-    /// @param swapData Encoded swap parameters [pool, direction, recipient]
+    /// @param swapData Encoded swap parameters [pool, direction, destinationAddress]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
     /// @param amountIn Amount of tokenIn to take for swap
@@ -37,9 +37,9 @@ contract KatanaV3Facet is BaseRouteConstants {
 
         address pool = stream.readAddress();
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
-        address recipient = stream.readAddress();
+        address destinationAddress = stream.readAddress();
 
-        if (pool == address(0) || recipient == address(0))
+        if (pool == address(0) || destinationAddress == address(0))
             revert InvalidCallData();
 
         // get router address from pool governance
@@ -65,7 +65,7 @@ contract KatanaV3Facet is BaseRouteConstants {
         // set payerIsUser to false since we already transferred tokens to the router
         bytes[] memory inputs = new bytes[](1);
         inputs[0] = abi.encode(
-            recipient, // recipient
+            destinationAddress, // destinationAddress
             amountIn, // amountIn
             0, // amountOutMin (0, as we handle slippage at higher level)
             abi.encodePacked(tokenIn, fee, tokenOut), // construct the path for V3 swap (tokenIn -> tokenOut with fee)

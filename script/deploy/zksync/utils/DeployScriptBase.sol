@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { stdJson } from "forge-std/Script.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
-import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 
 interface IContractDeployer {
     function getNewAddressCreate2(
