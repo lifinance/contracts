@@ -55,9 +55,18 @@ export class SlackNotifier {
   }
 
   /**
-   * Send a raw Slack message
+   * Send a raw Slack message with timeout handling
    */
   public async sendNotification(message: ISlackMessage): Promise<void> {
+    // Create an AbortController for timeout handling
+    const controller = new AbortController()
+    const timeoutMs = 10000 // 10 seconds timeout
+
+    // Set up timeout to abort the request
+    const timeoutId = setTimeout(() => {
+      controller.abort()
+    }, timeoutMs)
+
     try {
       const response = await fetch(this.webhookUrl, {
         method: 'POST',
@@ -65,13 +74,31 @@ export class SlackNotifier {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(message),
+        signal: controller.signal, // Pass the abort signal to fetch
       })
+
+      // Clear the timeout on successful fetch
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const text = await response.text()
         throw new Error(`Slack API error: ${response.status} - ${text}`)
       }
     } catch (error) {
+      // Clear the timeout in error cases
+      clearTimeout(timeoutId)
+
+      // Check if error is due to abort/timeout
+      if (error instanceof Error && error.name === 'AbortError') {
+        consola.warn(
+          `Slack notification timed out after ${timeoutMs / 1000} seconds`
+        )
+        throw new Error(
+          `Slack webhook request timed out after ${timeoutMs / 1000} seconds`
+        )
+      }
+
+      // Log other errors
       consola.warn('Failed to send Slack notification:', error)
       throw error
     }
