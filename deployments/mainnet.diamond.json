@@ -13,8 +13,8 @@
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
-        "Name": "AcrossFacetPacked",
+      "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
+        "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
       "0x22B31a1a81d5e594315c866616db793E799556c5": {
@@ -25,15 +25,15 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
-        "Name": "",
-        "Version": ""
+      "0x03f58Dc7e2195A0c6F501BC4819066fd9dFe307F": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
       },
-      "0x3F95b05a77FDC6D82162D86A72b156b55030627f": {
-        "Name": "AmarokFacet",
-        "Version": "3.0.0"
+      "0x108B0C3F20F266469fD2E98750926811aD632589": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.1"
       },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
+      "0xC4E5F14dfE359653D66AE49B1f12177e6f99102b": {
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
@@ -41,59 +41,55 @@
         "Name": "GnosisBridgeFacet",
         "Version": "2.0.0"
       },
-      "0x090e074bc934c4D8B84e168cb6597e87Da0C019b": {
+      "0xac82fA2D953Ee5C61d87686ADE620b0728F484E6": {
         "Name": "ArbitrumBridgeFacet",
         "Version": "1.0.0"
       },
-      "0xF2c63815eBD0c4E048eF216C77E2c80aa4ecD59c": {
-        "Name": "HyphenFacet",
+      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+        "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0x02063A0d7a222c16D5b63213262596B83b07150c": {
-        "Name": "MultichainFacet",
-        "Version": "1.0.1"
+      "0x3De506059AE0B239e125e6B1365cfa92100540C0": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": "1.2.0"
       },
-      "0xBeE13d99dD633fEAa2a0935f00CbC859F8305FA7": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
-      "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
+      "0x7570E6b01e43df1b0c67f99C4156285AdC36c360": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x87C10910DA7258E55dA2C5d43739fB68B12E6a4b": {
-        "Name": "",
-        "Version": ""
+      "0x54678c366682a29112609882DC58dEF6753BFC27": {
+        "Name": "OptimismBridgeFacet",
+        "Version": "1.0.0"
       },
-      "0xF609fdBA8f7A020975a7c82C82f6A1f526F9A8fC": {
+      "0x99Fb0bAbBA2c437153D25Aff79DC80B905a27A5a": {
         "Name": "PolygonBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x7D1940fDfF0B37c137B105ce7967B3B86DB42648": {
-        "Name": "StargateFacet",
-        "Version": "2.2.0"
+      "0x29BEDC1Be2EeCB654F7a9CD3f21B466c148186c2": {
+        "Name": "MayanFacet",
+        "Version": "1.2.2"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e": {
+      "0xa74c9C1B2194F27c372B0892839624852dE21687": {
         "Name": "GenericSwapFacet",
-        "Version": "2.0.0"
+        "Version": "1.0.0"
       },
-      "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
+      "0x5AC2c4836c45faaE84c7d73065796Ac863fFb8C6": {
         "Name": "HopFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       },
-      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+      "0x9Fc3d15A029BfEe6Eb27E3d061210a465E231362": {
         "Name": "HopFacetOptimized",
         "Version": "2.0.0"
       },
-      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0xEF67BE6d1a68Ede5A21230629dFE896731aDF947": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
       },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
+      "0x260fB3D593F6aCB08E0aa380a123CE07d2bD4b7E": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
@@ -101,11 +97,11 @@
         "Name": "AllBridgeFacet",
         "Version": "2.1.0"
       },
-      "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
+      "0xfDB9a62a5f4F98A0C4e4B864eB22a9EEcB0BcE5F": {
         "Name": "HopFacetPacked",
         "Version": "1.0.6"
       },
-      "0x6731C946747bA54c78e7a65d416Cde39E478ECeb": {
+      "0x8bD90ea4eF3df26C385646F4f41E4c5e3c11bB2a": {
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
@@ -113,23 +109,23 @@
         "Name": "ChainflipFacet",
         "Version": "1.0.0"
       },
-      "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0xbF4aD13FA0e6E05916a78C201f147c5152dbe1C9": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
       },
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
+      "0x26FC055eaF6A6dF15502f2466990528EC55c857d": {
         "Name": "RelayFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
-      "0x3c0727E3Ab7BAf3a4205f518f1b7570d68Da19ba": {
+      "0xcAefaC1Ea4DeC8fd866CBc5B6Dd3054f80d49B80": {
         "Name": "ThorSwapFacet",
         "Version": "1.2.1"
       },
-      "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
+      "0x94eF6D1702ac7E30a5CeF39dEE26FAb180C251Fe": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
@@ -137,64 +133,37 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
-        "Name": "AmarokFacetPacked",
-        "Version": "1.0.0"
-      },
-      "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a": {
-        "Name": "SymbiosisFacet",
-        "Version": "1.0.0"
-      },
-      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
-        "Name": "SquidFacet",
-        "Version": "1.0.0"
-      },
-      "0x29BEDC1Be2EeCB654F7a9CD3f21B466c148186c2": {
-        "Name": "MayanFacet",
-        "Version": "1.2.2"
-      },
-      "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
-        "Name": "StargateFacetV2",
-        "Version": "1.0.1"
-      },
-      "0x21a786957c69424A4353Afe743242Bd9Db3cC07b": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
-      },
-      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
-      },
-      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
-      },
       "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
-        "Name": "DeBridgeDlnFacet",
+      "0x23Fc1b73e66Cd13e988170CB94e252Cb7FF88185": {
+        "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
+      "0xF5Ea5523185963d236675B8AC9e51A55D79A7345": {
         "Name": "GlacisFacet",
+        "Version": "1.1.0"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
-      "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
-      "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
+      "ERC20Proxy": "0x68E1Acfa805dcA813116Ed6507E01c38D44318f0",
+      "Executor": "0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88",
+      "FeeCollector": "0x3Ef238c36035880EfbDfa239d218186b79Ad1d6F",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "Patcher": "0xD0D1222a437e73F845e94a37098619B72be1540b",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
-      "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
+      "ReceiverAcrossV3": "0x81F35E762B6792Eea8781fC52F72e62235A5C416",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
-      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+      "ReceiverStargateV2": "0xB539B40793171211DCA8834da044fC14bCe64BDC",
+      "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6"
     }
   }
 }
