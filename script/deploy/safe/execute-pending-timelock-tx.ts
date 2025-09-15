@@ -26,13 +26,13 @@ import data from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
-
-import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 import {
   SlackNotifier,
   type INetworkResult,
   type IProcessingStats,
-} from './slack-notifier'
+} from '../../utils/slack-notifier'
+
+import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 
 // Define interfaces for network configuration
 interface INetworkConfig {

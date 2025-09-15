@@ -2,6 +2,9 @@ import { consola } from 'consola'
 import type { Address, Hex } from 'viem'
 import { formatEther } from 'viem'
 
+import networksConfig from '../../config/networks.json'
+import type { SupportedChain } from '../common/types'
+
 interface ISlackMessage {
   text: string
   blocks?: Record<string, unknown>[]
@@ -518,45 +521,46 @@ export class SlackNotifier {
 
   /**
    * Helper to get explorer URL for a transaction
+   * Dynamically pulls explorer URL from networks.json configuration
    */
   private getExplorerUrl(network: string, txHash?: string): string | undefined {
     if (!txHash) return undefined
 
-    const explorers: Record<string, string> = {
-      arbitrum: 'https://arbiscan.io/tx/',
-      polygon: 'https://polygonscan.com/tx/',
-      mainnet: 'https://etherscan.io/tx/',
-      ethereum: 'https://etherscan.io/tx/',
-      optimism: 'https://optimistic.etherscan.io/tx/',
-      avalanche: 'https://snowtrace.io/tx/',
-      bsc: 'https://bscscan.com/tx/',
-      fantom: 'https://ftmscan.com/tx/',
-      gnosis: 'https://gnosisscan.io/tx/',
-      base: 'https://basescan.org/tx/',
-      celo: 'https://celoscan.io/tx/',
-      moonbeam: 'https://moonscan.io/tx/',
-      moonriver: 'https://moonriver.moonscan.io/tx/',
-      cronos: 'https://cronoscan.com/tx/',
-      aurora: 'https://explorer.aurora.dev/tx/',
-      harmony: 'https://explorer.harmony.one/tx/',
-      metis: 'https://andromeda-explorer.metis.io/tx/',
-      scroll: 'https://scrollscan.com/tx/',
-      mantle: 'https://mantlescan.xyz/tx/',
-      linea: 'https://lineascan.build/tx/',
-      zksync: 'https://explorer.zksync.io/tx/',
-      'polygon-zkevm': 'https://zkevm.polygonscan.com/tx/',
-      sei: 'https://seitrace.com/tx/',
-      mode: 'https://explorer.mode.network/tx/',
-      blast: 'https://blastscan.io/tx/',
-      fraxtal: 'https://fraxscan.com/tx/',
-      taiko: 'https://taikoscan.io/tx/',
-      rootstock: 'https://rootstock.blockscout.com/tx/',
-      gravity: 'https://scan.gravity.xyz/tx/',
-      worldchain: 'https://worldchain-mainnet.explorer.alchemy.com/tx/',
+    // Try to find the network in the config (case-insensitive)
+    const networkKey = Object.keys(networksConfig).find(
+      (key) => key.toLowerCase() === network.toLowerCase()
+    ) as SupportedChain | undefined
+
+    if (!networkKey) {
+      consola.debug(`Network ${network} not found in networks.json`)
+      return undefined
     }
 
-    const explorerUrl = explorers[network.toLowerCase()]
-    return explorerUrl ? `${explorerUrl}${txHash}` : undefined
+    const networkConfig = networksConfig[networkKey]
+    if (!networkConfig.explorerUrl) {
+      consola.debug(`No explorer URL configured for ${network}`)
+      return undefined
+    }
+
+    // Construct the transaction URL based on the explorer type
+    const baseUrl = networkConfig.explorerUrl.replace(/\/$/, '') // Remove trailing slash if present
+
+    // Different explorers have different URL patterns
+    // Most use /tx/ but some might use different patterns
+    if (networkConfig.verificationType === 'oklink')
+      // OKLink explorers use a different pattern
+      return `${baseUrl}/tx/${txHash}`
+    else if (networkConfig.verificationType === 'blockscout')
+      // Blockscout explorers typically use /tx/
+      return `${baseUrl}/tx/${txHash}`
+    else if (networkConfig.verificationType === 'tronscan')
+      // Tronscan uses a different pattern
+      return `${baseUrl}/#/transaction/${txHash}`
+    else if (networkConfig.verificationType === 'vicscan')
+      // Vicscan might use a different pattern
+      return `${baseUrl}/tx/${txHash}`
+    // Default pattern for Etherscan and most other explorers
+    else return `${baseUrl}/tx/${txHash}`
   }
 
   /**
