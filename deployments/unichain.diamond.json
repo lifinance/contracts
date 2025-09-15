@@ -13,7 +13,7 @@
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xC20773bbD1c8Fb749E7DaE5236800A5Dd5F39ed8": {
+      "0x89177eFba8Ccd273C726d3d3DF4aBE9B5f52eFe4": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
@@ -29,7 +29,7 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x85a52070bf96f96B6bD4e06Ec536991879058BDF": {
+      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
@@ -92,6 +92,7 @@
       "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "0xd62d7C4Bb23f65EF3d312C74Cd77a367285CA8fc",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x058f63F483053280246A1c5Db4DAFbE917c13295",
       "TokenWrapper": "0xc0c12F5F1D8E49D80755c736A5083696488342A6"
