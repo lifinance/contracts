@@ -124,6 +124,10 @@
       "0xa9Db3a974Fd7589835866685D02686CC52A86d53": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

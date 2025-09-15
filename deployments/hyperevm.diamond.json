@@ -64,6 +64,10 @@
       "0x95326d42f11184DB3036061167cD202291792343": {
         "Name": "MayanFacet",
         "Version": "1.2.2"
+      },
+      "0x8475a5f359bD33D33A6381b9381af5d86BC547A5": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

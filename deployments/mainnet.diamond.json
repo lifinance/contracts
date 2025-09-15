@@ -53,10 +53,6 @@
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
       },
-      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
-        "Name": "",
-        "Version": ""
-      },
       "0x7570E6b01e43df1b0c67f99C4156285AdC36c360": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
@@ -148,6 +144,10 @@
       "0xF5Ea5523185963d236675B8AC9e51A55D79A7345": {
         "Name": "GlacisFacet",
         "Version": "1.1.0"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

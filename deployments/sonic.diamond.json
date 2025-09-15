@@ -76,6 +76,10 @@
       "0x92b0DDb3466F908f39e3FA2A65055EC78e452791": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.0"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -85,6 +89,7 @@
       "GasZipPeriphery": "0x6F703111cc3f898f521d29E1151b3F56aA0a1E5B",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xA03513f40409D1316c4958dbCef86e7Ab5Cd2009",
+      "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",
