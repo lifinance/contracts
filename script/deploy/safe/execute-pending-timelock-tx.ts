@@ -256,11 +256,31 @@ const cmd = defineCommand({
       // Log summary
       const successfulNetworks = results.filter((r) => r.success).length
       const failedNetworks = results.filter((r) => !r.success).length
+      const totalOperationsProcessed = results.reduce(
+        (sum, r) => sum + (r.operationsProcessed || 0),
+        0
+      )
+      const totalOperationsFailed = results.reduce(
+        (sum, r) => sum + (r.operationsFailed || 0),
+        0
+      )
+      const totalOperationsSucceeded = results.reduce(
+        (sum, r) => sum + (r.operationsSucceeded || 0),
+        0
+      )
 
       consola.info(`\n📊 Parallel execution summary:`)
       consola.info(`   ✅ Successful networks: ${successfulNetworks}`)
       consola.info(`   ❌ Failed networks: ${failedNetworks}`)
       consola.info(`   📋 Total networks processed: ${results.length}`)
+      consola.info(
+        `   📝 Total operations processed: ${totalOperationsProcessed}`
+      )
+      consola.info(
+        `   ✅ Total operations succeeded: ${totalOperationsSucceeded}`
+      )
+      if (totalOperationsFailed > 0)
+        consola.error(`   ❌ Total operations failed: ${totalOperationsFailed}`)
 
       // Send batch summary notification if Slack is enabled
       if (slackNotifier)
@@ -269,13 +289,22 @@ const cmd = defineCommand({
         } catch (error) {
           consola.warn('Failed to send batch summary notification:', error)
         }
+
+      // Exit with error code if there were failures
+      if (failedNetworks > 0 || totalOperationsFailed > 0) {
+        consola.error('\n❌ Script completed with errors')
+        process.exit(1)
+      }
     } else {
       consola.info('🔄 Processing networks sequentially for interactive mode')
 
       // Process networks sequentially for interactive mode
+      let totalFailed = 0
+      let totalSucceeded = 0
+
       for (const network of networksToProcess)
         try {
-          await processNetwork(
+          const result = await processNetwork(
             network,
             isDryRun,
             specificOperationId,
@@ -284,9 +313,30 @@ const cmd = defineCommand({
             rpcUrlOverride,
             undefined // No Slack notifier in sequential mode
           )
+
+          if (result.success) totalSucceeded++
+          else totalFailed++
+
+          // Log individual network failures
+          if (result.operationsFailed && result.operationsFailed > 0)
+            consola.error(
+              `[${network.name}] ❌ ${result.operationsFailed} operation(s) failed`
+            )
         } catch (error) {
           consola.error(`Error processing network ${network.name}:`, error)
+          totalFailed++
         }
+
+      // Log final summary for sequential mode
+      if (totalFailed > 0) {
+        consola.error(
+          `\n❌ Script completed with ${totalFailed} network(s) having failures`
+        )
+        process.exit(1)
+      } else
+        consola.success(
+          `\n✅ All ${totalSucceeded} network(s) processed successfully`
+        )
     }
   },
 })
@@ -486,11 +536,13 @@ async function processNetwork(
     let operationsProcessed = 0
     let operationsSucceeded = 0
     let operationsFailed = 0
+    let operationsRejected = 0
+    let operationsSkipped = 0
     const totalGasUsed = 0n
 
     for (const operation of readyOperations)
       if (rejectAll) {
-        await rejectOperation(
+        const rejectResult = await rejectOperation(
           publicClient,
           walletClient,
           timelockAddress,
@@ -498,6 +550,8 @@ async function processNetwork(
           isDryRun
         )
         operationsProcessed++
+        if (rejectResult === 'rejected') operationsRejected++
+        else if (rejectResult === 'failed') operationsFailed++
       } else {
         // Determine if we should use interactive mode
         const isInteractive = !executeAll && !rejectAll
@@ -521,6 +575,8 @@ async function processNetwork(
         operationsProcessed++
         if (result === 'executed') operationsSucceeded++
         else if (result === 'failed') operationsFailed++
+        else if (result === 'rejected') operationsRejected++
+        else if (result === 'skipped') operationsSkipped++
       }
 
     // Send network completion notification if Slack is enabled
@@ -537,19 +593,43 @@ async function processNetwork(
         consola.warn('Failed to send network completion notification:', error)
       }
 
+    // Determine overall success - only true if no operations failed
+    const success = operationsFailed === 0
+
+    // Log summary for this network if there were operations
+    if (operationsProcessed > 0) {
+      consola.info(
+        `[${network.name}] Summary: ${operationsSucceeded} executed, ${operationsRejected} rejected, ${operationsFailed} failed, ${operationsSkipped} skipped`
+      )
+      if (!success)
+        consola.error(
+          `[${network.name}] ❌ Network processing completed with ${operationsFailed} failure(s)`
+        )
+    }
+
     return {
       network: network.name,
-      success: true,
+      success,
       operationsProcessed,
+      operationsFailed,
+      operationsSucceeded,
+      operationsRejected,
+      operationsSkipped,
     }
   } catch (error) {
     consola.error(
-      `[${network.name}] Error reading deployment data for ${network.name}:`,
+      `[${network.name}] Error processing network ${network.name}:`,
       error
     )
+
     return {
       network: network.name,
       success: false,
+      operationsProcessed: 0,
+      operationsFailed: 0,
+      operationsSucceeded: 0,
+      operationsRejected: 0,
+      operationsSkipped: 0,
       error,
     }
   }
@@ -956,7 +1036,7 @@ async function rejectOperation(
   timelockAddress: Address,
   operation: ITimelockOperation,
   isDryRun: boolean
-) {
+): Promise<'rejected' | 'failed'> {
   consola.info(`\n❌ Rejecting operation: ${operation.id}`)
   consola.info(`   Target: ${operation.target}`)
   consola.info(`   Value: ${formatEther(operation.value)} ETH`)
@@ -985,6 +1065,7 @@ async function rejectOperation(
 
       consola.info(`   Estimated gas: ${gasEstimate}`)
       consola.success(`✅ [DRY RUN] Cancellation simulation successful`)
+      return 'rejected'
     } else {
       // Send the actual cancellation transaction
       consola.info(`📤 Submitting cancellation transaction...`)
@@ -1024,11 +1105,15 @@ async function rejectOperation(
           } catch (error) {
             consola.warn(`Failed to update MongoDB document: ${error}`)
           }
-      } else
+        return 'rejected'
+      } else {
         consola.error(`❌ Cancellation failed for operation ${operation.id}`)
+        return 'failed'
+      }
     }
   } catch (error) {
     consola.error(`Failed to cancel operation ${operation.id}:`, error)
+    return 'failed'
   }
 }
 

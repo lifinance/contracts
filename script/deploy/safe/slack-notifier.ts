@@ -30,6 +30,10 @@ interface INetworkResult {
   network: string
   success: boolean
   operationsProcessed?: number
+  operationsFailed?: number
+  operationsSucceeded?: number
+  operationsRejected?: number
+  operationsSkipped?: number
   error?: unknown
 }
 
