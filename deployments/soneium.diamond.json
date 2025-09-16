@@ -13,7 +13,7 @@
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xC20773bbD1c8Fb749E7DaE5236800A5Dd5F39ed8": {
+      "0x89177eFba8Ccd273C726d3d3DF4aBE9B5f52eFe4": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
@@ -29,7 +29,7 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x85a52070bf96f96B6bD4e06Ec536991879058BDF": {
+      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
@@ -72,6 +72,10 @@
       "0xa8deab5134FBA01820E802c0F16337756E0f2a5E": {
         "Name": "PioneerFacet",
         "Version": "1.0.0"
+      },
+      "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -81,8 +85,10 @@
       "GasZipPeriphery": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
       "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
       "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
+      "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "0xd62d7C4Bb23f65EF3d312C74Cd77a367285CA8fc",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x058f63F483053280246A1c5Db4DAFbE917c13295",
       "TokenWrapper": "0xc0c12F5F1D8E49D80755c736A5083696488342A6"
