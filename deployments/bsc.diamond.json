@@ -136,6 +136,18 @@
       "0x5A1B851bC64f6AdaCaE8123aB52142b4A592B3aC": {
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -145,8 +157,10 @@
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
+      "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x22713FA768c255fd7A6186ad39896126EDCF7946",
+      "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
