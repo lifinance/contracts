@@ -31,7 +31,7 @@
       },
       "devDependencies": {
         "@mayanfinance/swap-sdk": "^8.5.0",
-        "@solana/web3.js": "^1.95.4",
+        "@solana/web3.js": "^1.98.4",
         "@typechain/ethers-v5": "^10.2.0",
         "@types/bun": "^1.2.18",
         "@types/minimatch": "^6.0.0",

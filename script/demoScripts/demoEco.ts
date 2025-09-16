@@ -13,9 +13,10 @@
 
 import { randomBytes } from 'crypto'
 
+import { Keypair } from '@solana/web3.js'
 import { defineCommand, runMain } from 'citty'
 import { config } from 'dotenv'
-import { parseUnits, zeroAddress, type Narrow } from 'viem'
+import { parseUnits, zeroAddress, type Narrow, toHex } from 'viem'
 import { erc20Abi } from 'viem'
 
 import ecoFacetArtifact from '../../out/EcoFacet.sol/EcoFacet.json'
@@ -44,15 +45,19 @@ const ECO_FACET_ABI = ecoFacetArtifact.abi as Narrow<
 // These constants are reserved for future support of non-EVM chains
 // They match the chain ID mappings in the EcoFacet contract
 // const LIFI_CHAIN_ID_TRON = 1885080386571452n
-// const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
+const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
+
+// NON_EVM_ADDRESS constant from LiFiData.sol
+const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 
 // Chain IDs mapping
-const CHAIN_IDS: Record<string, number> = {
+const CHAIN_IDS: Record<string, number | bigint> = {
   optimism: 10,
   base: 8453,
   arbitrum: 42161,
   ethereum: 1,
   polygon: 137,
+  solana: LIFI_CHAIN_ID_SOLANA, // LiFi's Solana chain ID
 }
 
 // Token addresses per chain
@@ -62,11 +67,42 @@ const USDC_ADDRESSES: Record<string, string> = {
   arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   ethereum: '0xA0b86991c59218FddE44e6996C8a21e9D5AA5F6dd5',
   polygon: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+  solana: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC on Solana (base58)
 }
 
 // Eco API configuration
 const ECO_API_URL = process.env.ECO_API_URL || 'https://quotes-preprod.eco.com'
 const DAPP_ID = process.env.ECO_DAPP_ID || 'lifi-demo'
+
+/**
+ * Derives a Solana address from an Ethereum private key
+ * Uses the Ethereum private key as a seed for Ed25519 keypair generation
+ *
+ * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
+ * @returns Solana address in base58 format
+ */
+function deriveSolanaAddress(ethPrivateKey: string): string {
+  // Remove '0x' prefix if present
+  const seed = ethPrivateKey.replace('0x', '')
+
+  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
+  const seedBytes = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) 
+    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
+  
+
+  // Create Solana keypair from seed
+  const keypair = Keypair.fromSeed(seedBytes)
+
+  return keypair.publicKey.toBase58()
+}
+
+/**
+ * Checks if a chain is Solana
+ */
+function isSolanaChain(chain: string): boolean {
+  return chain.toLowerCase() === 'solana'
+}
 
 interface IEcoQuoteRequest {
   dAppID: string
@@ -175,7 +211,8 @@ async function getEcoQuote(
   sourceChain: string,
   destinationChain: string,
   amount: bigint,
-  signerAddress: string
+  signerAddress: string,
+  privateKey?: string
 ): Promise<IEcoQuoteResponse> {
   const sourceChainId = CHAIN_IDS[sourceChain]
   const destinationChainId = CHAIN_IDS[destinationChain]
@@ -190,17 +227,37 @@ async function getEcoQuote(
       `USDC address not found for chain: ${sourceChain} or ${destinationChain}`
     )
 
+  // Determine the recipient address based on destination chain
+  let recipientAddress = signerAddress
+  if (isSolanaChain(destinationChain)) {
+    if (!privateKey) 
+      throw new Error('Private key required for Solana destination')
+    
+    recipientAddress = deriveSolanaAddress(privateKey)
+    console.log('Derived Solana recipient address:', recipientAddress)
+  }
+
+  // Convert chain IDs to number for API (Eco API expects number)
+  const sourceChainIdNum =
+    typeof sourceChainId === 'bigint' ? Number(sourceChainId) : sourceChainId
+  const destChainIdNum =
+    typeof destinationChainId === 'bigint'
+      ? destinationChain === 'solana'
+        ? 1399811149
+        : Number(destinationChainId)
+      : destinationChainId
+
   const quoteRequest: IEcoQuoteRequest = {
     dAppID: DAPP_ID,
     quoteRequest: {
-      sourceChainID: sourceChainId,
-      destinationChainID: destinationChainId,
+      sourceChainID: sourceChainIdNum,
+      destinationChainID: destChainIdNum,
       sourceToken,
       destinationToken,
       sourceAmount: amount.toString(),
       funder: signerAddress,
       refundRecipient: signerAddress,
-      recipient: signerAddress,
+      recipient: recipientAddress,
     },
   }
 
@@ -246,13 +303,17 @@ async function main(args: {
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
+  // Get the private key from env for Solana derivation if needed
+  const privateKey = process.env.PRIVATE_KEY
+
   // === Get quote from Eco API ===
   const amount = parseUnits(args.amount, 6) // USDC has 6 decimals
   const quote = await getEcoQuote(
     srcChain,
     args.dstChain,
     amount,
-    signerAddress
+    signerAddress,
+    privateKey
   )
 
   // Extract fee amount from quote
@@ -285,28 +346,62 @@ async function main(args: {
   await ensureBalance(usdcContract, signerAddress, totalAmount, publicClient)
 
   // === Prepare bridge data ===
+  const isDestinationSolana = isSolanaChain(args.dstChain)
+
+  // Determine the receiver address and destination chain ID
+  let receiverAddress = signerAddress
+  let destinationChainId: bigint
+
+  if (isDestinationSolana) {
+    // For Solana, use NON_EVM_ADDRESS as receiver in bridge data
+    receiverAddress = NON_EVM_ADDRESS as `0x${string}`
+    destinationChainId = LIFI_CHAIN_ID_SOLANA
+  } else 
+    destinationChainId = BigInt(quote.data.quoteResponse.destinationChainID)
+  
+
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: `0x${randomBytes(32).toString('hex')}`,
     bridge: 'eco',
     integrator: 'demoScript',
     referrer: zeroAddress,
     sendingAssetId: SRC_TOKEN_ADDRESS,
-    receiver: signerAddress, // Receiver on destination chain (same as signer)
-    destinationChainId: BigInt(quote.data.quoteResponse.destinationChainID),
+    receiver: receiverAddress,
+    destinationChainId: destinationChainId,
     minAmount: amount,
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
 
   // === Prepare EcoData ===
+  // Get the actual recipient address (Solana or EVM)
+  let actualRecipientAddress = signerAddress
+  let nonEVMReceiverBytes = '0x' as `0x${string}`
+
+  if (isDestinationSolana) {
+    if (!privateKey) 
+      throw new Error('Private key required for Solana destination')
+    
+    const solanaAddress = deriveSolanaAddress(privateKey)
+    // Convert Solana base58 address to hex bytes for nonEVMReceiver field
+    const encoder = new TextEncoder()
+    const solanaAddressBytes = encoder.encode(solanaAddress)
+    nonEVMReceiverBytes = toHex(solanaAddressBytes)
+    actualRecipientAddress = signerAddress // Keep EVM address for validation
+
+    console.log('Solana destination details:')
+    console.log('  Solana recipient:', solanaAddress)
+    console.log('  Encoded as bytes:', nonEVMReceiverBytes)
+  }
+
   // For the encodedRoute, we need to encode the destination information
   // The actual format depends on Eco protocol requirements
   // For now, we'll encode basic route information
-  const encodedRoute = getEncodedRoute(quote, signerAddress)
+  const encodedRoute = getEncodedRoute(quote, actualRecipientAddress)
 
   const ecoData: EcoFacet.EcoDataStruct = {
-    receiverAddress: signerAddress, // Receiver on destination chain (same as signer)
-    nonEVMReceiver: '0x', // Empty for EVM chains
+    receiverAddress: actualRecipientAddress, // EVM address for validation
+    nonEVMReceiver: nonEVMReceiverBytes, // Solana address as bytes or '0x' for EVM
     prover: quote.data.contracts.prover, // Prover address from quote
     rewardDeadline: BigInt(quote.data.quoteResponse.deadline), // Deadline from quote
     solverReward: feeAmount, // Solver fee from quote
@@ -369,6 +464,19 @@ async function main(args: {
     '  Reward deadline:',
     new Date(Number(ecoData.rewardDeadline) * 1000).toISOString()
   )
+
+  if (isDestinationSolana) {
+    console.log('\nSolana-specific details:')
+    console.log(
+      '  Destination chain ID (LiFi):',
+      LIFI_CHAIN_ID_SOLANA.toString()
+    )
+    console.log('  Destination chain ID (Eco):', '1399811149')
+    if (privateKey) 
+      console.log('  Solana recipient:', deriveSolanaAddress(privateKey))
+    
+  }
+
   console.log('\nBridge data:', bridgeData)
   console.log('\nEco data (updated structure):')
   console.log('  - receiverAddress:', ecoData.receiverAddress)
