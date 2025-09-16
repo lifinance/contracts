@@ -35825,6 +35825,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.4": [
+          {
+            "ADDRESS": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 14:09:54",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000026f252016a7c47cdef1f05a3fc9e20c92a49c37000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000ad6912d8c99b43d9602a31146b5b236593b152ba",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
