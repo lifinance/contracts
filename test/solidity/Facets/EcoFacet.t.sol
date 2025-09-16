@@ -11,7 +11,7 @@ import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
-    constructor(IEcoPortal _intentSource) EcoFacet(_intentSource) {}
+    constructor(IEcoPortal _portal) EcoFacet(_portal) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -24,13 +24,17 @@ contract TestEcoFacet is EcoFacet {
 
 contract EcoFacetTest is TestBaseFacet {
     TestEcoFacet internal ecoFacet;
-    address internal constant INTENT_SOURCE =
-        0x2020ae689ED3e017450280CEA110d0ef6E640Da4;
+    address internal constant PORTAL = 0x2b7F87a98707e6D19504293F6680498731272D4f;
     uint256 internal constant NATIVE_SOLVER_REWARD = 0.0001 ether;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
 
+    // Chain IDs for testing
+    uint256 internal constant LIFI_CHAIN_ID_SOLANA = 1151111081099710;
+    uint256 internal constant LIFI_CHAIN_ID_TRON = 1885080386571452;
+    address internal constant NON_EVM_ADDRESS = 0x11f111f111f111F111f111f111F111f111f111F1;
+
     function setUp() public {
-        customBlockNumberForForking = 34694289;
+        customBlockNumberForForking = 35593761;
         customRpcUrlForForking = "ETH_NODE_URI_BASE";
         initTestBase();
         addLiquidity(
@@ -46,7 +50,7 @@ contract EcoFacetTest is TestBaseFacet {
             1000000 * 10 ** ERC20(ADDRESS_USDC).decimals()
         );
 
-        ecoFacet = new TestEcoFacet(IEcoPortal(INTENT_SOURCE));
+        ecoFacet = new TestEcoFacet(IEcoPortal(PORTAL));
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = ecoFacet.startBridgeTokensViaEco.selector;
@@ -83,24 +87,22 @@ contract EcoFacetTest is TestBaseFacet {
     function getValidEcoData(
         bool isNative
     ) internal view returns (EcoFacet.EcoData memory) {
-        IEcoPortal.Call[] memory emptyCalls = new IEcoPortal.Call[](0);
-
         // Calculate solver reward based on token type
         uint256 solverReward = isNative
             ? NATIVE_SOLVER_REWARD
             : TOKEN_SOLVER_REWARD;
 
+        // Create mock encoded route data for all chains
+        bytes memory mockEncodedRoute = hex"0102030405060708090a0b0c0d0e0f10";
+
         return
             EcoFacet.EcoData({
                 receiverAddress: USER_RECEIVER,
                 nonEVMReceiver: "",
-                receivingAssetId: ADDRESS_USDC_OPTIMISM,
-                salt: keccak256(abi.encode(block.timestamp)),
-                destinationInbox: INTENT_SOURCE, // Same on OP,
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
                 solverReward: solverReward,
-                destinationCalls: emptyCalls
+                encodedRoute: mockEncodedRoute // Required for all chains now
             });
     }
 
@@ -288,5 +290,136 @@ contract EcoFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(USER_SENDER), usdcBalanceBefore); // No change in USDC
         assertEq(dai.balanceOf(USER_RECEIVER), 0);
         assertEq(usdc.balanceOf(USER_RECEIVER), 0);
+    }
+
+    // Test Solana bridging
+    function testBridge_ToSolanaWithEncodedRoute() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data for Solana
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS; // Must use NON_EVM_ADDRESS for Solana
+
+        // Create Borsh-encoded route (mock data for testing)
+        bytes memory borshEncodedRoute = hex"0102030405060708090a0b0c0d0e0f10";
+
+        // Mock Solana address (base58 encoded address in bytes)
+        bytes memory solanaAddress = hex"11111111111111111111111111111111";
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0), // Not used for NON_EVM_ADDRESS
+            nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD, // Use TOKEN_SOLVER_REWARD for consistency
+            encodedRoute: borshEncodedRoute
+        });
+
+        // Approve USDC
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Expect events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            solanaAddress
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // Execute bridge
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testBridge_ToTron() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data for Tron
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = USER_RECEIVER; // Can use regular address for Tron
+
+        // Create mock encoded route data
+        bytes memory mockEncodedRoute = hex"0102030405060708090a0b0c0d0e0f10";
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: mockEncodedRoute // Now required for Tron too
+        });
+
+        // Approve USDC
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Expect event
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // Execute bridge
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WithoutEncodedRoute() public {
+        vm.startPrank(USER_SENDER);
+
+        // Test with any destination chain
+        bridgeData.destinationChainId = 10; // Optimism
+
+        // Create EcoData without encodedRoute
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: "" // Missing encodedRoute (now required for all chains)
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        vm.expectRevert(InvalidConfig.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // Override base test since we no longer support destination calls
+    function testBase_Revert_BridgeWithInvalidDestinationCallFlag() public override {
+        // This test is no longer relevant since destination calls are removed
+        // We just verify that the hasDestinationCall flag doesn't affect the bridge
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasDestinationCall = false; // Set to false since we don't support it
+
+        // Approve the correct amount
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Should work normally without destination calls
+        EcoFacet.EcoData memory ecoData = getValidEcoData(false);
+
+        // This should succeed without reverting
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
     }
 }

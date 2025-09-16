@@ -1,32 +1,32 @@
 {
   "optimism": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "base": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "arbitrum": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "celo": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "mainnet": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "ink": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "polygon": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "unichain": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
-  },
-  "worldchain": {
-    "intentSource": "0xeA5a5D21c9A4C7AEa216f63e0A6f9550092675aB"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   },
   "sonic": {
-    "intentSource": "0x2020ae689ED3e017450280CEA110d0ef6E640Da4"
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
+  },
+  "tron": {
+    "portal": "0x2b7F87a98707e6D19504293F6680498731272D4f"
   }
 }
