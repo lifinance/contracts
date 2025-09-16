@@ -30314,6 +30314,21 @@
           }
         ]
       }
+    },
+    "plasma": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xa75C9F0c40936968f4Ee1CB8d9666600EF14ddBe",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 08:24:50",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000102d758f688a4c1c5a80b116bd945d4455460282",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ReceiverStargateV2": {
@@ -30805,6 +30820,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "plasma": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xA5D46f5FAA47D69947acA00Fd9Ac023392719546",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 08:25:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000765faa0ffb5557c6cce2ea1097d50acfd5f5c58c000000000000000000000000102d758f688a4c1c5a80b116bd945d44554602820000000000000000000000006f475642a6e85809b1c36fa62763669b1b48dd5b00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
