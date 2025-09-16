@@ -56,6 +56,14 @@
       "0x8c1CEC0B4f813BAF31ac3d9A9A29CF5c71B309d3": {
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
+      },
+      "0x15ca6F88f76A788c3e976a27B5a2b899059C81cd": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x476F22A12af3C2bd9d959AC8fee5a068BD6b4437": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -68,6 +76,7 @@
       "Patcher": "",
       "Permit2Proxy": "0xEC32b79Ce6c4F80160029BDb26CB4a13bB03999A",
       "ReceiverAcrossV3": "0x27fCef74f7d1aC15fc6c856FC2560eFc2A85B421",
+      "ReceiverAcrossV4": "0x628E85a5144edba27c8808424D24B5955B426c96",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x13A0486DCeEB9908D09bAD8136c0512D529383AC"
