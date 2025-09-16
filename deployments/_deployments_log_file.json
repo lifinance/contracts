@@ -39157,6 +39157,21 @@
           }
         ]
       }
+    },
+    "plasma": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x2cd8Ce87D01b583aea606D19aCc49FFe89d8Bd4E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 08:30:51",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
