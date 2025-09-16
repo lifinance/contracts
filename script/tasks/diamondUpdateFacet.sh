@@ -2,7 +2,8 @@
 
 diamondUpdateFacet() {
   # load required resources
-  source .env
+  # Note: .env is already sourced in the parent script, so we don't need to source it again
+  # This prevents overwriting exported variables like SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
   source script/config.sh
   source script/helperFunctions.sh
 
@@ -115,6 +116,9 @@ diamondUpdateFacet() {
     # check if we are deploying to PROD
     if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
+
+      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: $SEND_PROPOSALS_DIRECTLY_TO_DIAMOND"
+      echo "ENVIRONMENT: $ENVIRONMENT"
 
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."

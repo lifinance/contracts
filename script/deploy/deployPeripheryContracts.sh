@@ -34,8 +34,14 @@ deployPeripheryContracts() {
   # get names of all periphery contracts (that are not excluded in config)
   PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
 
+  # get names of all security contracts (that are not excluded in config)
+  SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+
+  # combine periphery and security contracts
+  ALL_CONTRACTS="$PERIPHERY_CONTRACTS $SECURITY_CONTRACTS"
+
   # loop through all contracts
-  for CONTRACT in $PERIPHERY_CONTRACTS; do
+  for CONTRACT in $ALL_CONTRACTS; do
 
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
@@ -57,14 +63,6 @@ deployPeripheryContracts() {
           # call deploy script for current contract
           deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION"
 
-          # TODO: reactivate or remove
-          # check if function call was successful
-          #if [ $? -ne 0 ]
-          #then
-          #  warning "deployment of contract $CONTRACT to network $NETWORK failed :("
-          #else
-          #  echo "[info] deployment of contract $CONTRACT to network $NETWORK successful :)"
-          #fi
         else
           # target state version and current version do not match > throw warning and skip iteration
           warning "target state version does not match with current version (contract=$CONTRACT, target_version=$TARGET_VERSION, current_version=$CURRENT_VERSION) >> contract will not be deployed"

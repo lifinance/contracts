@@ -5,7 +5,8 @@ function diamondUpdatePeriphery() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running diamondUpdatePeriphery now...."
 
   # load required resources
-  source .env
+  # Note: .env is already sourced in the parent script, so we don't need to source it again
+  # This prevents overwriting exported variables like SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
   source script/config.sh
   source script/helperFunctions.sh
 
@@ -21,7 +22,7 @@ function diamondUpdatePeriphery() {
   if [[ -z "$NETWORK" ]]; then
     checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
 	  NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-    checkRequiredVariablesInDotEnv $NETWORK
+    checkRequiredVariablesInDotEnv "$NETWORK"
   fi
 
   # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select diamond type
@@ -44,23 +45,32 @@ function diamondUpdatePeriphery() {
     return 1
   fi
 
-  # determine which periphery contracts to update
+  # determine which periphery and security contracts to update
   if [[ -z "$UPDATE_ALL" || "$UPDATE_ALL" == "false" ]]; then
     # check to see if a single contract was passed that should be upgraded
     if [[ -z "$CONTRACT" ]]; then
       # get a list of all periphery contracts
       local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
       PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
-      PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
+
+      # get a list of all security contracts
+      local SECURITY_PATH="$CONTRACT_DIRECTORY""Security/"
+      SECURITY_CONTRACTS=$(getContractNamesInFolder "$SECURITY_PATH")
+
+      # combine periphery and security contracts
+      ALL_CONTRACTS="$PERIPHERY_CONTRACTS $SECURITY_CONTRACTS"
+      ALL_CONTRACTS_ARR=($(echo "$ALL_CONTRACTS" | tr ',' ' '))
 
       # ask user to select contracts to be updated
-      CONTRACTS=$(gum choose --no-limit "${PERIPHERY_CONTRACTS_ARR[@]}")
+      CONTRACTS=$(gum choose --no-limit "${ALL_CONTRACTS_ARR[@]}")
     else
       CONTRACTS=$CONTRACT
     fi
   else
-    # get all periphery contracts that are not excluded by config
-    CONTRACTS=$(getIncludedPeripheryContractsArray)
+    # get all periphery and security contracts that are not excluded by config
+    PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
+    SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+    CONTRACTS="$PERIPHERY_CONTRACTS $SECURITY_CONTRACTS"
   fi
 
   # logging for debug purposes
@@ -143,7 +153,7 @@ register() {
   local DIAMOND=$2
   local CONTRACT_NAME=$3
   local ADDR=$4
-  local RPC_URL=$(getRPCUrl $NETWORK) || checkFailure $? "get rpc url"
+  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
   local ENVIRONMENT=$5
 
   # register periphery contract
@@ -161,7 +171,7 @@ register() {
 
   # check that the contract is actually deployed
   local CODE_SIZE=$(cast codesize "$ADDR" --rpc-url "$RPC_URL")
-  if [ $CODE_SIZE -eq 0 ]; then
+  if [ "$CODE_SIZE" -eq 0 ]; then
     error "contract $CONTRACT_NAME is not deployed on network $NETWORK - exiting script now"
     return 1
   fi
