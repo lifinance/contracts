@@ -24,14 +24,10 @@ contract TestEcoFacet is EcoFacet {
 
 contract EcoFacetTest is TestBaseFacet {
     TestEcoFacet internal ecoFacet;
-    address internal constant PORTAL = 0x2b7F87a98707e6D19504293F6680498731272D4f;
+    address internal constant PORTAL =
+        0x2b7F87a98707e6D19504293F6680498731272D4f;
     uint256 internal constant NATIVE_SOLVER_REWARD = 0.0001 ether;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
-
-    // Chain IDs for testing
-    uint256 internal constant LIFI_CHAIN_ID_SOLANA = 1151111081099710;
-    uint256 internal constant LIFI_CHAIN_ID_TRON = 1885080386571452;
-    address internal constant NON_EVM_ADDRESS = 0x11f111f111f111F111f111f111F111f111f111F1;
 
     function setUp() public {
         customBlockNumberForForking = 35593761;
@@ -401,7 +397,10 @@ contract EcoFacetTest is TestBaseFacet {
     }
 
     // Override base test since we no longer support destination calls
-    function testBase_Revert_BridgeWithInvalidDestinationCallFlag() public override {
+    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
+        public
+        override
+    {
         // This test is no longer relevant since destination calls are removed
         // We just verify that the hasDestinationCall flag doesn't affect the bridge
         vm.startPrank(USER_SENDER);
