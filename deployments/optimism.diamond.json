@@ -65,10 +65,6 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
-        "Name": "",
-        "Version": ""
-      },
       "0xd0b442B297bED85AD357Bd26374009D475Ac7964": {
         "Name": "HopFacetPacked",
         "Version": "1.0.6"
