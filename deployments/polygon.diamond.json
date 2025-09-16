@@ -160,6 +160,10 @@
       "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
