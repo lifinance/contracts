@@ -117,9 +117,6 @@ diamondUpdateFacet() {
     if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
 
-      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: $SEND_PROPOSALS_DIRECTLY_TO_DIAMOND"
-      echo "ENVIRONMENT: $ENVIRONMENT"
-
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
 
