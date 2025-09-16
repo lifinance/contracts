@@ -174,12 +174,16 @@
         "Version": "1.0.0"
       },
       "0x5b932C7566AeEBaA00bD14fBF6678F7f721BDD97": {
-        "Name": "EcoFacet",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
       "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA": {
         "Name": "",
         "Version": ""
+      },
+      "0xB947C22736FCe89a679f598B95c630beeE61e123": {
+        "Name": "EcoFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

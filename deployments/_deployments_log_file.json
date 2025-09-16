@@ -41360,5 +41360,22 @@
         ]
       }
     }
+  },
+  "EcoFacet": {
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB947C22736FCe89a679f598B95c630beeE61e123",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 12:36:08",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b7f87a98707e6d19504293f6680498731272d4f",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
   }
 }
