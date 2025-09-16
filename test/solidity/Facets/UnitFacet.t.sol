@@ -8,11 +8,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 // Stub UnitFacet Contract
 contract TestUnitFacet is UnitFacet {
-    constructor(
-        bytes memory _unitNodePublicKey,
-        bytes memory _h1NodePublicKey,
-        bytes memory _fieldNodePublicKey
-    ) UnitFacet(_unitNodePublicKey, _h1NodePublicKey, _fieldNodePublicKey) {}
+    constructor() UnitFacet() {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -34,14 +30,15 @@ contract UnitFacetTest is TestBaseFacet {
         customBlockNumberForForking = 17130542;
         initTestBase();
 
-        unitFacet = new TestUnitFacet(unitNodePublicKey, h1NodePublicKey, fieldNodePublicKey);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        unitFacet = new TestUnitFacet();
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = unitFacet.startBridgeTokensViaUnit.selector;
         functionSelectors[1] = unitFacet
             .swapAndStartBridgeTokensViaUnit
             .selector;
-        functionSelectors[2] = unitFacet.addDex.selector;
-        functionSelectors[3] = unitFacet
+        functionSelectors[2] = unitFacet.initUnit.selector;
+        functionSelectors[3] = unitFacet.addDex.selector;
+        functionSelectors[4] = unitFacet
             .setFunctionApprovalBySignature
             .selector;
 
@@ -60,16 +57,19 @@ contract UnitFacetTest is TestBaseFacet {
 
         setFacetAddressInTestBase(address(unitFacet), "UnitFacet");
 
+        vm.prank(USER_DIAMOND_OWNER);
+        unitFacet.initUnit(unitNodePublicKey, h1NodePublicKey, fieldNodePublicKey);
+
         // adjust bridgeData
         bridgeData.bridge = "unit";
         bridgeData.destinationChainId = 999;
         bridgeData.sendingAssetId = LibAsset.NULL_ADDRESS;
-        bridgeData.minAmount = 0.005 ether; // minimum amount is 0.05 ETH (5e16 wei) mentioned in https://docs.hyperunit.xyz/developers/api/generate-address
+        bridgeData.minAmount = 0.05 ether; // minimum amount is 0.05 ETH (5e16 wei) mentioned in https://docs.hyperunit.xyz/developers/api/generate-address
 
         // deposit address generated with GET request to https://api.hyperunit.xyz/gen/ethereum/hyperliquid/eth/0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62
         // produce valid UnitData
 
-        bytes memory mergedSignatures = hex"5c6dd328102e0a33f1d71c97dd8c2cd9629447424e695e624a466555f79c89bad61cff5adc77c05ab887717351407d9b2807d3d1c6f093902996217199a797bd26dd64c005f124ec41d66a1759460121d277adcf7494ce333aea0a8172a950d34cc20a8ce919a8c483abffb43aaa10ccb75f649520423e46226acf0e95e3155a6b559ebd23c0681a7de9acaace2ad2ce823aa0c662225d088988170fa4a3c41ded33c1ca4e604e09698ea3fa668651bb4d07b2344d8e4cd860b85fa389";
+        bytes memory mergedSignatures = hex"5c6dd328102e0a33f1d71c97dd8c2cd9629447424e695e624a466555f79c89bad61cff5adc77c05ab887717351407d9b2807d3d1c6f093902996217199a797bd26dd64c005f124ec41d66a1759460121d277adcf7494ce333aea8172a950d34cc228ce919a8c483abfef1b4eaa04332dd7d92548108f91889acf0e95e3155a6b559ebb23c0681a7de9acacc45a2acb3a08ea0c662209742226205c3f9a8e3c41de4ce306308a4e604e09698eaa3fa9a1946ed341edb2344d8e32c182e17e8e24";
         validUnitData = UnitFacet.UnitData({
             depositAddress: address(0xCE50D8e79e047534627B3Bc38DE747426Ec63927),
             signatures: mergedSignatures
