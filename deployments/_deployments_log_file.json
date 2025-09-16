@@ -1055,6 +1055,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x94a7dDFEB0CD13026F732703cF5596fd44A2a385",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:52:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -2114,6 +2129,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x816F9a54E0A352dDc2043Fed40a6361497f190f7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:53:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -3168,6 +3198,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6CeAde381Ac275E96cE52987AFD517114aBecBE5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:58:16",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -4532,6 +4577,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x20f6A4cAa10f46e237273d0b3996C882e18E936A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:51:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -5600,6 +5660,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA04F2594949d50bCca175a2E40c4B9363FB3143A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:49:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -6645,6 +6720,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x89177eFba8Ccd273C726d3d3DF4aBE9B5f52eFe4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:00:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -7707,6 +7797,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8Cb5CE8B0E9677c35a5178ED71a927d8B6848C0a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:59:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -8722,6 +8827,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x026F252016A7C47CDEf1F05a3Fc9E20C92a49C37",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:20:05",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c00000000000000000000000094a7ddfeb0cd13026f732703cf5596fd44a2a385",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -10831,6 +10951,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:56:15",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -14650,6 +14785,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:24:03",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -15891,6 +16041,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x765FAa0FFb5557c6CcE2Ea1097d50ACfD5f5C58c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:25:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef3d879e24741973d7f7e78858bfa4fbb9cfa74d000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -16929,6 +17094,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x954d55105CDF5371224268691FAf6178be5f62F5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:26:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -25184,6 +25364,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.3.1": [
+          {
+            "ADDRESS": "0x86D55f2223b96a0076c4A8a256d6fFb65478096B",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:50:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -28036,6 +28231,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:29:04",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004200000000000000000000000000000000000006000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GasRebateDistributor": {
@@ -29473,6 +29683,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xe850dad9b442b1A7DF8FbbD397dbb7466379A9E8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:57:15",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -30089,6 +30314,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xa75C9F0c40936968f4Ee1CB8d9666600EF14ddBe",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:22:27",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000af5191b0de278c7286d6c7cc6ab6bb8a73ba2cd6",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ReceiverStargateV2": {
@@ -30580,6 +30820,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xA5D46f5FAA47D69947acA00Fd9Ac023392719546",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:28:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000765faa0ffb5557c6cce2ea1097d50acfd5f5c58c000000000000000000000000af5191b0de278c7286d6c7cc6ab6bb8a73ba2cd60000000000000000000000006f475642a6e85809b1c36fa62763669b1b48dd5b00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -31993,6 +32248,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "1.12.0": [
+          {
+            "ADDRESS": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:27:03",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "EmergencyPauseFacet": {
@@ -32880,6 +33150,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:54:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -36715,6 +37000,21 @@
           }
         ]
       }
+    },
+    "hemi": {
+      "production": {
+        "2.0.5": [
+          {
+            "ADDRESS": "0x5AB03562C8990b9f6cBC2f2607523D766D4Bd7a9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 09:55:16",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
@@ -37528,6 +37828,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:32:04",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762000000000000000000000000588c00159aed9a9ab258850b33dedfac1c794fa1000000000000000000000000ad6912d8c99b43d9602a31146b5b236593b152ba",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -39788,6 +40103,21 @@
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "hemi": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x707F90DFb87F88690B6a4fC74107a820af646c47",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-16 10:41:33",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000002a3000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000ad6912d8c99b43d9602a31146b5b236593b152ba000000000000000000000000026f252016a7c47cdef1f05a3fc9e20c92a49c370000000000000000000000000000000000000000000000000000000000000001000000000000000000000000ad6912d8c99b43d9602a31146b5b236593b152ba00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
