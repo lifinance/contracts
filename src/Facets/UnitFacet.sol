@@ -8,7 +8,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
 
 /// @title Unit Facet
 /// @author LI.FI (https://li.fi)
@@ -61,8 +61,10 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         onlyAllowSourceToken(_bridgeData, _bridgeData.sendingAssetId)
-        onlyAllowDestinationChain(_bridgeData, 999)
     {
+        if (_bridgeData.destinationChainId != 999 || _bridgeData.destinationChainId != 1) {
+            revert InvalidDestinationChain();
+        }
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _unitData);
     }

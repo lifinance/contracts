@@ -215,7 +215,8 @@ async function processGuardianNodes(nodes: { nodeId: string; publicKey: string }
       destinationChain: 'hyperliquid',
       asset: 'eth',
       address: depositAddress,
-      sourceChain: 'ethereum'
+      sourceChain: 'ethereum',
+      coinType: 'ethereum'
     });
     
     console.log('Verification result:', result);
