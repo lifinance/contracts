@@ -96,7 +96,6 @@ scroll = "${ETH_NODE_URI_SCROLL}"
 # testnets
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 
-
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
 abstract = { key = "${ABSTRACT_ETHERSCAN_API_KEY}", url = "https://api.abscan.org/api", chain = "2741" }
