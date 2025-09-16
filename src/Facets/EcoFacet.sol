@@ -177,11 +177,36 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
-        // Build reward and use encoded route for all chains
-        IEcoPortal.Intent memory intent;
-        intent.reward = _buildReward(_bridgeData, _ecoData);
-        intent.destination = _getEcoChainId(_bridgeData.destinationChainId);
-        _publishIntent(_bridgeData, _ecoData, intent);
+        // Build reward for the intent
+        IEcoPortal.Reward memory reward = _buildReward(_bridgeData, _ecoData);
+
+        // Get the destination chain ID in Eco format
+        uint64 destination = _getEcoChainId(_bridgeData.destinationChainId);
+
+        // Determine if sending native tokens and calculate value
+        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+        uint256 totalValue = isNative
+            ? _bridgeData.minAmount + _ecoData.solverReward
+            : 0;
+
+        // Prepare token approval if needed for ERC20 tokens
+        if (!isNative) {
+            uint256 totalAmount = _bridgeData.minAmount +
+                _ecoData.solverReward;
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(portal),
+                totalAmount
+            );
+        }
+
+        // Publish and fund the intent with encoded route
+        portal.publishAndFund{value: totalValue}(
+            destination,
+            _ecoData.encodedRoute,
+            reward,
+            false // allowPartial
+        );
 
         _emitEvents(_bridgeData, _ecoData);
     }
@@ -213,36 +238,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         }
     }
 
-
-    function _publishIntent(
-        ILiFi.BridgeData memory _bridgeData,
-        EcoData calldata _ecoData,
-        IEcoPortal.Intent memory intent
-    ) private {
-        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
-        uint256 totalValue = isNative
-            ? _bridgeData.minAmount + _ecoData.solverReward
-            : 0;
-
-        // Prepare token approval if needed
-        if (!isNative) {
-            uint256 totalAmount = _bridgeData.minAmount +
-                _ecoData.solverReward;
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                address(portal),
-                totalAmount
-            );
-        }
-
-        // Use encoded route for all chains
-        portal.publishAndFund{value: totalValue}(
-            _getEcoChainId(_bridgeData.destinationChainId),
-            _ecoData.encodedRoute,
-            intent.reward,
-            false
-        );
-    }
 
     function _emitEvents(
         ILiFi.BridgeData memory _bridgeData,
