@@ -48,7 +48,7 @@ ZKEVM_ALWAYS_SEQUENTIAL=true
 
 # Option 2: Use specific networks (uncomment and modify as needed)
 # NETWORKS=("mainnet" "arbitrum" "base" "zksync" "blast" "hyperevm")
-  NETWORKS=("arbitrum" "optimism" "base" "bsc" "linea" "scroll" "polygon" "blast" "mainnet" "worldchain")
+  # NETWORKS=("arbitrum" "optimism" "base" "bsc" "linea" "scroll" "polygon" "blast" "mainnet" "worldchain")
 
 # Option 3: Use networks by EVM version (uncomment as needed)
 # NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))
@@ -56,6 +56,7 @@ ZKEVM_ALWAYS_SEQUENTIAL=true
 
 # Option 4: Use networks where contract is deployed (uncomment as needed)
 # NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
+NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "AcrossFacetV4" "production"))
 
 # Option 4b: Use networks from relay.json (hardcoded list for RelayDepositoryFacet deployment)
 # NETWORKS=("abstract" "apechain" "arbitrum" "avalanche" "base" "berachain" "blast" "bob" "boba" "bsc" "celo" "corn" "cronos" "gnosis" "gravity" "hyperevm" "ink" "katana" "linea" "lisk" "mainnet" "mantle" "metis" "mode" "optimism" "plume" "polygon" "polygonzkevm" "ronin" "scroll" "sei" "soneium" "sonic" "superposition" "swellchain" "taiko" "unichain" "worldchain" "zksync")
@@ -109,6 +110,7 @@ function executeNetworkActions() {
     local ENVIRONMENT="$2"
     local LOG_DIR="$3"
     local CONTRACT="$4"
+    local RETURN_CODE=0
 
     # Get RPC URL for the network
     # RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
@@ -146,7 +148,7 @@ function executeNetworkActions() {
     # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
 
     # UPDATE DIAMOND - Update diamond log for the network
-    # updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
+    updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
 
     # CUSTOM ACTIONS - Add your custom actions here
     # CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
@@ -159,7 +161,10 @@ function executeNetworkActions() {
 
     # Return the exit code of the last executed command (defaults to 0 if no commands executed)
     # If you need more sophisticated error handling, you can add it here
-    return "${RETURN_CODE:-0}"
+    if [ $? -ne 0 ]; then
+        RETURN_CODE=1
+    fi
+    return "${RETURN_CODE}"
 }
 
  # =============================================================================
