@@ -32,8 +32,20 @@ import type { SupportedChain } from '../common/types'
 import {
   ADDRESS_USDC_OPT,
   ADDRESS_USDC_BASE,
+  ADDRESS_USDC_ARB,
+  ADDRESS_USDC_ETH,
+  ADDRESS_USDC_POL,
+  ADDRESS_USDC_SOL,
   ADDRESS_WETH_OPT,
+  ADDRESS_WETH_ARB,
+  ADDRESS_WETH_ETH,
+  ADDRESS_WETH_POL,
+  ADDRESS_WETH_BASE,
   ADDRESS_UNISWAP_OPT,
+  ADDRESS_UNISWAP_ARB,
+  ADDRESS_UNISWAP_ETH,
+  ADDRESS_UNISWAP_POL,
+  ADDRESS_UNISWAP_BSC,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -72,28 +84,28 @@ const CHAIN_IDS: Record<string, number | bigint> = {
 const USDC_ADDRESSES: Record<string, string> = {
   optimism: ADDRESS_USDC_OPT,
   base: ADDRESS_USDC_BASE,
-  arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-  ethereum: '0xA0b86991c59218FddE44e6996C8a21e9D5AA5F6dd5',
-  polygon: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
-  solana: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC on Solana (base58)
+  arbitrum: ADDRESS_USDC_ARB,
+  ethereum: ADDRESS_USDC_ETH,
+  polygon: ADDRESS_USDC_POL,
+  solana: ADDRESS_USDC_SOL, // USDC on Solana (base58)
 }
 
 // WETH addresses per chain
 const WETH_ADDRESSES: Record<string, string> = {
   optimism: ADDRESS_WETH_OPT,
-  base: '0x4200000000000000000000000000000000000006', // WETH on Base
-  arbitrum: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
-  ethereum: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
-  polygon: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
+  base: ADDRESS_WETH_BASE,
+  arbitrum: ADDRESS_WETH_ARB,
+  ethereum: ADDRESS_WETH_ETH,
+  polygon: ADDRESS_WETH_POL,
 }
 
 // Uniswap V2 Router addresses per chain
 const UNISWAP_ADDRESSES: Record<string, string> = {
   optimism: ADDRESS_UNISWAP_OPT,
-  base: '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24', // Uniswap V2 on Base
-  arbitrum: '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24',
-  ethereum: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-  polygon: '0xedf6066a2b290C185783862C7F4776A2C8077AD1',
+  base: ADDRESS_UNISWAP_BSC, // Uniswap V2 on Base (same as BSC address)
+  arbitrum: ADDRESS_UNISWAP_ARB,
+  ethereum: ADDRESS_UNISWAP_ETH,
+  polygon: ADDRESS_UNISWAP_POL,
 }
 
 // Eco API configuration
@@ -322,7 +334,7 @@ async function getEcoQuote(
     console.error('Expected structure with data.quoteResponse, but got:', data)
 
     // Provide helpful debugging information
-    if (Object.keys(data).length === 0) 
+    if (Object.keys(data).length === 0)
       throw new Error(
         'Eco API returned an empty response. Possible issues:\n' +
           '1. The API endpoint might be down or changed\n' +
@@ -330,7 +342,6 @@ async function getEcoQuote(
           '3. The route from Optimism to Base might not be supported\n' +
           'Try setting ECO_API_URL and ECO_DAPP_ID environment variables if you have different values.'
       )
-    
 
     throw new Error(
       'Invalid quote response from Eco API. The API response format might have changed.'
@@ -396,12 +407,11 @@ async function main(args: {
   let inputTokenAddress = SRC_TOKEN_ADDRESS
 
   if (withSwap) {
-    if (!WETH_ADDRESSES[srcChain]) 
+    if (!WETH_ADDRESSES[srcChain])
       throw new Error(`WETH address not configured for ${srcChain}`)
-    
-    if (!UNISWAP_ADDRESSES[srcChain]) 
+
+    if (!UNISWAP_ADDRESSES[srcChain])
       throw new Error(`Uniswap address not configured for ${srcChain}`)
-    
 
     console.log('\n🔄 Preparing swap data (WETH -> USDC)...')
 
@@ -589,9 +599,8 @@ async function main(args: {
       'USDC (including fee)'
     )
     console.log('  Bridge amount after fee:', amount.toString(), 'USDC')
-  } else 
-    console.log('  Source amount:', amount.toString(), 'USDC')
-  
+  } else console.log('  Source amount:', amount.toString(), 'USDC')
+
   console.log(
     '  Destination amount:',
     quote.data.quoteResponse.destinationAmount
