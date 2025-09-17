@@ -321,15 +321,17 @@ const main = async () => {
   const params = {
     user: deployments.LiFiDiamond,
     originChainId: 42161,
-    destinationChainId: 9270000000000000, // SUI
-    originCurrency: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    destinationChainId: 103665049, // SUI
+    originCurrency: ADDRESS_USDC_ARB,
     destinationCurrency: suiUSDC,
     recipient: suiRandomReceiver,
     tradeType: 'EXACT_INPUT',
-    amount: '500000',
+    amount: '1000000',
     referrer: 'relay.link/swap',
     useExternalLiquidity: false,
   }
+  console.log(params)
+
 
   const resp = await fetch('https://api.relay.link/quote', {
     method: 'POST',
@@ -342,49 +344,60 @@ const main = async () => {
   console.log(quote)
   const requestId = quote.steps[0].requestId
 
+  console.log("requestId")
+  console.log("requestId")
+  console.log("requestId")
+  console.log("requestId")
+  console.log("requestId")
+  console.log(requestId)
+  console.log(requestId)
+  console.log(requestId)
+  console.log(requestId)
   console.log(requestId)
   const sigResp = await fetch(
     `https://api.relay.link/requests/${requestId}/signature/v2`,
     { headers: { 'Content-Type': 'application/json' } }
   )
+  console.log("sigResp")
+  console.log(sigResp)
   const sigData = await sigResp.json()
   console.log(sigData)
 
-  const bridgeData = {
-    transactionId: utils.randomBytes(32),
-    bridge: 'Relay',
-    integrator: 'ACME Devs',
-    referrer: '0x0000000000000000000000000000000000000000',
-    sendingAssetId: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-    receiver: suiRandomReceiver,
-    minAmount: '500000',
-    destinationChainId: 9270000000000000, // SUI
-    hasSourceSwaps: false,
-    hasDestinationCall: false,
-  }
+  // const bridgeData = {
+  //   transactionId: utils.randomBytes(32),
+  //   bridge: 'Relay',
+  //   integrator: 'ACME Devs',
+  //   referrer: '0x0000000000000000000000000000000000000000',
+  //   sendingAssetId: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+  //   receiver: suiRandomReceiver,
+  //   minAmount: '500000',
+  //   destinationChainId: 9270000000000000, // SUI
+  //   hasSourceSwaps: false,
+  //   hasDestinationCall: false,
+  // }
 
-  const relayData = {
-    requestId,
-    nonEVMReceiver: `0x${new PublicKey(suiRandomReceiver)
-      .toBuffer()
-      .toString('hex')}`,
-    receivingAssetId: `0x${new PublicKey(suiUSDC)
-      .toBuffer()
-      .toString('hex')}`,
-    signature: sigData.signature,
-  }
+  // const relayData = {
+  //   requestId,
+  //   nonEVMReceiver: `0x${new PublicKey(suiRandomReceiver)
+  //     .toBuffer()
+  //     .toString('hex')}`,
+  //   receivingAssetId: `0x${new PublicKey(suiUSDC)
+  //     .toBuffer()
+  //     .toString('hex')}`,
+  //   signature: sigData.signature,
+  // }
 
-  console.info('Dev Wallet Address: ', address)
-  console.info('Approving USDC...')
-  tx = await token.connect(signer).approve(LIFI_ADDRESS, '500000')
-  await tx.wait()
-  console.info('Approved USDC')
-  console.info('Bridging USDC...')
-  tx = await relay
-    .connect(signer)
-    .startBridgeTokensViaRelay(bridgeData, relayData)
-  await tx.wait()
-  console.info('Bridged USDC')
+  // console.info('Dev Wallet Address: ', address)
+  // console.info('Approving USDC...')
+  // tx = await token.connect(signer).approve(LIFI_ADDRESS, '500000')
+  // await tx.wait()
+  // console.info('Approved USDC')
+  // console.info('Bridging USDC...')
+  // tx = await relay
+  //   .connect(signer)
+  //   .startBridgeTokensViaRelay(bridgeData, relayData)
+  // await tx.wait()
+  // console.info('Bridged USDC')
 }
 
 main()
