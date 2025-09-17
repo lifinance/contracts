@@ -45,7 +45,7 @@ import {
   ADDRESS_UNISWAP_ARB,
   ADDRESS_UNISWAP_ETH,
   ADDRESS_UNISWAP_POL,
-  ADDRESS_UNISWAP_BSC,
+  ADDRESS_UNISWAP_BASE,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -102,7 +102,7 @@ const WETH_ADDRESSES: Record<string, string> = {
 // Uniswap V2 Router addresses per chain
 const UNISWAP_ADDRESSES: Record<string, string> = {
   optimism: ADDRESS_UNISWAP_OPT,
-  base: ADDRESS_UNISWAP_BSC, // Uniswap V2 on Base (same as BSC address)
+  base: ADDRESS_UNISWAP_BASE, // Fixed: Correct Base router address
   arbitrum: ADDRESS_UNISWAP_ARB,
   ethereum: ADDRESS_UNISWAP_ETH,
   polygon: ADDRESS_UNISWAP_POL,
