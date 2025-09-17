@@ -16,18 +16,27 @@ import { InvalidAmount, InvalidDestinationChain } from "../Errors/GenericErrors.
 /// @custom:version 1.0.0
 contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.unit");
+    /// EIP-712 ///
+    bytes32 private immutable DOMAIN_SEPARATOR;
+    // keccak256("UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address receiver,address sendingAssetId)");
+    bytes32 private constant UNIT_PAYLOAD_TYPEHASH = 0x82a983372d822557736934c2ea24e131d9908a8f7c225091a32d18080c1d683a; // TODO change
 
-    struct Storage {
-        bytes unitNodePublicKey;
-        bytes h1NodePublicKey;
-        bytes fieldNodePublicKey;
-    }
+    address internal immutable BACKEND_SIGNER = keccak256("com.lifi.facets.unit");
+
 
     /// Types ///
     struct UnitData {
       address depositAddress;
       bytes signatures; // 192-byte blob (3x 64-byte signatures)
+    }
+
+    // EIP-712 - data that is signed by the backend
+    struct UnitPayload {
+        address depositAddress;
+        uint256 sourceChainId;
+        uint256 destinationChainId;
+        address receiver;
+        address sendingAssetId;
     }
 
     /// Errors ///
@@ -37,17 +46,20 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     event UnitInitialized(bytes unitNodePublicKey, bytes h1NodePublicKey, bytes fieldNodePublicKey);
 
     /// Constructor ///
-    constructor() {}
+    constructor(address _backendSigner) {
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("LI.FI Unit Facet"),
+                keccak256("1"),
+                block.chainid,
+                address(this)
+            )
+        );
+        BACKEND_SIGNER = _backendSigner;
+    }
 
     /// External Methods ///
-    function initUnit(bytes memory _unitNodePublicKey, bytes memory _h1NodePublicKey, bytes memory _fieldNodePublicKey) external {
-        LibDiamond.enforceIsContractOwner();
-        Storage storage s = getStorage();
-        s.unitNodePublicKey = _unitNodePublicKey;
-        s.h1NodePublicKey = _h1NodePublicKey;
-        s.fieldNodePublicKey = _fieldNodePublicKey;
-        emit UnitInitialized(_unitNodePublicKey, _h1NodePublicKey, _fieldNodePublicKey);
-    }
 
     function startBridgeTokensViaUnit(
         ILiFi.BridgeData memory _bridgeData,
