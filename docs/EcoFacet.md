@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Eco Facet enables cross-chain token transfers using the Eco Protocol Portal V2's intent-based bridging system. It creates an intent that specifies the desired outcome on the destination chain, which solvers then fulfill in exchange for a reward. The facet supports both EVM and non-EVM destination chains, as well as optional destination calls for complex cross-chain workflows.
+The Eco Facet enables cross-chain token transfers using the Eco Protocol's intent-based bridging system. It creates an intent that specifies the desired outcome on the destination chain, which solvers then fulfill in exchange for a reward. The facet supports both EVM and non-EVM destination chains through encoded route data.
 
 ```mermaid
 graph LR;
@@ -25,25 +25,17 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @dev Eco specific parameters
 /// @param receiverAddress Address that will receive tokens on destination chain
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
-/// @param receivingAssetId Address of the token to receive on destination
-/// @param salt Unique identifier for the intent (prevent duplicates)
-/// @param destinationPortal Portal address on destination chain
 /// @param prover Address of the prover contract for validation
-/// @param routeDeadline Timestamp for route execution
 /// @param rewardDeadline Timestamp for reward claim eligibility
 /// @param solverReward Native token amount to reward the solver
-/// @param destinationCalls Optional calls to execute on destination
+/// @param encodedRoute Encoded route data for all chains
 struct EcoData {
   address receiverAddress;
   bytes nonEVMReceiver;
-  address receivingAssetId;
-  bytes32 salt;
-  address destinationPortal;
   address prover;
-  uint64 routeDeadline;
   uint64 rewardDeadline;
   uint256 solverReward;
-  IEcoPortal.Call[] destinationCalls;
+  bytes encodedRoute;
 }
 ```
 
@@ -52,10 +44,11 @@ struct EcoData {
 - **Solver Reward**:
   - For native token transfers: The entire amount (bridge amount + solver reward) must be sent as `msg.value`
   - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the facet handles the split internally
-- **Non-EVM Destinations**: For non-EVM chains, set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (constant from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
+- **Non-EVM Destinations**: For non-EVM chains (like Tron or Solana), set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (constant from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
 - **Native Token Bridging**: When bridging native tokens, the bridge amount plus the solver reward must be sent as `msg.value`.
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the total amount (bridge amount + solver reward).
-- **Destination Calls**: The `destinationCalls` array allows for arbitrary contract calls on the destination chain. The `hasDestinationCall` flag in `BridgeData` must match whether destination calls are provided.
+- **Encoded Route**: The `encodedRoute` parameter contains all necessary routing information for the destination chain and is required for all bridge operations.
+- **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
 
 ## Swap Data
 
