@@ -43,15 +43,11 @@ contract AllBridgeFacetTest is TestBaseFacet {
     uint32 private constant ALLBRIDGE_ID_BASE = 9;
     uint32 private constant ALLBRIDGE_ID_OPTIMISM = 10;
     uint32 private constant ALLBRIDGE_ID_CELO = 11;
+    uint32 private constant ALLBRIDGE_ID_SONIC = 12;
     uint32 private constant ALLBRIDGE_ID_SUI = 13;
+    uint32 private constant ALLBRIDGE_ID_UNICHAIN = 14;
     uint256 internal constant LIFI_CHAIN_ID_ETHEREUM = 1;
-    uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
-    uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
-    uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
-    uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
-    uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
     uint256 internal constant LIFI_CHAIN_ID_OPTIMISM = 10;
-    uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
 
     error UnsupportedAllBridgeChainId();
 
@@ -379,6 +375,16 @@ contract AllBridgeFacetTest is TestBaseFacet {
         assertEq(
             allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_SUI),
             ALLBRIDGE_ID_SUI
+        );
+        // sonic
+        assertEq(
+            allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_SONIC),
+            ALLBRIDGE_ID_SONIC
+        );
+        // unichain
+        assertEq(
+            allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_UNICHAIN),
+            ALLBRIDGE_ID_UNICHAIN
         );
         // unknown
         vm.expectRevert(UnsupportedAllBridgeChainId.selector);

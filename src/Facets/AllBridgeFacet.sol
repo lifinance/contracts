@@ -32,13 +32,9 @@ contract AllBridgeFacet is
     uint256 private constant ALLBRIDGE_ID_BASE = 9;
     uint256 private constant ALLBRIDGE_ID_OPTIMISM = 10;
     uint256 private constant ALLBRIDGE_ID_CELO = 11;
+    uint256 private constant ALLBRIDGE_ID_SONIC = 12;
     uint256 private constant ALLBRIDGE_ID_SUI = 13;
-    uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
-    uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
-    uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
-    uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
-    uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
-    uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
+    uint256 private constant ALLBRIDGE_ID_UNICHAIN = 14;
 
     error UnsupportedAllBridgeChainId();
 
@@ -222,6 +218,10 @@ contract AllBridgeFacet is
             return ALLBRIDGE_ID_CELO;
         else if (_destinationChainId == LIFI_CHAIN_ID_SUI)
             return ALLBRIDGE_ID_SUI;
+        else if (_destinationChainId == LIFI_CHAIN_ID_SONIC)
+            return ALLBRIDGE_ID_SONIC;
+        else if (_destinationChainId == LIFI_CHAIN_ID_UNICHAIN)
+            return ALLBRIDGE_ID_UNICHAIN;
         // revert if no match found
         else revert UnsupportedAllBridgeChainId();
     }
