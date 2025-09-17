@@ -7,6 +7,8 @@ deployPeripheryContracts() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying periphery contracts now...."
 
   # load config & helper functions
+  # Note: .env is already sourced in the parent script, so we don't need to source it again
+  # This prevents overwriting exported variables like SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
   source script/config.sh
   source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
@@ -15,9 +17,6 @@ deployPeripheryContracts() {
   NETWORK="$1"
   ENVIRONMENT="$2"
   DIAMOND_CONTRACT_NAME="$3"
-
-  # load env variables
-  source .env
 
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -38,10 +37,10 @@ deployPeripheryContracts() {
   SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
 
   # combine periphery and security contracts
-  ALL_CONTRACTS="$PERIPHERY_CONTRACTS $SECURITY_CONTRACTS"
+  AUXILIARY_CONTRACTS="$PERIPHERY_CONTRACTS $SECURITY_CONTRACTS"
 
   # loop through all contracts
-  for CONTRACT in $ALL_CONTRACTS; do
+  for CONTRACT in $AUXILIARY_CONTRACTS; do
 
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
