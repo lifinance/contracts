@@ -14,7 +14,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 /// @title Allbridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through AllBridge
-/// @custom:version 2.1.0
+/// @custom:version 2.1.1
 contract AllBridgeFacet is
     ILiFi,
     ReentrancyGuard,
