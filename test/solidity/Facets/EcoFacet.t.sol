@@ -8,7 +8,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
 import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
     constructor(IEcoPortal _portal) EcoFacet(_portal) {}
@@ -417,6 +417,74 @@ contract EcoFacetTest is TestBaseFacet {
         EcoFacet.EcoData memory ecoData = getValidEcoData(false);
 
         // This should succeed without reverting
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
+        public
+    {
+        // Test for InvalidReceiver error when NON_EVM_ADDRESS is set but nonEVMReceiver is empty
+        vm.startPrank(USER_SENDER);
+
+        // Set receiver to NON_EVM_ADDRESS
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+
+        // Create EcoData with empty nonEVMReceiver
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0),
+            nonEVMReceiver: "", // Empty nonEVMReceiver should trigger InvalidReceiver
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: hex"0102030405060708090a0b0c0d0e0f10"
+        });
+
+        // Approve USDC
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Expect InvalidReceiver revert
+        vm.expectRevert(InvalidReceiver.selector);
+
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InformationMismatch_ReceiverAddressMismatch() public {
+        // Test for InformationMismatch error when receiver addresses don't match
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data with standard receiver (not NON_EVM_ADDRESS)
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.hasDestinationCall = false; // No destination call
+        bridgeData.destinationChainId = 10; // Optimism (EVM chain)
+
+        // Create EcoData with a different receiver address
+        address differentReceiver = address(0x9999);
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: differentReceiver, // Different from bridgeData.receiver
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: hex"0102030405060708090a0b0c0d0e0f10"
+        });
+
+        // Approve USDC
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Expect InformationMismatch revert
+        vm.expectRevert(InformationMismatch.selector);
+
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
