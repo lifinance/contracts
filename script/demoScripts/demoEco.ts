@@ -11,6 +11,11 @@
  * - Added proper TypeScript types from typechain
  */
 
+// Sample TXS:
+// Swap WETH -> USDC (OP -> Base) https://app.blocksec.com/explorer/tx/optimism/0xce0eff867211f9061ff04406c7d736bc9e0bda041529176b3bd04a93539d8c25
+// USDC (OP -> BASE) https://app.blocksec.com/explorer/tx/optimism/0x0ece7526443b31b13b93c4005f2ad78e295aa29183e9544dd6be241882a1cc7f
+// USDC (OP -> Solana) https://app.blocksec.com/explorer/tx/optimism/0x74dc04f387a10abef41f790e4110ad4562b9db97fb708ef3d2b1a337dbfd35e5
+
 import { randomBytes } from 'crypto'
 
 import { Keypair } from '@solana/web3.js'
@@ -21,16 +26,19 @@ import { erc20Abi } from 'viem'
 
 import ecoFacetArtifact from '../../out/EcoFacet.sol/EcoFacet.json'
 import type { ILiFi } from '../../typechain'
-import type { EcoFacet } from '../../typechain/EcoFacet'
+import type { EcoFacet, LibSwap } from '../../typechain/EcoFacet'
 import type { SupportedChain } from '../common/types'
 
 import {
   ADDRESS_USDC_OPT,
   ADDRESS_USDC_BASE,
+  ADDRESS_WETH_OPT,
+  ADDRESS_UNISWAP_OPT,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
   setupEnvironment,
+  getUniswapDataERC20toExactERC20,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -70,9 +78,32 @@ const USDC_ADDRESSES: Record<string, string> = {
   solana: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC on Solana (base58)
 }
 
+// WETH addresses per chain
+const WETH_ADDRESSES: Record<string, string> = {
+  optimism: ADDRESS_WETH_OPT,
+  base: '0x4200000000000000000000000000000000000006', // WETH on Base
+  arbitrum: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+  ethereum: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+  polygon: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
+}
+
+// Uniswap V2 Router addresses per chain
+const UNISWAP_ADDRESSES: Record<string, string> = {
+  optimism: ADDRESS_UNISWAP_OPT,
+  base: '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24', // Uniswap V2 on Base
+  arbitrum: '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24',
+  ethereum: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+  polygon: '0xedf6066a2b290C185783862C7F4776A2C8077AD1',
+}
+
 // Eco API configuration
 const ECO_API_URL = process.env.ECO_API_URL || 'https://quotes-preprod.eco.com'
 const DAPP_ID = process.env.ECO_DAPP_ID || 'lifi-demo'
+
+console.log('Eco API Configuration:')
+console.log('  API URL:', ECO_API_URL)
+console.log('  DAPP ID:', DAPP_ID)
+console.log('  Set ECO_API_URL and ECO_DAPP_ID env vars to override defaults\n')
 
 /**
  * Derives a Solana address from an Ethereum private key
@@ -87,9 +118,8 @@ function deriveSolanaAddress(ethPrivateKey: string): string {
 
   // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
   const seedBytes = new Uint8Array(32)
-  for (let i = 0; i < 32; i++) 
+  for (let i = 0; i < 32; i++)
     seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
-  
 
   // Create Solana keypair from seed
   const keypair = Keypair.fromSeed(seedBytes)
@@ -230,9 +260,9 @@ async function getEcoQuote(
   // Determine the recipient address based on destination chain
   let recipientAddress = signerAddress
   if (isSolanaChain(destinationChain)) {
-    if (!privateKey) 
+    if (!privateKey)
       throw new Error('Private key required for Solana destination')
-    
+
     recipientAddress = deriveSolanaAddress(privateKey)
     console.log('Derived Solana recipient address:', recipientAddress)
   }
@@ -277,19 +307,48 @@ async function getEcoQuote(
     throw new Error(`Failed to get quote: ${response.status} - ${errorText}`)
   }
 
-  const data = (await response.json()) as IEcoQuoteResponse
+  const data = await response.json()
   console.log('Quote received:', JSON.stringify(data, null, 2))
 
-  return data
+  // Check for error in response
+  if (data.error) {
+    console.error('API returned error:', data.error)
+    throw new Error(`Eco API error: ${data.error.message || data.error}`)
+  }
+
+  // Validate the response structure
+  if (!data || !data.data || !data.data.quoteResponse) {
+    console.error('Invalid quote response structure.')
+    console.error('Expected structure with data.quoteResponse, but got:', data)
+
+    // Provide helpful debugging information
+    if (Object.keys(data).length === 0) 
+      throw new Error(
+        'Eco API returned an empty response. Possible issues:\n' +
+          '1. The API endpoint might be down or changed\n' +
+          '2. The DAPP_ID might be invalid\n' +
+          '3. The route from Optimism to Base might not be supported\n' +
+          'Try setting ECO_API_URL and ECO_DAPP_ID environment variables if you have different values.'
+      )
+    
+
+    throw new Error(
+      'Invalid quote response from Eco API. The API response format might have changed.'
+    )
+  }
+
+  return data as IEcoQuoteResponse
 }
 
 async function main(args: {
   srcChain: SupportedChain
   dstChain: string
   amount: string
+  swap?: boolean
 }) {
   // === Set up environment ===
   const srcChain = args.srcChain
+  const withSwap = args.swap || false
 
   const { publicClient, walletAccount, walletClient, lifiDiamondContract } =
     await setupEnvironment(srcChain, ECO_FACET_ABI)
@@ -299,7 +358,9 @@ async function main(args: {
     throw new Error('LiFi Diamond contract not found')
 
   console.info(
-    `Bridge ${args.amount} USDC from ${srcChain} --> ${args.dstChain}`
+    `Bridge ${args.amount} USDC from ${srcChain} --> ${args.dstChain}${
+      withSwap ? ' (with WETH -> USDC swap)' : ''
+    }`
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
@@ -326,15 +387,66 @@ async function main(args: {
 
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = USDC_ADDRESSES[srcChain] as `0x${string}`
+  const WETH_ADDRESS = WETH_ADDRESSES[srcChain] as `0x${string}`
+  const UNISWAP_ADDRESS = UNISWAP_ADDRESSES[srcChain] as `0x${string}`
 
-  // Ensure wallet has sufficient USDC balance (amount + fee)
-  const totalAmount = amount + feeAmount
+  // === Prepare swap data if needed ===
+  let swapData: LibSwap.SwapDataStruct[] = []
+  let inputAmount = amount + feeAmount
+  let inputTokenAddress = SRC_TOKEN_ADDRESS
 
-  const usdcContract = {
+  if (withSwap) {
+    if (!WETH_ADDRESSES[srcChain]) 
+      throw new Error(`WETH address not configured for ${srcChain}`)
+    
+    if (!UNISWAP_ADDRESSES[srcChain]) 
+      throw new Error(`Uniswap address not configured for ${srcChain}`)
+    
+
+    console.log('\n🔄 Preparing swap data (WETH -> USDC)...')
+
+    // Get chain ID for current chain
+    const chainId = Number((await publicClient.getChainId()).toString())
+
+    // Import BigNumber from ethers for compatibility
+    const { BigNumber } = await import('ethers')
+
+    // The contract needs minAmount + solverReward after the swap
+    // So we need to swap to get exactly that amount
+    const requiredSwapOutput = amount + feeAmount // This will be minAmount + solverReward
+
+    // Use the helper to calculate exact input for exact output
+    const swapDataItem = await getUniswapDataERC20toExactERC20(
+      UNISWAP_ADDRESS,
+      chainId,
+      WETH_ADDRESS,
+      SRC_TOKEN_ADDRESS,
+      BigNumber.from(requiredSwapOutput.toString()), // Exact USDC output we need
+      lifiDiamondContract.address,
+      true, // requiresDeposit
+      Math.floor(Date.now() / 1000) + 60 * 60 // 1 hour deadline
+    )
+
+    swapData = [swapDataItem]
+    inputAmount = BigInt(swapDataItem.fromAmount.toString()) // The amount of WETH needed (with slippage)
+    inputTokenAddress = WETH_ADDRESS
+
+    console.log(
+      `Swap prepared: ${parseFloat(
+        (inputAmount / 10n ** 18n).toString()
+      ).toFixed(6)} WETH (max with slippage) -> ${(
+        requiredSwapOutput /
+        10n ** 6n
+      ).toString()} USDC (exact)`
+    )
+  }
+
+  // Ensure wallet has sufficient balance (WETH for swap, USDC for direct bridge)
+  const inputTokenContract = {
     read: {
       balanceOf: async (args: [`0x${string}`]): Promise<bigint> => {
         return (await publicClient.readContract({
-          address: SRC_TOKEN_ADDRESS,
+          address: inputTokenAddress,
           abi: erc20Abi,
           functionName: 'balanceOf',
           args,
@@ -343,7 +455,12 @@ async function main(args: {
     },
   } as const
 
-  await ensureBalance(usdcContract, signerAddress, totalAmount, publicClient)
+  await ensureBalance(
+    inputTokenContract,
+    signerAddress,
+    inputAmount,
+    publicClient
+  )
 
   // === Prepare bridge data ===
   const isDestinationSolana = isSolanaChain(args.dstChain)
@@ -356,20 +473,30 @@ async function main(args: {
     // For Solana, use NON_EVM_ADDRESS as receiver in bridge data
     receiverAddress = NON_EVM_ADDRESS as `0x${string}`
     destinationChainId = LIFI_CHAIN_ID_SOLANA
-  } else 
+  } else
     destinationChainId = BigInt(quote.data.quoteResponse.destinationChainID)
-  
 
+  // When NOT swapping: minAmount should be the actual bridge amount (without fee)
+  // When swapping: The contract flow is:
+  //   1. _depositAndSwap checks swap produces at least minAmount
+  //   2. If ERC20, contract subtracts solverReward from swap result
+  //   3. _startBridge then adds solverReward back for the portal
+  // So when swapping, minAmount should be (amount + feeAmount) so that
+  // after subtracting feeAmount, we have the correct amount for the bridge
+  const bridgeMinAmount = withSwap ? amount + feeAmount : amount
+
+  // When swapping, sendingAssetId should be the OUTPUT token (USDC), not the input token
+  // This is because after the swap, the contract works with USDC
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: `0x${randomBytes(32).toString('hex')}`,
     bridge: 'eco',
     integrator: 'demoScript',
     referrer: zeroAddress,
-    sendingAssetId: SRC_TOKEN_ADDRESS,
+    sendingAssetId: SRC_TOKEN_ADDRESS, // Always USDC - the token we're actually bridging
     receiver: receiverAddress,
     destinationChainId: destinationChainId,
-    minAmount: amount,
-    hasSourceSwaps: false,
+    minAmount: bridgeMinAmount,
+    hasSourceSwaps: withSwap,
     hasDestinationCall: false,
   }
 
@@ -379,9 +506,9 @@ async function main(args: {
   let nonEVMReceiverBytes = '0x' as `0x${string}`
 
   if (isDestinationSolana) {
-    if (!privateKey) 
+    if (!privateKey)
       throw new Error('Private key required for Solana destination')
-    
+
     const solanaAddress = deriveSolanaAddress(privateKey)
     // Convert Solana base58 address to hex bytes for nonEVMReceiver field
     const encoder = new TextEncoder()
@@ -415,7 +542,7 @@ async function main(args: {
         args: [`0x${string}`, `0x${string}`]
       ): Promise<bigint> => {
         return (await publicClient.readContract({
-          address: SRC_TOKEN_ADDRESS,
+          address: inputTokenAddress,
           abi: erc20Abi,
           functionName: 'allowance',
           args,
@@ -427,7 +554,7 @@ async function main(args: {
         args: [`0x${string}`, bigint]
       ): Promise<`0x${string}`> => {
         return walletClient.writeContract({
-          address: SRC_TOKEN_ADDRESS,
+          address: inputTokenAddress,
           abi: erc20Abi,
           functionName: 'approve',
           args,
@@ -440,15 +567,31 @@ async function main(args: {
     tokenContract,
     signerAddress as `0x${string}`,
     lifiDiamondContract.address,
-    amount + feeAmount, // Approve minAmount + fee
+    inputAmount, // Approve the input amount (WETH if swapping, USDC if not)
     publicClient
   )
 
   // === Start bridging ===
   console.log('Transaction details:')
+  console.log('  Mode:', withSwap ? 'Swap and Bridge' : 'Bridge only')
   console.log('  Source chain:', srcChain)
   console.log('  Destination chain:', args.dstChain)
-  console.log('  Source amount:', amount.toString())
+  if (withSwap) {
+    console.log('  Input token: WETH')
+    console.log(
+      '  Input amount:',
+      (inputAmount / 10n ** 18n).toString(),
+      'WETH (max with slippage)'
+    )
+    console.log(
+      '  Swap output:',
+      (amount + feeAmount).toString(),
+      'USDC (including fee)'
+    )
+    console.log('  Bridge amount after fee:', amount.toString(), 'USDC')
+  } else 
+    console.log('  Source amount:', amount.toString(), 'USDC')
+  
   console.log(
     '  Destination amount:',
     quote.data.quoteResponse.destinationAmount
@@ -472,9 +615,8 @@ async function main(args: {
       LIFI_CHAIN_ID_SOLANA.toString()
     )
     console.log('  Destination chain ID (Eco):', '1399811149')
-    if (privateKey) 
+    if (privateKey)
       console.log('  Solana recipient:', deriveSolanaAddress(privateKey))
-    
   }
 
   console.log('\nBridge data:', bridgeData)
@@ -492,14 +634,24 @@ async function main(args: {
 
   await executeTransaction(
     () =>
-      walletClient.writeContract({
-        address: lifiDiamondContract.address,
-        abi: ECO_FACET_ABI,
-        functionName: 'startBridgeTokensViaEco',
-        args: [bridgeData, ecoData],
-        // No value needed - fee is paid in USDC
-      }),
-    'Starting bridge tokens via Eco',
+      withSwap
+        ? walletClient.writeContract({
+            address: lifiDiamondContract.address,
+            abi: ECO_FACET_ABI,
+            functionName: 'swapAndStartBridgeTokensViaEco',
+            args: [bridgeData, swapData, ecoData],
+            // No value needed - fee is paid in USDC
+          })
+        : walletClient.writeContract({
+            address: lifiDiamondContract.address,
+            abi: ECO_FACET_ABI,
+            functionName: 'startBridgeTokensViaEco',
+            args: [bridgeData, ecoData],
+            // No value needed - fee is paid in USDC
+          }),
+    withSwap
+      ? 'Swapping WETH to USDC and starting bridge via Eco'
+      : 'Starting bridge tokens via Eco',
     publicClient,
     true
   )
@@ -526,12 +678,18 @@ const command = defineCommand({
       default: '5',
       description: 'Amount of USDC to bridge',
     },
+    swap: {
+      type: 'boolean',
+      default: false,
+      description: 'Perform a WETH -> USDC swap before bridging',
+    },
   },
   async run({ args }) {
     await main({
       srcChain: args.srcChain as SupportedChain,
       dstChain: args.dstChain,
       amount: args.amount,
+      swap: args.swap,
     })
   },
 })
