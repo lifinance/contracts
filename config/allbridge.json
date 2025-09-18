@@ -1,5 +1,5 @@
 {
-  "LinkToDeployedToAddresses": "https://github.com/allbridge-io/allbridge-core-docs",
+  "LinkToDeployedToAddresses": "https://docs-core.allbridge.io/product/how-does-allbridge-core-work/allbridge-core-contracts",
   "mainnet": {
     "allBridge": "0x609c690e8F7D68a59885c9132e812eEbDaAf0c9e"
   },
@@ -26,6 +26,9 @@
   },
   "sonic": {
     "allBridge": "0x801217549AB4b0860Bb506B1cbfF90f42819a116"
+  },
+  "unichain": {
+    "allBridge": "0x782e918ED2b3d161e90c5E154fed3E93D705C598"
   },
   "tron": {
     "allBridge": "TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2"
