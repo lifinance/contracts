@@ -123,24 +123,13 @@ contract EcoFacetTest is TestBaseFacet {
 
         if (isNative) {
             // Swapping to native: send swap input + native reward
-            uint256 msgValue = swapData.length > 0
-                ? swapData[0].fromAmount + addToMessageValue
-                : addToMessageValue;
-            ecoFacet.swapAndStartBridgeTokensViaEco{ value: msgValue }(
-                bridgeData,
-                swapData,
-                ecoData
-            );
+            ecoFacet.swapAndStartBridgeTokensViaEco{
+                value: swapData[0].fromAmount + addToMessageValue
+            }(bridgeData, swapData, ecoData);
         } else {
-            // Swapping from native to ERC20: No additional msg.value needed
-            uint256 msgValue = swapData.length > 0
-                ? swapData[0].fromAmount
-                : 0;
-            ecoFacet.swapAndStartBridgeTokensViaEco{ value: msgValue }(
-                bridgeData,
-                swapData,
-                ecoData
-            );
+            ecoFacet.swapAndStartBridgeTokensViaEco{
+                value: addToMessageValue
+            }(bridgeData, swapData, ecoData);
         }
     }
 
@@ -289,7 +278,7 @@ contract EcoFacetTest is TestBaseFacet {
     }
 
     // Test Solana bridging
-    function testBridge_ToSolanaWithEncodedRoute() public {
+    function test_BridgeToSolanaWithEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Solana
@@ -334,7 +323,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBridge_ToTron() public {
+    function test_BridgeToTron() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Tron
@@ -391,32 +380,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         vm.expectRevert(InvalidConfig.selector);
-        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    // Override base test since we no longer support destination calls
-    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-        public
-        override
-    {
-        // This test is no longer relevant since destination calls are removed
-        // We just verify that the hasDestinationCall flag doesn't affect the bridge
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.hasDestinationCall = false; // Set to false since we don't support it
-
-        // Approve the correct amount
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
-
-        // Should work normally without destination calls
-        EcoFacet.EcoData memory ecoData = getValidEcoData(false);
-
-        // This should succeed without reverting
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();

@@ -27,8 +27,8 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
 /// @param prover Address of the prover contract for validation
 /// @param rewardDeadline Timestamp for reward claim eligibility
-/// @param solverReward Native token amount to reward the solver
-/// @param encodedRoute Encoded route data for all chains
+/// @param solverReward Reward amount for the solver (native or ERC20 depending on sendingAssetId)
+/// @param encodedRoute Encoded route data containing destination chain routing information
 struct EcoData {
   address receiverAddress;
   bytes nonEVMReceiver;
@@ -37,6 +37,31 @@ struct EcoData {
   uint256 solverReward;
   bytes encodedRoute;
 }
+```
+
+### Address Parameters Usage
+
+The `receiverAddress` and `nonEVMReceiver` parameters serve different purposes:
+
+- **For EVM destination chains**: Use `receiverAddress` (standard Ethereum address format). Leave `nonEVMReceiver` empty.
+- **For non-EVM destination chains** (Solana, Tron, etc.):
+  - Set `receiverAddress` to `address(0)` or leave unchanged
+  - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant
+  - Provide the destination address in `nonEVMReceiver` as bytes
+
+**Important**: Only one of these should be used per transaction. Never provide both values simultaneously.
+
+Examples:
+
+```solidity
+// EVM to EVM bridge
+ecoData.receiverAddress = 0x123...;  // Actual receiver address
+ecoData.nonEVMReceiver = "";         // Empty bytes
+
+// EVM to Solana bridge
+bridgeData.receiver = NON_EVM_ADDRESS;  // Special constant
+ecoData.receiverAddress = address(0);   // Not used
+ecoData.nonEVMReceiver = solanaAddressBytes;  // Actual Solana address
 ```
 
 ### Important Notes
