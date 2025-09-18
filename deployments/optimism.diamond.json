@@ -66,8 +66,8 @@
         "Version": "1.0.0"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
-        "Name": "",
-        "Version": ""
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       },
       "0xd0b442B297bED85AD357Bd26374009D475Ac7964": {
         "Name": "HopFacetPacked",
@@ -125,8 +125,12 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
-        "Name": "RelayDepositoryFacet",
+      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
+        "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       }
     },
@@ -140,7 +144,7 @@
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x28C7ef3789cF91C918cf86e5eF4b40FEBE24dAD3",
-      "ReceiverAcrossV4": "",
+      "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x16Fab807095Ecd8DB8aEC7ff84f0e659043dF9f1",
       "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6"

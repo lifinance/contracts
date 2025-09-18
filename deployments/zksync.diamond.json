@@ -88,6 +88,14 @@
       "0xc42Ba73a492f2a82bBd7404D087c1C4E8a334548": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x8BC61cBb17BBFadB332b6599220D9702bdB78c0d": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x009d1fEf749Be881AC7F683Ae79E9deb4162b207": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -100,6 +108,7 @@
       "Patcher": "",
       "Permit2Proxy": "0x2ec2c4C3dc212C990d1bc2b48b0392A3951D926E",
       "ReceiverAcrossV3": "0x68cb042aD93608e819b699427726e5c5E1A5F2dC",
+      "ReceiverAcrossV4": "0xA39624C9E08099b397676F0830dcF3c33a6d19AC",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xf15485ada1a1826fA46225032b13F6A972eC73C1"
