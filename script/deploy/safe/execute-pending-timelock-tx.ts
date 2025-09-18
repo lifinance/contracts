@@ -228,16 +228,6 @@ const cmd = defineCommand({
     if (executeAll || rejectAll) {
       consola.info('🚀 Processing networks in parallel for auto-execution mode')
 
-      // Send batch start notification if Slack is enabled
-      if (slackNotifier)
-        try {
-          await slackNotifier.notifyBatchStart(
-            networksToProcess.map((n) => n.name)
-          )
-        } catch (error) {
-          consola.warn('Failed to send batch start notification:', error)
-        }
-
       // Process all networks in parallel
       const networkPromises = networksToProcess.map(async (network) => {
         return processNetwork(
@@ -283,8 +273,9 @@ const cmd = defineCommand({
       if (totalOperationsFailed > 0)
         consola.error(`   ❌ Total operations failed: ${totalOperationsFailed}`)
 
-      // Send batch summary notification if Slack is enabled
-      if (slackNotifier)
+      // Send batch summary notification if Slack is enabled AND there were operations or errors
+      const hasWork = totalOperationsProcessed > 0 || totalOperationsFailed > 0
+      if (slackNotifier && hasWork)
         try {
           await slackNotifier.notifyBatchSummary(results)
         } catch (error) {
@@ -456,14 +447,6 @@ async function processNetwork(
         `[${network.name}] ⚠️  No timelock controller deployed on ${network.name}`
       )
 
-      // Send Slack notification if enabled
-      if (slackNotifier)
-        try {
-          await slackNotifier.notifyNoOperations(network.name, 'no-timelock')
-        } catch (error) {
-          consola.warn('Failed to send no-timelock notification:', error)
-        }
-
       return {
         network: network.name,
         success: true,
@@ -494,33 +477,13 @@ async function processNetwork(
       )
 
     if (readyOperations.length === 0) {
-      if (totalPendingCount === 0) {
+      if (totalPendingCount === 0) 
         consola.info(`[${network.name}] ✅ No pending operations found`)
-
-        // Send Slack notification if enabled
-        if (slackNotifier)
-          try {
-            await slackNotifier.notifyNoOperations(network.name, 'no-pending')
-          } catch (error) {
-            consola.warn('Failed to send no-pending notification:', error)
-          }
-      } else {
+       else 
         consola.info(
           `[${network.name}] ✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
         )
-
-        // Send Slack notification if enabled
-        if (slackNotifier)
-          try {
-            await slackNotifier.notifyNoOperations(
-              network.name,
-              'no-ready',
-              totalPendingCount
-            )
-          } catch (error) {
-            consola.warn('Failed to send no-ready notification:', error)
-          }
-      }
+      
 
       // Note: notScheduledOperations notification is already sent in getPendingOperations
       // Consider it a failure if there were not-scheduled operations (requires manual intervention)
@@ -587,8 +550,8 @@ async function processNetwork(
         else if (result === 'skipped') operationsSkipped++
       }
 
-    // Send network completion notification if Slack is enabled
-    if (slackNotifier && operationsProcessed > 0)
+    // Only send network completion notification if there were actual operations executed or failures
+    if (slackNotifier && (operationsSucceeded > 0 || operationsFailed > 0))
       try {
         const stats: IProcessingStats = {
           operationsProcessed,
