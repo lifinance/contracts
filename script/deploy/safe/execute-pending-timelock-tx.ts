@@ -523,7 +523,7 @@ async function processNetwork(
       }
 
       // Note: notScheduledOperations notification is already sent in getPendingOperations
-      // Consider it a success but track if there were not-scheduled operations
+      // Consider it a failure if there were not-scheduled operations (requires manual intervention)
       const hasNotScheduled = notScheduledOperations.length > 0
 
       return {
@@ -603,9 +603,7 @@ async function processNetwork(
 
     // Track not-scheduled operations as failures if they exist
     const notScheduledCount = notScheduledOperations.length
-    if (notScheduledCount > 0) 
-      operationsFailed += notScheduledCount
-    
+    if (notScheduledCount > 0) operationsFailed += notScheduledCount
 
     // Determine overall success - only true if no operations failed
     const success = operationsFailed === 0
@@ -763,11 +761,11 @@ async function getPendingOperations(
             )
             consola.error(`[${networkName}]    MongoDB ID: ${tx._id}`)
             consola.error(`[${networkName}]    Safe Tx Hash: ${tx.safeTxHash}`)
-            if (tx.executionHash) 
+            if (tx.executionHash)
               consola.error(
                 `[${networkName}]    Execution Hash: ${tx.executionHash}`
               )
-            
+
             consola.error(
               `[${networkName}]    This Safe transaction needs to be re-executed to schedule it in the timelock.`
             )
@@ -879,7 +877,7 @@ async function getPendingOperations(
   )
 
   // Send Slack notification for not-scheduled operations if any were found
-  if (notScheduledOperations.length > 0 && slackNotifier) 
+  if (notScheduledOperations.length > 0 && slackNotifier)
     try {
       await slackNotifier.notifyNotScheduled(
         networkName,
@@ -888,7 +886,6 @@ async function getPendingOperations(
     } catch (error) {
       consola.warn('Failed to send not-scheduled notification:', error)
     }
-  
 
   return {
     readyOperations,
