@@ -25,7 +25,7 @@ contract TestEcoFacet is EcoFacet {
 contract EcoFacetTest is TestBaseFacet {
     TestEcoFacet internal ecoFacet;
     address internal constant PORTAL =
-        0x2b7F87a98707e6D19504293F6680498731272D4f;
+        0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624;
     uint256 internal constant NATIVE_SOLVER_REWARD = 0.0001 ether;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
 
