@@ -1,32 +1,32 @@
 {
   "optimism": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "base": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "arbitrum": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "celo": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "mainnet": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "ink": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "polygon": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "unichain": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "sonic": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   },
   "tron": {
-    "portal": "0xa9CD3b5603806D5Bdfa81cDFA494D2196D7b2624"
+    "portal": "0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5"
   }
 }
