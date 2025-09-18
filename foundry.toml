@@ -21,7 +21,9 @@ cache = true
 
 [profile.zksync]
 solc_version = '0.8.26'
-zksolc = '1.5.3'
+zksolc = '1.5.11'
+sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
+tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
@@ -49,6 +51,7 @@ flare = "${ETH_NODE_URI_FLARE}"
 fraxtal = "${ETH_NODE_URI_FRAXTAL}"
 fuse = "${ETH_NODE_URI_FUSE}"
 harmony = "${ETH_NODE_URI_HARMONY}"
+hemi = "${ETH_NODE_URI_HEMI}"
 hyperevm = "${ETH_NODE_URI_HYPEREVM}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
 gravity = "${ETH_NODE_URI_GRAVITY}"
@@ -95,7 +98,6 @@ scroll = "${ETH_NODE_URI_SCROLL}"
 # testnets
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 
-
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
 abstract = { key = "${ABSTRACT_ETHERSCAN_API_KEY}", url = "https://api.abscan.org/api", chain = "2741" }
@@ -118,11 +120,12 @@ fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.i
 fuse = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.fuse.io/api?", chain = "122" , verifier = "blockscout"}
 gnosis = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = "100" }
 gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY", chain = "1625", verifier = "oklink" }
+hemi = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.hemi.xyz/api", chain = "43111", verifier = "blockscout" }
 hyperevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=999", chain = "999" }
 etherlink = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
 ink = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.inkonchain.com/api", verifier = "blockscout", chain = "57073"}
 immutablezkevm = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
-kaia = { key = "${BLOCKSCOUT_API_KEY}", url = "https://api-cypress.klaytnscope.com/api", chain = "8217", verifier = "blockscout" }
+kaia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/kaia", chain = "8217", verifier = "oklink" }
 katana = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-katana.t.conduit.xyz/api", chain = "747474", verifier = "blockscout" }
 lens = { key = "${LENS_ETHERSCAN_API_KEY}", url = "https://api-explorer-verify.lens.matterhosted.dev/contract_verification", chain = "232", verifier = "zksync" }
 linea = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = "59144" }

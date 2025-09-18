@@ -22,5 +22,6 @@
   "GlacisFacet": "0x85bd5ac48f040F5DFcCE8149B26eEE269BE0150b",
   "GasZipFacet": "0x50c141227b262ADBA180aC2f0Fc584f0F62a64d1",
   "LiFiTimelockController": "0x1b8160f0955Dd05Fdc3a58C86327e62505a39AfB",
-  "SymbiosisFacet": "0x8e25A04d1FcbFb9c2cf9f0c29a2DcD001623bC32"
+  "SymbiosisFacet": "0x8e25A04d1FcbFb9c2cf9f0c29a2DcD001623bC32",
+  "RelayDepositoryFacet": "0x46b4cB1B52cd59F44bD56bDa5Fb7d40cf10d954b"
 }

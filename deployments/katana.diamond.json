@@ -60,6 +60,10 @@
       "0x8e25A04d1FcbFb9c2cf9f0c29a2DcD001623bC32": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x46b4cB1B52cd59F44bD56bDa5Fb7d40cf10d954b": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -69,6 +73,7 @@
       "GasZipPeriphery": "0x6BCAF079647788ceC14f10D6601Ecb34d0b79c6E",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
+      "Patcher": "",
       "Permit2Proxy": "0x628d684D57c73A5D8cA77F455Fdf2CC8Bd503c16",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",

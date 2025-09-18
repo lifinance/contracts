@@ -49,22 +49,31 @@
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0x35B861C331858Eaf9d7Be1737EA008820fBB8b50": {
+      "0xcC9b58959574009deFde35FC3446425aa10eAc31": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
       "0xC7fF0661C9fF1Da5472e71e5ee6dAdB6afa87d02": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0x669dBcd296a538717354C1be8a0907C09022Eb18": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
+      },
+      "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x38a7A06fEC3cA47105741605b3f52bbfeF5c9243",
       "Executor": "0xF1d320e7c62737B99a1f1C1E9c44a304E6696B62",
       "FeeCollector": "0xFEd2370437dF9c1302Fe4f0840A91fc0091DA1F2",
-      "GasZipPeriphery": "0x26e674d797e873811f705b35fABc09b59f33fFaF",
+      "GasZipPeriphery": "0x410793b81623DFbfa6702C31128012560D6f257b",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "0xAAAeD431A0101303c45598d646236d661197c889",
+      "LiFiDEXAggregator": "0x312AA44DBc5dEB0a4bA2AD9BbA21094CD5E6362e",
+      "Patcher": "",
       "Permit2Proxy": "0xfeD71074954d4cb8f1D2A8ca317d72c75e3E0559",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",

@@ -153,16 +153,31 @@ We use Foundry as our primary development and testing framework. Foundry provide
 
 - **Error Handling:**
 
-  - All custom errors must be defined in `src/Errors/GenericErrors.sol`
+  - **Generic errors** must be defined in `src/Errors/GenericErrors.sol`
+    - Use for common validation errors that apply across multiple contracts
+    - When adding new generic errors, increment the version in `@custom:version` comment
+    - Examples: `InvalidAmount()`, `InvalidCallData()`, `UnAuthorized()`
+  - **Facet-specific errors** should be defined within the facet itself
+    - Use for business logic errors specific to that protocol integration
+    - Examples: `InvalidQuote()`, `BridgeNotSupported()`, `ProtocolSpecificError()`
   - Error names should be descriptive and follow PascalCase
   - Errors should not include error messages (gas optimization)
   - Use custom error types rather than generic `revert()` statements
 
 - **Interface Design Standards:**
+
   - All interfaces must start with `I` prefix (e.g., `ILiFi`, `IStargate`)
   - Use consistent parameter naming across similar interfaces
   - All interfaces must be placed in separate files in the `src/Interfaces` directory
   - Do not define interfaces in the same file as their implementation
+
+- **Variable Naming Conventions:**
+  - **State variables**: Use camelCase (e.g., `userBalance`, `tokenAddress`)
+  - **Function parameters**: Use camelCase with underscore prefix (e.g., `_amount`, `_recipient`)
+  - **Constants**: Use CONSTANT_CASE with underscores (e.g., `MAX_FEE`, `DEFAULT_TIMEOUT`)
+  - **Immutable variables**: Use CONSTANT_CASE with underscores (e.g., `RELAY_DEPOSITORY`, `CHAIN_ID`)
+  - **Private/internal variables**: Use camelCase (e.g., `internalState`, `helperValue`)
+  - **Function names**: Use camelCase (e.g., `startBridge`, `validateInput`)
 
 ## Code Style and Documentation
 
@@ -412,6 +427,124 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 - Environment variables should be validated using `getEnvVar()` helper
 - Scripts should exit with appropriate exit codes (0 for success, 1 for error)
 
+#### Helper Function Usage
+
+- **Always use existing helper functions** when available instead of reimplementing functionality
+- Common helper functions to check for:
+
+  - `getDeployments()` from `script/utils/deploymentHelpers.ts` for loading deployment files
+  - `getProvider()` and `getWalletFromPrivateKeyInDotEnv()` from `script/demoScripts/utils/demoScriptHelpers.ts`
+  - `sendTransaction()` for transaction execution
+  - `ensureBalanceAndAllowanceToDiamond()` for token approvals
+  - `getUniswapData*()` functions for swap data generation
+
+- Before implementing new functionality, search the codebase for existing helper functions
+- Helper functions provide consistent error handling, logging, and type safety across the project
+
+#### Type Safety for Bridge Data
+
+- **Always use proper typechain types** instead of `any` or custom types
+- Use `ILiFi.BridgeDataStruct` from typechain for bridge data
+
+- Never use `any` types for bridge data or other contract-related structures
+
+#### Testing Requirements for Helper Functions
+
+- **100% unit test coverage required** for all new TypeScript helper functions
+- Test files should be named `{helperName}.test.ts` and placed in the same directory as the helper
+- **Use Bun's built-in test runner** with Jest-like syntax (`describe`, `it`, `expect`)
+- Tests should cover:
+  - All function parameters and return values
+  - Edge cases and error conditions
+  - Type safety verification
+  - Default parameter behavior
+  - All possible input combinations
+- Include both positive and negative test cases
+- Test files should be comprehensive and well-documented
+
+#### TypeScript Test Setup
+
+We use Bun's built-in test runner for TypeScript helper functions. Bun provides Jest-like syntax with `describe`, `it`, and `expect`.
+
+**File Structure:**
+
+```
+script/
+├── runTypescriptTests.ts    # Main test runner script
+├── utils/
+│   └── someHelper.ts
+├── demoScripts/
+│   └── utils/
+```
+
+**Test File Template:**
+
+```typescript
+import { functionToTest } from './helperFile'
+
+describe('functionToTest', () => {
+  it('should do something', () => {
+    const result = functionToTest()
+    expect(result).toBe(expectedValue)
+  })
+})
+```
+
+**Available Assertions:**
+
+Bun's test runner provides Jest-compatible assertions:
+
+- `expect(value).toBe(expected)` - Strict equality
+- `expect(value).toBeInstanceOf(constructor)` - Type checking
+- `expect(value).toBeDefined()` - Existence check
+- `expect(value).toEqual(expected)` - Deep equality
+- `expect(value).toHaveLength(length)` - Array/string length
+- `expect(value).toMatchObject(object)` - Partial object matching
+- `expect(fn).toThrow()` - Function throws error
+- `expect(value).not.toEqual(expected)` - Negation
+
+**Running Tests:**
+
+- Single test file: `bun test path/to/test.test.ts`
+- All TypeScript tests: `bun run test:ts` (automatically finds and runs all `.test.ts` files in `script/` directory)
+- Specific test: `bun test path/to/specific.test.ts`
+
+**Best Practices:**
+
+- Test files should be self-contained and executable
+- Use descriptive test names that explain the expected behavior
+- Group related tests logically using `describe` blocks
+- Test both success and failure scenarios
+- Verify type safety where applicable
+- Keep tests simple and focused on one aspect at a time
+
+#### Code Quality and Linting Standards
+
+- **Pre-Change Verification:**
+
+  - Verify all imports and types exist before making changes
+  - Check if typechain has been generated for new contracts
+  - Ensure all referenced variables and functions are available
+
+- **Comprehensive Changes:**
+
+  - Make all related changes in a single update, not incrementally
+  - Update all variable references consistently throughout the file
+  - Ensure import statements match the actual available exports
+
+- **Post-Change Validation:**
+
+  - Run TypeScript compilation to catch type errors
+  - Verify no unused imports remain
+  - Check that all variable names are consistently updated
+  - Ensure function signatures match their usage
+
+- **Type Safety:**
+
+  - Always use proper TypeScript types instead of `any`
+  - Verify interface compatibility before using imported types
+  - Use type guards when dealing with dynamic data
+
 - **Execution Environment:**
   - All scripts should use `bunx tsx` for TypeScript execution
 
@@ -524,11 +657,38 @@ Bash scripts provide the robust deployment framework with automated retry mechan
   - **Deployment Scripts:**
 
     - Inherit `DeployScriptBase`
-    - Use JSON config with `stdJson`
-    - Define `getConstructorArgs()` if needed
-    - Encode constructor arguments
+    - Use JSON config with `stdJson` (if constructor args needed)
     - Call `deploy()` with `type({ContractName}).creationCode`
-    - Example JSON handling:
+
+    **Constructor Arguments Pattern:**
+
+    - **Facets WITHOUT constructor arguments:**
+
+      ```solidity
+      function run() public returns (FacetName deployed) {
+        deployed = FacetName(deploy(type(FacetName).creationCode));
+      }
+      // NO getConstructorArgs() function needed
+      ```
+
+    - **Facets WITH constructor arguments:**
+
+      ```solidity
+      function run()
+        public
+        returns (FacetName deployed, bytes memory constructorArgs)
+      {
+        constructorArgs = getConstructorArgs();
+        deployed = FacetName(deploy(type(FacetName).creationCode));
+      }
+
+      function getConstructorArgs() internal override returns (bytes memory) {
+        // Read from config, encode arguments
+        return abi.encode(arg1, arg2);
+      }
+      ```
+
+    - Example JSON handling for constructor args:
       ```solidity
       string memory path = string.concat(root, "/config/{facetName}.json");
       address configValue = _getConfigContractAddress(
