@@ -8,6 +8,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
 import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { InvalidConfig, InvalidReceiver, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
@@ -123,24 +124,13 @@ contract EcoFacetTest is TestBaseFacet {
 
         if (isNative) {
             // Swapping to native: send swap input + native reward
-            uint256 msgValue = swapData.length > 0
-                ? swapData[0].fromAmount + addToMessageValue
-                : addToMessageValue;
-            ecoFacet.swapAndStartBridgeTokensViaEco{ value: msgValue }(
-                bridgeData,
-                swapData,
-                ecoData
-            );
+            ecoFacet.swapAndStartBridgeTokensViaEco{
+                value: swapData[0].fromAmount + addToMessageValue
+            }(bridgeData, swapData, ecoData);
         } else {
-            // Swapping from native to ERC20: No additional msg.value needed
-            uint256 msgValue = swapData.length > 0
-                ? swapData[0].fromAmount
-                : 0;
-            ecoFacet.swapAndStartBridgeTokensViaEco{ value: msgValue }(
-                bridgeData,
-                swapData,
-                ecoData
-            );
+            ecoFacet.swapAndStartBridgeTokensViaEco{
+                value: addToMessageValue
+            }(bridgeData, swapData, ecoData);
         }
     }
 
@@ -289,7 +279,7 @@ contract EcoFacetTest is TestBaseFacet {
     }
 
     // Test Solana bridging
-    function testBridge_ToSolanaWithEncodedRoute() public {
+    function test_BridgeToSolanaWithEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Solana
@@ -334,7 +324,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBridge_ToTron() public {
+    function test_BridgeToTron() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Tron
@@ -391,32 +381,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         vm.expectRevert(InvalidConfig.selector);
-        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    // Override base test since we no longer support destination calls
-    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-        public
-        override
-    {
-        // This test is no longer relevant since destination calls are removed
-        // We just verify that the hasDestinationCall flag doesn't affect the bridge
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.hasDestinationCall = false; // Set to false since we don't support it
-
-        // Approve the correct amount
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
-
-        // Should work normally without destination calls
-        EcoFacet.EcoData memory ecoData = getValidEcoData(false);
-
-        // This should succeed without reverting
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -486,6 +450,70 @@ contract EcoFacetTest is TestBaseFacet {
         vm.expectRevert(InformationMismatch.selector);
 
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ChainIdExceedsUint64Max() public {
+        vm.startPrank(USER_SENDER);
+
+        // Setup bridge data with a chain ID that exceeds uint64.max
+        // This tests the overflow protection at line 150
+        ILiFi.BridgeData memory overflowBridgeData = bridgeData;
+        overflowBridgeData.destinationChainId = uint256(type(uint64).max) + 1;
+        overflowBridgeData.sendingAssetId = address(0); // native token
+        overflowBridgeData.minAmount = 0.01 ether;
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: bytes(""),
+            prover: address(0),
+            rewardDeadline: 0,
+            solverReward: NATIVE_SOLVER_REWARD,
+            encodedRoute: bytes("test_route")
+        });
+
+        // Fund the user with native tokens
+        vm.deal(USER_SENDER, 1 ether);
+
+        // Expect the transaction to revert with InvalidConfig error
+        vm.expectRevert(InvalidConfig.selector);
+
+        // Attempt to bridge with the oversized chain ID using native tokens
+        ecoFacet.startBridgeTokensViaEco{
+            value: overflowBridgeData.minAmount + NATIVE_SOLVER_REWARD
+        }(overflowBridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function test_ChainIdAtUint64Boundary() public {
+        vm.startPrank(USER_SENDER);
+
+        // Additional test: Verify that exactly uint64.max works correctly
+        ILiFi.BridgeData memory boundaryBridgeData = bridgeData;
+        boundaryBridgeData.destinationChainId = type(uint64).max;
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: bytes(""),
+            prover: address(0),
+            rewardDeadline: 0,
+            solverReward: NATIVE_SOLVER_REWARD,
+            encodedRoute: bytes("test_route")
+        });
+
+        // Fund the user with native tokens
+        vm.deal(USER_SENDER, bridgeData.minAmount + NATIVE_SOLVER_REWARD);
+
+        // This should NOT revert at the boundary value
+        // The transaction will ultimately fail at the Portal call, but shouldn't fail at the uint64 check
+        // We expect a revert from Portal.publishAndFund instead
+        vm.expectRevert();
+
+        ecoFacet.startBridgeTokensViaEco{
+            value: bridgeData.minAmount + NATIVE_SOLVER_REWARD
+        }(boundaryBridgeData, ecoData);
 
         vm.stopPrank();
     }

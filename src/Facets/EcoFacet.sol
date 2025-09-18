@@ -20,8 +20,9 @@ import { InvalidConfig, InvalidReceiver, InformationMismatch } from "../Errors/G
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Storage ///
 
-    // solhint-disable-next-line immutable-vars-naming
-    IEcoPortal public immutable portal;
+    IEcoPortal public immutable PORTAL;
+    uint64 private immutable ECO_CHAIN_ID_TRON = 728126428;
+    uint64 private immutable ECO_CHAIN_ID_SOLANA = 1399811149;
 
     /// Types ///
 
@@ -30,8 +31,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
     /// @param prover Address of the prover contract for validation
     /// @param rewardDeadline Timestamp for reward claim eligibility
-    /// @param solverReward Native token amount to reward the solver
-    /// @param encodedRoute Encoded route data for all chains
+    /// @param solverReward Reward amount for the solver (native or ERC20 depending on sendingAssetId)
+    /// @param encodedRoute Encoded route data containing destination chain routing information
     struct EcoData {
         address receiverAddress;
         bytes nonEVMReceiver;
@@ -43,11 +44,13 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     /// Constructor ///
 
+    /// @notice Initializes the EcoFacet with the Eco Portal contract
+    /// @param _portal Address of the Eco Portal contract
     constructor(IEcoPortal _portal) {
         if (address(_portal) == address(0)) {
             revert InvalidConfig();
         }
-        portal = _portal;
+        PORTAL = _portal;
     }
 
     /// External Methods ///
@@ -65,6 +68,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
     {
         // Validate eco-specific data before depositing
         _validateEcoData(_bridgeData, _ecoData);
@@ -95,6 +99,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
     {
         // Validate eco-specific data before swapping
         _validateEcoData(_bridgeData, _ecoData);
@@ -128,34 +133,39 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     /// Internal Methods ///
 
-
     function _getEcoChainId(
         uint256 _lifiChainId
-    ) private pure returns (uint64) {
+    ) private view returns (uint64) {
         // Map LiFi Tron chain ID to Eco protocol Tron chain ID
         if (_lifiChainId == LIFI_CHAIN_ID_TRON) {
-            return 728126428; // Eco protocol's Tron chain ID
+            return ECO_CHAIN_ID_TRON;
         }
         // Map LiFi Solana chain ID to Eco protocol Solana chain ID
         if (_lifiChainId == LIFI_CHAIN_ID_SOLANA) {
-            return 1399811149; // Eco protocol's Solana chain ID
+            return ECO_CHAIN_ID_SOLANA;
         }
-        // For all other chains (EVM), pass through as-is
+
+        // For EVM chains, ensure the chain ID fits within uint64 bounds
+        // Most EVM chain IDs are well below this limit, but we check to be safe
+        if (_lifiChainId > type(uint64).max) {
+            revert InvalidConfig();
+        }
+
         return uint64(_lifiChainId);
     }
 
     function _buildReward(
         ILiFi.BridgeData memory _bridgeData,
-        EcoData calldata _ecoData
+        EcoData calldata _ecoData,
+        bool isNative,
+        uint256 totalAmount
     ) private view returns (IEcoPortal.Reward memory) {
-        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
-
         IEcoPortal.TokenAmount[] memory rewardTokens;
         if (!isNative) {
             rewardTokens = new IEcoPortal.TokenAmount[](1);
             rewardTokens[0] = IEcoPortal.TokenAmount({
                 token: _bridgeData.sendingAssetId,
-                amount: _bridgeData.minAmount + _ecoData.solverReward
+                amount: totalAmount
             });
         } else {
             rewardTokens = new IEcoPortal.TokenAmount[](0);
@@ -166,9 +176,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 creator: msg.sender,
                 prover: _ecoData.prover,
                 deadline: _ecoData.rewardDeadline,
-                nativeAmount: isNative
-                    ? _ecoData.solverReward + _bridgeData.minAmount
-                    : 0,
+                nativeAmount: isNative ? totalAmount : 0,
                 tokens: rewardTokens
             });
     }
@@ -177,31 +185,39 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
+        // Calculate values once
+        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+        uint256 totalAmount = _bridgeData.minAmount + _ecoData.solverReward;
+
         // Build reward for the intent
-        IEcoPortal.Reward memory reward = _buildReward(_bridgeData, _ecoData);
+        IEcoPortal.Reward memory reward = _buildReward(
+            _bridgeData,
+            _ecoData,
+            isNative,
+            totalAmount
+        );
 
         // Get the destination chain ID in Eco format
         uint64 destination = _getEcoChainId(_bridgeData.destinationChainId);
 
-        // Determine if sending native tokens and calculate value
-        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
-        uint256 totalValue = isNative
-            ? _bridgeData.minAmount + _ecoData.solverReward
-            : 0;
-
         // Prepare token approval if needed for ERC20 tokens
         if (!isNative) {
-            uint256 totalAmount = _bridgeData.minAmount +
-                _ecoData.solverReward;
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(portal),
+                address(PORTAL),
                 totalAmount
             );
         }
 
+        /// @dev IMPORTANT LIMITATION: For ERC20 tokens, positive slippage from pre-bridge swaps
+        /// may be lost in the diamond. The intent input amount is encoded in encodedRoute and we only
+        /// pass the reward amount separately. While native token positive slippage is handled by sending
+        /// more funds, ERC20 positive slippage cannot be captured with the current implementation.
+        /// This is a known limitation that can be significant when bridging large amounts.
+        /// Users should be aware that they may not receive positive slippage benefits for ERC20 swaps.
+
         // Publish and fund the intent with encoded route
-        portal.publishAndFund{value: totalValue}(
+        PORTAL.publishAndFund{ value: isNative ? totalAmount : 0 }(
             destination,
             _ecoData.encodedRoute,
             reward,
@@ -230,14 +246,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
         // For standard receivers, check address match
         if (
-            !_bridgeData.hasDestinationCall &&
             _bridgeData.receiver != NON_EVM_ADDRESS &&
             _bridgeData.receiver != _ecoData.receiverAddress
         ) {
             revert InformationMismatch();
         }
     }
-
 
     function _emitEvents(
         ILiFi.BridgeData memory _bridgeData,

@@ -102,7 +102,7 @@ const WETH_ADDRESSES: Record<string, string> = {
 // Uniswap V2 Router addresses per chain
 const UNISWAP_ADDRESSES: Record<string, string> = {
   optimism: ADDRESS_UNISWAP_OPT,
-  base: ADDRESS_UNISWAP_BASE, // Fixed: Correct Base router address
+  base: ADDRESS_UNISWAP_BASE,
   arbitrum: ADDRESS_UNISWAP_ARB,
   ethereum: ADDRESS_UNISWAP_ETH,
   polygon: ADDRESS_UNISWAP_POL,

@@ -27,8 +27,8 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
 /// @param prover Address of the prover contract for validation
 /// @param rewardDeadline Timestamp for reward claim eligibility
-/// @param solverReward Native token amount to reward the solver
-/// @param encodedRoute Encoded route data for all chains
+/// @param solverReward Reward amount for the solver (native or ERC20 depending on sendingAssetId)
+/// @param encodedRoute Encoded route data containing destination chain routing information
 struct EcoData {
   address receiverAddress;
   bytes nonEVMReceiver;
@@ -39,13 +39,37 @@ struct EcoData {
 }
 ```
 
+### Address Parameters Usage
+
+The `receiverAddress` and `nonEVMReceiver` parameters serve different purposes:
+
+- **For EVM destination chains**: Use `receiverAddress` (standard Ethereum address format). Leave `nonEVMReceiver` empty.
+- **For non-EVM destination chains** (Solana, Tron, etc.):
+  - Set `receiverAddress` to `address(0)` or leave unchanged
+  - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant
+  - Provide the destination address in `nonEVMReceiver` as bytes
+
+**Important**: Only one of these should be used per transaction. Never provide both values simultaneously.
+
+Examples:
+
+```solidity
+// EVM to EVM bridge
+ecoData.receiverAddress = 0x123...;  // Actual receiver address
+ecoData.nonEVMReceiver = "";         // Empty bytes
+
+// EVM to Solana bridge
+bridgeData.receiver = NON_EVM_ADDRESS;  // Special constant
+ecoData.receiverAddress = address(0);   // Not used
+ecoData.nonEVMReceiver = solanaAddressBytes;  // Actual Solana address
+```
+
 ### Important Notes
 
 - **Solver Reward**:
   - For native token transfers: The entire amount (bridge amount + solver reward) must be sent as `msg.value`
-  - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the facet handles the split internally
+  - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the Eco router handles the split internally
 - **Non-EVM Destinations**: For non-EVM chains (like Tron or Solana), set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (constant from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
-- **Native Token Bridging**: When bridging native tokens, the bridge amount plus the solver reward must be sent as `msg.value`.
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the total amount (bridge amount + solver reward).
 - **Encoded Route**: The `encodedRoute` parameter contains all necessary routing information for the destination chain and is required for all bridge operations.
 - **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
