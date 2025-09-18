@@ -102,6 +102,10 @@
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
+  "plasma": {
+    "relayReceiver": "0xf17902d51FdfF7Bf50AacC78d6bB399BaF88b479",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "plume": {
     "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"

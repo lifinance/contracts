@@ -38786,6 +38786,21 @@
           }
         ]
       }
+    },
+    "plasma": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x27b913F669bB0492e4A878A7Ce1741C8Df491Ebc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-18 09:52:35",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f17902d51fdff7bf50aacc78d6bb399baf88b479000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
