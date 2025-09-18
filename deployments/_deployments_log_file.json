@@ -42079,6 +42079,21 @@
           }
         ]
       }
+    },
+    "plasma": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-18 11:02:20",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004cd00e387622c35bddb9b4c962c136462338bc31",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   }
 }
