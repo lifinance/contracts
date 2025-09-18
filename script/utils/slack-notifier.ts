@@ -520,6 +520,78 @@ export class SlackNotifier {
   }
 
   /**
+   * Notify when operations were never scheduled in the timelock
+   */
+  public async notifyNotScheduled(
+    network: string,
+    operations: Array<{
+      operationId: string
+      transactionId: string
+      safeTxHash: string
+      executionHash?: string
+    }>
+  ): Promise<void> {
+    const message: ISlackMessage = {
+      text: `❌ ${network}: ${operations.length} operation(s) not scheduled in timelock`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: '❌ Operations Not Scheduled in Timelock',
+          },
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Network:* ${network}\n*Issue:* The following Safe transactions were executed but never scheduled in the timelock controller. They need to be re-executed.`,
+          },
+        },
+        {
+          type: 'divider',
+        },
+      ],
+    }
+
+    // Add details for each not-scheduled operation
+    for (const op of operations) 
+      if (message.blocks) {
+        let operationText = `• *Operation ID:* \`${this.truncateHash(
+          op.operationId
+        )}\`\n  *MongoDB ID:* \`${
+          op.transactionId
+        }\`\n  *Safe Tx Hash:* \`${this.truncateHash(op.safeTxHash)}\``
+
+        if (op.executionHash) 
+          operationText += `\n  *Execution Hash:* \`${this.truncateHash(
+            op.executionHash
+          )}\``
+        
+
+        message.blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: operationText,
+          },
+        })
+      }
+    
+
+    if (message.blocks)
+      message.blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `⚠️ *Action Required:* These Safe transactions must be re-executed to schedule them in the timelock.`,
+        },
+      })
+
+    await this.sendNotificationWithRetry(message)
+  }
+
+  /**
    * Helper to get explorer URL for a transaction
    * Dynamically pulls explorer URL from networks.json configuration
    */
