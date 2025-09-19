@@ -205,7 +205,7 @@
       "0xf9af83fc41e0cc2af2fba93644d542df6ea0f2b7"
     ]
   },
-  "1151111081099710": {
+  "solana": {
     "chainId": 1151111081099710,
     "acrossSpokePool": "DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru",
     "tokensToApprove": ["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"]
