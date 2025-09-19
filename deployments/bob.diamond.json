@@ -57,7 +57,7 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xD2aD75302aaa3D36dE69F26DCe005CA46C713A69": {
+      "0x2cd8Ce87D01b583aea606D19aCc49FFe89d8Bd4E": {
         "Name": "GlacisFacet",
         "Version": "1.1.0"
       },
@@ -76,6 +76,7 @@
       "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x917F0625dD20f9a8eA45500361d2F1F1a39DF8DE"

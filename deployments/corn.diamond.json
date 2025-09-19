@@ -60,6 +60,10 @@
       "0x136928f3d4251840FbF44ce42ffe9D5928a812AF": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x600E01682A00B63149205BC9f5b5d3AED1E649c3": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -72,6 +76,7 @@
       "Patcher": "",
       "Permit2Proxy": "0x9C1D1db1CD3EbE4727c2a4208Ca5D65624cC9b4D",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x626391004E18ad5Aa7e36E8b810D77b7DC19aD59"
