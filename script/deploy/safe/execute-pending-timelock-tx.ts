@@ -74,6 +74,7 @@ const SCHEDULE_ABI = parseAbi([
 interface ISafeTxDocumentWithId extends ISafeTxDocument {
   _id: ObjectId
   timelockIsExecuted?: boolean
+  executionHash?: string
 }
 
 // Define the operation type
@@ -413,7 +414,7 @@ async function fetchPendingTimelockTransactions(
   try {
     const txs = await pendingTransactions
       .find({
-        network: { $regex: networkName, $options: 'i' },
+        network: networkName.toLowerCase(),
         'safeTx.data.data': { $regex: '^0x01d5062a' },
         status: 'executed',
         timelockIsExecuted: { $ne: true },
@@ -482,13 +483,15 @@ async function processNetwork(
     )
 
     // Get pending operations using new decode-based approach
-    const { readyOperations, totalPendingCount } = await getPendingOperations(
-      publicClient,
-      timelockAddress,
-      network.name,
-      specificOperationId,
-      rejectAll
-    )
+    const { readyOperations, totalPendingCount, notScheduledOperations } =
+      await getPendingOperations(
+        publicClient,
+        timelockAddress,
+        network.name,
+        specificOperationId,
+        rejectAll,
+        slackNotifier
+      )
 
     if (readyOperations.length === 0) {
       if (totalPendingCount === 0) {
@@ -519,10 +522,15 @@ async function processNetwork(
           }
       }
 
+      // Note: notScheduledOperations notification is already sent in getPendingOperations
+      // Consider it a failure if there were not-scheduled operations (requires manual intervention)
+      const hasNotScheduled = notScheduledOperations.length > 0
+
       return {
         network: network.name,
-        success: true,
+        success: !hasNotScheduled, // Fail if there were not-scheduled operations
         operationsProcessed: 0,
+        operationsFailed: hasNotScheduled ? notScheduledOperations.length : 0,
       }
     }
 
@@ -593,13 +601,17 @@ async function processNetwork(
         consola.warn('Failed to send network completion notification:', error)
       }
 
+    // Track not-scheduled operations as failures if they exist
+    const notScheduledCount = notScheduledOperations.length
+    if (notScheduledCount > 0) operationsFailed += notScheduledCount
+
     // Determine overall success - only true if no operations failed
     const success = operationsFailed === 0
 
-    // Log summary for this network if there were operations
-    if (operationsProcessed > 0) {
+    // Log summary for this network if there were operations or not-scheduled issues
+    if (operationsProcessed > 0 || notScheduledCount > 0) {
       consola.info(
-        `[${network.name}] Summary: ${operationsSucceeded} executed, ${operationsRejected} rejected, ${operationsFailed} failed, ${operationsSkipped} skipped`
+        `[${network.name}] Summary: ${operationsSucceeded} executed, ${operationsRejected} rejected, ${operationsFailed} failed (including ${notScheduledCount} not scheduled), ${operationsSkipped} skipped`
       )
       if (!success)
         consola.error(
@@ -640,10 +652,17 @@ async function getPendingOperations(
   timelockAddress: Address,
   networkName: string,
   specificOperationId?: Hex,
-  isCancellingOperations?: boolean
+  isCancellingOperations?: boolean,
+  slackNotifier?: SlackNotifier
 ): Promise<{
   readyOperations: ITimelockOperation[]
   totalPendingCount: number
+  notScheduledOperations: Array<{
+    operationId: string
+    transactionId: string
+    safeTxHash: string
+    executionHash?: string
+  }>
 }> {
   // Fetch Safe transactions with schedule data from MongoDB
   consola.info(
@@ -655,7 +674,11 @@ async function getPendingOperations(
     consola.info(
       `[${networkName}] No Safe transactions with schedule data found`
     )
-    return { readyOperations: [], totalPendingCount: 0 }
+    return {
+      readyOperations: [],
+      totalPendingCount: 0,
+      notScheduledOperations: [],
+    }
   }
 
   consola.info(
@@ -663,6 +686,12 @@ async function getPendingOperations(
   )
 
   const readyOperations = []
+  const notScheduledOperations: Array<{
+    operationId: string
+    transactionId: string
+    safeTxHash: string
+    executionHash?: string
+  }> = []
   const { client, pendingTransactions } = await getSafeMongoCollection()
 
   try {
@@ -728,11 +757,24 @@ async function getPendingOperations(
 
           if (!isOperation) {
             consola.error(
-              `[${networkName}] ❌ Operation ${opId} does not exist on-chain! The timelock transaction was never scheduled. Transaction ID: ${tx._id}`
+              `[${networkName}] ❌ Operation ${opId} does not exist on-chain! The timelock transaction was never scheduled.`
             )
+            consola.error(`[${networkName}]    MongoDB ID: ${tx._id}`)
+            consola.error(`[${networkName}]    Safe Tx Hash: ${tx.safeTxHash}`)
+            if (tx.executionHash)
+              consola.error(
+                `[${networkName}]    Execution Hash: ${tx.executionHash}`
+              )
+
             consola.error(
               `[${networkName}]    This Safe transaction needs to be re-executed to schedule it in the timelock.`
             )
+            notScheduledOperations.push({
+              operationId: opId,
+              transactionId: tx._id.toString(),
+              safeTxHash: tx.safeTxHash,
+              executionHash: tx.executionHash,
+            })
             continue
           }
         }
@@ -834,7 +876,22 @@ async function getPendingOperations(
     } ${operationAction}`
   )
 
-  return { readyOperations, totalPendingCount: safeTxs.length }
+  // Send Slack notification for not-scheduled operations if any were found
+  if (notScheduledOperations.length > 0 && slackNotifier)
+    try {
+      await slackNotifier.notifyNotScheduled(
+        networkName,
+        notScheduledOperations
+      )
+    } catch (error) {
+      consola.warn('Failed to send not-scheduled notification:', error)
+    }
+
+  return {
+    readyOperations,
+    totalPendingCount: safeTxs.length,
+    notScheduledOperations,
+  }
 }
 
 async function executeOperation(
