@@ -341,7 +341,7 @@ contract EcoFacetTest is TestBaseFacet {
         // For Solana, the route structure is different (CalldataWithAccounts)
         // Route validation is skipped for non-EVM chains, so any valid route data works
         bytes
-            memory solanaEncodedRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+            memory solanaEncodedRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
 
         // Mock Solana address (base58 encoded address in bytes)
         bytes memory solanaAddress = hex"11111111111111111111111111111111";
@@ -738,7 +738,7 @@ contract EcoFacetTest is TestBaseFacet {
 
         // Create an invalid route without proper transfer call
         bytes
-            memory invalidTronRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+            memory invalidTronRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
