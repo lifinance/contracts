@@ -4,12 +4,13 @@ pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
 import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InformationMismatch, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
     constructor(IEcoPortal _portal) EcoFacet(_portal) {}
@@ -89,8 +90,59 @@ contract EcoFacetTest is TestBaseFacet {
             ? NATIVE_SOLVER_REWARD
             : TOKEN_SOLVER_REWARD;
 
-        // Create mock encoded route data for all chains
-        bytes memory mockEncodedRoute = hex"0102030405060708090a0b0c0d0e0f10";
+        // For EVM chains, create a route that ends with an ERC20 transfer call
+        // The last 68 bytes should be: selector (4) + address (32) + amount (32)
+        bytes memory transferCall = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            USER_RECEIVER,
+            bridgeData.minAmount
+        );
+
+        // Create a realistic route structure similar to actual Eco routes (~608 bytes)
+        // Build in chunks to avoid stack too deep
+
+        // Part 1: Initial metadata and offsets
+        bytes memory part1 = abi.encodePacked(
+            bytes32(uint256(0x20)), // Offset pointer
+            bytes32(keccak256("eco.route.verification")), // Route hash
+            uint64(block.timestamp + 1 days), // Deadline
+            address(PORTAL), // Portal address
+            bytes32(0), // Padding
+            bytes32(uint256(0xc0)), // Array offset
+            bytes32(uint256(0x120)) // Calldata offset
+        );
+
+        // Part 2: Token and amount data
+        bytes memory part2 = abi.encodePacked(
+            bytes32(uint256(1)), // Array length
+            address(bridgeData.sendingAssetId), // Token address
+            bytes12(0), // Padding
+            bytes32(uint256(bridgeData.minAmount)), // Amount
+            bytes32(uint256(1)), // Counter
+            bytes32(uint256(0x20)), // Internal offset
+            address(bridgeData.sendingAssetId) // Token repeated
+        );
+
+        // Part 3: More routing metadata
+        bytes memory part3 = abi.encodePacked(
+            bytes12(0), // Padding for alignment
+            bytes32(uint256(0x60)), // Calldata offset
+            bytes32(0), // Reserved
+            bytes32(keccak256("route.path")), // Route identifier
+            bytes32(uint256(block.timestamp)), // Timestamp
+            bytes32(uint256(0x44)), // Length
+            bytes32(keccak256("eco.protocol.v1")), // Version
+            bytes32(0), // Padding
+            bytes32(0) // Extra padding
+        );
+
+        // Combine all parts with the transfer call at the end
+        bytes memory encodedRoute = abi.encodePacked(
+            part1,
+            part2,
+            part3,
+            transferCall // Transfer at the end (68 bytes)
+        );
 
         return
             EcoFacet.EcoData({
@@ -99,7 +151,7 @@ contract EcoFacetTest is TestBaseFacet {
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
                 solverReward: solverReward,
-                encodedRoute: mockEncodedRoute // Required for all chains now
+                encodedRoute: encodedRoute
             });
     }
 
@@ -278,7 +330,7 @@ contract EcoFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(USER_RECEIVER), 0);
     }
 
-    // Test Solana bridging
+    // Test Solana bridging - route validation is skipped for non-EVM chains
     function test_BridgeToSolanaWithEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
@@ -286,8 +338,10 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
         bridgeData.receiver = NON_EVM_ADDRESS; // Must use NON_EVM_ADDRESS for Solana
 
-        // Create Borsh-encoded route (mock data for testing)
-        bytes memory borshEncodedRoute = hex"0102030405060708090a0b0c0d0e0f10";
+        // For Solana, the route structure is different (CalldataWithAccounts)
+        // Route validation is skipped for non-EVM chains, so any valid route data works
+        bytes
+            memory solanaEncodedRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
 
         // Mock Solana address (base58 encoded address in bytes)
         bytes memory solanaAddress = hex"11111111111111111111111111111111";
@@ -297,8 +351,8 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD, // Use TOKEN_SOLVER_REWARD for consistency
-            encodedRoute: borshEncodedRoute
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: solanaEncodedRoute
         });
 
         // Approve USDC
@@ -331,8 +385,19 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
         bridgeData.receiver = USER_RECEIVER; // Can use regular address for Tron
 
-        // Create mock encoded route data
-        bytes memory mockEncodedRoute = hex"0102030405060708090a0b0c0d0e0f10";
+        // Tron uses EVM-compatible transfer encoding
+        // Create a route that ends with an ERC20 transfer call
+        bytes memory transferCall = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            USER_RECEIVER,
+            bridgeData.minAmount
+        );
+
+        bytes memory tronEncodedRoute = abi.encodePacked(
+            bytes32(0), // Some prefix data
+            uint256(0), // Additional data
+            transferCall // Transfer at the end (last 68 bytes)
+        );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
@@ -340,7 +405,7 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: mockEncodedRoute // Now required for Tron too
+            encodedRoute: tronEncodedRoute // Tron requires ERC20 transfer format
         });
 
         // Approve USDC
@@ -353,7 +418,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        // Execute bridge
+        // Execute bridge - route validation will check the transfer
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -494,13 +559,21 @@ contract EcoFacetTest is TestBaseFacet {
         ILiFi.BridgeData memory boundaryBridgeData = bridgeData;
         boundaryBridgeData.destinationChainId = type(uint64).max;
 
+        // For EVM chains, we need a proper transfer call at the end
+        bytes memory transferCall = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            USER_RECEIVER,
+            bridgeData.minAmount
+        );
+        bytes memory validRoute = abi.encodePacked(bytes32(0), transferCall);
+
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
             nonEVMReceiver: bytes(""),
             prover: address(0),
             rewardDeadline: 0,
             solverReward: NATIVE_SOLVER_REWARD,
-            encodedRoute: bytes("test_route")
+            encodedRoute: validRoute
         });
 
         // Fund the user with native tokens
@@ -514,6 +587,211 @@ contract EcoFacetTest is TestBaseFacet {
         ecoFacet.startBridgeTokensViaEco{
             value: bridgeData.minAmount + NATIVE_SOLVER_REWARD
         }(boundaryBridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // Test that EVM chains MUST have a transfer call at the end of the route
+    function testRevert_EVMChainWithoutTransferCall() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up for an EVM chain
+        bridgeData.destinationChainId = 10; // Optimism
+
+        // Create a route without a transfer call (just random data)
+        bytes
+            memory invalidRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445";
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: invalidRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Should revert because EVM chains MUST have a transfer call
+        vm.expectRevert(InvalidCallData.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // Test that EVM chains with wrong function selector fail
+    function testRevert_EVMChainWithWrongSelector() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = 10; // Optimism
+
+        // Create a route with approve selector instead of transfer
+        bytes memory wrongSelectorRoute = abi.encodePacked(
+            bytes32(0), // Some prefix data
+            abi.encodeWithSelector(
+                IERC20.approve.selector, // Wrong selector!
+                USER_RECEIVER,
+                defaultUSDCAmount
+            )
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: wrongSelectorRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Should revert because it's not a transfer call
+        vm.expectRevert(InvalidCallData.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // Test that EVM chains with mismatched receiver fail
+    function testRevert_EVMChainWithMismatchedReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = 10; // Optimism
+
+        // Create a route with transfer to wrong address
+        address wrongRecipient = address(0x9999);
+        bytes memory mismatchedRoute = abi.encodePacked(
+            bytes32(0), // Some prefix data
+            abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                wrongRecipient, // Different from USER_RECEIVER!
+                defaultUSDCAmount
+            )
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: mismatchedRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Should revert because receiver doesn't match
+        vm.expectRevert(InformationMismatch.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // Test that route too short for transfer call fails
+    function testRevert_RouteTooShortForTransfer() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = 10; // Optimism
+
+        // Create a route that's too short (< 68 bytes)
+        bytes memory tooShortRoute = hex"a9059cbb"; // Only selector, missing params
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: tooShortRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Should revert because route is too short
+        vm.expectRevert(InvalidCallData.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // Test that Tron (which uses EVM patterns) also requires valid transfer
+    function testRevert_TronWithInvalidRoute() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data for Tron
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = USER_RECEIVER;
+
+        // Create an invalid route without proper transfer call
+        bytes
+            memory invalidTronRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: invalidTronRoute // Missing transfer call
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Should revert because Tron also requires transfer call
+        vm.expectRevert(InvalidCallData.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // Test successful validation with correct transfer at end
+    function test_ValidEVMRouteWithCorrectTransfer() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = 10; // Optimism
+
+        // Use the exact route from the trace but replace the transfer at the end
+        // Original route from trace (608 bytes total, last 68 bytes are the transfer)
+        bytes
+            memory validRoute = hex"00000000000000000000000000000000000000000000000000000000000000209b84721cc353d18473dfbf398f2885f561df5939f638119c47f05dfec6609afb0000000000000000000000000000000000000000000000000000000068cab7040000000000000000000000002b7f87a98707e6d19504293f6680498731272d4f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000004bd61000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044a9059cbb0000000000000000000000000000000000000000000000000000000abc6543210000000000000000000000000000000000000000000000000000000005f5e100";
+        // Last 68 bytes replaced: transfer(USER_RECEIVER, defaultUSDCAmount)
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: validRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Should succeed - valid route with matching receiver
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }

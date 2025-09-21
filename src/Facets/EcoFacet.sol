@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InformationMismatch, InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -230,7 +230,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     function _validateEcoData(
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
-    ) private pure {
+    ) private view {
         // encodedRoute is required for all chains
         if (_ecoData.encodedRoute.length == 0) {
             revert InvalidConfig();
@@ -251,6 +251,70 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ) {
             revert InformationMismatch();
         }
+
+        // Validate that the route sends to the correct receiver
+        _validateRouteReceiver(_bridgeData, _ecoData);
+    }
+
+    function _validateRouteReceiver(
+        ILiFi.BridgeData memory _bridgeData,
+        EcoData calldata _ecoData
+    ) private view {
+        // Skip validation for NON_EVM_ADDRESS as it uses nonEVMReceiver
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            return;
+        }
+
+        // For EVM and EVM-compatible chains (including Tron),
+        // the route MUST end with an ERC20 transfer call
+        if (_isEVMChain(_bridgeData.destinationChainId)) {
+            uint256 routeLength = _ecoData.encodedRoute.length;
+
+            // Route must be at least 68 bytes to contain a transfer call
+            // 4 bytes selector + 32 bytes address + 32 bytes amount = 68 bytes
+            if (routeLength < 68) {
+                revert InvalidCallData();
+            }
+
+            // Extract the last 68 bytes which MUST be the transfer call
+            uint256 transferOffset = routeLength - 68;
+
+            // Verify the selector at the transfer offset position
+            bytes4 selector = bytes4(
+                _ecoData.encodedRoute[transferOffset:transferOffset + 4]
+            );
+            if (selector != bytes4(0xa9059cbb)) {
+                revert InvalidCallData();
+            }
+
+            // Extract and decode the recipient address (next 32 bytes after selector)
+            // The address is padded to 32 bytes in the ABI encoding
+            address decodedReceiver = address(
+                uint160(
+                    bytes20(
+                        _ecoData.encodedRoute[transferOffset +
+                            16:transferOffset + 36]
+                    )
+                )
+            );
+
+            // The decoded receiver MUST match the bridge data receiver
+            if (decodedReceiver != _bridgeData.receiver) {
+                revert InformationMismatch();
+            }
+        }
+        // For truly non-EVM chains (only Solana), no route validation
+        // Solana uses a different encoding (CalldataWithAccounts) that requires specific handling
+    }
+
+    function _isEVMChain(uint256 chainId) private view returns (bool) {
+        // Only Solana is truly non-EVM
+        // Tron uses EVM-compatible contracts and transfer patterns
+        if (chainId == LIFI_CHAIN_ID_SOLANA) {
+            return false;
+        }
+        // Tron and other chains use EVM-compatible transfer encoding
+        return true;
     }
 
     function _emitEvents(
