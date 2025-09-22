@@ -70,10 +70,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        // Validate eco-specific data before depositing
         _validateEcoData(_bridgeData, _ecoData);
 
-        // For ERC20, we need to deposit the full amount including reward
+        // For ERC20, deposit includes the solver reward
         uint256 depositAmount = _bridgeData.minAmount;
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             depositAmount += _ecoData.solverReward;
@@ -101,11 +100,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         validateBridgeData(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        // Validate eco-specific data before swapping
         _validateEcoData(_bridgeData, _ecoData);
 
-        // For ERC20 tokens, we need to reserve the solver reward from the swapped amount
-        // Only pass native fee reservation if the final asset is native
+        // Reserve native fee if the final asset is native
         uint256 nativeFeeAmount = LibAsset.isNativeAsset(
             _bridgeData.sendingAssetId
         )
@@ -120,8 +117,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             nativeFeeAmount
         );
 
-        // For ERC20 tokens, the swap result includes the solver reward
-        // We need to subtract it to get the actual bridge amount
+        // For ERC20, subtract solver reward from swap result to get bridge amount
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             _bridgeData.minAmount =
                 _bridgeData.minAmount -
@@ -136,17 +132,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     function _getEcoChainId(
         uint256 _lifiChainId
     ) private pure returns (uint64) {
-        // Map LiFi Tron chain ID to Eco protocol Tron chain ID
         if (_lifiChainId == LIFI_CHAIN_ID_TRON) {
             return ECO_CHAIN_ID_TRON;
         }
-        // Map LiFi Solana chain ID to Eco protocol Solana chain ID
         if (_lifiChainId == LIFI_CHAIN_ID_SOLANA) {
             return ECO_CHAIN_ID_SOLANA;
         }
 
-        // For EVM chains, ensure the chain ID fits within uint64 bounds
-        // Most EVM chain IDs are well below this limit, but we check to be safe
+        // Ensure chain ID fits within uint64
         if (_lifiChainId > type(uint64).max) {
             revert InvalidConfig();
         }
@@ -185,11 +178,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
-        // Calculate values once
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 totalAmount = _bridgeData.minAmount + _ecoData.solverReward;
 
-        // Build reward for the intent
         IEcoPortal.Reward memory reward = _buildReward(
             _bridgeData,
             _ecoData,
@@ -197,10 +188,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             totalAmount
         );
 
-        // Get the destination chain ID in Eco format
         uint64 destination = _getEcoChainId(_bridgeData.destinationChainId);
 
-        // Prepare token approval if needed for ERC20 tokens
         if (!isNative) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
@@ -209,14 +198,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             );
         }
 
-        /// @dev IMPORTANT LIMITATION: For ERC20 tokens, positive slippage from pre-bridge swaps
-        /// may be lost in the diamond. The intent input amount is encoded in encodedRoute and we only
-        /// pass the reward amount separately. While native token positive slippage is handled by sending
-        /// more funds, ERC20 positive slippage cannot be captured with the current implementation.
-        /// This is a known limitation that can be significant when bridging large amounts.
-        /// Users should be aware that they may not receive positive slippage benefits for ERC20 swaps.
+        /// @dev For ERC20 tokens, positive slippage from pre-bridge swaps may be lost in the diamond.
+        /// The intent amount is encoded in the route and we only pass the reward separately.
+        /// Native token positive slippage is handled by sending more value.
 
-        // Publish and fund the intent with encoded route
         PORTAL.publishAndFund{ value: isNative ? totalAmount : 0 }(
             destination,
             _ecoData.encodedRoute,
@@ -231,12 +216,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) private pure {
-        // encodedRoute is required for all chains
+        // encodedRoute is required
         if (_ecoData.encodedRoute.length == 0) {
             revert InvalidConfig();
         }
 
-        // Validation for NON_EVM_ADDRESS receiver
+        // NON_EVM_ADDRESS requires nonEVMReceiver
         if (
             _bridgeData.receiver == NON_EVM_ADDRESS &&
             _ecoData.nonEVMReceiver.length == 0
@@ -244,7 +229,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidReceiver();
         }
 
-        // For standard receivers, check address match
+        // Validate address match for standard receivers
         if (
             _bridgeData.receiver != NON_EVM_ADDRESS &&
             _bridgeData.receiver != _ecoData.receiverAddress
@@ -252,7 +237,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InformationMismatch();
         }
 
-        // Validate that the route sends to the correct receiver
         _validateRouteReceiver(_bridgeData, _ecoData);
     }
 
@@ -260,25 +244,21 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) private pure {
-        // Skip validation for NON_EVM_ADDRESS as it uses nonEVMReceiver
+        // Skip validation for NON_EVM_ADDRESS
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             return;
         }
 
-        // For EVM and EVM-compatible chains (including Tron),
-        // the route MUST end with an ERC20 transfer call
+        // For EVM chains, validate the embedded transfer call
         if (_isEVMChain(_bridgeData.destinationChainId)) {
             address decodedReceiver = _extractEVMReceiverFromRoute(
                 _ecoData.encodedRoute
             );
 
-            // The decoded receiver MUST match the bridge data receiver
             if (decodedReceiver != _bridgeData.receiver) {
                 revert InformationMismatch();
             }
         }
-        // For truly non-EVM chains (only Solana), no route validation
-        // Solana uses a different encoding (CalldataWithAccounts) that requires specific handling
     }
 
     function _extractEVMReceiverFromRoute(
@@ -286,16 +266,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ) internal pure returns (address) {
         uint256 routeLength = encodedRoute.length;
 
-        // Route must be at least 68 bytes to contain a transfer call
-        // 4 bytes selector + 32 bytes address + 32 bytes amount = 68 bytes
+        // Route must be at least 68 bytes: 4 (selector) + 32 (address) + 32 (amount)
         if (routeLength < 68) {
             revert InvalidCallData();
         }
 
-        // Extract the last 68 bytes which MUST be the transfer call
         uint256 transferOffset = routeLength - 68;
 
-        // Verify the selector at the transfer offset position
+        // Verify transfer selector (0xa9059cbb)
         bytes4 selector = bytes4(
             encodedRoute[transferOffset:transferOffset + 4]
         );
@@ -303,8 +281,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidCallData();
         }
 
-        // Extract and decode the recipient address (next 32 bytes after selector)
-        // The address is padded to 32 bytes in the ABI encoding
+        // Extract recipient address (skip 4 bytes selector + 12 bytes padding)
         return
             address(
                 uint160(
@@ -316,12 +293,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     }
 
     function _isEVMChain(uint256 chainId) private pure returns (bool) {
-        // Only Solana is truly non-EVM
-        // Tron uses EVM-compatible contracts and transfer patterns
+        // Solana uses different encoding (CalldataWithAccounts)
         if (chainId == LIFI_CHAIN_ID_SOLANA) {
             return false;
         }
-        // Tron and other chains use EVM-compatible transfer encoding
         return true;
     }
 

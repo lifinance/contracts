@@ -186,7 +186,7 @@ contract EcoFacetTest is TestBaseFacet {
         }
     }
 
-    function testRevert_WhenUsingInvalidConfig() public {
+    function testRevert_whenUsingInvalidConfig() public {
         vm.expectRevert(InvalidConfig.selector);
         new EcoFacet(IEcoPortal(address(0)));
     }
@@ -330,16 +330,14 @@ contract EcoFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(USER_RECEIVER), 0);
     }
 
-    // Test Solana bridging - route validation is skipped for non-EVM chains
-    function test_BridgeToSolanaWithEncodedRoute() public {
+    function test_bridgeToSolanaWithEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Solana
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
         bridgeData.receiver = NON_EVM_ADDRESS; // Must use NON_EVM_ADDRESS for Solana
 
-        // For Solana, the route structure is different (CalldataWithAccounts)
-        // Route validation is skipped for non-EVM chains, so any valid route data works
+        // Solana uses CalldataWithAccounts encoding
         bytes
             memory solanaEncodedRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
 
@@ -378,7 +376,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_BridgeToTron() public {
+    function test_bridgeToTron() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Tron
@@ -424,7 +422,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_WithoutEncodedRoute() public {
+    function testRevert_withoutEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Test with any destination chain
@@ -451,7 +449,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
+    function testRevert_invalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
         public
     {
         // Test for InvalidReceiver error when NON_EVM_ADDRESS is set but nonEVMReceiver is empty
@@ -485,7 +483,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_InformationMismatch_ReceiverAddressMismatch() public {
+    function testRevert_informationMismatch_ReceiverAddressMismatch() public {
         // Test for InformationMismatch error when receiver addresses don't match
         vm.startPrank(USER_SENDER);
 
@@ -519,7 +517,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_ChainIdExceedsUint64Max() public {
+    function testRevert_chainIdExceedsUint64Max() public {
         vm.startPrank(USER_SENDER);
 
         // Setup bridge data with a chain ID that exceeds uint64.max
@@ -552,7 +550,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_ChainIdAtUint64Boundary() public {
+    function test_chainIdAtUint64Boundary() public {
         vm.startPrank(USER_SENDER);
 
         // Additional test: Verify that exactly uint64.max works correctly
@@ -591,8 +589,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    // Test that EVM chains MUST have a transfer call at the end of the route
-    function testRevert_EVMChainWithoutTransferCall() public {
+    function testRevert_evmChainWithoutTransferCall() public {
         vm.startPrank(USER_SENDER);
 
         // Set up for an EVM chain
@@ -616,15 +613,13 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        // Should revert because EVM chains MUST have a transfer call
         vm.expectRevert(InvalidCallData.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }
 
-    // Test that EVM chains with wrong function selector fail
-    function testRevert_EVMChainWithWrongSelector() public {
+    function testRevert_evmChainWithWrongSelector() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -653,15 +648,13 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        // Should revert because it's not a transfer call
         vm.expectRevert(InvalidCallData.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }
 
-    // Test that EVM chains with mismatched receiver fail
-    function testRevert_EVMChainWithMismatchedReceiver() public {
+    function testRevert_evmChainWithMismatchedReceiver() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -691,15 +684,13 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        // Should revert because receiver doesn't match
         vm.expectRevert(InformationMismatch.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }
 
-    // Test that route too short for transfer call fails
-    function testRevert_RouteTooShortForTransfer() public {
+    function testRevert_routeTooShortForTransfer() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -721,15 +712,13 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        // Should revert because route is too short
         vm.expectRevert(InvalidCallData.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }
 
-    // Test that Tron (which uses EVM patterns) also requires valid transfer
-    function testRevert_TronWithInvalidRoute() public {
+    function testRevert_tronWithInvalidRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Tron
@@ -754,15 +743,13 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        // Should revert because Tron also requires transfer call
         vm.expectRevert(InvalidCallData.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }
 
-    // Test successful validation with correct transfer at end
-    function test_ValidEVMRouteWithCorrectTransfer() public {
+    function test_validEVMRouteWithCorrectTransfer() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -787,7 +774,6 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        // Should succeed - valid route with matching receiver
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
