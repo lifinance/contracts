@@ -1117,12 +1117,7 @@ contract Permit2ProxyTest is TestBase {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, permitDigest);
 
         // Add delegation prefix 0xef0100 to indicate this is a delegated EOA signature
-        bytes memory signatureWithPrefix = abi.encodePacked(
-            bytes3(0xef0100),
-            r,
-            s,
-            v
-        );
+        bytes memory signatureWithPrefix = abi.encodePacked(r, s, v);
 
         // Get diamond calldata
         bytes memory diamondCalldata = _getCalldataForBridging();

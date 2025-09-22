@@ -93,13 +93,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Use helper function to handle permit
-        _handleEOAPermit(
-            tokenAddress,
-            amount,
-            deadline,
-            signature,
-            false // Not delegated EOA
-        );
+        _handleEOAPermit(tokenAddress, amount, deadline, signature);
 
         // deposit assets
         LibAsset.transferFromERC20(
@@ -134,20 +128,10 @@ contract Permit2Proxy is WithdrawablePeriphery {
         // Check deadline
         if (block.timestamp > deadline) revert InvalidSignature();
 
-        // Check for delegated EOA signature prefix (0xef0100)
-        bool isDelegatedEOA = signature.length == 68 &&
-            bytes3(signature) == 0xef0100;
-
         // Determine if we should use EOA or smart contract path
-        if (msg.sender.code.length == 0 || isDelegatedEOA) {
+        if (!LibAsset.isContract(msg.sender)) {
             // EOA path - handle permit
-            _handleEOAPermit(
-                tokenAddress,
-                amount,
-                deadline,
-                signature,
-                isDelegatedEOA
-            );
+            _handleEOAPermit(tokenAddress, amount, deadline, signature);
         } else {
             // Smart contract wallet path - handle EIP-1271
             _handleEIP1271(
@@ -295,24 +279,10 @@ contract Permit2Proxy is WithdrawablePeriphery {
         address tokenAddress,
         uint256 amount,
         uint256 deadline,
-        bytes memory signature,
-        bool isDelegatedEOA
+        bytes memory signature
     ) internal {
-        bytes memory actualSignature;
-
-        // Handle delegated signature by stripping prefix
-        if (isDelegatedEOA) {
-            // Skip the 3-byte prefix and extract the 65-byte signature
-            actualSignature = new bytes(65);
-            for (uint256 i = 0; i < 65; i++) {
-                actualSignature[i] = signature[i + 3];
-            }
-        } else {
-            actualSignature = signature;
-        }
-
         // Validate signature length
-        if (actualSignature.length != 65) revert InvalidSignature();
+        if (signature.length != 65) revert InvalidSignature();
 
         // Extract r, s, v from packed signature
         bytes32 r;
@@ -320,9 +290,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
         uint8 v;
 
         assembly {
-            r := mload(add(actualSignature, 0x20))
-            s := mload(add(actualSignature, 0x40))
-            v := byte(0, mload(add(actualSignature, 0x60)))
+            r := mload(add(signature, 0x20))
+            s := mload(add(signature, 0x40))
+            v := byte(0, mload(add(signature, 0x60)))
         }
 
         // Call permit
