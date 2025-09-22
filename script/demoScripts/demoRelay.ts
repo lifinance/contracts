@@ -361,31 +361,34 @@ const main = async () => {
   console.log("sigResp")
   console.log(sigResp)
   const sigData = await sigResp.json()
+  console.log("sigData")
   console.log(sigData)
 
-  // const bridgeData = {
-  //   transactionId: utils.randomBytes(32),
-  //   bridge: 'Relay',
-  //   integrator: 'ACME Devs',
-  //   referrer: '0x0000000000000000000000000000000000000000',
-  //   sendingAssetId: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-  //   receiver: suiRandomReceiver,
-  //   minAmount: '500000',
-  //   destinationChainId: 9270000000000000, // SUI
-  //   hasSourceSwaps: false,
-  //   hasDestinationCall: false,
-  // }
+  const bridgeData = {
+    transactionId: utils.randomBytes(32),
+    bridge: 'Relay',
+    integrator: 'ACME Devs',
+    referrer: '0x0000000000000000000000000000000000000000',
+    sendingAssetId: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    receiver: '0x11f111f111f111F111f111f111F111f111f111F1', // Non-EVM address
+    minAmount: '500000',
+    destinationChainId: "9270000000000000", // SUI
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
+  }
 
-  // const relayData = {
-  //   requestId,
-  //   nonEVMReceiver: `0x${new PublicKey(suiRandomReceiver)
-  //     .toBuffer()
-  //     .toString('hex')}`,
-  //   receivingAssetId: `0x${new PublicKey(suiUSDC)
-  //     .toBuffer()
-  //     .toString('hex')}`,
-  //   signature: sigData.signature,
-  // }
+  console.log("bridgeData")
+  console.log(bridgeData)
+
+  const relayData = {
+    requestId,
+    nonEVMReceiver: ethers.utils.hexZeroPad(
+      suiRandomReceiver,
+      32
+    ),
+    receivingAssetId: suiUSDC,
+    signature: sigData.signature,
+  }
 
   // console.info('Dev Wallet Address: ', address)
   // console.info('Approving USDC...')
@@ -393,11 +396,13 @@ const main = async () => {
   // await tx.wait()
   // console.info('Approved USDC')
   // console.info('Bridging USDC...')
-  // tx = await relay
-  //   .connect(signer)
-  //   .startBridgeTokensViaRelay(bridgeData, relayData)
-  // await tx.wait()
-  // console.info('Bridged USDC')
+  tx = await relay
+    .connect(signer)
+    .startBridgeTokensViaRelay(bridgeData, relayData)
+  console.log("tx")
+  console.log(tx.hash)
+  await tx.wait()
+  console.info('Bridged USDC')
 }
 
 main()
