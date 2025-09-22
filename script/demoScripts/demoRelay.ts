@@ -315,9 +315,15 @@ const main = async () => {
   // await tx.wait()
   // console.info('Bridged USDC')
 
-  const suiUSDC = '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
-  const suiRandomReceiver = '0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331'
-  
+  /// === BRIDGE TO SUI ===
+  /// Success tx: https://arbiscan.io/tx/0x82e067d09e240805c1a2745e4119077af0c0281b04ca27808fa6cf95307e097b
+  /// Relay explorer: https://relay.link/transaction/0x3b2a172ac09209eb32d6c2042757eaf61eeb9be5c63b33891a23822cd31c362e
+
+  const suiUSDC =
+    '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC'
+  const suiRandomReceiver =
+    '0x102fec3799bcae8f987a023f52c468156ebca136bdaa32bc148669027a5cbc98'
+  const usdcAmount = '500000'
   const params = {
     user: deployments.LiFiDiamond,
     originChainId: 42161,
@@ -326,12 +332,11 @@ const main = async () => {
     destinationCurrency: suiUSDC,
     recipient: suiRandomReceiver,
     tradeType: 'EXACT_INPUT',
-    amount: '1000000',
+    amount: usdcAmount,
     referrer: 'relay.link/swap',
     useExternalLiquidity: false,
   }
   console.log(params)
-
 
   const resp = await fetch('https://api.relay.link/quote', {
     method: 'POST',
@@ -344,11 +349,11 @@ const main = async () => {
   console.log(quote)
   const requestId = quote.steps[0].requestId
 
-  console.log("requestId")
-  console.log("requestId")
-  console.log("requestId")
-  console.log("requestId")
-  console.log("requestId")
+  console.log('requestId')
+  console.log('requestId')
+  console.log('requestId')
+  console.log('requestId')
+  console.log('requestId')
   console.log(requestId)
   console.log(requestId)
   console.log(requestId)
@@ -358,10 +363,10 @@ const main = async () => {
     `https://api.relay.link/requests/${requestId}/signature/v2`,
     { headers: { 'Content-Type': 'application/json' } }
   )
-  console.log("sigResp")
+  console.log('sigResp')
   console.log(sigResp)
   const sigData = await sigResp.json()
-  console.log("sigData")
+  console.log('sigData')
   console.log(sigData)
 
   const bridgeData = {
@@ -371,35 +376,40 @@ const main = async () => {
     referrer: '0x0000000000000000000000000000000000000000',
     sendingAssetId: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     receiver: '0x11f111f111f111F111f111f111F111f111f111F1', // Non-EVM address
-    minAmount: '500000',
-    destinationChainId: "9270000000000000", // SUI
+    minAmount: usdcAmount,
+    destinationChainId: '9270000000000000', // SUI
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
 
-  console.log("bridgeData")
+  console.log('bridgeData')
   console.log(bridgeData)
 
   const relayData = {
     requestId,
-    nonEVMReceiver: ethers.utils.hexZeroPad(
-      suiRandomReceiver,
-      32
-    ),
-    receivingAssetId: suiUSDC,
+    nonEVMReceiver: suiRandomReceiver,
+    receivingAssetId: suiUSDC.substring(0, 66), // take first 66 characters (32 bytes) - there is no documentation on this, Relay team said to do this "We take the first 32 bytes of the currency when we generate the signature"
     signature: sigData.signature,
   }
 
-  // console.info('Dev Wallet Address: ', address)
-  // console.info('Approving USDC...')
-  // tx = await token.connect(signer).approve(LIFI_ADDRESS, '500000')
-  // await tx.wait()
-  // console.info('Approved USDC')
-  // console.info('Bridging USDC...')
+  const balance = await token.balanceOf(address)
+  console.log('USDC Balance:', ethers.utils.formatUnits(balance, 6), 'USDC')
+
+  if (balance.lt(ethers.BigNumber.from(usdcAmount))) {
+    console.log('Insufficient USDC balance!')
+    return
+  }
+
+  console.info('Dev Wallet Address: ', address)
+  console.info('Approving USDC...')
+  tx = await token.connect(signer).approve(LIFI_ADDRESS, usdcAmount)
+  await tx.wait()
+  console.info('Approved USDC')
+  console.info('Bridging USDC...')
   tx = await relay
     .connect(signer)
     .startBridgeTokensViaRelay(bridgeData, relayData)
-  console.log("tx")
+  console.log('tx')
   console.log(tx.hash)
   await tx.wait()
   console.info('Bridged USDC')
