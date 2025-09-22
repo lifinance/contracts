@@ -3,7 +3,7 @@
 ## Description
 
 Periphery contract which enables gasless and semi-gasless transaction flows
-enabled through ERC20 Permit and Uniswap's Permit2
+enabled through ERC20 Permit, EIP-1271, and Uniswap's Permit2
 
 ## How To Use
 
@@ -37,8 +37,31 @@ function callDiamondWithEIP2612Signature(
     bytes32 r,
     bytes32 s,
     bytes calldata diamondCalldata
-) public payable 
-````
+) public payable
+```
+
+This method supports both EOAs and smart contract wallets. EOAs use EIP-2612
+permit signatures while smart contracts use EIP-1271 signature validation.
+It also supports delegated EOA signatures with the 0xef0100 prefix.
+
+```solidity
+/// @notice Allows both EOAs and smart contract wallets to bridge tokens
+///         through a LI.FI diamond contract. EOAs use EIP-2612 permit while smart contracts
+///         use EIP-1271 signature validation with pre-approved tokens. Also supports delegated
+///         EOA signatures with 0xef0100 prefix.
+/// @param tokenAddress Address of the token to be bridged
+/// @param amount Amount of tokens to be bridged
+/// @param deadline Transaction must be completed before this timestamp
+/// @param signature Packed signature bytes (r,s,v for EOAs, 0xef0100 + r,s,v for delegated EOAs, arbitrary format for smart contracts)
+/// @param diamondCalldata calldata to execute
+function callDiamondWithEIP2612Signature(
+    address tokenAddress,
+    uint256 amount,
+    uint256 deadline,
+    bytes calldata signature,
+    bytes calldata diamondCalldata
+) public payable
+```
 
 This method is used to execute a transaction where the approval is granted via
 Uniswap's Permit2 contract. It can only be called by the signer in order to
@@ -114,7 +137,7 @@ of nonces for use when generating Permit2 signatures.
 function nextNonce(address owner) external view returns (uint256 nonce)
 
 /// @notice Finds the next valid nonce for a user, after from a given nonce.
-/// @dev This can be helpful if you're signing multiple nonces in a row and 
+/// @dev This can be helpful if you're signing multiple nonces in a row and
 ///      need the next nonce to sign but the start one is still valid.
 /// @param owner The owner of the nonces
 /// @param start The nonce to start from
