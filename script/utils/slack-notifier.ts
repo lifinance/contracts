@@ -129,37 +129,6 @@ export class SlackNotifier {
   }
 
   /**
-   * Notify when batch processing starts
-   */
-  public async notifyBatchStart(networks: string[]): Promise<void> {
-    const message: ISlackMessage = {
-      text: '🚀 Timelock batch execution started',
-      blocks: [
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: '🚀 Timelock Batch Execution Started',
-          },
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*Networks to process:* ${
-              networks.length
-            }\n*Networks:* ${networks.join(
-              ', '
-            )}\n*Start time:* ${this.startTime.toISOString()}`,
-          },
-        },
-      ],
-    }
-
-    await this.sendNotificationWithRetry(message)
-  }
-
-  /**
    * Notify when an operation is successfully executed
    */
   public async notifyOperationExecuted(
@@ -480,46 +449,6 @@ export class SlackNotifier {
   }
 
   /**
-   * Notify when no operations are found for a network
-   */
-  public async notifyNoOperations(
-    network: string,
-    reason: 'no-pending' | 'no-ready' | 'no-timelock',
-    pendingCount?: number
-  ): Promise<void> {
-    let text = ''
-    switch (reason) {
-      case 'no-pending':
-        text = `✅ ${network}: No pending operations found`
-        break
-      case 'no-ready':
-        text = `⏰ ${network}: ${pendingCount} pending operations, none ready for execution`
-        break
-      case 'no-timelock':
-        text = `⚠️ ${network}: No timelock controller deployed`
-        break
-      default:
-        text = `${network}: Unknown status`
-        break
-    }
-
-    const message: ISlackMessage = {
-      text,
-      blocks: [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text,
-          },
-        },
-      ],
-    }
-
-    await this.sendNotificationWithRetry(message)
-  }
-
-  /**
    * Notify when operations were never scheduled in the timelock
    */
   public async notifyNotScheduled(
@@ -555,7 +484,7 @@ export class SlackNotifier {
     }
 
     // Add details for each not-scheduled operation
-    for (const op of operations) 
+    for (const op of operations)
       if (message.blocks) {
         let operationText = `• *Operation ID:* \`${this.truncateHash(
           op.operationId
@@ -563,11 +492,10 @@ export class SlackNotifier {
           op.transactionId
         }\`\n  *Safe Tx Hash:* \`${this.truncateHash(op.safeTxHash)}\``
 
-        if (op.executionHash) 
+        if (op.executionHash)
           operationText += `\n  *Execution Hash:* \`${this.truncateHash(
             op.executionHash
           )}\``
-        
 
         message.blocks.push({
           type: 'section',
@@ -577,7 +505,6 @@ export class SlackNotifier {
           },
         })
       }
-    
 
     if (message.blocks)
       message.blocks.push({
