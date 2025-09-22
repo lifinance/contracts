@@ -26824,6 +26824,21 @@
           }
         ]
       }
+    },
+    "flow": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xdB6010f6255a94E691289f6b7b75A5ebc4b41808",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-22 09:49:10",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "AmarokFacetPacked": {
