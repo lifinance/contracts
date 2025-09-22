@@ -10,7 +10,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { InvalidConfig, InvalidReceiver, InformationMismatch, InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
@@ -198,15 +198,11 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             );
         }
 
-        /// @dev For ERC20 tokens, positive slippage from pre-bridge swaps may be lost in the diamond.
-        /// The intent amount is encoded in the route and we only pass the reward separately.
-        /// Native token positive slippage is handled by sending more value.
-
         PORTAL.publishAndFund{ value: isNative ? totalAmount : 0 }(
             destination,
             _ecoData.encodedRoute,
             reward,
-            false // allowPartial
+            false
         );
 
         _emitEvents(_bridgeData, _ecoData);
@@ -216,20 +212,15 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) private pure {
-        // encodedRoute is required
         if (_ecoData.encodedRoute.length == 0) {
             revert InvalidConfig();
         }
-
-        // NON_EVM_ADDRESS requires nonEVMReceiver
         if (
             _bridgeData.receiver == NON_EVM_ADDRESS &&
             _ecoData.nonEVMReceiver.length == 0
         ) {
             revert InvalidReceiver();
         }
-
-        // Validate address match for standard receivers
         if (
             _bridgeData.receiver != NON_EVM_ADDRESS &&
             _bridgeData.receiver != _ecoData.receiverAddress
@@ -244,12 +235,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) private pure {
-        // Skip validation for NON_EVM_ADDRESS
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+                _validateSolanaReceiver(_ecoData);
+            }
             return;
         }
-
-        // For EVM chains, validate the embedded transfer call
         if (_isEVMChain(_bridgeData.destinationChainId)) {
             address decodedReceiver = _extractEVMReceiverFromRoute(
                 _ecoData.encodedRoute
@@ -261,27 +252,37 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         }
     }
 
+    function _validateSolanaReceiver(EcoData calldata _ecoData) private pure {
+        if (_ecoData.encodedRoute.length < 32) {
+            revert InvalidCallData();
+        }
+        bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[0:32]);
+        if (
+            _ecoData.nonEVMReceiver.length == 0 ||
+            _ecoData.nonEVMReceiver.length > 44
+        ) {
+            revert InvalidReceiver();
+        }
+        if (routeReceiver == bytes32(0)) {
+            revert InvalidReceiver();
+        }
+    }
+
     function _extractEVMReceiverFromRoute(
         bytes calldata encodedRoute
     ) internal pure returns (address) {
         uint256 routeLength = encodedRoute.length;
-
-        // Route must be at least 68 bytes: 4 (selector) + 32 (address) + 32 (amount)
         if (routeLength < 68) {
             revert InvalidCallData();
         }
 
         uint256 transferOffset = routeLength - 68;
-
-        // Verify transfer selector (0xa9059cbb)
         bytes4 selector = bytes4(
             encodedRoute[transferOffset:transferOffset + 4]
         );
         if (selector != bytes4(0xa9059cbb)) {
             revert InvalidCallData();
         }
-
-        // Extract recipient address (skip 4 bytes selector + 12 bytes padding)
         return
             address(
                 uint160(
@@ -293,7 +294,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     }
 
     function _isEVMChain(uint256 chainId) private pure returns (bool) {
-        // Solana uses different encoding (CalldataWithAccounts)
         if (chainId == LIFI_CHAIN_ID_SOLANA) {
             return false;
         }

@@ -3,14 +3,14 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
-import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { ERC20 } from "lib/solmate/src/tokens/ERC20.sol";
+import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import { LibAllowList } from "../../../src/Libraries/LibAllowList.sol";
+import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
+import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
+import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
+import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
+import { InvalidConfig, InvalidReceiver, InformationMismatch, InvalidCallData } from "../../../src/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
     constructor(IEcoPortal _portal) EcoFacet(_portal) {}
@@ -186,7 +186,7 @@ contract EcoFacetTest is TestBaseFacet {
         }
     }
 
-    function testRevert_whenUsingInvalidConfig() public {
+    function testRevert_WhenUsingInvalidConfig() public {
         vm.expectRevert(InvalidConfig.selector);
         new EcoFacet(IEcoPortal(address(0)));
     }
@@ -330,7 +330,7 @@ contract EcoFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(USER_RECEIVER), 0);
     }
 
-    function test_bridgeToSolanaWithEncodedRoute() public {
+    function test_BridgeToSolanaWithEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Solana
@@ -376,7 +376,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_bridgeToTron() public {
+    function test_BridgeToTron() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Tron
@@ -422,7 +422,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_withoutEncodedRoute() public {
+    function testRevert_WithoutEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Test with any destination chain
@@ -449,7 +449,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_invalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
+    function testRevert_InvalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
         public
     {
         // Test for InvalidReceiver error when NON_EVM_ADDRESS is set but nonEVMReceiver is empty
@@ -483,7 +483,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_informationMismatch_ReceiverAddressMismatch() public {
+    function testRevert_InformationMismatch_ReceiverAddressMismatch() public {
         // Test for InformationMismatch error when receiver addresses don't match
         vm.startPrank(USER_SENDER);
 
@@ -520,12 +520,17 @@ contract EcoFacetTest is TestBaseFacet {
     function testRevert_chainIdExceedsUint64Max() public {
         vm.startPrank(USER_SENDER);
 
-        // Setup bridge data with a chain ID that exceeds uint64.max
-        // This tests the overflow protection at line 150
         ILiFi.BridgeData memory overflowBridgeData = bridgeData;
         overflowBridgeData.destinationChainId = uint256(type(uint64).max) + 1;
-        overflowBridgeData.sendingAssetId = address(0); // native token
+        overflowBridgeData.sendingAssetId = address(0);
         overflowBridgeData.minAmount = 0.01 ether;
+
+        bytes memory transferCall = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            USER_RECEIVER,
+            overflowBridgeData.minAmount
+        );
+        bytes memory validRoute = abi.encodePacked(bytes32(0), transferCall);
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
@@ -533,16 +538,12 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0),
             rewardDeadline: 0,
             solverReward: NATIVE_SOLVER_REWARD,
-            encodedRoute: bytes("test_route")
+            encodedRoute: validRoute
         });
 
-        // Fund the user with native tokens
         vm.deal(USER_SENDER, 1 ether);
 
-        // Expect the transaction to revert with InvalidConfig error
         vm.expectRevert(InvalidConfig.selector);
-
-        // Attempt to bridge with the oversized chain ID using native tokens
         ecoFacet.startBridgeTokensViaEco{
             value: overflowBridgeData.minAmount + NATIVE_SOLVER_REWARD
         }(overflowBridgeData, ecoData);
@@ -550,7 +551,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_chainIdAtUint64Boundary() public {
+    function test_ChainIdAtUint64Boundary() public {
         vm.startPrank(USER_SENDER);
 
         // Additional test: Verify that exactly uint64.max works correctly
@@ -589,7 +590,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_evmChainWithoutTransferCall() public {
+    function testRevert_EvmChainWithoutTransferCall() public {
         vm.startPrank(USER_SENDER);
 
         // Set up for an EVM chain
@@ -619,7 +620,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_evmChainWithWrongSelector() public {
+    function testRevert_EvmChainWithWrongSelector() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -654,7 +655,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_evmChainWithMismatchedReceiver() public {
+    function testRevert_EvmChainWithMismatchedReceiver() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -690,7 +691,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_routeTooShortForTransfer() public {
+    function testRevert_RouteTooShortForTransfer() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -718,7 +719,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_tronWithInvalidRoute() public {
+    function testRevert_TronWithInvalidRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Set up bridge data for Tron
@@ -749,7 +750,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_validEVMRouteWithCorrectTransfer() public {
+    function test_ValidEVMRouteWithCorrectTransfer() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
@@ -777,6 +778,176 @@ contract EcoFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function test_SolanaRouteValidation_ValidRoute() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data for Solana
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        bytes
+            memory solanaRoute = hex"9e6c10e6d964ed8b7015b410e7049dc1450b4bdcda6976d16b98dab756c33c2fa54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7000000000000000001000000c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6164454c00000000000100000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a99b0000000a0000000c64454c0000000000060404000000dadaffa20d79347c07967829bb1a2fb4527985bb805d6e4e1bdaa132452b31630001c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6100008f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2000148c1d430876bafc918c7395041939a101ea72fead56b9ec8c4b8e5c7f76d363b000000"; // [pre-commit-checker: not a secret]
+
+        bytes
+            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a"; // [pre-commit-checker: not a secret]
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0),
+            nonEVMReceiver: solanaAddress,
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: solanaRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            solanaAddress
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaRouteValidation_EmptyNonEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        bytes
+            memory solanaRoute = hex"9e6c10e6d964ed8b7015b410e7049dc1450b4bdcda6976d16b98dab756c33c2fa54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7"; // [pre-commit-checker: not a secret]
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0),
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: solanaRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaRouteValidation_TooLongNonEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        bytes
+            memory solanaRoute = hex"9e6c10e6d964ed8b7015b410e7049dc1450b4bdcda6976d16b98dab756c33c2fa54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7"; // [pre-commit-checker: not a secret]
+
+        bytes memory tooLongAddress = new bytes(45);
+        for (uint256 i = 0; i < 45; i++) {
+            tooLongAddress[i] = bytes1(uint8(65 + (i % 26)));
+        }
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0),
+            nonEVMReceiver: tooLongAddress,
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: solanaRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaRouteValidation_RouteTooShort() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        bytes memory tooShortRoute = hex"9e6c10e6d964ed8b7015b410e7049dc1"; // [pre-commit-checker: not a secret]
+
+        bytes
+            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a"; // [pre-commit-checker: not a secret]
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0),
+            nonEVMReceiver: solanaAddress,
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: tooShortRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaRouteValidation_ZeroRouteReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        bytes memory zeroRoute = abi.encodePacked(
+            bytes32(0),
+            hex"a54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7" // [pre-commit-checker: not a secret]
+        );
+
+        bytes
+            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a"; // [pre-commit-checker: not a secret]
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0),
+            nonEVMReceiver: solanaAddress,
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: zeroRoute
+        });
+
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
