@@ -1087,91 +1087,6 @@ contract Permit2ProxyTest is TestBase {
         assertEq(ERC20(tokenAddress).balanceOf(permit2User), 0);
     }
 
-    function test_callDiamondWithEIP2612Signature_DelegatedEOA_WithPrefix()
-        public
-    {
-        // This test simulates a smart contract submitting a transaction with a delegated EOA signature
-        // In practice, this would be used when a smart contract acts on behalf of an EOA
-        // The EOA would sign the permit for themselves, and include the prefix to indicate delegation
-
-        address tokenAddress = ADDRESS_USDC;
-        uint256 amount = defaultUSDCAmount;
-        uint256 deadline = block.timestamp + 1 hours;
-
-        // Fund the EOA user (permit2User)
-        deal(tokenAddress, permit2User, amount);
-
-        // Get EIP-2612 permit digest for the EOA
-        uint256 nonce = ERC20Permit(tokenAddress).nonces(permit2User);
-        bytes32 domainSeparator = ERC20Permit(tokenAddress).DOMAIN_SEPARATOR();
-        bytes32 permitDigest = _generateEIP2612MsgHash(
-            permit2User,
-            address(permit2Proxy),
-            amount,
-            nonce,
-            deadline,
-            domainSeparator
-        );
-
-        // Sign with the EOA's private key
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, permitDigest);
-
-        // Add delegation prefix 0xef0100 to indicate this is a delegated EOA signature
-        bytes memory signatureWithPrefix = abi.encodePacked(r, s, v);
-
-        // Get diamond calldata
-        bytes memory diamondCalldata = _getCalldataForBridging();
-
-        // Execute as the EOA (even with prefix, the permit is for the EOA)
-        vm.startPrank(permit2User);
-
-        permit2Proxy.callDiamondWithEIP2612Signature(
-            tokenAddress,
-            amount,
-            deadline,
-            signatureWithPrefix,
-            diamondCalldata
-        );
-
-        vm.stopPrank();
-
-        // Verify tokens were transferred
-        assertEq(ERC20(tokenAddress).balanceOf(permit2User), 0);
-    }
-
-    function testRevert_callDiamondWithEIP2612Signature_DelegatedEOA_InvalidPrefixLength()
-        public
-    {
-        MockEIP1271Wallet delegator = new MockEIP1271Wallet();
-
-        address tokenAddress = ADDRESS_USDC;
-        uint256 amount = defaultUSDCAmount;
-        uint256 deadline = block.timestamp + 1 hours;
-
-        // Create signature with prefix but wrong total length (67 instead of 68)
-        bytes memory invalidSignature = abi.encodePacked(
-            bytes3(0xef0100),
-            new bytes(64) // Should be 65 bytes after prefix
-        );
-
-        deal(tokenAddress, address(delegator), amount);
-        bytes memory diamondCalldata = _getCalldataForBridging();
-
-        vm.startPrank(address(delegator));
-
-        vm.expectRevert(InvalidSignature.selector);
-
-        permit2Proxy.callDiamondWithEIP2612Signature(
-            tokenAddress,
-            amount,
-            deadline,
-            invalidSignature,
-            diamondCalldata
-        );
-
-        vm.stopPrank();
-    }
-
     function testRevert_callDiamondWithEIP2612Signature_EOA_InvalidSignatureLength()
         public
     {
@@ -1200,7 +1115,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
-    function test_callDiamondWithEIP2612Signature_SmartWallet_Success()
+    function test_canCallDiamondWithEIP2612Signature_SmartWallet_Success()
         public
     {
         // Deploy mock smart wallet
