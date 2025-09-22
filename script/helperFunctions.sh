@@ -1457,6 +1457,7 @@ function getAllContractNames() {
   # src
   # src/Facets
   # src/Periphery
+  # src/Security
 
   # get all facet contracts
   local FACET_CONTRACTS=$(getIncludedAndSortedFacetContractsArray "$EXCLUDE_CONFIG")
@@ -1464,11 +1465,14 @@ function getAllContractNames() {
   # get all periphery contracts
   local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray "$EXCLUDE_CONFIG")
 
+  # get all security contracts
+  local SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+
   # get all diamond contracts
   local DIAMOND_CONTRACTS=$(getContractNamesInFolder "src")
 
   # merge
-  local ALL_CONTRACTS=("${DIAMOND_CONTRACTS[@]}" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+  local ALL_CONTRACTS=("${DIAMOND_CONTRACTS[@]}" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}" "${SECURITY_CONTRACTS[@]}")
 
   # Print the resulting array
   echo "${ALL_CONTRACTS[*]}"
@@ -2887,6 +2891,26 @@ function getIncludedPeripheryContractsArray() {
   # return ARRAY
   echo "${ARRAY[@]}"
 }
+
+function getIncludedSecurityContractsArray() {
+  # prepare required variables
+  local DIRECTORY_PATH="$CONTRACT_DIRECTORY""Security/"
+  local ARRAY=()
+
+  # extract list of excluded security contracts from config
+  local EXCLUDE_CONTRACTS_REGEX="^($(echo "$EXCLUDE_SECURITY_CONTRACTS" | tr ',' '|'))$"
+
+  # loop through contract names and add each name to ARRAY that is not excluded
+  for CONTRACT in $(getContractNamesInFolder "$DIRECTORY_PATH"); do
+    if ! [[ "$CONTRACT" =~ $EXCLUDE_CONTRACTS_REGEX ]]; then
+      ARRAY+=("$CONTRACT")
+    fi
+  done
+
+  # return ARRAY
+  echo "${ARRAY[@]}"
+}
+
 function getIncludedFacetContractsArray() {
   # read function arguments into variables
   EXCLUDE_CONFIG="$1"
@@ -3154,8 +3178,11 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
   # get all periphery contracts
   local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
 
+  # get all security contracts
+  local SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+
   # merge all contracts into one array
-  local ALL_CONTRACTS=("$DIAMOND_NAME" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+  local ALL_CONTRACTS=("$DIAMOND_NAME" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}" "${SECURITY_CONTRACTS[@]}")
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]}; do
