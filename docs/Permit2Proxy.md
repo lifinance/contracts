@@ -42,17 +42,15 @@ function callDiamondWithEIP2612Signature(
 
 This method supports both EOAs and smart contract wallets. EOAs use EIP-2612
 permit signatures while smart contracts use EIP-1271 signature validation.
-It also supports delegated EOA signatures with the 0xef0100 prefix.
 
 ```solidity
 /// @notice Allows both EOAs and smart contract wallets to bridge tokens
 ///         through a LI.FI diamond contract. EOAs use EIP-2612 permit while smart contracts
-///         use EIP-1271 signature validation with pre-approved tokens. Also supports delegated
-///         EOA signatures with 0xef0100 prefix.
+///         use EIP-1271 signature validation with pre-approved tokens.
 /// @param tokenAddress Address of the token to be bridged
 /// @param amount Amount of tokens to be bridged
 /// @param deadline Transaction must be completed before this timestamp
-/// @param signature Packed signature bytes (r,s,v for EOAs, 0xef0100 + r,s,v for delegated EOAs, arbitrary format for smart contracts)
+/// @param signature Packed signature bytes (r,s,v for EOAs, arbitrary format for smart contracts)
 /// @param diamondCalldata calldata to execute
 function callDiamondWithEIP2612Signature(
     address tokenAddress,
