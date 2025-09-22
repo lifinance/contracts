@@ -477,12 +477,13 @@ async function processNetwork(
       )
 
     if (readyOperations.length === 0) {
-      if (totalPendingCount === 0)
+      if (totalPendingCount === 0) 
         consola.info(`[${network.name}] ✅ No pending operations found`)
-      else
+       else 
         consola.info(
           `[${network.name}] ✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
         )
+      
 
       // Note: notScheduledOperations notification is already sent in getPendingOperations
       // Consider it a failure if there were not-scheduled operations (requires manual intervention)
