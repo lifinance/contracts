@@ -292,11 +292,12 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes32 s;
         uint8 v;
 
-        assembly {
-            r := mload(add(signature, 0x20))
-            s := mload(add(signature, 0x40))
-            v := byte(0, mload(add(signature, 0x60)))
+        // Copy bytes manually without assembly
+        for (uint256 i = 0; i < 32; i++) {
+            r |= bytes32(signature[i]) >> (i * 8);
+            s |= bytes32(signature[i + 32]) >> (i * 8);
         }
+        v = uint8(signature[64]);
 
         // Call permit
         try
