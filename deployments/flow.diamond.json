@@ -60,6 +60,10 @@
       "0x5AB03562C8990b9f6cBC2f2607523D766D4Bd7a9": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0xdB6010f6255a94E691289f6b7b75A5ebc4b41808": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
