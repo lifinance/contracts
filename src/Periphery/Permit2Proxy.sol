@@ -21,6 +21,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
     address public immutable LIFI_DIAMOND;
     ISignatureTransfer public immutable PERMIT2;
 
+    // Mapping to track nonces for EIP-1271 replay protection
+    mapping(address => uint256) public nonces;
+
     string public constant WITNESS_TYPE_STRING =
         // solhint-disable-next-line max-line-length
         "LiFiCall witness)LiFiCall(address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
@@ -329,17 +332,23 @@ contract Permit2Proxy is WithdrawablePeriphery {
         uint256 deadline,
         bytes calldata signature,
         bytes calldata diamondCalldata
-    ) internal view {
-        // Construct message hash for validation
+    ) internal {
+        // Get current nonce for the sender
+        uint256 currentNonce = nonces[msg.sender];
+
+        // Construct message hash for validation with replay protection
         bytes32 messageHash = keccak256(
             abi.encode(
                 keccak256(
-                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash)"
+                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash,uint256 nonce,uint256 chainId,address contractAddress)"
                 ),
                 tokenAddress,
                 amount,
                 deadline,
-                keccak256(diamondCalldata)
+                keccak256(diamondCalldata),
+                currentNonce,
+                block.chainid,
+                address(this)
             )
         );
 
@@ -348,11 +357,15 @@ contract Permit2Proxy is WithdrawablePeriphery {
             messageHash,
             signature
         );
+
+        // Check for valid signature
         if (magicValue != ERC1271_MAGIC_VALUE) {
             revert InvalidSignature();
         }
-    }
 
+        // Consume the nonce to prevent replay attacks
+        nonces[msg.sender] = currentNonce + 1;
+    }
     function _getTokenPermissionsHash(
         ISignatureTransfer.TokenPermissions memory tokenPermissions
     ) internal pure returns (bytes32) {

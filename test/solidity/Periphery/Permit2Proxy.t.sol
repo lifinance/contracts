@@ -1213,16 +1213,22 @@ contract Permit2ProxyTest is TestBase {
         // Prepare diamond calldata
         bytes memory diamondCalldata = _getCalldataForBridging();
 
-        // Calculate message hash as per implementation
+        // Get current nonce for the wallet
+        uint256 nonce = permit2Proxy.nonces(address(wallet));
+
+        // Calculate message hash as per implementation with replay protection
         bytes32 messageHash = keccak256(
             abi.encode(
                 keccak256(
-                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash)"
+                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash,uint256 nonce,uint256 chainId,address contractAddress)"
                 ),
                 tokenAddress,
                 amount,
                 deadline,
-                keccak256(diamondCalldata)
+                keccak256(diamondCalldata),
+                nonce,
+                block.chainid,
+                address(permit2Proxy)
             )
         );
 
@@ -1251,6 +1257,8 @@ contract Permit2ProxyTest is TestBase {
 
         // Verify tokens were transferred
         assertEq(ERC20(tokenAddress).balanceOf(address(wallet)), 0);
+        // Verify nonce was incremented
+        assertEq(permit2Proxy.nonces(address(wallet)), nonce + 1);
     }
 
     function testRevert_callDiamondWithEIP2612Signature_SmartWallet_InvalidSignature()
@@ -1323,15 +1331,21 @@ contract Permit2ProxyTest is TestBase {
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory diamondCalldata = _getCalldataForBridging();
 
+        // Get current nonce for the wallet
+        uint256 nonce = permit2Proxy.nonces(address(wallet));
+
         bytes32 messageHash = keccak256(
             abi.encode(
                 keccak256(
-                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash)"
+                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash,uint256 nonce,uint256 chainId,address contractAddress)"
                 ),
                 tokenAddress,
                 amount,
                 deadline,
-                keccak256(diamondCalldata)
+                keccak256(diamondCalldata),
+                nonce,
+                block.chainid,
+                address(permit2Proxy)
             )
         );
 
