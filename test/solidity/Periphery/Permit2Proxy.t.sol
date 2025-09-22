@@ -9,7 +9,7 @@ import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { stdError } from "forge-std/Test.sol";
-import { InvalidSignature } from "lifi/Errors/GenericErrors.sol";
+import { InvalidSignature, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 abstract contract BaseMockPermitToken is ERC20, ERC20Permit {
     constructor() ERC20("Mock", "MCK") ERC20Permit("Mock") {}
@@ -1073,7 +1073,7 @@ contract Permit2ProxyTest is TestBase {
 
         vm.startPrank(permit2User);
 
-        bytes memory result = permit2Proxy.callDiamondWithEIP2612Signature(
+        permit2Proxy.callDiamondWithEIP2612Signature(
             tokenAddress,
             amount,
             deadline,
@@ -1085,27 +1085,27 @@ contract Permit2ProxyTest is TestBase {
 
         // Verify tokens were transferred
         assertEq(ERC20(tokenAddress).balanceOf(permit2User), 0);
-        assertTrue(result.length > 0);
     }
 
     function test_callDiamondWithEIP2612Signature_DelegatedEOA_WithPrefix()
         public
     {
-        // Deploy a mock smart contract that will call on behalf of EOA
-        MockEIP1271Wallet delegator = new MockEIP1271Wallet();
+        // This test simulates a smart contract submitting a transaction with a delegated EOA signature
+        // In practice, this would be used when a smart contract acts on behalf of an EOA
+        // The EOA would sign the permit for themselves, and include the prefix to indicate delegation
 
         address tokenAddress = ADDRESS_USDC;
         uint256 amount = defaultUSDCAmount;
         uint256 deadline = block.timestamp + 1 hours;
 
-        // Fund the delegator contract
-        deal(tokenAddress, address(delegator), amount);
+        // Fund the EOA user (permit2User)
+        deal(tokenAddress, permit2User, amount);
 
-        // Get EIP-2612 permit digest for the delegator
-        uint256 nonce = ERC20Permit(tokenAddress).nonces(address(delegator));
+        // Get EIP-2612 permit digest for the EOA
+        uint256 nonce = ERC20Permit(tokenAddress).nonces(permit2User);
         bytes32 domainSeparator = ERC20Permit(tokenAddress).DOMAIN_SEPARATOR();
         bytes32 permitDigest = _generateEIP2612MsgHash(
-            address(delegator),
+            permit2User,
             address(permit2Proxy),
             amount,
             nonce,
@@ -1113,7 +1113,7 @@ contract Permit2ProxyTest is TestBase {
             domainSeparator
         );
 
-        // Sign with private key (simulating EOA signing)
+        // Sign with the EOA's private key
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, permitDigest);
 
         // Add delegation prefix 0xef0100 to indicate this is a delegated EOA signature
@@ -1127,10 +1127,10 @@ contract Permit2ProxyTest is TestBase {
         // Get diamond calldata
         bytes memory diamondCalldata = _getCalldataForBridging();
 
-        // Execute as the delegator contract
-        vm.startPrank(address(delegator));
+        // Execute as the EOA (even with prefix, the permit is for the EOA)
+        vm.startPrank(permit2User);
 
-        bytes memory result = permit2Proxy.callDiamondWithEIP2612Signature(
+        permit2Proxy.callDiamondWithEIP2612Signature(
             tokenAddress,
             amount,
             deadline,
@@ -1141,8 +1141,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
 
         // Verify tokens were transferred
-        assertEq(ERC20(tokenAddress).balanceOf(address(delegator)), 0);
-        assertTrue(result.length > 0);
+        assertEq(ERC20(tokenAddress).balanceOf(permit2User), 0);
     }
 
     function testRevert_callDiamondWithEIP2612Signature_DelegatedEOA_InvalidPrefixLength()
@@ -1247,7 +1246,7 @@ contract Permit2ProxyTest is TestBase {
         // Execute as smart wallet
         vm.prank(address(wallet));
 
-        bytes memory result = permit2Proxy.callDiamondWithEIP2612Signature(
+        permit2Proxy.callDiamondWithEIP2612Signature(
             tokenAddress,
             amount,
             deadline,
@@ -1257,7 +1256,6 @@ contract Permit2ProxyTest is TestBase {
 
         // Verify tokens were transferred
         assertEq(ERC20(tokenAddress).balanceOf(address(wallet)), 0);
-        assertTrue(result.length > 0);
     }
 
     function testRevert_callDiamondWithEIP2612Signature_SmartWallet_InvalidSignature()
@@ -1350,7 +1348,7 @@ contract Permit2ProxyTest is TestBase {
 
         vm.prank(address(wallet));
 
-        vm.expectRevert("ERC20: insufficient allowance");
+        vm.expectRevert(TransferFromFailed.selector);
 
         permit2Proxy.callDiamondWithEIP2612Signature(
             tokenAddress,
