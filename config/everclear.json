@@ -1,0 +1,8 @@
+{
+  "mainnet": {
+    "feeAdapter": "0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75"
+  },
+  "arbitrum": {
+    "feeAdapter": "0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75"
+  }
+}
