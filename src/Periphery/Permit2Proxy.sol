@@ -137,9 +137,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
 
         // Check for delegated EOA signature prefix (0xef0100)
         bool isDelegatedEOA = signature.length == 68 &&
-            signature[0] == 0xef &&
-            signature[1] == 0x01 &&
-            signature[2] == 0x00;
+            bytes3(signature) == 0xef0100;
 
         // Determine if we should use EOA or smart contract path
         if (msg.sender.code.length == 0 || isDelegatedEOA) {
