@@ -41254,6 +41254,21 @@
           }
         ]
       }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x43DE35AdfB263d551c17c713674524CDd32aeE6b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-19 13:10:14",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000035e63ea3eb0fb7a3bc543c71fb66412e1f6b0e040000000000000000000000005555555555555555555555555555555555555555",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ReceiverAcrossV4": {
@@ -41537,6 +41552,21 @@
           }
         ]
       }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xee2edD809EEddD4a944e6E4bb4A3AC0927CA02e1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-19 13:12:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000001f050386e23d81fc81c154a8f8616dea3826b77700000000000000000000000035e63ea3eb0fb7a3bc543c71fb66412e1f6b0e0400000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "AcrossFacetPackedV4": {
@@ -41814,6 +41844,21 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-09-15 12:31:56",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000009aea4b2242abc8bb4bb78d537a67a245a7bec64000000000000000000000000420000000000000000000000000000000000000600000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA4C11D296e04a52939a1bAff7E2fD70c95c048E9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-09-19 13:10:28",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000035e63ea3eb0fb7a3bc543c71fb66412e1f6b0e04000000000000000000000000555555555555555555555555555555555555555500000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
