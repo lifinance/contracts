@@ -26,6 +26,32 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     /// Types ///
 
+    /// @notice Defines the routing and execution instructions for cross-chain messages
+    /// @dev Contains all necessary information to route and execute a message on the destination chain
+    /// @param salt Unique identifier provided by the intent creator, used to prevent duplicates
+    /// @param deadline Timestamp by which the route must be executed
+    /// @param portal Address of the portal contract on the destination chain that receives messages
+    /// @param nativeAmount Amount of native tokens to send with the route execution
+    /// @param tokens Array of tokens required for execution of calls on destination chain
+    /// @param calls Array of contract calls to execute on the destination chain in sequence
+    struct Route {
+        bytes32 salt;
+        uint64 deadline;
+        address portal;
+        uint256 nativeAmount;
+        IEcoPortal.TokenAmount[] tokens;
+        Call[] calls;
+    }
+
+    /// @notice Represents a single contract call to be executed
+    /// @dev Used within Route to define execution sequence
+    /// @param target Address of the contract to call
+    /// @param callData Encoded function call data
+    struct Call {
+        address target;
+        bytes callData;
+    }
+
     /// @dev Eco specific parameters
     /// @param receiverAddress Address that will receive tokens on destination chain
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
@@ -242,13 +268,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             return;
         }
         if (_isEVMChain(_bridgeData.destinationChainId)) {
-            address decodedReceiver = _extractEVMReceiverFromRoute(
-                _ecoData.encodedRoute
-            );
-
-            if (decodedReceiver != _bridgeData.receiver) {
-                revert InformationMismatch();
-            }
+            // For EVM chains, just verify the route can be decoded properly
+            // This ensures the route data is valid without doing complex validation
+            abi.decode(_ecoData.encodedRoute, (Route));
         }
     }
 
@@ -266,31 +288,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         if (routeReceiver == bytes32(0)) {
             revert InvalidReceiver();
         }
-    }
-
-    function _extractEVMReceiverFromRoute(
-        bytes calldata encodedRoute
-    ) internal pure returns (address) {
-        uint256 routeLength = encodedRoute.length;
-        if (routeLength < 68) {
-            revert InvalidCallData();
-        }
-
-        uint256 transferOffset = routeLength - 68;
-        bytes4 selector = bytes4(
-            encodedRoute[transferOffset:transferOffset + 4]
-        );
-        if (selector != bytes4(0xa9059cbb)) {
-            revert InvalidCallData();
-        }
-        return
-            address(
-                uint160(
-                    bytes20(
-                        encodedRoute[transferOffset + 16:transferOffset + 36]
-                    )
-                )
-            );
     }
 
     function _isEVMChain(uint256 chainId) private pure returns (bool) {

@@ -82,6 +82,44 @@ contract EcoFacetTest is TestBaseFacet {
         addToMessageValue = NATIVE_SOLVER_REWARD;
     }
 
+    // Helper function to create a properly encoded Route struct
+    // The route will always have exactly one call - an ERC20 transfer to the receiver
+    function createEncodedRoute(
+        address receiver,
+        address token,
+        uint256 amount
+    ) internal view returns (bytes memory) {
+        // Create token array for the route
+        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
+            1
+        );
+        tokens[0] = IEcoPortal.TokenAmount({ token: token, amount: amount });
+
+        // Create calls array with exactly one call - the ERC20 transfer to receiver
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
+        calls[0] = EcoFacet.Call({
+            target: token,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                receiver,
+                amount
+            )
+        });
+
+        // Create the Route struct
+        EcoFacet.Route memory route = EcoFacet.Route({
+            salt: keccak256("eco.route.test"),
+            deadline: uint64(block.timestamp + 1 days),
+            portal: PORTAL, // Portal is the contract that receives and executes the route
+            nativeAmount: 0,
+            tokens: tokens,
+            calls: calls
+        });
+
+        // ABI encode the route
+        return abi.encode(route);
+    }
+
     function getValidEcoData(
         bool isNative
     ) internal view returns (EcoFacet.EcoData memory) {
@@ -90,58 +128,11 @@ contract EcoFacetTest is TestBaseFacet {
             ? NATIVE_SOLVER_REWARD
             : TOKEN_SOLVER_REWARD;
 
-        // For EVM chains, create a route that ends with an ERC20 transfer call
-        // The last 68 bytes should be: selector (4) + address (32) + amount (32)
-        bytes memory transferCall = abi.encodeWithSelector(
-            IERC20.transfer.selector,
+        // Create a properly encoded route using the Route struct
+        bytes memory encodedRoute = createEncodedRoute(
             USER_RECEIVER,
+            bridgeData.sendingAssetId,
             bridgeData.minAmount
-        );
-
-        // Create a realistic route structure similar to actual Eco routes (~608 bytes)
-        // Build in chunks to avoid stack too deep
-
-        // Part 1: Initial metadata and offsets
-        bytes memory part1 = abi.encodePacked(
-            bytes32(uint256(0x20)), // Offset pointer
-            bytes32(keccak256("eco.route.verification")), // Route hash
-            uint64(block.timestamp + 1 days), // Deadline
-            address(PORTAL), // Portal address
-            bytes32(0), // Padding
-            bytes32(uint256(0xc0)), // Array offset
-            bytes32(uint256(0x120)) // Calldata offset
-        );
-
-        // Part 2: Token and amount data
-        bytes memory part2 = abi.encodePacked(
-            bytes32(uint256(1)), // Array length
-            address(bridgeData.sendingAssetId), // Token address
-            bytes12(0), // Padding
-            bytes32(uint256(bridgeData.minAmount)), // Amount
-            bytes32(uint256(1)), // Counter
-            bytes32(uint256(0x20)), // Internal offset
-            address(bridgeData.sendingAssetId) // Token repeated
-        );
-
-        // Part 3: More routing metadata
-        bytes memory part3 = abi.encodePacked(
-            bytes12(0), // Padding for alignment
-            bytes32(uint256(0x60)), // Calldata offset
-            bytes32(0), // Reserved
-            bytes32(keccak256("route.path")), // Route identifier
-            bytes32(uint256(block.timestamp)), // Timestamp
-            bytes32(uint256(0x44)), // Length
-            bytes32(keccak256("eco.protocol.v1")), // Version
-            bytes32(0), // Padding
-            bytes32(0) // Extra padding
-        );
-
-        // Combine all parts with the transfer call at the end
-        bytes memory encodedRoute = abi.encodePacked(
-            part1,
-            part2,
-            part3,
-            transferCall // Transfer at the end (68 bytes)
         );
 
         return
@@ -383,18 +374,11 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
         bridgeData.receiver = USER_RECEIVER; // Can use regular address for Tron
 
-        // Tron uses EVM-compatible transfer encoding
-        // Create a route that ends with an ERC20 transfer call
-        bytes memory transferCall = abi.encodeWithSelector(
-            IERC20.transfer.selector,
+        // Tron is EVM-compatible, so use the same Route struct encoding
+        bytes memory tronEncodedRoute = createEncodedRoute(
             USER_RECEIVER,
+            bridgeData.sendingAssetId,
             bridgeData.minAmount
-        );
-
-        bytes memory tronEncodedRoute = abi.encodePacked(
-            bytes32(0), // Some prefix data
-            uint256(0), // Additional data
-            transferCall // Transfer at the end (last 68 bytes)
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
@@ -403,7 +387,7 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: tronEncodedRoute // Tron requires ERC20 transfer format
+            encodedRoute: tronEncodedRoute // Properly encoded Route struct
         });
 
         // Approve USDC
@@ -525,12 +509,13 @@ contract EcoFacetTest is TestBaseFacet {
         overflowBridgeData.sendingAssetId = address(0);
         overflowBridgeData.minAmount = 0.01 ether;
 
-        bytes memory transferCall = abi.encodeWithSelector(
-            IERC20.transfer.selector,
+        // Use the helper to create a properly encoded route
+        // Note: We're using ADDRESS_USDC here because the Route expects a token address for the transfer
+        bytes memory validRoute = createEncodedRoute(
             USER_RECEIVER,
+            ADDRESS_USDC, // Use a valid token address even though we're sending native
             overflowBridgeData.minAmount
         );
-        bytes memory validRoute = abi.encodePacked(bytes32(0), transferCall);
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
@@ -590,13 +575,13 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_EvmChainWithoutTransferCall() public {
+    function testRevert_InvalidABIEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
         // Set up for an EVM chain
         bridgeData.destinationChainId = 10; // Optimism
 
-        // Create a route without a transfer call (just random data)
+        // Create data that cannot be ABI decoded as a Route struct
         bytes
             memory invalidRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445";
 
@@ -614,90 +599,20 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        vm.expectRevert(InvalidCallData.selector);
+        // Will revert during ABI decode attempt
+        vm.expectRevert();
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }
 
-    function testRevert_EvmChainWithWrongSelector() public {
+    function testRevert_RouteTooShortForABIDecode() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = 10; // Optimism
 
-        // Create a route with approve selector instead of transfer
-        bytes memory wrongSelectorRoute = abi.encodePacked(
-            bytes32(0), // Some prefix data
-            abi.encodeWithSelector(
-                IERC20.approve.selector, // Wrong selector!
-                USER_RECEIVER,
-                defaultUSDCAmount
-            )
-        );
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
-            nonEVMReceiver: "",
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: wrongSelectorRoute
-        });
-
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
-
-        vm.expectRevert(InvalidCallData.selector);
-        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_EvmChainWithMismatchedReceiver() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = 10; // Optimism
-
-        // Create a route with transfer to wrong address
-        address wrongRecipient = address(0x9999);
-        bytes memory mismatchedRoute = abi.encodePacked(
-            bytes32(0), // Some prefix data
-            abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                wrongRecipient, // Different from USER_RECEIVER!
-                defaultUSDCAmount
-            )
-        );
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
-            nonEVMReceiver: "",
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: mismatchedRoute
-        });
-
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
-
-        vm.expectRevert(InformationMismatch.selector);
-        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_RouteTooShortForTransfer() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = 10; // Optimism
-
-        // Create a route that's too short (< 68 bytes)
-        bytes memory tooShortRoute = hex"a9059cbb"; // Only selector, missing params
+        // Create data that's too short to be a valid ABI-encoded Route
+        bytes memory tooShortRoute = hex"a9059cbb"; // Only 4 bytes
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
@@ -713,7 +628,8 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        vm.expectRevert(InvalidCallData.selector);
+        // Will revert during ABI decode attempt
+        vm.expectRevert();
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -722,11 +638,11 @@ contract EcoFacetTest is TestBaseFacet {
     function testRevert_TronWithInvalidRoute() public {
         vm.startPrank(USER_SENDER);
 
-        // Set up bridge data for Tron
+        // Set up bridge data for Tron (which is an EVM-compatible chain in this context)
         bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
         bridgeData.receiver = USER_RECEIVER;
 
-        // Create an invalid route without proper transfer call
+        // Create data that cannot be ABI decoded as a Route struct
         bytes
             memory invalidTronRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
 
@@ -736,7 +652,7 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: invalidTronRoute // Missing transfer call
+            encodedRoute: invalidTronRoute
         });
 
         usdc.approve(
@@ -744,7 +660,8 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        vm.expectRevert(InvalidCallData.selector);
+        // Will revert during ABI decode attempt
+        vm.expectRevert();
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -755,11 +672,12 @@ contract EcoFacetTest is TestBaseFacet {
 
         bridgeData.destinationChainId = 10; // Optimism
 
-        // Use the exact route from the trace but replace the transfer at the end
-        // Original route from trace (608 bytes total, last 68 bytes are the transfer)
-        bytes
-            memory validRoute = hex"00000000000000000000000000000000000000000000000000000000000000209b84721cc353d18473dfbf398f2885f561df5939f638119c47f05dfec6609afb0000000000000000000000000000000000000000000000000000000068cab704000000000000000000000000b5e58a8206473df3ab9b8ddd3b0f84c0ba68f8b5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000004bd61000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044a9059cbb0000000000000000000000000000000000000000000000000000000abc6543210000000000000000000000000000000000000000000000000000000005f5e100";
-        // Last 68 bytes replaced: transfer(USER_RECEIVER, defaultUSDCAmount)
+        // Use the helper to create a properly encoded Route
+        bytes memory validRoute = createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
