@@ -275,10 +275,21 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     }
 
     function _validateSolanaReceiver(EcoData calldata _ecoData) private pure {
-        if (_ecoData.encodedRoute.length < 32) {
+        // Extract the Solana recipient address from a Borsh-encoded Route struct
+        // The Route struct contains TransferChecked instruction calldata where:
+        // - The entire Route struct is Borsh-serialized
+        // - Within the serialized Route, the TransferChecked instruction data is embedded
+        // - The recipient account (destination wallet) is located at bytes 251-282 (32 bytes)
+        // - This position is determined by the Route struct layout and the position of the
+        //   recipient pubkey within the TransferChecked instruction calldata
+        // - Borsh encoding preserves the exact byte positions for fixed-size fields like pubkeys
+        // - The total encoded route for Solana must be exactly 319 bytes
+        if (_ecoData.encodedRoute.length != 319) {
             revert InvalidCallData();
         }
-        bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[0:32]);
+
+        // Extract bytes 251-282 (32 bytes) which contain the recipient address
+        bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[251:283]);
         if (
             _ecoData.nonEVMReceiver.length == 0 ||
             _ecoData.nonEVMReceiver.length > 44
