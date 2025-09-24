@@ -468,6 +468,46 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_InvalidReceiver_RouteReceiverMismatch() public {
+        // Test for InvalidReceiver error when the receiver in the route doesn't match bridgeData.receiver
+        // This triggers line 291 in EcoFacet.sol
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data for an EVM chain
+        bridgeData.destinationChainId = 10; // Optimism
+        bridgeData.receiver = USER_RECEIVER; // Set to USER_RECEIVER
+
+        // Create a route with a DIFFERENT receiver address to trigger the mismatch
+        address wrongReceiver = address(0x9999);
+        bytes memory routeWithWrongReceiver = createEncodedRoute(
+            wrongReceiver, // Different receiver than bridgeData.receiver
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER, // Matches bridgeData.receiver
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: routeWithWrongReceiver // Route has different receiver
+        });
+
+        // Approve USDC
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Expect InvalidReceiver revert from line 291
+        vm.expectRevert(InvalidReceiver.selector);
+
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
     function testRevert_InformationMismatch_ReceiverAddressMismatch() public {
         // Test for InformationMismatch error when receiver addresses don't match
         vm.startPrank(USER_SENDER);

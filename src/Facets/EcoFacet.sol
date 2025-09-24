@@ -278,19 +278,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 .calls[route.calls.length - 1]
                 .callData;
 
-            // Ensure calldata is long enough for transfer function (4 bytes selector + 32 bytes address + 32 bytes amount)
-            if (lastCallData.length < 68) {
-                revert InvalidReceiver();
-            }
-
             // Extract the receiver address from the calldata
             // Skip the 4-byte function selector and decode the address (first parameter)
-            address receiver;
-            assembly {
-                // Load the address from calldata starting at position 4 (after selector)
-                // Add 32 to skip the length prefix of the bytes array, then add 4 to skip selector
-                receiver := mload(add(lastCallData, 36))
+            // The address parameter starts at byte 4 (after the selector)
+            bytes memory addressData = new bytes(32);
+            for (uint256 i = 0; i < 32; i++) {
+                addressData[i] = lastCallData[i + 4];
             }
+            address receiver = abi.decode(addressData, (address));
 
             if (receiver != _bridgeData.receiver) {
                 revert InvalidReceiver();
