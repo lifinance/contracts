@@ -5,7 +5,7 @@ import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { FeeForwarder } from "lifi/Periphery/FeeForwarder.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { InvalidCallData, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeForwarderTest is DSTest {
     // solhint-disable immutable-vars-naming
@@ -30,6 +30,23 @@ contract FeeForwarderTest is DSTest {
 
     // Needed to receive ETH
     receive() external payable {}
+
+    function test_ConstructorWithValidOwner() public {
+        // Arrange
+        address validOwner = address(0x1234);
+
+        // Act
+        FeeForwarder newFeeForwarder = new FeeForwarder(validOwner);
+
+        // Assert
+        assertEq(newFeeForwarder.owner(), validOwner);
+    }
+
+    function testRevert_ConstructorWithZeroOwner() public {
+        // Act & Assert
+        vm.expectRevert(InvalidConfig.selector);
+        new FeeForwarder(address(0));
+    }
 
     function test_ForwardERC20FeesTransfersAllDistributions() public {
         // Arrange

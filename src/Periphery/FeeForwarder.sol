@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
@@ -34,7 +34,9 @@ contract FeeForwarder is WithdrawablePeriphery {
 
     /// @notice Initializes the FeeForwarder contract
     /// @param _owner The address that will be set as the owner of the contract
-    constructor(address _owner) WithdrawablePeriphery(_owner) {}
+    constructor(address _owner) WithdrawablePeriphery(_owner) {
+        if (_owner == address(0)) revert InvalidConfig();
+    }
 
     /// External Methods ///
 
