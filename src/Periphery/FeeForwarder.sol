@@ -43,7 +43,7 @@ contract FeeForwarder is WithdrawablePeriphery {
     ///      Native token transfers will fail naturally, saving gas by not checking explicitly.
     /// @param token The address of the ERC20 token to forward
     /// @param distributions Array of fee distributions containing recipients and amounts
-    function forwardTokenFees(
+    function forwardERC20Fees(
         address token,
         FeeDistribution[] calldata distributions
     ) external {

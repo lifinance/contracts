@@ -14,7 +14,7 @@ Forwarding ERC20 fees
 /// @notice Forwards ERC20 token fees from the caller to the specified recipients
 /// @param token address of the token being forwarded
 /// @param distributions array of fee distributions containing recipients and amounts
-function forwardTokenFees(
+function forwardERC20Fees(
     address token,
     FeeDistribution[] calldata distributions
 )

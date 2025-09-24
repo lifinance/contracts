@@ -31,7 +31,7 @@ contract FeeForwarderTest is DSTest {
     // Needed to receive ETH
     receive() external payable {}
 
-    function test_ForwardTokenFeesTransfersAllDistributions() public {
+    function test_ForwardERC20FeesTransfersAllDistributions() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](2);
@@ -52,14 +52,14 @@ contract FeeForwarderTest is DSTest {
         vm.expectEmit(true, false, false, true, address(feeForwarder));
         emit FeesForwarded(address(feeToken), distributions);
 
-        feeForwarder.forwardTokenFees(address(feeToken), distributions);
+        feeForwarder.forwardERC20Fees(address(feeToken), distributions);
 
         assertEq(feeToken.balanceOf(address(0xb33f)), 1 ether);
         assertEq(feeToken.balanceOf(address(0xb0b)), 0.5 ether);
         assertEq(feeToken.balanceOf(address(this)), 1000 ether - total);
     }
 
-    function test_ForwardTokenFeesWithSingleDistribution() public {
+    function test_ForwardERC20FeesWithSingleDistribution() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](1);
@@ -74,19 +74,19 @@ contract FeeForwarderTest is DSTest {
         vm.expectEmit(true, false, false, true, address(feeForwarder));
         emit FeesForwarded(address(feeToken), distributions);
 
-        feeForwarder.forwardTokenFees(address(feeToken), distributions);
+        feeForwarder.forwardERC20Fees(address(feeToken), distributions);
 
         assertEq(feeToken.balanceOf(address(0xb33f)), 2.5 ether);
         assertEq(feeToken.balanceOf(address(this)), 1000 ether - 2.5 ether);
     }
 
-    function test_ForwardTokenFeesWithEmptyDistributions() public {
+    function test_ForwardERC20FeesWithEmptyDistributions() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](0);
 
         // Act & Assert - Empty arrays should not revert and should not emit events (gas optimization)
-        feeForwarder.forwardTokenFees(address(feeToken), distributions);
+        feeForwarder.forwardERC20Fees(address(feeToken), distributions);
 
         // Verify no tokens were transferred
         assertEq(feeToken.balanceOf(address(this)), 1000 ether);
@@ -200,7 +200,7 @@ contract FeeForwarderTest is DSTest {
         feeForwarder.forwardNativeFees{ value: 0.5 ether }(distributions);
     }
 
-    function testRevert_ForwardTokenFeesWhenNativeTokenProvided() public {
+    function testRevert_ForwardERC20FeesWhenNativeTokenProvided() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](1);
@@ -211,10 +211,10 @@ contract FeeForwarderTest is DSTest {
 
         // Act & Assert - Native token transfers will fail naturally when trying to transfer, saving gas
         vm.expectRevert();
-        feeForwarder.forwardTokenFees(address(0), distributions);
+        feeForwarder.forwardERC20Fees(address(0), distributions);
     }
 
-    function testRevert_ForwardTokenFeesWithZeroAmount() public {
+    function testRevert_ForwardERC20FeesWithZeroAmount() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](1);
@@ -225,7 +225,7 @@ contract FeeForwarderTest is DSTest {
 
         // Act & Assert
         vm.expectRevert(InvalidCallData.selector);
-        feeForwarder.forwardTokenFees(address(feeToken), distributions);
+        feeForwarder.forwardERC20Fees(address(feeToken), distributions);
     }
 
     function testRevert_ForwardNativeFeesWithZeroAmount() public {
@@ -242,7 +242,7 @@ contract FeeForwarderTest is DSTest {
         feeForwarder.forwardNativeFees{ value: 1 ether }(distributions);
     }
 
-    function testRevert_ForwardTokenFeesWithZeroRecipient() public {
+    function testRevert_ForwardERC20FeesWithZeroRecipient() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](1);
@@ -253,7 +253,7 @@ contract FeeForwarderTest is DSTest {
 
         // Act & Assert
         vm.expectRevert(InvalidReceiver.selector);
-        feeForwarder.forwardTokenFees(address(feeToken), distributions);
+        feeForwarder.forwardERC20Fees(address(feeToken), distributions);
     }
 
     function testRevert_ForwardNativeFeesWithZeroRecipient() public {
@@ -319,7 +319,7 @@ contract FeeForwarderTest is DSTest {
         assertEq(address(this).balance, balanceBefore - 0.1 ether); // Only 0.1 ether used
     }
 
-    function test_ForwardTokenFeesWithLargeDistribution() public {
+    function test_ForwardERC20FeesWithLargeDistribution() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](1);
@@ -334,7 +334,7 @@ contract FeeForwarderTest is DSTest {
         vm.expectEmit(true, false, false, true, address(feeForwarder));
         emit FeesForwarded(address(feeToken), distributions);
 
-        feeForwarder.forwardTokenFees(address(feeToken), distributions);
+        feeForwarder.forwardERC20Fees(address(feeToken), distributions);
 
         assertEq(feeToken.balanceOf(address(0xb33f)), 500 ether);
         assertEq(feeToken.balanceOf(address(this)), 500 ether);
