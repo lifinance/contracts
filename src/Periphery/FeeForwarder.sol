@@ -85,7 +85,7 @@ contract FeeForwarder is WithdrawablePeriphery {
         // we do not check the length of the distributions array to save gas
 
         // also we do not check sufficient msg.value / native balance to save gas
-        // the tx will revert anyway in these cases
+        // the tx will revert anyway in this case
 
         // forward all native fee amounts to the recipients
         for (uint256 i; i < distributions.length; ) {
