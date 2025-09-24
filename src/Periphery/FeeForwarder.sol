@@ -77,7 +77,7 @@ contract FeeForwarder is WithdrawablePeriphery {
 
     /// @notice Forwards native token fees to the specified recipients
     /// @dev Any excess native tokens sent will be refunded to the caller. Transaction will revert if insufficient funds.
-    ///      The tx will not revert and not emit any events if the array is empty.
+    ///      The tx will not revert if the array is empty, but will still emit the FeesForwarded event.
     /// @param distributions Array of fee distributions containing recipients and amounts
     function forwardNativeFees(
         FeeDistribution[] calldata distributions
@@ -105,6 +105,8 @@ contract FeeForwarder is WithdrawablePeriphery {
         }
 
         // return any remaining native tokens to the caller
+        // since the contract is designed to not hold any funds and does not collect any dust
+        // we can safely return the remaining native balance to the caller
         uint256 remainingNativeBalance = address(this).balance;
         if (remainingNativeBalance != 0) {
             LibAsset.transferAsset(
