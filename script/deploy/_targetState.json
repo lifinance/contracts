@@ -2027,6 +2027,8 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
+        "AcrossFacetV3": "1.1.0",
+        "ReceiverAcrossV3": "1.0.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
