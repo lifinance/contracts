@@ -81,9 +81,9 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0xAE5325C02b87ff1D3752a1d3100Ec82537605B72": {
+      "0x4640AaaaB3E6f5bB9b4A16fb00EA0DBD6D98B397": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.0"
+        "Version": "2.1.1"
       },
       "0x3F95b05a77FDC6D82162D86A72b156b55030627f": {
         "Name": "AmarokFacet",
@@ -160,6 +160,10 @@
       "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0x9428951809Cc7aB7CeC79295FEFcC96670eAeb9E": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {

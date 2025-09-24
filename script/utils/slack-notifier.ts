@@ -129,37 +129,6 @@ export class SlackNotifier {
   }
 
   /**
-   * Notify when batch processing starts
-   */
-  public async notifyBatchStart(networks: string[]): Promise<void> {
-    const message: ISlackMessage = {
-      text: '🚀 Timelock batch execution started',
-      blocks: [
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: '🚀 Timelock Batch Execution Started',
-          },
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*Networks to process:* ${
-              networks.length
-            }\n*Networks:* ${networks.join(
-              ', '
-            )}\n*Start time:* ${this.startTime.toISOString()}`,
-          },
-        },
-      ],
-    }
-
-    await this.sendNotificationWithRetry(message)
-  }
-
-  /**
    * Notify when an operation is successfully executed
    */
   public async notifyOperationExecuted(
@@ -480,41 +449,71 @@ export class SlackNotifier {
   }
 
   /**
-   * Notify when no operations are found for a network
+   * Notify when operations were never scheduled in the timelock
    */
-  public async notifyNoOperations(
+  public async notifyNotScheduled(
     network: string,
-    reason: 'no-pending' | 'no-ready' | 'no-timelock',
-    pendingCount?: number
+    operations: Array<{
+      operationId: string
+      transactionId: string
+      safeTxHash: string
+      executionHash?: string
+    }>
   ): Promise<void> {
-    let text = ''
-    switch (reason) {
-      case 'no-pending':
-        text = `✅ ${network}: No pending operations found`
-        break
-      case 'no-ready':
-        text = `⏰ ${network}: ${pendingCount} pending operations, none ready for execution`
-        break
-      case 'no-timelock':
-        text = `⚠️ ${network}: No timelock controller deployed`
-        break
-      default:
-        text = `${network}: Unknown status`
-        break
-    }
-
     const message: ISlackMessage = {
-      text,
+      text: `❌ ${network}: ${operations.length} operation(s) not scheduled in timelock`,
       blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: '❌ Operations Not Scheduled in Timelock',
+          },
+        },
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text,
+            text: `*Network:* ${network}\n*Issue:* The following Safe transactions were executed but never scheduled in the timelock controller. They need to be re-executed.`,
           },
+        },
+        {
+          type: 'divider',
         },
       ],
     }
+
+    // Add details for each not-scheduled operation
+    for (const op of operations)
+      if (message.blocks) {
+        let operationText = `• *Operation ID:* \`${this.truncateHash(
+          op.operationId
+        )}\`\n  *MongoDB ID:* \`${
+          op.transactionId
+        }\`\n  *Safe Tx Hash:* \`${this.truncateHash(op.safeTxHash)}\``
+
+        if (op.executionHash)
+          operationText += `\n  *Execution Hash:* \`${this.truncateHash(
+            op.executionHash
+          )}\``
+
+        message.blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: operationText,
+          },
+        })
+      }
+
+    if (message.blocks)
+      message.blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `⚠️ *Action Required:* These Safe transactions must be re-executed to schedule them in the timelock.`,
+        },
+      })
 
     await this.sendNotificationWithRetry(message)
   }
