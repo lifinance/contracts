@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
@@ -51,10 +51,14 @@ contract FeeForwarder is WithdrawablePeriphery {
     ) external {
         // we do not check the length of the distributions array to save gas
 
+        // also we do not check sufficient balance in msg.sender or approvals to save gas
+        // the tx will revert anyway in these cases
+
         // forward all fee amounts to the recipients
         for (uint256 i; i < distributions.length; ) {
             FeeDistribution calldata distribution = distributions[i];
-            if (distribution.amount == 0) revert InvalidCallData();
+
+            // we do intentionally not check for amount == 0 to save gas
 
             LibAsset.transferFromERC20(
                 token,
@@ -80,10 +84,14 @@ contract FeeForwarder is WithdrawablePeriphery {
     ) external payable {
         // we do not check the length of the distributions array to save gas
 
+        // also we do not check sufficient msg.value / native balance to save gas
+        // the tx will revert anyway in these cases
+
         // forward all native fee amounts to the recipients
         for (uint256 i; i < distributions.length; ) {
             FeeDistribution calldata distribution = distributions[i];
-            if (distribution.amount == 0) revert InvalidCallData();
+
+            // we do intentionally not check for amount == 0 to save gas
 
             LibAsset.transferAsset(
                 address(0),

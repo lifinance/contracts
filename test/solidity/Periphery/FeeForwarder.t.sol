@@ -5,7 +5,7 @@ import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { FeeForwarder } from "lifi/Periphery/FeeForwarder.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { InvalidCallData, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeForwarderTest is DSTest {
     // solhint-disable immutable-vars-naming
@@ -231,7 +231,7 @@ contract FeeForwarderTest is DSTest {
         feeForwarder.forwardERC20Fees(address(0), distributions);
     }
 
-    function testRevert_ForwardERC20FeesWithZeroAmount() public {
+    function test_ForwardERC20FeesWithZeroAmount() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](1);
@@ -240,12 +240,16 @@ contract FeeForwarderTest is DSTest {
             amount: 0
         });
 
-        // Act & Assert
-        vm.expectRevert(InvalidCallData.selector);
+        uint256 balanceBefore = feeToken.balanceOf(address(0xb33f));
+
+        // Act & Assert - Zero amount transfers succeed but transfer nothing (gas optimization)
         feeForwarder.forwardERC20Fees(address(feeToken), distributions);
+
+        // Verify no tokens were transferred
+        assertEq(feeToken.balanceOf(address(0xb33f)), balanceBefore);
     }
 
-    function testRevert_ForwardNativeFeesWithZeroAmount() public {
+    function test_ForwardNativeFeesWithZeroAmount() public {
         // Arrange
         FeeForwarder.FeeDistribution[]
             memory distributions = new FeeForwarder.FeeDistribution[](1);
@@ -254,9 +258,16 @@ contract FeeForwarderTest is DSTest {
             amount: 0
         });
 
-        // Act & Assert
-        vm.expectRevert(InvalidCallData.selector);
+        uint256 balanceBefore = address(0xb33f).balance;
+        uint256 callerBalanceBefore = address(this).balance;
+
+        // Act & Assert - Zero amount transfers succeed but transfer nothing (gas optimization)
         feeForwarder.forwardNativeFees{ value: 1 ether }(distributions);
+
+        // Verify no native tokens were transferred
+        assertEq(address(0xb33f).balance, balanceBefore);
+        // Verify all sent value is refunded
+        assertEq(address(this).balance, callerBalanceBefore);
     }
 
     function testRevert_ForwardERC20FeesWithZeroRecipient() public {
