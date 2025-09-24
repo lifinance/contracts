@@ -64,6 +64,14 @@
       "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x390b9A9d7Ad4c62E4F3AD04256f87c977774Fce6": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x76b0e123923075f362Dc1ED7a48D7aD3ed7C5663": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -75,8 +83,8 @@
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
-      "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "",
+      "ReceiverAcrossV3": "0x2cE98D2879Ec036183Aae242CACC0Dc37554d969",
+      "ReceiverAcrossV4": "0x4D8fAEdf6BeDEc8Fa68a3256015Ef273Ebf4b787",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0xA5D46f5FAA47D69947acA00Fd9Ac023392719546",
       "TokenWrapper": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee"
