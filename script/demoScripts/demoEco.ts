@@ -8,6 +8,7 @@
  * - Updated EcoData structure to match latest contract implementation
  * - Removed obsolete fields: receivingAssetId, salt, destinationInbox, destinationCalls
  * - Added encodedRoute field which contains routing information for the bridge
+ * - Added solanaATA field computed using web3.js and Solana token mint
  * - Added proper TypeScript types from typechain
  */
 
@@ -18,7 +19,8 @@
 
 import { randomBytes } from 'crypto'
 
-import { Keypair } from '@solana/web3.js'
+import { getAssociatedTokenAddress } from '@solana/spl-token'
+import { Keypair, PublicKey } from '@solana/web3.js'
 import { defineCommand, runMain } from 'citty'
 import { config } from 'dotenv'
 import { parseUnits, zeroAddress, type Narrow, toHex } from 'viem'
@@ -137,6 +139,38 @@ function deriveSolanaAddress(ethPrivateKey: string): string {
   const keypair = Keypair.fromSeed(seedBytes)
 
   return keypair.publicKey.toBase58()
+}
+
+/**
+ * Computes the Associated Token Account (ATA) for a Solana address and token mint
+ *
+ * @param solanaAddress - Solana address in base58 format
+ * @param tokenMint - Token mint address in base58 format
+ * @returns ATA address as bytes32 hex string
+ */
+async function computeSolanaATA(
+  solanaAddress: string,
+  tokenMint: string
+): Promise<`0x${string}`> {
+  try {
+    const ownerPublicKey = new PublicKey(solanaAddress)
+    const mintPublicKey = new PublicKey(tokenMint)
+
+    // Compute the Associated Token Account
+    const ata = await getAssociatedTokenAddress(mintPublicKey, ownerPublicKey)
+
+    // Convert to bytes32 (32 bytes) - take the first 32 bytes of the public key
+    const ataBytes = ata.toBytes()
+    const ataHex =
+      '0x' + Buffer.from(ataBytes).toString('hex').padStart(64, '0')
+
+    return ataHex as `0x${string}`
+  } catch (error) {
+    console.error('Error computing Solana ATA:', error)
+    throw new Error(
+      `Failed to compute ATA for ${solanaAddress} and mint ${tokenMint}`
+    )
+  }
 }
 
 /**
@@ -536,6 +570,25 @@ async function main(args: {
   // For now, we'll encode basic route information
   const encodedRoute = getEncodedRoute(quote, actualRecipientAddress)
 
+  // For Solana destinations, compute the solanaATA using web3.js
+  // ATA (Associated Token Account) is deterministically derived from the recipient address and token mint
+  // Formula: findProgramAddress([ownerPublicKey, tokenMint, "associated_token_account"], associatedTokenProgramId)
+  let solanaATA: `0x${string}` =
+    '0x0000000000000000000000000000000000000000000000000000000000000000'
+  if (isDestinationSolana) {
+    if (!privateKey)
+      throw new Error('Private key required for Solana destination')
+
+    const solanaAddress = deriveSolanaAddress(privateKey)
+    const usdcMint = USDC_ADDRESSES['solana']
+    if (!usdcMint) throw new Error('USDC mint address not found for Solana')
+
+    solanaATA = await computeSolanaATA(solanaAddress, usdcMint)
+    console.log('Computed Solana ATA:', solanaATA)
+    console.log('  For recipient:', solanaAddress)
+    console.log('  For token mint:', usdcMint)
+  }
+
   const ecoData: EcoFacet.EcoDataStruct = {
     receiverAddress: actualRecipientAddress, // EVM address for validation
     nonEVMReceiver: nonEVMReceiverBytes, // Solana address as bytes or '0x' for EVM
@@ -543,6 +596,7 @@ async function main(args: {
     rewardDeadline: BigInt(quote.data.quoteResponse.deadline), // Deadline from quote
     solverReward: feeAmount, // Solver fee from quote
     encodedRoute: encodedRoute, // Encoded route information for the bridge
+    solanaATA: solanaATA, // ATA for Solana or zero for EVM chains
   }
 
   // === Ensure allowance ===
@@ -568,7 +622,7 @@ async function main(args: {
           abi: erc20Abi,
           functionName: 'approve',
           args,
-        } as any)
+        } as any) // viem type assertion needed for compatibility
       },
     },
   }
@@ -640,6 +694,7 @@ async function main(args: {
     (ecoData.encodedRoute as string).length,
     'chars'
   )
+  console.log('  - solanaATA:', ecoData.solanaATA)
 
   await executeTransaction(
     () =>

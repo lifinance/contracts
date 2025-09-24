@@ -188,6 +188,10 @@
       "0xb0f8154de22228b13A344cc3c63640d506A00a72": {
         "Name": "EcoFacet",
         "Version": "1.0.0"
+      },
+      "0x679ee653036018B2a8544C99e055040C8CDF7bcc": {
+        "Name": "EcoFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

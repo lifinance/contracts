@@ -142,7 +142,8 @@ contract EcoFacetTest is TestBaseFacet {
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
                 solverReward: solverReward,
-                encodedRoute: encodedRoute
+                encodedRoute: encodedRoute,
+                solanaATA: bytes32(0)
             });
     }
 
@@ -342,7 +343,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: solanaEncodedRoute
+            encodedRoute: solanaEncodedRoute,
+            solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2 // Extracted from encodedRoute ATA for USDC on Solana
         });
 
         // Approve USDC
@@ -388,7 +390,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: tronEncodedRoute // Properly encoded Route struct
+            encodedRoute: tronEncodedRoute, // Properly encoded Route struct
+            solanaATA: bytes32(0)
         });
 
         // Approve USDC
@@ -420,7 +423,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: "" // Missing encodedRoute (now required for all chains)
+            encodedRoute: "", // Missing encodedRoute (now required for all chains)
+            solanaATA: bytes32(0)
         });
 
         usdc.approve(
@@ -451,7 +455,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: hex"0102030405060708090a0b0c0d0e0f10"
+            encodedRoute: hex"0102030405060708090a0b0c0d0e0f10",
+            solanaATA: bytes32(0)
         });
 
         // Approve USDC
@@ -491,7 +496,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: routeWithWrongReceiver // Route has different receiver
+            encodedRoute: routeWithWrongReceiver, // Route has different receiver
+            solanaATA: bytes32(0)
         });
 
         // Approve USDC
@@ -525,7 +531,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: hex"0102030405060708090a0b0c0d0e0f10"
+            encodedRoute: hex"0102030405060708090a0b0c0d0e0f10",
+            solanaATA: bytes32(0)
         });
 
         // Approve USDC
@@ -564,7 +571,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0),
             rewardDeadline: 0,
             solverReward: NATIVE_SOLVER_REWARD,
-            encodedRoute: validRoute
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0)
         });
 
         vm.deal(USER_SENDER, 1 ether);
@@ -598,7 +606,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0),
             rewardDeadline: 0,
             solverReward: NATIVE_SOLVER_REWARD,
-            encodedRoute: validRoute
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0)
         });
 
         // Fund the user with native tokens
@@ -632,7 +641,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: invalidRoute
+            encodedRoute: invalidRoute,
+            solanaATA: bytes32(0)
         });
 
         usdc.approve(
@@ -661,7 +671,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: tooShortRoute
+            encodedRoute: tooShortRoute,
+            solanaATA: bytes32(0)
         });
 
         usdc.approve(
@@ -693,7 +704,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: invalidTronRoute
+            encodedRoute: invalidTronRoute,
+            solanaATA: bytes32(0)
         });
 
         usdc.approve(
@@ -726,7 +738,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: validRoute
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0)
         });
 
         usdc.approve(
@@ -762,7 +775,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: validRoute
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0)
         });
 
         usdc.approve(
@@ -790,7 +804,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: solanaRoute
+            encodedRoute: solanaRoute,
+            solanaATA: bytes32(uint256(1))
         });
 
         usdc.approve(
@@ -824,7 +839,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: solanaRoute
+            encodedRoute: solanaRoute,
+            solanaATA: bytes32(uint256(1))
         });
 
         usdc.approve(
@@ -855,7 +871,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: tooShortRoute
+            encodedRoute: tooShortRoute,
+            solanaATA: bytes32(uint256(1))
         });
 
         usdc.approve(
@@ -864,6 +881,86 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         vm.expectRevert(InvalidReceiver.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_BridgeToSolanaWithSolanaATAZero() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data for Solana
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS; // Must use NON_EVM_ADDRESS for Solana
+
+        // Solana uses CalldataWithAccounts encoding
+        bytes
+            memory solanaEncodedRoute = hex"52a01d29f1d91ab0b57761768e39b85275adf37a9da16dd3640f0f461d2b34e18b15d4680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7000000000000000001000000c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6164454c00000000000100000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a99b0000000a0000000c64454c0000000000060404000000dadaffa20d79347c07967829bb1a2fb4527985bb805d6e4e1bdaa132452b31630001c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6100008f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2000148c1d430876bafc918c7395041939a101ea72fead56b9ec8c4b8e5c7f76d363b0000"; // [pre-commit-checker: not a secret]
+
+        // Dev Solana address (base58 encoded address in bytes)
+        bytes
+            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a";
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0), // Not used for NON_EVM_ADDRESS
+            nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: solanaEncodedRoute,
+            solanaATA: bytes32(0) // Set to zero - should revert
+        });
+
+        // Approve USDC
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Expect InvalidConfig revert due to solanaATA being zero
+        vm.expectRevert(InvalidConfig.selector);
+
+        // Execute bridge
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaATADoesNotMatch() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data for Solana
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS; // Must use NON_EVM_ADDRESS for Solana
+
+        // Solana uses CalldataWithAccounts encoding
+        bytes
+            memory solanaEncodedRoute = hex"52a01d29f1d91ab0b57761768e39b85275adf37a9da16dd3640f0f461d2b34e18b15d4680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7000000000000000001000000c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6164454c00000000000100000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a99b0000000a0000000c64454c0000000000060404000000dadaffa20d79347c07967829bb1a2fb4527985bb805d6e4e1bdaa132452b31630001c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6100008f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2000148c1d430876bafc918c7395041939a101ea72fead56b9ec8c4b8e5c7f76d363b0000"; // [pre-commit-checker: not a secret]
+
+        // Dev Solana address (base58 encoded address in bytes)
+        bytes
+            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a";
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: address(0), // Not used for NON_EVM_ADDRESS
+            nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
+            encodedRoute: solanaEncodedRoute,
+            solanaATA: bytes32(uint256(0x123456789abcdef)) // Different ATA that doesn't match the route
+        });
+
+        // Approve USDC
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
+
+        // Expect revert due to ATA mismatch
+        vm.expectRevert(InvalidReceiver.selector);
+
+        // Execute bridge
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();

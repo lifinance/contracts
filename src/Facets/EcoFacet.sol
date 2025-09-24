@@ -59,6 +59,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param rewardDeadline Timestamp for reward claim eligibility
     /// @param solverReward Reward amount for the solver (native or ERC20 depending on sendingAssetId)
     /// @param encodedRoute Encoded route data containing destination chain routing information
+    /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
     struct EcoData {
         address receiverAddress;
         bytes nonEVMReceiver;
@@ -66,6 +67,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         uint64 rewardDeadline;
         uint256 solverReward;
         bytes encodedRoute;
+        bytes32 solanaATA;
     }
 
     /// Constructor ///
@@ -253,6 +255,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ) {
             revert InformationMismatch();
         }
+        if (
+            _bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA &&
+            _bridgeData.receiver == NON_EVM_ADDRESS
+        ) {
+            if (_ecoData.solanaATA == bytes32(0)) {
+                revert InvalidConfig();
+            }
+        }
 
         _validateRouteReceiver(_bridgeData, _ecoData);
     }
@@ -317,10 +327,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         }
 
         // Extract bytes 251-282 (32 bytes) which contain the recipient address
-        // Note: We don't validate the extracted address here as it's part of the signed route
-        // The validation of matching addresses would be done off-chain
-        // Future: Could extract and validate against nonEVMReceiver if needed
-        // bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[251:283]);
+        bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[251:283]);
+
+        // Validate that the provided solanaATA matches the recipient in the encoded route
+        if (_ecoData.solanaATA != routeReceiver) {
+            revert InvalidReceiver();
+        }
     }
 
     function _isEVMChain(uint256 chainId) private pure returns (bool) {
