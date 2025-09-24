@@ -2039,7 +2039,7 @@
         "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "DeBridgeDlnFacet": "1.0.0"
+        "DeBridgeDlnFacet": "1.0.1"
       }
     }
   }
