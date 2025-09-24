@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch, InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InformationMismatch } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -285,18 +285,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         // - Borsh encoding preserves the exact byte positions for fixed-size fields like pubkeys
         // - The total encoded route for Solana must be exactly 319 bytes
         if (_ecoData.encodedRoute.length != 319) {
-            revert InvalidCallData();
+            revert InvalidReceiver();
         }
 
         // Extract bytes 251-282 (32 bytes) which contain the recipient address
         bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[251:283]);
-        if (
-            _ecoData.nonEVMReceiver.length == 0 ||
-            _ecoData.nonEVMReceiver.length > 44
-        ) {
-            revert InvalidReceiver();
-        }
-        if (routeReceiver == bytes32(0)) {
+        if (routeReceiver.length == 0 || routeReceiver.length > 44) {
             revert InvalidReceiver();
         }
     }

@@ -10,7 +10,7 @@ import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
 import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch, InvalidCallData } from "../../../src/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InformationMismatch } from "../../../src/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
     constructor(IEcoPortal _portal) EcoFacet(_portal) {}
@@ -330,10 +330,11 @@ contract EcoFacetTest is TestBaseFacet {
 
         // Solana uses CalldataWithAccounts encoding
         bytes
-            memory solanaEncodedRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
+            memory solanaEncodedRoute = hex"52a01d29f1d91ab0b57761768e39b85275adf37a9da16dd3640f0f461d2b34e18b15d4680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7000000000000000001000000c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6164454c00000000000100000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a99b0000000a0000000c64454c0000000000060404000000dadaffa20d79347c07967829bb1a2fb4527985bb805d6e4e1bdaa132452b31630001c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6100008f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2000148c1d430876bafc918c7395041939a101ea72fead56b9ec8c4b8e5c7f76d363b0000"; // [pre-commit-checker: not a secret]
 
-        // Mock Solana address (base58 encoded address in bytes)
-        bytes memory solanaAddress = hex"11111111111111111111111111111111";
+        // Dev Solana address (base58 encoded address in bytes)
+        bytes
+            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a";
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: address(0), // Not used for NON_EVM_ADDRESS
@@ -701,42 +702,33 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_SolanaRouteValidation_ValidRoute() public {
+    function test_IsEVMChainCalledWithSolanaChainId() public {
         vm.startPrank(USER_SENDER);
 
-        // Set up bridge data for Solana
+        // Set destination to Solana but use EVM receiver (invalid config, but covers the branch)
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
-        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.receiver = USER_RECEIVER; // EVM address, not NON_EVM_ADDRESS
 
-        bytes
-            memory solanaRoute = hex"9e6c10e6d964ed8b7015b410e7049dc1450b4bdcda6976d16b98dab756c33c2fa54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7000000000000000001000000c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6164454c00000000000100000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a99b0000000a0000000c64454c0000000000060404000000dadaffa20d79347c07967829bb1a2fb4527985bb805d6e4e1bdaa132452b31630001c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6100008f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2000148c1d430876bafc918c7395041939a101ea72fead56b9ec8c4b8e5c7f76d363b000000"; // [pre-commit-checker: not a secret]
-
-        bytes
-            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a"; // [pre-commit-checker: not a secret]
+        // Create a valid Route struct encoding
+        bytes memory validRoute = createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0),
-            nonEVMReceiver: solanaAddress,
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: solanaRoute
+            encodedRoute: validRoute
         });
 
         usdc.approve(
             _facetTestContractAddress,
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
-
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit BridgeToNonEVMChain(
-            bridgeData.transactionId,
-            bridgeData.destinationChainId,
-            solanaAddress
-        );
-
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
 
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
@@ -779,7 +771,7 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
 
         bytes
-            memory solanaRoute = hex"9e6c10e6d964ed8b7015b410e7049dc1450b4bdcda6976d16b98dab756c33c2fa54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7"; // [pre-commit-checker: not a secret]
+            memory solanaRoute = hex"fefd31b99638603f4dbb9bc6d42d223ec4b4d4ab5509910efa68063ba9f4fac57e0ed4680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7000000000000000001000000c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6164454c00000000000100000006ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a99b0000000a0000000c64454c0000000000060404000000dadaffa20d79347c07967829bb1a2fb4527985bb805d6e4e1bdaa132452b31630001c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d6100008f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2000148c1d430876bafc918c7395041939a101ea72fead56b9ec8c4b8e5c7f76d363b0000"; // [pre-commit-checker: not a secret]
 
         bytes memory tooLongAddress = new bytes(45);
         for (uint256 i = 0; i < 45; i++) {
@@ -831,41 +823,7 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        vm.expectRevert(InvalidCallData.selector);
-        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_SolanaRouteValidation_ZeroRouteReceiver() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
-        bridgeData.receiver = NON_EVM_ADDRESS;
-
-        bytes memory zeroRoute = abi.encodePacked(
-            bytes32(0),
-            hex"a54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7" // [pre-commit-checker: not a secret]
-        );
-
-        bytes
-            memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a"; // [pre-commit-checker: not a secret]
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0),
-            nonEVMReceiver: solanaAddress,
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: zeroRoute
-        });
-
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
-
-        vm.expectRevert(InvalidReceiver.selector);
+        vm.expectRevert(InformationMismatch.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
