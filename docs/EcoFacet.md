@@ -66,8 +66,8 @@ ecoData.nonEVMReceiver = solanaAddressBytes;  // Actual Solana address
 
 ### Important Notes
 
+- **Native Token Bridging**: Native token bridging is not currently supported and is not in the immediate roadmap. Only ERC20 token bridging is available.
 - **Solver Reward**:
-  - For native token transfers: The entire amount (bridge amount + solver reward) must be sent as `msg.value`
   - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the Eco router handles the split internally
 - **Non-EVM Destinations**: For non-EVM chains (like Tron or Solana), set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (constant from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the total amount (bridge amount + solver reward).
