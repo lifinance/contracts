@@ -823,7 +823,7 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
-        vm.expectRevert(InformationMismatch.selector);
+        vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();

@@ -268,13 +268,46 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             return;
         }
         if (_isEVMChain(_bridgeData.destinationChainId)) {
-            // For EVM chains, just verify the route can be decoded properly
-            // This ensures the route data is valid without doing complex validation
-            abi.decode(_ecoData.encodedRoute, (Route));
+            // For EVM chains, decode the Route struct to get the last call
+            Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
+
+            // The last call should be the transfer to the receiver
+            // For ERC20 transfer, the calldata follows the pattern: transfer(address,uint256)
+            // We need to skip the function selector (4 bytes) and decode the address parameter
+            bytes memory lastCallData = route
+                .calls[route.calls.length - 1]
+                .callData;
+
+            // Ensure calldata is long enough for transfer function (4 bytes selector + 32 bytes address + 32 bytes amount)
+            if (lastCallData.length < 68) {
+                revert InvalidReceiver();
+            }
+
+            // Extract the receiver address from the calldata
+            // Skip the 4-byte function selector and decode the address (first parameter)
+            address receiver;
+            assembly {
+                // Load the address from calldata starting at position 4 (after selector)
+                // Add 32 to skip the length prefix of the bytes array, then add 4 to skip selector
+                receiver := mload(add(lastCallData, 36))
+            }
+
+            if (receiver != _bridgeData.receiver) {
+                revert InvalidReceiver();
+            }
         }
     }
 
     function _validateSolanaReceiver(EcoData calldata _ecoData) private pure {
+        // Validate the nonEVMReceiver length for Solana addresses
+        // Solana addresses are base58-encoded and should be between 32-44 characters
+        if (
+            _ecoData.nonEVMReceiver.length == 0 ||
+            _ecoData.nonEVMReceiver.length > 44
+        ) {
+            revert InvalidReceiver();
+        }
+
         // Extract the Solana recipient address from a Borsh-encoded Route struct
         // The Route struct contains TransferChecked instruction calldata where:
         // - The entire Route struct is Borsh-serialized
@@ -289,10 +322,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         }
 
         // Extract bytes 251-282 (32 bytes) which contain the recipient address
-        bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[251:283]);
-        if (routeReceiver.length == 0 || routeReceiver.length > 44) {
-            revert InvalidReceiver();
-        }
+        // Note: We don't validate the extracted address here as it's part of the signed route
+        // The validation of matching addresses would be done off-chain
+        // Future: Could extract and validate against nonEVMReceiver if needed
+        // bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[251:283]);
     }
 
     function _isEVMChain(uint256 chainId) private pure returns (bool) {
