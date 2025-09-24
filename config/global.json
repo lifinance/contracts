@@ -40,6 +40,7 @@
   ],
   "autoWhitelistPeripheryContracts": [
     "FeeCollector",
+    "FeeForwarder",
     "GasZipPeriphery",
     "TokenWrapper",
     "LiFiDEXAggregator"
@@ -62,11 +63,14 @@
     "ERC20Proxy",
     "Executor",
     "FeeCollector",
+    "FeeForwarder",
     "GasZipPeriphery",
     "LiFiDEXAggregator",
     "LiFiTimelockController",
     "Permit2Proxy",
     "TokenWrapper"
   ],
-  "blacklistedFunctionSelectors": ["0x23b872dd"]
+  "blacklistedFunctionSelectors": [
+    "0x23b872dd"
+  ]
 }
