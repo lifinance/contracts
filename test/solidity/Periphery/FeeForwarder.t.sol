@@ -5,7 +5,7 @@ import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { FeeForwarder } from "lifi/Periphery/FeeForwarder.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, NullAddrIsNotAnERC20Token } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeForwarderTest is DSTest {
     // solhint-disable immutable-vars-naming
@@ -213,7 +213,7 @@ contract FeeForwarderTest is DSTest {
         });
 
         // Act & Assert - Transaction will revert due to insufficient funds when trying to transfer ETH
-        vm.expectRevert();
+        vm.expectRevert(0xb12d13eb); // ETHTransferFailed selector
         feeForwarder.forwardNativeFees{ value: 0.5 ether }(distributions);
     }
 
@@ -227,7 +227,7 @@ contract FeeForwarderTest is DSTest {
         });
 
         // Act & Assert - Native token transfers will fail naturally when trying to transfer, saving gas
-        vm.expectRevert();
+        vm.expectRevert(NullAddrIsNotAnERC20Token.selector);
         feeForwarder.forwardERC20Fees(address(0), distributions);
     }
 
