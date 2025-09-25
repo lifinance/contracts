@@ -43,11 +43,11 @@ contract FeeForwarder is WithdrawablePeriphery {
     /// @notice Forwards ERC20 token fees from the caller to the specified recipients
     /// @dev The caller must have approved this contract to spend the tokens before calling this function.
     ///      Native token transfers will fail naturally, saving gas by not checking explicitly.
-    /// @param token The address of the ERC20 token to forward
-    /// @param distributions Array of fee distributions containing recipients and amounts
+    /// @param _token The address of the ERC20 token to forward
+    /// @param _distributions Array of fee distributions containing recipients and amounts
     function forwardERC20Fees(
-        address token,
-        FeeDistribution[] calldata distributions
+        address _token,
+        FeeDistribution[] calldata _distributions
     ) external {
         // we do not check the length of the distributions array to save gas
 
@@ -55,13 +55,13 @@ contract FeeForwarder is WithdrawablePeriphery {
         // the tx will revert anyway in these cases
 
         // forward all fee amounts to the recipients
-        for (uint256 i; i < distributions.length; ) {
-            FeeDistribution calldata distribution = distributions[i];
+        for (uint256 i; i < _distributions.length; ) {
+            FeeDistribution calldata distribution = _distributions[i];
 
             // we do intentionally not check for amount == 0 to save gas
 
             LibAsset.transferFromERC20(
-                token,
+                _token,
                 msg.sender,
                 distribution.recipient,
                 distribution.amount
@@ -72,15 +72,15 @@ contract FeeForwarder is WithdrawablePeriphery {
             }
         }
 
-        emit FeesForwarded(token, distributions);
+        emit FeesForwarded(_token, _distributions);
     }
 
     /// @notice Forwards native token fees to the specified recipients
     /// @dev Any excess native tokens sent will be refunded to the caller. Transaction will revert if insufficient funds.
     ///      The tx will not revert if the array is empty, but will still emit the FeesForwarded event.
-    /// @param distributions Array of fee distributions containing recipients and amounts
+    /// @param _distributions Array of fee distributions containing recipients and amounts
     function forwardNativeFees(
-        FeeDistribution[] calldata distributions
+        FeeDistribution[] calldata _distributions
     ) external payable {
         // we do not check the length of the distributions array to save gas
 
@@ -88,8 +88,8 @@ contract FeeForwarder is WithdrawablePeriphery {
         // the tx will revert anyway in this case
 
         // forward all native fee amounts to the recipients
-        for (uint256 i; i < distributions.length; ) {
-            FeeDistribution calldata distribution = distributions[i];
+        for (uint256 i; i < _distributions.length; ) {
+            FeeDistribution calldata distribution = _distributions[i];
 
             // we do intentionally not check for amount == 0 to save gas
 
@@ -116,6 +116,6 @@ contract FeeForwarder is WithdrawablePeriphery {
             );
         }
 
-        emit FeesForwarded(address(0), distributions);
+        emit FeesForwarded(address(0), _distributions);
     }
 }
