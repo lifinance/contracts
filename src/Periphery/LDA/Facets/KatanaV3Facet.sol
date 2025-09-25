@@ -23,6 +23,10 @@ contract KatanaV3Facet is BaseRouteConstants {
     // ==== External Functions ====
     /// @notice Performs a swap through KatanaV3 pools
     /// @dev This function handles swaps through KatanaV3 pools.
+    /// This function is marked `payable` to support multihop routes that start
+    /// with a native asset (e.g., ETH -> WETH -> USDC). The initial `msg.value`
+    /// is preserved through the `delegatecall` chain and this function must be
+    /// able to receive it, even if the value is not used in this step.
     /// @param swapData Encoded swap parameters [pool, direction, destinationAddress]
     /// @param from Where to take liquidity for swap
     /// @param tokenIn Input token
@@ -32,7 +36,7 @@ contract KatanaV3Facet is BaseRouteConstants {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external {
+    ) external payable {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();

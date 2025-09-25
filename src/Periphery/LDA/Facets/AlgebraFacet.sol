@@ -30,6 +30,10 @@ contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticator {
     // ==== External Functions ====
     /// @notice Executes a swap through an Algebra pool
     /// @dev Handles both regular swaps and fee-on-transfer token swaps
+    /// This function is marked `payable` to support multihop routes that start
+    /// with a native asset (e.g., ETH -> WETH -> USDC). The initial `msg.value`
+    /// is preserved through the `delegatecall` chain and this function must be
+    /// able to receive it, even if the value is not used in this step.
     /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, supportsFeeOnTransfer]
     /// @param from Token source address - if equals msg.sender,
     ///         tokens will be pulled from the caller; otherwise assumes tokens are already at this contract
@@ -40,7 +44,7 @@ contract AlgebraFacet is BaseRouteConstants, PoolCallbackAuthenticator {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external {
+    ) external payable {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();

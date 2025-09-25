@@ -23,6 +23,10 @@ contract UniV2StyleFacet is BaseRouteConstants {
     // ==== External Functions ====
     /// @notice Executes a UniswapV2-style swap
     /// @dev Handles token transfers and calculates output amounts based on pool reserves
+    /// This function is marked `payable` to support multihop routes that start
+    /// with a native asset (e.g., ETH -> WETH -> USDC). The initial `msg.value`
+    /// is preserved through the `delegatecall` chain and this function must be
+    /// able to receive it, even if the value is not used in this step.
     /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, fee]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
     ///        otherwise assumes tokens are at receiver address (FUNDS_IN_RECEIVER)
@@ -33,7 +37,7 @@ contract UniV2StyleFacet is BaseRouteConstants {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external {
+    ) external payable {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();

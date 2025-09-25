@@ -17,6 +17,10 @@ contract NativeWrapperFacet is BaseRouteConstants {
     // ==== External Functions ====
     /// @notice Unwraps WETH to native ETH
     /// @dev Handles unwrapping WETH and sending native ETH to recipient
+    /// This function is marked `payable` to support multihop routes that start
+    /// with a native asset (e.g., ETH -> WETH -> USDC). The initial `msg.value`
+    /// is preserved through the `delegatecall` chain and this function must be
+    /// able to receive it, even if the value is not used in this step.
     /// @param swapData Encoded swap parameters [destinationAddress]
     /// @param from Token source. If from == msg.sender, pull tokens via transferFrom.
     ///             Otherwise, assume tokens are already held by this contract (e.g., address(this) or FUNDS_IN_RECEIVER).
@@ -27,7 +31,7 @@ contract NativeWrapperFacet is BaseRouteConstants {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external {
+    ) external payable {
         address destinationAddress;
         assembly {
             // swapData layout: [length (32 bytes)][data...]

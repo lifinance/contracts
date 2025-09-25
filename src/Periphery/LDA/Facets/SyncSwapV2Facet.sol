@@ -17,6 +17,10 @@ contract SyncSwapV2Facet {
 
     /// @notice Executes a swap through a SyncSwap V2 pool
     /// @dev Handles both V1 (vault-based) and V2 (direct) pool swaps
+    /// This function is marked `payable` to support multihop routes that start
+    /// with a native asset (e.g., ETH -> WETH -> USDC). The initial `msg.value`
+    /// is preserved through the `delegatecall` chain and this function must be
+    /// able to receive it, even if the value is not used in this step.
     /// @param swapData Encoded swap parameters [pool, destinationAddress, withdrawMode, isV1Pool, vault]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
     ///        otherwise assumes tokens are at receiver address
@@ -27,7 +31,7 @@ contract SyncSwapV2Facet {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external {
+    ) external payable {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();

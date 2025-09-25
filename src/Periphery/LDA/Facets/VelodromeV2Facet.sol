@@ -23,6 +23,10 @@ contract VelodromeV2Facet is BaseRouteConstants {
     // ==== External Functions ====
     /// @notice Performs a swap through VelodromeV2 pools
     /// @dev Handles token transfers and optional callbacks, with comprehensive safety checks
+    /// This function is marked `payable` to support multihop routes that start
+    /// with a native asset (e.g., ETH -> WETH -> USDC). The initial `msg.value`
+    /// is preserved through the `delegatecall` chain and this function must be
+    /// able to receive it, even if the value is not used in this step.
     /// @param swapData Encoded swap parameters [pool, direction, destinationAddress, callback]
     /// @param from Token source address - if equals msg.sender or this contract, tokens will be transferred;
     ///        otherwise assumes tokens are at receiver address (FUNDS_IN_RECEIVER)
@@ -33,7 +37,7 @@ contract VelodromeV2Facet is BaseRouteConstants {
         address from,
         address tokenIn,
         uint256 amountIn
-    ) external {
+    ) external payable {
         uint256 stream = LibPackedStream.createStream(swapData);
 
         address pool = stream.readAddress();
