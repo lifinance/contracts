@@ -16,13 +16,13 @@ import { getRPCEnvVarName } from '../../utils/network'
 import { TronContractDeployer } from './TronContractDeployer'
 import type { ITronDeploymentConfig } from './types'
 import {
-  loadForgeArtifact,
+  getContractAddress,
   getContractVersion,
   getEnvironment,
   getNetworkConfig,
-  getContractAddress,
-  saveContractAddress,
+  loadForgeArtifact,
   logDeployment,
+  saveContractAddress,
   updateDiamondJsonPeriphery,
 } from './utils.js'
 
@@ -623,10 +623,12 @@ async function deployAndRegisterPeripheryImpl(options: {
           const artifact = await loadForgeArtifact('FeeForwarder')
           const version = await getContractVersion('FeeForwarder')
 
-          const feeCollectorOwnerHex = globalConfig.feeCollectorOwner
-          const constructorArgs = [feeCollectorOwnerHex]
+          const withdrawWallet = globalConfig.withdrawWallet
+          const constructorArgs = [withdrawWallet]
 
-          consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
+          consola.info(
+            `Using withdrawWallet as contract owner: ${withdrawWallet}`
+          )
           consola.info(`Version: ${version}`)
 
           const result = await deployer.deployContract(
@@ -669,10 +671,12 @@ async function deployAndRegisterPeripheryImpl(options: {
         const artifact = await loadForgeArtifact('FeeForwarder')
         const version = await getContractVersion('FeeForwarder')
 
-        const feeCollectorOwnerHex = globalConfig.feeCollectorOwner
-        const constructorArgs = [feeCollectorOwnerHex]
+        const withdrawWallet = globalConfig.withdrawWallet
+        const constructorArgs = [withdrawWallet]
 
-        consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
+        consola.info(
+          `Using withdrawWallet as contract owner: ${withdrawWallet}`
+        )
         consola.info(`Version: ${version}`)
 
         const result = await deployer.deployContract(artifact, constructorArgs)
