@@ -318,7 +318,7 @@ const main = defineCommand({
         consola.warn('Failed to decode transaction parameters:', error)
         // Use fallback values for testing
         redeemer = address // Use sender as redeemer
-        timelock = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+        timelock = 100 // 100 blocks from now (relative block offset)
         secretHash = '0x' + orderData.result.order_id.padEnd(64, '0') // Use order ID as secret hash
 
         consola.info(`  Using fallback values:`)
@@ -344,12 +344,13 @@ const main = defineCommand({
       // Garden-specific data extracted from the transaction
       const gardenData: GardenFacet.GardenDataStruct = {
         redeemer: redeemer,
+        refundAddress: address, // User's address for refunds on source chain
         timelock: timelock.toString(),
         secretHash: secretHash,
       }
 
       // Step 4: If not swapping, check balance and approve tokens if needed
-      if (!withSwap) 
+      if (!withSwap)
         if (isNative) {
           consola.info('\n💰 Checking ETH balance...')
           await ensureBalanceAndAllowanceToDiamond(
@@ -369,7 +370,6 @@ const main = defineCommand({
             false
           )
         }
-      
 
       // Step 5: Execute the bridge transaction
       consola.info('\n🚀 Executing bridge transaction...')

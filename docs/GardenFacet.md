@@ -4,7 +4,7 @@
 
 The Garden Facet enables cross-chain token transfers using the Garden protocol's HTLC (Hash Time Locked Contracts) mechanism. It interfaces with Garden's registry to find the appropriate HTLC contract for each asset and initiates atomic swaps that can be redeemed on the destination chain using a secret.
 
-The facet supports both native tokens and ERC20 tokens. For native tokens, it uses the NULL_ADDRESS as the asset key in the registry lookup. For ERC20 tokens, it uses the token address directly. The facet then calls the `initiateOnBehalf` function on the appropriate HTLC contract to lock the funds.
+The facet supports both native tokens and ERC20 tokens. For native tokens, it uses Garden's standard native token address (0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE) as the asset key in the registry lookup. For ERC20 tokens, it uses the token address directly. The facet then calls the `initiateOnBehalf` function on the appropriate HTLC contract to lock the funds.
 
 In Garden's cross-chain model:
 
@@ -33,10 +33,12 @@ The methods listed above take a variable labeled `_gardenData`. This data is spe
 
 ```solidity
 /// @param redeemer Address that will receive the funds (solver/filler address on source chain)
-/// @param timelock Block number after which refund is possible
+/// @param refundAddress Address that can claim refund on source chain if HTLC expires
+/// @param timelock Number of blocks after which refund is possible (relative to current block)
 /// @param secretHash SHA256 hash of the secret for the HTLC
 struct GardenData {
   address redeemer;
+  address refundAddress;
   uint256 timelock;
   bytes32 secretHash;
 }

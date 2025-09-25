@@ -10,7 +10,7 @@ interface IGarden {
     /// @notice Initiate HTLC on behalf of initiator
     /// @param initiator The address initiating the HTLC (user who will receive refund if HTLC expires)
     /// @param redeemer The address that will receive the funds (solver/filler on source chain)
-    /// @param timelock Block number when refund becomes available
+    /// @param timelock Number of blocks after which refund is possible (relative to current block)
     /// @param amount Amount of tokens to lock
     /// @param secretHash SHA256 hash of the secret
     function initiateOnBehalf(
