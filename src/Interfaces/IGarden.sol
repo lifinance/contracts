@@ -28,7 +28,7 @@ interface IGarden {
 /// @custom:version 1.0.0
 interface IGardenRegistry {
     /// @notice Get HTLC address for a given asset
-    /// @param assetId The asset address (use address(0) for native)
+    /// @param assetId The asset address (use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native)
     /// @return The HTLC contract address for the asset
     function htlcs(address assetId) external view returns (address);
 }
