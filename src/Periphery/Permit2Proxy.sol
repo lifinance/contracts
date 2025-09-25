@@ -7,17 +7,22 @@ import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
+import { IERC1271 } from "lifi/Interfaces/IERC1271.sol";
+import { InvalidSignature } from "lifi/Errors/GenericErrors.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
-///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.4
+///         token approvals via ERC20 Permit (EIP-2612) and EIP-1271 to our diamond contract
+/// @custom:version 1.1.0
 contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 
     address public immutable LIFI_DIAMOND;
     ISignatureTransfer public immutable PERMIT2;
+
+    // Mapping to track nonces for EIP-1271 replay protection
+    mapping(address => uint256) public nonces;
 
     string public constant WITNESS_TYPE_STRING =
         // solhint-disable-next-line max-line-length
@@ -36,6 +41,10 @@ contract Permit2Proxy is WithdrawablePeriphery {
         address diamondAddress;
         bytes32 diamondCalldataHash;
     }
+
+    /// Constants ///
+
+    bytes4 internal constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
 
     /// Errors ///
 
@@ -83,32 +92,11 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes32 s,
         bytes calldata diamondCalldata
     ) public payable returns (bytes memory) {
-        // call permit on token contract to register approval using signature
-        try
-            ERC20Permit(tokenAddress).permit(
-                msg.sender, // Ensure msg.sender is same wallet that signed permit
-                address(this),
-                amount,
-                deadline,
-                v,
-                r,
-                s
-            )
-        {} catch Error(string memory reason) {
-            if (
-                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
-                amount
-            ) {
-                revert(reason);
-            }
-        } catch (bytes memory reason) {
-            if (
-                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
-                amount
-            ) {
-                LibUtil.revertWith(reason);
-            }
-        }
+        // Pack signature components into bytes
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Use helper function to handle permit
+        _handleEOAPermit(tokenAddress, amount, deadline, signature);
 
         // deposit assets
         LibAsset.transferFromERC20(
@@ -122,6 +110,53 @@ contract Permit2Proxy is WithdrawablePeriphery {
         LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
 
         // call our diamond to execute calldata
+        return _executeCalldata(diamondCalldata);
+    }
+
+    /// @notice Allows both EOAs and smart contract wallets to bridge tokens
+    ///         through a LI.FI diamond contract. EOAs use EIP-2612 permit while smart contracts
+    ///         use EIP-1271 signature validation with pre-approved tokens.
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param deadline Transaction must be completed before this timestamp
+    /// @param signature Packed signature bytes (r,s,v for EOAs, arbitrary format for smart contracts)
+    /// @param diamondCalldata calldata to execute
+    function callDiamondWithEIP2612Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        bytes calldata signature,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        // Check deadline
+        if (block.timestamp > deadline) revert InvalidSignature();
+
+        // Determine if we should use EOA or smart contract path
+        if (!LibAsset.isContract(msg.sender)) {
+            // EOA path - handle permit
+            _handleEOAPermit(tokenAddress, amount, deadline, signature);
+        } else {
+            // Smart contract wallet path - handle EIP-1271
+            _handleEIP1271(
+                tokenAddress,
+                amount,
+                deadline,
+                signature,
+                diamondCalldata
+            );
+        }
+
+        // Transfer tokens from sender
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msg.sender,
+            address(this),
+            amount
+        );
+
+        // Approve to diamond and execute
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
+
         return _executeCalldata(diamondCalldata);
     }
 
@@ -243,6 +278,95 @@ contract Permit2Proxy is WithdrawablePeriphery {
 
     /// Internal Functions ///
 
+    function _handleEOAPermit(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        bytes memory signature
+    ) internal {
+        // Validate signature length
+        if (signature.length != 65) revert InvalidSignature();
+
+        // Extract r, s, v from packed signature
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+
+        // Copy bytes manually without assembly
+        for (uint256 i = 0; i < 32; i++) {
+            r |= bytes32(signature[i]) >> (i * 8);
+            s |= bytes32(signature[i + 32]) >> (i * 8);
+        }
+        v = uint8(signature[64]);
+
+        // Call permit
+        try
+            ERC20Permit(tokenAddress).permit(
+                msg.sender,
+                address(this),
+                amount,
+                deadline,
+                v,
+                r,
+                s
+            )
+        {} catch Error(string memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                revert(reason);
+            }
+        } catch (bytes memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                LibUtil.revertWith(reason);
+            }
+        }
+    }
+
+    function _handleEIP1271(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        bytes calldata signature,
+        bytes calldata diamondCalldata
+    ) internal {
+        // Get current nonce for the sender
+        uint256 currentNonce = nonces[msg.sender];
+
+        // Construct message hash for validation with replay protection
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash,uint256 nonce,uint256 chainId,address contractAddress)"
+                ),
+                tokenAddress,
+                amount,
+                deadline,
+                keccak256(diamondCalldata),
+                currentNonce,
+                block.chainid,
+                address(this)
+            )
+        );
+
+        // Validate signature using EIP-1271
+        bytes4 magicValue = IERC1271(msg.sender).isValidSignature(
+            messageHash,
+            signature
+        );
+
+        // Check for valid signature
+        if (magicValue != ERC1271_MAGIC_VALUE) {
+            revert InvalidSignature();
+        }
+
+        // Consume the nonce to prevent replay attacks
+        nonces[msg.sender] = currentNonce + 1;
+    }
     function _getTokenPermissionsHash(
         ISignatureTransfer.TokenPermissions memory tokenPermissions
     ) internal pure returns (bytes32) {

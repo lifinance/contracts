@@ -9,6 +9,7 @@ import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { stdError } from "forge-std/Test.sol";
+import { InvalidSignature, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 abstract contract BaseMockPermitToken is ERC20, ERC20Permit {
     constructor() ERC20("Mock", "MCK") ERC20Permit("Mock") {}
@@ -76,6 +77,36 @@ contract MockPermitTokenDivisionByZero is BaseMockPermitToken {
         uint256 x = 0;
         uint256 y = 1 / x; // This will cause a division by zero at runtime
         x + y; // to silence unused variable warning
+    }
+}
+
+// Mock EIP-1271 Smart Wallet Contracts
+contract MockEIP1271Wallet {
+    bytes4 internal constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
+    mapping(bytes32 => bool) public authorizedHashes;
+
+    function isValidSignature(
+        bytes32 hash,
+        bytes memory // signature parameter is ignored in this simple mock
+    ) external view returns (bytes4) {
+        if (authorizedHashes[hash]) {
+            return ERC1271_MAGIC_VALUE;
+        }
+        return 0xffffffff;
+    }
+
+    function authorizeHash(bytes32 hash) external {
+        authorizedHashes[hash] = true;
+    }
+}
+
+contract MaliciousEIP1271Wallet {
+    // Always returns wrong magic value
+    function isValidSignature(
+        bytes32,
+        bytes memory
+    ) external pure returns (bytes4) {
+        return 0xdeadbeef;
     }
 }
 
@@ -1007,5 +1038,279 @@ contract Permit2ProxyTest is TestBase {
                 )
             )
         );
+    }
+
+    // =====================================================
+    // EIP-1271 Test Cases
+    // =====================================================
+
+    function test_callDiamondWithEIP2612Signature_EOA_BytesFormat() public {
+        address tokenAddress = ADDRESS_USDC;
+        uint256 amount = defaultUSDCAmount;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Fund the user
+        deal(tokenAddress, permit2User, amount);
+
+        // Get EIP-2612 permit digest
+        uint256 nonce = ERC20Permit(tokenAddress).nonces(permit2User);
+        bytes32 domainSeparator = ERC20Permit(tokenAddress).DOMAIN_SEPARATOR();
+        bytes32 permitDigest = _generateEIP2612MsgHash(
+            permit2User,
+            address(permit2Proxy),
+            amount,
+            nonce,
+            deadline,
+            domainSeparator
+        );
+
+        // Sign with private key
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, permitDigest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Get diamond calldata
+        bytes memory diamondCalldata = _getCalldataForBridging();
+
+        vm.startPrank(permit2User);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+
+        vm.stopPrank();
+
+        // Verify tokens were transferred
+        assertEq(ERC20(tokenAddress).balanceOf(permit2User), 0);
+    }
+
+    function testRevert_callDiamondWithEIP2612Signature_EOA_InvalidSignatureLength()
+        public
+    {
+        address tokenAddress = ADDRESS_USDC;
+        uint256 amount = defaultUSDCAmount;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Create invalid length signature (64 bytes instead of 65)
+        bytes memory signature = new bytes(64);
+
+        deal(tokenAddress, permit2User, amount);
+        bytes memory diamondCalldata = _getCalldataForBridging();
+
+        vm.startPrank(permit2User);
+
+        vm.expectRevert(InvalidSignature.selector);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_canCallDiamondWithEIP2612Signature_SmartWallet_Success()
+        public
+    {
+        // Deploy mock smart wallet
+        MockEIP1271Wallet wallet = new MockEIP1271Wallet();
+
+        address tokenAddress = ADDRESS_USDC;
+        uint256 amount = defaultUSDCAmount;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Prepare diamond calldata
+        bytes memory diamondCalldata = _getCalldataForBridging();
+
+        // Get current nonce for the wallet
+        uint256 nonce = permit2Proxy.nonces(address(wallet));
+
+        // Calculate message hash as per implementation with replay protection
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash,uint256 nonce,uint256 chainId,address contractAddress)"
+                ),
+                tokenAddress,
+                amount,
+                deadline,
+                keccak256(diamondCalldata),
+                nonce,
+                block.chainid,
+                address(permit2Proxy)
+            )
+        );
+
+        // Authorize the hash in the wallet
+        wallet.authorizeHash(messageHash);
+
+        // The signature content doesn't matter for our mock wallet
+        bytes memory signature = abi.encodePacked("authorized_signature");
+
+        // Fund wallet and approve permit2Proxy
+        deal(tokenAddress, address(wallet), amount);
+
+        vm.prank(address(wallet));
+        ERC20(tokenAddress).approve(address(permit2Proxy), amount);
+
+        // Execute as smart wallet
+        vm.prank(address(wallet));
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+
+        // Verify tokens were transferred
+        assertEq(ERC20(tokenAddress).balanceOf(address(wallet)), 0);
+        // Verify nonce was incremented
+        assertEq(permit2Proxy.nonces(address(wallet)), nonce + 1);
+    }
+
+    function testRevert_callDiamondWithEIP2612Signature_SmartWallet_InvalidSignature()
+        public
+    {
+        MockEIP1271Wallet wallet = new MockEIP1271Wallet();
+
+        address tokenAddress = ADDRESS_USDC;
+        uint256 amount = defaultUSDCAmount;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory diamondCalldata = _getCalldataForBridging();
+
+        // Don't authorize the hash - wallet will return invalid magic value
+        bytes memory signature = abi.encodePacked("unauthorized_signature");
+
+        deal(tokenAddress, address(wallet), amount);
+
+        vm.prank(address(wallet));
+        ERC20(tokenAddress).approve(address(permit2Proxy), amount);
+
+        vm.prank(address(wallet));
+
+        vm.expectRevert(InvalidSignature.selector);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+    }
+
+    function testRevert_callDiamondWithEIP2612Signature_SmartWallet_WrongMagicValue()
+        public
+    {
+        MaliciousEIP1271Wallet wallet = new MaliciousEIP1271Wallet();
+
+        address tokenAddress = ADDRESS_USDC;
+        uint256 amount = defaultUSDCAmount;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory signature = abi.encodePacked("any_signature");
+        bytes memory diamondCalldata = _getCalldataForBridging();
+
+        deal(tokenAddress, address(wallet), amount);
+
+        vm.prank(address(wallet));
+        ERC20(tokenAddress).approve(address(permit2Proxy), amount);
+
+        vm.prank(address(wallet));
+
+        vm.expectRevert(InvalidSignature.selector);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+    }
+
+    function testRevert_callDiamondWithEIP2612Signature_SmartWallet_MissingApproval()
+        public
+    {
+        MockEIP1271Wallet wallet = new MockEIP1271Wallet();
+
+        address tokenAddress = ADDRESS_USDC;
+        uint256 amount = defaultUSDCAmount;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory diamondCalldata = _getCalldataForBridging();
+
+        // Get current nonce for the wallet
+        uint256 nonce = permit2Proxy.nonces(address(wallet));
+
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "PermitProxyCall(address token,uint256 amount,uint256 deadline,bytes32 calldataHash,uint256 nonce,uint256 chainId,address contractAddress)"
+                ),
+                tokenAddress,
+                amount,
+                deadline,
+                keccak256(diamondCalldata),
+                nonce,
+                block.chainid,
+                address(permit2Proxy)
+            )
+        );
+
+        wallet.authorizeHash(messageHash);
+        bytes memory signature = abi.encodePacked("valid_signature");
+
+        deal(tokenAddress, address(wallet), amount);
+        // Note: NOT approving tokens
+
+        vm.prank(address(wallet));
+
+        vm.expectRevert(TransferFromFailed.selector);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+    }
+
+    function testRevert_callDiamondWithEIP2612Signature_ExpiredDeadline()
+        public
+    {
+        address tokenAddress = ADDRESS_USDC;
+        uint256 amount = defaultUSDCAmount;
+        uint256 deadline = block.timestamp - 1; // Already expired
+
+        bytes memory signature = abi.encodePacked(
+            bytes32(0),
+            bytes32(0),
+            uint8(0)
+        );
+        bytes memory diamondCalldata = _getCalldataForBridging();
+
+        deal(tokenAddress, permit2User, amount);
+
+        vm.startPrank(permit2User);
+
+        vm.expectRevert(InvalidSignature.selector);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            tokenAddress,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+
+        vm.stopPrank();
     }
 }
