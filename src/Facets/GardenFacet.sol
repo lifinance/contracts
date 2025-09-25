@@ -9,7 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title Garden Facet
@@ -38,10 +38,12 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param redeemer Address that will receive the funds (solver/filler address on source chain)
+    /// @param refundAddress Address that can claim refund on source chain if HTLC expires
     /// @param timelock Number of blocks after which refund is possible (relative to current block)
     /// @param secretHash SHA256 hash of the secret for the HTLC
     struct GardenData {
         address redeemer;
+        address refundAddress;
         uint256 timelock;
         bytes32 secretHash;
     }
@@ -106,7 +108,7 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Internal Methods ///
 
     /// @dev Contains the business logic for the bridge via Garden
-    /// @param _bridgeData The core information needed for bridging (receiver is the user initiating who gets refund if expired)
+    /// @param _bridgeData The core information needed for bridging
     /// @param _gardenData Data specific to Garden (redeemer is the solver/filler who will receive the funds)
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
@@ -119,6 +121,11 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _gardenData.timelock == 0 ||
             _gardenData.secretHash == bytes32(0)
         ) revert InvalidGardenData();
+
+        // Validate refund address
+        if (_gardenData.refundAddress == address(0)) {
+            revert InvalidReceiver();
+        }
 
         // Get HTLC address from registry
         // For native assets, use Garden's standard native token address
@@ -140,7 +147,7 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native token bridging - send value with the call
             garden.initiateOnBehalf{ value: _bridgeData.minAmount }(
-                _bridgeData.receiver,
+                _gardenData.refundAddress,
                 _gardenData.redeemer,
                 _gardenData.timelock,
                 _bridgeData.minAmount,
@@ -155,7 +162,7 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
 
             garden.initiateOnBehalf(
-                _bridgeData.receiver,
+                _gardenData.refundAddress,
                 _gardenData.redeemer,
                 _gardenData.timelock,
                 _bridgeData.minAmount,
