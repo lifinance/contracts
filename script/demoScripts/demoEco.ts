@@ -259,28 +259,7 @@ function getEncodedRoute(
       : (`0x${route}` as `0x${string}`)
   }
 
-  // If no route provided by API, we need to construct one
-  // The exact format depends on Eco protocol specification
-  console.warn('⚠️  No encodedRoute in API response. Using placeholder.')
-  console.warn('⚠️  For production use, the encodedRoute should be:')
-  console.warn('    1. Obtained from the Eco API quote response')
-  console.warn('    2. Constructed according to Eco protocol specification')
-  console.warn('    3. Generated using an Eco protocol SDK')
-
-  console.log('Quote details:')
-  console.log('  Source chain:', quote.data.quoteResponse.sourceChainID)
-  console.log(
-    '  Destination chain:',
-    quote.data.quoteResponse.destinationChainID
-  )
-  console.log('  Receiver address:', receiverAddress)
-
-  // Using a minimal non-empty hex string as placeholder
-  // This ensures the contract won't revert with InvalidConfig error
-  // In production, this must be replaced with proper route encoding
-  const placeholderRoute = '0x01'
-
-  return placeholderRoute as `0x${string}`
+  throw new Error('Eco API did not return encodedRoute. Cannot proceed. Ensure your route provider returns a valid encodedRoute.')
 }
 
 async function getEcoQuote(
