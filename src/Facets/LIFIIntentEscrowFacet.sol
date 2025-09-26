@@ -16,7 +16,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 
 /// @title LIFIIntent Facet
 /// @author LI.FI (https://li.fi)
-/// @notice Deposits and registers claims directly on a 7683 compatible OIF Input Settler
+/// @notice Deposits and registers claims directly on a OIF Input Settler
 /// @custom:version 1.0.0
 contract LIFIIntentEscrowFacet is
     ILiFi,
@@ -25,19 +25,18 @@ contract LIFIIntentEscrowFacet is
     Validatable
 {
     /// Errors ///
-
     error ReceiverDoNotMatch();
     error NativeNotSupported();
 
     /// Storage ///
 
-    /// @dev LIFIIntent Compact Settler, containg logic for collecting assets from COMPACT.
+    /// @dev LIFI Intent Escrow Input Settler.
     address public immutable LIFI_INTENT_ESCROW_SETTLER;
 
     /// Types ///
 
     /// @param receiverAddress The destination account for the delivered assets and calldata.
-    /// @param user The deposit and claim registration will be made in this user's name. Compact 6909 tokens will be minted for this user and if the intent fails to be filled the tokens will remain in this user's name.
+    /// @param user The deposit and claim registration will be made for user. If any refund is made, it will be sent to user.
     /// @param expiry If the proof for the fill does not arrive before this time, the claim expires.
     /// @param fillDeadline The fill has to happen before this time.
     /// @param inputOracle Address of the validation layer used on the input chain.
@@ -165,20 +164,18 @@ contract LIFIIntentEscrowFacet is
             context: _lifiIntentData.outputContext
         });
 
-        // Make the deposit on behalf of the user. We register the claim with the tokens the claim claims.
+        // Make the deposit on behalf of the user..
         IOriginSettler(LIFI_INTENT_ESCROW_SETTLER).open(
-            abi.encode(
-                StandardOrder({
-                    user: _lifiIntentData.user,
-                    nonce: _lifiIntentData.nonce,
-                    originChainId: block.chainid,
-                    expires: _lifiIntentData.expires,
-                    fillDeadline: _lifiIntentData.fillDeadline,
-                    inputOracle: _lifiIntentData.inputOracle,
-                    inputs: inputs,
-                    outputs: outputs
-                })
-            )
+            StandardOrder({
+                user: _lifiIntentData.user,
+                nonce: _lifiIntentData.nonce,
+                originChainId: block.chainid,
+                expires: _lifiIntentData.expires,
+                fillDeadline: _lifiIntentData.fillDeadline,
+                inputOracle: _lifiIntentData.inputOracle,
+                inputs: inputs,
+                outputs: outputs
+            })
         );
 
         emit LiFiTransferStarted(_bridgeData);
