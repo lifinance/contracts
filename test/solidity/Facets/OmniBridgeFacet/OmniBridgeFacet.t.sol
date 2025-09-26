@@ -33,7 +33,7 @@ contract OmniBridgeFacetTest is TestBaseFacet {
 
     TestOmniBridgeFacet internal omniBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         omniBridgeFacet = new TestOmniBridgeFacet(
@@ -53,7 +53,11 @@ contract OmniBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(omniBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(omniBridgeFacet),
+            functionSelectors
+        );
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 

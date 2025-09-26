@@ -44,7 +44,7 @@ contract OptimismBridgeFacetTest is TestBase {
     ILiFi.BridgeData internal validBridgeData;
     OptimismBridgeFacet.OptimismData internal validOptimismData;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 15876510;
         initTestBase();
 
@@ -63,7 +63,11 @@ contract OptimismBridgeFacetTest is TestBase {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(optimismBridgeFacet),
+            functionSelectors
+        );
 
         OptimismBridgeFacet.Config[]
             memory configs = new OptimismBridgeFacet.Config[](1);

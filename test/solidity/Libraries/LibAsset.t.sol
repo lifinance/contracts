@@ -50,7 +50,7 @@ contract LibAssetImplementer {
 contract LibAssetTest is TestBase {
     LibAssetImplementer internal implementer;
 
-    function setUp() public {
+    function setUp() public override {
         implementer = new LibAssetImplementer();
         initTestBase();
     }

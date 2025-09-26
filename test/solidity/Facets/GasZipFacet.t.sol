@@ -45,7 +45,7 @@ contract GasZipFacetTest is TestBaseFacet {
     error OnlyNativeAllowed();
     error TooManyChainIds();
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block no for mainnet forking
         customBlockNumberForForking = 20828620;
 
@@ -67,7 +67,7 @@ contract GasZipFacetTest is TestBaseFacet {
         functionSelectors[5] = gasZipFacet
             .setFunctionApprovalBySignature
             .selector;
-        addFacet(diamond, address(gasZipFacet), functionSelectors);
+        addFacet(address(diamond), address(gasZipFacet), functionSelectors);
 
         gasZipFacet = TestGasZipFacet(payable(address(diamond)));
 

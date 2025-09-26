@@ -1,6 +1,7 @@
 {
   "extends": "solhint:recommended",
   "plugins": ["prettier"],
+  "excludedFiles": ["**/src/Interfaces/**/*.sol"],
   "rules": {
     "avoid-call-value": "off",
     "avoid-low-level-calls": "off",

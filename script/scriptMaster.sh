@@ -39,6 +39,7 @@ scriptMaster() {
   # load deploy script & helper functions
   source script/deploy/deploySingleContract.sh
   source script/deploy/deployAllContracts.sh
+  source script/deploy/deployAllLDAContracts.sh
   source script/helperFunctions.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
@@ -121,7 +122,8 @@ scriptMaster() {
       "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
       "11) Update diamond log(s)" \
       "12) Propose upgrade TX to Gnosis SAFE" \
-      "13) Remove facets or periphery from diamond"
+      "13) Remove facets or periphery from diamond" \
+      "14) Deploy LDA contract to one selected network" \
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -145,27 +147,26 @@ scriptMaster() {
     checkRequiredVariablesInDotEnv "$NETWORK"
 
     # Handle ZkSync
-    # We need to make sure that the zksync fork of foundry is available before
-    # we can deploy contracts to zksync.
     if isZkEvmNetwork "$NETWORK"; then
-      # Use zksync specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
       install_foundry_zksync
       # get user-selected deploy script and contract from list
       SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     else
-      # get user-selected deploy script and contract from list
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
       SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     fi
 
     # get user-selected deploy script and contract from list
     CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
 
-    # check if new contract should be added to diamond after deployment (only check for
+    # check if new contract should be added to diamond after deployment
+    # Skip diamond addition question for LiFiDEXAggregatorDiamond (has custom flow) and LiFiDiamond contracts
     if [[ ! "$CONTRACT" == "LiFiDiamond"* ]]; then
       echo ""
       echo "Do you want to add this contract to a diamond after deployment?"
+      # Check if this is an LDA contract based on network type and script
       ADD_TO_DIAMOND=$(
         gum choose \
           "yes - to LiFiDiamond" \
@@ -181,14 +182,14 @@ scriptMaster() {
     if [[ "$ADD_TO_DIAMOND" == "yes"* ]]; then
       echo "[info] selected option: $ADD_TO_DIAMOND"
 
-      # determine the name of the LiFiDiamond contract and call helper function with correct diamond name
+      # determine the diamond type and call unified function
       if [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
-        deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
+        deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
       else
-        deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
+        deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
       fi
     else
-      # just deploy the contract
+      # just deploy the contract (deploySingleContract will auto-detect LDA based on contract name)
       deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false
     fi
 
@@ -555,6 +556,72 @@ scriptMaster() {
   elif [[ "$SELECTION" == "13)"* ]]; then
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 14: Deploy LDA contract to one selected network
+  elif [[ "$SELECTION" == "14)"* ]]; then
+    echo ""
+    echo "[info] selected use case: Deploy LDA contract to one selected network"
+
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+    # get user-selected network from list
+    local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
+
+    echo "[info] selected network: $NETWORK"
+    echo "[info] loading deployer wallet balance..."
+
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
+
+    echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
+    checkRequiredVariablesInDotEnv "$NETWORK"
+
+    # Handle ZkSync
+    if isZkEvmNetwork "$NETWORK"; then
+      # Use zksync specific LDA scripts
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/LDA/"
+      # Check if the foundry-zksync binaries exist, if not fetch them
+      install_foundry_zksync
+      # get user-selected deploy script and contract from list
+      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    else
+      # Use regular LDA scripts
+      DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/LDA/"
+      # get user-selected deploy script and contract from list
+      SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    fi
+
+    # get user-selected deploy script and contract from list
+    CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
+
+    # check if new LDA facet should be added to LDA diamond after deployment
+    if [[ ! "$CONTRACT" == "LiFiDEXAggregatorDiamond"* ]]; then
+      echo ""
+      echo "Do you want to add this LDA facet to the LDA diamond after deployment?"
+      ADD_TO_DIAMOND=$(
+        gum choose \
+          "yes - to LiFiDEXAggregatorDiamond" \
+          " no - do not update any diamond"
+      )
+    fi
+
+    # get current contract version
+    local VERSION=$(getCurrentContractVersion "$CONTRACT")
+
+    # check if contract should be added after deployment
+    if [[ "$ADD_TO_DIAMOND" == "yes"* ]]; then
+      echo "[info] selected option: $ADD_TO_DIAMOND"
+      # deploy LDA facet and add to LDA diamond using unified function
+      deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDEXAggregatorDiamond" "$VERSION"
+    else
+      # just deploy the LDA contract
+      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false "true"
+    fi
+
+    # check if last command was executed successfully, otherwise exit script with error message
+    checkFailure $? "deploy LDA contract $CONTRACT to network $NETWORK"
+
+  #---------------------------------------------------------------------------------------------------------------------
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     cleanup

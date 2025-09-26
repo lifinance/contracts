@@ -1,108 +1,35 @@
-// SPDX-License-Identifier: Unlicensed
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
-import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
-import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { BaseDiamondTest } from "./utils/BaseDiamondTest.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
-contract LiFiDiamondTest is DSTest {
-    // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond public diamond;
-    DiamondCutFacet public diamondCutFacet;
-    OwnershipFacet public ownershipFacet;
-    address public diamondOwner;
-
-    event DiamondCut(
-        LibDiamond.FacetCut[] _diamondCut,
-        address _init,
-        bytes _calldata
-    );
-
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
-
-    error FunctionDoesNotExist();
-    error ShouldNotReachThisCode();
-    error InvalidDiamondSetup();
-    error ExternalCallFailed();
-
-    function setUp() public {
-        diamondOwner = address(123456);
-        diamondCutFacet = new DiamondCutFacet();
-        ownershipFacet = new OwnershipFacet();
-
-        // prepare function selector for diamondCut (OwnershipFacet)
-        bytes4[] memory functionSelectors = new bytes4[](1);
-        functionSelectors[0] = ownershipFacet.owner.selector;
-
-        // prepare parameters for diamondCut (OwnershipFacet)
-        LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](1);
-        cut[0] = LibDiamond.FacetCut({
-            facetAddress: address(ownershipFacet),
-            action: LibDiamond.FacetCutAction.Add,
-            functionSelectors: functionSelectors
-        });
-
-        diamond = new LiFiDiamond(diamondOwner, address(diamondCutFacet));
+contract LiFiDiamondTest is BaseDiamondTest {
+    function setUp() public virtual override {
+        super.setUp();
+        // Call createDiamond to get a fully configured diamond with all facets
+        createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
     }
 
-    function test_DeploysWithoutErrors() public {
-        diamond = new LiFiDiamond(diamondOwner, address(diamondCutFacet));
+    /// @notice Test that LiFiDiamond can be deployed without errors
+    function test_DeploysWithoutErrors() public override {
+        LiFiDiamond testDiamond = new LiFiDiamond(
+            USER_DIAMOND_OWNER,
+            address(diamondCutFacet)
+        );
+        assertTrue(
+            address(testDiamond) != address(0),
+            "Diamond should be deployed"
+        );
     }
 
-    function test_ForwardsCallsViaDelegateCall() public {
-        // only one facet with one selector is registered (diamondCut)
-        vm.startPrank(diamondOwner);
-
-        DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
-
-        // make sure that this call fails (without ending the test)
-        bool failed = false;
-        try DiamondLoupeFacet(address(diamond)).facetAddresses() returns (
-            address[] memory
-        ) {} catch {
-            failed = true;
-        }
-        if (!failed) revert InvalidDiamondSetup();
-
-        // prepare function selectors
-        bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = diamondLoupe.facets.selector;
-        functionSelectors[1] = diamondLoupe.facetFunctionSelectors.selector;
-        functionSelectors[2] = diamondLoupe.facetAddresses.selector;
-        functionSelectors[3] = diamondLoupe.facetAddress.selector;
-
-        // prepare diamondCut
-        LibDiamond.FacetCut[] memory cuts = new LibDiamond.FacetCut[](1);
-        cuts[0] = LibDiamond.FacetCut({
-            facetAddress: address(diamondLoupe),
-            action: LibDiamond.FacetCutAction.Add,
-            functionSelectors: functionSelectors
-        });
-
-        DiamondCutFacet(address(diamond)).diamondCut(cuts, address(0), "");
-    }
-
-    function test_RevertsOnUnknownFunctionSelector() public {
-        // call random function selectors
-        bytes memory callData = hex"a516f0f3"; // getPeripheryContract(string)
-
-        vm.expectRevert(FunctionDoesNotExist.selector);
-        (bool success, ) = address(diamond).call(callData);
-        if (!success) revert ShouldNotReachThisCode(); // was only added to silence a compiler warning
-    }
-
-    function test_CanReceiveETH() public {
-        (bool success, ) = address(diamond).call{ value: 1 ether }("");
-        if (!success) revert ExternalCallFailed();
-
-        assertEq(address(diamond).balance, 1 ether);
+    /// @notice Test that LiFiDiamond reverts when constructed with zero address owner
+    function testRevert_LiFiDiamondConstructedWithZeroAddressOwner() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new LiFiDiamond(
+            address(0), // This should trigger InvalidConfig
+            address(diamondCutFacet)
+        );
     }
 }
