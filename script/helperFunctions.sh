@@ -1232,9 +1232,13 @@ function saveContract() {
     echo "{}" >"$ADDRESSES_FILE"
   fi
 
-  # add new address to address log FILE
-  RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
-  printf %s "$RESULT" >"$ADDRESSES_FILE"
+  # add new address to address log FILE (atomic operation)
+  if ! jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" "$ADDRESSES_FILE" >"${ADDRESSES_FILE}.tmp"; then
+    error "Failed to update $ADDRESSES_FILE with jq"
+    rm -f "${ADDRESSES_FILE}.tmp"
+    return 1
+  fi
+  mv "${ADDRESSES_FILE}.tmp" "$ADDRESSES_FILE"
 
   # Remove lock file
   rm -f "$LOCK_FILE"
@@ -1422,6 +1426,7 @@ function getAllContractNames() {
   # src
   # src/Facets
   # src/Periphery
+  # src/Security
 
   # get all facet contracts
   local FACET_CONTRACTS=$(getIncludedAndSortedFacetContractsArray "$EXCLUDE_CONFIG")
@@ -1429,11 +1434,14 @@ function getAllContractNames() {
   # get all periphery contracts
   local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray "$EXCLUDE_CONFIG")
 
+  # get all security contracts
+  local SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+
   # get all diamond contracts
   local DIAMOND_CONTRACTS=$(getContractNamesInFolder "src")
 
   # merge
-  local ALL_CONTRACTS=("${DIAMOND_CONTRACTS[@]}" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+  local ALL_CONTRACTS=("${DIAMOND_CONTRACTS[@]}" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}" "${SECURITY_CONTRACTS[@]}")
 
   # Print the resulting array
   echo "${ALL_CONTRACTS[*]}"
@@ -2036,6 +2044,10 @@ function verifyContract() {
   fi
 
   # Add verification method based on API key
+  if [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
+    VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+  fi
+
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD+=("--verifier" "blockscout")
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
@@ -2848,6 +2860,26 @@ function getIncludedPeripheryContractsArray() {
   # return ARRAY
   echo "${ARRAY[@]}"
 }
+
+function getIncludedSecurityContractsArray() {
+  # prepare required variables
+  local DIRECTORY_PATH="$CONTRACT_DIRECTORY""Security/"
+  local ARRAY=()
+
+  # extract list of excluded security contracts from config
+  local EXCLUDE_CONTRACTS_REGEX="^($(echo "$EXCLUDE_SECURITY_CONTRACTS" | tr ',' '|'))$"
+
+  # loop through contract names and add each name to ARRAY that is not excluded
+  for CONTRACT in $(getContractNamesInFolder "$DIRECTORY_PATH"); do
+    if ! [[ "$CONTRACT" =~ $EXCLUDE_CONTRACTS_REGEX ]]; then
+      ARRAY+=("$CONTRACT")
+    fi
+  done
+
+  # return ARRAY
+  echo "${ARRAY[@]}"
+}
+
 function getIncludedFacetContractsArray() {
   # read function arguments into variables
   EXCLUDE_CONFIG="$1"
@@ -3115,8 +3147,11 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
   # get all periphery contracts
   local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
 
+  # get all security contracts
+  local SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+
   # merge all contracts into one array
-  local ALL_CONTRACTS=("$DIAMOND_NAME" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+  local ALL_CONTRACTS=("$DIAMOND_NAME" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}" "${SECURITY_CONTRACTS[@]}")
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]}; do

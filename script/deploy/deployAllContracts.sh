@@ -369,6 +369,11 @@ deployAllContracts() {
   fi
 
 
+  echo "[info] updating diamond logs for network $NETWORK in environment $ENVIRONMENT"
+  updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updating diamond logs completed"
+
+
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
 }
