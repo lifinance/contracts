@@ -25,6 +25,7 @@ contract LIFIIntentEscrowFacet is
     Validatable
 {
     /// Errors ///
+
     error ReceiverDoesNotMatch();
     error NativeNotSupported();
 

@@ -23,7 +23,6 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // If you don't have a constructor or it doesn't take any arguments, you can remove this function
         string memory path = string.concat(root, "/config/lifiintent.json");
         string memory json = vm.readFile(path);
 
