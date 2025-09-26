@@ -38,22 +38,24 @@ async function main() {
   } = await setupEnvironment(srcChain, LIFIIntent_FACET_ABI)
   const signerAddress = walletAccount.address
 
+  if (
+    !lifiDiamondAddress ||
+    !lifiDiamondContract ||
+    !lifiDiamondContract.write ||
+    !lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow
+  ) {
+    console.error(
+      'LiFiDiamond deployment not found for the selected chain/environment.'
+    )
+    process.exit(1)
+  }
+
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = '' as `0x${string}` // Set the source token address here.
   const DST_TOKEN_ADDRESS = '' as `0x${string}` // Set the destination token address here.
 
   const LOCKTAG = '' as `0x${string}` // Set the locktag here.
   if (LOCKTAG.length !== 24 + 2) throw new Error('Invalid Locktag')
-
-  // If you need to retrieve a specific address from your config file
-  // based on the chain and element name, use this helper function.
-  //
-  // First, ensure you import the relevant config file:
-  // import config from '../../config/LIFIIntent.json'
-  //
-  // Then, retrieve the address:
-  // const EXAMPLE_ADDRESS = getConfigElement(config, srcChain, 'example');
-  //
 
   // === Instantiate contracts ===
   const srcTokenContract = getContract({
@@ -62,16 +64,16 @@ async function main() {
     client,
   })
 
-  // If you need to interact with a contract, use the following helper.
-  // Provide the contract address, ABI, and a client instance to initialize
-  // the contract for both read and write operations.
-  //
-  // const exampleContract = getContract({
-  //   address: EXAMPLE_ADDRESS,
-  //   abi: EXAMPLE_ABI,
-  //   client
-  // })
-  //
+  if (
+    !srcTokenContract ||
+    !srcTokenContract.read ||
+    !srcTokenContract.read.name ||
+    !srcTokenContract.read.symbol ||
+    !srcTokenContract.read.decimals
+  ) {
+    console.error('Could noget get source token contract.')
+    process.exit(1)
+  }
 
   const srcTokenName = (await srcTokenContract.read.name()) as string
   const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
@@ -119,13 +121,13 @@ async function main() {
     receiverAddress: '0x' + signerAddress.replace('0x', '').padStart(64, '0'),
     user: signerAddress,
     nonce: Math.round(Math.random() * Number.MAX_SAFE_INTEGER),
-    expires: 2 ** 32, // max expiry time. TODO: Should probably be changed.
+    expires: 2 ** 32 - 1, // max expiry time.
     // LIFIIntent Witness //
-    fillDeadline: 2 ** 32, // max fill deadline time. TODO: Should probably be changed.
-    inputOracle: '0x', // TODO:
+    fillDeadline: 2 ** 32 - 1, // max fill deadline time.
+    inputOracle: '0x0000006ea400569c0040d6e5ba651c00848409be', // Polymer oracle on mainnet.
     // LIFIIntent Output //
-    outputOracle: '0x', // TODO:
-    outputSettler: '0x', // TODO:
+    outputOracle: '0x0000006ea400569c0040d6e5ba651c00848409be', // Polymer oracle on mainnet.
+    outputSettler: '0x00000000D7278408CE7a490015577c41e57143a5',
     outputToken: '0x' + DST_TOKEN_ADDRESS.replace('0x', '').padStart(64, '0'),
     outputAmount: amount, // TODO: Minus fee
     outputCall: '0x',
@@ -134,11 +136,19 @@ async function main() {
 
   // === Start bridging ===
   await executeTransaction(
-    () =>
-      lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow(
+    () => {
+      if (!lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow) {
+        console.error(
+          'LiFiDiamond deployment not found for the selected chain/environment.'
+        )
+        process.exit(1)
+      }
+      const tx = lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow(
         [bridgeData, LIFIIntentData]
         // { value: fee } optional value
-      ),
+      )
+      return tx
+    },
     'Starting bridge tokens via LIFIIntent',
     publicClient,
     true
