@@ -2,7 +2,7 @@
 
 ## How it works
 
-LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intents. The LI.FI Intent Escrow Facet deposits into the Escrow Input Settler, which will release the deposited funds to the solver when the fill has been proven. The system is highly self serve, with the facet wrapping the deposit logic to ensure the appropiate parameters are called for the user to receive their output.
+LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intents. The LI.FI Intent Escrow Facet deposits into the Escrow Input Settler, which will release the deposited funds to the solver when the fill has been proven. The system is highly self serve, with the facet wrapping the deposit logic to ensure the appropriate parameters are calledfor the user to receive their output.
 
 ```mermaid
 graph LR;
@@ -36,13 +36,13 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 ```solidity
 /// @param receiverAddress The destination account for the delivered assets and calldata.
 /// @param user The deposit and claim registration will be made for user. If any refund is made, it will be sent to user.
-/// @param expiry If the proof for the fill does not arrive before this time, the claim expires.
+/// @param expires If the proof for the fill does not arrive before this time, the claim expires.
 /// @param fillDeadline The fill has to happen before this time.
 /// @param inputOracle Address of the validation layer used on the input chain.
 /// @param outputOracle Address of the validation layer used on the output chain.
 /// @param outputSettler Address of the output settlement contract containing the fill logic.
-/// @param outputToken The desires destination token.
-/// @param outputAmount The amount of the destired token.
+/// @param outputToken The desired destination token.
+/// @param outputAmount The amount of the desired token.
 /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
 /// @param outputContext Context for the outputSettler to identify the order type.
 struct LIFIIntentEscrowData {
