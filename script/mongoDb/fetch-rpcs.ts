@@ -3,11 +3,16 @@ import fs from 'fs'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient } from 'mongodb'
+
+import { getRPCEnvVarName } from '../utils/network'
+
 config()
 
 interface IRpcEndpoint {
   url: string
   priority: number
+  isActive: boolean
+  network: string
 }
 
 async function fetchRpcEndpoints(): Promise<{
@@ -35,7 +40,7 @@ async function fetchRpcEndpoints(): Promise<{
         // Sort endpoints in descending order so that the endpoint with the highest priority comes first
         validEndpoints.sort((a, b) => b.priority - a.priority)
         if (validEndpoints.length > 0) {
-          const envVar = `ETH_NODE_URI_${doc.chainName.toUpperCase()}`
+          const envVar = getRPCEnvVarName(doc.chainName)
           endpoints[envVar] = validEndpoints
         }
       }
@@ -65,11 +70,13 @@ async function mergeEndpointsIntoEnv() {
       const networks = (await import('../../config/networks.json')).default
       newEndpoints = Object.entries(networks).reduce(
         (acc, [networkName, config]) => {
-          const envVar = `ETH_NODE_URI_${networkName.toUpperCase()}`
+          const envVar = getRPCEnvVarName(networkName)
           acc[envVar] = [
             {
               url: config.rpcUrl,
               priority: 1,
+              isActive: true,
+              network: networkName,
             },
           ]
           return acc

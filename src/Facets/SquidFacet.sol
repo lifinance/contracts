@@ -34,7 +34,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param destinationAddress The receiver address in dst chain format
     /// @param bridgedTokenSymbol The symbol of the to-be-bridged token
     /// @param depositAssetId The asset to be deposited on src network (input for optional Squid-internal src swaps)
-    /// @param sourceCalls The calls to be made by Squid on the source chain before bridging the bridgeData.sendingAsssetId token
+    /// @param sourceCalls The calls to be made by Squid on the source chain before bridging
+    ///        the bridgeData.sendingAsssetId token
     /// @param payload The payload for the calls to be made at dest chain
     /// @param fee The fee to be payed in native token on src chain
     /// @param enableExpress enable Squid Router's instant execution service

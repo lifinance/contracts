@@ -62,7 +62,8 @@ contract DeployScript is DeployScriptBase {
         address[] memory executors = new address[](1);
         executors[0] = address(0);
 
-        // TODO: we need to renounce the admin role from multisig safe, otherwise it has too much rights and can bypass the timelock
+        // TODO: we need to renounce the admin role from multisig safe,
+        // otherwise it has too much rights and can bypass the timelock
 
         return
             abi.encode(

@@ -4,10 +4,13 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibSwap } from "./LibSwap.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+
+// solhint-disable-next-line max-line-length
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
 
 /// @title LibAsset
-/// @custom:version 2.1.0
+/// @author LI.FI (https://li.fi)
+/// @custom:version 2.1.2
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
@@ -15,15 +18,9 @@ library LibAsset {
     using SafeTransferLib for address;
     using SafeTransferLib for address payable;
 
-    address internal constant NULL_ADDRESS = address(0);
-
-    address internal constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
-
     /// @dev All native assets use the empty address for their asset id
     ///      by convention
-
-    address internal constant NATIVE_ASSETID = NULL_ADDRESS;
+    address internal constant NULL_ADDRESS = address(0);
 
     /// @dev EIP-7702 delegation designator prefix for Account Abstraction
     bytes3 internal constant DELEGATION_DESIGNATOR = 0xef0100;
@@ -80,7 +77,7 @@ library LibAsset {
         address assetId,
         address recipient,
         uint256 amount
-    ) private {
+    ) internal {
         // make sure a meaningful receiver address was provided
         if (recipient == NULL_ADDRESS) {
             revert InvalidReceiver();
@@ -191,7 +188,7 @@ library LibAsset {
     /// @param assetId The asset identifier to evaluate
     /// @return Boolean indicating if the asset is the native asset
     function isNativeAsset(address assetId) internal pure returns (bool) {
-        return assetId == NATIVE_ASSETID;
+        return assetId == NULL_ADDRESS;
     }
 
     /// @notice Checks if the given address is a contract

@@ -81,7 +81,8 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     /// @notice Since Across will always send wrappedNative to contract, we do not need a native handling here
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swapData array of data needed for swaps
-    /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
+    /// @param assetId address of the token received from the source chain
+    ///                (not to be confused with StargateV2's assetIds which are uint16 values)
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
     function _swapAndCompleteBridgeTokens(

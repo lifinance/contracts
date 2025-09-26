@@ -18,12 +18,11 @@ You can find the ABI of LifiDiamond in our auto generated [lifi-contract-types r
    2. [Diamond Helper Contracts](#diamond-helper-contracts)
 5. [Repository Structure](#repository-structure)
 6. [Getting Started](#getting-started)
-   1. [INSTALL](#install)
-   2. [TEST](#test)
-   3. [TEST With Foundry/Forge](#foundry-forge)
-   4. [Adding a New Bridge](#new-bridge)
-7. [Contract Docs](#contract-docs)
-8. [DEPLOY](#deploy)
+   1. [Prerequisites](#prerequisites)
+   2. [Development Environment](#development-environment)
+   3. [Cursor IDE Setup](#cursor-setup)
+7. [Development Workflow](#development-workflow)
+8. [Code Quality & Standards](#code-quality)
 9. [More Information](#more-information)
 
 ## General<a name="general"></a>
@@ -42,8 +41,6 @@ Then, we use the thresholds and preferences of our integration partners and end-
 - Cross-chain bridging solutions will play a major role on infrastructure level
 - Aggregation will pave the way for mass adoption
 
----
-
 ### Ecosystem Problems<a name="ecosystem-problems"></a>
 
 **dApps**: Many users come across a new interesting dApp on a chain they don't have funds in and struggle to get their funds there. This is significant friction in user onboarding as they have to research and find bridges to that chain to start using the dApp.
@@ -53,8 +50,6 @@ Then, we use the thresholds and preferences of our integration partners and end-
 **Wallets**: Multichain wallets want to compete with CEXes, but they don't have a way to allow easy swap between assets like CEXes.
 
 **DeFi Protocols**: DeFi Dashboards, lending protocols, yield farms, etc., that are present on new chains create a need to do cross-chain swaps, but their users have to wander the ecosystem to quench this need.
-
----
 
 ### Developer Problems<a name="developer-problems"></a>
 
@@ -72,8 +67,6 @@ Immaturity comes with security risks, insufficient liquidity and a lot of mainte
 You also need DEXes/DEX aggregators as bridges are limited to stable-coins and native currencies.
 
 ➔ LI.FI not only aggregates bridges, but also connects to sorts of DEX aggregators and if not available, the DEXs directly in order to find the best swap possible to arrive at the desired token and to allow to start the whole process with any asset.
-
----
 
 ### Solution<a name="solution"></a>
 
@@ -101,8 +94,6 @@ All business logic is built using **facet** contracts which live in `src/Facets`
 
 For more information on EIP-2535 you can view the entire EIP [here](https://eips.ethereum.org/EIPS/eip-2535).
 
----
-
 ### Contract Flow<a name="contract-flow"></a>
 
 A basic example would be a user bridging from one chain to another using Hop Protocol. The user would interact with the LI.FIDiamond contract which would pass the Hop specific call to the HopFacet which then passes required calls + parameters to Hop Protocol's contracts.
@@ -117,8 +108,6 @@ graph TD;
     D{LiFiDiamond}-- DELEGATECALL -->HyphenFacet;
     D{LiFiDiamond}-- DELEGATECALL -->StargateFacet;
 ```
-
----
 
 ### Diamond Helper Contracts<a name="diamond-helper-contracts"></a>
 
@@ -162,62 +151,114 @@ contracts
 └─── utils                    // utility scripts
 ```
 
-## Contract Docs<a name="contract-docs"></a>
-
-You can read more details documentation on each facet [here](./docs/README.md).
-Sample requests to fetch transactions for each facet can be found at the end of each section.
-
 ## Getting Started<a name="getting-started"></a>
 
-Make sure to copy `.env.example` to `.env` and fill out the missing values. Tests might fail with missing environment variables if some of the variables are blank.
+### Prerequisites<a name="prerequisites"></a>
 
-### INSTALL<a name="install"></a>
+- Node.js (v18 or later)
+- Bun (latest version)
+- Foundry (latest version)
+- Git
+- Cursor IDE (recommended) or VSCode
+
+### Development Environment<a name="development-environment"></a>
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/lifinance/contracts.git
+cd contracts
+```
+
+2. Install dependencies:
 
 ```bash
 bun i
-```
-
-### TEST<a name="test"></a>
-
-```bash
-bun run test
-```
-
-### TEST With Foundry/Forge<a name="foundry-forge"></a>
-
-Make sure to install the latest version of Foundry by downloading the installer.
-
-```
-curl -L https://foundry.paradigm.xyz | bash
-```
-
-Then, in a new terminal session or after reloading your PATH, run it to get the latest forge and cast binaries:
-
-```
-foundryup
-```
-
-Install dependencies
-
-```
 forge install
 ```
 
-Run tests
+3. Set up environment variables:
 
+```bash
+cp .env.example .env
+# Edit .env with your configuration
 ```
-bun run test
+
+### Cursor IDE Setup<a name="cursor-setup"></a>
+
+For optimal AI assistance in Cursor IDE:
+
+1. Copy `.cursorrules.example` to `.cursorrules`:
+
+```bash
+cp .cursorrules.example .cursorrules
 ```
 
-### Adding a New Bridge<a name="new-bridge"></a>
+2. The `.cursorrules` file provides context for AI interactions with our codebase. It helps the AI understand:
 
-We try to keep up with all the latest bridges and DEXes but can't always add them as fast as we would like. If you would like to speed up the process of adding your bridge, we've made it easy for you to contribute yourself.
+   - Project structure and conventions
+   - Development environment and tools
+   - Key files and their purposes
+   - Testing and deployment requirements
 
-[Read More](./docs/AddingANewBridge.md)
+3. You can customize `.cursorrules` based on your needs, but we recommend keeping the core context intact.
 
-### DEPLOY<a name="deploy"></a>
+## Development Workflow<a name="development-workflow"></a>
 
-Follow the deployment checklist [here](./docs/Deploy.md)
+1. **Branch Management**
+
+   - Create feature branches from `main`
+   - Use descriptive branch names (e.g., `feature/add-new-bridge`, `fix/hop-integration`)
+   - **Important**: PRs must be created from branches within the main repository, not from forks. This is because our GitHub Actions workflows require access to repository secrets and cannot run correctly on forked repositories.
+
+2. **Code Quality**
+
+   - Follow our [coding conventions](./conventions.md)
+   - Write comprehensive tests for new features
+   - Ensure all tests pass before submitting PRs
+
+3. **Pull Request Process**
+
+   - Create PRs against `main`
+   - Include clear descriptions and testing instructions
+   - Request reviews from team members
+   - Ensure CI checks pass
+
+4. **Testing Requirements**
+   - Unit tests for all new functionality
+   - Integration tests for bridge interactions
+   - Gas optimization tests where applicable
+   - Coverage requirements: >90% for new code
+
+## Code Quality & Standards<a name="code-quality"></a>
+
+Our codebase follows strict quality standards defined in [conventions.md](./conventions.md). Key aspects include:
+
+1. **Code Organization**
+
+   - Clear file structure and naming conventions
+   - Consistent contract organization
+   - Proper documentation and NatSpec comments
+
+2. **Error Handling**
+
+   - Custom errors for better gas efficiency
+   - Clear error messages
+   - Proper validation and checks
+
+3. **Security**
+
+   - Access control patterns
+   - Reentrancy protection
+   - Input validation
+   - Emergency functionality
+
+4. **Gas Optimization**
+   - Efficient storage patterns
+   - Memory usage optimization
+   - Batch operations where possible
+
+For detailed guidelines and requirements, please refer to [conventions.md](./conventions.md).
 
 ## More Information<a name="more-information"></a>
 
@@ -226,3 +267,10 @@ Follow the deployment checklist [here](./docs/Deploy.md)
 - [API Documentation](https://apidocs.li.fi/)
 - [SDK Documentation](https://docs.li.fi/products/integrate-li.fi-js-sdk/install-li.fi-sdk)
 - [Transfer UI](https://transferto.xyz/)
+- [Internal Documentation](./docs/README.md)
+- [Coding Conventions](./conventions.md)
+- [Deployment Guide](./docs/Deploy.md)
+
+```
+
+```

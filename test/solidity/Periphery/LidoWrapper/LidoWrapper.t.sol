@@ -479,7 +479,7 @@ contract LidoWrapperTest is TestBase {
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _bridgeData.destinationChainId,
-                        _bridgeData.receiver == LibAsset.NON_EVM_ADDRESS
+                        _bridgeData.receiver == NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
                         _relayData.receivingAssetId

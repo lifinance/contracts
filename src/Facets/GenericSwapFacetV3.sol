@@ -419,7 +419,8 @@ contract GenericSwapFacetV3 is ILiFi {
                 }
 
                 // return any potential leftover sendingAsset tokens
-                // but only for swaps, not for fee collections (otherwise the whole amount would be returned before the actual swap)
+                // but only for swaps, not for fee collections
+                // (otherwise the whole amount would be returned before the actual swap)
                 if (sendingAssetId != receivingAssetId)
                     _returnPositiveSlippageNative(_receiver);
             } else {
@@ -446,15 +447,18 @@ contract GenericSwapFacetV3 is ILiFi {
                 }
 
                 // return any potential leftover sendingAsset tokens
-                // but only for swaps, not for fee collections (otherwise the whole amount would be returned before the actual swap)
+                // but only for swaps, not for fee collections
+                // (otherwise the whole amount would be returned before the actual swap)
                 if (sendingAssetId != receivingAssetId)
                     _returnPositiveSlippageERC20(sendingAsset, _receiver);
             }
 
             // emit AssetSwapped event
-            // @dev: this event might in some cases emit inaccurate information. e.g. if a token is swapped and this contract already held a balance of the receivingAsset
-            //       then the event will show swapOutputAmount + existingBalance as toAmount. We accept this potential inaccuracy in return for gas savings and may update this
-            //       at a later stage when the described use case becomes more common
+            // @dev: this event might in some cases emit inaccurate information. e.g. if a token is
+            //       swapped and this contract already held a balance of the receivingAsset then the
+            //       event will show swapOutputAmount + existingBalance as toAmount. We accept this
+            //       potential inaccuracy in return for gas savings and may update this at a later
+            //       stage when the described use case becomes more common
             emit LibSwap.AssetSwapped(
                 _transactionId,
                 currentSwap.callTo,

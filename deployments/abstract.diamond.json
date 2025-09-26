@@ -57,9 +57,9 @@
         "Name": "RelayFacet",
         "Version": "1.0.0"
       },
-      "0x79ae44B0C33FDC804EB0A6e4A1c1434565264cfE": {
+      "0xE1f26d5876F854609a067E5B767ACa44a0271F9d": {
         "Name": "GasZipFacet",
-        "Version": "2.0.2"
+        "Version": "2.0.4"
       },
       "0xe4db6A19c9F53fB946D31772a48002e1f9cB8763": {
         "Name": "SymbiosisFacet",
@@ -68,6 +68,14 @@
       "0x8AA1575399be4E9a49cAF5ecFB4878A2982A5cFD": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0xc42Ba73a492f2a82bBd7404D087c1C4E8a334548": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0x7b1D2D734487a52409B8B86383Fe56B57DBb3CFa": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -77,8 +85,10 @@
       "GasZipPeriphery": "0x2A3e04627E554b57163C078fd1d6698A655aeA12",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xFC863E1418C0C5935e7Bd9C8f3129Aa0442153DF",
+      "Patcher": "",
       "Permit2Proxy": "0xbb7c30Dc5AcE1A51940b202182c07D45e3e2Cba4",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x83D2B4f5834d7aDE97E5837781ecfC99D9Cbe004",
       "TokenWrapper": "0x527868EDbF533C3Ac540f4457405f701D9d4c7c1"

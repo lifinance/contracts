@@ -21,7 +21,8 @@ interface IGatewayRouter {
         bytes calldata _data
     ) external payable returns (bytes memory);
 
-    /// @dev Advanced usage only (does not rewrite aliases for excessFeeRefundAddress and callValueRefundAddress). createRetryableTicket method is the recommended standard.
+    /// @dev Advanced usage only (does not rewrite aliases for excessFeeRefundAddress and callValueRefundAddress).
+    ///      createRetryableTicket method is the recommended standard.
     /// @param _destAddr destination L2 contract address
     /// @param _l2CallValue call value for retryable L2 message
     /// @param _maxSubmissionCost Max gas deducted from user's L2 balance to cover base submission fee

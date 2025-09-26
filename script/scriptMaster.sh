@@ -66,7 +66,7 @@ scriptMaster() {
       echoDebug "local testnetwork 'localanvil' is running"
     else
       echoDebug "Anvil process is not running. Starting network now."
-      $(anvil -m "$MNEMONIC" -f $ETH_NODE_URI_MAINNET --fork-block-number 17427723 >/dev/null) &
+      $(anvil -m "$MNEMONIC" -f "$ETH_NODE_URI_MAINNET" --fork-block-number 17427723 >/dev/null) &
       if pgrep -x "anvil" >/dev/null; then
         echoDebug "local testnetwork 'localanvil' is running"
       else
@@ -142,7 +142,7 @@ scriptMaster() {
 
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
-    checkRequiredVariablesInDotEnv $NETWORK
+    checkRequiredVariablesInDotEnv "$NETWORK"
 
     # Handle ZkSync
     # We need to make sure that the zksync fork of foundry is available before
@@ -160,7 +160,7 @@ scriptMaster() {
     fi
 
     # get user-selected deploy script and contract from list
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for
     if [[ ! "$CONTRACT" == "LiFiDiamond"* ]]; then
@@ -203,7 +203,7 @@ scriptMaster() {
 
     # get user-selected deploy script and contract from list
     local SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment
     if [[ ! "$CONTRACT" == "LiFiDiamond"* ]]; then
@@ -490,7 +490,28 @@ scriptMaster() {
   #---------------------------------------------------------------------------------------------------------------------
   # use case 10: Create updated target state from Google Docs
   elif [[ "$SELECTION" == "10)"* ]]; then
-    parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
+    # ask user if target state should be updated for all networks or one specific network
+    echo "Would you like to update target state for all networks or one specific network?"
+    SELECTION_NETWORK=$(
+      gum choose \
+        "1) All networks" \
+        "2) One specific network (selection in next screen)"
+    )
+    echo "[info] selected option: $SELECTION_NETWORK"
+
+    if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
+      # call parse target state function for all networks
+      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
+    else
+      checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+      # get user-selected network from list
+      local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
+
+      echo "[info] selected network: $NETWORK"
+
+      # call parse target state function for specific network
+      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT" "$NETWORK"
+    fi
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 11: Update all diamond log files
@@ -520,7 +541,7 @@ scriptMaster() {
 
       echo "[info] deployer wallet balance in this network: $BALANCE"
       echo ""
-      checkRequiredVariablesInDotEnv $NETWORK
+      checkRequiredVariablesInDotEnv "$NETWORK"
 
       # call update diamond log function
       updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
@@ -532,7 +553,7 @@ scriptMaster() {
   #---------------------------------------------------------------------------------------------------------------------
   # use case 13: Remove facets or periphery from diamond
   elif [[ "$SELECTION" == "13)"* ]]; then
-    bun script/tasks/cleanUpProdDiamond.ts
+    bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   else
     error "invalid use case selected ('$SELECTION') - exiting script"

@@ -1,7 +1,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { type SupportedChain, EnvironmentEnum } from '../common/types'
 
 /**
  * Utility function to dynamically import the deployments file for a chain.

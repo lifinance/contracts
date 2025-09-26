@@ -301,6 +301,13 @@
       "auditReportPath": "./audit/reports/2025.06.29_CalldataVerificationFacet(v1.3.1).pdf",
       "auditCommitHash": "8840d8b41a894c46a444c5b2db2ca34babee753f"
     },
+    "audit20250629_1": {
+      "auditCompletedOn": "29.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.29_SwapperV2(v1.1.0).pdf",
+      "auditCommitHash": "4af7030dd8676d892c0bd63cdb2f43cbb7aae4cd"
+    },
     "audit20250630": {
       "auditCompletedOn": "30.06.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -314,6 +321,69 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.07.06_LiFiTimelockController(v1.0.1).pdf",
       "auditCommitHash": "f4bbda99541c441f90a76515a0624713831c8abb"
+    },
+    "audit20250706_01": {
+      "auditCompletedOn": "06.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.06_Permit2Proxy(v1.0.4).pdf",
+      "auditCommitHash": "a00deeb45dafe3e5124770c41a7a28ba931361d2"
+    },
+    "audit20250718": {
+      "auditCompletedOn": "18.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.1.0).pdf",
+      "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
+    },
+    "audit20250728": {
+      "auditCompletedOn": "28.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.28_LiFiDexAggregator(v1.12.0).pdf",
+      "auditCommitHash": "da57cb55dbbb6103a00ba662c76dd8a03abdc8d1"
+    },
+    "audit20250730": {
+      "auditCompletedOn": "30.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.30_Patcher(v1.0.0).pdf",
+      "auditCommitHash": "1536e96068d5cb1672e48078d22da27c79f4c2ef"
+    },
+    "audit20250822": {
+      "auditCompletedOn": "22.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.22_GlacisFacet(v1.1.0).pdf",
+      "auditCommitHash": "15f4a1c3fe53e344245f3c1834df81643dde7830"
+    },
+    "audit20250825": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.25_MayanFacet(v1.2.2).pdf",
+      "auditCommitHash": "b7e4b66ae83961f2873454f0bf09347e9ac8959d"
+    },
+    "audit20250825_1": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.08.25_RelayDepositoryFacet(v1.0.0).pdf",
+      "auditCommitHash": "4837b45b3ae705dee625015b1a084b3c69dee2a2"
+    },
+    "audit20250901": {
+      "auditCompletedOn": "01.09.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.09.01_AcrossV4(v1.0.0).pdf",
+      "auditCommitHash": "650d18eb98aff7fe45249147d6db7e352825c1e4"
+    },
+    "audit20250921": {
+      "auditCompletedOn": "21.09.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.09.21_AllBridgeFacet(v2.1.1).pdf",
+      "auditCommitHash": "1d1bee22c3a632f67b775f4cfc033589c4ad3c24"
     }
   },
   "auditedContracts": {
@@ -330,12 +400,20 @@
       "1.0.0": ["audit20241007"],
       "1.2.0": ["audit20241206", "audit20250508"]
     },
+    "AcrossFacetPackedV4": {
+      "1.0.0": ["audit20250901"]
+    },
     "AcrossFacetV3": {
       "1.0.0": ["audit20241007"],
       "1.1.0": ["audit20250106", "audit20250508"]
     },
+    "AcrossFacetV4": {
+      "1.0.0": ["audit20250901"]
+    },
     "AllBridgeFacet": {
-      "2.0.0": ["audit20250508"]
+      "2.0.0": ["audit20250508"],
+      "2.1.0": ["audit20250718"],
+      "2.1.1": ["audit20250921"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]
@@ -368,10 +446,12 @@
       "2.0.0": ["audit20250508"]
     },
     "ChainflipFacet": {
-      "1.0.0": ["audit20250305", "audit20250508"]
+      "1.0.0": ["audit20250305", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "DeBridgeDlnFacet": {
-      "1.0.0": ["audit20241205", "audit20250508"]
+      "1.0.0": ["audit20241205", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "DexManagerFacet": {
       "1.0.2": ["audit20250413", "audit20250508"]
@@ -399,14 +479,16 @@
       "2.0.0": ["audit20241107"],
       "2.0.2": ["audit20250110_1"],
       "2.0.3": ["audit20250416", "audit20250508"],
-      "2.0.4": ["audit20250515"]
+      "2.0.4": ["audit20250515"],
+      "2.0.5": ["audit20250718"]
     },
     "GasZipPeriphery": {
       "1.0.0": ["audit20241107"],
       "1.0.1": ["audit20250110_1", "audit20250508"]
     },
     "GenericErrors": {
-      "1.0.1": ["audit20250506", "audit20250508"]
+      "1.0.1": ["audit20250506", "audit20250508"],
+      "1.0.2": ["audit20250718"]
     },
     "GenericSwapFacet": {
       "1.0.0": ["audit20250508"]
@@ -416,7 +498,8 @@
       "1.0.2": ["audit20250610"]
     },
     "GlacisFacet": {
-      "1.0.0": ["audit20250219"]
+      "1.0.0": ["audit20250219"],
+      "1.1.0": ["audit20250822"]
     },
     "GnosisBridgeFacet": {
       "1.0.0": ["audit20250508"],
@@ -432,18 +515,6 @@
     "HopFacetPacked": {
       "1.0.6": ["audit20250508"]
     },
-    "IAcrossSpokePool": {
-      "1.0.0": ["audit20250106", "audit20250508"]
-    },
-    "IChainflip": {
-      "1.0.0": ["audit20250305", "audit20250508"]
-    },
-    "IGasZip": {
-      "1.0.0": ["audit20241107", "audit20250508"]
-    },
-    "IGlacisAirlift": {
-      "1.0.0": ["audit20250219", "audit20250508"]
-    },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
     },
@@ -454,7 +525,9 @@
       "1.0.1": ["audit20241202"],
       "1.0.2": ["audit20250110_1", "audit20250508"],
       "2.0.0": ["audit20250506"],
-      "2.1.0": ["audit20250620"]
+      "2.1.0": ["audit20250620"],
+      "2.1.1": ["audit20250718"],
+      "2.1.2": ["audit20250728"]
     },
     "LibBytes": {
       "1.0.0": ["audit20250508"]
@@ -472,6 +545,9 @@
     "LibUtil": {
       "1.0.0": ["audit20250508"]
     },
+    "LiFiData": {
+      "1.0.0": ["audit20250718"]
+    },
     "LiFiDiamond": {
       "1.0.0": ["audit20250508"]
     },
@@ -488,7 +564,12 @@
       "1.8.0": ["audit20250422"],
       "1.9.0": ["audit20250510"],
       "1.10.0": ["audit20250608"],
-      "1.11.0": ["audit20250630"]
+      "1.11.0": ["audit20250630"],
+      "1.12.0": ["audit20250728"]
+    },
+    "LiFiTimelockController": {
+      "1.0.0": ["audit20250110_2", "audit20250508"],
+      "1.0.1": ["audit20250706"]
     },
     "LiFuelFeeCollector": {
       "1.0.2": ["audit20250109_3", "audit20250508"]
@@ -496,17 +577,15 @@
     "LIFuelFacet": {
       "1.0.1": ["audit20250508"]
     },
-    "LiFiTimelockController": {
-      "1.0.0": ["audit20250110_2", "audit20250508"],
-      "1.0.1": ["audit20250706"]
-    },
     "LidoWrapper": {
       "1.0.0": ["audit20250610"]
     },
     "MayanFacet": {
       "1.0.0": ["audit20250508"],
       "1.1.0": ["audit20250228"],
-      "1.2.0": ["audit20250327"]
+      "1.2.0": ["audit20250327"],
+      "1.2.1": ["audit20250718"],
+      "1.2.2": ["audit20250825"]
     },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
@@ -520,6 +599,9 @@
     "OwnershipFacet": {
       "1.0.0": ["audit20250508"]
     },
+    "Patcher": {
+      "1.0.0": ["audit20250730"]
+    },
     "PeripheryRegistryFacet": {
       "1.0.0": ["audit20250508"]
     },
@@ -527,7 +609,8 @@
       "1.0.0": ["audit20241122"],
       "1.0.1": ["audit20250110_1"],
       "1.0.2": ["audit20250109_3"],
-      "1.0.3": ["audit20250415", "audit20250508"]
+      "1.0.3": ["audit20250415", "audit20250508"],
+      "1.0.4": ["audit20250706_01"]
     },
     "PioneerFacet": {
       "1.0.0": ["audit20250626"]
@@ -545,15 +628,23 @@
       "1.0.2": ["audit20250110_1"],
       "1.1.0": ["audit20250109_2", "audit20250508"]
     },
+    "ReceiverAcrossV4": {
+      "1.0.0": ["audit20250901"]
+    },
     "ReceiverChainflip": {
-      "1.0.0": ["audit20250305", "audit20250508"]
+      "1.0.0": ["audit20250305", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "ReceiverStargateV2": {
       "1.0.1": ["audit20250109_3"],
       "1.1.0": ["audit20250109_2", "audit20250508"]
     },
+    "RelayDepositoryFacet": {
+      "1.0.0": ["audit20250825_1"]
+    },
     "RelayFacet": {
-      "1.0.0": ["audit20241202", "audit20250508"]
+      "1.0.0": ["audit20241202", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
     "RelayerCelerIM": {
       "1.0.3": ["audit20250109_3"],
@@ -576,7 +667,9 @@
       "1.0.1": ["audit20240814", "audit20250508"]
     },
     "SwapperV2": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "1.0.1": ["audit20250718"],
+      "1.1.0": ["audit20250629_1"]
     },
     "SymbiosisFacet": {
       "1.0.0": ["audit20250508"]

@@ -225,8 +225,8 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     function encode_startBridgeTokensViaAcrossV3NativePacked(
         PackedParameters calldata _parameters
     ) external pure returns (bytes memory) {
-        // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
-        // we feel comfortable using this approach to save further gas
+        // there are already existing networks with chainIds outside uint32 range but since we not
+        // support either of them yet, we feel comfortable using this approach to save further gas
         // solhint-disable-next-line gas-custom-errors
         require(
             _parameters.destinationChainId <= type(uint32).max,
@@ -261,8 +261,8 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         address sendingAssetId,
         uint256 inputAmount
     ) external pure returns (bytes memory) {
-        // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
-        // we feel comfortable using this approach to save further gas
+        // there are already existing networks with chainIds outside uint32 range but since we not
+        // support either of them yet, we feel comfortable using this approach to save further gas
         // solhint-disable-next-line gas-custom-errors
         require(
             _parameters.destinationChainId <= type(uint32).max,

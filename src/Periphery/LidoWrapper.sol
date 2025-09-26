@@ -61,7 +61,8 @@ contract LidoWrapper is WithdrawablePeriphery {
     }
 
     /// @notice Wraps stETH into wstETH
-    /// @dev Transfers `_amount` stETH from caller, unwraps it via the stETH contract (which yields wstETH), and returns wstETH to the caller.
+    /// @dev Transfers `_amount` stETH from caller, unwraps it via the stETH contract (which yields wstETH),
+    ///      and returns wstETH to the caller.
     /// @param _amount The amount of stETH to wrap into wstETH
     function wrapStETHToWstETH(
         uint256 _amount
@@ -87,7 +88,8 @@ contract LidoWrapper is WithdrawablePeriphery {
     }
 
     /// @notice Unwraps wstETH into stETH
-    /// @dev Transfers `_amount` wstETH from caller, wraps it via stETH contract (yielding stETH), and returns stETH to the caller.
+    /// @dev Transfers `_amount` wstETH from caller, wraps it via stETH contract (yielding stETH),
+    ///      and returns stETH to the caller.
     /// @param _amount The amount of wstETH to unwrap into stETH
     function unwrapWstETHToStETH(
         uint256 _amount

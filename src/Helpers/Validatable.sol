@@ -4,8 +4,10 @@ pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+// solhint-disable-next-line max-line-length
 import { InvalidReceiver, InformationMismatch, InvalidSendingToken, InvalidAmount, NativeAssetNotSupported, InvalidDestinationChain, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+// solhint-disable-next-line no-unused-import
 import { LibSwap } from "../Libraries/LibSwap.sol";
 
 contract Validatable {

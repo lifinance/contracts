@@ -1,22 +1,24 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
 import { config } from 'dotenv'
-import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
+import { BigNumber, constants, Contract, providers, Wallet } from 'ethers'
 import {
   createPublicClient,
   createWalletClient,
+  formatEther,
+  formatUnits,
   getContract,
   http,
   parseAbi,
-  formatEther,
-  formatUnits,
   zeroAddress,
-  type Narrow,
+  type Abi,
+  type PublicClient,
+  type WalletClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
@@ -26,7 +28,7 @@ import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 config()
 
-export const DEV_WALLET_ADDRESS = '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
+export const DEV_WALLET_ADDRESS = globalConfig.devWallet
 
 export const DEFAULT_DEST_PAYLOAD_ABI = [
   'bytes32', // Transaction Id
@@ -34,24 +36,24 @@ export const DEFAULT_DEST_PAYLOAD_ABI = [
   'address', // Receiver
 ]
 
-export enum TransactionTypeEnum {
-  ERC20,
-  NATIVE,
-  ERC20_WITH_SRC,
-  NATIVE_WITH_SRC,
-  ERC20_WITH_DEST,
-  NATIVE_WITH_DEST,
+export enum ITransactionTypeEnum {
+  ERC20, // bridge ERC20 only
+  NATIVE, // bridge native only
+  ERC20_WITH_SRC, // swap and bridge ERC20
+  NATIVE_WITH_SRC, // swap and bridge native
+  ERC20_WITH_DEST, // bridge ERC20 with destination call
+  NATIVE_WITH_DEST, // bridge native with destination call
 }
 
-export const isNativeTX = (type: TransactionTypeEnum): boolean => {
+export const isNativeTX = (type: ITransactionTypeEnum): boolean => {
   return (
-    type === TransactionTypeEnum.NATIVE ||
-    type === TransactionTypeEnum.NATIVE_WITH_DEST ||
-    type === TransactionTypeEnum.NATIVE_WITH_SRC
+    type === ITransactionTypeEnum.NATIVE ||
+    type === ITransactionTypeEnum.NATIVE_WITH_DEST ||
+    type === ITransactionTypeEnum.NATIVE_WITH_SRC
   )
 }
 
-// Common token addresses on mainnet
+// Common token addresses on various chains
 export const ADDRESS_USDC_ETH = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 export const ADDRESS_USDT_ETH = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
 export const ADDRESS_USDC_POL = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'
@@ -60,6 +62,9 @@ export const ADDRESS_USDC_OPT = '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
 export const ADDRESS_USDT_OPT = '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58'
 export const ADDRESS_USDC_ARB = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 export const ADDRESS_USDT_ARB = '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'
+export const ADDRESS_USDC_SOL_BYTES32 =
+  '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61'
+export const ADDRESS_USDC_SOL = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 export const ADDRESS_USDCe_OPT = '0x7F5c764cBc14f9669B88837ca1490cCa17c31607'
 export const ADDRESS_WETH_ETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 export const ADDRESS_WETH_OPT = '0x4200000000000000000000000000000000000006'
@@ -67,6 +72,7 @@ export const ADDRESS_WETH_POL = '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
 export const ADDRESS_WETH_ARB = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 export const ADDRESS_WMATIC_POL = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270 '
 
+// common uniswap addresses on various chains
 export const ADDRESS_UNISWAP_ETH = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 export const ADDRESS_UNISWAP_BSC = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
 export const ADDRESS_UNISWAP_POL = '0xedf6066a2b290C185783862C7F4776A2C8077AD1'
@@ -74,11 +80,18 @@ export const ADDRESS_UNISWAP_OPT = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2'
 export const ADDRESS_UNISWAP_ARB = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
 // const UNISWAP_ADDRESS_DST = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2' // Uniswap OPT
 
+//
+export const ADDRESS_DEV_WALLET_SOLANA_BYTES32 =
+  '0x066c3a098d50715ef7f3902e25bead0dd33bd58acb6e30c67969faff35856401' // Solana address: S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4
+export const ADDRESS_DEV_WALLET_V4 =
+  '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
+
 /// ############# HELPER FUNCTIONS ###################### ///
 
 ///
-export const addressToBytes32 = (address: string) => {
-  return addressToBytes32Lz(address)
+export const leftPadAddressToBytes32 = (address: string): string => {
+  // Convert address to bytes32 format: pad with zeros to make it 32 bytes
+  return '0x000000000000000000000000' + address.slice(2)
 }
 
 export const getProvider = (
@@ -355,9 +368,12 @@ export const getUniswapDataERC20toExactERC20 = async (
     const requiredInputAmount = amounts[0]
     const maxAmountIn = BigNumber.from(requiredInputAmount).mul(105).div(100) // 5% max slippage
 
-    console.log('Required input amount:', requiredInputAmount.toString())
-    console.log('Max input with slippage:', maxAmountIn.toString())
-    console.log('Exact output amount:', exactAmountOut.toString())
+    console.log('Preparing Uniswap calldata for ERC20 to ERC20 swap:')
+    console.log('Input Token             :', sendingAssetId)
+    console.log('Output Token            :', receivingAssetId)
+    console.log('Required input amount   :', requiredInputAmount.toString())
+    console.log('Max input with slippage :', maxAmountIn.toString())
+    console.log('Exact output amount     :', exactAmountOut.toString())
 
     const uniswapCalldata = (
       await uniswap.populateTransaction.swapTokensForExactTokens(
@@ -633,7 +649,7 @@ export const getDeployments = async (
  */
 export const setupEnvironment = async (
   chain: SupportedChain,
-  facetAbi: Narrow<readonly any[]> | null,
+  diamondABI: Abi | readonly unknown[] | null,
   environment: EnvironmentEnum = EnvironmentEnum.staging,
   customRpcUrl?: string
 ) => {
@@ -657,7 +673,9 @@ export const setupEnvironment = async (
     account: walletAccount,
   })
 
-  const deployments = facetAbi ? await getDeployments(chain, environment) : null
+  const deployments = diamondABI
+    ? await getDeployments(chain, environment)
+    : null
 
   const client = { public: publicClient, wallet: walletClient }
 
@@ -666,10 +684,10 @@ export const setupEnvironment = async (
     : null
 
   const lifiDiamondContract =
-    facetAbi && lifiDiamondAddress
+    diamondABI && lifiDiamondAddress
       ? getContract({
           address: lifiDiamondAddress,
-          abi: facetAbi,
+          abi: diamondABI,
           client,
         })
       : null
@@ -900,3 +918,73 @@ export const getPrivateKeyForEnvironment = (
     ? getEnvVar('PRIVATE_KEY_PRODUCTION')
     : getEnvVar('PRIVATE_KEY')
 }
+
+/**
+ * Creates a contract object with the expected interface for helper functions.
+ *
+ * This function creates a standardized contract interface that provides type-safe
+ * access to common ERC20 token functions (balanceOf, allowance, approve) with
+ * proper error handling for each async operation.
+ *
+ * @param address - The contract address as a string
+ * @param abi - The contract ABI definition
+ * @param publicClient - The viem public client for read operations
+ * @param walletClient - The viem wallet client for write operations
+ * @returns An object with read and write methods for token operations
+ */
+export const createContractObject = (
+  address: string,
+  abi: Abi,
+  publicClient: PublicClient,
+  walletClient: WalletClient
+) => ({
+  read: {
+    balanceOf: async (args: [string]): Promise<bigint> => {
+      try {
+        return (await publicClient.readContract({
+          address: address as `0x${string}`,
+          abi,
+          functionName: 'balanceOf',
+          args,
+        })) as bigint
+      } catch (error) {
+        console.error(`[${address}] Failed to read balanceOf:`, error)
+        throw new Error(
+          `Failed to read balanceOf for address ${args[0]}: ${error}`
+        )
+      }
+    },
+    allowance: async (args: [string, string]): Promise<bigint> => {
+      try {
+        return (await publicClient.readContract({
+          address: address as `0x${string}`,
+          abi,
+          functionName: 'allowance',
+          args,
+        })) as bigint
+      } catch (error) {
+        console.error(`[${address}] Failed to read allowance:`, error)
+        throw new Error(
+          `Failed to read allowance for owner ${args[0]} and spender ${args[1]}: ${error}`
+        )
+      }
+    },
+  },
+  write: {
+    approve: async (args: [string, bigint]): Promise<`0x${string}`> => {
+      try {
+        return await walletClient.writeContract({
+          address: address as `0x${string}`,
+          abi,
+          functionName: 'approve',
+          args,
+        } as any)
+      } catch (error) {
+        console.error(`[${address}] Failed to approve:`, error)
+        throw new Error(
+          `Failed to approve spender ${args[0]} for amount ${args[1]}: ${error}`
+        )
+      }
+    },
+  },
+})

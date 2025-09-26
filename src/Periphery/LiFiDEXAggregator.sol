@@ -10,7 +10,11 @@ import { IAlgebraPool } from "lifi/Interfaces/IAlgebraPool.sol";
 import { IiZiSwapPool } from "lifi/Interfaces/IiZiSwapPool.sol";
 import { ISyncSwapVault } from "lifi/Interfaces/ISyncSwapVault.sol";
 import { ISyncSwapPool } from "lifi/Interfaces/ISyncSwapPool.sol";
+import { IKatanaV3Pool } from "lifi/Interfaces/KatanaV3/IKatanaV3Pool.sol";
+import { IKatanaV3Governance } from "lifi/Interfaces/KatanaV3/IKatanaV3Governance.sol";
+import { IKatanaV3AggregateRouter } from "lifi/Interfaces/KatanaV3/IKatanaV3AggregateRouter.sol";
 import { InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 address constant NATIVE_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 address constant IMPOSSIBLE_POOL_ADDRESS = 0x0000000000000000000000000000000000000001;
@@ -44,11 +48,17 @@ uint8 constant POOL_TYPE_VELODROME_V2 = 6;
 uint8 constant POOL_TYPE_ALGEBRA = 7;
 uint8 constant POOL_TYPE_IZUMI_V3 = 8;
 uint8 constant POOL_TYPE_SYNCSWAP = 9;
+uint8 constant POOL_TYPE_KATANA_V3 = 10;
 
-/// @title LiFi DEX Aggregator
-/// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
+/// @dev command for V3_SWAP_EXACT_IN (0x00) for KatanaV3
+bytes constant KATANA_V3_SWAP_EXACT_IN = hex"00";
+
+/// @title LiFiDEXAggregator
+/// @author Ilya Lyalin (contract copied from:
+///         https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/
+///         protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.11.0
+/// @custom:version 1.12.0
 contract LiFiDEXAggregator is WithdrawablePeriphery {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
@@ -391,6 +401,8 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
             swapIzumiV3(stream, from, tokenIn, amountIn);
         else if (poolType == POOL_TYPE_SYNCSWAP)
             swapSyncSwap(stream, from, tokenIn, amountIn);
+        else if (poolType == POOL_TYPE_KATANA_V3)
+            swapKatanaV3(stream, from, tokenIn, amountIn);
         else revert UnknownPoolType();
     }
 
@@ -675,10 +687,12 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
 
     /// @notice Called to `msg.sender` after executing a swap via AgniV3#swap.
     /// @dev In the implementation you must pay the pool tokens owed for the swap.
-    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
-    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive)
+    ///        by the pool by the end of the swap. If positive, the callback must send that amount of
+    ///        token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive)
+    ///        by the pool by the end of the swap. If positive, the callback must send that amount of
+    ///        token1 to the pool.
     /// @param data Any data passed through by the caller via the AgniV3#swap call
     function agniSwapCallback(
         int256 amount0Delta,
@@ -852,6 +866,71 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         bytes memory data = abi.encode(tokenIn, to, withdrawMode);
 
         ISyncSwapPool(pool).swap(data, from, address(0), new bytes(0));
+    }
+
+    /// @notice Performs a swap through KatanaV3 pools
+    /// @dev This function handles swaps through KatanaV3 pools.
+    /// @param stream [pool, direction, recipient]
+    /// @param from Where to take liquidity for swap
+    /// @param tokenIn Input token
+    /// @param amountIn Amount of tokenIn to take for swap
+    function swapKatanaV3(
+        uint256 stream,
+        address from,
+        address tokenIn,
+        uint256 amountIn
+    ) private {
+        address pool = stream.readAddress();
+        bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1;
+        address recipient = stream.readAddress();
+
+        if (
+            pool == address(0) ||
+            pool == IMPOSSIBLE_POOL_ADDRESS ||
+            recipient == address(0)
+        ) revert InvalidCallData();
+
+        // get router address from pool governance
+        address governance = IKatanaV3Pool(pool).governance();
+        address router = IKatanaV3Governance(governance).getRouter();
+
+        // get pool info for constructing the path
+        uint24 fee = IKatanaV3Pool(pool).fee();
+
+        // determine tokenOut based on swap direction
+        address tokenOut = direction
+            ? IKatanaV3Pool(pool).token1()
+            : IKatanaV3Pool(pool).token0();
+
+        // transfer tokens to the router
+        if (from == msg.sender) {
+            LibAsset.transferFromERC20(tokenIn, msg.sender, router, amountIn);
+        } else if (from == address(this)) {
+            LibAsset.transferERC20(tokenIn, router, amountIn);
+        }
+
+        // construct the path for V3 swap (tokenIn -> tokenOut with fee)
+        bytes memory path = abi.encodePacked(tokenIn, fee, tokenOut);
+
+        // encode the inputs for V3_SWAP_EXACT_IN
+        // set payerIsUser to false since we already transferred tokens to the router
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(
+            recipient, // recipient
+            amountIn, // amountIn
+            0, // amountOutMin (0, as we handle slippage at higher level)
+            path, // path
+            false // payerIsUser (false since tokens are already in router)
+        );
+
+        // call the router's execute function
+        // first parameter for execute is the command for V3_SWAP_EXACT_IN (0x00)
+        IKatanaV3AggregateRouter(router).execute(
+            KATANA_V3_SWAP_EXACT_IN,
+            inputs
+        );
+
+        // katanaV3SwapCallback implementation is in the router contract itself
     }
 
     /// @dev Common logic for iZiSwap callbacks
@@ -1070,6 +1149,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint8 direction = stream.readUint8();
         address to = stream.readAddress();
         if (pool == address(0) || to == address(0)) revert InvalidCallData();
+        // solhint-disable-next-line max-line-length
         bool callback = stream.readUint8() == CALLBACK_ENABLED; // if true then run callback after swap with tokenIn as flashloan data. Will revert if contract (to) does not implement IVelodromeV2PoolCallee
 
         if (from == INTERNAL_INPUT_SOURCE) {
@@ -1109,12 +1189,15 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         // - Token transfer safety: SafeERC20 is used to ensure token transfers revert on failure
         // - Expected output verification: The contract calls getAmountOut (including fees) before executing the swap
         // - Flashloan trigger: A flashloan flag is used to determine if the callback should be triggered
-        // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut and that the sender's final balance is not less than the initial balance
-        // - Immutable interaction: Velodrome V2 pools and the router are not upgradable, so we can rely on the behavior of getAmountOut and swap
+        // - Post-swap verification: In processRouteInternal, it verifies that the recipient receives at least minAmountOut
+        //      and that the sender's final balance is not less than the initial balance
+        // - Immutable interaction: Velodrome V2 pools and the router are not upgradable,
+        //      so we can rely on the behavior of getAmountOut and swap
 
         // ATTENTION FOR CALLBACKS / HOOKS:
         // - recipient contracts should validate that msg.sender is the Velodrome pool contract who is calling the hook
-        // - recipient contracts must not manipulate their own tokenOut balance (as this may bypass/invalidate the built-in slippage protection)
+        // - recipient contracts must not manipulate their own tokenOut balance
+        //   (as this may bypass/invalidate the built-in slippage protection)
         // - @developers: never trust balance-based slippage protection for callback recipients
         // - @integrators: do not use slippage guarantees when recipient is a contract with side-effects
         IVelodromeV2Pool(pool).swap(
@@ -1140,6 +1223,7 @@ contract LiFiDEXAggregator is WithdrawablePeriphery {
         uint256 amountIn
     ) private {
         address pool = stream.readAddress();
+        // solhint-disable-next-line max-line-length
         bool direction = stream.readUint8() == DIRECTION_TOKEN0_TO_TOKEN1; // direction indicates the swap direction: true for token0 -> token1, false for token1 -> token0
         address recipient = stream.readAddress();
         bool supportsFeeOnTransfer = stream.readUint8() > 0; // Any non-zero value enables fee-on-transfer handling

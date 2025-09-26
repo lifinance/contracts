@@ -78,7 +78,7 @@ deploySingleContract() {
   if [[ -z "$CONTRACT" ]]; then
     # select which contract should be deployed
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e "s/${FILE_EXTENSION}//" | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local CONTRACT=$(echo "$SCRIPT" | sed -e 's/Deploy//')
   else
     # the to-be-deployed contract was already selected prior to calling this script
     SCRIPT="Deploy"$CONTRACT
@@ -131,59 +131,60 @@ deploySingleContract() {
   echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
   echo ""
 
-  # prepare bytecode
-  BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
+  # the following is only applicable for networks where we use CREATE3 (= non-zkEVM)
+  if ! isZkEvmNetwork "$NETWORK"; then
+    # prepare bytecode
+    BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
 
-  # get CREATE3_FACTORY_ADDRESS
-  CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
-  checkFailure $? "retrieve create3Factory address from networks.json"
+    # get CREATE3_FACTORY_ADDRESS
+    CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
+    checkFailure $? "retrieve create3Factory address from networks.json"
 
-  if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
-    # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
-    BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
-  fi
-
-  # check if .env file contains a value "SALT" and if this has correct number of digits (must be even)
-  if [[ ! -z "$SALT" ]]; then
-    if [ $((${#SALT} % 2)) != 0 ]; then
-      error "your SALT environment variable (in .env file) has a value with odd digits (must be even digits) - please adjust value and run script again"
-      exit 1
+    if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
+      # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
+      BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
     fi
-  fi
 
-  # add custom salt from .env file (allows to re-deploy contracts with same bytecode)
-  local SALT_INPUT="$BYTECODE""$SALT"
+    # check if .env file contains a value "SALT" and if this has correct number of digits (must be even)
+    if [[ ! -z "$SALT" ]]; then
+      if [ $((${#SALT} % 2)) != 0 ]; then
+        error "your SALT environment variable (in .env file) has a value with odd digits (must be even digits) - please adjust value and run script again"
+        exit 1
+      fi
+    fi
 
-  # create salt that is used to deploy contract
-  local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
+    # add custom salt from .env file (allows to re-deploy contracts with same bytecode)
+    local SALT_INPUT="$BYTECODE""$SALT"
 
-  # get predicted contract address based on salt (or special case for LiFiDiamond)
-  if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
-    CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
-  else
-    CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
-  fi
+    # create salt that is used to deploy contract
+    local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
 
-  # check if address already contains code (=> are we deploying or re-running the script again?)
-  NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
-
-  # check if all required data (e.g. config data / contract addresses) is available
-  checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-
-  # do not continue if data required for deployment is missing
-  if [ $? -ne 0 ]; then
-    if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
-      return 1
+    # get predicted contract address based on salt (or special case for LiFiDiamond)
+    if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
+      CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
     else
-      exit 1
+      CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
     fi
-  fi
 
-  if isZkEvmNetwork "$NETWORK"; then
+    # check if address already contains code (=> are we deploying or re-running the script again?)
+    NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
+
+    # check if all required data (e.g. config data / contract addresses) is available
+    checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+
+    # do not continue if data required for deployment is missing
+    if [ $? -ne 0 ]; then
+      if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
+        return 1
+      else
+        exit 1
+      fi
+    fi
+  else
       # Check if a zksync contract has already been deployed for a specific
       # version otherwise it might fail since create2 will try to deploy to the
       # same address
-      DEPLOYED=$(findContractInMasterLog $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH)
+      DEPLOYED=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" "$LOG_FILE_PATH")
       if [[ $? == 0 ]]; then
         gum style \
 	        --foreground 220 --border-foreground 220 --border double \
@@ -195,7 +196,6 @@ deploySingleContract() {
       # Run zksync specific fork of forge
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
   fi
-
   # execute script
   attempts=1
 
@@ -207,10 +207,10 @@ deploySingleContract() {
 
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     fi
 
     RETURN_CODE=$?
@@ -250,11 +250,9 @@ deploySingleContract() {
     error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment"
 
     # end this script according to flag
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
-      echo "return 1"
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
-      echo "exit 1"
       exit 1
     fi
   fi
@@ -264,7 +262,7 @@ deploySingleContract() {
     warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
 
     # end this script according to flag
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
       exit 1
@@ -300,6 +298,17 @@ deploySingleContract() {
   # prepare information for logfile entry
   TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
   OPTIMIZER=$(getOptimizerRuns)
+
+  # Get compiler versions used for deployment
+  SOLC_VERSION=$(getSolcVersion "$NETWORK")
+  EVM_VERSION=$(getEvmVersion "$NETWORK")
+
+  # Get zk-solc version for zkEvm networks
+  if isZkEvmNetwork "$NETWORK"; then
+    ZK_SOLC_VERSION=$(getZkSolcVersion "$NETWORK")
+  else
+    ZK_SOLC_VERSION=""
+  fi
 
   # check if contract verification is enabled in config and contract not yet verified according to log file
   if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
@@ -337,7 +346,7 @@ deploySingleContract() {
         TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
 
         # update VERIFIED info in log file
-        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
+        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
       else
         echoDebug "contract was not verified just now. No further action needed."
       fi
@@ -345,13 +354,13 @@ deploySingleContract() {
       echoDebug "address of existing log entry does not match with current deployed-to address (=re-deployment)"
 
       # overwrite existing log entry with new deployment info
-      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
+      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
     fi
   else
     echoDebug "log entry does not exist. Log entry will be written now."
 
     # write to logfile
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT"
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "$VERIFIED" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
   fi
 
   # save contract in network-specific deployment files

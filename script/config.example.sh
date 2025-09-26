@@ -107,5 +107,8 @@ COMPILE_ON_STARTUP=false
 # webhook URL for sending messages to Slack 'dev-sc-general' channel
 SLACK_WEBHOOK_SC_GENERAL=
 
+# Flag to enable/disable timelock controller
+USE_TIMELOCK_CONTROLLER=true
+
 # the path to the foundry.toml file
 FOUNDRY_TOML_FILE_PATH="foundry.toml"

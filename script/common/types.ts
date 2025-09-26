@@ -29,5 +29,9 @@ export interface INetwork {
   deployedWithSolcVersion: string
   gasZipChainId: number
   id: string
+  isZkEVM: boolean
+  safeApiUrl?: string
+  safeWebUrl?: string
+  create3Factory?: string
   devNotes?: string
 }

@@ -9,20 +9,25 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
+import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.2.0
-contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @custom:version 1.2.2
+contract MayanFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
-    address internal constant NON_EVM_ADDRESS =
-        0x11f111f111f111F111f111f111F111f111f111F1;
 
-    // solhint-disable-next-line immutable-vars-naming
-    IMayan public immutable mayan;
+    IMayan public immutable MAYAN;
 
     /// @dev Mayan specific bridge data
     /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
@@ -36,21 +41,15 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Errors ///
     error InvalidReceiver(address expected, address actual);
-    error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
-
-    /// Events ///
-
-    event BridgeToNonEVMChain(
-        bytes32 indexed transactionId,
-        uint256 indexed destinationChainId,
-        bytes32 receiver
-    );
+    error ProtocolDataTooShort();
 
     /// Constructor ///
 
     /// @notice Constructor for the contract.
     constructor(IMayan _mayan) {
-        mayan = _mayan;
+        if (address(_mayan) == address(0)) revert InvalidConfig();
+
+        MAYAN = _mayan;
     }
 
     /// External Methods ///
@@ -146,17 +145,11 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
-                revert InvalidNonEVMReceiver(
-                    _mayanData.nonEVMReceiver,
-                    bytes32(0)
-                );
+                revert InvalidNonEVMReceiver();
             }
             bytes32 receiver = _parseReceiver(_mayanData.protocolData);
             if (_mayanData.nonEVMReceiver != receiver) {
-                revert InvalidNonEVMReceiver(
-                    _mayanData.nonEVMReceiver,
-                    receiver
-                );
+                revert InvalidNonEVMReceiver();
             }
         } else {
             address receiver = address(
@@ -172,11 +165,11 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(mayan),
+                address(MAYAN),
                 _bridgeData.minAmount
             );
 
-            mayan.forwardERC20(
+            MAYAN.forwardERC20(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 emptyPermitParams,
@@ -184,14 +177,14 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _mayanData.protocolData
             );
         } else {
-            mayan.forwardEth{ value: _bridgeData.minAmount }(
+            MAYAN.forwardEth{ value: _bridgeData.minAmount }(
                 _mayanData.mayanProtocol,
                 _mayanData.protocolData
             );
         }
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            emit BridgeToNonEVMChain(
+            emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
                 _mayanData.nonEVMReceiver
@@ -263,6 +256,34 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 // 0x2337e236 FastMCTP::createOrder(address,uint256,uint256,uint32,uint32,(bytes32,[*bytes32*],uint64,uint64,uint64,uint64,uint64,bytes32,uint16,bytes32,uint8,uint8,bytes32))
                 receiver := mload(add(protocolData, 0xe4))
             }
+            case 0xe27dce37 {
+                // 0xe27dce37 HCDepositInitiator::deposit(address,uint256,address,uint64,uint256,uint256,(uint64,([*address*],uint256,uint256,(bytes32,bytes32,uint8))))
+                // @notice Important behavior regarding permits and receivers in Mayan bridge for Hypercore:
+                // 1. The DepositPayload struct (tuple) only contains permit data, with no separate receiver field
+                // 2. The permit signer in DepositPayload struct (not the trader (3rd argument)) is who receives the bridged funds
+                // 3. While technically possible to bridge to a different receiver, it requires having that receiver's permit
+                //
+                // Implementation note:
+                // Due to these constraints, the sender must act as the receiver
+                // since they need to provide their own permit. This limitation is handled at the backend level
+                // by disabling the option to specify a different receiver.
+                //
+                receiver := mload(add(protocolData, 0xe4))
+            }
+            case 0x4d1ed73b {
+                // 0x4d1ed73b HCDepositInitiator::fastDeposit(address,uint256,address,uint256,uint64,bytes32,uint8,uint32,uint256,(uint64,([*address*],uint256,uint256,(bytes32,bytes32,uint8))))
+                // @notice Important behavior regarding permits and receivers in Mayan bridge for Hypercore:
+                // 1. The DepositPayload struct (tuple) only contains permit data, with no separate receiver field
+                // 2. The permit signer in DepositPayload struct (not the trader (3rd argument)) is who receives the bridged funds
+                // 3. While technically possible to bridge to a different receiver, it requires having that receiver's permit
+                //
+                // Implementation note:
+                // Due to these constraints, the sender must act as the receiver
+                // since they need to provide their own permit. This limitation is handled at the backend level
+                // by disabling the option to specify a different receiver.
+                //
+                receiver := mload(add(protocolData, 0x164))
+            }
             default {
                 receiver := 0x0
             }
@@ -291,8 +312,10 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes memory protocolData,
         uint256 inputAmount
     ) internal pure returns (bytes memory) {
-        // solhint-disable-next-line gas-custom-errors
-        require(protocolData.length >= 68, "protocol data too short");
+        if (protocolData.length < 68) {
+            revert ProtocolDataTooShort();
+        }
+
         bytes memory modifiedData = new bytes(protocolData.length);
         bytes4 functionSelector = bytes4(protocolData[0]) |
             (bytes4(protocolData[1]) >> 8) |
@@ -308,20 +331,19 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             amountIndex = 36;
         }
 
-        /* solhint-disable gas-custom-errors, explicit-types */
         // Copy the function selector and params before amount in
-        for (uint i = 0; i < amountIndex; i++) {
+        for (uint256 i = 0; i < amountIndex; i++) {
             modifiedData[i] = protocolData[i];
         }
 
         // Encode the amount and place it into the modified call data
         bytes memory encodedAmount = abi.encode(inputAmount);
-        for (uint i = 0; i < 32; i++) {
+        for (uint256 i = 0; i < 32; i++) {
             modifiedData[i + amountIndex] = encodedAmount[i];
         }
 
         // Copy the rest of the original data after the input argument
-        for (uint i = amountIndex + 32; i < protocolData.length; i++) {
+        for (uint256 i = amountIndex + 32; i < protocolData.length; i++) {
             modifiedData[i] = protocolData[i];
         }
 
