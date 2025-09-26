@@ -25,7 +25,7 @@ contract LIFIIntentEscrowFacet is
     Validatable
 {
     /// Errors ///
-    error ReceiverDoNotMatch();
+    error ReceiverDoesNotMatch();
     error NativeNotSupported();
 
     /// Storage ///
@@ -129,6 +129,9 @@ contract LIFIIntentEscrowFacet is
         ILiFi.BridgeData memory _bridgeData,
         LIFIIntentEscrowData calldata _lifiIntentData
     ) internal {
+        // Per conventions, the LiFi transfer started event should be emitted before any bridge calls are made.
+        emit LiFiTransferStarted(_bridgeData);
+
         if (_bridgeData.sendingAssetId == address(0))
             revert NativeNotSupported();
 
@@ -137,7 +140,7 @@ contract LIFIIntentEscrowFacet is
             asSanitizedAddress(_lifiIntentData.receiverAddress) !=
             _bridgeData.receiver
         ) {
-            revert ReceiverDoNotMatch();
+            revert ReceiverDoesNotMatch();
         }
 
         // Set approval.
@@ -177,8 +180,6 @@ contract LIFIIntentEscrowFacet is
                 outputs: outputs
             })
         );
-
-        emit LiFiTransferStarted(_bridgeData);
     }
     /// Helpers ///
 

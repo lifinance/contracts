@@ -26,17 +26,10 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/lifiintent.json");
         string memory json = vm.readFile(path);
 
-        // If you need to read an address from your config file or from a network deploy log that is supposed to be a contract, use the
-        // following helper function which makes sure that the address contains code (and has a optional flag for allowing address(0)):
-        //
-        // address example = _getConfigContractAddress(json,string.concat(".", network, ".example"));
-        //
-        // in the address is not a supposed to be an EOA, you can use the following standard approach:
-        address compact = json.readAddress(".COMPACT");
-        address lifiIntentCompactSettler = json.readAddress(
+        address lifiIntentEscrowSettler = json.readAddress(
             ".LIFI_ESCROW_INPUT_SETTLER"
         );
 
-        return abi.encode(compact, lifiIntentCompactSettler);
+        return abi.encode(lifiIntentEscrowSettler);
     }
 }

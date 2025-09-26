@@ -185,7 +185,7 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
         bytes32 orderId = ILIFIIntentEscrowSettler(lifiIntentEscrowSettler)
             .orderIdentifier(order);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit ILIFIIntentEscrowSettler.Open(orderId, order);
 
         baseLIFIIntentEscrowFacet.startBridgeTokensViaLIFIIntentEscrow{
@@ -236,7 +236,7 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
             uint256(uint160(bridgeData.receiver)) + 1
         );
 
-        vm.expectRevert(abi.encodeWithSignature("ReceiverDoNotMatch()"));
+        vm.expectRevert(LIFIIntentEscrowFacet.ReceiverDoesNotMatch.selector);
         baseLIFIIntentEscrowFacet.startBridgeTokensViaLIFIIntentEscrow{
             value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
                 ? bridgeData.minAmount
