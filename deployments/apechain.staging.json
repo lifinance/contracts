@@ -1,3 +1,6 @@
 {
-  "LiFiDEXAggregator": "0x31b0b4DF8fE055532bd106b2E7C8afCFd39B65De"
+  "LiFiDEXAggregator": "0x31b0b4DF8fE055532bd106b2E7C8afCFd39B65De",
+  "DiamondCutFacet": "0x85bc11e06719Ec8dDc3253676283F44E625598Ab",
+  "DiamondLoupeFacet": "0xE941EE035157Ca706A82AEcC53BfAcC5abBaa12D",
+  "OwnershipFacet": "0x56db197b1d1021ec1825a9A434049AE5d722bfad"
 }
