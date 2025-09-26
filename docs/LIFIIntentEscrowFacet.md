@@ -7,15 +7,19 @@ LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intent
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL --> LIFIIntentEscrowFacet;
+    LIFIIntentEscrowFacet -- CALL --> LIFI_INTENT_ESCROW_SETTLER;
+    User -- Tokens --> D{LiFiDiamond}
+    D -- Tokens --> LIFI_INTENT_ESCROW_SETTLER
 
-    Solver -- CALL -> C(outputSettler)
-    C(outputSettler) -- Tokens -> User
+    Solver -- CALL--> OutputSettler
+    OutputSettler -- Tokens --> User
 
-    C(outputOracle) -- STATICCALL -> C(outputSettler)
+    OutputOracle -- STATICCALL --> OutputSettler
 
-    C(outputOracle) -- Validation -> C(LocalOracle)
-    C(LIFI_INTENT_COMPACT_SETTLER) -- STATICCALL -> C(LocalOracle)
-    C(LIFI_INTENT_COMPACT_SETTLER) -- Token -> User
+    OutputOracle -- Validation --> InputOracle
+    Solver -- CALL --> LIFI_INTENT_ESCROW_SETTLER
+    LIFI_INTENT_ESCROW_SETTLER -- STATICCALL --> InputOracle
+    LIFI_INTENT_ESCROW_SETTLER -- Token --> Solver
 ```
 
 ## Public Methods
@@ -31,7 +35,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 
 ```solidity
 /// @param receiverAddress The destination account for the delivered assets and calldata.
-/// @param user The deposit and claim registration will be made in this user's name. Compact 6909 tokens will be minted for this user and if the intent fails to be filled the tokens will remain in this user's name.
+/// @param user The deposit and claim registration will be made for user. If any refund is made, it will be sent to user.
 /// @param expiry If the proof for the fill does not arrive before this time, the claim expires.
 /// @param fillDeadline The fill has to happen before this time.
 /// @param inputOracle Address of the validation layer used on the input chain.
