@@ -43,18 +43,6 @@ interface IEverclearFeeAdapter {
 
     function newIntent(
         uint32[] memory _destinations,
-        address _receiver,
-        address _inputAsset,
-        address _outputAsset,
-        uint256 _amount,
-        uint24 _maxFee,
-        uint48 _ttl,
-        bytes calldata _data,
-        FeeParams calldata _feeParams
-    ) external payable returns (bytes32 _intentId, Intent memory _intent);
-
-    function newIntent(
-        uint32[] memory _destinations,
         bytes32 _receiver,
         address _inputAsset,
         bytes32 _outputAsset,
@@ -64,4 +52,8 @@ interface IEverclearFeeAdapter {
         bytes calldata _data,
         FeeParams calldata _feeParams
     ) external payable returns (bytes32 _intentId, Intent memory _intent);
+
+    function updateFeeSigner(address _feeSigner) external;
+
+    function owner() external view returns (address);
 }
