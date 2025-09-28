@@ -9,9 +9,7 @@ import { IEverclearFeeAdapter } from "lifi/Interfaces/IEverclearFeeAdapter.sol";
 
 // Stub EverclearFacet Contract
 contract TestEverclearFacet is EverclearFacet {
-    constructor(
-        address _example
-    ) EverclearFacet(_example) {}
+    constructor(address _example) EverclearFacet(_example) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -27,11 +25,13 @@ contract EverclearFacetTest is TestBaseFacet {
 
     EverclearFacet.EverclearData internal validEverclearData;
     TestEverclearFacet internal everclearFacet;
-    IEverclearFeeAdapter internal feeAdapter = IEverclearFeeAdapter(address(0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75));
+    IEverclearFeeAdapter internal feeAdapter =
+        IEverclearFeeAdapter(
+            address(0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75)
+        );
 
     uint256 internal signerPrivateKey;
     address internal signerAddress;
-
 
     function setUp() public {
         customBlockNumberForForking = 23433940;
@@ -42,7 +42,9 @@ contract EverclearFacetTest is TestBaseFacet {
 
         everclearFacet = new TestEverclearFacet(address(feeAdapter));
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = everclearFacet.startBridgeTokensViaEverclear.selector;
+        functionSelectors[0] = everclearFacet
+            .startBridgeTokensViaEverclear
+            .selector;
         functionSelectors[1] = everclearFacet
             .swapAndStartBridgeTokensViaEverclear
             .selector;
@@ -81,19 +83,19 @@ contract EverclearFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = defaultUSDCAmount;
 
-    // 3. Hash the data that needs to be signed
-    // The FeeAdapter signs: abi.encode(_tokenFee, _nativeFee, _inputAsset, _deadline)
-    bytes32 messageHash = keccak256(
-        abi.encode(fee, 0, bridgeData.sendingAssetId, deadline)
-    );
-    bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        // 3. Hash the data that needs to be signed
+        // The FeeAdapter signs: abi.encode(_tokenFee, _nativeFee, _inputAsset, _deadline)
+        bytes32 messageHash = keccak256(
+            abi.encode(fee, 0, bridgeData.sendingAssetId, deadline)
+        );
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
-    // 4. Sign the hash
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-        signerPrivateKey,
-        ethSignedMessageHash
-    );
-    bytes memory signature = abi.encodePacked(r, s, v);
+        // 4. Sign the hash
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPrivateKey,
+            ethSignedMessageHash
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
 
         // produce valid EverclearData
         validEverclearData = EverclearFacet.EverclearData({
@@ -128,25 +130,26 @@ contract EverclearFacetTest is TestBaseFacet {
     // - testBase_Revert_SwapAndBridgeToSameChainId()
     // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
     // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    // 
+    //
     // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
     // In that case you can override the test method and leave it empty. For example:
-    // 
+    //
     function testBase_CanBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
     }
-    
+
     function testBase_CanSwapAndBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
     }
 
-    function testBase_CanBridgeTokens222()
+    function testBase_CanBridgeTokens()
         public
         virtual
+        override
         assertBalanceChange(
             ADDRESS_USDC,
             USER_SENDER,
-            -int256(defaultUSDCAmount)
+            -int256(defaultUSDCAmount + validEverclearData.fee)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -155,7 +158,10 @@ contract EverclearFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // approval
-        usdc.approve(address(everclearFacet), bridgeData.minAmount + validEverclearData.fee);
+        usdc.approve(
+            address(everclearFacet),
+            bridgeData.minAmount + validEverclearData.fee
+        );
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(everclearFacet));
