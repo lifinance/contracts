@@ -137,7 +137,7 @@ contract LiFiIntentEscrowFacet is
 
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
         if (
-            asSanitizedAddress(_lifiIntentData.receiverAddress) !=
+            address(uint160(uint256(_lifiIntentData.receiverAddress))) !=
             _bridgeData.receiver
         ) {
             revert InvalidReceiver();
@@ -180,21 +180,5 @@ contract LiFiIntentEscrowFacet is
                 outputs: outputs
             })
         );
-    }
-
-    /// Helpers ///
-
-    /**
-     * @notice Internal pure function that sanitizes an address by clearing the
-     * upper 96 bits. Used for ensuring consistent address handling.
-     * @param accountValue The value to sanitize.
-     * @return account     The sanitized address.
-     */
-    function asSanitizedAddress(
-        bytes32 accountValue
-    ) internal pure returns (address account) {
-        assembly ("memory-safe") {
-            account := shr(96, shl(96, accountValue))
-        }
     }
 }
