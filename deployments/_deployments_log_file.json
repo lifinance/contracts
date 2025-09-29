@@ -26948,7 +26948,7 @@
             "TIMESTAMP": "2025-09-22 09:49:10",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -38315,7 +38315,7 @@
             "TIMESTAMP": "2025-09-22 09:30:15",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390000000000000000000000000588c00159aed9a9ab258850b33dedfac1c794fa10000000000000000000000002a41576d93a4ac3d850456cbdc655fef5e4f0325",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
