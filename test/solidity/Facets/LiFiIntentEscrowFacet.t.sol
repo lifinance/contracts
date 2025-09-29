@@ -124,7 +124,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // produce valid LiFiIntentEscrowData
         validLIFIIntentData = LiFiIntentEscrowFacet.LiFiIntentEscrowData({
             receiverAddress: bytes32(uint256(uint160(bridgeData.receiver))),
-            user: address(uint160(123123321321)),
+            depositAndRefundAddress: address(uint160(123123321321)),
             nonce: uint256(100),
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
@@ -178,7 +178,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         ];
 
         StandardOrder memory order = StandardOrder({
-            user: validLIFIIntentData.user,
+            user: validLIFIIntentData.depositAndRefundAddress,
             nonce: validLIFIIntentData.nonce,
             originChainId: block.chainid,
             expires: validLIFIIntentData.expires,

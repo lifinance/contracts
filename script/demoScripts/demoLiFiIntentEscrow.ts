@@ -119,7 +119,7 @@ async function main() {
   const LIFIIntentData: LiFiIntentEscrowFacet.LiFiIntentEscrowDataStruct = {
     /// And calldata.
     receiverAddress: '0x' + signerAddress.replace('0x', '').padStart(64, '0'),
-    user: signerAddress,
+    depositAndRefundAddress: signerAddress,
     nonce: Math.round(Math.random() * Number.MAX_SAFE_INTEGER),
     expires: 2 ** 32 - 1, // max expiry time.
     // LIFIIntent Witness //

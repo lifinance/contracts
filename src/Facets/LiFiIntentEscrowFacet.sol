@@ -37,7 +37,7 @@ contract LiFiIntentEscrowFacet is
     /// Types ///
 
     /// @param receiverAddress The destination account for the delivered assets and calldata.
-    /// @param user The deposit and claim registration will be made for user. If any refund is made, it will be sent to user.
+    /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address.
     /// @param expires If the proof for the fill does not arrive before this time, the claim expires.
     /// @param fillDeadline The fill has to happen before this time.
     /// @param inputOracle Address of the validation layer used on the input chain.
@@ -50,7 +50,7 @@ contract LiFiIntentEscrowFacet is
     struct LiFiIntentEscrowData {
         bytes32 receiverAddress; // StandardOrder.outputs.recipient
         /// BatchClaim
-        address user; // StandardOrder.user
+        address depositAndRefundAddress; // StandardOrder.user
         uint256 nonce; // StandardOrder.nonce
         uint32 expires; // StandardOrder.expiry
         uint32 fillDeadline; // StandardOrder.fillDeadline
@@ -171,7 +171,7 @@ contract LiFiIntentEscrowFacet is
         // Make the deposit on behalf of the user..
         IOriginSettler(LIFI_INTENT_ESCROW_SETTLER).open(
             StandardOrder({
-                user: _lifiIntentData.user,
+                user: _lifiIntentData.depositAndRefundAddress,
                 nonce: _lifiIntentData.nonce,
                 originChainId: block.chainid,
                 expires: _lifiIntentData.expires,

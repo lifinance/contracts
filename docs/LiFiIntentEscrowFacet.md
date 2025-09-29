@@ -35,7 +35,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 
 ```solidity
 /// @param receiverAddress The destination account for the delivered assets and calldata.
-/// @param user The deposit and claim registration will be made for user. If any refund is made, it will be sent to user.
+/// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address.
 /// @param expires If the proof for the fill does not arrive before this time, the claim expires.
 /// @param fillDeadline The fill has to happen before this time.
 /// @param inputOracle Address of the validation layer used on the input chain.
