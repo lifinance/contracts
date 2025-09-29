@@ -2093,6 +2093,7 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
+        "DeBridgeDlnFacet": "1.0.1",
         "RelayDepositoryFacet": "1.0.0",
         "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
