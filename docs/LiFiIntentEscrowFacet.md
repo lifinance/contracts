@@ -48,7 +48,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 struct LiFiIntentEscrowData {
     bytes32 receiverAddress; // StandardOrder.outputs.recipient
     /// BatchClaim
-    address user; // StandardOrder.user
+    address depositAndRefundAddress; // StandardOrder.user
     uint256 nonce; // StandardOrder.nonce
     uint32 expires; // StandardOrder.expiry
     uint32 fillDeadline; // StandardOrder.fillDeadline
