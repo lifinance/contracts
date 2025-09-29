@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.17;
 
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
@@ -153,11 +152,10 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
     function test_LIFIIntent_deposit_status() external {
-        bool isNative = false;
         vm.startPrank(USER_SENDER);
         usdc.approve(address(baseLiFiIntentEscrowFacet), bridgeData.minAmount);
 
-        bridgeData.sendingAssetId = isNative ? address(0) : address(usdc);
+        bridgeData.sendingAssetId = address(usdc);
 
         // Check that the execution happens as we would expect it to.
 
@@ -195,11 +193,10 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         vm.expectEmit();
         emit ILiFiIntentEscrowSettler.Open(orderId, order);
 
-        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
-            value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
-                ? bridgeData.minAmount
-                : 0
-        }(bridgeData, validLIFIIntentData);
+        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
         vm.stopPrank();
 
         // Check that we can redeem the intent (i.e. that we registered the intent we expected.)
@@ -232,11 +229,10 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function test_revert_LIFIIntent_wrong_receiver() external {
-        bool isNative = false;
         vm.startPrank(USER_SENDER);
         usdc.approve(address(baseLiFiIntentEscrowFacet), bridgeData.minAmount);
 
-        bridgeData.sendingAssetId = isNative ? address(0) : address(usdc);
+        bridgeData.sendingAssetId = address(usdc);
 
         // Incorrectly modify the receiverAddress
         validLIFIIntentData.receiverAddress = bytes32(
@@ -244,19 +240,14 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         );
 
         vm.expectRevert(InvalidReceiver.selector);
-        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
-            value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
-                ? bridgeData.minAmount
-                : 0
-        }(bridgeData, validLIFIIntentData);
+        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
-                value: bridgeData.minAmount
-            }(bridgeData, validLIFIIntentData);
-        } else {
+        if (isNative) {} else {
             lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
                 bridgeData,
                 validLIFIIntentData
@@ -267,11 +258,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        if (isNative) {
-            lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow{
-                value: swapData[0].fromAmount
-            }(bridgeData, swapData, validLIFIIntentData);
-        } else {
+        if (isNative) {} else {
             lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
                 bridgeData,
                 swapData,
