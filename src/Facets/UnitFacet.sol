@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
+import { ECDSA } from "solady/utils/ECDSA.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
@@ -17,10 +18,9 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// EIP-712 ///
-    bytes32 private immutable DOMAIN_SEPARATOR;
     // keccak256("UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address receiver,address sendingAssetId)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
-        0x82a983372d822557736934c2ea24e131d9908a8f7c225091a32d18080c1d683a; // TODO change
+        0x7143926c49a647038e3a15f0b795e1e55913e2f574a4ea414b21b7114611453c; // TODO change
     address internal immutable BACKEND_SIGNER;
 
     /// Types ///
@@ -39,22 +39,29 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Errors ///
-    error InvalidQuote();
+    error InvalidSignature();
 
     /// Constructor ///
     constructor(address _backendSigner) {
-        DOMAIN_SEPARATOR = keccak256(
-            abi.encode(
-                keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                ),
-                keccak256("LI.FI Unit Facet"),
-                keccak256("1"),
-                block.chainid,
-                address(this)
-            )
-        );
         BACKEND_SIGNER = _backendSigner;
+    }
+
+    /// @notice Returns the EIP-712 domain separator.
+    /// @dev The domain separator is calculated on the fly to ensure that `address(this)`
+    /// always refers to the diamond's address when called via delegatecall.
+    function _domainSeparator() internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI Unit Facet")),
+                    keccak256(bytes("1")),
+                    block.chainid,
+                    address(this) // This will be the diamond's address at runtime
+                )
+            );
     }
 
     /// External Methods ///
@@ -72,13 +79,6 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         onlyAllowSourceToken(_bridgeData, _bridgeData.sendingAssetId)
     {
-        if (
-            _bridgeData.destinationChainId != 999 ||
-            _bridgeData.destinationChainId != 1 ||
-            _bridgeData.destinationChainId != 9745
-        ) {
-            revert InvalidDestinationChain();
-        }
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -119,7 +119,48 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidAmount();
         }
 
-        // verify signature here
+        if (
+            !(_bridgeData.destinationChainId == 999 || // hyperliquid
+                _bridgeData.destinationChainId == 1 || // ethereum mainnet
+                _bridgeData.destinationChainId == 9745) // plume
+        ) {
+            revert InvalidDestinationChain();
+        }
+
+        // --- EIP-712 Signature Verification ---
+        // Reconstruct the payload that should have been signed by the backend.
+        UnitPayload memory payload = UnitPayload({
+            depositAddress: _unitData.depositAddress,
+            sourceChainId: block.chainid,
+            destinationChainId: _bridgeData.destinationChainId,
+            receiver: _bridgeData.receiver,
+            sendingAssetId: _bridgeData.sendingAssetId
+        });
+
+        // Hash the typed data struct.
+        bytes32 structHash = keccak256(
+            abi.encode(
+                UNIT_PAYLOAD_TYPEHASH,
+                payload.depositAddress,
+                payload.sourceChainId,
+                payload.destinationChainId,
+                payload.receiver,
+                payload.sendingAssetId
+            )
+        );
+
+        // Compute the final digest to be signed according to EIP-712.
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
+        );
+
+        // Recover the signer's address from the signature.
+        address recoveredSigner = ECDSA.recover(digest, _unitData.signature);
+
+        // Verify that the signer is the authorized backend.
+        if (recoveredSigner != BACKEND_SIGNER) {
+            revert InvalidSignature();
+        }
 
         LibAsset.transferNativeAsset(
             payable(_unitData.depositAddress),

@@ -9,6 +9,7 @@ import {
 import type { UnitFacet, ILiFi } from '../../typechain'
 import unitFacetArtifact from '../../out/UnitFacet.sol/UnitFacet.json'
 import type { SupportedChain } from '../common/types'
+import { networks } from '../utils/viemScriptHelpers'
 
 config()
 
@@ -222,12 +223,13 @@ async function main() {
         '04ae2ab20787f816ea5d13f36c4c4f7e196e29e867086f3ce818abb73077a237f841b33ada5be71b83f4af29f333dedc5411ca4016bd52ab657db2896ef374ce99',
     },
   ]
-  const srcChain: SupportedChain = 'plasma'
-  const asset = 'xpl'
+  const srcChain: SupportedChain = 'mainnet'
+  const asset = 'eth'
   const destinationChain = 'hyperliquid'
   const destinationAddress = '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
+  const sourceChainForRequest = srcChain === 'mainnet' ? 'ethereum' : srcChain
   const response = await fetch(
-    `https://api.hyperunit.xyz/gen/${srcChain}/${destinationChain}/${asset}/${destinationAddress}`,
+    `https://api.hyperunit.xyz/gen/${sourceChainForRequest}/${destinationChain}/${asset}/${destinationAddress}`,
     { headers: { 'Content-Type': 'application/json' } }
   )
   const responseJson = await response.json()
@@ -249,6 +251,10 @@ async function main() {
     }
   )
   console.log('Verification result:', result)
+  if (!result.success) {
+    console.error('Verification failed')
+    return
+  }
 
   // === Set up environment ===
   const UNIT_FACET_ABI = unitFacetArtifact.abi as Abi
@@ -260,16 +266,59 @@ async function main() {
 
   // // === Contract addresses ===
 
-  const amount = 50000000000000000 // 5 * 1e16, 0.05 XPL
+  const amount = 5000000000000000 // 5 * 1e16, 0.05 XPL
 
   console.info(
     `Bridge ${amount} ${asset} from ${srcChain} --> ${destinationChain}`
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  await ensureBalance(zeroAddress, signerAddress, BigInt(amount))
+  // await ensureBalance(zeroAddress, signerAddress, BigInt(amount), publicClient)
 
-  // // === Prepare bridge data ===
+  // === Backend re-signing ===
+
+  console.log('\nSimulating backend EIP-712 signing...')
+
+  const sourceChainId = networks[srcChain]?.chainId
+  if (!sourceChainId) {
+    throw new Error(`Chain ${srcChain} not found in networks configuration`)
+  }
+
+  const domain = {
+    name: 'LI.FI Unit Facet',
+    version: '1',
+    chainId: sourceChainId,
+    verifyingContract: lifiDiamondContract?.address,
+  } as const
+
+  const types = {
+    UnitPayload: [
+      { name: 'depositAddress', type: 'address' },
+      { name: 'sourceChainId', type: 'uint256' },
+      { name: 'destinationChainId', type: 'uint256' },
+      { name: 'receiver', type: 'address' },
+      { name: 'sendingAssetId', type: 'address' },
+    ],
+  } as const
+
+  const message = {
+    depositAddress: depositAddress,
+    sourceChainId: BigInt(sourceChainId),
+    destinationChainId: BigInt(destinationChainId),
+    receiver: signerAddress,
+    sendingAssetId: zeroAddress, // This is XPL, the native asset on plasma, so its address is zero
+  } as const
+
+  const backendSignature = await walletAccount.signTypedData({
+    domain,
+    types,
+    primaryType: 'UnitPayload',
+    message: message as any,
+  })
+
+  console.log('Generated EIP-712 Signature:', backendSignature)
+
+  // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
     // Edit fields as needed
     transactionId: `0x${randomBytes(32).toString('hex')}`,
@@ -286,22 +335,25 @@ async function main() {
 
   const unitData: UnitFacet.UnitDataStruct = {
     depositAddress: depositAddress,
-    signature: responseJson.signature || '0x',
+    signature: backendSignature,
   }
 
+  console.log('bridgeData', bridgeData)
+  console.log('unitData', unitData)
+
   // === Start bridging ===
-  if (lifiDiamondContract) {
-    await executeTransaction(
-      () =>
-        lifiDiamondContract.write.startBridgeTokensViaUnit(
-          [bridgeData, unitData]
-          // { value: fee } optional value
-        ),
-      'Starting bridge tokens via Unit',
-      publicClient,
-      true
-    )
-  }
+  // if (lifiDiamondContract) {
+  //   await executeTransaction(
+  //     () =>
+  //       lifiDiamondContract.write.startBridgeTokensViaUnit(
+  //         [bridgeData, unitData]
+  //         // { value: fee } optional value
+  //       ),
+  //     'Starting bridge tokens via Unit',
+  //     publicClient,
+  //     true
+  //   )
+  // }
 }
 
 main()

@@ -72,15 +72,60 @@ contract UnitFacetTest is TestBaseFacet {
         bridgeData.minAmount = 0.05 ether; // minimum amount is 0.05 ETH (5e16 wei) mentioned in https://docs.hyperunit.xyz/developers/api/generate-address
 
         // deposit address generated with GET request to https://api.hyperunit.xyz/gen/ethereum/hyperliquid/eth/0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62
-        // produce valid UnitData
 
-        bytes
-            memory mergedSignatures = hex"5c6dd328102e0a33f1d71c97dd8c2cd9629447424e695e624a466555f79c89bad61cff5adc77c05ab887717351407d9b2807d3d1c6f093902996217199a797bd26dd64c005f124ec41d66a1759460121d277adcf7494ce333aea8172a950d34cc228ce919a8c483abfef1b4eaa04332dd7d92548108f91889acf0e95e3155a6b559ebb23c0681a7de9acacc45a2acb3a08ea0c662209742226205c3f9a8e3c41de4ce306308a4e604e09698eaa3fa9a1946ed341edb2344d8e32c182e17e8e24";
+        // --- Generate Valid EIP-712 Signature Dynamically ---
+
+        // 1. Re-calculate DOMAIN_SEPARATOR
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes("LI.FI Unit Facet")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(unitFacet) // The verifying contract is the diamond
+            )
+        );
+
+        // 2. Define the payload that will be signed
+        address depositAddress = 0xCE50D8e79e047534627B3Bc38DE747426Ec63927;
+        UnitFacet.UnitPayload memory payload = UnitFacet.UnitPayload({
+            depositAddress: depositAddress,
+            sourceChainId: block.chainid,
+            destinationChainId: bridgeData.destinationChainId,
+            receiver: bridgeData.receiver,
+            sendingAssetId: bridgeData.sendingAssetId
+        });
+
+        // 3. Calculate the hash of the struct
+        bytes32 unitPayloadTypehash = 0x7143926c49a647038e3a15f0b795e1e55913e2f574a4ea414b21b7114611453c;
+        bytes32 structHash = keccak256(
+            abi.encode(
+                unitPayloadTypehash,
+                payload.depositAddress,
+                payload.sourceChainId,
+                payload.destinationChainId,
+                payload.receiver,
+                payload.sendingAssetId
+            )
+        );
+
+        // 4. Calculate the final digest to sign, matching the contract's logic
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", domainSeparator, structHash)
+        );
+
+        // 5. Sign the digest with the backend private key using a cheatcode
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            backendSignerPrivateKey,
+            digest
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
         validUnitData = UnitFacet.UnitData({
-            depositAddress: address(
-                0xCE50D8e79e047534627B3Bc38DE747426Ec63927
-            ),
-            signature: mergedSignatures
+            depositAddress: depositAddress,
+            signature: signature
         });
     }
 
@@ -145,5 +190,32 @@ contract UnitFacetTest is TestBaseFacet {
 
     function test_CanDepositNativeTokens() public {
         initiateBridgeTxWithFacet(true);
+    }
+
+    function testBase_CanBridgeTokens() public virtual override {
+        // facet does not support bridging ERC20 tokens
+    }
+
+    function testBase_CanBridgeNativeTokens()
+        public
+        virtual
+        override
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256(0.05 ether)
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(unitFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 }
