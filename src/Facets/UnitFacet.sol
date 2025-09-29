@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -16,18 +15,18 @@ import { InvalidAmount, InvalidDestinationChain } from "../Errors/GenericErrors.
 /// @custom:version 1.0.0
 contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
     /// EIP-712 ///
     bytes32 private immutable DOMAIN_SEPARATOR;
     // keccak256("UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address receiver,address sendingAssetId)");
-    bytes32 private constant UNIT_PAYLOAD_TYPEHASH = 0x82a983372d822557736934c2ea24e131d9908a8f7c225091a32d18080c1d683a; // TODO change
-
-    address internal immutable BACKEND_SIGNER = keccak256("com.lifi.facets.unit");
-
+    bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
+        0x82a983372d822557736934c2ea24e131d9908a8f7c225091a32d18080c1d683a; // TODO change
+    address internal immutable BACKEND_SIGNER;
 
     /// Types ///
     struct UnitData {
-      address depositAddress;
-      bytes signatures; // 192-byte blob (3x 64-byte signatures)
+        address depositAddress;
+        bytes signature;
     }
 
     // EIP-712 - data that is signed by the backend
@@ -42,14 +41,13 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Errors ///
     error InvalidQuote();
 
-    /// Events ///
-    event UnitInitialized(bytes unitNodePublicKey, bytes h1NodePublicKey, bytes fieldNodePublicKey);
-
     /// Constructor ///
     constructor(address _backendSigner) {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
                 keccak256("LI.FI Unit Facet"),
                 keccak256("1"),
                 block.chainid,
@@ -74,10 +72,17 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         onlyAllowSourceToken(_bridgeData, _bridgeData.sendingAssetId)
     {
-        if (_bridgeData.destinationChainId != 999 || _bridgeData.destinationChainId != 1) {
+        if (
+            _bridgeData.destinationChainId != 999 ||
+            _bridgeData.destinationChainId != 1 ||
+            _bridgeData.destinationChainId != 9745
+        ) {
             revert InvalidDestinationChain();
         }
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _unitData);
     }
 
@@ -114,64 +119,12 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidAmount();
         }
 
-        if (_unitData.signatures.length != 192) {
-            revert InvalidQuote();
-        }
+        // verify signature here
 
-        // 1. Use the simple hash, as specified in the documentation.
-        bytes32 messageHash = keccak256(abi.encodePacked(_unitData.depositAddress));
-        
-        Storage storage s = getStorage();
-        
-        _verifySignature(messageHash, 0, s.unitNodePublicKey, _unitData.signatures);
-        _verifySignature(messageHash, 64, s.h1NodePublicKey, _unitData.signatures);
-        _verifySignature(messageHash, 128, s.fieldNodePublicKey, _unitData.signatures);
-
-        LibAsset.transferNativeAsset(payable(_unitData.depositAddress), _bridgeData.minAmount);
+        LibAsset.transferNativeAsset(
+            payable(_unitData.depositAddress),
+            _bridgeData.minAmount
+        );
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    function _verifySignature(
-        bytes32 _messageHash,
-        uint256 _offset,
-        bytes memory _publicKey,
-        bytes calldata _signatures
-    ) internal pure {
-        if (_publicKey.length != 65) {
-            revert InvalidQuote();
-        }
-        
-        bytes32 r;
-        bytes32 s;
-
-        assembly {
-            let signaturePos := add(_signatures.offset, _offset)
-            r := calldataload(signaturePos)
-            s := calldataload(add(signaturePos, 0x20))
-        }
-
-        // 2. Hash the FULL 65 bytes of the public key to derive the address.
-        bytes32 publicKeyHash;
-        assembly {
-            publicKeyHash := keccak256(add(_publicKey, 0x20), 65)
-        }
-        
-        address expectedSigner = address(uint160(uint256(publicKeyHash)));
-
-        if (ecrecover(_messageHash, 27, r, s) == expectedSigner) {
-            return;
-        }
-        if (ecrecover(_messageHash, 28, r, s) == expectedSigner) {
-            return;
-        }
-
-        revert InvalidQuote();
-    }
-
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        assembly {
-            s.slot := namespace
-        }
     }
 }

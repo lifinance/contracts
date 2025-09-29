@@ -1,201 +1,307 @@
-import {
-  getContract,
-  parseUnits,
-  Narrow,
-  zeroAddress,
-  bytesToHex
-} from 'viem'
+import { zeroAddress, Abi } from 'viem'
 import { randomBytes } from 'crypto'
 import { config } from 'dotenv'
-import { ERC20__factory as ERC20 } from '../../typechain/factories/ERC20__factory'
-import { UnitFacet__factory as UnitFacet } from '../../typechain/factories/UnitFacet.sol/UnitFacet__factory'
-import { ensureBalance, ensureAllowance, executeTransaction, setupEnvironment, type SupportedChain } from './utils/demoScriptHelpers'
+import {
+  ensureBalance,
+  executeTransaction,
+  setupEnvironment,
+} from './utils/demoScriptHelpers'
+import type { UnitFacet, ILiFi } from '../../typechain'
+import unitFacetArtifact from '../../out/UnitFacet.sol/UnitFacet.json'
+import type { SupportedChain } from '../common/types'
 
 config()
 
-// If you need to import a custom ABI, follow these steps:
-// 
-// First, ensure you import the relevant artifact file:
-// import { exampleArtifact__factory } from '../../typechain/factories/{example artifact json file}'
-//
-
-/**
- * A universal function to decode a Base64 string to a Uint8Array.
- * Uses the global `atob` function, which is available in Bun, Node.js, Deno, and browsers.
- *
- * @param {string} b64 The Base64 encoded string.
- * @returns {Uint8Array} A Uint8Array of the decoded bytes.
- */
-function base64ToBytes(b64: string): Uint8Array {
-  // `atob` decodes a Base64 string into a binary string.
-  const binStr = atob(b64);
-  const len = binStr.length;
-  const bytes = new Uint8Array(len);
-  // Convert the binary string into a byte array.
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binStr.charCodeAt(i);
-  }
-  return bytes;
+interface IProposal {
+  destinationAddress: string
+  destinationChain: string
+  asset: string
+  address: string
+  sourceChain: string
+  coinType?: string
+  keyType?: string
 }
 
-// /**
-//  * Converts a Uint8Array to a hexadecimal string.
-//  * @param {Uint8Array} bytes The byte array to convert.
-//  * @returns {string} The resulting hexadecimal string.
-//  */
-// function bytesToHex(bytes: Uint8Array): string {
-//   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-// }
+interface IVerificationResult {
+  success: boolean | undefined
+  verifiedCount: number | undefined
+  errors?: string[] | undefined
+  verificationDetails?: { [nodeId: string]: boolean } | undefined
+}
 
+function legacyProposalToPayload(
+  nodeId: string,
+  proposal: IProposal
+): Uint8Array {
+  const payloadString = `${nodeId}:${[
+    proposal.destinationAddress,
+    proposal.destinationChain,
+    proposal.asset,
+    proposal.address,
+    proposal.sourceChain,
+    'deposit',
+  ].join('-')}`
+  console.log('payloadString', payloadString)
+  return new TextEncoder().encode(payloadString)
+}
 
-/**
- * Decodes an 88-character Base64 signature string into a 65-byte Uint8Array.
- *
- * @param {string} encodedString The 88-character Base64 encoded string.
- * @returns {Uint8Array} A Uint8Array object containing the 65 decoded bytes.
- */
-export function decodeSignature(encodedString: string): Uint8Array {
-  if (encodedString.length !== 88) {
-    throw new Error(
-      `Invalid input: Expected an 88-character string, but received ${encodedString.length}.`
-    );
+function newProposalToPayload(nodeId: string, proposal: IProposal): Uint8Array {
+  console.log('nodeId', nodeId)
+  console.log('proposal.coinType', proposal.coinType)
+  console.log('proposal.destinationChain', proposal.destinationChain)
+  console.log('proposal.destinationAddress', proposal.destinationAddress)
+  console.log('proposal.address', proposal.address)
+  const payloadString = `${nodeId}:${[
+    'user',
+    proposal.coinType,
+    proposal.destinationChain,
+    proposal.destinationAddress,
+    proposal.address,
+  ].join('-')}`
+  return new TextEncoder().encode(payloadString)
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex
+  return new Uint8Array(Buffer.from(cleanHex, 'hex'))
+}
+
+async function processGuardianNodes(
+  nodes: { nodeId: string; publicKey: string }[]
+) {
+  const processed = []
+  for (const node of nodes) {
+    try {
+      const publicKeyBytes = hexToBytes(node.publicKey)
+      if (publicKeyBytes.length !== 65 || publicKeyBytes[0] !== 0x04) {
+        throw new Error(`Invalid public key format for node ${node.nodeId}`)
+      }
+      const publicKey = await crypto.subtle.importKey(
+        'raw',
+        new Uint8Array(publicKeyBytes),
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['verify']
+      )
+      processed.push({ nodeId: node.nodeId, publicKey })
+    } catch (error) {
+      console.error(`Failed to process node ${node.nodeId}:`, error)
+      throw new Error(
+        `Node processing failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      )
+    }
   }
+  return processed
+}
 
-  // Use the universal `atob`-based decoding function.
-  console.log('decoding signature')
-  console.log(encodedString)
-  const decodedBytes = base64ToBytes(encodedString);
-  console.log('decoded bytes')
-  console.log(decodedBytes)
-  if (decodedBytes.length !== 64) {
-    throw new Error(
-      `Decoding error: Expected 64 bytes, but received ${decodedBytes.length}.`
-    );
+async function verifySignature(
+  publicKey: CryptoKey,
+  message: Uint8Array,
+  signature: string
+): Promise<boolean> {
+  try {
+    const sigBytes = Uint8Array.from(atob(signature), (c) => c.charCodeAt(0))
+    if (sigBytes.length !== 64) {
+      console.warn('Invalid signature length:', sigBytes.length)
+      return false
+    }
+
+    return await crypto.subtle.verify(
+      {
+        name: 'ECDSA',
+        hash: { name: 'SHA-256' },
+      },
+      publicKey,
+      sigBytes,
+      new Uint8Array(message)
+    )
+  } catch (error) {
+    console.error('Signature verification failed:', error)
+    return false
   }
+}
 
-  return decodedBytes;
+export async function verifyDepositAddressSignatures(
+  guardianNodes: { nodeId: string; publicKey: string }[],
+  threshold: number,
+  signatures: { [nodeId: string]: string },
+  proposal: IProposal
+): Promise<IVerificationResult> {
+  try {
+    const processedNodes = await processGuardianNodes(guardianNodes)
+    let verifiedCount = 0
+    const errors: string[] = []
+    const verificationDetails: { [nodeId: string]: boolean } = {}
+
+    await Promise.all(
+      processedNodes.map(async (node) => {
+        try {
+          if (!signatures[node.nodeId]) {
+            verificationDetails[node.nodeId] = false
+            return
+          }
+          let isVerified = false
+
+          if (proposal.coinType !== 'ethereum') {
+            const legacyPayload = legacyProposalToPayload(node.nodeId, proposal)
+            isVerified = await verifySignature(
+              node.publicKey,
+              legacyPayload,
+              signatures[node.nodeId]
+            )
+
+            if (!isVerified) {
+              const newPayload = newProposalToPayload(node.nodeId, proposal)
+              isVerified = await verifySignature(
+                node.publicKey,
+                newPayload,
+                signatures[node.nodeId]
+              )
+            }
+          } else {
+            const payload = newProposalToPayload(node.nodeId, proposal)
+            isVerified = await verifySignature(
+              node.publicKey,
+              payload,
+              signatures[node.nodeId]
+            )
+          }
+
+          verificationDetails[node.nodeId] = isVerified
+          if (isVerified) verifiedCount++
+        } catch (error) {
+          errors.push(
+            `Verification failed for node ${node.nodeId}: ${
+              error instanceof Error ? error.message : 'Unknown error'
+            }`
+          )
+          verificationDetails[node.nodeId] = false
+        }
+      })
+    )
+
+    return {
+      success: verifiedCount >= threshold,
+      verifiedCount,
+      errors: errors.length > 0 ? errors : undefined,
+      verificationDetails,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      verifiedCount: 0,
+      errors: [
+        `Global verification error: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      ],
+      verificationDetails: {},
+    }
+  }
 }
 
 async function main() {
+  const GUARDIAN_SIGNATURE_THRESHOLD = 2
 
-  const fieldNodeB64 = "VZ67I8BoGn3prKzEWirLOgjqDGYiCXQiJiBcP5qOPEHeTOMGMIpOYE4JaY6qP6mhlG7TQe2yNE2OMsGC4X6OJA==";
-  const hlNodeB64 = "Jt1kwAXxJOxB1moXWUYBIdJ3rc90lM4zOuqBcqlQ00zCKM6RmoxIOr/vG06qBDMt19klSBCPkYiazw6V4xVaaw==";
-  const unitNodeB64 = "XG3TKBAuCjPx1xyX3Yws2WKUR0JOaV5iSkZlVfecibrWHP9a3HfAWriHcXNRQH2bKAfT0cbwk5ApliFxmaeXvQ==";
-  
-  try {
-    const unitNodeBytes = decodeSignature(unitNodeB64);
-    const hlNodeBytes = decodeSignature(hlNodeB64);
-    const fieldNodeBytes = decodeSignature(fieldNodeB64);
+  const GUARDIAN_NODES = [
+    {
+      nodeId: 'unit-node',
+      publicKey:
+        '04dc6f89f921dc816aa69b687be1fcc3cc1d48912629abc2c9964e807422e1047e0435cb5ba0fa53cb9a57a9c610b4e872a0a2caedda78c4f85ebafcca93524061',
+    },
+    {
+      nodeId: 'hl-node',
+      publicKey:
+        '048633ea6ab7e40cdacf37d1340057e84bb9810de0687af78d031e9b07b65ad4ab379180ab55075f5c2ebb96dab30d2c2fab49d5635845327b6a3c27d20ba4755b',
+    },
+    {
+      nodeId: 'field-node',
+      publicKey:
+        '04ae2ab20787f816ea5d13f36c4c4f7e196e29e867086f3ce818abb73077a237f841b33ada5be71b83f4af29f333dedc5411ca4016bd52ab657db2896ef374ce99',
+    },
+  ]
+  const srcChain: SupportedChain = 'plasma'
+  const asset = 'xpl'
+  const destinationChain = 'hyperliquid'
+  const destinationAddress = '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
+  const response = await fetch(
+    `https://api.hyperunit.xyz/gen/${srcChain}/${destinationChain}/${asset}/${destinationAddress}`,
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+  const responseJson = await response.json()
+  const depositAddress: string = responseJson.address || ''
+  console.log('Response JSON:', responseJson)
+  console.log('Deposit address:', depositAddress)
 
-    console.log('unitNodeBytes')
-    console.log(unitNodeBytes.toHex())
-    console.log('hlNodeBytes')
-    console.log(hlNodeBytes.toHex())
-    console.log('fieldNodeBytes')
-    console.log(fieldNodeBytes.toHex())
-  
-    const allSignatures = [unitNodeBytes, hlNodeBytes, fieldNodeBytes];
-    const mergedSignatures = new Uint8Array(192);
-    let offset = 0;
-    for (const sig of allSignatures) {
-      mergedSignatures.set(sig, offset);
-      offset += sig.length;
+  const result = await verifyDepositAddressSignatures(
+    GUARDIAN_NODES,
+    GUARDIAN_SIGNATURE_THRESHOLD,
+    responseJson.signatures,
+    {
+      destinationAddress: destinationAddress,
+      destinationChain: destinationChain,
+      asset: 'eth',
+      address: depositAddress,
+      sourceChain: srcChain,
+      coinType: 'ethereum',
     }
-    
-    const hexString = bytesToHex(mergedSignatures);
-  
-    console.log(`✅ Success!`);
-    console.log(`   Total bytes: ${mergedSignatures.length}`); // Expected: 192
-    console.log(`   Final hex string for test: ${hexString}`);
-    
-  } catch (error) {
-    console.error((error as Error).message);
-  }
-  // === Set up environment ===
-  // const srcChain: SupportedChain = "mainnet" // Set source chain
-  // const destinationChainId = 1 // Set destination chain id
+  )
+  console.log('Verification result:', result)
 
-  // const { client, publicClient, walletAccount, lifiDiamondAddress, lifiDiamondContract } = await setupEnvironment(srcChain, UNIT_FACET_ABI)
-  // const signerAddress = walletAccount.address
+  // === Set up environment ===
+  const UNIT_FACET_ABI = unitFacetArtifact.abi as Abi
+
+  const { publicClient, walletAccount, lifiDiamondContract } =
+    await setupEnvironment(srcChain, UNIT_FACET_ABI)
+  const signerAddress = walletAccount.address
+  const destinationChainId = 999 // hyperevm same as hyperliquid
 
   // // === Contract addresses ===
-  // const SRC_TOKEN_ADDRESS = '' as `0x${string}` // Set the source token address here.
 
-  // // If you need to retrieve a specific address from your config file 
-  // // based on the chain and element name, use this helper function.
-  // // 
-  // // First, ensure you import the relevant config file:
-  // // import config from '../../config/unit.json'
-  // //
-  // // Then, retrieve the address:
-  // // const EXAMPLE_ADDRESS = getConfigElement(config, srcChain, 'example');
-  // //
+  const amount = 50000000000000000 // 5 * 1e16, 0.05 XPL
 
-  // // === Instantiate contracts ===
-  // const srcTokenContract = getContract({
-  //   address: SRC_TOKEN_ADDRESS,
-  //   abi: ERC20.abi,
-  //   client: publicClient
-  // })
+  console.info(
+    `Bridge ${amount} ${asset} from ${srcChain} --> ${destinationChain}`
+  )
+  console.info(`Connected wallet address: ${signerAddress}`)
 
-  // // If you need to interact with a contract, use the following helper. 
-  // // Provide the contract address, ABI, and a client instance to initialize 
-  // // the contract for both read and write operations.
-  // //
-  // // const exampleContract = getContract({
-  // //   address: EXAMPLE_ADDRESS,
-  // //   abi: EXAMPLE_ABI,
-  // //   client
-  // // })
-  // //
-
-  // const srcTokenName = await srcTokenContract.read.name() as string
-  // const srcTokenSymbol = await srcTokenContract.read.symbol() as string
-  // const srcTokenDecimals = await srcTokenContract.read.decimals() as bigint
-  // const amount = parseUnits('10', Number(srcTokenDecimals)); // 10 * 1e{source token decimals}
-
-  // console.info(`Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`)
-  // console.info(`Connected wallet address: ${signerAddress}`)
-
-  // await ensureBalance(srcTokenContract, signerAddress, amount)
-
-  // await ensureAllowance(srcTokenContract, signerAddress, lifiDiamondAddress, amount, publicClient)
-
-  // // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
-
-
-
+  await ensureBalance(zeroAddress, signerAddress, BigInt(amount))
 
   // // === Prepare bridge data ===
-  // const bridgeData: ILiFi.BridgeDataStruct = {
-  //   // Edit fields as needed
-  //   transactionId: `0x${randomBytes(32).toString('hex')}`,
-  //   bridge: 'unit',
-  //   integrator: 'ACME Devs',
-  //   referrer: zeroAddress,
-  //   sendingAssetId: SRC_TOKEN_ADDRESS,
-  //   receiver: signerAddress,
-  //   destinationChainId,
-  //   minAmount: amount,
-  //   hasSourceSwaps: false,
-  //   hasDestinationCall: false,
-  // }
+  const bridgeData: ILiFi.BridgeDataStruct = {
+    // Edit fields as needed
+    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    bridge: 'unit',
+    integrator: 'ACME Devs',
+    referrer: zeroAddress,
+    sendingAssetId: zeroAddress,
+    receiver: signerAddress,
+    destinationChainId,
+    minAmount: amount,
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
+  }
 
-  // const unitData: UnitFacet.UnitDataStruct = {
-  //   // Add your specific fields for Unit here.
-  // }
+  const unitData: UnitFacet.UnitDataStruct = {
+    depositAddress: depositAddress,
+    signature: responseJson.signature || '0x',
+  }
 
-  // // === Start bridging ===
-  // await executeTransaction(
-  //   () =>
-  //     lifiDiamondContract.write.startBridgeTokensViaUnit(
-  //       [bridgeData, unitData],
-  //       // { value: fee } optional value
-  //     ),
-  //   'Starting bridge tokens via Unit',
-  //   publicClient,
-  //   true
-  // )
+  // === Start bridging ===
+  if (lifiDiamondContract) {
+    await executeTransaction(
+      () =>
+        lifiDiamondContract.write.startBridgeTokensViaUnit(
+          [bridgeData, unitData]
+          // { value: fee } optional value
+        ),
+      'Starting bridge tokens via Unit',
+      publicClient,
+      true
+    )
+  }
 }
 
 main()
