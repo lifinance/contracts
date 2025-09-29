@@ -9,6 +9,6 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        return update("LIFIIntentEscrowFacet");
+        return update("LiFiIntentEscrowFacet");
     }
 }
