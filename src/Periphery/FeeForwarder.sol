@@ -93,8 +93,7 @@ contract FeeForwarder is WithdrawablePeriphery {
 
             // we do intentionally not check for amount == 0 to save gas
 
-            LibAsset.transferAsset(
-                address(0),
+            LibAsset.transferNativeAsset(
                 payable(distribution.recipient),
                 distribution.amount
             );
@@ -109,8 +108,7 @@ contract FeeForwarder is WithdrawablePeriphery {
         // we can safely return the remaining native balance to the caller
         uint256 remainingNativeBalance = address(this).balance;
         if (remainingNativeBalance != 0) {
-            LibAsset.transferAsset(
-                address(0),
+            LibAsset.transferNativeAsset(
                 payable(msg.sender),
                 remainingNativeBalance
             );
