@@ -190,7 +190,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         bytes32 orderId = ILiFiIntentEscrowSettler(lifiIntentEscrowSettler)
             .orderIdentifier(order);
 
-        vm.expectEmit();
+        vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
         emit ILiFiIntentEscrowSettler.Open(orderId, order);
 
         baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
@@ -215,7 +215,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             solver: solverIdentifier
         });
 
-        vm.expectEmit();
+        vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
         emit Finalised(orderId, solverIdentifier, solverIdentifier);
 
         ILiFiIntentEscrowSettler(lifiIntentEscrowSettler).finalise(
