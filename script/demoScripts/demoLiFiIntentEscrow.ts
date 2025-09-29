@@ -4,8 +4,8 @@ import { config } from 'dotenv'
 import { getContract, type Narrow, parseUnits, zeroAddress } from 'viem'
 
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
-import LIFIIntentFacetArtifact from '../../out/LIFIIntentEscrowFacet.sol/LIFIIntentEscrowFacet.json'
-import type { ILiFi, LIFIIntentEscrowFacet } from '../../typechain'
+import LIFIIntentFacetArtifact from '../../out/LiFiIntentEscrowFacet.sol/LiFiIntentEscrowFacet.json'
+import type { ILiFi, LiFiIntentEscrowFacet } from '../../typechain'
 import type { SupportedChain } from '../common/types'
 
 import {
@@ -116,7 +116,7 @@ async function main() {
 
   // TODO: implement quote call to order server. Lets emulate it for now.
 
-  const LIFIIntentData: LIFIIntentEscrowFacet.LIFIIntentEscrowDataStruct = {
+  const LIFIIntentData: LiFiIntentEscrowFacet.LIFIIntentEscrowDataStruct = {
     /// And calldata.
     receiverAddress: '0x' + signerAddress.replace('0x', '').padStart(64, '0'),
     user: signerAddress,

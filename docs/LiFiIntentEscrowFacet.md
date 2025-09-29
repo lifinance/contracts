@@ -6,8 +6,8 @@ LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intent
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL --> LIFIIntentEscrowFacet;
-    LIFIIntentEscrowFacet -- CALL --> LIFI_INTENT_ESCROW_SETTLER;
+    D{LiFiDiamond}-- DELEGATECALL --> LiFiIntentEscrowFacet;
+    LiFiIntentEscrowFacet -- CALL --> LIFI_INTENT_ESCROW_SETTLER;
     User -- Tokens --> D{LiFiDiamond}
     D -- Tokens --> LIFI_INTENT_ESCROW_SETTLER
 

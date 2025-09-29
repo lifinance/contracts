@@ -18,7 +18,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler
 /// @custom:version 1.0.0
-contract LIFIIntentEscrowFacet is
+contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
     SwapperV2,
