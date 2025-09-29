@@ -228,7 +228,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(solver), bridgeData.minAmount);
     }
 
-    function test_revert_LIFIIntent_wrong_receiver() external {
+    function testRevert_LIFIIntent_wrong_receiver() external {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(baseLiFiIntentEscrowFacet), bridgeData.minAmount);
 
