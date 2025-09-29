@@ -9,7 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOIF.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
@@ -26,7 +26,6 @@ contract LiFiIntentEscrowFacet is
 {
     /// Errors ///
 
-    error ReceiverDoesNotMatch();
     error NativeNotSupported();
 
     /// Storage ///
@@ -141,7 +140,7 @@ contract LiFiIntentEscrowFacet is
             asSanitizedAddress(_lifiIntentData.receiverAddress) !=
             _bridgeData.receiver
         ) {
-            revert ReceiverDoesNotMatch();
+            revert InvalidReceiver();
         }
 
         // Set approval.

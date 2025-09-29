@@ -6,6 +6,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
+import { InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOIF.sol";
 
@@ -242,7 +243,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             uint256(uint160(bridgeData.receiver)) + 1
         );
 
-        vm.expectRevert(LiFiIntentEscrowFacet.ReceiverDoesNotMatch.selector);
+        vm.expectRevert(InvalidReceiver.selector);
         baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
             value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
                 ? bridgeData.minAmount
