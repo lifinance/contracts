@@ -47,7 +47,7 @@ contract LiFiIntentEscrowFacet is
     /// @param outputAmount The amount of the desired token.
     /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
     /// @param outputContext Context for the outputSettler to identify the order type.
-    struct LIFIIntentEscrowData {
+    struct LiFiIntentEscrowData {
         bytes32 receiverAddress; // StandardOrder.outputs.recipient
         /// BatchClaim
         address user; // StandardOrder.user
@@ -76,9 +76,9 @@ contract LiFiIntentEscrowFacet is
     /// @notice Bridges tokens via LIFIIntent
     /// @param _bridgeData The core information needed for bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
-    function startBridgeTokensViaLIFIIntentEscrow(
+    function startBridgeTokensViaLiFiIntentEscrow(
         ILiFi.BridgeData memory _bridgeData,
-        LIFIIntentEscrowData calldata _lifiIntentData
+        LiFiIntentEscrowData calldata _lifiIntentData
     )
         external
         payable
@@ -99,10 +99,10 @@ contract LiFiIntentEscrowFacet is
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
-    function swapAndStartBridgeTokensViaLIFIIntentEscrow(
+    function swapAndStartBridgeTokensViaLiFiIntentEscrow(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        LIFIIntentEscrowData calldata _lifiIntentData
+        LiFiIntentEscrowData calldata _lifiIntentData
     )
         external
         payable
@@ -128,7 +128,7 @@ contract LiFiIntentEscrowFacet is
     /// @param _lifiIntentData Data specific to LIFIIntent
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        LIFIIntentEscrowData calldata _lifiIntentData
+        LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
         // Per conventions, the LiFi transfer started event should be emitted before any bridge calls are made.
         emit LiFiTransferStarted(_bridgeData);

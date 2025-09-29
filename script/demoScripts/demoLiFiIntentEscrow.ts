@@ -42,7 +42,7 @@ async function main() {
     !lifiDiamondAddress ||
     !lifiDiamondContract ||
     !lifiDiamondContract.write ||
-    !lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow
+    !lifiDiamondContract.write.startBridgeTokensViaLiFiIntentEscrow
   ) {
     console.error(
       'LiFiDiamond deployment not found for the selected chain/environment.'
@@ -116,7 +116,7 @@ async function main() {
 
   // TODO: implement quote call to order server. Lets emulate it for now.
 
-  const LIFIIntentData: LiFiIntentEscrowFacet.LIFIIntentEscrowDataStruct = {
+  const LIFIIntentData: LiFiIntentEscrowFacet.LiFiIntentEscrowDataStruct = {
     /// And calldata.
     receiverAddress: '0x' + signerAddress.replace('0x', '').padStart(64, '0'),
     user: signerAddress,
@@ -137,13 +137,13 @@ async function main() {
   // === Start bridging ===
   await executeTransaction(
     () => {
-      if (!lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow) {
+      if (!lifiDiamondContract.write.startBridgeTokensViaLiFiIntentEscrow) {
         console.error(
           'LiFiDiamond deployment not found for the selected chain/environment.'
         )
         process.exit(1)
       }
-      const tx = lifiDiamondContract.write.startBridgeTokensViaLIFIIntentEscrow(
+      const tx = lifiDiamondContract.write.startBridgeTokensViaLiFiIntentEscrow(
         [bridgeData, LIFIIntentData]
         // { value: fee } optional value
       )

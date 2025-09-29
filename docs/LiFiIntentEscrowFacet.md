@@ -24,9 +24,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaLIFIIntentEscrow(BridgeData calldata _bridgeData, LIFIIntentEscrowData calldata _lifiIntentData)`
+- `function startBridgeTokensViaLiFiIntentEscrow(BridgeData calldata _bridgeData, LiFiIntentEscrowData calldata _lifiIntentData)`
   - Simply bridges tokens using LIFIIntent
-- `swapAndStartBridgeTokensViaLIFIIntentEscrow(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LIFIIntentEscrowData memory _lifiIntentData)`
+- `swapAndStartBridgeTokensViaLiFiIntentEscrow(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LiFiIntentEscrowData memory _lifiIntentData)`
   - Performs swap(s) before bridging tokens using LIFIIntent
 
 ## LIFIIntent Specific Parameters
@@ -45,7 +45,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 /// @param outputAmount The amount of the desired token.
 /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
 /// @param outputContext Context for the outputSettler to identify the order type.
-struct LIFIIntentEscrowData {
+struct LiFiIntentEscrowData {
     bytes32 receiverAddress; // StandardOrder.outputs.recipient
     /// BatchClaim
     address user; // StandardOrder.user
