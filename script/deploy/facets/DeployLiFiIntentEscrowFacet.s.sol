@@ -23,7 +23,10 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/lifiintent.json");
+        string memory path = string.concat(
+            root,
+            "/config/lifiintentescrow.json"
+        );
         string memory json = vm.readFile(path);
 
         address lifiIntentEscrowSettler = json.readAddress(

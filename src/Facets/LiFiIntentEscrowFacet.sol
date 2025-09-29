@@ -129,9 +129,6 @@ contract LiFiIntentEscrowFacet is
         ILiFi.BridgeData memory _bridgeData,
         LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
-        // Per conventions, the LiFi transfer started event should be emitted before any bridge calls are made.
-        emit LiFiTransferStarted(_bridgeData);
-
         address sendingAsset = _bridgeData.sendingAssetId;
         if (sendingAsset == address(0)) revert NativeNotSupported();
 
@@ -180,5 +177,7 @@ contract LiFiIntentEscrowFacet is
                 outputs: outputs
             })
         );
+
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

@@ -71,7 +71,7 @@ async function main() {
     !srcTokenContract.read.symbol ||
     !srcTokenContract.read.decimals
   ) {
-    console.error('Could noget get source token contract.')
+    console.error('Could not get source token contract.')
     process.exit(1)
   }
 
