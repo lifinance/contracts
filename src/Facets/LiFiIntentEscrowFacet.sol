@@ -133,8 +133,8 @@ contract LiFiIntentEscrowFacet is
         // Per conventions, the LiFi transfer started event should be emitted before any bridge calls are made.
         emit LiFiTransferStarted(_bridgeData);
 
-        if (_bridgeData.sendingAssetId == address(0))
-            revert NativeNotSupported();
+        address sendingAsset = _bridgeData.sendingAssetId;
+        if (sendingAsset == address(0)) revert NativeNotSupported();
 
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
         if (
@@ -147,14 +147,14 @@ contract LiFiIntentEscrowFacet is
         // Set approval.
         uint256 amount = _bridgeData.minAmount;
         LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
+            IERC20(sendingAsset),
             address(LIFI_INTENT_ESCROW_SETTLER),
             amount
         );
 
         // Convert given token and amount into a idsAndAmount array.
         uint256[2][] memory inputs = new uint256[2][](1);
-        inputs[0] = [uint256(uint160(_bridgeData.sendingAssetId)), amount];
+        inputs[0] = [uint256(uint160(sendingAsset)), amount];
 
         MandateOutput[] memory outputs = new MandateOutput[](1);
         outputs[0] = MandateOutput({
