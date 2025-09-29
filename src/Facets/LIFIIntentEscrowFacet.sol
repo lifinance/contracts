@@ -65,10 +65,10 @@ contract LIFIIntentEscrowFacet is
 
     /// Constructor ///
 
-    /// @param inputSettler LIFIIntent Escrow / settlement implementation.
-    constructor(address inputSettler) {
-        if (inputSettler == address(0)) revert InvalidConfig();
-        LIFI_INTENT_ESCROW_SETTLER = inputSettler;
+    /// @param _inputSettler LIFIIntent Escrow / settlement implementation.
+    constructor(address _inputSettler) {
+        if (_inputSettler == address(0)) revert InvalidConfig();
+        LIFI_INTENT_ESCROW_SETTLER = _inputSettler;
     }
 
     /// External Methods ///

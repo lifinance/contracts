@@ -138,6 +138,11 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
         });
     }
 
+    function testRevert_deploy_with_0_address() external {
+        vm.expectRevert(abi.encodeWithSignature("InvalidConfig()"));
+        new TestLIFIIntentEscrowFacet(address(0));
+    }
+
     event Finalised(
         bytes32 indexed orderId,
         bytes32 solver,
