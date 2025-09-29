@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
-import { MandateOutput, StandardOrder } from "../Interfaces/IOIF.sol";
+import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 
 /// @title LIFIIntent Facet

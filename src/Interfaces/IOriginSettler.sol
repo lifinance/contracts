@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.17;
 
-import { StandardOrder } from "./IOIF.sol";
+import { StandardOrder } from "./IOpenIntentFramework.sol";
 
 /**
  * @title IOriginSettler

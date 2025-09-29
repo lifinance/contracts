@@ -8,7 +8,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
 import { InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
-import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOIF.sol";
+import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
 contract AlwaysYesOracle {
     function isProven(
