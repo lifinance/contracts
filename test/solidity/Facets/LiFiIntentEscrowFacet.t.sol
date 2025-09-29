@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
-import { InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
@@ -244,6 +244,15 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             bridgeData,
             validLIFIIntentData
         );
+    }
+
+    function testRevert_LIFIIntent_native_not_supported() external {
+        bridgeData.sendingAssetId = address(0);
+
+        vm.expectRevert(NativeAssetNotSupported.selector);
+        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
+            value: bridgeData.minAmount
+        }(bridgeData, validLIFIIntentData);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

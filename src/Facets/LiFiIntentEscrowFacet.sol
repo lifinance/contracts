@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
+
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -9,7 +10,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, NativeAssetNotSupported } from "../Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
@@ -24,10 +25,6 @@ contract LiFiIntentEscrowFacet is
     SwapperV2,
     Validatable
 {
-    /// Errors ///
-
-    error NativeNotSupported();
-
     /// Storage ///
 
     /// @dev LIFI Intent Escrow Input Settler.
@@ -130,7 +127,7 @@ contract LiFiIntentEscrowFacet is
         LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
         address sendingAsset = _bridgeData.sendingAssetId;
-        if (sendingAsset == address(0)) revert NativeNotSupported();
+        if (sendingAsset == address(0)) revert NativeAssetNotSupported();
 
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
         if (
