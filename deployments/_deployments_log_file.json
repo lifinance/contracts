@@ -30252,10 +30252,10 @@
       "production": {
         "1.0.2": [
           {
-            "ADDRESS": "0xe850dad9b442b1A7DF8FbbD397dbb7466379A9E8",
+            "ADDRESS": "0x0263A66912E06cCcbd5dC1Aa870f7271E24a7F72",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-09-09 15:12:52",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "TIMESTAMP": "2025-09-29 19:19:48",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
