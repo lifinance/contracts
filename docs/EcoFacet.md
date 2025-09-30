@@ -66,7 +66,7 @@ ecoData.nonEVMReceiver = solanaAddressBytes;  // Actual Solana address
 
 ### Important Notes
 
-- **Native Token Bridging**: While the contract supports native token bridging, the Eco Protocol's quote API and solvers do not currently support native tokens. Only ERC20 token bridging is available in practice.
+- **Native Token Bridging**: The EcoFacet contract technically supports native token bridging at the smart contract level. However, the Eco Protocol infrastructure (quote API and solver network) does not currently support native tokens. **In practice, only ERC20 token bridging is available.** Attempts to bridge native tokens will fail at the solver level, not at the contract level.
 - **Solver Reward**:
   - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the Eco router handles the split internally
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the total amount (bridge amount + solver reward).
