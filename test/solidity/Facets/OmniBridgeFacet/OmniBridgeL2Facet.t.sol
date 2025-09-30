@@ -33,7 +33,7 @@ contract OmniBridgeL2FacetTest is TestBaseFacet {
 
     TestOmniBridgeFacet internal omniBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         // Fork Gnosis chain
         customRpcUrlForForking = "ETH_NODE_URI_GNOSIS";
         customBlockNumberForForking = 26862566;
@@ -62,7 +62,11 @@ contract OmniBridgeL2FacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(omniBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(omniBridgeFacet),
+            functionSelectors
+        );
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 

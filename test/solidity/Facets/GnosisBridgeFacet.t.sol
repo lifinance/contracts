@@ -37,7 +37,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 22566858;
         initTestBase();
         defaultUSDSAmount = defaultDAIAmount;
@@ -62,7 +62,11 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(gnosisBridgeFacet),
+            functionSelectors
+        );
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 

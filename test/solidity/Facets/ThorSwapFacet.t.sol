@@ -26,7 +26,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
     ThorSwapFacet.ThorSwapData internal validThorSwapData;
     TestThorSwapFacet internal thorSwapFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 16661275;
         initTestBase();
 
@@ -43,7 +43,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(thorSwapFacet), functionSelectors);
+        addFacet(address(diamond), address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
         thorSwapFacet.addDex(ADDRESS_UNISWAP);

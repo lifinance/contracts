@@ -33,7 +33,7 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
 
     TestPolygonBridgeFacet internal polygonBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         polygonBridgeFacet = new TestPolygonBridgeFacet(
@@ -53,7 +53,11 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(polygonBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(polygonBridgeFacet),
+            functionSelectors
+        );
 
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 

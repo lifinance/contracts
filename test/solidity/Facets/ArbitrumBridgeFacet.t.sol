@@ -37,7 +37,7 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
     ArbitrumBridgeFacet.ArbitrumData internal arbitrumData;
     uint256 internal cost;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         arbitrumBridgeFacet = new TestArbitrumBridgeFacet(
@@ -57,7 +57,11 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(arbitrumBridgeFacet),
+            functionSelectors
+        );
 
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
