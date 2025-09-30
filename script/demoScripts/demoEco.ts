@@ -3,13 +3,6 @@
  *
  * This script demonstrates how to use the EcoFacet to bridge tokens
  * across chains using the Eco Protocol.
- *
- * Key updates (Sep 2025):
- * - Updated EcoData structure to match latest contract implementation
- * - Removed obsolete fields: receivingAssetId, salt, destinationInbox, destinationCalls
- * - Added encodedRoute field which contains routing information for the bridge
- * - Added solanaATA field computed using web3.js and Solana token mint
- * - Added proper TypeScript types from typechain
  */
 
 // Sample TXS:
@@ -245,10 +238,7 @@ interface IEcoQuoteResponse {
  * @param receiverAddress - The address that will receive tokens on destination chain
  * @returns Encoded route as hex string
  */
-function getEncodedRoute(
-  quote: IEcoQuoteResponse,
-  receiverAddress: string
-): `0x${string}` {
+function getEncodedRoute(quote: IEcoQuoteResponse): `0x${string}` {
   // First, check if the API response already includes an encoded route
   if (quote.data.quoteResponse.encodedRoute) {
     console.log('Using encodedRoute from API response')
@@ -259,7 +249,9 @@ function getEncodedRoute(
       : (`0x${route}` as `0x${string}`)
   }
 
-  throw new Error('Eco API did not return encodedRoute. Cannot proceed. Ensure your route provider returns a valid encodedRoute.')
+  throw new Error(
+    'Eco API did not return encodedRoute. Cannot proceed. Ensure your route provider returns a valid encodedRoute.'
+  )
 }
 
 async function getEcoQuote(
@@ -547,7 +539,7 @@ async function main(args: {
   // For the encodedRoute, we need to encode the destination information
   // The actual format depends on Eco protocol requirements
   // For now, we'll encode basic route information
-  const encodedRoute = getEncodedRoute(quote, actualRecipientAddress)
+  const encodedRoute = getEncodedRoute(quote)
 
   // For Solana destinations, compute the solanaATA using web3.js
   // ATA (Associated Token Account) is deterministically derived from the recipient address and token mint
