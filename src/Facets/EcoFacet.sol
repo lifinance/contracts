@@ -138,12 +138,11 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     {
         _validateEcoData(_bridgeData, _ecoData);
 
+        // Cache native asset check to avoid duplicate external calls
+        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+
         // Reserve native fee if the final asset is native
-        uint256 nativeFeeAmount = LibAsset.isNativeAsset(
-            _bridgeData.sendingAssetId
-        )
-            ? _ecoData.solverReward
-            : 0;
+        uint256 nativeFeeAmount = isNative ? _ecoData.solverReward : 0;
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -154,7 +153,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         );
 
         // For ERC20, subtract solver reward from swap result to get bridge amount
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+        if (!isNative) {
             _bridgeData.minAmount =
                 _bridgeData.minAmount -
                 _ecoData.solverReward;
@@ -249,37 +248,38 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         EcoData calldata _ecoData
     ) private pure {
         address receiver = _bridgeData.receiver;
+        bool isSolanaDestination = _bridgeData.destinationChainId ==
+            LIFI_CHAIN_ID_SOLANA;
 
         if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
 
         if (receiver == NON_EVM_ADDRESS) {
             if (_ecoData.nonEVMReceiver.length == 0) revert InvalidReceiver();
 
-            if (
-                _bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA &&
-                _ecoData.solanaATA == bytes32(0)
-            ) revert InvalidConfig();
+            if (isSolanaDestination && _ecoData.solanaATA == bytes32(0))
+                revert InvalidConfig();
         } else {
             if (receiver != _ecoData.receiverAddress)
                 revert InformationMismatch();
         }
 
-        _validateRouteReceiver(_bridgeData, _ecoData);
+        _validateRouteReceiver(_bridgeData, _ecoData, isSolanaDestination);
     }
 
     function _validateRouteReceiver(
         ILiFi.BridgeData memory _bridgeData,
-        EcoData calldata _ecoData
+        EcoData calldata _ecoData,
+        bool isSolanaDestination
     ) private pure {
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+            if (isSolanaDestination) {
                 _validateSolanaReceiver(_ecoData);
             }
             return;
         }
 
         // If receiver is not NON_EVM_ADDRESS but destination is Solana, reject
-        if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+        if (isSolanaDestination) {
             revert InvalidReceiver();
         }
 
