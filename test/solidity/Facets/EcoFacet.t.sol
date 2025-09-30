@@ -491,33 +491,31 @@ contract EcoFacetTest is TestBaseFacet {
 
         ILiFi.BridgeData memory overflowBridgeData = bridgeData;
         overflowBridgeData.destinationChainId = uint256(type(uint64).max) + 1;
-        overflowBridgeData.sendingAssetId = address(0);
-        overflowBridgeData.minAmount = 0.01 ether;
 
         // Use the helper to create a properly encoded route
-        // Note: We're using ADDRESS_USDC here because the Route expects a token address for the transfer
         bytes memory validRoute = _createEncodedRoute(
             USER_RECEIVER,
-            ADDRESS_USDC, // Use a valid token address even though we're sending native
+            ADDRESS_USDC,
             overflowBridgeData.minAmount
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
             nonEVMReceiver: bytes(""),
-            prover: address(0),
-            rewardDeadline: 0,
-            solverReward: NATIVE_SOLVER_REWARD,
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
 
-        vm.deal(USER_SENDER, 1 ether);
+        usdc.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
 
         vm.expectRevert(InvalidConfig.selector);
-        ecoFacet.startBridgeTokensViaEco{
-            value: overflowBridgeData.minAmount + NATIVE_SOLVER_REWARD
-        }(overflowBridgeData, ecoData);
+        ecoFacet.startBridgeTokensViaEco(overflowBridgeData, ecoData);
 
         vm.stopPrank();
     }
@@ -525,38 +523,36 @@ contract EcoFacetTest is TestBaseFacet {
     function test_ChainIdAtUint64Boundary() public {
         vm.startPrank(USER_SENDER);
 
-        // Additional test: Verify that exactly uint64.max works correctly
+        // Test that exactly uint64.max is valid and doesn't trigger overflow check
         ILiFi.BridgeData memory boundaryBridgeData = bridgeData;
         boundaryBridgeData.destinationChainId = type(uint64).max;
+        boundaryBridgeData.sendingAssetId = address(0);
+        boundaryBridgeData.minAmount = 0.01 ether;
 
-        // For EVM chains, we need a proper transfer call at the end
-        bytes memory transferCall = abi.encodeWithSelector(
-            IERC20.transfer.selector,
+        // Use properly encoded route to avoid ABI decode failures
+        bytes memory validRoute = _createEncodedRoute(
             USER_RECEIVER,
-            bridgeData.minAmount
+            ADDRESS_USDC,
+            boundaryBridgeData.minAmount
         );
-        bytes memory validRoute = abi.encodePacked(bytes32(0), transferCall);
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
             receiverAddress: USER_RECEIVER,
             nonEVMReceiver: bytes(""),
-            prover: address(0),
-            rewardDeadline: 0,
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
             solverReward: NATIVE_SOLVER_REWARD,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
 
         // Fund the user with native tokens
-        vm.deal(USER_SENDER, bridgeData.minAmount + NATIVE_SOLVER_REWARD);
+        vm.deal(USER_SENDER, 1 ether);
 
-        // This should NOT revert at the boundary value
-        // The transaction will ultimately fail at the Portal call, but shouldn't fail at the uint64 check
-        // We expect a revert from Portal.publishAndFund instead
-        vm.expectRevert();
-
+        // This should NOT revert at the uint64 overflow check (chainId == uint64.max is valid)
+        // The call should succeed, proving that uint64.max is handled correctly
         ecoFacet.startBridgeTokensViaEco{
-            value: bridgeData.minAmount + NATIVE_SOLVER_REWARD
+            value: boundaryBridgeData.minAmount + NATIVE_SOLVER_REWARD
         }(boundaryBridgeData, ecoData);
 
         vm.stopPrank();
