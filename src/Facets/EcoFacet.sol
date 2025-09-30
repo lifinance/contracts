@@ -115,6 +115,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param _bridgeData Bridge data containing core parameters
     /// @param _swapData Array of swap data for source swaps
     /// @param _ecoData Eco-specific parameters for the bridge
+    /// @dev IMPORTANT LIMITATION: For ERC20 tokens, positive slippage from pre-bridge swaps
+    /// may remain in the diamond contract. The intent amount is encoded in encodedRoute
+    /// (provided by Eco API), and the Portal only transfers the exact reward amount specified.
+    /// If swaps produce more tokens than expected (positive slippage), only the amount specified
+    /// in the reward struct (bridgeAmount + solverReward) is transferred to the Portal vault.
+    /// Any excess remains in the diamond. This is a known limitation that can be significant
+    /// when bridging large amounts. Native tokens handle positive slippage correctly by sending
+    /// additional value with the transaction.
     function swapAndStartBridgeTokensViaEco(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
