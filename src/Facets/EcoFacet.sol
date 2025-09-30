@@ -240,28 +240,20 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) private pure {
-        if (_ecoData.encodedRoute.length == 0) {
-            revert InvalidConfig();
-        }
-        if (
-            _bridgeData.receiver == NON_EVM_ADDRESS &&
-            _ecoData.nonEVMReceiver.length == 0
-        ) {
-            revert InvalidReceiver();
-        }
-        if (
-            _bridgeData.receiver != NON_EVM_ADDRESS &&
-            _bridgeData.receiver != _ecoData.receiverAddress
-        ) {
-            revert InformationMismatch();
-        }
-        if (
-            _bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA &&
-            _bridgeData.receiver == NON_EVM_ADDRESS
-        ) {
-            if (_ecoData.solanaATA == bytes32(0)) {
-                revert InvalidConfig();
-            }
+        address receiver = _bridgeData.receiver;
+
+        if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
+
+        if (receiver == NON_EVM_ADDRESS) {
+            if (_ecoData.nonEVMReceiver.length == 0) revert InvalidReceiver();
+
+            if (
+                _bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA &&
+                _ecoData.solanaATA == bytes32(0)
+            ) revert InvalidConfig();
+        } else {
+            if (receiver != _ecoData.receiverAddress)
+                revert InformationMismatch();
         }
 
         _validateRouteReceiver(_bridgeData, _ecoData);
