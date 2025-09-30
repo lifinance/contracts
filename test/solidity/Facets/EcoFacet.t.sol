@@ -721,6 +721,7 @@ contract EcoFacetTest is TestBaseFacet {
             bridgeData.minAmount + TOKEN_SOLVER_REWARD
         );
 
+        vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();

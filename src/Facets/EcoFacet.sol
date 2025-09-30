@@ -269,30 +269,34 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             }
             return;
         }
-        if (_bridgeData.destinationChainId != LIFI_CHAIN_ID_SOLANA) {
-            // For EVM-compatible chains (includes TRON), decode the Route struct to get the last call
-            // Note: TRON is considered EVM-compatible here as it uses the same Route struct encoding
-            Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
 
-            // The last call should be the transfer to the receiver
-            // For ERC20 transfer, the calldata follows the pattern: transfer(address,uint256)
-            // We need to skip the function selector (4 bytes) and decode the address parameter
-            bytes memory lastCallData = route
-                .calls[route.calls.length - 1]
-                .callData;
+        // If receiver is not NON_EVM_ADDRESS but destination is Solana, reject
+        if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+            revert InvalidReceiver();
+        }
 
-            // Extract the receiver address from the calldata
-            // Skip the 4-byte function selector and decode the address (first parameter)
-            // The address parameter starts at byte 4 (after the selector)
-            address receiver;
-            assembly {
-                // Load the address from offset 36 (32 bytes length + 4 bytes selector)
-                receiver := mload(add(lastCallData, 36))
-            }
+        // For EVM-compatible chains (includes TRON), decode the Route struct to get the last call
+        // Note: TRON is considered EVM-compatible here as it uses the same Route struct encoding
+        Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
 
-            if (receiver != _bridgeData.receiver) {
-                revert InvalidReceiver();
-            }
+        // The last call should be the transfer to the receiver
+        // For ERC20 transfer, the calldata follows the pattern: transfer(address,uint256)
+        // We need to skip the function selector (4 bytes) and decode the address parameter
+        bytes memory lastCallData = route
+            .calls[route.calls.length - 1]
+            .callData;
+
+        // Extract the receiver address from the calldata
+        // Skip the 4-byte function selector and decode the address (first parameter)
+        // The address parameter starts at byte 4 (after the selector)
+        address receiver;
+        assembly {
+            // Load the address from offset 36 (32 bytes length + 4 bytes selector)
+            receiver := mload(add(lastCallData, 36))
+        }
+
+        if (receiver != _bridgeData.receiver) {
+            revert InvalidReceiver();
         }
     }
 
