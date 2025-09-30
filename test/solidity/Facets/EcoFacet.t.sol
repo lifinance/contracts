@@ -84,71 +84,8 @@ contract EcoFacetTest is TestBaseFacet {
 
     // Helper function to create a properly encoded Route struct
     // The route will always have exactly one call - an ERC20 transfer to the receiver
-    function createEncodedRoute(
-        address receiver,
-        address token,
-        uint256 amount
-    ) internal view returns (bytes memory) {
-        // Create token array for the route
-        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
-            1
-        );
-        tokens[0] = IEcoPortal.TokenAmount({ token: token, amount: amount });
-
-        // Create calls array with exactly one call - the ERC20 transfer to receiver
-        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
-        calls[0] = EcoFacet.Call({
-            target: token,
-            callData: abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                receiver,
-                amount
-            )
-        });
-
-        // Create the Route struct
-        EcoFacet.Route memory route = EcoFacet.Route({
-            salt: keccak256("eco.route.test"),
-            deadline: uint64(block.timestamp + 1 days),
-            portal: PORTAL, // Portal is the contract that receives and executes the route
-            nativeAmount: 0,
-            tokens: tokens,
-            calls: calls
-        });
-
-        // ABI encode the route
-        return abi.encode(route);
-    }
-
-    function getValidEcoData(
-        bool isNative
-    ) internal view returns (EcoFacet.EcoData memory) {
-        // Calculate solver reward based on token type
-        uint256 solverReward = isNative
-            ? NATIVE_SOLVER_REWARD
-            : TOKEN_SOLVER_REWARD;
-
-        // Create a properly encoded route using the Route struct
-        bytes memory encodedRoute = createEncodedRoute(
-            USER_RECEIVER,
-            bridgeData.sendingAssetId,
-            bridgeData.minAmount
-        );
-
-        return
-            EcoFacet.EcoData({
-                receiverAddress: USER_RECEIVER,
-                nonEVMReceiver: "",
-                prover: address(0x1234),
-                rewardDeadline: uint64(block.timestamp + 2 days),
-                solverReward: solverReward,
-                encodedRoute: encodedRoute,
-                solanaATA: bytes32(0)
-            });
-    }
-
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        EcoFacet.EcoData memory ecoData = getValidEcoData(isNative);
+        EcoFacet.EcoData memory ecoData = _getValidEcoData(isNative);
 
         if (isNative) {
             // For native: send bridge amount + native reward as msg.value
@@ -164,7 +101,7 @@ contract EcoFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        EcoFacet.EcoData memory ecoData = getValidEcoData(isNative);
+        EcoFacet.EcoData memory ecoData = _getValidEcoData(isNative);
 
         if (isNative) {
             // Swapping to native: send swap input + native reward
@@ -378,7 +315,7 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.receiver = USER_RECEIVER; // Can use regular address for Tron
 
         // Tron is EVM-compatible, so use the same Route struct encoding
-        bytes memory tronEncodedRoute = createEncodedRoute(
+        bytes memory tronEncodedRoute = _createEncodedRoute(
             USER_RECEIVER,
             bridgeData.sendingAssetId,
             bridgeData.minAmount
@@ -484,7 +421,7 @@ contract EcoFacetTest is TestBaseFacet {
 
         // Create a route with a DIFFERENT receiver address to trigger the mismatch
         address wrongReceiver = address(0x9999);
-        bytes memory routeWithWrongReceiver = createEncodedRoute(
+        bytes memory routeWithWrongReceiver = _createEncodedRoute(
             wrongReceiver, // Different receiver than bridgeData.receiver
             bridgeData.sendingAssetId,
             bridgeData.minAmount
@@ -559,7 +496,7 @@ contract EcoFacetTest is TestBaseFacet {
 
         // Use the helper to create a properly encoded route
         // Note: We're using ADDRESS_USDC here because the Route expects a token address for the transfer
-        bytes memory validRoute = createEncodedRoute(
+        bytes memory validRoute = _createEncodedRoute(
             USER_RECEIVER,
             ADDRESS_USDC, // Use a valid token address even though we're sending native
             overflowBridgeData.minAmount
@@ -726,7 +663,7 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 10; // Optimism
 
         // Use the helper to create a properly encoded Route
-        bytes memory validRoute = createEncodedRoute(
+        bytes memory validRoute = _createEncodedRoute(
             USER_RECEIVER,
             bridgeData.sendingAssetId,
             bridgeData.minAmount
@@ -763,7 +700,7 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.receiver = USER_RECEIVER; // EVM address, not NON_EVM_ADDRESS
 
         // Create a valid Route struct encoding
-        bytes memory validRoute = createEncodedRoute(
+        bytes memory validRoute = _createEncodedRoute(
             USER_RECEIVER,
             bridgeData.sendingAssetId,
             bridgeData.minAmount
@@ -964,5 +901,68 @@ contract EcoFacetTest is TestBaseFacet {
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
+    }
+
+    function _createEncodedRoute(
+        address receiver,
+        address token,
+        uint256 amount
+    ) internal view returns (bytes memory) {
+        // Create token array for the route
+        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
+            1
+        );
+        tokens[0] = IEcoPortal.TokenAmount({ token: token, amount: amount });
+
+        // Create calls array with exactly one call - the ERC20 transfer to receiver
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
+        calls[0] = EcoFacet.Call({
+            target: token,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                receiver,
+                amount
+            )
+        });
+
+        // Create the Route struct
+        EcoFacet.Route memory route = EcoFacet.Route({
+            salt: keccak256("eco.route.test"),
+            deadline: uint64(block.timestamp + 1 days),
+            portal: PORTAL, // Portal is the contract that receives and executes the route
+            nativeAmount: 0,
+            tokens: tokens,
+            calls: calls
+        });
+
+        // ABI encode the route
+        return abi.encode(route);
+    }
+
+    function _getValidEcoData(
+        bool isNative
+    ) internal view returns (EcoFacet.EcoData memory) {
+        // Calculate solver reward based on token type
+        uint256 solverReward = isNative
+            ? NATIVE_SOLVER_REWARD
+            : TOKEN_SOLVER_REWARD;
+
+        // Create a properly encoded route using the Route struct
+        bytes memory encodedRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+
+        return
+            EcoFacet.EcoData({
+                receiverAddress: USER_RECEIVER,
+                nonEVMReceiver: "",
+                prover: address(0x1234),
+                rewardDeadline: uint64(block.timestamp + 2 days),
+                solverReward: solverReward,
+                encodedRoute: encodedRoute,
+                solanaATA: bytes32(0)
+            });
     }
 }
