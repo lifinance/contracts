@@ -90,23 +90,24 @@ contract UnitFacetTest is TestBaseFacet {
 
         // 2. Define the payload that will be signed
         address depositAddress = 0xCE50D8e79e047534627B3Bc38DE747426Ec63927;
+        bridgeData.receiver = depositAddress;
         UnitFacet.UnitPayload memory payload = UnitFacet.UnitPayload({
             depositAddress: depositAddress,
             sourceChainId: block.chainid,
             destinationChainId: bridgeData.destinationChainId,
-            receiver: bridgeData.receiver,
             sendingAssetId: bridgeData.sendingAssetId
         });
 
         // 3. Calculate the hash of the struct
-        bytes32 unitPayloadTypehash = 0x7143926c49a647038e3a15f0b795e1e55913e2f574a4ea414b21b7114611453c;
+        // typehash is keccak256("UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId)")
+        // you can check the typehash with command: cast keccak "UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId)"
+        bytes32 unitPayloadTypehash = 0xa16cbca8b31407a5924d59ae6804250b7502de409873d1cb0c0fd609008b33a2;
         bytes32 structHash = keccak256(
             abi.encode(
                 unitPayloadTypehash,
                 payload.depositAddress,
                 payload.sourceChainId,
                 payload.destinationChainId,
-                payload.receiver,
                 payload.sendingAssetId
             )
         );
@@ -200,11 +201,7 @@ contract UnitFacetTest is TestBaseFacet {
         public
         virtual
         override
-        assertBalanceChange(
-            address(0),
-            USER_SENDER,
-            -int256(0.05 ether)
-        )
+        assertBalanceChange(address(0), USER_SENDER, -int256(0.05 ether))
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
@@ -215,7 +212,7 @@ contract UnitFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, address(unitFacet));
         emit LiFiTransferStarted(bridgeData);
 
-        initiateBridgeTxWithFacet(false);
+        initiateBridgeTxWithFacet(true);
         vm.stopPrank();
     }
 }

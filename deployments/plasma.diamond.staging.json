@@ -33,7 +33,7 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x9b709588d63d8D3866B19B4984Ef71756Fe7ea0F": {
+      "0x7B0309BC2011E6BC5451D18b28D19228cd45e72A": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
@@ -53,13 +53,21 @@
         "Name": "UnitFacet",
         "Version": "1.0.0"
       },
-      "0xc998A6cc35d8B6977Cfe30158C591f2Cb79122aA": {
-        "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+      "0xDc4c27e4801ADf6B52cd326141C0d206c5e62C38": {
+        "Name": "UnitFacet",
+        "Version": "1.0.0"
       },
-      "0x7B0309BC2011E6BC5451D18b28D19228cd45e72A": {
-        "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+      "0xe78894Ad98b08c48F2FABC4492637f3f9c9eD7d2": {
+        "Name": "UnitFacet",
+        "Version": "1.0.0"
+      },
+      "0xd8b561226e7e58766e27d618F76862A96744d098": {
+        "Name": "UnitFacet",
+        "Version": "1.0.0"
+      },
+      "0x5c4A42947742de1F8Fe998f440F7b3d2bF28b4B6": {
+        "Name": "UnitFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

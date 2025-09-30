@@ -24,10 +24,17 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/unit.json");
         string memory json = vm.readFile(path);
 
-        bytes memory unitNodePublicKey = json.readBytes(".unitNodePublicKey");
-        bytes memory h1NodePublicKey = json.readBytes(".h1NodePublicKey");
-        bytes memory fieldNodePublicKey = json.readBytes(".fieldNodePublicKey");
+        // check if production or staging
+        address backendSigner;
+        if (
+            keccak256(abi.encodePacked(fileSuffix)) ==
+            keccak256(abi.encodePacked("staging."))
+        ) {
+            backendSigner = json.readAddress(".staging.backendSigner");
+        } else {
+            backendSigner = json.readAddress(".production.backendSigner");
+        }
 
-        return abi.encode(unitNodePublicKey, h1NodePublicKey, fieldNodePublicKey);
+        return abi.encode(backendSigner);
     }
 }

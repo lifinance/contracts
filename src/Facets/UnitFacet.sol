@@ -8,33 +8,38 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidAmount, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Unit Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Unit
 /// @custom:version 1.0.0
 contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// Storage ///
-
-    /// EIP-712 ///
-    // keccak256("UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address receiver,address sendingAssetId)");
+    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
-        0x7143926c49a647038e3a15f0b795e1e55913e2f574a4ea414b21b7114611453c; // TODO change
+        0xa16cbca8b31407a5924d59ae6804250b7502de409873d1cb0c0fd609008b33a2;
+    /// @notice The address of the backend signer that is authorized to sign the UnitPayload
     address internal immutable BACKEND_SIGNER;
 
     /// Types ///
+
+    /// @notice The data that is signed by the backend
+    /// @param depositAddress The address to deposit the assets to
+    /// @param signature The signature of the UnitPayload signed by the backend signer using EIP-712 standard
     struct UnitData {
         address depositAddress;
         bytes signature;
     }
 
-    // EIP-712 - data that is signed by the backend
+    /// @notice The data that is signed by the backend
+    /// @param depositAddress The address to deposit the assets to
+    /// @param sourceChainId The chain id of the source chain
+    /// @param destinationChainId The chain id of the destination chain
+    /// @param sendingAssetId The address of the sending asset
     struct UnitPayload {
         address depositAddress;
         uint256 sourceChainId;
         uint256 destinationChainId;
-        address receiver;
         address sendingAssetId;
     }
 
@@ -49,6 +54,7 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Returns the EIP-712 domain separator.
     /// @dev The domain separator is calculated on the fly to ensure that `address(this)`
     /// always refers to the diamond's address when called via delegatecall.
+    /// @return The EIP-712 domain separator.
     function _domainSeparator() internal view returns (bytes32) {
         return
             keccak256(
@@ -78,6 +84,7 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         onlyAllowSourceToken(_bridgeData, _bridgeData.sendingAssetId)
+        onlyAllowDestinationChain(_bridgeData, 999)
     {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -111,53 +118,55 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Internal Methods ///
+
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
     ) internal {
-        if (_bridgeData.minAmount < 0.05 ether) {
-            revert InvalidAmount();
+        if (block.chainid == 1) {
+            // deposit from ethereum mainnet to hyperliquid
+            if (_bridgeData.minAmount < 0.05 ether) {
+                revert InvalidAmount();
+            }
+        } else if (block.chainid == 9745) {
+            // deposit from plasma to hyperliquid
+            if (_bridgeData.minAmount < 15 ether) {
+                revert InvalidAmount();
+            }
         }
 
-        if (
-            !(_bridgeData.destinationChainId == 999 || // hyperliquid
-                _bridgeData.destinationChainId == 1 || // ethereum mainnet
-                _bridgeData.destinationChainId == 9745) // plume
-        ) {
-            revert InvalidDestinationChain();
+        if (_bridgeData.receiver != _unitData.depositAddress) {
+            revert InvalidReceiver();
         }
 
-        // --- EIP-712 Signature Verification ---
-        // Reconstruct the payload that should have been signed by the backend.
+        // --- EIP-712 signature verification ---
+        // reconstruct the payload that should have been signed by the backend
         UnitPayload memory payload = UnitPayload({
             depositAddress: _unitData.depositAddress,
             sourceChainId: block.chainid,
             destinationChainId: _bridgeData.destinationChainId,
-            receiver: _bridgeData.receiver,
             sendingAssetId: _bridgeData.sendingAssetId
         });
 
-        // Hash the typed data struct.
         bytes32 structHash = keccak256(
             abi.encode(
                 UNIT_PAYLOAD_TYPEHASH,
                 payload.depositAddress,
                 payload.sourceChainId,
                 payload.destinationChainId,
-                payload.receiver,
                 payload.sendingAssetId
             )
         );
 
-        // Compute the final digest to be signed according to EIP-712.
+        // Compute the final digest to be signed according to EIP-712: https://eips.ethereum.org/EIPS/eip-712
         bytes32 digest = keccak256(
             abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
         );
 
-        // Recover the signer's address from the signature.
+        // recover the signer's address from the signature
         address recoveredSigner = ECDSA.recover(digest, _unitData.signature);
 
-        // Verify that the signer is the authorized backend.
+        // verify that the signer is the authorized backend
         if (recoveredSigner != BACKEND_SIGNER) {
             revert InvalidSignature();
         }
@@ -166,6 +175,7 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(_unitData.depositAddress),
             _bridgeData.minAmount
         );
+
         emit LiFiTransferStarted(_bridgeData);
     }
 }
