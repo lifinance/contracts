@@ -66,13 +66,13 @@ ecoData.nonEVMReceiver = solanaAddressBytes;  // Actual Solana address
 
 ### Important Notes
 
-- **Native Token Bridging**: Native token bridging is not currently supported and is not in the immediate roadmap. Only ERC20 token bridging is available.
+- **Native Token Bridging**: While the contract supports native token bridging, the Eco Protocol's quote API and solvers do not currently support native tokens. Only ERC20 token bridging is available in practice.
 - **Solver Reward**:
   - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the Eco router handles the split internally
-- **Non-EVM Destinations**: For non-EVM chains (like Tron or Solana), set `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (constant from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the total amount (bridge amount + solver reward).
-- **Encoded Route**: The `encodedRoute` parameter contains all necessary routing information for the destination chain and is required for all bridge operations.
+- **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations.
 - **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
+- **TRON Compatibility**: While TRON has its own chain ID mapping, it is treated as EVM-compatible in the smart contract validation logic since it uses the same Route struct encoding as EVM chains. Only Solana requires special non-EVM handling.
 
 ## Swap Data
 
