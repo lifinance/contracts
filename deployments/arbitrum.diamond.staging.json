@@ -180,6 +180,18 @@
       "0x004E291b9244C811B0BE00cA2C179d54FAA5073D": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
+        "Name": "RelayFacet",
+        "Version": "1.0.2"
+      },
+      "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x33EcEb68994E0499a61FAda3b49Ab243e63555F1": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
