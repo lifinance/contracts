@@ -269,7 +269,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             }
             return;
         }
-        if (_isEVMChain(_bridgeData.destinationChainId)) {
+        if (_bridgeData.destinationChainId != LIFI_CHAIN_ID_SOLANA) {
             // For EVM chains, decode the Route struct to get the last call
             Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
 
@@ -325,13 +325,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         if (_ecoData.solanaATA != routeReceiver) {
             revert InvalidReceiver();
         }
-    }
-
-    function _isEVMChain(uint256 chainId) private pure returns (bool) {
-        if (chainId == LIFI_CHAIN_ID_SOLANA) {
-            return false;
-        }
-        return true;
     }
 
     function _emitEvents(
