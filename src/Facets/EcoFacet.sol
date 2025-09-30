@@ -270,7 +270,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             return;
         }
         if (_bridgeData.destinationChainId != LIFI_CHAIN_ID_SOLANA) {
-            // For EVM chains, decode the Route struct to get the last call
+            // For EVM-compatible chains (includes TRON), decode the Route struct to get the last call
+            // Note: TRON is considered EVM-compatible here as it uses the same Route struct encoding
             Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
 
             // The last call should be the transfer to the receiver
@@ -283,11 +284,11 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             // Extract the receiver address from the calldata
             // Skip the 4-byte function selector and decode the address (first parameter)
             // The address parameter starts at byte 4 (after the selector)
-            bytes memory addressData = new bytes(32);
-            for (uint256 i = 0; i < 32; i++) {
-                addressData[i] = lastCallData[i + 4];
+            address receiver;
+            assembly {
+                // Load the address from offset 36 (32 bytes length + 4 bytes selector)
+                receiver := mload(add(lastCallData, 36))
             }
-            address receiver = abi.decode(addressData, (address));
 
             if (receiver != _bridgeData.receiver) {
                 revert InvalidReceiver();
