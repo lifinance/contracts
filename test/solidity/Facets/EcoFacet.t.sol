@@ -10,7 +10,7 @@ import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
 import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch } from "../../../src/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InformationMismatch, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
     constructor(IEcoPortal _portal) EcoFacet(_portal) {}
@@ -28,7 +28,6 @@ contract EcoFacetTest is TestBaseFacet {
     TestEcoFacet internal ecoFacet;
     address internal constant PORTAL =
         0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5;
-    uint256 internal constant NATIVE_SOLVER_REWARD = 0.0001 ether;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
 
     function setUp() public {
@@ -78,47 +77,121 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.bridge = "eco";
         bridgeData.destinationChainId = 10;
 
-        // Set addToMessageValue for native token tests (ERC20 tests will override this)
-        addToMessageValue = NATIVE_SOLVER_REWARD;
+        addToMessageValue = 0;
     }
 
-    // Helper function to create a properly encoded Route struct
-    // The route will always have exactly one call - an ERC20 transfer to the receiver
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        EcoFacet.EcoData memory ecoData = _getValidEcoData(isNative);
-
-        if (isNative) {
-            // For native: send bridge amount + native reward as msg.value
-            ecoFacet.startBridgeTokensViaEco{
-                value: bridgeData.minAmount + addToMessageValue
-            }(bridgeData, ecoData);
-        } else {
-            // For ERC20: No msg.value needed, tokens already approved
-            ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
-        }
+    function initiateBridgeTxWithFacet(bool) internal override {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
-        EcoFacet.EcoData memory ecoData = _getValidEcoData(isNative);
-
-        if (isNative) {
-            // Swapping to native: send swap input + native reward
-            ecoFacet.swapAndStartBridgeTokensViaEco{
-                value: swapData[0].fromAmount + addToMessageValue
-            }(bridgeData, swapData, ecoData);
-        } else {
-            ecoFacet.swapAndStartBridgeTokensViaEco{
-                value: addToMessageValue
-            }(bridgeData, swapData, ecoData);
-        }
+    function initiateSwapAndBridgeTxWithFacet(bool) internal override {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
     }
 
     function testRevert_WhenUsingInvalidConfig() public {
         vm.expectRevert(InvalidConfig.selector);
         new EcoFacet(IEcoPortal(address(0)));
     }
+
+    function testRevert_NativeTokenNotSupported() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up bridge data with native token
+        bridgeData.sendingAssetId = address(0); // Native token
+        bridgeData.minAmount = 0.1 ether;
+
+        bytes memory validRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            ADDRESS_USDC, // Route can use any token
+            100 * 10 ** 6
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: 0.0001 ether,
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0)
+        });
+
+        // Should revert when trying to bridge native tokens
+        vm.expectRevert(NativeAssetNotSupported.selector);
+        ecoFacet.startBridgeTokensViaEco{
+            value: bridgeData.minAmount + 0.0001 ether
+        }(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_NativeTokenNotSupportedInSwap() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set up swap to native token
+        bridgeData.sendingAssetId = address(0); // Native token
+        bridgeData.minAmount = 0.1 ether;
+        bridgeData.hasSourceSwaps = true;
+
+        // Swap DAI to native
+        delete swapData;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0), // Swapping to native
+                fromAmount: 1000 * 10 ** 18,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    bridgeData.minAmount,
+                    1000 * 10 ** 18,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        bytes memory validRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            ADDRESS_USDC,
+            100 * 10 ** 6
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            receiverAddress: USER_RECEIVER,
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            solverReward: 0.0001 ether,
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0)
+        });
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        // Should revert when trying to swap and bridge native tokens
+        vm.expectRevert(NativeAssetNotSupported.selector);
+        ecoFacet.swapAndStartBridgeTokensViaEco{ value: 0.0001 ether }(
+            bridgeData,
+            swapData,
+            ecoData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeNativeTokens() public override {}
+
+    function testBase_CanSwapAndBridgeNativeTokens() public override {}
 
     // Override the base test to handle ERC20 token rewards properly
     function testBase_CanBridgeTokens()
@@ -523,13 +596,11 @@ contract EcoFacetTest is TestBaseFacet {
     function test_ChainIdAtUint64Boundary() public {
         vm.startPrank(USER_SENDER);
 
-        // Test that exactly uint64.max is valid and doesn't trigger overflow check
         ILiFi.BridgeData memory boundaryBridgeData = bridgeData;
         boundaryBridgeData.destinationChainId = type(uint64).max;
-        boundaryBridgeData.sendingAssetId = address(0);
-        boundaryBridgeData.minAmount = 0.01 ether;
+        boundaryBridgeData.sendingAssetId = ADDRESS_USDC;
+        boundaryBridgeData.minAmount = 100 * 10 ** 6;
 
-        // Use properly encoded route to avoid ABI decode failures
         bytes memory validRoute = _createEncodedRoute(
             USER_RECEIVER,
             ADDRESS_USDC,
@@ -541,19 +612,17 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: bytes(""),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: NATIVE_SOLVER_REWARD,
+            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
 
-        // Fund the user with native tokens
-        vm.deal(USER_SENDER, 1 ether);
+        usdc.approve(
+            _facetTestContractAddress,
+            boundaryBridgeData.minAmount + TOKEN_SOLVER_REWARD
+        );
 
-        // This should NOT revert at the uint64 overflow check (chainId == uint64.max is valid)
-        // The call should succeed, proving that uint64.max is handled correctly
-        ecoFacet.startBridgeTokensViaEco{
-            value: boundaryBridgeData.minAmount + NATIVE_SOLVER_REWARD
-        }(boundaryBridgeData, ecoData);
+        ecoFacet.startBridgeTokensViaEco(boundaryBridgeData, ecoData);
 
         vm.stopPrank();
     }
@@ -936,15 +1005,11 @@ contract EcoFacetTest is TestBaseFacet {
         return abi.encode(route);
     }
 
-    function _getValidEcoData(
-        bool isNative
-    ) internal view returns (EcoFacet.EcoData memory) {
-        // Calculate solver reward based on token type
-        uint256 solverReward = isNative
-            ? NATIVE_SOLVER_REWARD
-            : TOKEN_SOLVER_REWARD;
-
-        // Create a properly encoded route using the Route struct
+    function _getValidEcoData()
+        internal
+        view
+        returns (EcoFacet.EcoData memory)
+    {
         bytes memory encodedRoute = _createEncodedRoute(
             USER_RECEIVER,
             bridgeData.sendingAssetId,
@@ -957,7 +1022,7 @@ contract EcoFacetTest is TestBaseFacet {
                 nonEVMReceiver: "",
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
-                solverReward: solverReward,
+                solverReward: TOKEN_SOLVER_REWARD,
                 encodedRoute: encodedRoute,
                 solanaATA: bytes32(0)
             });

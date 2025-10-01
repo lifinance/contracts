@@ -93,18 +93,15 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
     {
         _validateEcoData(_bridgeData, _ecoData);
 
-        // For ERC20, deposit includes the solver reward
-        uint256 depositAmount = _bridgeData.minAmount;
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            depositAmount += _ecoData.solverReward;
-        }
+        // Deposit includes the solver reward for ERC20
+        uint256 depositAmount = _bridgeData.minAmount + _ecoData.solverReward;
 
         LibAsset.depositAsset(_bridgeData.sendingAssetId, depositAmount);
 
@@ -131,33 +128,23 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
     {
         _validateEcoData(_bridgeData, _ecoData);
-
-        // Cache native asset check to avoid duplicate external calls
-        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
-
-        // Reserve native fee if the final asset is native
-        uint256 nativeFeeAmount = isNative ? _ecoData.solverReward : 0;
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender),
-            nativeFeeAmount
+            0
         );
 
-        // For ERC20, subtract solver reward from swap result to get bridge amount
-        if (!isNative) {
-            _bridgeData.minAmount =
-                _bridgeData.minAmount -
-                _ecoData.solverReward;
-        }
+        // Subtract solver reward from swap result to get bridge amount
+        _bridgeData.minAmount = _bridgeData.minAmount - _ecoData.solverReward;
 
         _startBridge(_bridgeData, _ecoData);
     }
@@ -167,26 +154,21 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     function _buildReward(
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData,
-        bool isNative,
         uint256 totalAmount
     ) private view returns (IEcoPortal.Reward memory) {
-        IEcoPortal.TokenAmount[] memory rewardTokens;
-        if (!isNative) {
-            rewardTokens = new IEcoPortal.TokenAmount[](1);
-            rewardTokens[0] = IEcoPortal.TokenAmount({
-                token: _bridgeData.sendingAssetId,
-                amount: totalAmount
-            });
-        } else {
-            rewardTokens = new IEcoPortal.TokenAmount[](0);
-        }
+        IEcoPortal.TokenAmount[]
+            memory rewardTokens = new IEcoPortal.TokenAmount[](1);
+        rewardTokens[0] = IEcoPortal.TokenAmount({
+            token: _bridgeData.sendingAssetId,
+            amount: totalAmount
+        });
 
         return
             IEcoPortal.Reward({
                 creator: msg.sender,
                 prover: _ecoData.prover,
                 deadline: _ecoData.rewardDeadline,
-                nativeAmount: isNative ? totalAmount : 0,
+                nativeAmount: 0,
                 tokens: rewardTokens
             });
     }
@@ -195,13 +177,11 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
-        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 totalAmount = _bridgeData.minAmount + _ecoData.solverReward;
 
         IEcoPortal.Reward memory reward = _buildReward(
             _bridgeData,
             _ecoData,
-            isNative,
             totalAmount
         );
 
@@ -217,15 +197,13 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             destination = uint64(_bridgeData.destinationChainId);
         }
 
-        if (!isNative) {
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                address(PORTAL),
-                totalAmount
-            );
-        }
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(PORTAL),
+            totalAmount
+        );
 
-        PORTAL.publishAndFund{ value: isNative ? totalAmount : 0 }(
+        PORTAL.publishAndFund{ value: 0 }(
             destination,
             _ecoData.encodedRoute,
             reward,
