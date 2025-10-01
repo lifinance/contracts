@@ -9,15 +9,15 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
-
-/// @title Unit Facet
+import { console2 } from "forge-std/console2.sol";
+/// @title UnitFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Unit
 /// @custom:version 1.0.0
 contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId)");
+    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
-        0xa16cbca8b31407a5924d59ae6804250b7502de409873d1cb0c0fd609008b33a2;
+        0x0f323247869e99767f8ae64818f8e3049ae421f0e0fc249a40a1179278dc1648;
     /// @notice The address of the backend signer that is authorized to sign the UnitPayload
     address internal immutable BACKEND_SIGNER;
 
@@ -26,52 +26,31 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The data that is signed by the backend
     /// @param depositAddress The address to deposit the assets to
     /// @param signature The signature of the UnitPayload signed by the backend signer using EIP-712 standard
+    /// @param deadline The deadline for the signature
     struct UnitData {
         address depositAddress;
         bytes signature;
-    }
-
-    /// @notice The data that is signed by the backend
-    /// @param depositAddress The address to deposit the assets to
-    /// @param sourceChainId The chain id of the source chain
-    /// @param destinationChainId The chain id of the destination chain
-    /// @param sendingAssetId The address of the sending asset
-    struct UnitPayload {
-        address depositAddress;
-        uint256 sourceChainId;
-        uint256 destinationChainId;
-        address sendingAssetId;
+        uint256 deadline;
     }
 
     /// Errors ///
+    /// @notice Thrown when the signature is invalid
     error InvalidSignature();
+    /// @notice Thrown when the signature is expired
+    error SignatureExpired();
 
     /// Constructor ///
+    /// @notice Initializes the UnitFacet contract
+    /// @param _backendSigner The address of the backend signer
     constructor(address _backendSigner) {
         BACKEND_SIGNER = _backendSigner;
     }
 
-    /// @notice Returns the EIP-712 domain separator.
-    /// @dev The domain separator is calculated on the fly to ensure that `address(this)`
-    /// always refers to the diamond's address when called via delegatecall.
-    /// @return The EIP-712 domain separator.
-    function _domainSeparator() internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256(
-                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                    ),
-                    keccak256(bytes("LI.FI Unit Facet")),
-                    keccak256(bytes("1")),
-                    block.chainid,
-                    address(this) // This will be the diamond's address at runtime
-                )
-            );
-    }
-
     /// External Methods ///
 
+    /// @notice Bridges tokens via Unit
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _unitData Data specific to Unit
     function startBridgeTokensViaUnit(
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
@@ -83,9 +62,10 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        onlyAllowSourceToken(_bridgeData, _bridgeData.sendingAssetId)
+        onlyAllowSourceToken(_bridgeData, LibAsset.NULL_ADDRESS) // only allow native asset
         onlyAllowDestinationChain(_bridgeData, 999)
     {
+        _verifySignature(_bridgeData, _unitData);
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -93,6 +73,10 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _unitData);
     }
 
+    /// @notice Performs a swap before bridging via Unit
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _unitData Data specific to Unit
     function swapAndStartBridgeTokensViaUnit(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -105,9 +89,10 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        onlyAllowSourceToken(_bridgeData, _bridgeData.sendingAssetId)
+        onlyAllowSourceToken(_bridgeData, LibAsset.NULL_ADDRESS) // only allow native asset
         onlyAllowDestinationChain(_bridgeData, 999)
     {
+        _verifySignature(_bridgeData, _unitData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -119,6 +104,9 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Internal Methods ///
 
+    /// @dev Contains the business logic for the bridge via Unit
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _unitData Data specific to Unit
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
@@ -139,26 +127,47 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidReceiver();
         }
 
-        // --- EIP-712 signature verification ---
-        // reconstruct the payload that should have been signed by the backend
-        UnitPayload memory payload = UnitPayload({
-            depositAddress: _unitData.depositAddress,
-            sourceChainId: block.chainid,
-            destinationChainId: _bridgeData.destinationChainId,
-            sendingAssetId: _bridgeData.sendingAssetId
-        });
+        // check for signature expiration
+        if (block.timestamp > _unitData.deadline) {
+            revert SignatureExpired();
+        }
 
+        LibAsset.transferNativeAsset(
+            payable(_unitData.depositAddress),
+            _bridgeData.minAmount
+        );
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function _verifySignature(
+        ILiFi.BridgeData memory _bridgeData,
+        UnitData calldata _unitData
+    ) internal {
+        console2.log("verifying signature");
+        console2.logBytes32(UNIT_PAYLOAD_TYPEHASH);
+        console2.logBytes32(_bridgeData.transactionId);
+        console2.log(_bridgeData.minAmount);
+        console2.log(_unitData.depositAddress);
+        console2.log(block.chainid);
+        console2.log(_bridgeData.destinationChainId);
+        console2.log(_bridgeData.sendingAssetId);
+        console2.log(_unitData.deadline);
+        // compute the struct hash according to the EIP-712 standard: https://eips.ethereum.org/EIPS/eip-712
         bytes32 structHash = keccak256(
             abi.encode(
                 UNIT_PAYLOAD_TYPEHASH,
-                payload.depositAddress,
-                payload.sourceChainId,
-                payload.destinationChainId,
-                payload.sendingAssetId
+                _bridgeData.transactionId, // transactionId from payload
+                _bridgeData.minAmount, // minAmount from payload
+                _unitData.depositAddress, // depositAddress from payload
+                block.chainid, // sourceChainId from payload
+                _bridgeData.destinationChainId, // destinationChainId from payload
+                _bridgeData.sendingAssetId, // sendingAssetId from payload
+                _unitData.deadline // deadline from payload
             )
         );
 
-        // Compute the final digest to be signed according to EIP-712: https://eips.ethereum.org/EIPS/eip-712
+        // compute the final digest to be signed according to EIP-712
         bytes32 digest = keccak256(
             abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
         );
@@ -170,12 +179,24 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (recoveredSigner != BACKEND_SIGNER) {
             revert InvalidSignature();
         }
+    }
 
-        LibAsset.transferNativeAsset(
-            payable(_unitData.depositAddress),
-            _bridgeData.minAmount
-        );
-
-        emit LiFiTransferStarted(_bridgeData);
+    /// @notice Returns the EIP-712 domain separator.
+    /// @dev The domain separator is calculated on the fly to ensure that `address(this)`
+    /// always refers to the diamond's address when called via delegatecall.
+    /// @return The EIP-712 domain separator.
+    function _domainSeparator() internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI Unit Facet")),
+                    keccak256(bytes("1")),
+                    block.chainid,
+                    address(this) // This will be the diamond's address at runtime
+                )
+            );
     }
 }

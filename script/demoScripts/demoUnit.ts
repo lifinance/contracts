@@ -300,20 +300,26 @@ async function main() {
 
   const types = {
     UnitPayload: [
+      { name: 'transactionId', type: 'bytes32' },
+      { name: 'minAmount', type: 'uint256' },
       { name: 'depositAddress', type: 'address' },
       { name: 'sourceChainId', type: 'uint256' },
       { name: 'destinationChainId', type: 'uint256' },
       { name: 'sendingAssetId', type: 'address' },
+      { name: 'deadline', type: 'uint256' },
     ],
   } as const
 
   console.log('types', types)
 
   const message = {
+    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    minAmount: amount,
     depositAddress: depositAddress,
     sourceChainId: BigInt(sourceChainId),
     destinationChainId: BigInt(destinationChainId),
     sendingAssetId: zeroAddress, // This is XPL, the native asset on plasma, so its address is zero
+    deadline: BigInt(Date.now() + 1000 * 60 * 60 * 24), // 24 hours from now
   } as const
 
   console.log('message', message)
