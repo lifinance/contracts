@@ -164,24 +164,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     /// Internal Methods ///
 
-    function _getEcoChainId(
-        uint256 _lifiChainId
-    ) private pure returns (uint64) {
-        if (_lifiChainId == LIFI_CHAIN_ID_TRON) {
-            return ECO_CHAIN_ID_TRON;
-        }
-        if (_lifiChainId == LIFI_CHAIN_ID_SOLANA) {
-            return ECO_CHAIN_ID_SOLANA;
-        }
-
-        // Ensure chain ID fits within uint64
-        if (_lifiChainId > type(uint64).max) {
-            revert InvalidConfig();
-        }
-
-        return uint64(_lifiChainId);
-    }
-
     function _buildReward(
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData,
@@ -223,7 +205,17 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             totalAmount
         );
 
-        uint64 destination = _getEcoChainId(_bridgeData.destinationChainId);
+        uint64 destination;
+        if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_TRON) {
+            destination = ECO_CHAIN_ID_TRON;
+        } else if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+            destination = ECO_CHAIN_ID_SOLANA;
+        } else {
+            if (_bridgeData.destinationChainId > type(uint64).max) {
+                revert InvalidConfig();
+            }
+            destination = uint64(_bridgeData.destinationChainId);
+        }
 
         if (!isNative) {
             LibAsset.maxApproveERC20(
@@ -240,7 +232,15 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             false
         );
 
-        _emitEvents(_bridgeData, _ecoData);
+        if (_ecoData.nonEVMReceiver.length > 0) {
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _ecoData.nonEVMReceiver
+            );
+        }
+
+        emit LiFiTransferStarted(_bridgeData);
     }
 
     function _validateEcoData(
@@ -263,9 +263,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
             }
         } else {
-            if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
             if (receiver != _ecoData.receiverAddress)
                 revert InformationMismatch();
+            if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
 
             // If receiver is not NON_EVM_ADDRESS but destination is Solana, reject
             if (isSolanaDestination) {
@@ -324,20 +324,5 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         if (_ecoData.solanaATA != routeReceiver) {
             revert InvalidReceiver();
         }
-    }
-
-    function _emitEvents(
-        ILiFi.BridgeData memory _bridgeData,
-        EcoData calldata _ecoData
-    ) private {
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            emit BridgeToNonEVMChain(
-                _bridgeData.transactionId,
-                _bridgeData.destinationChainId,
-                _ecoData.nonEVMReceiver
-            );
-        }
-
-        emit LiFiTransferStarted(_bridgeData);
     }
 }
