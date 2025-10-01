@@ -919,22 +919,67 @@ export async function registerFacetToDiamond(
     const selectors = await getFacetSelectors(facetName)
     consola.info(`Found ${selectors.length} function selectors`)
 
-    // Check if already registered
-    const isRegistered = await checkFacetRegistration(
-      diamond,
-      facetAddress,
-      tronWeb
-    )
-    if (isRegistered) {
-      consola.success(`${facetName} is already registered!`)
-      return { success: true }
-    }
-
-    // Prepare facetCut
+    // Convert facet address to hex for encoding
     const facetAddressHex = tronWeb.address
       .toHex(facetAddress)
       .replace(/^41/, '0x')
-    const facetCuts = [[facetAddressHex, 0, selectors]]
+
+    // Check each selector and group by action needed
+    const selectorsToAdd = []
+    const selectorsToReplace = []
+    let alreadyRegisteredCount = 0
+
+    for (const selector of selectors)
+      try {
+        const currentFacetAddress = await diamond.facetAddress(selector).call()
+
+        const isZeroAddress =
+          !currentFacetAddress ||
+          currentFacetAddress === 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb' ||
+          currentFacetAddress ===
+            '0x0000000000000000000000000000000000000000' ||
+          currentFacetAddress === ZERO_ADDRESS
+
+        if (isZeroAddress) selectorsToAdd.push(selector)
+        else if (currentFacetAddress === facetAddress) alreadyRegisteredCount++
+        else {
+          selectorsToReplace.push(selector)
+          consola.debug(
+            `Selector ${selector} currently on ${currentFacetAddress}, will replace with ${facetAddress}`
+          )
+        }
+      } catch (error) {
+        consola.debug(
+          `Could not check selector ${selector}, assuming ADD needed`
+        )
+        selectorsToAdd.push(selector)
+      }
+
+    // Build facetCuts array based on what's needed
+    const facetCuts = []
+
+    if (selectorsToAdd.length > 0) {
+      facetCuts.push([facetAddressHex, 0, selectorsToAdd]) // 0 = Add
+      consola.info(`Will ADD ${selectorsToAdd.length} new selectors`)
+    }
+
+    if (selectorsToReplace.length > 0) {
+      facetCuts.push([facetAddressHex, 1, selectorsToReplace]) // 1 = Replace
+      consola.info(
+        `Will REPLACE ${selectorsToReplace.length} existing selectors`
+      )
+    }
+
+    if (alreadyRegisteredCount > 0)
+      consola.info(
+        `${alreadyRegisteredCount} selectors already registered to this facet`
+      )
+
+    // If nothing to do, exit early
+    if (facetCuts.length === 0) {
+      consola.success(`${facetName} is already fully registered!`)
+      return { success: true }
+    }
 
     // Estimate energy
     const estimatedEnergy = await estimateDiamondCutEnergy(
@@ -1369,9 +1414,7 @@ export function parseTroncastFacetsOutput(
     const address = match[1] || ''
     const selectorsStr = match[2]?.trim() || ''
     const selectors = selectorsStr ? selectorsStr.split(/\s+/) : []
-    if (address) 
-      facets.push([address, selectors])
-    
+    if (address) facets.push([address, selectors])
   }
 
   return facets

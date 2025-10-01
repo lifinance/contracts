@@ -52,6 +52,10 @@
       "0x74F353E96B906eC130645E40D7cF336BD935486c": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0xeaa333cfB9261d600DBDEa82C3c99cB558e9C016": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -64,6 +68,7 @@
       "Patcher": "",
       "Permit2Proxy": "0xF2A4a6d34289Dd1eb7919E4354bB1a29720aa4FE",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x0E6a7ac318453c33f90cFcC75ee5D8593Cc6e2D7",
       "TokenWrapper": "0xbBdf9FfB0Fe437280b14176a7EFC70c93896d9dd"
