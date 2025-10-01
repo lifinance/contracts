@@ -258,53 +258,42 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
             if (isSolanaDestination && _ecoData.solanaATA == bytes32(0))
                 revert InvalidConfig();
-        } else {
-            if (receiver != _ecoData.receiverAddress)
-                revert InformationMismatch();
-        }
 
-        _validateRouteReceiver(_bridgeData, _ecoData, isSolanaDestination);
-    }
-
-    function _validateRouteReceiver(
-        ILiFi.BridgeData memory _bridgeData,
-        EcoData calldata _ecoData,
-        bool isSolanaDestination
-    ) private pure {
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (isSolanaDestination) {
                 _validateSolanaReceiver(_ecoData);
             }
-            return;
-        }
+        } else {
+            if (receiver != _ecoData.receiverAddress)
+                revert InformationMismatch();
 
-        // If receiver is not NON_EVM_ADDRESS but destination is Solana, reject
-        if (isSolanaDestination) {
-            revert InvalidReceiver();
-        }
+            // If receiver is not NON_EVM_ADDRESS but destination is Solana, reject
+            if (isSolanaDestination) {
+                revert InvalidReceiver();
+            }
 
-        // For EVM-compatible chains (includes TRON), decode the Route struct to get the last call
-        // Note: TRON is considered EVM-compatible here as it uses the same Route struct encoding
-        Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
+            // For EVM-compatible chains (includes TRON), decode the Route struct to get the last call
+            // Note: TRON is considered EVM-compatible here as it uses the same Route struct encoding
+            Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
 
-        // The last call should be the transfer to the receiver
-        // For ERC20 transfer, the calldata follows the pattern: transfer(address,uint256)
-        // We need to skip the function selector (4 bytes) and decode the address parameter
-        bytes memory lastCallData = route
-            .calls[route.calls.length - 1]
-            .callData;
+            // The last call should be the transfer to the receiver
+            // For ERC20 transfer, the calldata follows the pattern: transfer(address,uint256)
+            // We need to skip the function selector (4 bytes) and decode the address parameter
+            bytes memory lastCallData = route
+                .calls[route.calls.length - 1]
+                .callData;
 
-        // Extract the receiver address from the calldata
-        // Skip the 4-byte function selector and decode the address (first parameter)
-        // The address parameter starts at byte 4 (after the selector)
-        address receiver;
-        assembly {
-            // Load the address from offset 36 (32 bytes length + 4 bytes selector)
-            receiver := mload(add(lastCallData, 36))
-        }
+            // Extract the receiver address from the calldata
+            // Skip the 4-byte function selector and decode the address (first parameter)
+            // The address parameter starts at byte 4 (after the selector)
+            address routeReceiver;
+            assembly {
+                // Load the address from offset 36 (32 bytes length + 4 bytes selector)
+                routeReceiver := mload(add(lastCallData, 36))
+            }
 
-        if (receiver != _bridgeData.receiver) {
-            revert InvalidReceiver();
+            if (routeReceiver != _bridgeData.receiver) {
+                revert InvalidReceiver();
+            }
         }
     }
 
