@@ -137,12 +137,12 @@ contract UnitFacet is
         UnitData calldata _unitData
     ) internal {
         if (block.chainid == 1) {
-            // deposit from ethereum mainnet to hyperliquid
+            // ethereum mainnet
             if (_bridgeData.minAmount < 0.05 ether) {
                 revert InvalidAmount();
             }
         } else if (block.chainid == 9745) {
-            // deposit from plasma to hyperliquid
+            // plasma chain
             if (_bridgeData.minAmount < 15 ether) {
                 revert InvalidAmount();
             }

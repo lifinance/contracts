@@ -238,7 +238,6 @@ async function main() {
   )
   const responseJson = await response.json()
   const depositAddress: string = responseJson.address || ''
-  console.log('Response JSON:', responseJson)
   console.log('Deposit address:', depositAddress)
 
   const result = await verifyDepositAddressSignatures(
@@ -294,8 +293,6 @@ async function main() {
     verifyingContract: lifiDiamondContract?.address,
   } as const
 
-  console.log('domain', domain)
-
   const types = {
     UnitPayload: [
       { name: 'transactionId', type: 'bytes32' },
@@ -307,11 +304,8 @@ async function main() {
     ],
   } as const
 
-  console.log('types', types)
-
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600) // 1 hour from now
   const transactionId = `0x${randomBytes(32).toString('hex')}`
-  console.log('deadline', deadline)
   const message = {
     transactionId: transactionId,
     minAmount: amount,
@@ -320,8 +314,6 @@ async function main() {
     sendingAssetId: zeroAddress, // This is XPL, the native asset on plasma, so its address is zero
     deadline: deadline, // 1 hour from now
   } as const
-
-  console.log('message', message)
 
   // on staging, we use dev wallet account to sign the data
   // the facet BACKEND_SIGNER in this case has to be the same as the wallet account address

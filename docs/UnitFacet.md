@@ -49,17 +49,13 @@ The EIP-712 domain separator uses:
 - ChainId: Current blockchain chain ID
 - VerifyingContract: Diamond contract address
 
-## Chain-Specific Requirements
+## Minimum Amounts
 
 ### Ethereum Mainnet (Chain ID: 1)
 - Minimum amount: 0.05 ETH
-- Supported asset: Native ETH only
-- Destination: Hyperliquid
 
 ### Plasma Chain (Chain ID: 9745)
 - Minimum amount: 15 XPL
-- Supported asset: Native XPL only
-- Destination: Hyperliquid
 
 ## Error Conditions
 
