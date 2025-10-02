@@ -8,7 +8,7 @@ import { UnitFacet } from "lifi/Facets/UnitFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InvalidSendingToken, InvalidAmount, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub UnitFacet Contract
 contract TestUnitFacet is UnitFacet {
@@ -31,7 +31,8 @@ contract UnitFacetTest is TestBaseFacet {
     uint256 internal backendSignerPrivateKey =
         0x1234567890123456789012345678901234567890123456789012345678901234;
     address internal backendSignerAddress = vm.addr(backendSignerPrivateKey);
-    address internal randomDepositAddress = 0xCE50D8e79e047534627B3Bc38DE747426Ec63927;
+    address internal randomDepositAddress =
+        0xCE50D8e79e047534627B3Bc38DE747426Ec63927;
 
     // unit node public key
     bytes internal unitNodePublicKey =
@@ -42,6 +43,10 @@ contract UnitFacetTest is TestBaseFacet {
     // field node public key
     bytes internal fieldNodePublicKey =
         hex"04ae2ab20787f816ea5d13f36c4c4f7e196e29e867086f3ce818abb73077a237f841b33ada5be71b83f4af29f333dedc5411ca4016bd52ab657db2896ef374ce99";
+
+    // Constants for EIP-712
+    bytes32 internal constant UNIT_PAYLOAD_TYPEHASH =
+        0x0f323247869e99767f8ae64818f8e3049ae421f0e0fc249a40a1179278dc1648;
 
     struct UnitPayload {
         bytes32 transactionId;
@@ -90,30 +95,17 @@ contract UnitFacetTest is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "unit";
-        bridgeData.destinationChainId = 999;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
         bridgeData.sendingAssetId = LibAsset.NULL_ADDRESS;
         bridgeData.minAmount = 0.05 ether; // minimum amount is 0.05 ETH (5e16 wei) mentioned in https://docs.hyperunit.xyz/developers/api/generate-address
 
-        // deposit address generated with GET request to https://api.hyperunit.xyz/gen/ethereum/hyperliquid/eth/0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62
-
-        // --- Generate Valid EIP-712 Signature Dynamically ---
-
-        // 1. Re-calculate DOMAIN_SEPARATOR
-        bytes32 domainSeparator = keccak256(
-            abi.encode(
-                keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                ),
-                keccak256(bytes("LI.FI Unit Facet")),
-                keccak256(bytes("1")),
-                block.chainid,
-                address(unitFacet) // The verifying contract is the diamond
-            )
-        );
-
         bridgeData.receiver = randomDepositAddress;
 
-        validUnitData = _generateValidUnitData(randomDepositAddress, bridgeData, block.chainid);
+        validUnitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            block.chainid
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -151,7 +143,9 @@ contract UnitFacetTest is TestBaseFacet {
         // facet does not support bridging ERC20 tokens
     }
 
-    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public virtual override {
+    function testBase_CanBridgeTokens_fuzzed(
+        uint256 amount
+    ) public virtual override {
         // facet does not support bridging ERC20 tokens
     }
 
@@ -170,9 +164,9 @@ contract UnitFacetTest is TestBaseFacet {
 
         vm.expectRevert(abi.encodeWithSelector(InvalidSendingToken.selector));
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
-                bridgeData,
-                validUnitData
-            );
+            bridgeData,
+            validUnitData
+        );
 
         vm.stopPrank();
     }
@@ -188,11 +182,9 @@ contract UnitFacetTest is TestBaseFacet {
         usdc.approve(address(unitFacet), bridgeData.minAmount);
 
         vm.expectRevert(abi.encodeWithSelector(InvalidSendingToken.selector));
-        unitFacet.swapAndStartBridgeTokensViaUnit{ value: bridgeData.minAmount }(
-                bridgeData,
-                swapData,
-                validUnitData
-            );
+        unitFacet.swapAndStartBridgeTokensViaUnit{
+            value: bridgeData.minAmount
+        }(bridgeData, swapData, validUnitData);
 
         vm.stopPrank();
     }
@@ -273,7 +265,11 @@ contract UnitFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        UnitFacet.UnitData memory unitData = _generateValidUnitData(randomDepositAddress, bridgeData, 1);
+        validUnitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            1
+        );
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
@@ -281,6 +277,25 @@ contract UnitFacetTest is TestBaseFacet {
 
     function testBase_Revert_CallerHasInsufficientFunds() public override {
         // the startBridgeTokensViaUnit can only be used for native tokens, therefore this test case is not applicable
+    }
+
+    function testBase_Revert_SwapAndBridgeWithInvalidSwapData()
+        public
+        override
+    {
+        // since the facets accesses the swapData parameter already before trying to execute the swap, we need to override the expected error message
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        delete swapData;
+
+        vm.expectRevert();
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
     }
 
     function test_CanSwapAndBridgeNativeTokens_fuzzed(uint256 amount) public {
@@ -341,6 +356,12 @@ contract UnitFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
+        validUnitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            1
+        );
+
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
     }
@@ -352,8 +373,12 @@ contract UnitFacetTest is TestBaseFacet {
         // Set amount below minimum for plasma (0.05 ETH)
         bridgeData.minAmount = 0.04 ether; // Below 0.05 ETH minimum
         // Regenerate signature for plasma chain
-        UnitFacet.UnitData memory unitData = _generateValidUnitData(randomDepositAddress, bridgeData, 1);
-        
+        UnitFacet.UnitData memory unitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            1
+        );
+
         vm.expectRevert(abi.encodeWithSelector(InvalidAmount.selector));
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
@@ -364,8 +389,12 @@ contract UnitFacetTest is TestBaseFacet {
         // Set amount below minimum for plasma (15 XPL)
         bridgeData.minAmount = 10 ether; // Below 15 XPL minimum
         // Regenerate signature for plasma chain
-        unitData = _generateValidUnitData(randomDepositAddress, bridgeData, 9745);
-        
+        unitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            9745
+        );
+
         vm.expectRevert(abi.encodeWithSelector(InvalidAmount.selector));
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
@@ -379,11 +408,12 @@ contract UnitFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // Create unit data with different deposit address than receiver
-        address differentDepositAddress = address(0x1234567890123456789012345678901234567890);
-        bridgeData.receiver = address(0x9876543210987654321098765432109876543210); // Different from deposit address
+        bridgeData.receiver = address(
+            0x9876543210987654321098765432109876543210
+        ); // Different from deposit address
 
         UnitFacet.UnitData memory invalidUnitData = UnitFacet.UnitData({
-            depositAddress: differentDepositAddress,
+            depositAddress: randomDepositAddress,
             signature: validUnitData.signature, // Using existing signature (will fail receiver check first)
             deadline: validUnitData.deadline
         });
@@ -402,51 +432,18 @@ contract UnitFacetTest is TestBaseFacet {
 
         // Create a signature with a different private key (wrong signer)
         uint256 wrongPrivateKey = 0x9876543210987654321098765432109876543210987654321098765432109876;
-        
-        // Generate the same payload but sign it with wrong private key
-        bytes32 domainSeparator = keccak256(
-            abi.encode(
-                keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                ),
-                keccak256(bytes("LI.FI Unit Facet")),
-                keccak256(bytes("1")),
-                block.chainid,
-                address(unitFacet)
-            )
+
+        UnitPayload memory payload = _createUnitPayload(
+            bridgeData,
+            validUnitData.depositAddress,
+            block.chainid,
+            validUnitData.deadline
         );
 
-        UnitPayload memory payload = UnitPayload({
-            transactionId: bridgeData.transactionId,
-            minAmount: bridgeData.minAmount,
-            depositAddress: validUnitData.depositAddress,
-            sourceChainId: block.chainid,
-            destinationChainId: bridgeData.destinationChainId,
-            sendingAssetId: bridgeData.sendingAssetId,
-            deadline: validUnitData.deadline
-        });
-
-        bytes32 unitPayloadTypehash = 0x0f323247869e99767f8ae64818f8e3049ae421f0e0fc249a40a1179278dc1648;
-        bytes32 structHash = keccak256(
-            abi.encode(
-                unitPayloadTypehash,
-                payload.transactionId,
-                payload.minAmount,
-                payload.depositAddress,
-                payload.sourceChainId,
-                payload.destinationChainId,
-                payload.sendingAssetId,
-                payload.deadline
-            )
-        );
-
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", domainSeparator, structHash)
-        );
-
-        // Sign with wrong private key
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, digest);
-        bytes memory wrongSignature = abi.encodePacked(r, s, v);
+        bytes32 domainSeparator = _buildDomainSeparator(block.chainid);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory wrongSignature = _signDigest(wrongPrivateKey, digest);
 
         UnitFacet.UnitData memory invalidUnitData = UnitFacet.UnitData({
             depositAddress: validUnitData.depositAddress,
@@ -454,7 +451,9 @@ contract UnitFacetTest is TestBaseFacet {
             deadline: validUnitData.deadline
         });
 
-        vm.expectRevert(abi.encodeWithSelector(UnitFacet.InvalidSignature.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(UnitFacet.InvalidSignature.selector)
+        );
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             invalidUnitData
@@ -463,69 +462,219 @@ contract UnitFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_SignatureExpired() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create unit data with expired deadline
+        uint256 expiredDeadline = block.timestamp - 1 hours; // Past deadline
+
+        UnitPayload memory payload = _createUnitPayload(
+            bridgeData,
+            randomDepositAddress,
+            block.chainid,
+            expiredDeadline
+        );
+
+        bytes32 domainSeparator = _buildDomainSeparator(block.chainid);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
+
+        UnitFacet.UnitData memory expiredUnitData = UnitFacet.UnitData({
+            depositAddress: randomDepositAddress,
+            signature: signature,
+            deadline: expiredDeadline
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UnitFacet.SignatureExpired.selector)
+        );
+        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
+            bridgeData,
+            expiredUnitData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapOutputNotNative() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // Create swap data that outputs to USDC (non-native token) instead of ETH
+        uint256 daiAmount = 300 * 10 ** dai.decimals();
+
+        // Swap DAI -> USDC (this should fail because final output is not native)
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+
+        // Calculate expected USDC output
+        uint256[] memory amounts = uniswap.getAmountsOut(daiAmount, path);
+        uint256 amountOut = amounts[1];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC, // Non-native token - should cause revert
+                fromAmount: daiAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    daiAmount,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // Set bridge data to expect USDC output (but this will fail validation)
+        bridgeData.minAmount = amountOut;
+
+        // approval
+        dai.approve(_facetTestContractAddress, daiAmount);
+
+        // Generate valid unit data
+        validUnitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            1
+        );
+
+        // Should revert with InvalidCallData because final swap output is not native
+        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
+        unitFacet.swapAndStartBridgeTokensViaUnit(
+            bridgeData,
+            swapData,
+            validUnitData
+        );
+
+        vm.stopPrank();
+    }
+
+    // ============ EIP-712 Helper Functions ============
+
+    /// @dev Builds the EIP-712 domain separator for the Unit facet
+    /// @param _chainId The chain ID to use in the domain separator
+    /// @return The computed domain separator hash
+    function _buildDomainSeparator(
+        uint256 _chainId
+    ) internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI Unit Facet")),
+                    keccak256(bytes("1")),
+                    _chainId,
+                    address(unitFacet)
+                )
+            );
+    }
+
+    /// @dev Creates a UnitPayload struct from bridge data and additional parameters
+    /// @param _bridgeData The bridge data containing transaction details
+    /// @param _depositAddress The deposit address for the unit transaction
+    /// @param _chainId The source chain ID
+    /// @param _deadline The deadline for the transaction
+    /// @return The constructed UnitPayload struct
+    function _createUnitPayload(
+        ILiFi.BridgeData memory _bridgeData,
+        address _depositAddress,
+        uint256 _chainId,
+        uint256 _deadline
+    ) internal pure returns (UnitPayload memory) {
+        return
+            UnitPayload({
+                transactionId: _bridgeData.transactionId,
+                minAmount: _bridgeData.minAmount,
+                depositAddress: _depositAddress,
+                sourceChainId: _chainId,
+                destinationChainId: _bridgeData.destinationChainId,
+                sendingAssetId: _bridgeData.sendingAssetId,
+                deadline: _deadline
+            });
+    }
+
+    /// @dev Builds the struct hash for the UnitPayload
+    /// @param _payload The UnitPayload to hash
+    /// @return The computed struct hash
+    function _buildStructHash(
+        UnitPayload memory _payload
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    UNIT_PAYLOAD_TYPEHASH,
+                    _payload.transactionId,
+                    _payload.minAmount,
+                    _payload.depositAddress,
+                    _payload.sourceChainId,
+                    _payload.destinationChainId,
+                    _payload.sendingAssetId,
+                    _payload.deadline
+                )
+            );
+    }
+
+    /// @dev Builds the final EIP-712 digest from domain separator and struct hash
+    /// @param _domainSeparator The domain separator hash
+    /// @param _structHash The struct hash
+    /// @return The computed digest ready for signing
+    function _buildDigest(
+        bytes32 _domainSeparator,
+        bytes32 _structHash
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked("\x19\x01", _domainSeparator, _structHash)
+            );
+    }
+
+    /// @dev Signs a digest with the given private key
+    /// @param _privateKey The private key to sign with
+    /// @param _digest The digest to sign
+    /// @return The signature bytes (r, s, v format)
+    function _signDigest(
+        uint256 _privateKey,
+        bytes32 _digest
+    ) internal pure returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, _digest);
+        return abi.encodePacked(r, s, v);
+    }
+
     /// @dev Helper function to generate valid unit data for a given chain and bridge data.
+    /// @param _depositAddress The deposit address for the unit transaction
+    /// @param _currentBridgeData The bridge data containing transaction details
+    /// @param _chainId The source chain ID
+    /// @return The generated valid unit data
     function _generateValidUnitData(
         address _depositAddress,
         ILiFi.BridgeData memory _currentBridgeData,
         uint256 _chainId
     ) internal view returns (UnitFacet.UnitData memory) {
-        bytes32 domainSeparator = keccak256(
-            abi.encode(
-                keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                ),
-                keccak256(bytes("LI.FI Unit Facet")),
-                keccak256(bytes("1")),
-                _chainId,
-                address(unitFacet)
-            )
-        );
-
         uint256 deadline = block.timestamp + 0.1 hours;
-        UnitPayload memory payload = UnitPayload({
-            transactionId: _currentBridgeData.transactionId,
-            minAmount: _currentBridgeData.minAmount,
-            depositAddress: _depositAddress,
-            sourceChainId: _chainId,
-            destinationChainId: _currentBridgeData.destinationChainId,
-            sendingAssetId: _currentBridgeData.sendingAssetId,
-            deadline: deadline
-        });
 
-        console2.log("payload data in the test");
-        console2.logBytes32(payload.transactionId);
-        console2.log(payload.minAmount);
-        console2.log(payload.depositAddress);
-        console2.log(payload.sourceChainId);
-        console2.log(payload.destinationChainId);
-        console2.log(payload.sendingAssetId);
-        console2.log(deadline);
-
-        // keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
-        bytes32 unitPayloadTypehash = 0x0f323247869e99767f8ae64818f8e3049ae421f0e0fc249a40a1179278dc1648;
-
-        bytes32 structHash = keccak256(
-            abi.encode(
-                unitPayloadTypehash,
-                payload.transactionId,
-                payload.minAmount,
-                payload.depositAddress,
-                payload.sourceChainId,
-                payload.destinationChainId,
-                payload.sendingAssetId,
-                payload.deadline
-            )
+        UnitPayload memory payload = _createUnitPayload(
+            _currentBridgeData,
+            _depositAddress,
+            _chainId,
+            deadline
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", domainSeparator, structHash)
-        );
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            backendSignerPrivateKey,
-            digest
-        );
-        bytes memory signature = abi.encodePacked(r, s, v);
+        bytes32 domainSeparator = _buildDomainSeparator(_chainId);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
 
         return
             UnitFacet.UnitData({

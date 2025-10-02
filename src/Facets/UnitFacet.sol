@@ -8,13 +8,20 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
+import { InvalidAmount, InvalidReceiver, InvalidCallData } from "../Errors/GenericErrors.sol";
+
 /// @title UnitFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Unit
 /// @custom:version 1.0.0
-contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract UnitFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
         0x0f323247869e99767f8ae64818f8e3049ae421f0e0fc249a40a1179278dc1648;
@@ -63,7 +70,7 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         onlyAllowSourceToken(_bridgeData, LibAsset.NULL_ADDRESS) // only allow native asset
-        onlyAllowDestinationChain(_bridgeData, 999)
+        onlyAllowDestinationChain(_bridgeData, LIFI_CHAIN_ID_HYPERCORE)
     {
         _verifySignature(_bridgeData, _unitData);
         LibAsset.depositAsset(
@@ -90,8 +97,9 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowSourceToken(_bridgeData, LibAsset.NULL_ADDRESS) // only allow native asset
-        onlyAllowDestinationChain(_bridgeData, 999)
+        onlyAllowDestinationChain(_bridgeData, LIFI_CHAIN_ID_HYPERCORE)
     {
+        _validateSwapOutputIsNative(_swapData);
         _verifySignature(_bridgeData, _unitData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -103,6 +111,20 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Internal Methods ///
+
+    /// @dev Validates that the final swap output is native asset
+    /// @param _swapData Array of swap data
+    function _validateSwapOutputIsNative(
+        LibSwap.SwapData[] calldata _swapData
+    ) internal pure {
+        if (
+            !LibAsset.isNativeAsset(
+                _swapData[_swapData.length - 1].receivingAssetId
+            )
+        ) {
+            revert InvalidCallData();
+        }
+    }
 
     /// @dev Contains the business logic for the bridge via Unit
     /// @param _bridgeData The core information needed for bridging
@@ -140,19 +162,13 @@ contract UnitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
+    /// @dev Verifies the signature of the UnitPayload
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _unitData Data specific to Unit
     function _verifySignature(
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
     ) internal {
-        console2.log("verifying signature");
-        console2.logBytes32(UNIT_PAYLOAD_TYPEHASH);
-        console2.logBytes32(_bridgeData.transactionId);
-        console2.log(_bridgeData.minAmount);
-        console2.log(_unitData.depositAddress);
-        console2.log(block.chainid);
-        console2.log(_bridgeData.destinationChainId);
-        console2.log(_bridgeData.sendingAssetId);
-        console2.log(_unitData.deadline);
         // compute the struct hash according to the EIP-712 standard: https://eips.ethereum.org/EIPS/eip-712
         bytes32 structHash = keccak256(
             abi.encode(

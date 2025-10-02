@@ -18,4 +18,5 @@ contract LiFiData {
     uint256 internal constant LIFI_CHAIN_ID_SOLANA = 1151111081099710;
     uint256 internal constant LIFI_CHAIN_ID_SUI = 9270000000000000;
     uint256 internal constant LIFI_CHAIN_ID_TRON = 1885080386571452;
+    uint256 internal constant LIFI_CHAIN_ID_HYPERCORE = 1337;
 }
