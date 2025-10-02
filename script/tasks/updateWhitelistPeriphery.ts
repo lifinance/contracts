@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-// TODOS:
-// - replace hardcoded periphery contracts with the ones from config/global.json.autoWhitelistPeripheryContracts (requires healthcheck update)
 import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
