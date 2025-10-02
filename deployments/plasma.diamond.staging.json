@@ -80,6 +80,10 @@
       "0xBDDaFA1B9B250dB87A4d50f5082e7a60b0B16941": {
         "Name": "UnitFacet",
         "Version": "1.0.0"
+      },
+      "0xafb3133Df9952F31008a5fC54Dcae2b9A4B5Ad3b": {
+        "Name": "UnitFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

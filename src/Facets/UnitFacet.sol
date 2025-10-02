@@ -24,7 +24,7 @@ contract UnitFacet is
 {
     // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
-        0xc39b806ebda950382d240083ab59707cb986a2b13c2adcdd5dca5252ff247dbc;
+        0xe08ec0e9d28855df976cf9018cf2d505eaa58b6ebdbf14490f48f2d4c4c13cd3;
     /// @notice The address of the backend signer that is authorized to sign the UnitPayload
     address internal immutable BACKEND_SIGNER;
 

@@ -45,8 +45,10 @@ contract UnitFacetTest is TestBaseFacet {
         hex"04ae2ab20787f816ea5d13f36c4c4f7e196e29e867086f3ce818abb73077a237f841b33ada5be71b83f4af29f333dedc5411ca4016bd52ab657db2896ef374ce99";
 
     // Constants for EIP-712
+    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
+    // this is the same as the typehash in the UnitFacet contract
     bytes32 internal constant UNIT_PAYLOAD_TYPEHASH =
-        0xc39b806ebda950382d240083ab59707cb986a2b13c2adcdd5dca5252ff247dbc;
+        0xe08ec0e9d28855df976cf9018cf2d505eaa58b6ebdbf14490f48f2d4c4c13cd3;
 
     struct UnitPayload {
         bytes32 transactionId;
@@ -581,7 +583,6 @@ contract UnitFacetTest is TestBaseFacet {
     /// @dev Creates a UnitPayload struct from bridge data and additional parameters
     /// @param _bridgeData The bridge data containing transaction details
     /// @param _depositAddress The deposit address for the unit transaction
-    /// @param _chainId The source chain ID
     /// @param _deadline The deadline for the transaction
     /// @return The constructed UnitPayload struct
     function _createUnitPayload(

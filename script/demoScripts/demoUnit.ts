@@ -15,8 +15,7 @@ import {
 } from './utils/demoScriptHelpers'
 
 /// ==== SUCCESS TXs ====
-// Bridge 15 XPL from plasma to hyperliquid (deposit flow): https://plasmascan.to/tx/0xd187c12370791a09a37900d159d1e591f81ab5dee1fb7d01a8f0f20a63f0516d
-// for withdrawal flow the tx is gasless and it takes USDC or USDT from hyperliquid. So in order to make withdrawal you need to have deposited USDC or USDT to hyperliquid first
+// Bridge 18 XPL from plasma to hyperliquid (deposit flow): 0xfc90e4daf2587b824455fd3a564605c9781a602fe3b745ae74b1f8ff65473e99
 
 config()
 
@@ -271,14 +270,14 @@ async function main() {
   // IMPORTANT:
   // the minimum amount for plasma deposit is 15 XPL, if you deposit less than than it will result lost of funds
   // the minimum amount for ethereum mainnet deposit is 0.05 ETH, if you deposit less than than it will result lost of funds
-  const amount = 18000000000000000000 // 18 * 1e18, 18 XPL, minimum amount is 15 XPL but we deposit more because there is a fee of 1,2 XPL and minimum amount for withdrawal is 15 XPL
+  const amount = 18000000000000000000n // 18 * 1e18, 18 XPL, minimum amount is 15 XPL but we deposit more because there is a fee of 1,2 XPL and minimum amount for withdrawal is 15 XPL
 
   console.info(
     `Bridge ${amount} ${asset} from ${srcChain} --> ${destinationChain}`
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
-  await ensureBalance(zeroAddress, signerAddress, BigInt(amount), publicClient)
+  await ensureBalance(zeroAddress, signerAddress, amount, publicClient)
 
   // === Backend re-signing ===
 
@@ -311,7 +310,7 @@ async function main() {
 
   console.log('types', types)
 
-  const deadline = BigInt(Date.now() + 1000 * 60 * 1)
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600) // 1 hour from now
   const transactionId = `0x${randomBytes(32).toString('hex')}`
   console.log('deadline', deadline)
   const message = {
@@ -325,7 +324,8 @@ async function main() {
 
   console.log('message', message)
 
-  // on staging, we use dev private key to sign the data
+  // on staging, we use dev wallet account to sign the data
+  // the facet BACKEND_SIGNER in this case has to be the same as the wallet account address
   const backendSignature = await walletAccount.signTypedData({
     domain,
     types,
@@ -352,7 +352,7 @@ async function main() {
   const unitData: UnitFacet.UnitDataStruct = {
     depositAddress: depositAddress,
     signature: backendSignature,
-    deadline: deadline, // 24 hours from now
+    deadline: deadline,
   }
 
   // === Start bridging ===
