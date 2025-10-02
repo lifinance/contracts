@@ -360,7 +360,7 @@ async function main() {
     () =>
       (lifiDiamondContract as any).write.startBridgeTokensViaUnit(
         [bridgeData, unitData],
-        { value: amount.toString() }
+        { value: amount }
       ),
     'Starting bridge tokens via Unit',
     publicClient,

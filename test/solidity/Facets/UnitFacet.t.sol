@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
@@ -7,8 +7,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { UnitFacet } from "lifi/Facets/UnitFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InvalidSendingToken, InvalidAmount, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
-import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { InvalidSendingToken, InvalidAmount, InvalidReceiver, InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub UnitFacet Contract
 contract TestUnitFacet is UnitFacet {
@@ -134,6 +133,11 @@ contract UnitFacetTest is TestBaseFacet {
                 validUnitData
             );
         }
+    }
+
+    function testRevert_ConstructorWithZeroBackendSigner() public {
+        vm.expectRevert(abi.encodeWithSelector(InvalidConfig.selector));
+        new TestUnitFacet(address(0));
     }
 
     function test_CanDepositNativeTokens() public {

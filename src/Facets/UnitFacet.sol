@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ECDSA } from "solady/utils/ECDSA.sol";
@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidAmount, InvalidReceiver, InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver, InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title UnitFacet
 /// @author LI.FI (https://li.fi)
@@ -50,6 +50,9 @@ contract UnitFacet is
     /// @notice Initializes the UnitFacet contract
     /// @param _backendSigner The address of the backend signer
     constructor(address _backendSigner) {
+        if (_backendSigner == address(0)) {
+            revert InvalidConfig();
+        }
         BACKEND_SIGNER = _backendSigner;
     }
 

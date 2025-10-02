@@ -1,17 +1,16 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { UnitFacet } from "lifi/Facets/UnitFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     struct Config {
-      uint256 a;
-      bool b;
-      address c;
+        uint256 a;
+        bool b;
+        address c;
     }
 
     function run()

@@ -22,7 +22,7 @@ graph LR;
   - Requires EIP-712 signature verification
   - Only accepts native tokens (ETH/XPL)
   - Only bridges to Hyperliquid (LIFI_CHAIN_ID_HYPERCORE)
-- `swapAndStartBridgeTokensViaUnit(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, unitData memory _unitData)`
+- `swapAndStartBridgeTokensViaUnit(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, UnitData memory _unitData)`
   - Performs swap(s) to native tokens before bridging using Unit protocol
   - Final swap output must be native tokens
   - Requires EIP-712 signature verification
@@ -127,18 +127,18 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 
-### Cross Only
+### Cross Only (Ethereum to Hyperliquid)
 
-To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
+To bridge 0.1 ETH from Ethereum to Hyperliquid:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=unit&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=100000000000000000&fromToken=ETH&toChain=HYPERCORE&toToken=ETH&allowBridges=unit&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
-### Swap & Cross
+### Swap & Cross (Ethereum to Hyperliquid)
 
-To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
+To swap USDC to ETH and bridge to Hyperliquid:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=unit&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=100000000&fromToken=USDC&toChain=HYPERCORE&toToken=ETH&allowBridges=unit&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
