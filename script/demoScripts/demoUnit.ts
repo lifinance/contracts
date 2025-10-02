@@ -230,7 +230,7 @@ async function main() {
   const asset = 'xpl'
   const destinationChain = 'hyperliquid'
   const destinationAddress = '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
-  const destinationChainId = 999 // hyperevm same as hyperliquid
+  const destinationChainId = 1337 // hypercore chain (same as hyperliquid)
   const sourceChainForRequest =
     (srcChain as string) === 'mainnet' ? 'ethereum' : srcChain
   const response = await fetch(
@@ -303,7 +303,6 @@ async function main() {
       { name: 'transactionId', type: 'bytes32' },
       { name: 'minAmount', type: 'uint256' },
       { name: 'depositAddress', type: 'address' },
-      { name: 'sourceChainId', type: 'uint256' },
       { name: 'destinationChainId', type: 'uint256' },
       { name: 'sendingAssetId', type: 'address' },
       { name: 'deadline', type: 'uint256' },
@@ -312,14 +311,16 @@ async function main() {
 
   console.log('types', types)
 
+  const deadline = BigInt(Date.now() + 1000 * 60 * 1)
+  const transactionId = `0x${randomBytes(32).toString('hex')}`
+  console.log('deadline', deadline)
   const message = {
-    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    transactionId: transactionId,
     minAmount: amount,
     depositAddress: depositAddress,
-    sourceChainId: BigInt(sourceChainId),
     destinationChainId: BigInt(destinationChainId),
     sendingAssetId: zeroAddress, // This is XPL, the native asset on plasma, so its address is zero
-    deadline: BigInt(Date.now() + 1000 * 60 * 60 * 24), // 24 hours from now
+    deadline: deadline, // 1 hour from now
   } as const
 
   console.log('message', message)
@@ -336,7 +337,7 @@ async function main() {
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
-    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    transactionId: transactionId,
     bridge: 'unit',
     integrator: 'ACME Devs',
     referrer: zeroAddress,
@@ -351,6 +352,7 @@ async function main() {
   const unitData: UnitFacet.UnitDataStruct = {
     depositAddress: depositAddress,
     signature: backendSignature,
+    deadline: deadline, // 24 hours from now
   }
 
   // === Start bridging ===

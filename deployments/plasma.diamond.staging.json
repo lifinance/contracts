@@ -66,6 +66,18 @@
         "Version": "1.0.0"
       },
       "0x5c4A42947742de1F8Fe998f440F7b3d2bF28b4B6": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x7b6FF216523F3ffbaA7FAC7C5158B0ef8ba7Da84": {
+        "Name": "UnitFacet",
+        "Version": "1.0.0"
+      },
+      "0x4DA5650fBbbf8dd678B243F91a827205e3703802": {
+        "Name": "UnitFacet",
+        "Version": "1.0.0"
+      },
+      "0xBDDaFA1B9B250dB87A4d50f5082e7a60b0B16941": {
         "Name": "UnitFacet",
         "Version": "1.0.0"
       }

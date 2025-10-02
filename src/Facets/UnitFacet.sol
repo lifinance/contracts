@@ -22,9 +22,9 @@ contract UnitFacet is
     Validatable,
     LiFiData
 {
-    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 sourceChainId,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
+    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
-        0x0f323247869e99767f8ae64818f8e3049ae421f0e0fc249a40a1179278dc1648;
+        0xc39b806ebda950382d240083ab59707cb986a2b13c2adcdd5dca5252ff247dbc;
     /// @notice The address of the backend signer that is authorized to sign the UnitPayload
     address internal immutable BACKEND_SIGNER;
 
@@ -176,7 +176,6 @@ contract UnitFacet is
                 _bridgeData.transactionId, // transactionId from payload
                 _bridgeData.minAmount, // minAmount from payload
                 _unitData.depositAddress, // depositAddress from payload
-                block.chainid, // sourceChainId from payload
                 _bridgeData.destinationChainId, // destinationChainId from payload
                 _bridgeData.sendingAssetId, // sendingAssetId from payload
                 _unitData.deadline // deadline from payload

@@ -46,13 +46,12 @@ contract UnitFacetTest is TestBaseFacet {
 
     // Constants for EIP-712
     bytes32 internal constant UNIT_PAYLOAD_TYPEHASH =
-        0x0f323247869e99767f8ae64818f8e3049ae421f0e0fc249a40a1179278dc1648;
+        0xc39b806ebda950382d240083ab59707cb986a2b13c2adcdd5dca5252ff247dbc;
 
     struct UnitPayload {
         bytes32 transactionId;
         uint256 minAmount;
         address depositAddress;
-        uint256 sourceChainId;
         uint256 destinationChainId;
         address sendingAssetId;
         uint256 deadline;
@@ -436,7 +435,6 @@ contract UnitFacetTest is TestBaseFacet {
         UnitPayload memory payload = _createUnitPayload(
             bridgeData,
             validUnitData.depositAddress,
-            block.chainid,
             validUnitData.deadline
         );
 
@@ -471,7 +469,6 @@ contract UnitFacetTest is TestBaseFacet {
         UnitPayload memory payload = _createUnitPayload(
             bridgeData,
             randomDepositAddress,
-            block.chainid,
             expiredDeadline
         );
 
@@ -590,7 +587,6 @@ contract UnitFacetTest is TestBaseFacet {
     function _createUnitPayload(
         ILiFi.BridgeData memory _bridgeData,
         address _depositAddress,
-        uint256 _chainId,
         uint256 _deadline
     ) internal pure returns (UnitPayload memory) {
         return
@@ -598,7 +594,6 @@ contract UnitFacetTest is TestBaseFacet {
                 transactionId: _bridgeData.transactionId,
                 minAmount: _bridgeData.minAmount,
                 depositAddress: _depositAddress,
-                sourceChainId: _chainId,
                 destinationChainId: _bridgeData.destinationChainId,
                 sendingAssetId: _bridgeData.sendingAssetId,
                 deadline: _deadline
@@ -618,7 +613,6 @@ contract UnitFacetTest is TestBaseFacet {
                     _payload.transactionId,
                     _payload.minAmount,
                     _payload.depositAddress,
-                    _payload.sourceChainId,
                     _payload.destinationChainId,
                     _payload.sendingAssetId,
                     _payload.deadline
@@ -667,7 +661,6 @@ contract UnitFacetTest is TestBaseFacet {
         UnitPayload memory payload = _createUnitPayload(
             _currentBridgeData,
             _depositAddress,
-            _chainId,
             deadline
         );
 
