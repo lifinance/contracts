@@ -38,12 +38,6 @@
     "0xFF0cC7DdcE415293c5dE85b8737bC487eff176cF",
     "0xe5552E1a40cBcB95b4905d92907336C06681280c"
   ],
-  "autoWhitelistPeripheryContracts": [
-    "FeeCollector",
-    "GasZipPeriphery",
-    "TokenWrapper",
-    "LiFiDEXAggregator"
-  ],
   "coreFacets": [
     "AccessManagerFacet",
     "CalldataVerificationFacet",
