@@ -256,8 +256,7 @@ async function main() {
   )
   console.log('Verification result:', result)
   if (!result.success) {
-    console.error('Verification failed')
-    return
+    throw new Error('Verification failed')
   }
 
   // === Set up environment ===

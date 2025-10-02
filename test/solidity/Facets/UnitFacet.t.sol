@@ -374,10 +374,10 @@ contract UnitFacetTest is TestBaseFacet {
     function testRevert_InvalidMinimumAmount() public {
         vm.startPrank(USER_SENDER);
 
-        vm.chainId(1); // Set chain ID to plasma
-        // Set amount below minimum for plasma (0.05 ETH)
+        vm.chainId(1); // Set chain ID to ethereum
+        // Set amount below minimum for ethereum (0.05 ETH)
         bridgeData.minAmount = 0.04 ether; // Below 0.05 ETH minimum
-        // Regenerate signature for plasma chain
+        // Regenerate signature for ethereum chain
         UnitFacet.UnitData memory unitData = _generateValidUnitData(
             randomDepositAddress,
             bridgeData,
