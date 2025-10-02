@@ -2,9 +2,6 @@
 
 // TODOS:
 // - replace hardcoded periphery contracts with the ones from config/global.json.autoWhitelistPeripheryContracts (requires healthcheck update)
-// - replace hardcoded selectors with json file/list
-// -
-
 import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
@@ -13,23 +10,19 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { utils } from 'ethers'
 
+import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
 import type { INetworksObject } from '../common/types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Configuration
-const PERIPHERY_CONTRACTS = [
-  'FeeCollector',
-  'GasZipPeriphery',
-  'TokenWrapper',
-  'LiFiDEXAggregator',
-  'Patcher',
-  'LidoWrapper',
-] as const
+// Configuration - get contracts from global.json
+const PERIPHERY_CONTRACTS = Object.keys(
+  globalConfig.whitelistPeripherySelectors
+) as PeripheryContract[]
 
-type PeripheryContract = (typeof PERIPHERY_CONTRACTS)[number]
+type PeripheryContract = keyof typeof globalConfig.whitelistPeripherySelectors
 
 interface ISelectorData {
   selector: string
@@ -56,67 +49,9 @@ interface IWhitelistData {
   PERIPHERY: IPeripheryData
 }
 
-// Function selectors for each contract (pre-calculated for performance)
-const CONTRACT_SELECTORS: Record<PeripheryContract, ISelectorData[]> = {
-  FeeCollector: [
-    {
-      selector: '0xeedd56e1',
-      signature: 'collectTokenFees(address,uint256,uint256,address)',
-    },
-    {
-      selector: '0xe0cbc5f2',
-      signature: 'collectNativeFees(uint256,uint256,address)',
-    },
-  ],
-  GasZipPeriphery: [
-    {
-      selector: '0x1078c579',
-      signature:
-        'depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))',
-    },
-    {
-      selector: '0xa7a4a271',
-      signature:
-        'depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)',
-    },
-  ],
-  TokenWrapper: [
-    { selector: '0xd0e30db0', signature: 'deposit()' },
-    { selector: '0x3ccfd60b', signature: 'withdraw()' },
-  ],
-  LiFiDEXAggregator: [
-    {
-      selector: '0x2646478b',
-      signature: 'processRoute(address,uint256,address,uint256,address,bytes)',
-    },
-  ],
-  Patcher: [
-    {
-      selector: '0xefae576b',
-      signature:
-        'executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)',
-    },
-    {
-      selector: '0x922c8daa',
-      signature:
-        'depositAndExecuteWithDynamicPatches(address,address,bytes,address,uint256,bytes,uint256[],bool)',
-    },
-    {
-      selector: '0xb7c52777',
-      signature:
-        'depositAndExecuteWithMultiplePatches(address,address[],bytes[],address,uint256,bytes,uint256[][],bool)',
-    },
-    {
-      selector: '0x4d914979',
-      signature:
-        'executeWithMultiplePatches(address[],bytes[],address,uint256,bytes,uint256[][],bool)',
-    },
-  ],
-  LidoWrapper: [
-    { selector: '0x24dd6483', signature: 'wrapStETHToWstETH(uint256)' },
-    { selector: '0xa816ca92', signature: 'unwrapWstETHToStETH(uint256)' },
-  ],
-}
+// Function selectors loaded from global.json
+const CONTRACT_SELECTORS: Record<PeripheryContract, ISelectorData[]> =
+  globalConfig.whitelistPeripherySelectors
 
 // Validation functions
 function isValidEthereumAddress(address: string): boolean {
