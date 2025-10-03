@@ -49,37 +49,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xDBf910Dac968043B78AeC8dE0cbAC3A77Bf2acB8": {
-        "Name": "UnitFacet",
-        "Version": "1.0.0"
-      },
-      "0xDc4c27e4801ADf6B52cd326141C0d206c5e62C38": {
-        "Name": "UnitFacet",
-        "Version": "1.0.0"
-      },
-      "0xe78894Ad98b08c48F2FABC4492637f3f9c9eD7d2": {
-        "Name": "UnitFacet",
-        "Version": "1.0.0"
-      },
-      "0xd8b561226e7e58766e27d618F76862A96744d098": {
-        "Name": "UnitFacet",
-        "Version": "1.0.0"
-      },
       "0x5c4A42947742de1F8Fe998f440F7b3d2bF28b4B6": {
         "Name": "",
         "Version": ""
-      },
-      "0x7b6FF216523F3ffbaA7FAC7C5158B0ef8ba7Da84": {
-        "Name": "UnitFacet",
-        "Version": "1.0.0"
-      },
-      "0x4DA5650fBbbf8dd678B243F91a827205e3703802": {
-        "Name": "UnitFacet",
-        "Version": "1.0.0"
-      },
-      "0xBDDaFA1B9B250dB87A4d50f5082e7a60b0B16941": {
-        "Name": "UnitFacet",
-        "Version": "1.0.0"
       },
       "0xafb3133Df9952F31008a5fC54Dcae2b9A4B5Ad3b": {
         "Name": "UnitFacet",
