@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidAmount, InvalidReceiver, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title UnitFacet
 /// @author LI.FI (https://li.fi)
@@ -22,9 +22,9 @@ contract UnitFacet is
     Validatable,
     LiFiData
 {
-    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
+    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
-        0xe08ec0e9d28855df976cf9018cf2d505eaa58b6ebdbf14490f48f2d4c4c13cd3;
+        0xe40c93b75fa097357b7b866c9d28e3dba6e987fba2808befeaafebac93b94cba;
 
     uint256 private constant CHAIN_ID_ETHEREUM = 1;
     uint256 private constant CHAIN_ID_PLASMA = 9745;
@@ -137,10 +137,6 @@ contract UnitFacet is
             }
         }
 
-        if (_bridgeData.receiver != _unitData.depositAddress) {
-            revert InvalidReceiver();
-        }
-
         // check for signature expiration
         if (block.timestamp > _unitData.deadline) {
             revert SignatureExpired();
@@ -167,6 +163,7 @@ contract UnitFacet is
                 UNIT_PAYLOAD_TYPEHASH,
                 _bridgeData.transactionId, // transactionId from payload
                 _bridgeData.minAmount, // minAmount from payload
+                _bridgeData.receiver, // receiver from payload
                 _unitData.depositAddress, // depositAddress from payload
                 _bridgeData.destinationChainId, // destinationChainId from payload
                 _bridgeData.sendingAssetId, // sendingAssetId from payload

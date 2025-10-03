@@ -44,14 +44,15 @@ contract UnitFacetTest is TestBaseFacet {
         hex"04ae2ab20787f816ea5d13f36c4c4f7e196e29e867086f3ce818abb73077a237f841b33ada5be71b83f4af29f333dedc5411ca4016bd52ab657db2896ef374ce99";
 
     // Constants for EIP-712
-    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
+    // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     // this is the same as the typehash in the UnitFacet contract
     bytes32 internal constant UNIT_PAYLOAD_TYPEHASH =
-        0xe08ec0e9d28855df976cf9018cf2d505eaa58b6ebdbf14490f48f2d4c4c13cd3;
+        0xe40c93b75fa097357b7b866c9d28e3dba6e987fba2808befeaafebac93b94cba;
 
     struct UnitPayload {
         bytes32 transactionId;
         uint256 minAmount;
+        address receiver;
         address depositAddress;
         uint256 destinationChainId;
         address sendingAssetId;
@@ -100,8 +101,6 @@ contract UnitFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
         bridgeData.sendingAssetId = LibAsset.NULL_ADDRESS;
         bridgeData.minAmount = 0.05 ether; // minimum amount is 0.05 ETH (5e16 wei) mentioned in https://docs.hyperunit.xyz/developers/api/generate-address
-
-        bridgeData.receiver = randomDepositAddress;
 
         validUnitData = _generateValidUnitData(
             randomDepositAddress,
@@ -486,29 +485,6 @@ contract UnitFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver() public {
-        vm.startPrank(USER_SENDER);
-
-        // Create unit data with different deposit address than receiver
-        bridgeData.receiver = address(
-            0x9876543210987654321098765432109876543210
-        ); // Different from deposit address
-
-        UnitFacet.UnitData memory invalidUnitData = UnitFacet.UnitData({
-            depositAddress: randomDepositAddress,
-            signature: validUnitData.signature, // Using existing signature (will fail receiver check first)
-            deadline: validUnitData.deadline
-        });
-
-        vm.expectRevert(InvalidReceiver.selector);
-        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
-            bridgeData,
-            invalidUnitData
-        );
-
-        vm.stopPrank();
-    }
-
     function testRevert_InvalidSignature() public {
         vm.startPrank(USER_SENDER);
 
@@ -609,6 +585,7 @@ contract UnitFacetTest is TestBaseFacet {
             UnitPayload({
                 transactionId: _bridgeData.transactionId,
                 minAmount: _bridgeData.minAmount,
+                receiver: _bridgeData.receiver,
                 depositAddress: _depositAddress,
                 destinationChainId: _bridgeData.destinationChainId,
                 sendingAssetId: _bridgeData.sendingAssetId,
@@ -628,6 +605,7 @@ contract UnitFacetTest is TestBaseFacet {
                     UNIT_PAYLOAD_TYPEHASH,
                     _payload.transactionId,
                     _payload.minAmount,
+                    _payload.receiver,
                     _payload.depositAddress,
                     _payload.destinationChainId,
                     _payload.sendingAssetId,

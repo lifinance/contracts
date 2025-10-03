@@ -15,7 +15,7 @@ import {
 } from './utils/demoScriptHelpers'
 
 /// ==== SUCCESS TXs ====
-// Bridge 18 XPL from plasma to hyperliquid (deposit flow): 0xfc90e4daf2587b824455fd3a564605c9781a602fe3b745ae74b1f8ff65473e99
+// Bridge 18 XPL from plasma to hyperliquid (deposit flow): 0xbe8f499afd70a419725c23eeb41980727e1a1bbc531a111538d2b12c8818dd60
 
 config()
 
@@ -304,6 +304,7 @@ async function main() {
     UnitPayload: [
       { name: 'transactionId', type: 'bytes32' },
       { name: 'minAmount', type: 'uint256' },
+      { name: 'receiver', type: 'address' },
       { name: 'depositAddress', type: 'address' },
       { name: 'destinationChainId', type: 'uint256' },
       { name: 'sendingAssetId', type: 'address' },
@@ -316,12 +317,15 @@ async function main() {
   const message = {
     transactionId: transactionId,
     minAmount: amount,
+    receiver: signerAddress,
     depositAddress: depositAddress,
     destinationChainId: BigInt(destinationChainId),
     sendingAssetId: zeroAddress, // This is XPL, the native asset on plasma, so its address is zero
     deadline: deadline, // 1 hour from now
   } as const
 
+  console.log('Types:', types)
+  console.log('Message:', message)
   // on staging, we use dev wallet account to sign the data
   // the facet BACKEND_SIGNER in this case has to be the same as the wallet account address
   const backendSignature = await walletAccount.signTypedData({
@@ -340,7 +344,7 @@ async function main() {
     integrator: 'ACME Devs',
     referrer: zeroAddress,
     sendingAssetId: zeroAddress,
-    receiver: depositAddress,
+    receiver: signerAddress,
     destinationChainId,
     minAmount: amount,
     hasSourceSwaps: false,
@@ -352,6 +356,9 @@ async function main() {
     signature: backendSignature,
     deadline: deadline,
   }
+
+  console.log('Bridge data:', bridgeData)
+  console.log('Unit data:', unitData)
 
   // === Start bridging ===
   await executeTransaction(
