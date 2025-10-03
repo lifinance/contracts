@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 /// @title LiFiData
 /// @author LI.FI (https://li.fi)
 /// @notice A storage for LI.FI-internal config data (addresses, chainIDs, etc.)
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LiFiData {
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
