@@ -66,7 +66,7 @@ function isValidSelector(selector: string): boolean {
 
 function validateSelector(selector: string, signature: string): boolean {
   try {
-    const calculatedHash = utils.keccak256(Buffer.from(signature))
+    const calculatedHash = utils.keccak256(utils.toUtf8Bytes(signature))
     const calculatedSelector = '0x' + calculatedHash.slice(2, 10)
     return calculatedSelector.toLowerCase() === selector.toLowerCase()
   } catch (error) {
