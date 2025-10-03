@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidAmount, InvalidReceiver, InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title UnitFacet
 /// @author LI.FI (https://li.fi)
@@ -25,6 +25,10 @@ contract UnitFacet is
     // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
         0xe08ec0e9d28855df976cf9018cf2d505eaa58b6ebdbf14490f48f2d4c4c13cd3;
+
+    uint256 private constant CHAIN_ID_ETHEREUM = 1;
+    uint256 private constant CHAIN_ID_PLASMA = 9745;
+
     /// @notice The address of the backend signer that is authorized to sign the UnitPayload
     address internal immutable BACKEND_SIGNER;
 
@@ -102,7 +106,6 @@ contract UnitFacet is
         onlyAllowSourceToken(_bridgeData, LibAsset.NULL_ADDRESS) // only allow native asset
         onlyAllowDestinationChain(_bridgeData, LIFI_CHAIN_ID_HYPERCORE)
     {
-        _validateSwapOutputIsNative(_swapData);
         _verifySignature(_bridgeData, _unitData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -115,20 +118,6 @@ contract UnitFacet is
 
     /// Internal Methods ///
 
-    /// @dev Validates that the final swap output is native asset
-    /// @param _swapData Array of swap data
-    function _validateSwapOutputIsNative(
-        LibSwap.SwapData[] calldata _swapData
-    ) internal pure {
-        if (
-            !LibAsset.isNativeAsset(
-                _swapData[_swapData.length - 1].receivingAssetId
-            )
-        ) {
-            revert InvalidCallData();
-        }
-    }
-
     /// @dev Contains the business logic for the bridge via Unit
     /// @param _bridgeData The core information needed for bridging
     /// @param _unitData Data specific to Unit
@@ -136,12 +125,12 @@ contract UnitFacet is
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
     ) internal {
-        if (block.chainid == 1) {
+        if (block.chainid == CHAIN_ID_ETHEREUM) {
             // ethereum mainnet
             if (_bridgeData.minAmount < 0.05 ether) {
                 revert InvalidAmount();
             }
-        } else if (block.chainid == 9745) {
+        } else if (block.chainid == CHAIN_ID_PLASMA) {
             // plasma chain
             if (_bridgeData.minAmount < 15 ether) {
                 revert InvalidAmount();

@@ -36,6 +36,10 @@ interface IVerificationResult {
   verificationDetails?: { [nodeId: string]: boolean } | undefined
 }
 
+// - legacyProposalToPayload: Format used for EVM-compatible chains (ethereum, plasma, etc.).
+//   Encodes destination address, destination chain, asset, deposit address, source chain,
+//   and always appends the string "deposit".
+//   -> Must be used when bridging from EVM-style chains.
 function legacyProposalToPayload(
   nodeId: string,
   proposal: IProposal
@@ -52,6 +56,9 @@ function legacyProposalToPayload(
   return new TextEncoder().encode(payloadString)
 }
 
+// - newProposalToPayload: Format for nonEVM chains.
+//   More streamlined: starts with "user", includes coinType, destinationChain,
+//   destinationAddress, and deposit address. No "deposit" suffix.
 function newProposalToPayload(nodeId: string, proposal: IProposal): Uint8Array {
   const payloadString = `${nodeId}:${[
     'user',

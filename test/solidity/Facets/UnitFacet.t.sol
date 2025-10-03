@@ -7,7 +7,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { UnitFacet } from "lifi/Facets/UnitFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InvalidSendingToken, InvalidAmount, InvalidReceiver, InvalidConfig, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { InvalidSendingToken, InvalidAmount, InvalidReceiver, InvalidConfig, CannotBridgeToSameNetwork, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
 // Stub UnitFacet Contract
 contract TestUnitFacet is UnitFacet {
@@ -57,6 +57,8 @@ contract UnitFacetTest is TestBaseFacet {
         address sendingAssetId;
         uint256 deadline;
     }
+
+    error NotSupported();
 
     function setUp() public {
         customBlockNumberForForking = 17130542;
@@ -115,7 +117,8 @@ contract UnitFacetTest is TestBaseFacet {
                 validUnitData
             );
         } else {
-            unitFacet.startBridgeTokensViaUnit(bridgeData, validUnitData);
+            // not native tokens are not supported
+            revert NotSupported();
         }
     }
 
@@ -136,12 +139,8 @@ contract UnitFacetTest is TestBaseFacet {
     }
 
     function testRevert_ConstructorWithZeroBackendSigner() public {
-        vm.expectRevert(abi.encodeWithSelector(InvalidConfig.selector));
+        vm.expectRevert(InvalidConfig.selector);
         new TestUnitFacet(address(0));
-    }
-
-    function test_CanDepositNativeTokens() public {
-        initiateBridgeTxWithFacet(true);
     }
 
     function testBase_CanBridgeTokens() public virtual override {
@@ -167,7 +166,7 @@ contract UnitFacetTest is TestBaseFacet {
 
         usdc.approve(address(unitFacet), bridgeData.minAmount);
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidSendingToken.selector));
+        vm.expectRevert(InvalidSendingToken.selector);
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             validUnitData
@@ -186,7 +185,7 @@ contract UnitFacetTest is TestBaseFacet {
 
         usdc.approve(address(unitFacet), bridgeData.minAmount);
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidSendingToken.selector));
+        vm.expectRevert(InvalidSendingToken.selector);
         unitFacet.swapAndStartBridgeTokensViaUnit{
             value: bridgeData.minAmount
         }(bridgeData, swapData, validUnitData);
@@ -278,6 +277,84 @@ contract UnitFacetTest is TestBaseFacet {
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
+    }
+
+    function testBase_Revert_BridgeToSameChainId() public virtual override {
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.destinationChainId = block.chainid;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_BridgeWithInvalidAmount()
+        public
+        virtual
+        override
+    {
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.minAmount = 0;
+
+        vm.expectRevert(InvalidAmount.selector);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
+        public
+        virtual
+        override
+    {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // prepare bridgeData
+        bridgeData.hasDestinationCall = true;
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_BridgeWithInvalidReceiverAddress()
+        public
+        virtual
+        override
+    {
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.receiver = address(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
+        public
+        virtual
+        override
+    {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        // execute call in child contract
+        initiateBridgeTxWithFacet(true);
     }
 
     function testBase_Revert_CallerHasInsufficientFunds() public override {
@@ -384,7 +461,7 @@ contract UnitFacetTest is TestBaseFacet {
             1
         );
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidAmount.selector));
+        vm.expectRevert(InvalidAmount.selector);
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             unitData
@@ -400,7 +477,7 @@ contract UnitFacetTest is TestBaseFacet {
             9745
         );
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidAmount.selector));
+        vm.expectRevert(InvalidAmount.selector);
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             unitData
@@ -423,7 +500,7 @@ contract UnitFacetTest is TestBaseFacet {
             deadline: validUnitData.deadline
         });
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidReceiver.selector));
+        vm.expectRevert(InvalidReceiver.selector);
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             invalidUnitData
@@ -455,9 +532,7 @@ contract UnitFacetTest is TestBaseFacet {
             deadline: validUnitData.deadline
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(UnitFacet.InvalidSignature.selector)
-        );
+        vm.expectRevert(UnitFacet.InvalidSignature.selector);
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             invalidUnitData
@@ -489,74 +564,10 @@ contract UnitFacetTest is TestBaseFacet {
             deadline: expiredDeadline
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(UnitFacet.SignatureExpired.selector)
-        );
+        vm.expectRevert(UnitFacet.SignatureExpired.selector);
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             expiredUnitData
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevert_SwapOutputNotNative() public {
-        vm.startPrank(USER_SENDER);
-
-        // prepare bridgeData
-        bridgeData.hasSourceSwaps = true;
-
-        // Create swap data that outputs to USDC (non-native token) instead of ETH
-        uint256 daiAmount = 300 * 10 ** dai.decimals();
-
-        // Swap DAI -> USDC (this should fail because final output is not native)
-        address[] memory path = new address[](2);
-        path[0] = ADDRESS_DAI;
-        path[1] = ADDRESS_USDC;
-
-        // Calculate expected USDC output
-        uint256[] memory amounts = uniswap.getAmountsOut(daiAmount, path);
-        uint256 amountOut = amounts[1];
-
-        delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_DAI,
-                receivingAssetId: ADDRESS_USDC, // Non-native token - should cause revert
-                fromAmount: daiAmount,
-                callData: abi.encodeWithSelector(
-                    uniswap.swapExactTokensForTokens.selector,
-                    daiAmount,
-                    amountOut,
-                    path,
-                    _facetTestContractAddress,
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
-
-        // Set bridge data to expect USDC output (but this will fail validation)
-        bridgeData.minAmount = amountOut;
-
-        // approval
-        dai.approve(_facetTestContractAddress, daiAmount);
-
-        // Generate valid unit data
-        validUnitData = _generateValidUnitData(
-            randomDepositAddress,
-            bridgeData,
-            1
-        );
-
-        // Should revert with InvalidCallData because final swap output is not native
-        vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
-        unitFacet.swapAndStartBridgeTokensViaUnit(
-            bridgeData,
-            swapData,
-            validUnitData
         );
 
         vm.stopPrank();
