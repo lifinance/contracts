@@ -5,7 +5,7 @@ import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { IERC20PermitExtended } from "lifi/Interfaces/IERC20PermitExtended.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 
 /// @title Permit2Proxy
@@ -70,6 +70,60 @@ contract Permit2Proxy is WithdrawablePeriphery {
     /// @param tokenAddress Address of the token to be bridged
     /// @param amount Amount of tokens to be bridged
     /// @param deadline Transaction must be completed before this timestamp
+    /// @param signature User signature (packed bytes)
+    /// @param diamondCalldata calldata to execute
+    function callDiamondWithEIP2612Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        bytes calldata signature,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        try
+            IERC20PermitExtended(tokenAddress).permit(
+                msg.sender,
+                address(this),
+                amount,
+                deadline,
+                signature
+            )
+        {} catch Error(string memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                revert(reason);
+            }
+        } catch (bytes memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                LibUtil.revertWith(reason);
+            }
+        }
+
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msg.sender,
+            address(this),
+            amount
+        );
+
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
+
+        return _executeCalldata(diamondCalldata);
+    }
+
+    /// @notice Allows to bridge tokens through a LI.FI diamond contract using
+    /// an EIP2612 gasless permit (only works with tokenAddresses that
+    /// implement EIP2612)
+    /// The permit signer must be the caller to prevent front-running and ensure
+    /// the calldata cannot be replaced by others.
+    /// Can only be called by the permit signer to prevent front-running.
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param deadline Transaction must be completed before this timestamp
     /// @param v User signature (recovery ID)
     /// @param r User signature (ECDSA output)
     /// @param s User signature (ECDSA output)
@@ -83,10 +137,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
         bytes32 s,
         bytes calldata diamondCalldata
     ) public payable returns (bytes memory) {
-        // call permit on token contract to register approval using signature
         try
-            ERC20Permit(tokenAddress).permit(
-                msg.sender, // Ensure msg.sender is same wallet that signed permit
+            IERC20PermitExtended(tokenAddress).permit(
+                msg.sender,
                 address(this),
                 amount,
                 deadline,
@@ -110,7 +163,6 @@ contract Permit2Proxy is WithdrawablePeriphery {
             }
         }
 
-        // deposit assets
         LibAsset.transferFromERC20(
             tokenAddress,
             msg.sender,
@@ -118,10 +170,82 @@ contract Permit2Proxy is WithdrawablePeriphery {
             amount
         );
 
-        // maxApprove token to diamond if current allowance is insufficient
         LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
 
-        // call our diamond to execute calldata
+        return _executeCalldata(diamondCalldata);
+    }
+
+    /// @notice Allows to bridge tokens through a LI.FI diamond contract using
+    /// an EIP3009 transferWithAuthorization (only works with tokenAddresses that
+    /// implement EIP3009, such as USDC)
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param validAfter The time after which this is valid (unix time)
+    /// @param validBefore The time before which this is valid (unix time)
+    /// @param nonce Unique nonce for this authorization
+    /// @param signature User signature (packed bytes)
+    /// @param diamondCalldata calldata to execute
+    function callDiamondWithEIP3009Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        IERC20PermitExtended(tokenAddress).transferWithAuthorization(
+            msg.sender,
+            address(this),
+            amount,
+            validAfter,
+            validBefore,
+            nonce,
+            signature
+        );
+
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
+
+        return _executeCalldata(diamondCalldata);
+    }
+
+    /// @notice Allows to bridge tokens through a LI.FI diamond contract using
+    /// an EIP3009 transferWithAuthorization (only works with tokenAddresses that
+    /// implement EIP3009, such as USDC)
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param validAfter The time after which this is valid (unix time)
+    /// @param validBefore The time before which this is valid (unix time)
+    /// @param nonce Unique nonce for this authorization
+    /// @param v User signature (recovery ID)
+    /// @param r User signature (ECDSA output)
+    /// @param s User signature (ECDSA output)
+    /// @param diamondCalldata calldata to execute
+    function callDiamondWithEIP3009Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        uint8 v,
+        bytes32 r,
+        bytes32 s,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        IERC20PermitExtended(tokenAddress).transferWithAuthorization(
+            msg.sender,
+            address(this),
+            amount,
+            validAfter,
+            validBefore,
+            nonce,
+            v,
+            r,
+            s
+        );
+
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
+
         return _executeCalldata(diamondCalldata);
     }
 
