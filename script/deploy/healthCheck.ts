@@ -17,10 +17,10 @@ import {
 } from 'viem'
 
 import {
-  autoWhitelistPeripheryContracts,
   coreFacets,
   corePeriphery,
   pauserWallet,
+  whitelistPeripheryFunctions,
 } from '../../config/global.json'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
@@ -29,10 +29,11 @@ import {
   type Network,
 } from '../utils/viemScriptHelpers'
 
+import targetState from './_targetState.json'
 import {
+  checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
-  checkIsDeployedTron,
   parseTroncastFacetsOutput,
 } from './tron/utils'
 
@@ -342,11 +343,22 @@ const main = defineCommand({
       ]),
       client: publicClient,
     })
-    const addresses = await Promise.all(
-      corePeriphery.map((c) => peripheryRegistry.read.getPeripheryContract([c]))
+    // Only check contracts that are expected to be deployed according to target state
+    const targetStateContracts =
+      targetState[network]?.production?.LiFiDiamond || {}
+    const contractsToCheck = Object.keys(targetStateContracts).filter(
+      (contract) =>
+        corePeriphery.includes(contract) ||
+        Object.keys(whitelistPeripheryFunctions).includes(contract)
     )
 
-    for (const periphery of corePeriphery) {
+    const addresses = await Promise.all(
+      contractsToCheck.map((c) =>
+        peripheryRegistry.read.getPeripheryContract([c])
+      )
+    )
+
+    for (const periphery of contractsToCheck) {
       const peripheryAddress = deployedContracts[periphery]
       if (!peripheryAddress)
         logError(`Periphery contract ${periphery} not deployed `)
@@ -396,8 +408,15 @@ const main = defineCommand({
         }
       }
 
-      // Ensure that periphery contracts which are used like DEXs are whitelisted
-      for (const name of autoWhitelistPeripheryContracts) {
+      // Ensure that periphery contracts with selectors are deployed and whitelisted
+      // Only check contracts that are expected to be deployed according to target state
+      const targetStateContracts =
+        targetState[network]?.production?.LiFiDiamond || {}
+
+      for (const name of Object.keys(whitelistPeripheryFunctions)) {
+        // Skip if contract is not expected to be deployed on this network
+        if (!targetStateContracts[name]) continue
+
         // get address from deploy log
         const addr = deployedContracts[name]
         if (!addr) {
