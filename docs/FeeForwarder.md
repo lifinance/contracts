@@ -4,6 +4,8 @@
 
 Periphery contract that forwards various fee amounts directly to their destination wallets. This contract is highly gas-optimized and designed to be called by the LiFiDiamond after fees have been calculated for a swap or bridge execution.
 
+If called by the LiFiDiamond, it's important that the diamond properly handles the remaining funds returned by the FeeForwarder, otherwise funds will remain in the diamond contract and could get stolen.
+
 ## Gas Optimizations
 
 The contract implements several gas optimizations to minimize transaction costs:
