@@ -544,6 +544,15 @@
       }
     }
   },
+  "FeeForwarder": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ServiceFeeCollector": {
     "configData": {
       "_owner": {
