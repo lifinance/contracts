@@ -17,10 +17,10 @@ const __dirname = path.dirname(__filename)
 
 // Configuration - get contracts from global.json
 const PERIPHERY_CONTRACTS = Object.keys(
-  globalConfig.whitelistPeripherySelectors
+  globalConfig.whitelistPeripheryFunctions
 ) as PeripheryContract[]
 
-type PeripheryContract = keyof typeof globalConfig.whitelistPeripherySelectors
+type PeripheryContract = keyof typeof globalConfig.whitelistPeripheryFunctions
 
 interface ISelectorData {
   selector: string
@@ -49,7 +49,7 @@ interface IWhitelistData {
 
 // Function selectors loaded from global.json
 const CONTRACT_SELECTORS: Record<PeripheryContract, ISelectorData[]> =
-  globalConfig.whitelistPeripherySelectors
+  globalConfig.whitelistPeripheryFunctions
 
 // Validation functions
 function isValidEthereumAddress(address: string): boolean {

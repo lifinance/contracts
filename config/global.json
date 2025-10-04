@@ -63,7 +63,7 @@
     "TokenWrapper"
   ],
   "blacklistedFunctionSelectors": ["0x23b872dd"],
-  "whitelistPeripherySelectors": {
+  "whitelistPeripheryFunctions": {
     "FeeCollector": [
       {
         "selector": "0xeedd56e1",

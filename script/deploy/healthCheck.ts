@@ -20,7 +20,7 @@ import {
   coreFacets,
   corePeriphery,
   pauserWallet,
-  whitelistPeripherySelectors,
+  whitelistPeripheryFunctions,
 } from '../../config/global.json'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
@@ -349,7 +349,7 @@ const main = defineCommand({
     const contractsToCheck = Object.keys(targetStateContracts).filter(
       (contract) =>
         corePeriphery.includes(contract) ||
-        Object.keys(whitelistPeripherySelectors).includes(contract)
+        Object.keys(whitelistPeripheryFunctions).includes(contract)
     )
 
     const addresses = await Promise.all(
@@ -413,7 +413,7 @@ const main = defineCommand({
       const targetStateContracts =
         targetState[network]?.production?.LiFiDiamond || {}
 
-      for (const name of Object.keys(whitelistPeripherySelectors)) {
+      for (const name of Object.keys(whitelistPeripheryFunctions)) {
         // Skip if contract is not expected to be deployed on this network
         if (!targetStateContracts[name]) continue
 
