@@ -911,15 +911,6 @@ function forceCleanupProgressTracking() {
     fi
 }
 
-# Get file suffix based on environment
-getFileSuffix() {
-    local environment="$1"
-    if [[ "$environment" == "production" ]]; then
-        echo ""
-    else
-        echo ".${environment}"
-    fi
-}
 
 function isContractAlreadyDeployed() {
     # Check if a contract is already deployed to a network
@@ -930,7 +921,7 @@ function isContractAlreadyDeployed() {
     # Check if contract address exists in deployments file
     local FILE_SUFFIX
     FILE_SUFFIX=$(getFileSuffix "$environment")
-    local deployment_file="./deployments/${network}${FILE_SUFFIX}.json"
+    local deployment_file="./deployments/${network}.${FILE_SUFFIX}json"
     if [[ -f "$deployment_file" ]]; then
         local contract_address=$(jq -r --arg contract "$contract" '.[$contract] // empty' "$deployment_file")
         if [[ -n "$contract_address" && "$contract_address" != "null" && "$contract_address" != "" ]]; then
