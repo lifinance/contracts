@@ -741,7 +741,12 @@ function initializeProgressTracking() {
             logWithTimestamp "Network $network needs $action_type for $contract - marking as pending"
         fi
 
-        networks_json=$(echo "$networks_json" | jq --arg network "$network" --arg status "$network_status" --argjson attempts "$attempts" --arg lastAttempt "$lastAttempt" --arg error "$error" '. + {($network): {status: $status, attempts: $attempts, lastAttempt: $lastAttempt, error: $error}}')
+        # Use --argjson for null values to ensure proper JSON null handling
+        if [[ "$lastAttempt" == "null" ]]; then
+            networks_json=$(echo "$networks_json" | jq --arg network "$network" --arg status "$network_status" --argjson attempts "$attempts" --argjson lastAttempt null --argjson error null '. + {($network): {status: $status, attempts: $attempts, lastAttempt: $lastAttempt, error: $error}}')
+        else
+            networks_json=$(echo "$networks_json" | jq --arg network "$network" --arg status "$network_status" --argjson attempts "$attempts" --arg lastAttempt "$lastAttempt" --argjson error null '. + {($network): {status: $status, attempts: $attempts, lastAttempt: $lastAttempt, error: $error}}')
+        fi
     done
 
     local progress_data=$(jq -n \
@@ -782,12 +787,12 @@ function updateNetworkProgress() {
         return 1
     fi
 
-    # Update progress
+    # Update progress - use --argjson for error to handle null values properly
     local updated_data=$(jq \
         --arg network "$network" \
         --arg status "$status" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        --arg error "$error_message" \
+        --argjson error "$(if [[ -n "$error_message" ]]; then echo "\"$error_message\""; else echo "null"; fi)" \
         '.networks[$network].status = $status |
          .networks[$network].lastAttempt = $timestamp |
          .networks[$network].attempts += 1 |
