@@ -64,6 +64,14 @@ GROUP_LONDON="london"
 GROUP_ZKEVM="zkevm"
 GROUP_CANCUN="cancun"
 
+# Solidity version constants
+SOLC_LONDON="0.8.17"
+SOLC_CANCUN="0.8.29"
+
+# EVM version constants
+EVM_LONDON="london"
+EVM_CANCUN="cancun"
+
 # =============================================================================
 # EXECUTION CONFIGURATION
 # =============================================================================
@@ -488,13 +496,13 @@ function updateFoundryTomlForGroup() {
 
     case "$group" in
         "$GROUP_LONDON")
-            logWithTimestamp "Updating foundry.toml for London EVM (solc 0.8.17)"
-            # Update solc version to 0.8.17 and EVM version to london in profile.default section only
+            logWithTimestamp "Updating foundry.toml for London EVM (solc $SOLC_LONDON)"
+            # Update solc version and EVM version in profile.default section only
             logWithTimestamp "Running sed commands..."
             # Use simpler sed pattern - just replace the first occurrence of each setting
-            sed -i.bak '1,/^\[/ s/solc_version = .*/solc_version = '\''0.8.17'\''/' foundry.toml
+            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_LONDON'/" foundry.toml
             logWithTimestamp "Updated solc_version"
-            sed -i.bak '1,/^\[/ s/evm_version = .*/evm_version = '\''london'\''/' foundry.toml
+            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_LONDON'/" foundry.toml
             logWithTimestamp "Updated evm_version"
             rm -f foundry.toml.bak
             logWithTimestamp "Updated foundry.toml successfully"
@@ -509,15 +517,16 @@ function updateFoundryTomlForGroup() {
             logWithTimestamp "zkEVM networks use profile.zksync - no foundry.toml updates needed"
             # zkEVM networks use the [profile.zksync] section with zksolc
             # No need to update the main solc_version or evm_version settings
+            # No standard forge build needed for zkEVM - compilation handled by deploy scripts
             ;;
         "$GROUP_CANCUN")
-            logWithTimestamp "Updating foundry.toml for Cancun EVM (solc 0.8.29)"
-            # Update solc version to 0.8.29 and EVM version to cancun in profile.default section only
+            logWithTimestamp "Updating foundry.toml for Cancun EVM (solc $SOLC_CANCUN)"
+            # Update solc version and EVM version in profile.default section only
             logWithTimestamp "Running sed commands..."
             # Use simpler sed pattern - just replace the first occurrence of each setting
-            sed -i.bak '1,/^\[/ s/solc_version = .*/solc_version = '\''0.8.29'\''/' foundry.toml
+            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_CANCUN'/" foundry.toml
             logWithTimestamp "Updated solc_version"
-            sed -i.bak '1,/^\[/ s/evm_version = .*/evm_version = '\''cancun'\''/' foundry.toml
+            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_CANCUN'/" foundry.toml
             logWithTimestamp "Updated evm_version"
             rm -f foundry.toml.bak
             logWithTimestamp "Updated foundry.toml successfully"
@@ -545,12 +554,24 @@ function recompileForGroup() {
 
     logWithTimestamp "Recompiling contracts for group: $group"
 
-    # All groups use standard compilation - zkEVM compilation is handled by deploy scripts
-    logWithTimestamp "Compiling with standard solc"
-    if ! forge build; then
-        error "Failed to compile contracts"
-        return 1
-    fi
+    case "$group" in
+        "$GROUP_ZKEVM")
+            # zkEVM networks use zksolc with zksync profile
+            logWithTimestamp "Compiling with zksolc (zksync profile)"
+            if ! forge build --profile zksync; then
+                error "Failed to compile contracts with zksolc"
+                return 1
+            fi
+            ;;
+        *)
+            # All other groups use standard solc compilation
+            logWithTimestamp "Compiling with standard solc"
+            if ! forge build; then
+                error "Failed to compile contracts"
+                return 1
+            fi
+            ;;
+    esac
 
     logWithTimestamp "Compilation completed successfully for group: $group"
 }
