@@ -756,16 +756,16 @@ function updateNetworkProgress() {
         return 1
     fi
 
-    # Update progress - use --argjson for error to handle null values properly
+    # Update progress - use --arg for error to handle quotes/backslashes safely
     local updated_data=$(jq \
         --arg network "$network" \
         --arg status "$status" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        --argjson error "$(if [[ -n "$error_message" ]]; then echo "\"$error_message\""; else echo "null"; fi)" \
+        --arg error "$(if [[ -n "$error_message" ]]; then echo "$error_message"; else echo "null"; fi)" \
         '.networks[$network].status = $status |
          .networks[$network].lastAttempt = $timestamp |
          .networks[$network].attempts += 1 |
-         .networks[$network].error = $error |
+         .networks[$network].error = ($error | if . == "null" then null else . end) |
          .lastUpdate = $timestamp' \
         "$PROGRESS_TRACKING_FILE")
 
