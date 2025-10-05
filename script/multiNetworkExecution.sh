@@ -1,6 +1,12 @@
 #!/bin/bash
 
 # =============================================================================
+# Strict bash mode for safety and reliability
+# =============================================================================
+set -euo pipefail
+IFS=$'\n\t'
+
+# =============================================================================
 # Network Grouping and Execution Management
 # =============================================================================
 # This file contains helper functions for managing network deployments
@@ -11,6 +17,40 @@
 # Load required dependencies
 source script/helperFunctions.sh
 source script/playgroundHelpers.sh
+
+# =============================================================================
+# Environment and Dependency Validation
+# =============================================================================
+
+# Helper function to check for required tools
+requireTools() {
+  local MISSING_TOOLS=()
+
+  # Check for required tools
+  command -v jq >/dev/null 2>&1 || MISSING_TOOLS+=("jq")
+  command -v sed >/dev/null 2>&1 || MISSING_TOOLS+=("sed")
+  command -v mktemp >/dev/null 2>&1 || MISSING_TOOLS+=("mktemp")
+  command -v forge >/dev/null 2>&1 || MISSING_TOOLS+=("forge")
+
+  if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
+    error "Missing required tools: ${MISSING_TOOLS[*]}"
+    error "Please install the missing tools and try again"
+    return 1
+  fi
+}
+
+# Helper function to validate environment
+validateEnv() {
+  # Check if NETWORKS_JSON_FILE_PATH is readable using existing helper
+  checkNetworksJsonFilePath || {
+    error "Environment validation failed"
+    return 1
+  }
+}
+
+# Validate dependencies and environment immediately
+requireTools
+validateEnv
 
 # =============================================================================
 # CONFIGURATION AND CONSTANTS
