@@ -103,7 +103,7 @@ ZKEVM_ALWAYS_SEQUENTIAL=true
 # NETWORKS=($(getIncludedNetworksByEvmVersionArray "cancun"))
 
 # Option 4: Use networks where contract is deployed (uncomment as needed)
-NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
+# NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
 
 # Option 5: Use whitelist filtering (uncomment and modify as needed)
 # NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "zksync")
