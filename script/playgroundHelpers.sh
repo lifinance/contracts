@@ -25,7 +25,7 @@ function getContractVerified() {
   local ARGS
   local ARGS_RETURN_CODE
 
-  VERSION=$(getCurrentContractVersion "$CONTRACT")
+  VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
 
   CONTRACT_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
   ADDRESS_RETURN_CODE=$?
