@@ -103,11 +103,7 @@ ZKEVM_ALWAYS_SEQUENTIAL=true
 # NETWORKS=($(getIncludedNetworksByEvmVersionArray "cancun"))
 
 # Option 4: Use networks where contract is deployed (uncomment as needed)
-# NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
-NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "AcrossFacetV4" "production"))
-
-# Option 4b: Use networks from relay.json (hardcoded list for RelayDepositoryFacet deployment)
-# NETWORKS=("abstract" "apechain" "arbitrum" "avalanche" "base" "berachain" "blast" "bob" "boba" "bsc" "celo" "corn" "cronos" "gnosis" "gravity" "hyperevm" "ink" "katana" "linea" "lisk" "mainnet" "mantle" "metis" "mode" "optimism" "plume" "polygon" "polygonzkevm" "ronin" "scroll" "sei" "soneium" "sonic" "superposition" "swellchain" "taiko" "unichain" "worldchain" "zksync")
+NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
 
 # Option 5: Use whitelist filtering (uncomment and modify as needed)
 # NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "zksync")
@@ -115,33 +111,6 @@ NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "AcrossFacetV4" "produc
 
 # NETWORKS=($(getIncludedNetworksArray))
 # # Filter logic would go here
-
-# =============================================================================
-# NETWORK ACTION CONFIGURATION
-# =============================================================================
-# Configure what action to execute for each network by uncommenting the desired option(s)
-# Multiple actions can be enabled simultaneously
-
-# DEPLOY - Deploy the contract to the network
-# deployContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-
-# VERIFY - Verify the contract on the network
-# getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-
-# PROPOSE - Create multisig proposal for the contract
-# createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
-
-# UPDATE DIAMOND - Update diamond log for the network
-# updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
-
-# CUSTOM ACTIONS - Add your custom actions here
-# CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
-# cast send "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "$CALLDATA" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_PRODUCTION"
-
-# bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --ledger
-
-# RESPONSE=$(cast call "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "isFunctionApproved(bytes4) returns (bool)" 0x23b872dd --rpc-url "$RPC_URL")
-# echo "[$NETWORK] function 0x23b872dd is approved: $RESPONSE"
 
 # Foundry.toml backup file
 FOUNDRY_TOML_BACKUP="foundry.toml.backup"
