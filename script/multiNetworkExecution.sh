@@ -263,7 +263,7 @@ function getConfiguredNetworks() {
     fi
 
     # Apply whitelist filtering if NETWORKS_WHITELIST is defined and not empty
-    if [[ -n "${NETWORKS_WHITELIST[*]}" ]]; then
+    if [[ ${NETWORKS_WHITELIST+x} && ${#NETWORKS_WHITELIST[@]} -gt 0 ]]; then
         local filtered_networks=()
         for network in "${selected_networks[@]}"; do
             for whitelisted_network in "${NETWORKS_WHITELIST[@]}"; do
@@ -1460,7 +1460,7 @@ function iterateAllNetworksOriginal() {
     # local NETWORKS_WHITELIST=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
 
     # Filter NETWORKS to only include networks that are also in the whitelist
-    if [[ -n "$NETWORKS_WHITELIST" ]]; then
+    if [[ ${NETWORKS_WHITELIST+x} && ${#NETWORKS_WHITELIST[@]} -gt 0 ]]; then
         local FILTERED_NETWORKS=()
         for network in "${NETWORKS[@]}"; do
             for whitelisted_network in "${NETWORKS_WHITELIST[@]}"; do
