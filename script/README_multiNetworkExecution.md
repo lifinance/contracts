@@ -217,14 +217,14 @@ Each network must have these properties:
 
 - `"deployedWithEvmVersion": "london"` → uses solc 0.8.17
 - `"deployedWithEvmVersion": "cancun"` → uses solc 0.8.29
-- `"isZkEVM": true` → uses solc 0.8.17 with zksolc compiler
+- `"isZkEVM": true` → uses solc 0.8.17 with zksolc compiler via [profile.zksync]; no foundry.toml updates or recompilation needed
 
 ### Foundry.toml Profiles
 
 The system expects these profiles in `foundry.toml`:
 
-- `[profile.default]` - Used for London and Cancun networks
-- `[profile.zksync]` - Used for zkEVM networks
+- `[profile.default]` - Used for London and Cancun networks (requires foundry.toml updates and recompilation)
+- `[profile.zksync]` - Used for zkEVM networks (no foundry.toml updates or recompilation needed)
 
 ## Integration with Existing Code
 
@@ -248,9 +248,7 @@ The new system integrates with existing functions:
 [2024-01-15 10:30:16] [hyperevm] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:17] Group cancun execution completed. Failed networks: 0
 [2024-01-15 10:30:17] Group: zkevm (1 networks): zksync
-[2024-01-15 10:30:17] Updating foundry.toml for zkEVM networks (solc 0.8.17)
-[2024-01-15 10:30:17] Recompiling contracts for group: zkevm
-[2024-01-15 10:30:17] Compiling with standard solc
+[2024-01-15 10:30:17] zkEVM uses [profile.zksync]; no foundry.toml updates; build skipped.
 [2024-01-15 10:30:25] [zksync] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:35] [zksync] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:35] Group zkevm execution completed. Failed networks: 0
