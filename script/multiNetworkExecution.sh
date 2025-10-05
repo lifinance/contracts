@@ -1033,6 +1033,15 @@ function executeNetworkInGroup() {
         return 1
     fi
 
+    # Check if RPC URL is empty (additional safety check)
+    if [[ -z "$rpc_url" ]]; then
+        updateNetworkProgress "$network" "failed" "Empty RPC URL"
+        return 1
+    fi
+
+    # Export RPC_URL for downstream commands
+    export RPC_URL="$rpc_url"
+
     # Retry logic setup
     local retry_count=0
     local command_status=1
@@ -1529,6 +1538,19 @@ function handleNetworkOriginal() {
     local CONTRACT="$4"
 
     RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
+    if [[ $? -ne 0 ]]; then
+        echo "[$NETWORK] Failed to get RPC URL"
+        return 1
+    fi
+
+    # Check if RPC URL is empty (additional safety check)
+    if [[ -z "$RPC_URL" ]]; then
+        echo "[$NETWORK] Empty RPC URL"
+        return 1
+    fi
+
+    # Export RPC_URL for downstream commands
+    export RPC_URL
 
     # Retry logic setup
     RETRY_COUNT=0
