@@ -13,9 +13,9 @@ The `multiNetworkExecution.sh` file contains the complete network execution syst
 
 The system automatically groups networks by their EVM version and zkEVM status, then executes them in the correct order:
 
-1. **Group 1: Cancun EVM** (solc 0.8.29) - Networks like blast, hyperevm, berachain (executed first as it's the default)
-2. **Group 2: London EVM** (solc 0.8.17) - Networks like mainnet, arbitrum, base
-3. **Group 3: zkEVM Networks** (use profile.zksync) - Networks like zksync, polygonzkevm
+1. **Group 1: Cancun EVM** (solc 0.8.29) - Networks like blast, hyperevm, berachain (executed first)
+2. **Group 2: zkEVM Networks** (use profile.zksync) - Networks like zksync, polygonzkevm
+3. **Group 3: London EVM** (solc 0.8.17) - Networks like mainnet, arbitrum, base
 
 **Important Note**: The solc version used for compilation is determined by the EVM version, not by the `deployedWithSolcVersion` field in `networks.json`. The `deployedWithSolcVersion` field reflects the version that was used when the network was originally deployed, but for our grouping purposes, we use the appropriate solc version for each EVM version:
 
@@ -153,14 +153,7 @@ executeNetworksByEvmVersion "$CONTRACT" "$ENVIRONMENT" "cancun"
 iterateAllNetworksGrouped "$CONTRACT" "$ENVIRONMENT"
 ```
 
-### 6. Test Network Grouping
-
-```bash
-# See how networks are categorized without executing
-testNetworkGrouping
-```
-
-### 7. Get Network Grouping Information
+### 6. Get Network Grouping Information
 
 ```bash
 local NETWORKS=("mainnet" "arbitrum" "base" "zksync" "blast" "hyperevm")
@@ -185,9 +178,9 @@ The system reads `networks.json` to determine:
 ### 2. Execution Flow
 
 1. **Backup foundry.toml** to preserve current settings
-2. **Group 1 (London)**: Update foundry.toml → Recompile → Execute networks in parallel
+2. **Group 1 (Cancun)**: Update foundry.toml → Recompile → Execute networks in parallel
 3. **Group 2 (zkEVM)**: Update foundry.toml → Recompile → Execute networks in parallel (zkEVM compilation handled by deploy scripts)
-4. **Group 3 (Cancun)**: Update foundry.toml → Recompile → Execute networks in parallel
+4. **Group 3 (London)**: Update foundry.toml → Recompile → Execute networks in parallel
 5. **Restore foundry.toml** to original settings
 6. **Show summary** of results
 
@@ -246,16 +239,14 @@ The new system integrates with existing functions:
 ```
 [2024-01-15 10:30:00] Starting network execution for GlacisFacet in production
 [2024-01-15 10:30:00] Networks to process: mainnet arbitrum base zksync blast hyperevm
-[2024-01-15 10:30:00] Group: london (3 networks): mainnet arbitrum base
-[2024-01-15 10:30:00] Updating foundry.toml for London EVM (solc 0.8.17)
-[2024-01-15 10:30:01] Recompiling contracts for group: london
-[2024-01-15 10:30:05] [mainnet] 🔄 IN PROGRESS: Operation started
-[2024-01-15 10:30:05] [arbitrum] 🔄 IN PROGRESS: Operation started
-[2024-01-15 10:30:05] [base] 🔄 IN PROGRESS: Operation started
-[2024-01-15 10:30:15] [mainnet] ✅ SUCCESS: Operation completed successfully
-[2024-01-15 10:30:16] [arbitrum] ✅ SUCCESS: Operation completed successfully
-[2024-01-15 10:30:17] [base] ✅ SUCCESS: Operation completed successfully
-[2024-01-15 10:30:17] Group london execution completed. Failed networks: 0
+[2024-01-15 10:30:00] Group: cancun (2 networks): blast hyperevm
+[2024-01-15 10:30:00] Updating foundry.toml for Cancun EVM (solc 0.8.29)
+[2024-01-15 10:30:01] Recompiling contracts for group: cancun
+[2024-01-15 10:30:05] [blast] 🔄 IN PROGRESS: Operation started
+[2024-01-15 10:30:05] [hyperevm] 🔄 IN PROGRESS: Operation started
+[2024-01-15 10:30:15] [blast] ✅ SUCCESS: Operation completed successfully
+[2024-01-15 10:30:16] [hyperevm] ✅ SUCCESS: Operation completed successfully
+[2024-01-15 10:30:17] Group cancun execution completed. Failed networks: 0
 [2024-01-15 10:30:17] Group: zkevm (1 networks): zksync
 [2024-01-15 10:30:17] Updating foundry.toml for zkEVM networks (solc 0.8.17)
 [2024-01-15 10:30:17] Recompiling contracts for group: zkevm
@@ -263,15 +254,17 @@ The new system integrates with existing functions:
 [2024-01-15 10:30:25] [zksync] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:35] [zksync] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:35] Group zkevm execution completed. Failed networks: 0
-[2024-01-15 10:30:35] Group: cancun (2 networks): blast hyperevm
-[2024-01-15 10:30:35] Updating foundry.toml for Cancun EVM (solc 0.8.29)
-[2024-01-15 10:30:35] Recompiling contracts for group: cancun
-[2024-01-15 10:30:40] [blast] 🔄 IN PROGRESS: Operation started
-[2024-01-15 10:30:40] [hyperevm] 🔄 IN PROGRESS: Operation started
-[2024-01-15 10:30:50] [blast] ✅ SUCCESS: Operation completed successfully
-[2024-01-15 10:30:51] [hyperevm] ✅ SUCCESS: Operation completed successfully
-[2024-01-15 10:30:51] Group cancun execution completed. Failed networks: 0
-[2024-01-15 10:30:51] All network executions completed successfully!
+[2024-01-15 10:30:35] Group: london (3 networks): mainnet arbitrum base
+[2024-01-15 10:30:35] Updating foundry.toml for London EVM (solc 0.8.17)
+[2024-01-15 10:30:35] Recompiling contracts for group: london
+[2024-01-15 10:30:40] [mainnet] 🔄 IN PROGRESS: Operation started
+[2024-01-15 10:30:40] [arbitrum] 🔄 IN PROGRESS: Operation started
+[2024-01-15 10:30:40] [base] 🔄 IN PROGRESS: Operation started
+[2024-01-15 10:30:50] [mainnet] ✅ SUCCESS: Operation completed successfully
+[2024-01-15 10:30:51] [arbitrum] ✅ SUCCESS: Operation completed successfully
+[2024-01-15 10:30:52] [base] ✅ SUCCESS: Operation completed successfully
+[2024-01-15 10:30:52] Group london execution completed. Failed networks: 0
+[2024-01-15 10:30:52] All network executions completed successfully!
 ```
 
 ## Troubleshooting
