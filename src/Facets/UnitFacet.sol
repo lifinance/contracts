@@ -33,6 +33,10 @@ contract UnitFacet is
     uint256 private constant CHAIN_ID_ETHEREUM = 1;
     uint256 private constant CHAIN_ID_PLASMA = 9745;
 
+    // Minimum amounts for Unit bridging per chain
+    uint256 private constant MIN_BRIDGE_AMOUNT_ETHEREUM = 0.05 ether;
+    uint256 private constant MIN_BRIDGE_AMOUNT_PLASMA = 15 ether;
+
     /// @notice The address of the backend signer that is authorized to sign the UnitPayload
     address internal immutable BACKEND_SIGNER;
 
@@ -147,12 +151,12 @@ contract UnitFacet is
 
         if (block.chainid == CHAIN_ID_ETHEREUM) {
             // ethereum mainnet
-            if (_bridgeData.minAmount < 0.05 ether) {
+            if (_bridgeData.minAmount < MIN_BRIDGE_AMOUNT_ETHEREUM) {
                 revert InvalidAmount();
             }
         } else if (block.chainid == CHAIN_ID_PLASMA) {
             // plasma chain
-            if (_bridgeData.minAmount < 15 ether) {
+            if (_bridgeData.minAmount < MIN_BRIDGE_AMOUNT_PLASMA) {
                 revert InvalidAmount();
             }
         } else {
