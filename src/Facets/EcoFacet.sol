@@ -210,7 +210,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             false
         );
 
-        if (_ecoData.nonEVMReceiver.length > 0) {
+        if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
