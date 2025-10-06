@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -63,7 +63,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     }
 
     /// @dev Eco specific parameters
-    /// @param receiverAddress Address that will receive tokens on destination chain
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
     /// @param prover Address of the prover contract for validation
     /// @param rewardDeadline Timestamp for reward claim eligibility
@@ -71,7 +70,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param encodedRoute Encoded route data containing destination chain routing information
     /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
     struct EcoData {
-        address receiverAddress;
         bytes nonEVMReceiver;
         address prover;
         uint64 rewardDeadline;
@@ -258,8 +256,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 revert InvalidReceiver();
             _validateSolanaReceiver(_ecoData);
         } else {
-            if (receiver != _ecoData.receiverAddress)
-                revert InformationMismatch();
             if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
 
             // If receiver is not NON_EVM_ADDRESS but destination is Solana, reject

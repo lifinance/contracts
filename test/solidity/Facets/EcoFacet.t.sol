@@ -10,7 +10,7 @@ import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
 import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidReceiver, InformationMismatch, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
 
 contract TestEcoFacet is EcoFacet {
     constructor(IEcoPortal _portal) EcoFacet(_portal) {}
@@ -109,7 +109,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -165,7 +164,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -346,7 +344,6 @@ contract EcoFacetTest is TestBaseFacet {
             memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a";
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0), // Not used for NON_EVM_ADDRESS
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -393,7 +390,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -426,7 +422,6 @@ contract EcoFacetTest is TestBaseFacet {
 
         // Create EcoData without encodedRoute
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -458,7 +453,6 @@ contract EcoFacetTest is TestBaseFacet {
 
         // Create EcoData with empty nonEVMReceiver
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0),
             nonEVMReceiver: "", // Empty nonEVMReceiver should trigger InvalidReceiver
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -499,7 +493,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER, // Matches bridgeData.receiver
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -522,41 +515,6 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_InformationMismatch_ReceiverAddressMismatch() public {
-        // Test for InformationMismatch error when receiver addresses don't match
-        vm.startPrank(USER_SENDER);
-
-        // Set up bridge data with standard receiver (not NON_EVM_ADDRESS)
-        bridgeData.receiver = USER_RECEIVER;
-        bridgeData.hasDestinationCall = false; // No destination call
-        bridgeData.destinationChainId = 10; // Optimism (EVM chain)
-
-        // Create EcoData with a different receiver address
-        address differentReceiver = address(0x9999);
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: differentReceiver, // Different from bridgeData.receiver
-            nonEVMReceiver: "",
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
-            encodedRoute: hex"0102030405060708090a0b0c0d0e0f10",
-            solanaATA: bytes32(0)
-        });
-
-        // Approve USDC
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
-
-        // Expect InformationMismatch revert
-        vm.expectRevert(InformationMismatch.selector);
-
-        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
     function testRevert_chainIdExceedsUint64Max() public {
         vm.startPrank(USER_SENDER);
 
@@ -571,7 +529,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: bytes(""),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -606,7 +563,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: bytes(""),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -636,7 +592,6 @@ contract EcoFacetTest is TestBaseFacet {
             memory invalidRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445";
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -666,7 +621,6 @@ contract EcoFacetTest is TestBaseFacet {
         bytes memory tooShortRoute = hex"a9059cbb"; // Only 4 bytes
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -699,7 +653,6 @@ contract EcoFacetTest is TestBaseFacet {
             memory invalidTronRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -733,7 +686,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -770,7 +722,6 @@ contract EcoFacetTest is TestBaseFacet {
         );
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: USER_RECEIVER,
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -800,7 +751,6 @@ contract EcoFacetTest is TestBaseFacet {
             memory solanaRoute = hex"9e6c10e6d964ed8b7015b410e7049dc1450b4bdcda6976d16b98dab756c33c2fa54fc9680000000065cbce824f4b3a8beb4f9dd87eab57c8cc24eee9bbb886ee4d3206cdb9628ad7"; // [pre-commit-checker: not a secret]
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0),
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -835,7 +785,6 @@ contract EcoFacetTest is TestBaseFacet {
         }
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0),
             nonEVMReceiver: tooLongAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -867,7 +816,6 @@ contract EcoFacetTest is TestBaseFacet {
             memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a"; // [pre-commit-checker: not a secret]
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0),
             nonEVMReceiver: solanaAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -903,7 +851,6 @@ contract EcoFacetTest is TestBaseFacet {
             memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a";
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0), // Not used for NON_EVM_ADDRESS
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -943,7 +890,6 @@ contract EcoFacetTest is TestBaseFacet {
             memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a";
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            receiverAddress: address(0), // Not used for NON_EVM_ADDRESS
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
@@ -1016,7 +962,6 @@ contract EcoFacetTest is TestBaseFacet {
 
         return
             EcoFacet.EcoData({
-                receiverAddress: USER_RECEIVER,
                 nonEVMReceiver: "",
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
