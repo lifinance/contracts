@@ -120,9 +120,7 @@ contract EcoFacetTest is TestBaseFacet {
 
         // Should revert when trying to bridge native tokens
         vm.expectRevert(NativeAssetNotSupported.selector);
-        ecoFacet.startBridgeTokensViaEco{
-            value: bridgeData.minAmount + 0.0001 ether
-        }(bridgeData, ecoData);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
     }

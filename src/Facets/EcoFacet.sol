@@ -91,7 +91,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         EcoData calldata _ecoData
     )
         external
-        payable
         nonReentrant
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
@@ -128,6 +127,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         external
         payable
         nonReentrant
+        refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
