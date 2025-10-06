@@ -278,7 +278,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         // Validate the nonEVMReceiver length for Solana addresses
         // Solana addresses are base58-encoded and should be between 32-44 characters
         if (
-            _ecoData.nonEVMReceiver.length == 0 ||
+            _ecoData.nonEVMReceiver.length < 32 ||
             _ecoData.nonEVMReceiver.length > 44
         ) {
             revert InvalidReceiver();
