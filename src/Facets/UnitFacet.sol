@@ -160,6 +160,12 @@ contract UnitFacet is
             revert UnsupportedChain();
         }
 
+        // Note: We intentionally do not add an explicit zero address validation for
+        // `_unitData.depositAddress` here. The subsequent call to
+        // `LibAsset.transferNativeAsset(payable(_unitData.depositAddress), _bridgeData.minAmount)`
+        // will revert if `depositAddress` is address(0), ensuring user funds are never lost.
+        // Adding a redundant check would only increase gas usage without improving safety.
+
         // check for signature expiration
         if (block.timestamp > _unitData.deadline) {
             revert SignatureExpired();
