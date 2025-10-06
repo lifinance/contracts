@@ -230,16 +230,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             LIFI_CHAIN_ID_SOLANA;
 
         if (receiver == NON_EVM_ADDRESS) {
-            if (_ecoData.nonEVMReceiver.length == 0) revert InvalidReceiver();
-
-            if (isSolanaDestination) {
-                if (_ecoData.solanaATA == bytes32(0)) revert InvalidConfig();
-                if (_ecoData.encodedRoute.length != 319)
-                    revert InvalidReceiver();
-                _validateSolanaReceiver(_ecoData);
-            } else {
-                if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
+            if (!isSolanaDestination) {
+                revert InvalidConfig();
             }
+
+            if (_ecoData.nonEVMReceiver.length == 0) revert InvalidReceiver();
+            if (_ecoData.solanaATA == bytes32(0)) revert InvalidConfig();
+            if (_ecoData.encodedRoute.length != 319) revert InvalidReceiver();
+            _validateSolanaReceiver(_ecoData);
         } else {
             if (receiver != _ecoData.receiverAddress)
                 revert InformationMismatch();
