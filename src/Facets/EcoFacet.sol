@@ -24,6 +24,16 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     uint64 private immutable ECO_CHAIN_ID_TRON = 728126428;
     uint64 private immutable ECO_CHAIN_ID_SOLANA = 1399811149;
 
+    /// Constants ///
+
+    uint256 private constant NATIVE_REWARD_AMOUNT = 0;
+    bool private constant ALLOW_PARTIAL_FILL = false;
+    uint256 private constant SOLANA_ENCODED_ROUTE_LENGTH = 319;
+    uint256 private constant SOLANA_RECEIVER_OFFSET = 251;
+    uint256 private constant SOLANA_RECEIVER_END = 283;
+    uint256 private constant SOLANA_ADDRESS_MIN_LENGTH = 32;
+    uint256 private constant SOLANA_ADDRESS_MAX_LENGTH = 44;
+
     /// Types ///
 
     /// @notice Defines the routing and execution instructions for cross-chain messages
@@ -168,7 +178,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 creator: msg.sender,
                 prover: _ecoData.prover,
                 deadline: _ecoData.rewardDeadline,
-                nativeAmount: 0,
+                nativeAmount: NATIVE_REWARD_AMOUNT,
                 tokens: rewardTokens
             });
     }
@@ -207,7 +217,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             destination,
             _ecoData.encodedRoute,
             reward,
-            false
+            ALLOW_PARTIAL_FILL
         );
 
         if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
@@ -244,7 +254,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
             if (_ecoData.nonEVMReceiver.length == 0) revert InvalidReceiver();
             if (_ecoData.solanaATA == bytes32(0)) revert InvalidConfig();
-            if (_ecoData.encodedRoute.length != 319) revert InvalidReceiver();
+            if (_ecoData.encodedRoute.length != SOLANA_ENCODED_ROUTE_LENGTH)
+                revert InvalidReceiver();
             _validateSolanaReceiver(_ecoData);
         } else {
             if (receiver != _ecoData.receiverAddress)
@@ -286,8 +297,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         // Validate the nonEVMReceiver length for Solana addresses
         // Solana addresses are base58-encoded and should be between 32-44 characters
         if (
-            _ecoData.nonEVMReceiver.length < 32 ||
-            _ecoData.nonEVMReceiver.length > 44
+            _ecoData.nonEVMReceiver.length < SOLANA_ADDRESS_MIN_LENGTH ||
+            _ecoData.nonEVMReceiver.length > SOLANA_ADDRESS_MAX_LENGTH
         ) {
             revert InvalidReceiver();
         }
@@ -302,7 +313,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         // - Borsh encoding preserves the exact byte positions for fixed-size fields like pubkeys
         // - The total encoded route for Solana must be exactly 319 bytes
         // Extract bytes 251-282 (32 bytes) which contain the recipient address
-        bytes32 routeReceiver = bytes32(_ecoData.encodedRoute[251:283]);
+        bytes32 routeReceiver = bytes32(
+            _ecoData.encodedRoute[SOLANA_RECEIVER_OFFSET:SOLANA_RECEIVER_END]
+        );
 
         // Validate that the provided solanaATA matches the recipient in the encoded route
         if (_ecoData.solanaATA != routeReceiver) {
