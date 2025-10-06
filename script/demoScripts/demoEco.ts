@@ -516,8 +516,6 @@ async function main(args: {
   }
 
   // === Prepare EcoData ===
-  // Get the actual recipient address (Solana or EVM)
-  let actualRecipientAddress = signerAddress
   let nonEVMReceiverBytes = '0x' as `0x${string}`
 
   if (isDestinationSolana) {
@@ -529,7 +527,6 @@ async function main(args: {
     const encoder = new TextEncoder()
     const solanaAddressBytes = encoder.encode(solanaAddress)
     nonEVMReceiverBytes = toHex(solanaAddressBytes)
-    actualRecipientAddress = signerAddress // Keep EVM address for validation
 
     console.log('Solana destination details:')
     console.log('  Solana recipient:', solanaAddress)
@@ -561,7 +558,6 @@ async function main(args: {
   }
 
   const ecoData: EcoFacet.EcoDataStruct = {
-    receiverAddress: actualRecipientAddress, // EVM address for validation
     nonEVMReceiver: nonEVMReceiverBytes, // Solana address as bytes or '0x' for EVM
     prover: quote.data.contracts.prover, // Prover address from quote
     rewardDeadline: BigInt(quote.data.quoteResponse.deadline), // Deadline from quote
@@ -654,8 +650,7 @@ async function main(args: {
   }
 
   console.log('\nBridge data:', bridgeData)
-  console.log('\nEco data (updated structure):')
-  console.log('  - receiverAddress:', ecoData.receiverAddress)
+  console.log('\nEco data:')
   console.log('  - nonEVMReceiver:', ecoData.nonEVMReceiver)
   console.log('  - prover:', ecoData.prover)
   console.log('  - rewardDeadline:', ecoData.rewardDeadline.toString())
