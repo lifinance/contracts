@@ -49,6 +49,8 @@ contract UnitFacet is
     error InvalidSignature();
     /// @notice Thrown when the signature is expired
     error SignatureExpired();
+    /// @notice Thrown when the chain is unsupported
+    error UnsupportedChain();
 
     /// Constructor ///
     /// @notice Initializes the UnitFacet contract
@@ -135,6 +137,9 @@ contract UnitFacet is
             if (_bridgeData.minAmount < 15 ether) {
                 revert InvalidAmount();
             }
+        } else {
+            // reject all other chains
+            revert UnsupportedChain();
         }
 
         // check for signature expiration

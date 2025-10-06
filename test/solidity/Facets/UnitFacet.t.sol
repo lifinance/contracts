@@ -549,6 +549,27 @@ contract UnitFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_UnsupportedChain() public {
+        vm.startPrank(USER_SENDER);
+
+        // set chain ID to an unsupported chain
+        vm.chainId(9999999); // unsupported chain (random number)
+
+        UnitFacet.UnitData memory unitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            9999999
+        );
+
+        vm.expectRevert(UnitFacet.UnsupportedChain.selector);
+        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
+            bridgeData,
+            unitData
+        );
+
+        vm.stopPrank();
+    }
+
     // ============ EIP-712 Helper Functions ============
 
     /// @dev Builds the EIP-712 domain separator for the Unit facet
