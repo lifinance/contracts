@@ -22,6 +22,10 @@ contract UnitFacet is
     Validatable,
     LiFiData
 {
+    /// Constants ///
+
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.unit");
+
     // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
         0xe40c93b75fa097357b7b866c9d28e3dba6e987fba2808befeaafebac93b94cba;
@@ -33,6 +37,11 @@ contract UnitFacet is
     address internal immutable BACKEND_SIGNER;
 
     /// Types ///
+
+    struct Storage {
+        /// @notice Tracks used transaction IDs to prevent replay attacks
+        mapping(bytes32 => bool) usedTransactionIds;
+    }
 
     /// @notice The data that is signed by the backend
     /// @param depositAddress The address to deposit the assets to
@@ -51,6 +60,8 @@ contract UnitFacet is
     error SignatureExpired();
     /// @notice Thrown when the chain is unsupported
     error UnsupportedChain();
+    /// @notice Thrown when a transaction with the same ID has already been processed
+    error TransactionAlreadyProcessed();
 
     /// Constructor ///
     /// @notice Initializes the UnitFacet contract
@@ -127,6 +138,12 @@ contract UnitFacet is
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
     ) internal {
+        Storage storage s = getStorage();
+        if (s.usedTransactionIds[_bridgeData.transactionId]) {
+            revert TransactionAlreadyProcessed();
+        }
+        s.usedTransactionIds[_bridgeData.transactionId] = true;
+
         if (block.chainid == CHAIN_ID_ETHEREUM) {
             // ethereum mainnet
             if (_bridgeData.minAmount < 0.05 ether) {
@@ -161,7 +178,7 @@ contract UnitFacet is
     function _verifySignature(
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
-    ) internal {
+    ) internal view {
         // compute the struct hash according to the EIP-712 standard: https://eips.ethereum.org/EIPS/eip-712
         bytes32 structHash = keccak256(
             abi.encode(
@@ -207,5 +224,13 @@ contract UnitFacet is
                     address(this) // This will be the diamond's address at runtime
                 )
             );
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        assembly {
+            s.slot := namespace
+        }
     }
 }

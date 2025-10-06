@@ -570,6 +570,127 @@ contract UnitFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_TransactionAlreadyProcessed() public {
+        vm.startPrank(USER_SENDER);
+
+        // First transaction should succeed
+        vm.expectEmit(true, true, true, true, address(unitFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
+            bridgeData,
+            validUnitData
+        );
+
+        // Second transaction with same transactionId should fail
+        vm.expectRevert(UnitFacet.TransactionAlreadyProcessed.selector);
+        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
+            bridgeData,
+            validUnitData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_DifferentTransactionIds_ShouldSucceed() public {
+        vm.startPrank(USER_SENDER);
+
+        // First transaction
+        vm.expectEmit(true, true, true, true, address(unitFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
+            bridgeData,
+            validUnitData
+        );
+
+        // Create new bridge data with different transaction ID
+        ILiFi.BridgeData memory bridgeData2 = bridgeData;
+        bridgeData2.transactionId = keccak256("different-transaction-id");
+
+        // Generate new unit data for the different transaction ID
+        UnitFacet.UnitData memory unitData2 = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData2,
+            block.chainid
+        );
+
+        // Second transaction with different transactionId should succeed
+        vm.expectEmit(true, true, true, true, address(unitFacet));
+        emit LiFiTransferStarted(bridgeData2);
+
+        unitFacet.startBridgeTokensViaUnit{ value: bridgeData2.minAmount }(
+            bridgeData2,
+            unitData2
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ReplayAttackPrevention_CrossFunction() public {
+        vm.startPrank(USER_SENDER);
+
+        // First use startBridgeTokensViaUnit
+        vm.expectEmit(true, true, true, true, address(unitFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
+            bridgeData,
+            validUnitData
+        );
+
+        // Now try to use the same transactionId with swapAndStartBridgeTokensViaUnit
+        bridgeData.hasSourceSwaps = true;
+
+        // Create minimal swap data
+        uint256 daiAmount = 300 * 10 ** dai.decimals();
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+        uint256[] memory amounts = uniswap.getAmountsOut(daiAmount, path);
+        uint256 amountOut = amounts[1];
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: daiAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForETH.selector,
+                    daiAmount,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // Generate unit data with the SAME transaction ID but updated bridge data
+        validUnitData = _generateValidUnitData(
+            randomDepositAddress,
+            bridgeData,
+            1
+        );
+
+        dai.approve(_facetTestContractAddress, daiAmount);
+
+        // This should fail because the transaction ID was already used
+        vm.expectRevert(UnitFacet.TransactionAlreadyProcessed.selector);
+        unitFacet.swapAndStartBridgeTokensViaUnit(
+            bridgeData,
+            swapData,
+            validUnitData
+        );
+
+        vm.stopPrank();
+    }
+
     // ============ EIP-712 Helper Functions ============
 
     /// @dev Builds the EIP-712 domain separator for the Unit facet
