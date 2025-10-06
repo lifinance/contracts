@@ -166,11 +166,6 @@ contract UnitFacet is
         // will revert if `depositAddress` is address(0), ensuring user funds are never lost.
         // Adding a redundant check would only increase gas usage without improving safety.
 
-        // check for signature expiration
-        if (block.timestamp > _unitData.deadline) {
-            revert SignatureExpired();
-        }
-
         LibAsset.transferNativeAsset(
             payable(_unitData.depositAddress),
             _bridgeData.minAmount
@@ -186,6 +181,11 @@ contract UnitFacet is
         ILiFi.BridgeData memory _bridgeData,
         UnitData calldata _unitData
     ) internal view {
+        // check for signature expiration
+        if (block.timestamp > _unitData.deadline) {
+            revert SignatureExpired();
+        }
+
         // compute the struct hash according to the EIP-712 standard: https://eips.ethereum.org/EIPS/eip-712
         bytes32 structHash = keccak256(
             abi.encode(
