@@ -119,6 +119,7 @@ contract UnitFacet is
         onlyAllowSourceToken(_bridgeData, LibAsset.NULL_ADDRESS) // only allow native asset
         onlyAllowDestinationChain(_bridgeData, LIFI_CHAIN_ID_HYPERCORE)
     {
+        // The signature is intentionally verified with the pre-swap `minAmount`
         _verifySignature(_bridgeData, _unitData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
