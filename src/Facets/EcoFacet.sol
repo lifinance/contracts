@@ -213,7 +213,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             totalAmount
         );
 
-        PORTAL.publishAndFund{ value: 0 }(
+        PORTAL.publishAndFund(
             destination,
             _ecoData.encodedRoute,
             reward,
