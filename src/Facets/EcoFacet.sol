@@ -224,7 +224,15 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     function _validateEcoData(
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
-    ) private pure {
+    ) private view {
+        if (_ecoData.prover == address(0)) revert InvalidConfig();
+        if (
+            _ecoData.rewardDeadline == 0 ||
+            _ecoData.rewardDeadline <= block.timestamp
+        ) {
+            revert InvalidConfig();
+        }
+
         address receiver = _bridgeData.receiver;
         bool isSolanaDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_SOLANA;
