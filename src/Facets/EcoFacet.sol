@@ -99,10 +99,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     {
         _validateEcoData(_bridgeData, _ecoData);
 
-        // Deposit includes the solver reward for ERC20
-        uint256 depositAmount = _bridgeData.minAmount + _ecoData.solverReward;
-
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, depositAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount + _ecoData.solverReward
+        );
 
         _startBridge(_bridgeData, _ecoData);
     }
