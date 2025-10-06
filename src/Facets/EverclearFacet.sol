@@ -66,7 +66,7 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
     {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
-            _bridgeData.minAmount + _everclearData.fee
+            _bridgeData.minAmount
         );
         _startBridge(_bridgeData, _everclearData);
     }
@@ -141,7 +141,7 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
                 _everclearData.receiverAddress,
                 _bridgeData.sendingAssetId,
                 _everclearData.outputAsset,
-                _bridgeData.minAmount,
+                _bridgeData.minAmount - _everclearData.fee,
                 _everclearData.maxFee,
                 _everclearData.ttl,
                 _everclearData.data,
@@ -159,7 +159,7 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
                 bytes32(uint256(uint160(_bridgeData.receiver))),
                 _bridgeData.sendingAssetId,
                 _everclearData.outputAsset,
-                _bridgeData.minAmount,
+                _bridgeData.minAmount - _everclearData.fee,
                 _everclearData.maxFee,
                 _everclearData.ttl,
                 _everclearData.data,

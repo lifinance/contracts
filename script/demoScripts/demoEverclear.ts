@@ -40,26 +40,26 @@ async function main() {
   const amount = parseUnits('1', Number(srcTokenDecimals)); // 10 * 1e{source token decimals}
 
   // // docs: https://docs.everclear.org/developers/api#post-routes-quotes
-  // let quoteResp = await fetch(
-  //   `https://api.everclear.org/routes/quotes`,
-  //   { 
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({
-  //       "origin": "42161",
-  //       "destinations": [
-  //         "10"
-  //       ],
-  //       "inputAsset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-  //       "amount": "500000",
-  //       "to": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
-  //     })
-  //   }
-  // )
-  // let quoteData = await quoteResp.json()
+  const quoteResp = await fetch(
+    `https://api.everclear.org/routes/quotes`,
+    { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        "origin": "42161",
+        "destinations": [
+          "10"
+        ],
+        "inputAsset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "amount": "500000000",
+        "to": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+      })
+    }
+  )
+  const quoteData = await quoteResp.json()
 
-  // console.log("quoteData")
-  // console.log(quoteData)
+  console.log("quoteData")
+  console.log(quoteData)
 
   // let createIntentResp = await fetch(
   //   `https://api.everclear.org/intents`,

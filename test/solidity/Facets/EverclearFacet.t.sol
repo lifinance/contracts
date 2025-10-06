@@ -33,6 +33,27 @@ contract EverclearFacetTest is TestBaseFacet {
     uint256 internal signerPrivateKey;
     address internal signerAddress;
 
+        // values defaultUSDCAmount and fee taken from quote data where totalFeeBps is 0.6509
+        // quote data from:
+        //   const quoteResp = await fetch(
+        //     `https://api.everclear.org/routes/quotes`,
+        //     { 
+        //       method: 'POST',
+        //       headers: { 'Content-Type': 'application/json' },
+        //       body: JSON.stringify({
+        //         "origin": "42161",
+        //         "destinations": [
+        //           "10"
+        //         ],
+        //         "inputAsset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        //         "amount": "100000000",
+        //         "to": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+        //       })
+        //     }
+        //   )
+        uint256 internal usdCAmountToSend = 99934901; // its defaultUSDCAmount - fee (100000000 - 65099)
+        uint256 internal fee = 65099;
+
     function setUp() public {
         customBlockNumberForForking = 23433940;
         initTestBase();
@@ -68,10 +89,9 @@ contract EverclearFacetTest is TestBaseFacet {
 
         setFacetAddressInTestBase(address(everclearFacet), "EverclearFacet");
 
-        uint256 fee = 10000;
         uint256 deadline = block.timestamp + 10000;
 
-        deal(ADDRESS_USDC, address(USER_SENDER), defaultUSDCAmount + fee);
+        deal(ADDRESS_USDC, address(USER_SENDER), usdCAmountToSend + fee);
 
         vm.startPrank(feeAdapter.owner());
         feeAdapter.updateFeeSigner(signerAddress);
@@ -81,7 +101,7 @@ contract EverclearFacetTest is TestBaseFacet {
         bridgeData.bridge = "everclear";
         bridgeData.destinationChainId = 42161;
         bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.minAmount = usdCAmountToSend + fee;
 
         // 3. Hash the data that needs to be signed
         // The FeeAdapter signs: abi.encode(_tokenFee, _nativeFee, _inputAsset, _deadline)
@@ -142,6 +162,49 @@ contract EverclearFacetTest is TestBaseFacet {
         // facet does not support bridging of native assets
     }
 
+    function testBase_CanSwapAndBridgeTokens()
+        public
+        virtual
+        override
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(swapData[0].fromAmount)
+        )
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+    }
+
     function testBase_CanBridgeTokens()
         public
         virtual
@@ -149,7 +212,7 @@ contract EverclearFacetTest is TestBaseFacet {
         assertBalanceChange(
             ADDRESS_USDC,
             USER_SENDER,
-            -int256(defaultUSDCAmount + validEverclearData.fee)
+            -int256(99934901 + validEverclearData.fee) // 99934901 is defaultUSDCAmount - fee (100000000 - 65099)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -160,7 +223,31 @@ contract EverclearFacetTest is TestBaseFacet {
         // approval
         usdc.approve(
             address(everclearFacet),
-            bridgeData.minAmount + validEverclearData.fee
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(everclearFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount)
+        public
+        virtual
+        override
+    {
+        vm.assume(amount > validEverclearData.fee + 1 && amount < 10000000);
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.minAmount = amount + validEverclearData.fee;
+
+        // approval
+        usdc.approve(
+            address(everclearFacet),
+            amount + validEverclearData.fee
         );
 
         //prepare check for events
