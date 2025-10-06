@@ -27826,6 +27826,36 @@
           }
         ]
       }
+    },
+    "plasma": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6D2b543c86de1794a363eBf16C3Cd7Ae33CB7e4d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-02 08:55:08",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "apechain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0310b93ed4ffa01273d9E141b044e940Bea9289A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-02 09:01:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "TokenWrapper": {
