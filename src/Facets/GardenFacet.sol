@@ -11,12 +11,19 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title Garden Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Bridge assets via Garden protocol
 /// @custom:version 1.0.0
-contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract GardenFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
     /// @dev Immutable registry address
@@ -41,11 +48,15 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param refundAddress Address that can claim refund on source chain if HTLC expires
     /// @param timelock Number of blocks after which refund is possible (relative to current block)
     /// @param secretHash SHA256 hash of the secret for the HTLC
+    /// @param nonEvmReceiver Address of the receiver on non-EVM destination chains (e.g., Bitcoin)
+    /// @dev Note: Transfer details (destination chain, receiver) are encoded in an off-chain order.
+    ///      There is no on-chain guarantee that emitted params match the actual transfer details.
     struct GardenData {
         address redeemer;
         address refundAddress;
         uint256 timelock;
         bytes32 secretHash;
+        bytes32 nonEvmReceiver;
     }
 
     /// Errors ///
@@ -167,6 +178,14 @@ contract GardenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _gardenData.timelock,
                 _bridgeData.minAmount,
                 _gardenData.secretHash
+            );
+        }
+
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _gardenData.nonEvmReceiver
             );
         }
 

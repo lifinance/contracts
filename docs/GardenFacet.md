@@ -36,11 +36,15 @@ The methods listed above take a variable labeled `_gardenData`. This data is spe
 /// @param refundAddress Address that can claim refund on source chain if HTLC expires
 /// @param timelock Number of blocks after which refund is possible (relative to current block)
 /// @param secretHash SHA256 hash of the secret for the HTLC
+/// @param nonEvmReceiver Address of the receiver on non-EVM destination chains (e.g., Bitcoin)
+/// @dev Note: Transfer details (destination chain, receiver) are encoded in an off-chain order.
+///      There is no on-chain guarantee that emitted params match the actual transfer details.
 struct GardenData {
   address redeemer;
   address refundAddress;
   uint256 timelock;
   bytes32 secretHash;
+  bytes32 nonEvmReceiver;
 }
 ```
 
@@ -81,7 +85,18 @@ The `_startBridge` function:
 3. For ERC20 tokens: approves the HTLC contract to spend tokens
 4. For native tokens: sends value directly with the transaction
 5. Calls `initiateOnBehalf` on the HTLC contract with the bridge parameters
-6. Emits the `LiFiTransferStarted` event
+6. For non-EVM destinations: emits the `BridgeToNonEVMChainBytes32` event with the non-EVM receiver address
+7. Emits the `LiFiTransferStarted` event
+
+### Non-EVM Chain Support
+
+Garden protocol's primary use case is bridging to Bitcoin and other non-EVM chains. When bridging to a non-EVM destination:
+
+- Set `bridgeData.receiver` to the sentinel value `NON_EVM_ADDRESS` (0x11f111f111f111F111f111f111F111f111f111F1)
+- Provide the destination chain receiver address in `gardenData.nonEvmReceiver` as a `bytes32` value
+- The facet will emit a `BridgeToNonEVMChainBytes32` event for convenient off-chain indexing
+
+**Note**: Since transfer details (destination chain and receiver) are encoded in an off-chain order created by Garden solvers, there is no on-chain guarantee that the emitted parameters match the actual transfer details. The event is provided for off-chain indexing convenience.
 
 ## Getting Sample Calls to interact with the Facet
 
