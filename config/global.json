@@ -38,12 +38,6 @@
     "0xFF0cC7DdcE415293c5dE85b8737bC487eff176cF",
     "0xe5552E1a40cBcB95b4905d92907336C06681280c"
   ],
-  "autoWhitelistPeripheryContracts": [
-    "FeeCollector",
-    "GasZipPeriphery",
-    "TokenWrapper",
-    "LiFiDEXAggregator"
-  ],
   "coreFacets": [
     "AccessManagerFacet",
     "CalldataVerificationFacet",
@@ -68,5 +62,71 @@
     "Permit2Proxy",
     "TokenWrapper"
   ],
-  "blacklistedFunctionSelectors": ["0x23b872dd"]
+  "blacklistedFunctionSelectors": ["0x23b872dd"],
+  "whitelistPeripheryFunctions": {
+    "FeeCollector": [
+      {
+        "selector": "0xeedd56e1",
+        "signature": "collectTokenFees(address,uint256,uint256,address)"
+      },
+      {
+        "selector": "0xe0cbc5f2",
+        "signature": "collectNativeFees(uint256,uint256,address)"
+      }
+    ],
+    "GasZipPeriphery": [
+      {
+        "selector": "0x1078c579",
+        "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+      },
+      {
+        "selector": "0xa7a4a271",
+        "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+      }
+    ],
+    "TokenWrapper": [
+      {
+        "selector": "0xd0e30db0",
+        "signature": "deposit()"
+      },
+      {
+        "selector": "0x3ccfd60b",
+        "signature": "withdraw()"
+      }
+    ],
+    "LiFiDEXAggregator": [
+      {
+        "selector": "0x2646478b",
+        "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+      }
+    ],
+    "Patcher": [
+      {
+        "selector": "0xefae576b",
+        "signature": "executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)"
+      },
+      {
+        "selector": "0x922c8daa",
+        "signature": "depositAndExecuteWithDynamicPatches(address,address,bytes,address,uint256,bytes,uint256[],bool)"
+      },
+      {
+        "selector": "0xb7c52777",
+        "signature": "depositAndExecuteWithMultiplePatches(address,address[],bytes[],address,uint256,bytes,uint256[][],bool)"
+      },
+      {
+        "selector": "0x4d914979",
+        "signature": "executeWithMultiplePatches(address[],bytes[],address,uint256,bytes,uint256[][],bool)"
+      }
+    ],
+    "LidoWrapper": [
+      {
+        "selector": "0x24dd6483",
+        "signature": "wrapStETHToWstETH(uint256)"
+      },
+      {
+        "selector": "0xa816ca92",
+        "signature": "unwrapWstETHToStETH(uint256)"
+      }
+    ]
+  }
 }
