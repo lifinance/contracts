@@ -117,9 +117,10 @@ function decodeNewIntentCalldata(fullCalldata: string) {
 async function main() {
   // === Set up environment ===
   const srcChain: SupportedChain = 'arbitrum'
-  const destinationChainId = 10 // Optimism Mainnet
+  const destinationChainId = 59144 // Linea Mainnet
 
   const {
+    client,
     publicClient,
     walletAccount,
     lifiDiamondAddress,
@@ -139,7 +140,7 @@ async function main() {
   const srcTokenContract = getContract({
     address: SRC_TOKEN_ADDRESS,
     abi: ERC20.abi,
-    client: publicClient,
+    client: client,
   })
 
   const srcTokenName = (await srcTokenContract.read.name()) as string
@@ -153,10 +154,10 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       origin: '42161',
-      destinations: ['10'],
+      destinations: [destinationChainId.toString()],
       inputAsset: SRC_TOKEN_ADDRESS,
-      amount: '500000000',
-      to: '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62',
+      amount: amount.toString(),
+      to: signerAddress,
     }),
   })
   const quoteData = await quoteResp.json()
@@ -188,7 +189,7 @@ async function main() {
   const createIntentData = await createIntentResp.json()
 
   console.info(
-    `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> optimism`
+    `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> linea`
   )
   console.info(`Connected wallet address: ${signerAddress}`)
 
@@ -220,7 +221,7 @@ async function main() {
   const decodedNewIntentData = decodeNewIntentCalldata(createIntentData.data)
   const everclearData: EverclearFacet.EverclearDataStruct = {
     receiverAddress: addressToBytes32RightPadded(signerAddress),
-    outputAsset: SRC_TOKEN_ADDRESS,
+    outputAsset: addressToBytes32RightPadded(decodedNewIntentData._outputAsset),
     maxFee: decodedNewIntentData._maxFee,
     ttl: decodedNewIntentData._ttl,
     data: '',
@@ -229,7 +230,6 @@ async function main() {
     sig: decodedNewIntentData._feeParams.sig,
   }
 
-  return
   // // === Start bridging ===
   await executeTransaction(
     () =>
