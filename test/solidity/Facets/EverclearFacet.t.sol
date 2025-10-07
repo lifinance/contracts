@@ -158,7 +158,11 @@ contract EverclearFacetTest is TestBaseFacet {
         // facet does not support bridging of native assets
     }
 
-    function testBase_CanSwapAndBridgeNativeTokens() public override {
+
+    function testBase_CanSwapAndBridgeNativeTokens()
+        public
+        override
+    {
         // facet does not support bridging of native assets
     }
 

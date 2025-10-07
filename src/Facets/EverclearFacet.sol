@@ -112,12 +112,7 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
         || _everclearData.outputAsset == bytes32(0))
             revert InvalidCallData();
 
-        // Handle native vs. ERC20
-        uint256 value;
-
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            value = _bridgeData.minAmount;
-        } else {
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Approve the fee adapter to pull the required amount
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
@@ -136,12 +131,12 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
         destinationChainIds[0] = uint32(_bridgeData.destinationChainId);
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            FEE_ADAPTER.newIntent{ value: value }(
+            FEE_ADAPTER.newIntent(
                 destinationChainIds,
                 _everclearData.receiverAddress,
                 _bridgeData.sendingAssetId,
                 _everclearData.outputAsset,
-                _bridgeData.minAmount - _everclearData.fee,
+                _bridgeData.minAmount - _everclearData.fee, // fee is deducted from the minAmount and it's pulled from the sender separately
                 _everclearData.maxFee,
                 _everclearData.ttl,
                 _everclearData.data,
@@ -154,12 +149,12 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
                 _everclearData.receiverAddress
             );
         } else {
-            FEE_ADAPTER.newIntent{ value: value }(
+            FEE_ADAPTER.newIntent(
                 destinationChainIds,
                 bytes32(uint256(uint160(_bridgeData.receiver))),
                 _bridgeData.sendingAssetId,
                 _everclearData.outputAsset,
-                _bridgeData.minAmount - _everclearData.fee,
+                _bridgeData.minAmount - _everclearData.fee, // fee is deducted from the minAmount and it's pulled from the sender separately
                 _everclearData.maxFee,
                 _everclearData.ttl,
                 _everclearData.data,
