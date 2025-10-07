@@ -43075,5 +43075,22 @@
         ]
       }
     }
+  },
+  "EverclearFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x06D40920D96bb555b36c74e3F671afe80D5bD20A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-07 22:31:53",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000015a7ca97d1ed168fb34a4055cefa2e2f9bdb6c75",
+            "SALT": "22345102",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
   }
 }
