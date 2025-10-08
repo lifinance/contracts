@@ -10,7 +10,7 @@ import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver 
 
 // Stub EverclearFacet Contract
 contract TestEverclearFacet is EverclearFacet {
-    constructor(address _example) EverclearFacet(_example) {}
+    constructor(address _feeAdapter) EverclearFacet(_feeAdapter) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -131,30 +131,6 @@ contract EverclearFacetTest is TestBaseFacet {
         });
     }
 
-    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
-    // - function initiateBridgeTxWithFacet(bool isNative)
-    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
-    //
-    // These methods are used to run the following tests which must pass:
-    // - testBase_CanBridgeNativeTokens()
-    // - testBase_CanBridgeTokens()
-    // - testBase_CanBridgeTokens_fuzzed(uint256)
-    // - testBase_CanSwapAndBridgeNativeTokens()
-    // - testBase_CanSwapAndBridgeTokens()
-    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
-    // - testBase_Revert_BridgeToSameChainId()
-    // - testBase_Revert_BridgeWithInvalidAmount()
-    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
-    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
-    // - testBase_Revert_CallerHasInsufficientFunds()
-    // - testBase_Revert_SwapAndBridgeToSameChainId()
-    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
-    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    //
-    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    //
     function testBase_CanBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
     }
@@ -235,6 +211,46 @@ contract EverclearFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function test_CanBridgeTokensToNonEVMChain()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(99934901 + validEverclearData.fee) // 99934901 is defaultUSDCAmount - fee (100000000 - 65099)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(
+            address(everclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        validEverclearData.receiverAddress = bytes32(
+            uint256(uint160(USER_RECEIVER))
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(everclearFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            validEverclearData.receiverAddress
+        );
+
+        vm.expectEmit(true, true, true, true, address(everclearFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testBase_CanBridgeTokens_fuzzed(
         uint256 amount
     ) public virtual override {
@@ -286,7 +302,7 @@ contract EverclearFacetTest is TestBaseFacet {
     function testRevert_InvalidOutputAsset() public {
         vm.startPrank(USER_SENDER);
 
-        // Create invalid everclear data with outputAsset as bytes32(0)
+        // create invalid everclear data with outputAsset as bytes32(0)
         EverclearFacet.EverclearData
             memory invalidEverclearData = validEverclearData;
         invalidEverclearData.outputAsset = bytes32(0);
@@ -307,13 +323,15 @@ contract EverclearFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidNonEVMReceiver() public {
+    function testRevert_BridgeToNonEVMChainWithInvalidReceiverAddress()
+        public
+    {
         vm.startPrank(USER_SENDER);
 
-        // Set bridgeData receiver to NON_EVM_ADDRESS
+        // set bridgeData receiver to NON_EVM_ADDRESS
         bridgeData.receiver = NON_EVM_ADDRESS;
 
-        // Create invalid everclear data with receiverAddress as bytes32(0)
+        // create invalid everclear data with receiverAddress as bytes32(0)
         EverclearFacet.EverclearData
             memory invalidEverclearData = validEverclearData;
         invalidEverclearData.receiverAddress = bytes32(0);
@@ -337,13 +355,13 @@ contract EverclearFacetTest is TestBaseFacet {
     function testRevert_EVMReceiverMismatch() public {
         vm.startPrank(USER_SENDER);
 
-        // Set bridgeData receiver to a different address than everclearData.receiverAddress
+        // set bridgeData receiver to a different address than everclearData.receiverAddress
         address differentReceiver = address(
             0x1234567890123456789012345678901234567890
         );
         bridgeData.receiver = differentReceiver;
 
-        // Keep validEverclearData.receiverAddress as USER_RECEIVER (different from bridgeData.receiver)
+        // keep validEverclearData.receiverAddress as USER_RECEIVER (different from bridgeData.receiver)
         // validEverclearData.receiverAddress is already set to USER_RECEIVER in setUp()
 
         // approval
@@ -371,7 +389,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // reset swap data
         setDefaultSwapDataSingleDAItoUSDC();
 
-        // Create invalid everclear data with outputAsset as bytes32(0)
+        // create invalid everclear data with outputAsset as bytes32(0)
         EverclearFacet.EverclearData
             memory invalidEverclearData = validEverclearData;
         invalidEverclearData.outputAsset = bytes32(0);
@@ -400,7 +418,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // reset swap data
         setDefaultSwapDataSingleDAItoUSDC();
 
-        // Create invalid everclear data with receiverAddress as bytes32(0)
+        // create invalid everclear data with receiverAddress as bytes32(0)
         EverclearFacet.EverclearData
             memory invalidEverclearData = validEverclearData;
         invalidEverclearData.receiverAddress = bytes32(0);
@@ -425,7 +443,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
 
-        // Set bridgeData receiver to a different address than everclearData.receiverAddress
+        // set bridgeData receiver to a different address than everclearData.receiverAddress
         address differentReceiver = address(
             0x1234567890123456789012345678901234567890
         );
@@ -434,7 +452,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // reset swap data
         setDefaultSwapDataSingleDAItoUSDC();
 
-        // Keep validEverclearData.receiverAddress as USER_RECEIVER (different from bridgeData.receiver)
+        // keep validEverclearData.receiverAddress as USER_RECEIVER (different from bridgeData.receiver)
 
         // approval
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);

@@ -12,7 +12,7 @@ import { IEverclearFeeAdapter } from "../Interfaces/IEverclearFeeAdapter.sol";
 import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
-/// @title Everclear Facet
+/// @title EverclearFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Everclear
 /// @custom:version 1.0.0
@@ -25,6 +25,7 @@ contract EverclearFacet is
 {
     /// Storage ///
 
+    /// @notice The contract address of the Everclear fee adapter.
     IEverclearFeeAdapter public immutable FEE_ADAPTER;
 
     /// Types ///
@@ -75,6 +76,7 @@ contract EverclearFacet is
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
     {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -99,6 +101,7 @@ contract EverclearFacet is
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -122,20 +125,11 @@ contract EverclearFacet is
         // contract does NOT validate _everclearData.deadline and _everclearData.sig to save gas here. Fee adapter will signature with fee and deadline in message anyway.
         if (_everclearData.outputAsset == bytes32(0)) revert InvalidCallData();
 
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                address(FEE_ADAPTER),
-                _bridgeData.minAmount
-            );
-        }
-
-        IEverclearFeeAdapter.FeeParams memory feeParams = IEverclearFeeAdapter
-            .FeeParams({
-                fee: _everclearData.fee,
-                deadline: _everclearData.deadline,
-                sig: _everclearData.sig
-            });
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(FEE_ADAPTER),
+            _bridgeData.minAmount
+        );
 
         uint32[] memory destinationChainIds = new uint32[](1);
         destinationChainIds[0] = uint32(_bridgeData.destinationChainId);
@@ -157,7 +151,11 @@ contract EverclearFacet is
                 _everclearData.maxFee,
                 _everclearData.ttl,
                 _everclearData.data,
-                feeParams
+                IEverclearFeeAdapter.FeeParams({
+                    fee: _everclearData.fee,
+                    deadline: _everclearData.deadline,
+                    sig: _everclearData.sig
+                })
             );
 
             // emit event for non-EVM chain
@@ -183,7 +181,11 @@ contract EverclearFacet is
                 _everclearData.maxFee,
                 _everclearData.ttl,
                 _everclearData.data,
-                feeParams
+                IEverclearFeeAdapter.FeeParams({
+                    fee: _everclearData.fee,
+                    deadline: _everclearData.deadline,
+                    sig: _everclearData.sig
+                })
             );
         }
 
