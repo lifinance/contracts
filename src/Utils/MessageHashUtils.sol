@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.3.0) (utils/cryptography/MessageHashUtils.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.17;
 
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @dev Signature message hash utilities for producing digests to be consumed by {ECDSA} recovery or signing.
@@ -28,7 +27,9 @@ library MessageHashUtils {
      *
      * See {ECDSA-recover}.
      */
-    function toEthSignedMessageHash(bytes32 messageHash) internal pure returns (bytes32 digest) {
+    function toEthSignedMessageHash(
+        bytes32 messageHash
+    ) internal pure returns (bytes32 digest) {
         assembly ("memory-safe") {
             mstore(0x00, "\x19Ethereum Signed Message:\n32") // 32 is the bytes-length of messageHash
             mstore(0x1c, messageHash) // 0x1c (28) is the length of the prefix
@@ -46,9 +47,17 @@ library MessageHashUtils {
      *
      * See {ECDSA-recover}.
      */
-    function toEthSignedMessageHash(bytes memory message) internal pure returns (bytes32) {
+    function toEthSignedMessageHash(
+        bytes memory message
+    ) internal pure returns (bytes32) {
         return
-            keccak256(bytes.concat("\x19Ethereum Signed Message:\n", bytes(Strings.toString(message.length)), message));
+            keccak256(
+                bytes.concat(
+                    "\x19Ethereum Signed Message:\n",
+                    bytes(Strings.toString(message.length)),
+                    message
+                )
+            );
     }
 
     /**
@@ -60,7 +69,10 @@ library MessageHashUtils {
      *
      * See {ECDSA-recover}.
      */
-    function toDataWithIntendedValidatorHash(address validator, bytes memory data) internal pure returns (bytes32) {
+    function toDataWithIntendedValidatorHash(
+        address validator,
+        bytes memory data
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(hex"19_00", validator, data));
     }
 
@@ -88,7 +100,10 @@ library MessageHashUtils {
      *
      * See {ECDSA-recover}.
      */
-    function toTypedDataHash(bytes32 domainSeparator, bytes32 structHash) internal pure returns (bytes32 digest) {
+    function toTypedDataHash(
+        bytes32 domainSeparator,
+        bytes32 structHash
+    ) internal pure returns (bytes32 digest) {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(ptr, hex"19_01")

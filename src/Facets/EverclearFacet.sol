@@ -9,14 +9,20 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IEverclearFeeAdapter } from "../Interfaces/IEverclearFeeAdapter.sol";
-import { InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title Everclear Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Everclear
 /// @custom:version 1.0.0
-contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
+contract EverclearFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
     IEverclearFeeAdapter public immutable FEE_ADAPTER;
@@ -106,11 +112,11 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
         ILiFi.BridgeData memory _bridgeData,
         EverclearData calldata _everclearData
     ) internal {
-
         // make sure receiver address has a value to prevent potential loss of funds
-        if (_everclearData.receiverAddress == bytes32(0) 
-        || _everclearData.outputAsset == bytes32(0))
-            revert InvalidCallData();
+        if (
+            _everclearData.receiverAddress == bytes32(0) ||
+            _everclearData.outputAsset == bytes32(0)
+        ) revert InvalidCallData();
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Approve the fee adapter to pull the required amount
@@ -121,16 +127,21 @@ contract EverclearFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiD
             );
         }
 
-        IEverclearFeeAdapter.FeeParams memory feeParams = IEverclearFeeAdapter.FeeParams({
-            fee: _everclearData.fee,
-            deadline: _everclearData.deadline,
-            sig: _everclearData.sig
-        });
+        IEverclearFeeAdapter.FeeParams memory feeParams = IEverclearFeeAdapter
+            .FeeParams({
+                fee: _everclearData.fee,
+                deadline: _everclearData.deadline,
+                sig: _everclearData.sig
+            });
 
         uint32[] memory destinationChainIds = new uint32[](1);
         destinationChainIds[0] = uint32(_bridgeData.destinationChainId);
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            if (_everclearData.receiverAddress == bytes32(0)) {
+                revert InvalidNonEVMReceiver();
+            }
+
             FEE_ADAPTER.newIntent(
                 destinationChainIds,
                 _everclearData.receiverAddress,

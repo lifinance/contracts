@@ -22,7 +22,7 @@ import {
   ensureAllowance,
   executeTransaction,
   setupEnvironment,
-  addressToBytes32RightPadded,
+  addressToBytes32LeftPadded,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -220,8 +220,8 @@ async function main() {
 
   const decodedNewIntentData = decodeNewIntentCalldata(createIntentData.data)
   const everclearData: EverclearFacet.EverclearDataStruct = {
-    receiverAddress: addressToBytes32RightPadded(signerAddress),
-    outputAsset: addressToBytes32RightPadded(decodedNewIntentData._outputAsset),
+    receiverAddress: addressToBytes32LeftPadded(signerAddress),
+    outputAsset: addressToBytes32LeftPadded(decodedNewIntentData._outputAsset),
     maxFee: decodedNewIntentData._maxFee,
     ttl: decodedNewIntentData._ttl,
     data: '',
@@ -230,6 +230,10 @@ async function main() {
     sig: decodedNewIntentData._feeParams.sig,
   }
 
+  console.log('everclearData')
+  console.log(everclearData)
+
+  return
   // // === Start bridging ===
   await executeTransaction(
     () =>
