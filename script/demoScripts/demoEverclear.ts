@@ -174,20 +174,15 @@ async function main() {
       to: '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62',
       inputAsset: SRC_TOKEN_ADDRESS,
       amount: amount.toString(),
-      // This 'callData' would be the ABI-encoded transaction data for the
-      // `startBridgeTokensViaEverclear` function on your LIFI Diamond.
-      // It would contain the `ILiFi.BridgeDataStruct` and `EverclearData` structs.
       callData: '0x',
-      // This 'maxFee' would come from the quote API response, e.g., quoteData.totalFeeBps.
-      maxFee: '0', //
-      // Permit2 is required for gasless transactions. You would need to sign
-      // this data off-chain using a wallet, not a simple API call.
-      // The rest of the fields that the API requires
+      maxFee: '0',
       order_id: `0x${randomBytes(32).toString('hex')}`,
     }),
   })
   const createIntentData = await createIntentResp.json()
 
+  console.log('createIntentData')
+  console.log(createIntentData)
   console.info(
     `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> linea`
   )
@@ -221,6 +216,7 @@ async function main() {
   const decodedNewIntentData = decodeNewIntentCalldata(createIntentData.data)
   const everclearData: EverclearFacet.EverclearDataStruct = {
     receiverAddress: addressToBytes32LeftPadded(signerAddress),
+    nativeFee: createIntentData.value,
     outputAsset: addressToBytes32LeftPadded(decodedNewIntentData._outputAsset),
     maxFee: decodedNewIntentData._maxFee,
     ttl: decodedNewIntentData._ttl,
@@ -232,13 +228,12 @@ async function main() {
 
   console.log('everclearData')
   console.log(everclearData)
-
   // // === Start bridging ===
   await executeTransaction(
     () =>
       (lifiDiamondContract as any).write.startBridgeTokensViaEverclear(
-        [bridgeData, everclearData]
-        // { value: fee } optional value
+        [bridgeData, everclearData],
+        { value: createIntentData.value }
       ),
     'Starting bridge tokens via Everclear',
     publicClient,

@@ -40,6 +40,7 @@ contract EverclearFacet is
     /// @param sig The signature
     struct EverclearData {
         bytes32 receiverAddress;
+        uint256 nativeFee;
         bytes32 outputAsset;
         uint24 maxFee;
         uint48 ttl;
@@ -142,7 +143,7 @@ contract EverclearFacet is
             }
 
             // destination chain is non-EVM
-            FEE_ADAPTER.newIntent(
+            FEE_ADAPTER.newIntent{ value: _everclearData.nativeFee }( // value is ONLY the fee for the intent, FEE_ADAPTER does NOT handle the native token as an asset
                 destinationChainIds,
                 _everclearData.receiverAddress,
                 _bridgeData.sendingAssetId,
@@ -172,7 +173,7 @@ contract EverclearFacet is
                 _everclearData.receiverAddress
             ) revert InvalidReceiver();
 
-            FEE_ADAPTER.newIntent(
+            FEE_ADAPTER.newIntent{ value: _everclearData.nativeFee }( // value is ONLY the fee for the intent, FEE_ADAPTER does NOT handle the native token as an asset
                 destinationChainIds,
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,

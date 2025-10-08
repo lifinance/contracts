@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { MessageHashUtils } from "src/Utils/MessageHashUtils.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { EverclearFacet } from "lifi/Facets/EverclearFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IEverclearFeeAdapter } from "lifi/Interfaces/IEverclearFeeAdapter.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 // Stub EverclearFacet Contract
 contract TestEverclearFacet is EverclearFacet {
@@ -121,6 +123,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // produce valid EverclearData
         validEverclearData = EverclearFacet.EverclearData({
             receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))),
+            nativeFee: 0,
             outputAsset: bytes32(uint256(uint160(ADDRESS_USDC_BASE))),
             maxFee: 0,
             ttl: 0,
@@ -472,5 +475,88 @@ contract EverclearFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidConfig.selector);
 
         new TestEverclearFacet(address(0));
+    }
+
+    function testRevert_StartBridgeWithNativeAsset() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create bridge data with native asset (address(0))
+        ILiFi.BridgeData memory nativeBridgeData = bridgeData;
+        nativeBridgeData.sendingAssetId = address(0); // Native asset
+
+        vm.expectRevert(NativeAssetNotSupported.selector);
+
+        everclearFacet.startBridgeTokensViaEverclear{
+            value: nativeBridgeData.minAmount
+        }(nativeBridgeData, validEverclearData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeWithNativeAssetOutput() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create bridge data with native asset as the final output
+        ILiFi.BridgeData memory nativeBridgeData = bridgeData;
+        nativeBridgeData.hasSourceSwaps = true;
+        nativeBridgeData.sendingAssetId = address(0); // Native asset as final output after swap
+
+        // Create swap data that would output native asset
+        LibSwap.SwapData[] memory nativeSwapData = new LibSwap.SwapData[](1);
+        nativeSwapData[0] = LibSwap.SwapData({
+            callTo: ADDRESS_UNISWAP,
+            approveTo: ADDRESS_UNISWAP,
+            sendingAssetId: ADDRESS_DAI,
+            receivingAssetId: address(0), // Native asset
+            fromAmount: defaultDAIAmount,
+            callData: abi.encodeWithSelector(
+                uniswap.swapExactTokensForETH.selector,
+                defaultDAIAmount,
+                0,
+                getPathDAItoETH(),
+                address(everclearFacet),
+                block.timestamp + 20 minutes
+            ),
+            requiresDeposit: true
+        });
+
+        // Approve DAI for the swap
+        dai.approve(address(everclearFacet), defaultDAIAmount);
+
+        vm.expectRevert(NativeAssetNotSupported.selector);
+
+        everclearFacet.swapAndStartBridgeTokensViaEverclear(
+            nativeBridgeData,
+            nativeSwapData,
+            validEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_StartBridgeWithNativeAssetZeroValue() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create bridge data with native asset but send zero value
+        ILiFi.BridgeData memory nativeBridgeData = bridgeData;
+        nativeBridgeData.sendingAssetId = address(0); // Native asset
+        nativeBridgeData.minAmount = 1 ether;
+
+        // Don't send any ETH value, should revert with NativeAssetNotSupported before checking value
+        vm.expectRevert(NativeAssetNotSupported.selector);
+
+        everclearFacet.startBridgeTokensViaEverclear(
+            nativeBridgeData,
+            validEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function getPathDAItoETH() internal view returns (address[] memory) {
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+        return path;
     }
 }
