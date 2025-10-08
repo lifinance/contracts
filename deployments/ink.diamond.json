@@ -80,6 +80,10 @@
       "0x6284c8F9592d43963C054D53a56086D4d8460C22": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0x669dBcd296a538717354C1be8a0907C09022Eb18": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {

@@ -1,0 +1,9 @@
+{
+  "devNodePublicKeysDocumentation": "https://docs.hyperunit.xyz/developers/key-addresses/mainnet",
+  "staging": {
+    "backendSigner": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+  },
+  "production": {
+    "backendSigner": ""
+  }
+}

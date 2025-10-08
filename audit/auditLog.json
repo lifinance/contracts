@@ -377,6 +377,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.09.01_AcrossV4(v1.0.0).pdf",
       "auditCommitHash": "650d18eb98aff7fe45249147d6db7e352825c1e4"
+    },
+    "audit20250921": {
+      "auditCompletedOn": "21.09.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.09.21_AllBridgeFacet(v2.1.1).pdf",
+      "auditCommitHash": "1d1bee22c3a632f67b775f4cfc033589c4ad3c24"
+    },
+    "audit20251007": {
+      "auditCompletedOn": "07.10.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.10.07_UnitFacet(v1.0.0).pdf",
+      "auditCommitHash": "626dd4a927ed84c1c8de9e6b22af66669da62356"
     }
   },
   "auditedContracts": {
@@ -405,7 +419,8 @@
     },
     "AllBridgeFacet": {
       "2.0.0": ["audit20250508"],
-      "2.1.0": ["audit20250718"]
+      "2.1.0": ["audit20250718"],
+      "2.1.1": ["audit20250921"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]
@@ -519,7 +534,8 @@
       "2.0.0": ["audit20250506"],
       "2.1.0": ["audit20250620"],
       "2.1.1": ["audit20250718"],
-      "2.1.2": ["audit20250728"]
+      "2.1.2": ["audit20250728"],
+      "2.1.3": ["audit20251007"]
     },
     "LibBytes": {
       "1.0.0": ["audit20250508"]
@@ -538,7 +554,8 @@
       "1.0.0": ["audit20250508"]
     },
     "LiFiData": {
-      "1.0.0": ["audit20250718"]
+      "1.0.0": ["audit20250718"],
+      "1.0.1": ["audit20251007"]
     },
     "LiFiDiamond": {
       "1.0.0": ["audit20250508"]
@@ -675,6 +692,9 @@
     },
     "TransferrableOwnership": {
       "1.0.0": ["audit20250508"]
+    },
+    "UnitFacet": {
+      "1.0.0": ["audit20251007"]
     },
     "Validatable": {
       "1.0.0": ["audit20250508"]
