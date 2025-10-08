@@ -146,7 +146,7 @@ async function main() {
   const srcTokenName = (await srcTokenContract.read.name()) as string
   const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
   const srcTokenDecimals = (await srcTokenContract.read.decimals()) as number
-  const amount = parseUnits('0.5', Number(srcTokenDecimals)) // 10 * 1e{source token decimals}
+  const amount = parseUnits('0.3', Number(srcTokenDecimals)) // 10 * 1e{source token decimals}
 
   // docs: https://docs.everclear.org/developers/api#post-routes-quotes
   const quoteResp = await fetch(`https://api.everclear.org/routes/quotes`, {
@@ -179,7 +179,7 @@ async function main() {
       // It would contain the `ILiFi.BridgeDataStruct` and `EverclearData` structs.
       callData: '0x',
       // This 'maxFee' would come from the quote API response, e.g., quoteData.totalFeeBps.
-      maxFee: '100000', //
+      maxFee: '0', //
       // Permit2 is required for gasless transactions. You would need to sign
       // this data off-chain using a wallet, not a simple API call.
       // The rest of the fields that the API requires
@@ -233,7 +233,6 @@ async function main() {
   console.log('everclearData')
   console.log(everclearData)
 
-  return
   // // === Start bridging ===
   await executeTransaction(
     () =>
