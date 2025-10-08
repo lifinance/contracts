@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { MessageHashUtils } from "src/Utils/MessageHashUtils.sol";
@@ -6,6 +6,7 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { EverclearFacet } from "lifi/Facets/EverclearFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IEverclearFeeAdapter } from "lifi/Interfaces/IEverclearFeeAdapter.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 // Stub EverclearFacet Contract
 contract TestEverclearFacet is EverclearFacet {
@@ -33,26 +34,26 @@ contract EverclearFacetTest is TestBaseFacet {
     uint256 internal signerPrivateKey;
     address internal signerAddress;
 
-        // values defaultUSDCAmount and fee taken from quote data where totalFeeBps is 0.6509
-        // quote data from:
-        //   const quoteResp = await fetch(
-        //     `https://api.everclear.org/routes/quotes`,
-        //     { 
-        //       method: 'POST',
-        //       headers: { 'Content-Type': 'application/json' },
-        //       body: JSON.stringify({
-        //         "origin": "42161",
-        //         "destinations": [
-        //           "10"
-        //         ],
-        //         "inputAsset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-        //         "amount": "100000000",
-        //         "to": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
-        //       })
-        //     }
-        //   )
-        uint256 internal usdCAmountToSend = 99934901; // its defaultUSDCAmount - fee (100000000 - 65099)
-        uint256 internal fee = 65099;
+    // values defaultUSDCAmount and fee taken from quote data where totalFeeBps is 0.6509
+    // quote data from:
+    //   const quoteResp = await fetch(
+    //     `https://api.everclear.org/routes/quotes`,
+    //     {
+    //       method: 'POST',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify({
+    //         "origin": "42161",
+    //         "destinations": [
+    //           "10"
+    //         ],
+    //         "inputAsset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    //         "amount": "100000000",
+    //         "to": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+    //       })
+    //     }
+    //   )
+    uint256 internal usdCAmountToSend = 99934901; // its defaultUSDCAmount - fee (100000000 - 65099)
+    uint256 internal fee = 65099;
 
     function setUp() public {
         customBlockNumberForForking = 23433940;
@@ -119,10 +120,10 @@ contract EverclearFacetTest is TestBaseFacet {
 
         // produce valid EverclearData
         validEverclearData = EverclearFacet.EverclearData({
-            receiverAddress: bytes32(bytes20(uint160(USER_RECEIVER))),
-            outputAsset: bytes32(bytes20(uint160(ADDRESS_USDC_BASE))),
-            maxFee: 10000,
-            ttl: 10000,
+            receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))),
+            outputAsset: bytes32(uint256(uint160(ADDRESS_USDC_BASE))),
+            maxFee: 0,
+            ttl: 0,
             data: "",
             fee: fee,
             deadline: deadline,
@@ -158,11 +159,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // facet does not support bridging of native assets
     }
 
-
-    function testBase_CanSwapAndBridgeNativeTokens()
-        public
-        override
-    {
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
     }
 
@@ -238,21 +235,16 @@ contract EverclearFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBase_CanBridgeTokens_fuzzed(uint256 amount)
-        public
-        virtual
-        override
-    {
+    function testBase_CanBridgeTokens_fuzzed(
+        uint256 amount
+    ) public virtual override {
         vm.assume(amount > validEverclearData.fee + 1 && amount < 10000000);
         vm.startPrank(USER_SENDER);
 
         bridgeData.minAmount = amount + validEverclearData.fee;
 
         // approval
-        usdc.approve(
-            address(everclearFacet),
-            amount + validEverclearData.fee
-        );
+        usdc.approve(address(everclearFacet), amount + validEverclearData.fee);
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(everclearFacet));
@@ -289,5 +281,178 @@ contract EverclearFacetTest is TestBaseFacet {
                 validEverclearData
             );
         }
+    }
+
+    function testRevert_InvalidOutputAsset() public {
+        vm.startPrank(USER_SENDER);
+
+        // Create invalid everclear data with outputAsset as bytes32(0)
+        EverclearFacet.EverclearData
+            memory invalidEverclearData = validEverclearData;
+        invalidEverclearData.outputAsset = bytes32(0);
+
+        // approval
+        usdc.approve(
+            address(everclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        everclearFacet.startBridgeTokensViaEverclear(
+            bridgeData,
+            invalidEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidNonEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set bridgeData receiver to NON_EVM_ADDRESS
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        // Create invalid everclear data with receiverAddress as bytes32(0)
+        EverclearFacet.EverclearData
+            memory invalidEverclearData = validEverclearData;
+        invalidEverclearData.receiverAddress = bytes32(0);
+
+        // approval
+        usdc.approve(
+            address(everclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        everclearFacet.startBridgeTokensViaEverclear(
+            bridgeData,
+            invalidEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_EVMReceiverMismatch() public {
+        vm.startPrank(USER_SENDER);
+
+        // Set bridgeData receiver to a different address than everclearData.receiverAddress
+        address differentReceiver = address(
+            0x1234567890123456789012345678901234567890
+        );
+        bridgeData.receiver = differentReceiver;
+
+        // Keep validEverclearData.receiverAddress as USER_RECEIVER (different from bridgeData.receiver)
+        // validEverclearData.receiverAddress is already set to USER_RECEIVER in setUp()
+
+        // approval
+        usdc.approve(
+            address(everclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        everclearFacet.startBridgeTokensViaEverclear(
+            bridgeData,
+            validEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeInvalidOutputAsset() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // Create invalid everclear data with outputAsset as bytes32(0)
+        EverclearFacet.EverclearData
+            memory invalidEverclearData = validEverclearData;
+        invalidEverclearData.outputAsset = bytes32(0);
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        everclearFacet.swapAndStartBridgeTokensViaEverclear(
+            bridgeData,
+            swapData,
+            invalidEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeInvalidNonEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // Create invalid everclear data with receiverAddress as bytes32(0)
+        EverclearFacet.EverclearData
+            memory invalidEverclearData = validEverclearData;
+        invalidEverclearData.receiverAddress = bytes32(0);
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        everclearFacet.swapAndStartBridgeTokensViaEverclear(
+            bridgeData,
+            swapData,
+            invalidEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeEVMReceiverMismatch() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // Set bridgeData receiver to a different address than everclearData.receiverAddress
+        address differentReceiver = address(
+            0x1234567890123456789012345678901234567890
+        );
+        bridgeData.receiver = differentReceiver;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // Keep validEverclearData.receiverAddress as USER_RECEIVER (different from bridgeData.receiver)
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        everclearFacet.swapAndStartBridgeTokensViaEverclear(
+            bridgeData,
+            swapData,
+            validEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ConstructorInvalidFeeAdapter() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestEverclearFacet(address(0));
     }
 }

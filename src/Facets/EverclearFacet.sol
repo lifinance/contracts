@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IEverclearFeeAdapter } from "../Interfaces/IEverclearFeeAdapter.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title Everclear Facet
@@ -29,8 +29,14 @@ contract EverclearFacet is
 
     /// Types ///
 
-    /// @dev Optional bridge specific struct
-    /// @param exampleParam Example parameter
+    /// @param receiverAddress The address of the receiver
+    /// @param outputAsset The address of the output asset
+    /// @param maxFee The maximum fee
+    /// @param ttl The time to live
+    /// @param data The data
+    /// @param fee The fee
+    /// @param deadline The deadline
+    /// @param sig The signature
     struct EverclearData {
         bytes32 receiverAddress;
         bytes32 outputAsset;
@@ -113,13 +119,10 @@ contract EverclearFacet is
         EverclearData calldata _everclearData
     ) internal {
         // make sure receiver address has a value to prevent potential loss of funds
-        if (
-            _everclearData.receiverAddress == bytes32(0) ||
-            _everclearData.outputAsset == bytes32(0)
-        ) revert InvalidCallData();
+        // contract does NOT validate _everclearData.deadline and _everclearData.sig to save gas here. Fee adapter will signature with fee and deadline in message anyway.
+        if (_everclearData.outputAsset == bytes32(0)) revert InvalidCallData();
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // Approve the fee adapter to pull the required amount
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(FEE_ADAPTER),
@@ -137,11 +140,14 @@ contract EverclearFacet is
         uint32[] memory destinationChainIds = new uint32[](1);
         destinationChainIds[0] = uint32(_bridgeData.destinationChainId);
 
+        // validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            // make sure it's non-zero (we cannot validate further)
             if (_everclearData.receiverAddress == bytes32(0)) {
                 revert InvalidNonEVMReceiver();
             }
 
+            // destination chain is non-EVM
             FEE_ADAPTER.newIntent(
                 destinationChainIds,
                 _everclearData.receiverAddress,
@@ -154,17 +160,25 @@ contract EverclearFacet is
                 feeParams
             );
 
+            // emit event for non-EVM chain
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
                 _everclearData.receiverAddress
             );
         } else {
+            // destination chain is EVM
+            // make sure that bridgeData and everclearData receiver addresses match
+            if (
+                bytes32(uint256(uint160(_bridgeData.receiver))) !=
+                _everclearData.receiverAddress
+            ) revert InvalidReceiver();
+
             FEE_ADAPTER.newIntent(
                 destinationChainIds,
-                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
-                _everclearData.outputAsset,
+                address(uint160(uint256(_everclearData.outputAsset))),
                 _bridgeData.minAmount - _everclearData.fee, // fee is deducted from the minAmount and it's pulled from the sender separately
                 _everclearData.maxFee,
                 _everclearData.ttl,

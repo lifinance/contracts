@@ -6,11 +6,11 @@ pragma solidity ^0.8.17;
 /// @custom:version 1.0.0
 interface IEverclearFeeAdapter {
     struct FeeParams {
-      uint256 fee;
-      uint256 deadline;
-      bytes sig;
+        uint256 fee;
+        uint256 deadline;
+        bytes sig;
     }
-    
+
     /**
      * @notice The structure of an intent
      * @param initiator The address of the intent initiator
@@ -27,18 +27,18 @@ interface IEverclearFeeAdapter {
      * @param data The data of the intent
      */
     struct Intent {
-      bytes32 initiator;
-      bytes32 receiver;
-      bytes32 inputAsset;
-      bytes32 outputAsset;
-      uint24 maxFee;
-      uint32 origin;
-      uint64 nonce;
-      uint48 timestamp;
-      uint48 ttl;
-      uint256 amount;
-      uint32[] destinations;
-      bytes data;
+        bytes32 initiator;
+        bytes32 receiver;
+        bytes32 inputAsset;
+        bytes32 outputAsset;
+        uint24 maxFee;
+        uint32 origin;
+        uint64 nonce;
+        uint48 timestamp;
+        uint48 ttl;
+        uint256 amount;
+        uint32[] destinations;
+        bytes data;
     }
 
     function newIntent(
@@ -46,6 +46,18 @@ interface IEverclearFeeAdapter {
         bytes32 _receiver,
         address _inputAsset,
         bytes32 _outputAsset,
+        uint256 _amount,
+        uint24 _maxFee,
+        uint48 _ttl,
+        bytes calldata _data,
+        FeeParams calldata _feeParams
+    ) external payable returns (bytes32 _intentId, Intent memory _intent);
+
+    function newIntent(
+        uint32[] memory _destinations,
+        address _receiver,
+        address _inputAsset,
+        address _outputAsset,
         uint256 _amount,
         uint24 _maxFee,
         uint48 _ttl,
