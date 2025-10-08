@@ -173,6 +173,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
         return
             IEcoPortal.Reward({
+                // If and when native bridging is enabled ensure the creator
+                // address is able to receive ETH in the case of a refund
                 creator: msg.sender,
                 prover: _ecoData.prover,
                 deadline: _ecoData.rewardDeadline,
