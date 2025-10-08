@@ -382,7 +382,7 @@
       "auditCompletedOn": "19.09.2025",
       "auditedBy": "Burra Security",
       "auditorGitHandle": "burrasec",
-      "auditReportPath": "./audit/reports/2025.09.19-GardenFacet(v1.0.0).pdf",
+      "auditReportPath": "./audit/reports/2025.09.19_GardenFacet(v1.0.0).pdf",
       "auditCommitHash": "79ffda31ccf4c48af914ccb209781bc521abeacd"
     },
     "audit20250921": {
