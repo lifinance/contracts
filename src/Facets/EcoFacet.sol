@@ -305,12 +305,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         // The Route struct contains TransferChecked instruction calldata where:
         // - The entire Route struct is Borsh-serialized
         // - Within the serialized Route, the TransferChecked instruction data is embedded
-        // - The recipient account (destination wallet) is located at bytes 251-282 (32 bytes)
+        // - The recipient account (destination wallet) is located at bytes 251-283 (32 bytes)
         // - This position is determined by the Route struct layout and the position of the
         //   recipient pubkey within the TransferChecked instruction calldata
         // - Borsh encoding preserves the exact byte positions for fixed-size fields like pubkeys
         // - The total encoded route for Solana must be exactly 319 bytes
-        // Extract bytes 251-282 (32 bytes) which contain the recipient address
+        // Extract bytes 251-283 (32 bytes) which contain the recipient address
         bytes32 routeReceiver = bytes32(
             _ecoData.encodedRoute[SOLANA_RECEIVER_OFFSET:SOLANA_RECEIVER_END]
         );
