@@ -45,7 +45,7 @@ const NEW_INTENT_EVM_ABI = parseAbi(NEW_INTENT_EVM_ABI_STRING)
 /// SUCCESSFUL TXs
 // FeeAdapter V1
 // Bridge USDC from Arbitrum to Linea - 0x22095c11bfb49334fcd01881517b5c95fc634f579b6652a450520ebda90b2445
-// Bridge USDC from Arbitrum to Solana
+// Bridge USDC from Arbitrum to Solana - 0x4a847cd232475f7ee7c7301efb62f5367c1f097127986a1874139ff2944db7bf
 // FeeAdapter V2
 // Bridge USDC from Arbitrum to Linea
 // Bridge USDC from Arbitrum to Solana
