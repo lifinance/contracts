@@ -3,11 +3,11 @@ pragma solidity ^0.8.17;
 
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { MessageHashUtils } from "src/Utils/MessageHashUtils.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { EverclearFacet } from "lifi/Facets/EverclearFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IEverclearFeeAdapter } from "lifi/Interfaces/IEverclearFeeAdapter.sol";
+import { MockEverclearFeeAdapter } from "../utils/MockEverclearFeeAdapter.sol";
 import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 // Stub EverclearFacet Contract
@@ -24,8 +24,6 @@ contract TestEverclearFacet is EverclearFacet {
 }
 
 contract EverclearFacetTest is TestBaseFacet {
-    using MessageHashUtils for bytes32;
-
     EverclearFacet.EverclearData internal validEverclearData;
     TestEverclearFacet internal everclearFacet;
     IEverclearFeeAdapter internal feeAdapter =
@@ -56,6 +54,18 @@ contract EverclearFacetTest is TestBaseFacet {
     //   )
     uint256 internal usdCAmountToSend = 99934901; // its defaultUSDCAmount - fee (100000000 - 65099)
     uint256 internal fee = 65099;
+
+    /// @dev Returns the keccak256 digest of an ERC-191 signed data with version `0x45` (`personal_sign` messages).
+    /// Copied from OpenZeppelin's MessageHashUtils to avoid dependency
+    function toEthSignedMessageHash(
+        bytes32 messageHash
+    ) internal pure returns (bytes32 digest) {
+        assembly ("memory-safe") {
+            mstore(0x00, "\x19Ethereum Signed Message:\n32") // 32 is the bytes-length of messageHash
+            mstore(0x1c, messageHash) // 0x1c (28) is the length of the prefix
+            digest := keccak256(0x00, 0x3c) // 0x3c is the length of the prefix (0x1c) + messageHash (0x20)
+        }
+    }
 
     function setUp() public {
         customBlockNumberForForking = 23433940;
@@ -111,7 +121,7 @@ contract EverclearFacetTest is TestBaseFacet {
         bytes32 messageHash = keccak256(
             abi.encode(fee, 0, bridgeData.sendingAssetId, deadline)
         );
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        bytes32 ethSignedMessageHash = toEthSignedMessageHash(messageHash);
 
         // 4. Sign the hash
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
@@ -558,5 +568,385 @@ contract EverclearFacetTest is TestBaseFacet {
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_WRAPPED_NATIVE;
         return path;
+    }
+
+    function getPathDAItoUSDC() internal view returns (address[] memory) {
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+        return path;
+    }
+
+    function test_CanBridgeTokensWithNativeFee()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(usdCAmountToSend + validEverclearData.fee)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        // Deploy mock fee adapter that requires native fees
+        MockEverclearFeeAdapter mockFeeAdapter = new MockEverclearFeeAdapter(
+            address(this), // owner
+            signerAddress // fee signer
+        );
+
+        // Deploy new facet with mock adapter
+        TestEverclearFacet mockEverclearFacet = new TestEverclearFacet(
+            address(mockFeeAdapter)
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        uint256 nativeFee = 0.01 ether;
+        uint256 deadline = block.timestamp + 10000;
+
+        // Create signature with native fee
+        bytes32 messageHash = keccak256(
+            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
+        );
+        bytes32 ethSignedMessageHash = toEthSignedMessageHash(messageHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPrivateKey,
+            ethSignedMessageHash
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Update everclear data with native fee
+        EverclearFacet.EverclearData
+            memory everclearDataWithNativeFee = validEverclearData;
+        everclearDataWithNativeFee.nativeFee = nativeFee;
+        everclearDataWithNativeFee.deadline = deadline;
+        everclearDataWithNativeFee.sig = signature;
+
+        // approval
+        usdc.approve(
+            address(mockEverclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        // Give USER_SENDER some ETH for native fee
+        vm.deal(USER_SENDER, nativeFee + 1 ether);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(mockEverclearFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        // Call with native fee
+        mockEverclearFacet.startBridgeTokensViaEverclear{ value: nativeFee }(
+            bridgeData,
+            everclearDataWithNativeFee
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwapAndBridgeTokensWithNativeFee() public virtual {
+        address mockAdapter = address(
+            new MockEverclearFeeAdapter(address(this), signerAddress)
+        );
+        address mockFacet = address(new TestEverclearFacet(mockAdapter));
+
+        TestEverclearFacet(mockFacet).addDex(ADDRESS_UNISWAP);
+        TestEverclearFacet(mockFacet).setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+
+        uint256 nativeFee = 0.02 ether;
+        uint256 deadline = block.timestamp + 10000;
+
+        // create signature
+        bytes32 hash = keccak256(
+            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPrivateKey,
+            toEthSignedMessageHash(hash)
+        );
+
+        // update data
+        EverclearFacet.EverclearData memory data = validEverclearData;
+        data.nativeFee = nativeFee;
+        data.deadline = deadline;
+        data.sig = abi.encodePacked(r, s, v);
+
+        // get swap amount and create swap data
+        uint256 swapAmount = uniswap.getAmountsIn(
+            bridgeData.minAmount,
+            getPathDAItoUSDC()
+        )[0];
+        LibSwap.SwapData[] memory swaps = _createSwapData(
+            swapAmount,
+            mockFacet
+        );
+
+        dai.approve(mockFacet, swapAmount);
+        vm.deal(USER_SENDER, nativeFee + 1 ether);
+
+        vm.expectEmit(true, true, true, true, mockFacet);
+        emit LiFiTransferStarted(bridgeData);
+
+        TestEverclearFacet(mockFacet).swapAndStartBridgeTokensViaEverclear{
+            value: nativeFee
+        }(bridgeData, swaps, data);
+        vm.stopPrank();
+    }
+
+    function _createSwapData(
+        uint256 swapAmount,
+        address mockFacet
+    ) internal view returns (LibSwap.SwapData[] memory) {
+        LibSwap.SwapData[] memory swaps = new LibSwap.SwapData[](1);
+        swaps[0] = LibSwap.SwapData({
+            callTo: ADDRESS_UNISWAP,
+            approveTo: ADDRESS_UNISWAP,
+            sendingAssetId: ADDRESS_DAI,
+            receivingAssetId: ADDRESS_USDC,
+            fromAmount: swapAmount,
+            callData: abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                swapAmount,
+                bridgeData.minAmount,
+                getPathDAItoUSDC(),
+                mockFacet,
+                block.timestamp + 20 minutes
+            ),
+            requiresDeposit: true
+        });
+        return swaps;
+    }
+
+    function test_CanBridgeTokensToNonEVMChainWithNativeFee()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(usdCAmountToSend + validEverclearData.fee)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        // deploy mock fee adapter that requires native fees
+        MockEverclearFeeAdapter mockFeeAdapter = new MockEverclearFeeAdapter(
+            address(this), // owner
+            signerAddress // fee signer
+        );
+
+        // deploy new facet with mock adapter
+        TestEverclearFacet mockEverclearFacet = new TestEverclearFacet(
+            address(mockFeeAdapter)
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        uint256 nativeFee = 0.015 ether;
+        uint256 deadline = block.timestamp + 10000;
+
+        // create signature with native fee
+        bytes32 messageHash = keccak256(
+            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
+        );
+        bytes32 ethSignedMessageHash = toEthSignedMessageHash(messageHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPrivateKey,
+            ethSignedMessageHash
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // update everclear data with native fee
+        EverclearFacet.EverclearData
+            memory everclearDataWithNativeFee = validEverclearData;
+        everclearDataWithNativeFee.nativeFee = nativeFee;
+        everclearDataWithNativeFee.deadline = deadline;
+        everclearDataWithNativeFee.sig = signature;
+
+        // approval
+        usdc.approve(
+            address(mockEverclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        // set up for non-EVM chain
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        everclearDataWithNativeFee.receiverAddress = bytes32(
+            uint256(uint160(USER_RECEIVER))
+        );
+
+        // give USER_SENDER some ETH for native fee
+        vm.deal(USER_SENDER, nativeFee + 1 ether);
+
+        // prepare check for events
+        vm.expectEmit(true, true, true, true, address(mockEverclearFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            everclearDataWithNativeFee.receiverAddress
+        );
+
+        vm.expectEmit(true, true, true, true, address(mockEverclearFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        // Call with native fee
+        mockEverclearFacet.startBridgeTokensViaEverclear{ value: nativeFee }(
+            bridgeData,
+            everclearDataWithNativeFee
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InsufficientNativeFee() public {
+        // deploy mock fee adapter that requires native fees
+        MockEverclearFeeAdapter mockFeeAdapter = new MockEverclearFeeAdapter(
+            address(this), // owner
+            signerAddress // fee signer
+        );
+
+        // deploy new facet with mock adapter
+        TestEverclearFacet mockEverclearFacet = new TestEverclearFacet(
+            address(mockFeeAdapter)
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        uint256 nativeFee = 0.01 ether;
+        uint256 deadline = block.timestamp + 10000;
+
+        // create signature with native fee
+        bytes32 messageHash = keccak256(
+            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
+        );
+        bytes32 ethSignedMessageHash = toEthSignedMessageHash(messageHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPrivateKey,
+            ethSignedMessageHash
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // update everclear data with native fee
+        EverclearFacet.EverclearData
+            memory everclearDataWithNativeFee = validEverclearData;
+        everclearDataWithNativeFee.nativeFee = nativeFee;
+        everclearDataWithNativeFee.deadline = deadline;
+        everclearDataWithNativeFee.sig = signature;
+
+        // approval
+        usdc.approve(
+            address(mockEverclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        // give USER_SENDER some ETH but send insufficient amount
+        vm.deal(USER_SENDER, nativeFee + 1 ether);
+
+        vm.expectRevert(); // should revert due to insufficient native fee
+        // call with insufficient native fee (send less than required)
+        mockEverclearFacet.startBridgeTokensViaEverclear{
+            value: nativeFee - 1
+        }(bridgeData, everclearDataWithNativeFee);
+
+        vm.stopPrank();
+    }
+
+    function test_ExcessNativeFeeGetsRefunded() public {
+        address mockAdapter = address(
+            new MockEverclearFeeAdapter(address(this), signerAddress)
+        );
+        address mockFacet = address(new TestEverclearFacet(mockAdapter));
+
+        uint256 nativeFee = 0.01 ether;
+        uint256 totalSent = nativeFee + 0.005 ether; // Send excess
+        uint256 deadline = block.timestamp + 10000;
+
+        vm.startPrank(USER_SENDER);
+
+        // create signature
+        bytes32 hash = keccak256(
+            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPrivateKey,
+            toEthSignedMessageHash(hash)
+        );
+
+        // update data
+        EverclearFacet.EverclearData memory data = validEverclearData;
+        data.nativeFee = nativeFee;
+        data.deadline = deadline;
+        data.sig = abi.encodePacked(r, s, v);
+
+        // execute test
+        usdc.approve(mockFacet, usdCAmountToSend + validEverclearData.fee);
+        vm.deal(USER_SENDER, totalSent + 1 ether);
+
+        uint256 balanceBefore = USER_SENDER.balance;
+        TestEverclearFacet(mockFacet).startBridgeTokensViaEverclear{
+            value: totalSent
+        }(bridgeData, data);
+        uint256 balanceAfter = USER_SENDER.balance;
+
+        assertEq(
+            balanceBefore - balanceAfter,
+            nativeFee,
+            "Excess native fee should be refunded"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeInsufficientNativeFee() public {
+        address mockAdapter = address(
+            new MockEverclearFeeAdapter(address(this), signerAddress)
+        );
+        address mockFacet = address(new TestEverclearFacet(mockAdapter));
+
+        TestEverclearFacet(mockFacet).addDex(ADDRESS_UNISWAP);
+        TestEverclearFacet(mockFacet).setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+
+        uint256 nativeFee = 0.02 ether;
+        uint256 deadline = block.timestamp + 10000;
+
+        // create signature
+        bytes32 hash = keccak256(
+            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPrivateKey,
+            toEthSignedMessageHash(hash)
+        );
+
+        // update data
+        EverclearFacet.EverclearData memory data = validEverclearData;
+        data.nativeFee = nativeFee;
+        data.deadline = deadline;
+        data.sig = abi.encodePacked(r, s, v);
+
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(mockFacet, swapData[0].fromAmount);
+        vm.deal(USER_SENDER, nativeFee + 1 ether);
+
+        vm.expectRevert();
+        TestEverclearFacet(mockFacet).swapAndStartBridgeTokensViaEverclear{
+            value: nativeFee - 1
+        }(bridgeData, swapData, data);
+        vm.stopPrank();
     }
 }
