@@ -245,8 +245,8 @@ jobs:
 
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
-          ##### Step 1: Remove everything in and including brackets from the current title
-          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[.*$//')
+          ##### Step 1: Remove all bracketed content from the current title
+          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[[^]]*\]//g')
           echo "BASE_TITLE: $BASE_TITLE"
 
           ##### Step 2: Trim whitespace from the base title
