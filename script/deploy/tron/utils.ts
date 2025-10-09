@@ -929,7 +929,7 @@ export async function registerFacetToDiamond(
     const selectorsToReplace = []
     let alreadyRegisteredCount = 0
 
-    for (const selector of selectors) 
+    for (const selector of selectors)
       try {
         const currentFacetAddress = await diamond.facetAddress(selector).call()
 
@@ -954,7 +954,6 @@ export async function registerFacetToDiamond(
         )
         selectorsToAdd.push(selector)
       }
-    
 
     // Build facetCuts array based on what's needed
     const facetCuts = []
@@ -971,11 +970,10 @@ export async function registerFacetToDiamond(
       )
     }
 
-    if (alreadyRegisteredCount > 0) 
+    if (alreadyRegisteredCount > 0)
       consola.info(
         `${alreadyRegisteredCount} selectors already registered to this facet`
       )
-    
 
     // If nothing to do, exit early
     if (facetCuts.length === 0) {

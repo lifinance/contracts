@@ -119,7 +119,7 @@ jobs:
 
             ##### Extract version tag from file
             VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
-            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' | tr -d '\n\r' || true)
 
             ##### Extract the filename without extension
             FILENAME=$(basename "$FILE_PATH" .sol)
@@ -218,7 +218,7 @@ jobs:
             ##### create a string from the array with all contracts
             CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
             CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
-            echo -e "${CONTRACTS_FOR_TITLE_STR[*]}" > contracts_for_title.txt
+            echo "${CONTRACTS_FOR_TITLE_STR}" > contracts_for_title.txt
           else
             echo -e "\033[32mDid not find any contracts that require an audit.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
@@ -229,8 +229,8 @@ jobs:
           ##### Upload this file in any case to prevent error in following job when trying to download this file
           echo -e ""
           echo -e ""
-          echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
-          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR[*]}"
+          echo "${CONTRACTS_FOR_AUDIT_STR}" > contracts_for_audit.txt
+          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR}"
 
       - name: Compose updated PR title
         env:
@@ -245,12 +245,12 @@ jobs:
 
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
-          ##### Step 1: Remove everything in and including brackets from the current title
-          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[.*$//')
+          ##### Step 1: Remove all bracketed content from the current title
+          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[[^]]*\]//g')
           echo "BASE_TITLE: $BASE_TITLE"
 
-          ##### Step 2: Trim whitespace from the base title
-          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/[[:space:]]*$//')"
+          ##### Step 2: Trim leading and trailing whitespace from the base title
+          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
           ##### Step 3: Construct the new title if there are updated contracts
           if [[ -n "$UPDATED_CONTRACTS" ]]; then
