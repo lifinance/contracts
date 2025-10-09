@@ -29,13 +29,18 @@ config()
 
 const EVERCLEAR_FACET_ABI = everclearFacetArtifact.abi as Abi
 
-// Defining the ABI structure for the newIntent function based on the user's *asserted* V1 signature
-const NEW_INTENT_ABI_STRING = [
+// Define ABI signatures for both EVM and Non-EVM chains
+const NEW_INTENT_NON_EVM_ABI_STRING = [
+  `function newIntent(uint32[] destinations, bytes32 receiver, address inputAsset, bytes32 outputAsset, uint256 amount, uint24 maxFee, uint48 ttl, bytes data, (uint256 fee, uint256 deadline, bytes sig) feeParams)`,
+] as const
+
+const NEW_INTENT_EVM_ABI_STRING = [
   `function newIntent(uint32[] destinations, address receiver, address inputAsset, address outputAsset, uint256 amount, uint24 maxFee, uint48 ttl, bytes data, (uint256 fee, uint256 deadline, bytes sig) feeParams)`,
 ] as const
 
 // Using viem's parseAbi to convert the human-readable ABI into the structured ABI
-const NEW_INTENT_ABI = parseAbi(NEW_INTENT_ABI_STRING)
+const NEW_INTENT_NON_EVM_ABI = parseAbi(NEW_INTENT_NON_EVM_ABI_STRING)
+const NEW_INTENT_EVM_ABI = parseAbi(NEW_INTENT_EVM_ABI_STRING)
 
 /// SUCCESSFUL TXs
 // FeeAdapter V1
@@ -48,7 +53,7 @@ const NEW_INTENT_ABI = parseAbi(NEW_INTENT_ABI_STRING)
 async function main() {
   // === Set up environment ===
   const srcChain: SupportedChain = 'arbitrum'
-  const destinationChainId = 59144 // Linea Mainnet
+  let destinationChainId = 59144 // Linea Mainnet
 
   const {
     client,
@@ -96,13 +101,13 @@ async function main() {
   console.log('quoteData')
   console.log(quoteData)
 
-  const createIntentResp = await fetch(`https://api.everclear.org/intents`, {
+  let createIntentResp = await fetch(`https://api.everclear.org/intents`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       origin: '42161',
       destinations: [destinationChainId.toString()],
-      to: '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62',
+      to: signerAddress,
       inputAsset: SRC_TOKEN_ADDRESS,
       amount: amount.toString(),
       callData: '0x',
@@ -110,7 +115,7 @@ async function main() {
       order_id: `0x${randomBytes(32).toString('hex')}`,
     }),
   })
-  const createIntentData = await createIntentResp.json()
+  let createIntentData = await createIntentResp.json()
 
   console.log('createIntentData')
   console.log(createIntentData)
@@ -144,11 +149,19 @@ async function main() {
     hasDestinationCall: false,
   }
 
-  const decodedNewIntentData = decodeNewIntentCalldata(createIntentData.data)
-  const everclearData: EverclearFacet.EverclearDataStruct = {
-    receiverAddress: addressToBytes32LeftPadded(signerAddress),
+  // For EVM chains (Linea) - use EVM ABI
+  let decodedNewIntentData = decodeNewIntentCalldata(
+    createIntentData.data,
+    false
+  )
+  let everclearData: EverclearFacet.EverclearDataStruct = {
+    receiverAddress: addressToBytes32LeftPadded(
+      decodedNewIntentData._receiver as Address
+    ),
     nativeFee: BigInt(createIntentData.value),
-    outputAsset: addressToBytes32LeftPadded(decodedNewIntentData._outputAsset),
+    outputAsset: addressToBytes32LeftPadded(
+      decodedNewIntentData._outputAsset as Address
+    ),
     maxFee: BigInt(decodedNewIntentData._maxFee),
     ttl: BigInt(decodedNewIntentData._ttl),
     data: '',
@@ -157,10 +170,6 @@ async function main() {
     sig: decodedNewIntentData._feeParams.sig,
   }
 
-  console.log('bridgeData')
-  console.log(bridgeData)
-  console.log('everclearData')
-  console.log(everclearData)
   // // === Start bridging ===
   await executeTransaction(
     () =>
@@ -174,22 +183,72 @@ async function main() {
   )
 
   /// Bridging from Arbitrum to Solana
+  console.log('=== Bridging from Arbitrum to Solana ===')
+
+  destinationChainId = 1399811149 // Solana
+
+  createIntentResp = await fetch(`https://api.everclear.org/intents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      origin: '42161',
+      destinations: [destinationChainId.toString()],
+      to: 'B8xioV266mGER51fTWAsx8mQeuiMb22jjoJiPTMa3aL7', // random solana address
+      inputAsset: SRC_TOKEN_ADDRESS,
+      amount: amount.toString(),
+      callData: '0x',
+      maxFee: '0',
+      order_id: `0x${randomBytes(32).toString('hex')}`,
+    }),
+  })
+  createIntentData = await createIntentResp.json()
+
+  bridgeData.destinationChainId = 1151111081099710 // Solana chain id for LIFI
+  bridgeData.receiver = '0x11f111f111f111F111f111f111F111f111f111F1' // change receiver to NON_EVM_ADDRESS
+
+  // For Non-EVM chains (Solana) - use Non-EVM ABI
+  decodedNewIntentData = decodeNewIntentCalldata(createIntentData.data, true)
+  everclearData = {
+    receiverAddress: decodedNewIntentData._receiver as Hex, // Already bytes32 for Solana
+    nativeFee: BigInt(createIntentData.value),
+    outputAsset: decodedNewIntentData._outputAsset as Hex, // Already bytes32 for Solana
+    maxFee: BigInt(decodedNewIntentData._maxFee),
+    ttl: BigInt(decodedNewIntentData._ttl),
+    data: '',
+    fee: decodedNewIntentData._feeParams.fee,
+    deadline: decodedNewIntentData._feeParams.deadline,
+    sig: decodedNewIntentData._feeParams.sig,
+  }
+
+  await executeTransaction(
+    () =>
+      (lifiDiamondContract as any).write.startBridgeTokensViaEverclear(
+        [bridgeData, everclearData],
+        { value: BigInt(createIntentData.value) }
+      ),
+    'Starting bridge tokens via Everclear',
+    publicClient,
+    true
+  )
 }
 
-function decodeNewIntentCalldata(fullCalldata: string) {
+function decodeNewIntentCalldata(fullCalldata: string, isNonEVM = false) {
   const data = fullCalldata as Hex
 
   try {
+    // Choose the appropriate ABI based on destination chain type
+    const abi = isNonEVM ? NEW_INTENT_NON_EVM_ABI : NEW_INTENT_EVM_ABI
+
     // Decode the parameters using viem's decodeFunctionData
     const { args } = decodeFunctionData({
-      abi: NEW_INTENT_ABI,
+      abi: abi,
       data: data,
     })
 
     console.log('args')
     console.log(args)
 
-    // Destructure args according to the NewIntentArgs type
+    // Destructure args according to the function signature
     const [
       _destinations,
       _receiver,
@@ -200,55 +259,28 @@ function decodeNewIntentCalldata(fullCalldata: string) {
       _ttl,
       _data,
       _feeParamsTuple,
-    ] = args as any
-
-    console.log('_destinations')
-    console.log(_destinations)
-    console.log('_receiver')
-    console.log(_receiver)
-    console.log('_inputAsset')
-    console.log(_inputAsset)
-    console.log('_outputAsset')
-    console.log(_outputAsset)
-    console.log('_amount')
-    console.log(_amount)
-    console.log('_maxFee')
-    console.log(_maxFee)
-    console.log('_ttl')
-    console.log(_ttl)
-    console.log('_data')
-    console.log(_data)
-    console.log('_feeParamsTuple')
-    console.log(_feeParamsTuple)
-    console.log('_feeParamsTuple.fee')
-    console.log(_feeParamsTuple.fee)
-    console.log('_feeParamsTuple.deadline')
-    console.log(_feeParamsTuple.deadline)
-    console.log('_feeParamsTuple.sig')
-    console.log(_feeParamsTuple.sig)
-
-    // Extracting parameters based on the function signature
+    ] = args
+    // Return the decoded data with proper typing
     const output = {
-      _destinations: _destinations as number[], // Assuming array of uint32 decodes to number[]
-      _receiver: _receiver as Address,
+      _destinations: _destinations as number[],
+      _receiver: _receiver as Address | Hex, // Can be address or bytes32
       _inputAsset: _inputAsset as Address,
-      _outputAsset: _outputAsset as Address,
-      _amount: _amount, // bigint
-      _maxFee: _maxFee, // number/bigint
-      _ttl: _ttl, // number/bigint
-      _data: _data, // Hex string
+      _outputAsset: _outputAsset as Address | Hex, // Can be address or bytes32
+      _amount: _amount,
+      _maxFee: _maxFee,
+      _ttl: _ttl,
+      _data: _data,
       _feeParams: {
-        fee: _feeParamsTuple.fee, // bigint
-        deadline: _feeParamsTuple.deadline, // bigint
-        sig: _feeParamsTuple.sig, // Hex string
+        fee: _feeParamsTuple.fee,
+        deadline: _feeParamsTuple.deadline,
+        sig: _feeParamsTuple.sig,
       },
     }
 
     return output
   } catch (e) {
-    // We expect this to fail or yield incorrect results due to the signature/selector mismatch
     throw new Error(
-      'Decoding Failed: The calldata structure does not match the provided signature.'
+      `Decoding Failed: The calldata structure does not match the provided signature. Error: ${e}`
     )
   }
 }

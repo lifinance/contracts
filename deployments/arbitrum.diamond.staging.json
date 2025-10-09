@@ -204,6 +204,14 @@
       "0x360C3FfF4Ca8ebE3A50D1411c03cf916321a8f3a": {
         "Name": "EverclearFacet",
         "Version": "1.0.0"
+      },
+      "0x4582FD200173F1717F6C53fD1531b2F6fE33Fe3D": {
+        "Name": "EverclearFacet",
+        "Version": "1.0.0"
+      },
+      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
