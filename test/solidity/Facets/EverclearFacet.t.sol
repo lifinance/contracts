@@ -68,7 +68,7 @@ contract EverclearFacetTest is TestBaseFacet {
     }
 
     function setUp() public {
-        customBlockNumberForForking = 23433940;
+        customBlockNumberForForking = 23541361;
         initTestBase();
 
         signerPrivateKey = 0x1234;
@@ -245,6 +245,7 @@ contract EverclearFacetTest is TestBaseFacet {
         );
 
         bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
         validEverclearData.receiverAddress = bytes32(
             uint256(uint160(USER_RECEIVER))
         );
@@ -778,6 +779,7 @@ contract EverclearFacetTest is TestBaseFacet {
         );
 
         // set up for non-EVM chain
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
         bridgeData.receiver = NON_EVM_ADDRESS;
         everclearDataWithNativeFee.receiverAddress = bytes32(
             uint256(uint160(USER_RECEIVER))
@@ -947,6 +949,38 @@ contract EverclearFacetTest is TestBaseFacet {
         TestEverclearFacet(mockFacet).swapAndStartBridgeTokensViaEverclear{
             value: nativeFee - 1
         }(bridgeData, swapData, data);
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeUnsupportedEverclearChainId() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData for swap and bridge
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON; // another unsupported non-EVM chain
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // set a valid receiverAddress for non-EVM chain
+        EverclearFacet.EverclearData
+            memory everclearDataWithUnsupportedChain = validEverclearData;
+        everclearDataWithUnsupportedChain.receiverAddress = bytes32(
+            uint256(uint160(USER_RECEIVER))
+        );
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(EverclearFacet.UnsupportedEverclearChainId.selector);
+
+        everclearFacet.swapAndStartBridgeTokensViaEverclear(
+            bridgeData,
+            swapData,
+            everclearDataWithUnsupportedChain
+        );
+
         vm.stopPrank();
     }
 }

@@ -37,82 +37,13 @@ const NEW_INTENT_ABI_STRING = [
 // Using viem's parseAbi to convert the human-readable ABI into the structured ABI
 const NEW_INTENT_ABI = parseAbi(NEW_INTENT_ABI_STRING)
 
-function decodeNewIntentCalldata(fullCalldata: string) {
-  const data = fullCalldata as Hex
-
-  try {
-    // Decode the parameters using viem's decodeFunctionData
-    const { args } = decodeFunctionData({
-      abi: NEW_INTENT_ABI,
-      data: data,
-    })
-
-    console.log('args')
-    console.log(args)
-
-    // Destructure args according to the NewIntentArgs type
-    const [
-      _destinations,
-      _receiver,
-      _inputAsset,
-      _outputAsset,
-      _amount,
-      _maxFee,
-      _ttl,
-      _data,
-      _feeParamsTuple,
-    ] = args as any
-
-    console.log('_destinations')
-    console.log(_destinations)
-    console.log('_receiver')
-    console.log(_receiver)
-    console.log('_inputAsset')
-    console.log(_inputAsset)
-    console.log('_outputAsset')
-    console.log(_outputAsset)
-    console.log('_amount')
-    console.log(_amount)
-    console.log('_maxFee')
-    console.log(_maxFee)
-    console.log('_ttl')
-    console.log(_ttl)
-    console.log('_data')
-    console.log(_data)
-    console.log('_feeParamsTuple')
-    console.log(_feeParamsTuple)
-    console.log('_feeParamsTuple.fee')
-    console.log(_feeParamsTuple.fee)
-    console.log('_feeParamsTuple.deadline')
-    console.log(_feeParamsTuple.deadline)
-    console.log('_feeParamsTuple.sig')
-    console.log(_feeParamsTuple.sig)
-
-    // Extracting parameters based on the function signature
-    const output = {
-      _destinations: _destinations as number[], // Assuming array of uint32 decodes to number[]
-      _receiver: _receiver as Address,
-      _inputAsset: _inputAsset as Address,
-      _outputAsset: _outputAsset as Address,
-      _amount: _amount, // bigint
-      _maxFee: _maxFee, // number/bigint
-      _ttl: _ttl, // number/bigint
-      _data: _data, // Hex string
-      _feeParams: {
-        fee: _feeParamsTuple.fee, // bigint
-        deadline: _feeParamsTuple.deadline, // bigint
-        sig: _feeParamsTuple.sig, // Hex string
-      },
-    }
-
-    return output
-  } catch (e) {
-    // We expect this to fail or yield incorrect results due to the signature/selector mismatch
-    throw new Error(
-      'Decoding Failed: The calldata structure does not match the provided signature.'
-    )
-  }
-}
+/// SUCCESSFUL TXs
+// FeeAdapter V1
+// Bridge USDC from Arbitrum to Linea - 0x22095c11bfb49334fcd01881517b5c95fc634f579b6652a450520ebda90b2445
+// Bridge USDC from Arbitrum to Solana
+// FeeAdapter V2
+// Bridge USDC from Arbitrum to Linea
+// Bridge USDC from Arbitrum to Solana
 
 async function main() {
   // === Set up environment ===
@@ -216,16 +147,18 @@ async function main() {
   const decodedNewIntentData = decodeNewIntentCalldata(createIntentData.data)
   const everclearData: EverclearFacet.EverclearDataStruct = {
     receiverAddress: addressToBytes32LeftPadded(signerAddress),
-    nativeFee: createIntentData.value,
+    nativeFee: BigInt(createIntentData.value),
     outputAsset: addressToBytes32LeftPadded(decodedNewIntentData._outputAsset),
-    maxFee: decodedNewIntentData._maxFee,
-    ttl: decodedNewIntentData._ttl,
+    maxFee: BigInt(decodedNewIntentData._maxFee),
+    ttl: BigInt(decodedNewIntentData._ttl),
     data: '',
     fee: decodedNewIntentData._feeParams.fee,
     deadline: decodedNewIntentData._feeParams.deadline,
     sig: decodedNewIntentData._feeParams.sig,
   }
 
+  console.log('bridgeData')
+  console.log(bridgeData)
   console.log('everclearData')
   console.log(everclearData)
   // // === Start bridging ===
@@ -233,12 +166,91 @@ async function main() {
     () =>
       (lifiDiamondContract as any).write.startBridgeTokensViaEverclear(
         [bridgeData, everclearData],
-        { value: createIntentData.value }
+        { value: BigInt(createIntentData.value) }
       ),
     'Starting bridge tokens via Everclear',
     publicClient,
     true
   )
+
+  /// Bridging from Arbitrum to Solana
+}
+
+function decodeNewIntentCalldata(fullCalldata: string) {
+  const data = fullCalldata as Hex
+
+  try {
+    // Decode the parameters using viem's decodeFunctionData
+    const { args } = decodeFunctionData({
+      abi: NEW_INTENT_ABI,
+      data: data,
+    })
+
+    console.log('args')
+    console.log(args)
+
+    // Destructure args according to the NewIntentArgs type
+    const [
+      _destinations,
+      _receiver,
+      _inputAsset,
+      _outputAsset,
+      _amount,
+      _maxFee,
+      _ttl,
+      _data,
+      _feeParamsTuple,
+    ] = args as any
+
+    console.log('_destinations')
+    console.log(_destinations)
+    console.log('_receiver')
+    console.log(_receiver)
+    console.log('_inputAsset')
+    console.log(_inputAsset)
+    console.log('_outputAsset')
+    console.log(_outputAsset)
+    console.log('_amount')
+    console.log(_amount)
+    console.log('_maxFee')
+    console.log(_maxFee)
+    console.log('_ttl')
+    console.log(_ttl)
+    console.log('_data')
+    console.log(_data)
+    console.log('_feeParamsTuple')
+    console.log(_feeParamsTuple)
+    console.log('_feeParamsTuple.fee')
+    console.log(_feeParamsTuple.fee)
+    console.log('_feeParamsTuple.deadline')
+    console.log(_feeParamsTuple.deadline)
+    console.log('_feeParamsTuple.sig')
+    console.log(_feeParamsTuple.sig)
+
+    // Extracting parameters based on the function signature
+    const output = {
+      _destinations: _destinations as number[], // Assuming array of uint32 decodes to number[]
+      _receiver: _receiver as Address,
+      _inputAsset: _inputAsset as Address,
+      _outputAsset: _outputAsset as Address,
+      _amount: _amount, // bigint
+      _maxFee: _maxFee, // number/bigint
+      _ttl: _ttl, // number/bigint
+      _data: _data, // Hex string
+      _feeParams: {
+        fee: _feeParamsTuple.fee, // bigint
+        deadline: _feeParamsTuple.deadline, // bigint
+        sig: _feeParamsTuple.sig, // Hex string
+      },
+    }
+
+    return output
+  } catch (e) {
+    // We expect this to fail or yield incorrect results due to the signature/selector mismatch
+    throw new Error(
+      'Decoding Failed: The calldata structure does not match the provided signature.'
+    )
+  }
 }
 
 main()

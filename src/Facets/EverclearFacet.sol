@@ -28,6 +28,9 @@ contract EverclearFacet is
     /// @notice The contract address of the Everclear fee adapter.
     IEverclearFeeAdapter public immutable FEE_ADAPTER;
 
+    /// Constants ///
+    uint32 internal constant EVERCLEAR_CHAIN_ID_SOLANA = 1399811149;
+
     /// Types ///
 
     /// @param receiverAddress The address of the receiver
@@ -49,6 +52,11 @@ contract EverclearFacet is
         uint256 deadline;
         bytes sig;
     }
+
+    /// Errors ///
+
+    /// @notice Reverts when the destination chain is not supported by Everclear
+    error UnsupportedEverclearChainId();
 
     /// Constructor ///
 
@@ -132,14 +140,18 @@ contract EverclearFacet is
             _bridgeData.minAmount
         );
 
-        uint32[] memory destinationChainIds = new uint32[](1);
-        destinationChainIds[0] = uint32(_bridgeData.destinationChainId);
-
         // validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             // make sure it's non-zero (we cannot validate further)
             if (_everclearData.receiverAddress == bytes32(0)) {
                 revert InvalidNonEVMReceiver();
+            }
+
+            uint32[] memory destinationChainIds = new uint32[](1);
+            if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+                destinationChainIds[0] = EVERCLEAR_CHAIN_ID_SOLANA;
+            } else {
+                revert UnsupportedEverclearChainId();
             }
 
             // destination chain is non-EVM
@@ -172,6 +184,9 @@ contract EverclearFacet is
                 bytes32(uint256(uint160(_bridgeData.receiver))) !=
                 _everclearData.receiverAddress
             ) revert InvalidReceiver();
+
+            uint32[] memory destinationChainIds = new uint32[](1);
+            destinationChainIds[0] = uint32(_bridgeData.destinationChainId);
 
             FEE_ADAPTER.newIntent{ value: _everclearData.nativeFee }( // value is ONLY the fee for the intent, FEE_ADAPTER does NOT handle the native token as an asset
                 destinationChainIds,
