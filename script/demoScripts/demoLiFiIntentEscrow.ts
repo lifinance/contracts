@@ -60,7 +60,9 @@ const LIFI_INTENT_ORDER_SERVER = 'https://order.li.fi'
 async function main() {
   // === Set up environment ===
   const srcChain: SupportedChain = 'base' // Set source chain
-  const destinationChainId: SupportedChain = 'arbitrum' // Set destination chain id
+  const sourceChainId = getViemChainForNetworkName(srcChain).id
+  const destinationChain: SupportedChain = 'arbitrum' // Set destination chain id
+  const destinationChainId = getViemChainForNetworkName(destinationChain).id
 
   const {
     client,
@@ -131,20 +133,17 @@ async function main() {
 
   const SRC_TOKEN_INTEROPABLE_ADDRESS = getInteropableAddress(
     SRC_TOKEN_ADDRESS,
-    getViemChainForNetworkName(srcChain).id
+    sourceChainId
   )
   const DST_TOKEN_INTEROPABLE_ADDRESS = getInteropableAddress(
     DST_TOKEN_ADDRESS,
-    getViemChainForNetworkName(destinationChainId).id
+    destinationChainId
   )
 
-  const sourceUserAccount = getInteropableAddress(
-    signerAddress,
-    getViemChainForNetworkName(srcChain).id
-  )
+  const sourceUserAccount = getInteropableAddress(signerAddress, sourceChainId)
   const destinationUserAccount = getInteropableAddress(
     signerAddress,
-    getViemChainForNetworkName(destinationChainId).id
+    destinationChainId
   )
 
   const currentTime = Math.floor(Date.now() / 1000)
@@ -158,15 +157,12 @@ async function main() {
         {
           user: sourceUserAccount,
           asset: SRC_TOKEN_INTEROPABLE_ADDRESS,
-          amount: amount,
+          amount: amount.toString(),
         },
       ],
       outputs: [
         {
-          receiver: getInteropableAddress(
-            signerAddress,
-            getViemChainForNetworkName(destinationChainId).id
-          ),
+          receiver: getInteropableAddress(signerAddress, destinationChainId),
           asset: DST_TOKEN_INTEROPABLE_ADDRESS,
           amount: 0, // Repesents: Send us your best quote.
         },
@@ -272,8 +268,16 @@ async function main() {
     fillDeadline: currentTime + ONE_MINUTE * 60 * 2, // Solvers have 2 hours to fill the intent once it has been posted on-chain.
     inputOracle: '0x0000006ea400569c0040d6e5ba651c00848409be', // Polymer oracle on mainnet.
     // LIFIIntent Output //
-    outputOracle: '0x0000006ea400569c0040d6e5ba651c00848409be', // Polymer oracle on mainnet.
-    outputSettler: '0x00000000D7278408CE7a490015577c41e57143a5',
+    outputOracle:
+      '0x' +
+      '0x0000006ea400569c0040d6e5ba651c00848409be'
+        .replace('0x', '')
+        .padStart(64, '0'), // Polymer oracle on mainnet.
+    outputSettler:
+      '0x' +
+      '0x00000000D7278408CE7a490015577c41e57143a5'
+        .replace('0x', '')
+        .padStart(64, '0'),
     outputToken: '0x' + DST_TOKEN_ADDRESS.replace('0x', '').padStart(64, '0'),
     outputAmount: outputAmount,
     outputCall: '0x', // If there is any output call, it should  be provided here.

@@ -43378,5 +43378,37 @@
         ]
       }
     }
+  },
+  "LiFiIntentEscrowFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-09 16:58:05",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000001bf3f3175bd007f3889b50000c7006e72c0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "base": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-09 17:01:43",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000001bf3f3175bd007f3889b50000c7006e72c0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
   }
 }

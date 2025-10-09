@@ -56,6 +56,10 @@
       "0xA77abE6A3E0Fe927d503c68fCF9B26e11A8bB1A4": {
         "Name": "MayanFacet",
         "Version": "1.2.2"
+      },
+      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -68,6 +72,7 @@
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
