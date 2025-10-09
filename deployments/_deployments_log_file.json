@@ -43051,10 +43051,10 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x386fdDA49cA357fdC8194DeccCe3C05161d61689",
+            "ADDRESS": "0x87B641A46a3adB217005A1f8C1Bdf693e5f92850",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-06 17:59:14",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b5e58a8206473df3ab9b8ddd3b0f84c0ba68f8b5",
+            "TIMESTAMP": "2025-10-09 13:57:58",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000399dbd5df04f83103f77a58cba2b7c4d3cdede97",
             "SALT": "",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
