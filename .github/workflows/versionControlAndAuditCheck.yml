@@ -118,7 +118,7 @@ jobs:
             echo "Now checking contract: $FILE_PATH"
 
             ##### Extract version tag from file
-            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" | head -1 || true)
             VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' | tr -d '\n\r' || true)
 
             ##### Extract the filename without extension
@@ -464,7 +464,7 @@ jobs:
             echo "-----------"
             echo "now checking file $FILE"
             ##### load contract version
-            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE" | head -1)
 
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then
