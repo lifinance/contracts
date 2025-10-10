@@ -13,7 +13,7 @@ import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
-/// @title Garden Facet
+/// @title GardenFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Bridge assets via Garden protocol
 /// @custom:version 1.0.0
@@ -125,6 +125,9 @@ contract GardenFacet is
         ILiFi.BridgeData memory _bridgeData,
         GardenData calldata _gardenData
     ) internal {
+        bool isNativeAsset = LibAsset.isNativeAsset(
+            _bridgeData.sendingAssetId
+        );
         // Validate Garden-specific parameters
         // Note: timelock represents the number of blocks after which refund is possible
         if (
@@ -140,9 +143,7 @@ contract GardenFacet is
 
         // Get HTLC address from registry
         // For native assets, use Garden's standard native token address
-        address assetForGarden = LibAsset.isNativeAsset(
-            _bridgeData.sendingAssetId
-        )
+        address assetForGarden = isNativeAsset
             ? NATIVE_TOKEN_ADDRESS
             : _bridgeData.sendingAssetId;
         address htlcAddress = REGISTRY.htlcs(assetForGarden);
@@ -155,7 +156,7 @@ contract GardenFacet is
         // Get the Garden HTLC contract instance
         IGarden garden = IGarden(htlcAddress);
 
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+        if (isNativeAsset) {
             // Native token bridging - send value with the call
             garden.initiateOnBehalf{ value: _bridgeData.minAmount }(
                 _gardenData.refundAddress,
