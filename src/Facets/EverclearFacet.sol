@@ -132,7 +132,10 @@ contract EverclearFacet is
     ) internal {
         // make sure receiver address has a value to prevent potential loss of funds
         // contract does NOT validate _everclearData.deadline and _everclearData.sig to save gas here. Fee adapter will signature with fee and deadline in message anyway.
-        if (_everclearData.outputAsset == bytes32(0)) revert InvalidCallData();
+        if (
+            _everclearData.outputAsset == bytes32(0) ||
+            _bridgeData.minAmount < _everclearData.fee
+        ) revert InvalidCallData();
 
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
@@ -186,6 +189,9 @@ contract EverclearFacet is
             ) revert InvalidReceiver();
 
             uint32[] memory destinationChainIds = new uint32[](1);
+            if (_bridgeData.destinationChainId > type(uint32).max) {
+                revert UnsupportedEverclearChainId();
+            }
             destinationChainIds[0] = uint32(_bridgeData.destinationChainId);
 
             FEE_ADAPTER.newIntent{ value: _everclearData.nativeFee }( // value is ONLY the fee for the intent, FEE_ADAPTER does NOT handle the native token as an asset
