@@ -252,7 +252,7 @@ jobs:
           ##### Step 2: Trim leading and trailing whitespace from the base title
           BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
-          ##### Step 3: Construct the new title if there are updated contracts
+          ##### Step 3: Construct the new title only if there are updated contracts
           if [[ -n "$UPDATED_CONTRACTS" ]]; then
             # Create new title with updated contracts
             PR_TITLE_UPDATED="${BASE_TITLE} [${UPDATED_CONTRACTS}]"
