@@ -29,7 +29,29 @@ config()
 
 const EVERCLEAR_FACET_ABI = everclearFacetArtifact.abi as Abi
 
-// Define ABI signatures for both EVM and Non-EVM chains
+/**
+ * Define ABI signatures for both EVM and Non-EVM chains
+ *
+ * IMPORTANT: These ABIs represent the CURRENT FeeAdapter (V1) implementation.
+ *
+ * Key differences between FeeAdapter V1 and FeeAdapterV2:
+ *
+ * V1 (FeeAdapter):
+ * - Uses `uint24 maxFee` parameter
+ * - Signature validation in _verifySignature does NOT include msg.sender
+ * - Currently in production use
+ *
+ * V2 (FeeAdapterV2):
+ * - Uses `uint256 amountOutMin` parameter instead of `uint24 maxFee`
+ * - Signature validation in _verifySignature INCLUDES msg.sender in signed data
+ * - Will require API to accept msg.sender parameter for proper signature generation
+ * - When LiFi diamond calls newIntent, msg.sender will be diamond address, not user address
+ *
+ * Non-EVM vs EVM difference:
+ * - Non-EVM (Solana, etc.): Uses `bytes32` for receiver and outputAsset
+ * - EVM (Ethereum, Arbitrum, etc.): Uses `address` for receiver and outputAsset
+ */
+
 const NEW_INTENT_NON_EVM_ABI_STRING = [
   `function newIntent(uint32[] destinations, bytes32 receiver, address inputAsset, bytes32 outputAsset, uint256 amount, uint24 maxFee, uint48 ttl, bytes data, (uint256 fee, uint256 deadline, bytes sig) feeParams)`,
 ] as const
@@ -42,13 +64,17 @@ const NEW_INTENT_EVM_ABI_STRING = [
 const NEW_INTENT_NON_EVM_ABI = parseAbi(NEW_INTENT_NON_EVM_ABI_STRING)
 const NEW_INTENT_EVM_ABI = parseAbi(NEW_INTENT_EVM_ABI_STRING)
 
-/// SUCCESSFUL TXs
-// FeeAdapter V1
+/// SUCCESSFUL TRANSACTIONS
+// FeeAdapter V1:
 // Bridge USDC from Arbitrum to Linea - 0x22095c11bfb49334fcd01881517b5c95fc634f579b6652a450520ebda90b2445
 // Bridge USDC from Arbitrum to Solana - 0x4a847cd232475f7ee7c7301efb62f5367c1f097127986a1874139ff2944db7bf
-// FeeAdapter V2
-// Bridge USDC from Arbitrum to Linea
-// Bridge USDC from Arbitrum to Solana
+//
+// FeeAdapterV2 (Upcoming - will replace V1 in 2-3 weeks):
+// Bridge USDC from Arbitrum to Linea - TBD (requires amountOutMin parameter)
+// Bridge USDC from Arbitrum to Solana - TBD (requires amountOutMin parameter)
+//
+// NOTE: When migrating to V2, the API call to https://api.everclear.org/intents
+// will need to include msg.sender parameter (diamond address) for proper signature validation
 
 async function main() {
   // === Set up environment ===
@@ -232,6 +258,18 @@ async function main() {
   )
 }
 
+/**
+ * Decodes the newIntent function calldata from Everclear API
+ *
+ * @param fullCalldata - The calldata returned from https://api.everclear.org/intents
+ * @param isNonEVM - Whether the destination chain is Non-EVM (like Solana)
+ *
+ * IMPORTANT: This function currently handles FeeAdapter V1 calldata.
+ * When FeeAdapterV2 is deployed, this function will need updates:
+ * - Change `uint24 maxFee` to `uint256 amountOutMin` in ABI definitions
+ * - Update parameter extraction accordingly
+ * - The API will need to accept msg.sender parameter for signature validation
+ */
 function decodeNewIntentCalldata(fullCalldata: string, isNonEVM = false) {
   const data = fullCalldata as Hex
 
