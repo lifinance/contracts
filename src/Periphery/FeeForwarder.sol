@@ -55,8 +55,9 @@ contract FeeForwarder is WithdrawablePeriphery {
         // the tx will revert anyway in these cases
 
         // forward all fee amounts to the recipients
-        for (uint256 i; i < _distributions.length; ) {
-            FeeDistribution calldata distribution = _distributions[i];
+        FeeDistribution calldata distribution;
+        for (uint256 i; i < _distributions.length; ++i) {
+            distribution = _distributions[i];
 
             // we do intentionally not check for amount == 0 to save gas
 
@@ -66,10 +67,6 @@ contract FeeForwarder is WithdrawablePeriphery {
                 distribution.recipient,
                 distribution.amount
             );
-
-            unchecked {
-                ++i;
-            }
         }
 
         emit FeesForwarded(_token, _distributions);
@@ -88,8 +85,9 @@ contract FeeForwarder is WithdrawablePeriphery {
         // the tx will revert anyway in this case
 
         // forward all native fee amounts to the recipients
-        for (uint256 i; i < _distributions.length; ) {
-            FeeDistribution calldata distribution = _distributions[i];
+        FeeDistribution calldata distribution;
+        for (uint256 i; i < _distributions.length; ++i) {
+            distribution = _distributions[i];
 
             // we do intentionally not check for amount == 0 to save gas
 
@@ -97,10 +95,6 @@ contract FeeForwarder is WithdrawablePeriphery {
                 payable(distribution.recipient),
                 distribution.amount
             );
-
-            unchecked {
-                ++i;
-            }
         }
 
         // return any remaining native tokens to the caller
@@ -114,6 +108,6 @@ contract FeeForwarder is WithdrawablePeriphery {
             );
         }
 
-        emit FeesForwarded(address(0), _distributions);
+        emit FeesForwarded(LibAsset.NULL_ADDRESS, _distributions);
     }
 }
