@@ -217,7 +217,15 @@ jobs:
           if [[ ${#CONTRACTS_FOR_AUDIT[@]} -ne 0 ]]; then
             ##### create a string from the array with all contracts
             CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
-            CONTRACTS_FOR_TITLE_STR=$(IFS=', '; echo "${CONTRACTS_FOR_TITLE[*]}")
+            # Join array elements with comma and space
+            CONTRACTS_FOR_TITLE_STR=""
+            for i in "${!CONTRACTS_FOR_TITLE[@]}"; do
+              if [ $i -eq 0 ]; then
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE[$i]}"
+              else
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE_STR}, ${CONTRACTS_FOR_TITLE[$i]}"
+              fi
+            done
             echo "${CONTRACTS_FOR_TITLE_STR}" > contracts_for_title.txt
           else
             echo -e "\033[32mDid not find any contracts that require an audit.\033[0m"
