@@ -16,13 +16,13 @@ import { getRPCEnvVarName } from '../../utils/network'
 import { TronContractDeployer } from './TronContractDeployer'
 import type { ITronDeploymentConfig } from './types'
 import {
-  loadForgeArtifact,
+  getContractAddress,
   getContractVersion,
   getEnvironment,
   getNetworkConfig,
-  getContractAddress,
-  saveContractAddress,
+  loadForgeArtifact,
   logDeployment,
+  saveContractAddress,
   updateDiamondJsonPeriphery,
 } from './utils.js'
 
@@ -31,6 +31,7 @@ const PERIPHERY_CONTRACTS = [
   'ERC20Proxy',
   'Executor',
   'FeeCollector',
+  'FeeForwarder',
   'TokenWrapper',
 ]
 
@@ -158,8 +159,9 @@ async function deployAndRegisterPeripheryImpl(options: {
     consola.info('1. Deploy ERC20Proxy')
     consola.info('2. Deploy Executor (depends on ERC20Proxy)')
     consola.info('3. Deploy FeeCollector')
-    consola.info('4. Deploy TokenWrapper')
-    consola.info('5. Register all contracts with PeripheryRegistryFacet\n')
+    consola.info('4. Deploy FeeForwarder')
+    consola.info('5. Deploy TokenWrapper')
+    consola.info('6. Register all contracts with PeripheryRegistryFacet\n')
 
     if (!dryRun && !options.skipConfirmation)
       if (environment === EnvironmentEnum.production) {
@@ -591,7 +593,137 @@ async function deployAndRegisterPeripheryImpl(options: {
       })
     }
 
-    // 4. Deploy TokenWrapper
+    // 4. Deploy FeeForwarder
+    consola.info('\n Deploying FeeForwarder...')
+
+    try {
+      const existingAddress = await getContractAddress('tron', 'FeeForwarder')
+      if (existingAddress && !dryRun) {
+        consola.warn(
+          `  FeeForwarder is already deployed at: ${existingAddress}`
+        )
+        const shouldRedeploy = await consola.prompt('Redeploy FeeForwarder?', {
+          type: 'confirm',
+          initial: false,
+        })
+
+        if (!shouldRedeploy) {
+          consola.info(`Using existing FeeForwarder at: ${existingAddress}`)
+          deployedContracts['FeeForwarder'] = existingAddress
+
+          const version = await getContractVersion('FeeForwarder')
+          deploymentResults.push({
+            contract: 'FeeForwarder',
+            address: existingAddress,
+            txId: 'existing',
+            cost: 0,
+            version,
+          })
+        } else {
+          const artifact = await loadForgeArtifact('FeeForwarder')
+          const version = await getContractVersion('FeeForwarder')
+
+          const withdrawWallet = globalConfig.withdrawWallet
+          const constructorArgs = [withdrawWallet]
+
+          consola.info(
+            `Using withdrawWallet as contract owner: ${withdrawWallet}`
+          )
+          consola.info(`Version: ${version}`)
+
+          const result = await deployer.deployContract(
+            artifact,
+            constructorArgs
+          )
+
+          deployedContracts['FeeForwarder'] = result.contractAddress
+          deploymentResults.push({
+            contract: 'FeeForwarder',
+            address: result.contractAddress,
+            txId: result.transactionId,
+            cost: result.actualCost.trxCost,
+            version,
+          })
+
+          consola.success(
+            ` FeeForwarder deployed to: ${result.contractAddress}`
+          )
+          consola.info(`Transaction: ${result.transactionId}`)
+          consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+          if (!dryRun) {
+            await logDeployment(
+              'FeeForwarder',
+              'tron',
+              result.contractAddress,
+              version,
+              '0x',
+              false
+            )
+            await saveContractAddress(
+              'tron',
+              'FeeForwarder',
+              result.contractAddress
+            )
+          }
+        }
+      } else if (!existingAddress) {
+        const artifact = await loadForgeArtifact('FeeForwarder')
+        const version = await getContractVersion('FeeForwarder')
+
+        const withdrawWallet = globalConfig.withdrawWallet
+        const constructorArgs = [withdrawWallet]
+
+        consola.info(
+          `Using withdrawWallet as contract owner: ${withdrawWallet}`
+        )
+        consola.info(`Version: ${version}`)
+
+        const result = await deployer.deployContract(artifact, constructorArgs)
+
+        deployedContracts['FeeForwarder'] = result.contractAddress
+        deploymentResults.push({
+          contract: 'FeeForwarder',
+          address: result.contractAddress,
+          txId: result.transactionId,
+          cost: result.actualCost.trxCost,
+          version,
+        })
+
+        consola.success(` FeeForwarder deployed to: ${result.contractAddress}`)
+        consola.info(`Transaction: ${result.transactionId}`)
+        consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+        if (!dryRun) {
+          await logDeployment(
+            'FeeForwarder',
+            'tron',
+            result.contractAddress,
+            version,
+            '0x',
+            false
+          )
+          await saveContractAddress(
+            'tron',
+            'FeeForwarder',
+            result.contractAddress
+          )
+        }
+      }
+
+      if (!dryRun) await Bun.sleep(3000)
+    } catch (error: any) {
+      consola.error(` Failed to deploy FeeForwarder:`, error.message)
+      deploymentResults.push({
+        contract: 'FeeForwarder',
+        address: 'FAILED',
+        txId: 'FAILED',
+        cost: 0,
+        version: '0.0.0',
+      })
+    }
+
+    // 5. Deploy TokenWrapper
     consola.info('\n Deploying TokenWrapper...')
 
     // Check if wrapped native address is valid (not zero address)

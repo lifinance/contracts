@@ -56,6 +56,7 @@
 - [ERC20Proxy](./ERC20Proxy.md)
 - [Executor](./Executor.md)
 - [FeeCollector](./FeeCollector.md)
+- [FeeForwarder](./FeeForwarder.md)
 - [LiFuelFeeCollector](./LiFuelFeeCollector.md)
 - [LidoWrapper](./LidoWrapper.md)
 - [Patcher](./Patcher.md)
