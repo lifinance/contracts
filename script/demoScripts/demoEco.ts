@@ -555,7 +555,6 @@ async function main(args: {
     nonEVMReceiver: nonEVMReceiverBytes, // Solana address as bytes or '0x' for EVM
     prover: quote.data.contracts.prover, // Prover address from quote
     rewardDeadline: BigInt(quote.data.quoteResponse.deadline), // Deadline from quote
-    solverReward: feeAmount, // Solver fee from quote
     encodedRoute: encodedRoute, // Encoded route information for the bridge
     solanaATA: solanaATA, // ATA for Solana or zero for EVM chains
   }
@@ -609,15 +608,15 @@ async function main(args: {
       'WETH (max with slippage)'
     )
     console.log('  Swap output:', amount.toString(), 'USDC (fee-inclusive)')
-  } else 
+  } else
     console.log('  Input amount:', amount.toString(), 'USDC (fee-inclusive)')
-  
+
   console.log(
     '  Destination amount:',
     quote.data.quoteResponse.destinationAmount,
     'USDC (after fee deduction)'
   )
-  console.log('  Protocol fee:', ecoData.solverReward.toString())
+  console.log('  Protocol fee:', feeAmount.toString(), 'USDC')
   console.log(
     '  Estimated fulfillment time:',
     quote.data.quoteResponse.estimatedFulfillTimeSec,
@@ -645,7 +644,6 @@ async function main(args: {
   console.log('  - nonEVMReceiver:', ecoData.nonEVMReceiver)
   console.log('  - prover:', ecoData.prover)
   console.log('  - rewardDeadline:', ecoData.rewardDeadline.toString())
-  console.log('  - solverReward:', ecoData.solverReward.toString())
   console.log(
     '  - encodedRoute length:',
     (ecoData.encodedRoute as string).length,

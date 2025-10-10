@@ -66,14 +66,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
     /// @param prover Address of the prover contract for validation
     /// @param rewardDeadline Timestamp for reward claim eligibility
-    /// @param solverReward Reward amount for the solver (native or ERC20 depending on sendingAssetId)
     /// @param encodedRoute Encoded route data containing destination chain routing information
     /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
     struct EcoData {
         bytes nonEVMReceiver;
         address prover;
         uint64 rewardDeadline;
-        uint256 solverReward;
         bytes encodedRoute;
         bytes32 solanaATA;
     }
@@ -121,12 +119,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param _ecoData Eco-specific parameters for the bridge
     /// @dev IMPORTANT LIMITATION: For ERC20 tokens, positive slippage from pre-bridge swaps
     /// may remain in the diamond contract. The intent amount is encoded in encodedRoute
-    /// (provided by Eco API), and the Portal only transfers the exact reward amount specified.
-    /// If swaps produce more tokens than expected (positive slippage), only the amount specified
-    /// in the reward struct (bridgeAmount + solverReward) is transferred to the Portal vault.
-    /// Any excess remains in the diamond. This is a known limitation that can be significant
-    /// when bridging large amounts. Native tokens handle positive slippage correctly by sending
-    /// additional value with the transaction.
+    /// (provided by Eco API), and the Portal only transfers the exact amount specified in minAmount.
+    /// If swaps produce more tokens than expected (positive slippage), only minAmount is transferred
+    /// to the Portal vault. Any excess remains in the diamond. This is a known limitation that can
+    /// be significant when bridging large amounts.
     function swapAndStartBridgeTokensViaEco(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,

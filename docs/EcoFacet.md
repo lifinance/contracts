@@ -26,14 +26,12 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
 /// @param prover Address of the prover contract for validation
 /// @param rewardDeadline Timestamp for reward claim eligibility
-/// @param solverReward Solver fee amount (deducted from the source amount by Eco)
 /// @param encodedRoute Encoded route data containing destination chain routing information
 /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
 struct EcoData {
   bytes nonEVMReceiver;
   address prover;
   uint64 rewardDeadline;
-  uint256 solverReward;
   bytes encodedRoute;
   bytes32 solanaATA;
 }
@@ -77,15 +75,15 @@ ecoData.solanaATA = 0x8f37c499ccbb92...;         // Solana ATA as bytes32
 - **Fee Model**: Eco uses a fee-inclusive model where the fee is already deducted from the source amount:
 
   - The Eco API returns `sourceAmount` (fee-inclusive amount user sends) and `destinationAmount` (amount received after fee deduction)
-  - `solverReward = sourceAmount - destinationAmount` (the total fee deducted by Eco)
+  - The total fee is `sourceAmount - destinationAmount`
   - `bridgeData.minAmount` should be set to `sourceAmount` (fee-inclusive)
-  - User approves exactly `minAmount` (not `minAmount + solverReward`)
+  - User approves exactly `minAmount`
   - The contract deposits exactly `minAmount` and passes it to the Eco Portal
 
   **Example**: To bridge 5 USDC with a 0.03 USDC fee:
 
   - Eco quote: `sourceAmount = 5,000,000`, `destinationAmount = 4,970,000`, fee = 30,000
-  - User approves: 5,000,000 USDC
+  - User approves: 5,000,000 USDC (the `sourceAmount`)
   - Contract deposits: 5,000,000 USDC
   - Solver receives: 30,000 USDC
   - Destination receives: 4,970,000 USDC

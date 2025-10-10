@@ -112,7 +112,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: 0.0001 ether,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
@@ -167,7 +166,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: 0.0001 ether,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
@@ -337,7 +335,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: solanaEncodedRoute,
             solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2 // Extracted from encodedRoute ATA for USDC on Solana
         });
@@ -381,7 +378,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: tronEncodedRoute, // Properly encoded Route struct
             solanaATA: bytes32(0)
         });
@@ -411,7 +407,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: "", // Missing encodedRoute (now required for all chains)
             solanaATA: bytes32(0)
         });
@@ -441,7 +436,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "", // Empty nonEVMReceiver should trigger InvalidReceiver
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: hex"0102030405060708090a0b0c0d0e0f10",
             solanaATA: bytes32(0)
         });
@@ -479,7 +473,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: routeWithWrongReceiver, // Route has different receiver
             solanaATA: bytes32(0)
         });
@@ -513,7 +506,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: bytes(""),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
@@ -548,7 +540,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: bytes(""),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
@@ -578,7 +569,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: invalidRoute,
             solanaATA: bytes32(0)
         });
@@ -606,7 +596,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: tooShortRoute,
             solanaATA: bytes32(0)
         });
@@ -637,7 +626,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: invalidTronRoute,
             solanaATA: bytes32(0)
         });
@@ -669,7 +657,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
@@ -704,7 +691,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: validRoute,
             solanaATA: bytes32(0)
         });
@@ -732,7 +718,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: solanaRoute,
             solanaATA: bytes32(uint256(1))
         });
@@ -765,7 +750,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: tooLongAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: solanaRoute,
             solanaATA: bytes32(uint256(1))
         });
@@ -795,7 +779,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: solanaAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: tooShortRoute,
             solanaATA: bytes32(uint256(1))
         });
@@ -829,7 +812,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: solanaEncodedRoute,
             solanaATA: bytes32(0) // Set to zero - should revert
         });
@@ -866,7 +848,6 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            solverReward: TOKEN_SOLVER_REWARD,
             encodedRoute: solanaEncodedRoute,
             solanaATA: bytes32(uint256(0x123456789abcdef)) // Different ATA that doesn't match the route
         });
@@ -936,7 +917,6 @@ contract EcoFacetTest is TestBaseFacet {
                 nonEVMReceiver: "",
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
-                solverReward: TOKEN_SOLVER_REWARD,
                 encodedRoute: encodedRoute,
                 solanaATA: bytes32(0)
             });
