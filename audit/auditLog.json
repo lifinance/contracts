@@ -391,6 +391,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.10.07_UnitFacet(v1.0.0).pdf",
       "auditCommitHash": "626dd4a927ed84c1c8de9e6b22af66669da62356"
+    },
+    "audit20251001": {
+      "auditCompletedOn": "01.10.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.10.01_EcoFacet(v1.0.0).pdf",
+      "auditCommitHash": "8d0e66a69c765e83c13339d7a77071ce2f26968a"
     }
   },
   "auditedContracts": {
@@ -463,6 +470,9 @@
     "DexManagerFacet": {
       "1.0.2": ["audit20250413", "audit20250508"]
     },
+    "EcoFacet": {
+      "1.0.0": ["audit20251001"]
+    },
     "DiamondCutFacet": {
       "1.0.0": ["audit20250508"]
     },
@@ -521,6 +531,9 @@
     },
     "HopFacetPacked": {
       "1.0.6": ["audit20250508"]
+    },
+    "IEcoPortal": {
+      "1.0.0": ["audit20251001"]
     },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
