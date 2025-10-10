@@ -810,7 +810,7 @@
   "plasma": {
     "name": "plasma",
     "chainId": 9745,
-    "nativeAddress": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "XPL",
     "wrappedNativeAddress": "0x6100E367285b01F48D07953803A2d8dCA5D19873",
     "status": "active",
