@@ -196,7 +196,7 @@ contract EcoFacetTest is TestBaseFacet {
         assertBalanceChange(
             ADDRESS_USDC,
             USER_SENDER,
-            -int256(defaultUSDCAmount + TOKEN_SOLVER_REWARD) // User sends amount + reward
+            -int256(defaultUSDCAmount + TOKEN_SOLVER_REWARD)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -204,11 +204,9 @@ contract EcoFacetTest is TestBaseFacet {
     {
         vm.startPrank(USER_SENDER);
 
-        // approval - need to approve total amount (bridge + reward)
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -229,17 +227,16 @@ contract EcoFacetTest is TestBaseFacet {
         vm.assume(amount > 0 && amount < 100_000);
         amount = amount * 10 ** usdc.decimals();
 
-        // Ensure we have enough balance for amount + reward
+        // Ensure we have enough balance for total amount
         vm.assume(amount + TOKEN_SOLVER_REWARD <= userBalance);
 
-        // Set up bridge data
+        // Set up bridge data - minAmount is now the total (fee-inclusive)
         bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = amount;
+        bridgeData.minAmount = amount + TOKEN_SOLVER_REWARD;
 
         vm.writeLine(logFilePath, vm.toString(amount));
 
-        // approval for total amount (bridge + reward)
-        usdc.approve(_facetTestContractAddress, amount + TOKEN_SOLVER_REWARD);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -253,15 +250,12 @@ contract EcoFacetTest is TestBaseFacet {
     function testBase_CanSwapAndBridgeTokens() public override {
         vm.startPrank(USER_SENDER);
 
-        // For ERC20 swaps with Eco, we need the swap to produce enough tokens for both
-        // the bridge amount AND the solver reward
-        // Set up custom swap data to produce defaultUSDCAmount + TOKEN_SOLVER_REWARD
         delete swapData;
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_USDC;
 
-        uint256 totalAmountNeeded = defaultUSDCAmount + TOKEN_SOLVER_REWARD; // 100 + 10 = 110 USDC
+        uint256 totalAmountNeeded = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
 
         // Calculate DAI amount needed to get totalAmountNeeded USDC
         uint256[] memory amounts = uniswap.getAmountsIn(
@@ -289,11 +283,9 @@ contract EcoFacetTest is TestBaseFacet {
             })
         );
 
-        // The bridgeData.minAmount is what actually gets bridged (excluding the reward)
-        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.minAmount = totalAmountNeeded;
         bridgeData.hasSourceSwaps = true;
 
-        // Approve DAI for the swap
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         // prepare check for events
@@ -304,26 +296,24 @@ contract EcoFacetTest is TestBaseFacet {
             ADDRESS_DAI,
             ADDRESS_USDC,
             swapData[0].fromAmount,
-            totalAmountNeeded, // The swap produces the full amount including reward
+            totalAmountNeeded,
             block.timestamp
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        // Store initial balances
         uint256 daiBalanceBefore = dai.balanceOf(USER_SENDER);
         uint256 usdcBalanceBefore = usdc.balanceOf(USER_SENDER);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
 
-        // Check final balances
         assertEq(
             dai.balanceOf(USER_SENDER),
             daiBalanceBefore - swapData[0].fromAmount
         );
-        assertEq(usdc.balanceOf(USER_SENDER), usdcBalanceBefore); // No change in USDC
+        assertEq(usdc.balanceOf(USER_SENDER), usdcBalanceBefore);
         assertEq(dai.balanceOf(USER_RECEIVER), 0);
         assertEq(usdc.balanceOf(USER_RECEIVER), 0);
     }
@@ -352,11 +342,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2 // Extracted from encodedRoute ATA for USDC on Solana
         });
 
-        // Approve USDC
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Expect events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -398,11 +386,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        // Approve USDC
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Expect event
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -430,10 +416,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidConfig.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
@@ -461,11 +446,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        // Approve USDC
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Expect InvalidReceiver revert
         vm.expectRevert(InvalidReceiver.selector);
@@ -501,11 +484,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        // Approve USDC
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Expect InvalidReceiver revert from line 291
         vm.expectRevert(InvalidReceiver.selector);
@@ -537,10 +518,11 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        overflowBridgeData.minAmount =
+            overflowBridgeData.minAmount +
+            TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, overflowBridgeData.minAmount);
 
         vm.expectRevert(InvalidConfig.selector);
         ecoFacet.startBridgeTokensViaEco(overflowBridgeData, ecoData);
@@ -571,10 +553,11 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            boundaryBridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        boundaryBridgeData.minAmount =
+            boundaryBridgeData.minAmount +
+            TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, boundaryBridgeData.minAmount);
 
         ecoFacet.startBridgeTokensViaEco(boundaryBridgeData, ecoData);
 
@@ -600,10 +583,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Will revert during ABI decode attempt
         vm.expectRevert();
@@ -629,10 +611,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Will revert during ABI decode attempt
         vm.expectRevert();
@@ -661,10 +642,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Will revert during ABI decode attempt
         vm.expectRevert();
@@ -694,10 +674,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
@@ -730,10 +709,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0)
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
@@ -759,10 +737,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(uint256(1))
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
@@ -793,10 +770,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(uint256(1))
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
@@ -824,10 +800,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(uint256(1))
         });
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
@@ -859,11 +834,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(0) // Set to zero - should revert
         });
 
-        // Approve USDC
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Expect InvalidConfig revert due to solanaATA being zero
         vm.expectRevert(InvalidConfig.selector);
@@ -898,11 +871,9 @@ contract EcoFacetTest is TestBaseFacet {
             solanaATA: bytes32(uint256(0x123456789abcdef)) // Different ATA that doesn't match the route
         });
 
-        // Approve USDC
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount + TOKEN_SOLVER_REWARD
-        );
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // Expect revert due to ATA mismatch
         vm.expectRevert(InvalidReceiver.selector);

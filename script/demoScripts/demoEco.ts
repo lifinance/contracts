@@ -104,7 +104,7 @@ const UNISWAP_ADDRESSES: Record<string, string> = {
 }
 
 // Eco API configuration
-const ECO_API_URL = process.env.ECO_API_URL || 'https://quotes-preprod.eco.com'
+const ECO_API_URL = process.env.ECO_API_URL || 'https://quotes.eco.com'
 const DAPP_ID = process.env.ECO_DAPP_ID || 'lifi-demo'
 
 console.log('Eco API Configuration:')
@@ -311,7 +311,7 @@ async function getEcoQuote(
   console.log('Fetching quote from Eco API...')
   console.log('Quote request:', JSON.stringify(quoteRequest, null, 2))
 
-  const response = await fetch(`${ECO_API_URL}/api/v3/quotes/getQuote`, {
+  const response = await fetch(`${ECO_API_URL}/api/v3/quotes/single`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -384,22 +384,22 @@ async function main(args: {
   const privateKey = process.env.PRIVATE_KEY
 
   // === Get quote from Eco API ===
-  const amount = parseUnits(args.amount, 6) // USDC has 6 decimals
+  const requestedAmount = parseUnits(args.amount, 6) // USDC has 6 decimals
   const quote = await getEcoQuote(
     srcChain,
     args.dstChain,
-    amount,
+    requestedAmount,
     signerAddress,
     privateKey
   )
 
-  // Extract fee amount from quote
-  const protocolFee = quote.data.quoteResponse.fees.find(
-    (f) => f.name === 'Eco Protocol Fee'
-  )
-  if (!protocolFee) throw new Error('No protocol fee found in quote')
+  // Eco's sourceAmount is fee-inclusive (user sends this amount, fee is deducted from it)
+  const amount = BigInt(quote.data.quoteResponse.sourceAmount)
+  const destinationAmount = BigInt(quote.data.quoteResponse.destinationAmount)
 
-  const feeAmount = BigInt(protocolFee.amount)
+  // Calculate the actual fee by subtracting destination from source
+  // The fees array may not contain the complete fee breakdown
+  const feeAmount = amount - destinationAmount
 
   // === Contract addresses ===
   const SRC_TOKEN_ADDRESS = USDC_ADDRESSES[srcChain] as `0x${string}`
@@ -408,7 +408,7 @@ async function main(args: {
 
   // === Prepare swap data if needed ===
   let swapData: LibSwap.SwapDataStruct[] = []
-  let inputAmount = amount + feeAmount
+  let inputAmount = amount
   let inputTokenAddress = SRC_TOKEN_ADDRESS
 
   if (withSwap) {
@@ -426,9 +426,8 @@ async function main(args: {
     // Import BigNumber from ethers for compatibility
     const { BigNumber } = await import('ethers')
 
-    // The contract needs minAmount + solverReward after the swap
-    // So we need to swap to get exactly that amount
-    const requiredSwapOutput = amount + feeAmount // This will be minAmount + solverReward
+    // The swap needs to produce the sourceAmount (which is fee-inclusive)
+    const requiredSwapOutput = amount
 
     // Use the helper to calculate exact input for exact output
     const swapDataItem = await getUniswapDataERC20toExactERC20(
@@ -491,14 +490,9 @@ async function main(args: {
   } else
     destinationChainId = BigInt(quote.data.quoteResponse.destinationChainID)
 
-  // When NOT swapping: minAmount should be the actual bridge amount (without fee)
-  // When swapping: The contract flow is:
-  //   1. _depositAndSwap checks swap produces at least minAmount
-  //   2. If ERC20, contract subtracts solverReward from swap result
-  //   3. _startBridge then adds solverReward back for the portal
-  // So when swapping, minAmount should be (amount + feeAmount) so that
-  // after subtracting feeAmount, we have the correct amount for the bridge
-  const bridgeMinAmount = withSwap ? amount + feeAmount : amount
+  // minAmount is the sourceAmount from Eco quote (fee-inclusive)
+  // The contract will deposit/use exactly this amount
+  const bridgeMinAmount = amount
 
   // When swapping, sendingAssetId should be the OUTPUT token (USDC), not the input token
   // This is because after the swap, the contract works with USDC
@@ -614,17 +608,14 @@ async function main(args: {
       (inputAmount / 10n ** 18n).toString(),
       'WETH (max with slippage)'
     )
-    console.log(
-      '  Swap output:',
-      (amount + feeAmount).toString(),
-      'USDC (including fee)'
-    )
-    console.log('  Bridge amount after fee:', amount.toString(), 'USDC')
-  } else console.log('  Source amount:', amount.toString(), 'USDC')
-
+    console.log('  Swap output:', amount.toString(), 'USDC (fee-inclusive)')
+  } else 
+    console.log('  Input amount:', amount.toString(), 'USDC (fee-inclusive)')
+  
   console.log(
     '  Destination amount:',
-    quote.data.quoteResponse.destinationAmount
+    quote.data.quoteResponse.destinationAmount,
+    'USDC (after fee deduction)'
   )
   console.log('  Protocol fee:', ecoData.solverReward.toString())
   console.log(

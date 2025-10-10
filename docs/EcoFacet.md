@@ -23,56 +23,80 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 
 ```solidity
 /// @dev Eco specific parameters
-/// @param receiverAddress Address that will receive tokens on destination chain
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
 /// @param prover Address of the prover contract for validation
 /// @param rewardDeadline Timestamp for reward claim eligibility
-/// @param solverReward Reward amount for the solver (native or ERC20 depending on sendingAssetId)
+/// @param solverReward Solver fee amount (deducted from the source amount by Eco)
 /// @param encodedRoute Encoded route data containing destination chain routing information
+/// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
 struct EcoData {
-  address receiverAddress;
   bytes nonEVMReceiver;
   address prover;
   uint64 rewardDeadline;
   uint256 solverReward;
   bytes encodedRoute;
+  bytes32 solanaATA;
 }
 ```
 
 ### Address Parameters Usage
 
-The `receiverAddress` and `nonEVMReceiver` parameters serve different purposes:
+The receiver address is specified differently depending on the destination chain type:
 
-- **For EVM destination chains**: Use `receiverAddress` (standard Ethereum address format). Leave `nonEVMReceiver` empty.
-- **For non-EVM destination chains** (Solana, Tron, etc.):
-  - Set `receiverAddress` to `address(0)` or leave unchanged
-  - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant
-  - Provide the destination address in `nonEVMReceiver` as bytes
+- **For EVM destination chains** (Ethereum, Optimism, Arbitrum, Base, Polygon, etc.):
 
-**Important**: Only one of these should be used per transaction. Never provide both values simultaneously.
+  - Set `bridgeData.receiver` to the actual EVM receiver address
+  - Leave `nonEVMReceiver` empty (`""`)
+  - Leave `solanaATA` as `bytes32(0)`
+  - The contract validates that the receiver in the encoded route matches `bridgeData.receiver`
+
+- **For Solana destination chain**:
+  - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant (`0x11f111f111f111F111f111f111F111f111f111F1`)
+  - Provide the Solana address in `nonEVMReceiver` as bytes (base58 address encoded as bytes)
+  - Provide the Associated Token Account (ATA) address in `solanaATA` as bytes32
+  - The contract validates that `solanaATA` matches the ATA encoded in the route
 
 Examples:
 
 ```solidity
-// EVM to EVM bridge
-ecoData.receiverAddress = 0x123...;  // Actual receiver address
+// EVM to EVM bridge (e.g., Optimism to Base)
+bridgeData.receiver = 0x123...;      // Actual EVM receiver address
 ecoData.nonEVMReceiver = "";         // Empty bytes
+ecoData.solanaATA = bytes32(0);      // Zero for EVM chains
 
 // EVM to Solana bridge
-bridgeData.receiver = NON_EVM_ADDRESS;  // Special constant
-ecoData.receiverAddress = address(0);   // Not used
-ecoData.nonEVMReceiver = solanaAddressBytes;  // Actual Solana address
+bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
+ecoData.nonEVMReceiver = solanaAddressBytes;     // Solana address as bytes
+ecoData.solanaATA = 0x8f37c499ccbb92...;         // Solana ATA as bytes32
 ```
 
 ### Important Notes
 
-- **Native Token Bridging**: The EcoFacet contract technically supports native token bridging at the smart contract level. However, the Eco Protocol infrastructure (quote API and solver network) does not currently support native tokens. **In practice, only ERC20 token bridging is available.** Attempts to bridge native tokens will fail at the solver level, not at the contract level.
-- **Solver Reward**:
-  - For ERC20 transfers: The solver reward is included in the deposited/swapped amount and the Eco router handles the split internally
-- **ERC20 Token Bridging**: For ERC20 tokens, the facet will automatically approve the Eco Portal to spend the total amount (bridge amount + solver reward).
-- **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations.
+- **Native Token Bridging**: The EcoFacet contract does not support native token bridging. Only ERC20 token transfers are supported. Transactions will revert if native tokens are specified as the sending asset.
+
+- **Fee Model**: Eco uses a fee-inclusive model where the fee is already deducted from the source amount:
+
+  - The Eco API returns `sourceAmount` (fee-inclusive amount user sends) and `destinationAmount` (amount received after fee deduction)
+  - `solverReward = sourceAmount - destinationAmount` (the total fee deducted by Eco)
+  - `bridgeData.minAmount` should be set to `sourceAmount` (fee-inclusive)
+  - User approves exactly `minAmount` (not `minAmount + solverReward`)
+  - The contract deposits exactly `minAmount` and passes it to the Eco Portal
+
+  **Example**: To bridge 5 USDC with a 0.03 USDC fee:
+
+  - Eco quote: `sourceAmount = 5,000,000`, `destinationAmount = 4,970,000`, fee = 30,000
+  - User approves: 5,000,000 USDC
+  - Contract deposits: 5,000,000 USDC
+  - Solver receives: 30,000 USDC
+  - Destination receives: 4,970,000 USDC
+
+- **ERC20 Token Bridging**: For ERC20 tokens, the facet automatically approves the Eco Portal to spend `minAmount` (the fee-inclusive amount).
+
+- **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations. The contract validates that the receiver address in the encoded route matches the specified receiver.
+
 - **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
-- **TRON Compatibility**: While TRON has its own chain ID mapping, it is treated as EVM-compatible in the smart contract validation logic since it uses the same Route struct encoding as EVM chains. Only Solana requires special non-EVM handling.
+
+- **TRON Compatibility**: TRON is treated as EVM-compatible in the smart contract validation logic since it uses the same Route struct encoding as EVM chains. Only Solana requires special non-EVM handling with `nonEVMReceiver` and `solanaATA` parameters.
 
 ## Swap Data
 

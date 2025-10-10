@@ -109,7 +109,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
-            _bridgeData.minAmount + _ecoData.solverReward
+            _bridgeData.minAmount
         );
 
         _startBridge(_bridgeData, _ecoData);
@@ -151,9 +151,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             0
         );
 
-        // Subtract solver reward from swap result to get bridge amount
-        _bridgeData.minAmount = _bridgeData.minAmount - _ecoData.solverReward;
-
         _startBridge(_bridgeData, _ecoData);
     }
 
@@ -187,7 +184,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
     ) internal {
-        uint256 totalAmount = _bridgeData.minAmount + _ecoData.solverReward;
+        uint256 totalAmount = _bridgeData.minAmount;
 
         IEcoPortal.Reward memory reward = _buildReward(
             _bridgeData,
