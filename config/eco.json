@@ -1,0 +1,32 @@
+{
+  "optimism": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "base": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "arbitrum": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "celo": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "mainnet": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "ink": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "polygon": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "unichain": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "sonic": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  },
+  "tron": {
+    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+  }
+}
