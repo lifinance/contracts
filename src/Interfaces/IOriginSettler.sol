@@ -8,7 +8,6 @@ import { StandardOrder } from "./IOpenIntentFramework.sol";
  * @title IOriginSettler
  * @notice Interface for opening origin-settlement orders (with and without sponsor authorization).
  * @author LI.FI (https://li.fi)
- * @custom:version 1.0.0
  */
 interface IOriginSettler {
     function openFor(
