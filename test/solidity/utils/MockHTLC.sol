@@ -41,6 +41,12 @@ interface IHTLC {
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
 contract MockHTLC is IHTLC {
+    error OrderDoesNotExist();
+    error OrderAlreadyCompleted();
+    error OrderAlreadyRefunded();
+    error TimelockNotExpired();
+    error OnlyInitiatorCanRefund();
+
     struct Order {
         address initiator;
         address redeemer;
@@ -57,11 +63,11 @@ contract MockHTLC is IHTLC {
     /// @param orderID The ID of the HTLC order
     function refund(bytes32 orderID) external {
         Order storage order = orders[orderID];
-        require(order.initiator != address(0), "Order does not exist");
-        require(!order.completed, "Order already completed");
-        require(!order.refunded, "Order already refunded");
-        require(block.number >= order.timelock, "Timelock not expired");
-        require(msg.sender == order.initiator, "Only initiator can refund");
+        if (order.initiator == address(0)) revert OrderDoesNotExist();
+        if (order.completed) revert OrderAlreadyCompleted();
+        if (order.refunded) revert OrderAlreadyRefunded();
+        if (block.number < order.timelock) revert TimelockNotExpired();
+        if (msg.sender != order.initiator) revert OnlyInitiatorCanRefund();
 
         order.refunded = true;
         // In a real implementation, this would transfer funds
