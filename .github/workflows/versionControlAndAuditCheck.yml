@@ -118,7 +118,7 @@ jobs:
             echo "Now checking contract: $FILE_PATH"
 
             ##### Extract version tag from file
-            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" | head -1 || true)
             VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' | tr -d '\n\r' || true)
 
             ##### Extract the filename without extension
@@ -217,7 +217,15 @@ jobs:
           if [[ ${#CONTRACTS_FOR_AUDIT[@]} -ne 0 ]]; then
             ##### create a string from the array with all contracts
             CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
-            CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
+            # Join array elements with comma and space
+            CONTRACTS_FOR_TITLE_STR=""
+            for i in "${!CONTRACTS_FOR_TITLE[@]}"; do
+              if [ $i -eq 0 ]; then
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE[$i]}"
+              else
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE_STR}, ${CONTRACTS_FOR_TITLE[$i]}"
+              fi
+            done
             echo "${CONTRACTS_FOR_TITLE_STR}" > contracts_for_title.txt
           else
             echo -e "\033[32mDid not find any contracts that require an audit.\033[0m"
@@ -252,7 +260,7 @@ jobs:
           ##### Step 2: Trim leading and trailing whitespace from the base title
           BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
-          ##### Step 3: Construct the new title if there are updated contracts
+          ##### Step 3: Construct the new title only if there are updated contracts
           if [[ -n "$UPDATED_CONTRACTS" ]]; then
             # Create new title with updated contracts
             PR_TITLE_UPDATED="${BASE_TITLE} [${UPDATED_CONTRACTS}]"
@@ -456,7 +464,7 @@ jobs:
             echo "-----------"
             echo "now checking file $FILE"
             ##### load contract version
-            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE" | head -1)
 
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then
