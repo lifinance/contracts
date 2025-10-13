@@ -34,6 +34,7 @@ contract EverclearV2Facet is
     /// Types ///
 
     /// @param receiverAddress The address of the receiver
+    /// @param nativeFee The native fee
     /// @param outputAsset The address of the output asset
     /// @param amountOutMin The minimum amount out
     /// @param ttl The time to live
