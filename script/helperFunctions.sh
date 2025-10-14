@@ -656,7 +656,7 @@ function getZkSolcVersion() {
 
   if isZkEvmNetwork "$NETWORK"; then
     # Extract zksolc version from zksync.zksync nested profile section
-    grep -A 5 "^\[profile\.zksync\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    grep -A 10 "^\[profile\.zksync\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
   else
     echo ""
   fi
