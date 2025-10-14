@@ -51,6 +51,9 @@ updateFacetConfig() {
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
+  # initialize failure flag
+  FAILED=0
+
   for NETWORK in "${NETWORKS[@]}"; do
     # get deployer wallet balance
     echo "[info] loading deployer wallet balance for network $NETWORK..."
@@ -90,11 +93,18 @@ updateFacetConfig() {
     # check if call was executed successfully or used all attempts
     if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
       error "failed to execute $SCRIPT on $DIAMOND_CONTRACT_NAME in $ENVIRONMENT environment on $NETWORK"
+      FAILED=1
       continue
     else
       echo "[info] script executed successfully"
     fi
   done
+
+  # check if any network failed and exit with appropriate status
+  if [ $FAILED -eq 1 ]; then
+    error "one or more networks failed during execution"
+    exit 1
+  fi
 }
 
 
