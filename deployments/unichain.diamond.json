@@ -96,6 +96,10 @@
       "0xb323926DB2E4dF85568b1247499e9a6F8b741961": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.1"
+      },
+      "0xad8fEeFf8BC2d19495A0D5B1E1e287bAA67cA0Db": {
+        "Name": "EcoFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

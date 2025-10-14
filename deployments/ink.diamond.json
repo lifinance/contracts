@@ -84,6 +84,10 @@
       "0x669dBcd296a538717354C1be8a0907C09022Eb18": {
         "Name": "GlacisFacet",
         "Version": "1.1.0"
+      },
+      "0xad8fEeFf8BC2d19495A0D5B1E1e287bAA67cA0Db": {
+        "Name": "EcoFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
