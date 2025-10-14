@@ -90,10 +90,9 @@ updateFacetConfig() {
     # check if call was executed successfully or used all attempts
     if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
       error "failed to execute $SCRIPT on $DIAMOND_CONTRACT_NAME in $ENVIRONMENT environment on $NETWORK"
-      return 1
+      continue
     else
       echo "[info] script executed successfully"
-      return 0
     fi
   done
 }
