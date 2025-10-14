@@ -4608,7 +4608,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.26"
+  local FOUNDRY_ZKSYNC_VERSION="v0.0.30"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
