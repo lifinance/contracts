@@ -13,6 +13,7 @@ import {
 import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
+import { MIN_BALANCE_WARNING } from './constants'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
@@ -27,40 +28,29 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
+  tronAddressToHex,
 } from './utils'
 
-/**
- * Deploy and register AllBridgeFacet to Tron
- */
-async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
-  consola.start('TRON AllBridgeFacet Deployment & Registration')
+async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
+  consola.start('TRON EcoFacet Deployment & Registration')
 
-  // Get environment from config.sh
   const environment = await getEnvironment()
 
-  // Load environment variables
   const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
     verbose = getEnvVar('VERBOSE') !== 'false'
-  } catch (error) {
-    // Use default value when environment variable is not set
-    consola.debug('VERBOSE environment variable not set, using default value')
-  }
+  } catch {}
 
-  // Get network configuration from networks.json
-  // Use tronshasta for staging/testnet, tron for production
   const networkName =
     environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
 
   const network = networkName as SupportedChain
 
-  // Get RPC URL from environment variable
   const envVarName = getRPCEnvVarName(network)
   const rpcUrl = getEnvVar(envVarName)
 
-  // Get the correct private key based on environment
   let privateKey: string
   try {
     privateKey = getPrivateKeyForEnvironment(environment)
@@ -76,7 +66,6 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     process.exit(1)
   }
 
-  // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
     privateKey,
@@ -90,52 +79,45 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   const deployer = new TronContractDeployer(config)
 
   try {
-    // Get network info
     const networkInfo = await deployer.getNetworkInfo()
 
-    // Use new utility for network info display
     displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-    // Initialize TronWeb
     const tronWeb = new TronWeb({
       fullHost: rpcUrl,
       privateKey,
     })
 
-    // Use new utility for balance validation
-    // Pre-flight balance check: warn on low balances but do not abort here
-    await validateBalance(tronWeb, 0)
-    // Load AllBridge configuration
-    const allbridgeConfig = await Bun.file('config/allbridge.json').json()
-    const allBridgeAddress = allbridgeConfig[network]?.allBridge
+    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    if (!allBridgeAddress)
-      throw new Error(
-        `AllBridge address not found for ${network} in config/allbridge.json`
-      )
+    const ecoConfig = await Bun.file('config/eco.json').json()
+    const tronEcoConfig = ecoConfig.tron
 
-    // Convert Base58 address to hex format with 0x prefix for constructor arguments
-    const allBridgeAddressHex =
-      '0x' + tronWeb.address.toHex(allBridgeAddress).replace(/^41/, '')
+    if (!tronEcoConfig)
+      throw new Error('Tron configuration not found in config/eco.json')
 
-    consola.info('\nAllBridge Configuration:')
-    consola.info(`AllBridge: ${allBridgeAddress} (${allBridgeAddressHex})`)
+    const portalTron = tronEcoConfig.portal
 
-    // Prepare deployment plan
-    const contracts = ['AllBridgeFacet']
+    if (!portalTron)
+      throw new Error('Eco portal not found for tron in config/eco.json')
 
-    // Use new utility for confirmation
+    const portal = tronAddressToHex(portalTron, tronWeb)
+
+    consola.info('\nEco Configuration:')
+    consola.info(`Portal: ${portalTron} (hex: ${portal})`)
+
+    const contracts = ['EcoFacet']
+
     if (!(await confirmDeployment(environment, network, contracts)))
       process.exit(0)
 
     const deploymentResults: IDeploymentResult[] = []
 
-    // Deploy AllBridgeFacet
-    consola.info('\nDeploying AllBridgeFacet...')
+    consola.info('\nDeploying EcoFacet...')
 
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
-      'AllBridgeFacet',
+      'EcoFacet',
       dryRun
     )
 
@@ -143,22 +125,20 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     if (exists && !shouldRedeploy && address) {
       facetAddress = address
       deploymentResults.push({
-        contract: 'AllBridgeFacet',
+        contract: 'EcoFacet',
         address: address,
         txId: 'existing',
         cost: 0,
-        version: await getContractVersion('AllBridgeFacet'),
+        version: await getContractVersion('EcoFacet'),
         status: 'existing',
       })
     } else
       try {
-        // Constructor arguments for AllBridgeFacet - use hex format
-        const constructorArgs = [allBridgeAddressHex]
+        const constructorArgs = [portal]
 
-        // Deploy using new utility
         const result = await deployContractWithLogging(
           deployer,
-          'AllBridgeFacet',
+          'EcoFacet',
           constructorArgs,
           dryRun,
           network
@@ -167,9 +147,9 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
         facetAddress = result.address
         deploymentResults.push(result)
       } catch (error: any) {
-        consola.error('Failed to deploy AllBridgeFacet:', error.message)
+        consola.error('Failed to deploy EcoFacet:', error.message)
         deploymentResults.push({
-          contract: 'AllBridgeFacet',
+          contract: 'EcoFacet',
           address: 'FAILED',
           txId: 'FAILED',
           cost: 0,
@@ -180,27 +160,17 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
         process.exit(1)
       }
 
-    // Register to Diamond
-    consola.info('\nRegistering AllBridgeFacet to Diamond...')
+    consola.info('\nRegistering EcoFacet to Diamond...')
 
-    // Get diamond address
-    const diamondAddress = await getContractAddress('tron', 'LiFiDiamond')
+    const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
-    // Get selectors for display
-    const selectors = await getFacetSelectors('AllBridgeFacet')
+    const selectors = await getFacetSelectors('EcoFacet')
 
-    // Display registration info
-    displayRegistrationInfo(
-      'AllBridgeFacet',
-      facetAddress,
-      diamondAddress,
-      selectors
-    )
+    displayRegistrationInfo('EcoFacet', facetAddress, diamondAddress, selectors)
 
-    // Register using new utility
     const registrationResult = await registerFacetToDiamond(
-      'AllBridgeFacet',
+      'EcoFacet',
       facetAddress,
       tronWeb,
       rpcUrl,
@@ -209,18 +179,14 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     )
 
     if (registrationResult.success) {
-      consola.success('AllBridgeFacet registered successfully!')
+      consola.success('EcoFacet registered successfully!')
       if (registrationResult.transactionId)
         consola.info(`Transaction: ${registrationResult.transactionId}`)
     } else {
-      consola.error(
-        'Failed to register AllBridgeFacet:',
-        registrationResult.error
-      )
+      consola.error('Failed to register EcoFacet:', registrationResult.error)
       process.exit(1)
     }
 
-    // Print summary
     printDeploymentSummary(deploymentResults, dryRun)
 
     consola.success('\nDeployment and registration completed successfully!')
@@ -231,11 +197,10 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   }
 }
 
-// Define CLI command
 const main = defineCommand({
   meta: {
-    name: 'deploy-and-register-allbridge-facet',
-    description: 'Deploy and register AllBridgeFacet to Tron Diamond',
+    name: 'deploy-and-register-eco-facet',
+    description: 'Deploy and register EcoFacet to Tron Diamond',
   },
   args: {
     dryRun: {
@@ -245,11 +210,10 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    await deployAndRegisterAllBridgeFacet({
+    await deployAndRegisterEcoFacet({
       dryRun: args.dryRun,
     })
   },
 })
 
-// Run the command
 runMain(main)

@@ -156,6 +156,10 @@
       "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0x499E4A6585df0638508CA45A6Bb41B9BD385030C": {
+        "Name": "EcoFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
