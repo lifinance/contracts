@@ -81,7 +81,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   try {
     const networkInfo = await deployer.getNetworkInfo()
 
-    displayNetworkInfo(networkInfo, environment, network)
+    displayNetworkInfo(networkInfo, environment, rpcUrl)
 
     const tronWeb = new TronWeb({
       fullHost: rpcUrl,
