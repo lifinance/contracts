@@ -19,18 +19,19 @@ ffi = true
 libs = ["node_modules", "lib"]
 cache = true
 
-[profile.default.zksync]
-zksolc = '1.5.15'
-
 [profile.zksync]
-solc_version='0.8.29'
-evm_version='cancun'
+solc_version = '0.8.17'
+evm_version = 'london'
+auto_detect_solc = false
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
 out = "out/zksync"
+
+[profile.zksync.zksync]
+zksolc = '1.5.14'
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
