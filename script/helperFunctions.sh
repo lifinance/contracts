@@ -655,8 +655,8 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract zksolc version from zksync profile
-    grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    # Extract zksolc version from zksync.zksync nested profile section
+    grep -A 10 "^\[profile\.zksync\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
   else
     echo ""
   fi
@@ -4608,7 +4608,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.26"
+  local FOUNDRY_ZKSYNC_VERSION="v0.0.30"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
