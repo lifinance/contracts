@@ -347,6 +347,7 @@ const main = defineCommand({
         refundAddress: address, // User's address for refunds on source chain
         timelock: timelock.toString(),
         secretHash: secretHash,
+        nonEvmReceiver: utils.formatBytes32String(''),
       }
 
       // Step 4: If not swapping, check balance and approve tokens if needed
