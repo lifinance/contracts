@@ -479,19 +479,6 @@
             "VERIFIED": "true"
           }
         ]
-      },
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0xD8d138a15eAEc1F57c38Ab0fd8AFDd2A6dB9fFdD",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-14 19:00:42",
-            "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "22345164",
-            "VERIFIED": "true",
-            "ZK_SOLC_VERSION": "1.5.14"
-          }
-        ]
       }
     },
     "base": {
