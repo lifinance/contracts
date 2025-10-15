@@ -378,12 +378,26 @@
       "auditReportPath": "./audit/reports/2025.09.01_AcrossV4(v1.0.0).pdf",
       "auditCommitHash": "650d18eb98aff7fe45249147d6db7e352825c1e4"
     },
+    "audit20250919": {
+      "auditCompletedOn": "19.09.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.09.19_GardenFacet(v1.0.0).pdf",
+      "auditCommitHash": "79ffda31ccf4c48af914ccb209781bc521abeacd"
+    },
     "audit20250921": {
       "auditCompletedOn": "21.09.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.09.21_AllBridgeFacet(v2.1.1).pdf",
       "auditCommitHash": "1d1bee22c3a632f67b775f4cfc033589c4ad3c24"
+    },
+    "audit20251001": {
+      "auditCompletedOn": "01.10.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.10.01_EcoFacet(v1.0.0).pdf",
+      "auditCommitHash": "8d0e66a69c765e83c13339d7a77071ce2f26968a"
     },
     "audit20251007": {
       "auditCompletedOn": "07.10.2025",
@@ -397,7 +411,7 @@
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.10.15_FeeForwarder(v1.0.0).pdf",
-      "auditCommitHash": "https://github.com/lifinance/contracts/pull/1395/commits/5022c0aca332e2a066f1398e3456632679a836f9"
+      "auditCommitHash": "5022c0aca332e2a066f1398e3456632679a836f9"
     }
   },
   "auditedContracts": {
@@ -470,6 +484,9 @@
     "DexManagerFacet": {
       "1.0.2": ["audit20250413", "audit20250508"]
     },
+    "EcoFacet": {
+      "1.0.0": ["audit20251001"]
+    },
     "DiamondCutFacet": {
       "1.0.0": ["audit20250508"]
     },
@@ -520,6 +537,9 @@
       "1.0.1": ["audit20250508"],
       "1.0.2": ["audit20250610"]
     },
+    "GardenFacet": {
+      "1.0.0": ["audit20250919"]
+    },
     "GlacisFacet": {
       "1.0.0": ["audit20250219"],
       "1.1.0": ["audit20250822"]
@@ -537,6 +557,12 @@
     },
     "HopFacetPacked": {
       "1.0.6": ["audit20250508"]
+    },
+    "IEcoPortal": {
+      "1.0.0": ["audit20251001"]
+    },
+    "IGarden": {
+      "1.0.0": ["audit20250919"]
     },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
