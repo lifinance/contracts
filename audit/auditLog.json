@@ -509,12 +509,6 @@
     "FeeForwarder": {
       "1.0.0": ["audit20251015"]
     },
-    "FeeForwarderV2": {
-      "1.0.0": ["audit20250508"]
-    },
-    "FeeForwarderV3": {
-      "1.0.0": ["audit20250508"]
-    },
     "GasZipFacet": {
       "2.0.0": ["audit20241107"],
       "2.0.2": ["audit20250110_1"],
