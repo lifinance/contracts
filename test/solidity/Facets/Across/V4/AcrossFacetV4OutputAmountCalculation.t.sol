@@ -3,28 +3,20 @@ pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
 import { TestHelpers, MockUniswapDEX } from "../../../utils/TestHelpers.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
 
 /// @title TestAcrossFacetV4
 /// @author LI.FI (https://li.fi)
 /// @notice Stub contract for testing AcrossFacetV4 with mock DEX
 /// @custom:version 1.0.0
-contract TestAcrossFacetV4 is AcrossFacetV4 {
+contract TestAcrossFacetV4 is AcrossFacetV4, TestWhitelistManagerBase {
     constructor(
         IAcrossSpokePoolV4 _spokePool,
         bytes32 _wrappedNativeAddress
     ) AcrossFacetV4(_spokePool, _wrappedNativeAddress) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 /// @title AcrossFacetV4OutputAmountIntegrationTest
@@ -63,9 +55,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         functionSelectors[1] = acrossFacetV4
             .swapAndStartBridgeTokensViaAcrossV4
             .selector;
-        functionSelectors[2] = acrossFacetV4.addDex.selector;
+        functionSelectors[2] = acrossFacetV4.addToWhitelist.selector;
         functionSelectors[3] = acrossFacetV4
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(acrossFacetV4), functionSelectors);
@@ -74,11 +66,11 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         setFacetAddressInTestBase(address(acrossFacetV4), "AcrossFacetV4");
 
         // Add Uniswap router to allowlist for base tests
-        acrossFacetV4.addDex(ADDRESS_UNISWAP);
-        acrossFacetV4.setFunctionApprovalBySignature(
+        acrossFacetV4.addToWhitelist(ADDRESS_UNISWAP);
+        acrossFacetV4.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacetV4.setFunctionApprovalBySignature(
+        acrossFacetV4.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
 
@@ -258,7 +250,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             swapOutputAmount,
             0 // Use default amountIn
         );
-        acrossFacetV4.addDex(address(mockDEX));
+        acrossFacetV4.addToWhitelist(address(mockDEX));
 
         // Setup swap data
         delete swapData;
@@ -356,7 +348,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             swapOutputAmount,
             0 // Use default amountIn
         );
-        acrossFacetV4.addDex(address(mockDEX));
+        acrossFacetV4.addToWhitelist(address(mockDEX));
 
         // Setup swap data
         delete swapData;
