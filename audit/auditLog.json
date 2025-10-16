@@ -392,6 +392,13 @@
       "auditReportPath": "./audit/reports/2025.09.21_AllBridgeFacet(v2.1.1).pdf",
       "auditCommitHash": "1d1bee22c3a632f67b775f4cfc033589c4ad3c24"
     },
+    "audit20251001": {
+      "auditCompletedOn": "01.10.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.10.01_EcoFacet(v1.0.0).pdf",
+      "auditCommitHash": "8d0e66a69c765e83c13339d7a77071ce2f26968a"
+    },
     "audit20251007": {
       "auditCompletedOn": "07.10.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -399,12 +406,12 @@
       "auditReportPath": "./audit/reports/2025.10.07_UnitFacet(v1.0.0).pdf",
       "auditCommitHash": "626dd4a927ed84c1c8de9e6b22af66669da62356"
     },
-    "audit20251001": {
-      "auditCompletedOn": "01.10.2025",
+    "audit20251015": {
+      "auditCompletedOn": "15.10.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.10.01_EcoFacet(v1.0.0).pdf",
-      "auditCommitHash": "8d0e66a69c765e83c13339d7a77071ce2f26968a"
+      "auditReportPath": "./audit/reports/2025.10.15_FeeForwarder(v1.0.0).pdf",
+      "auditCommitHash": "5022c0aca332e2a066f1398e3456632679a836f9"
     }
   },
   "auditedContracts": {
@@ -498,6 +505,9 @@
     },
     "FeeCollector": {
       "1.0.1": ["audit20250109_3", "audit20250508"]
+    },
+    "FeeForwarder": {
+      "1.0.0": ["audit20251015"]
     },
     "GasZipFacet": {
       "2.0.0": ["audit20241107"],

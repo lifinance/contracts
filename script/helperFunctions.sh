@@ -1933,7 +1933,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
+  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -1941,7 +1941,7 @@ function addPeripheryToDexsJson() {
   local FILEPATH_DEXS="config/dexs.json"
   local FILEPATH_GLOBAL_CONFIG="config/global.json"
 
-  WHITELIST_PERIPHERY=($(jq -r '.autoWhitelistPeripheryContracts[] | select(length > 0)' "$FILEPATH_GLOBAL_CONFIG"))
+  WHITELIST_PERIPHERY=($(jq -r '.whitelistPeripheryFunctions | keys[]' "$FILEPATH_GLOBAL_CONFIG"))
 
   # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
   # IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
