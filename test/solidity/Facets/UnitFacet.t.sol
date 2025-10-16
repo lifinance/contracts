@@ -3,23 +3,15 @@ pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { UnitFacet } from "lifi/Facets/UnitFacet.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InvalidSendingToken, InvalidAmount, InvalidReceiver, InvalidConfig, CannotBridgeToSameNetwork, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub UnitFacet Contract
-contract TestUnitFacet is UnitFacet {
+contract TestUnitFacet is UnitFacet, TestWhitelistManagerBase {
     constructor(address _backendSigner) UnitFacet(_backendSigner) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract UnitFacetTest is TestBaseFacet {
@@ -71,26 +63,26 @@ contract UnitFacetTest is TestBaseFacet {
         functionSelectors[1] = unitFacet
             .swapAndStartBridgeTokensViaUnit
             .selector;
-        functionSelectors[2] = unitFacet.addDex.selector;
+        functionSelectors[2] = unitFacet.addToWhitelist.selector;
         functionSelectors[3] = unitFacet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(unitFacet), functionSelectors);
         unitFacet = TestUnitFacet(address(diamond));
         // whitelist uniswap dex with function selectors
-        unitFacet.addDex(address(uniswap));
-        unitFacet.addDex(address(unitFacet));
-        unitFacet.setFunctionApprovalBySignature(
+        unitFacet.addToWhitelist(address(uniswap));
+        unitFacet.addToWhitelist(address(unitFacet));
+        unitFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        unitFacet.setFunctionApprovalBySignature(
+        unitFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        unitFacet.setFunctionApprovalBySignature(
+        unitFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForETH.selector
         );
-        unitFacet.setFunctionApprovalBySignature(
+        unitFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

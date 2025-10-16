@@ -4,21 +4,13 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { PioneerFacet } from "lifi/Facets/PioneerFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub PioneerFacet Contract
-contract TestPioneerFacet is PioneerFacet {
+contract TestPioneerFacet is PioneerFacet, TestWhitelistManagerBase {
     constructor(address payable destination) PioneerFacet(destination) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract PioneerFacetTest is TestBaseFacet {
@@ -45,21 +37,21 @@ contract PioneerFacetTest is TestBaseFacet {
         functionSelectors[1] = basePioneerFacet
             .swapAndStartBridgeTokensViaPioneer
             .selector;
-        functionSelectors[2] = basePioneerFacet.addDex.selector;
+        functionSelectors[2] = basePioneerFacet.addToWhitelist.selector;
         functionSelectors[3] = basePioneerFacet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(basePioneerFacet), functionSelectors);
         pioneerFacet = TestPioneerFacet(address(diamond));
-        pioneerFacet.addDex(ADDRESS_UNISWAP);
-        pioneerFacet.setFunctionApprovalBySignature(
+        pioneerFacet.addToWhitelist(ADDRESS_UNISWAP);
+        pioneerFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        pioneerFacet.setFunctionApprovalBySignature(
+        pioneerFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        pioneerFacet.setFunctionApprovalBySignature(
+        pioneerFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

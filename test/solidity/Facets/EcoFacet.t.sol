@@ -5,23 +5,15 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ERC20 } from "lib/solmate/src/tokens/ERC20.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { LibAllowList } from "../../../src/Libraries/LibAllowList.sol";
 import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
 import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
 import { InvalidConfig, InvalidReceiver, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
-contract TestEcoFacet is EcoFacet {
+contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
     constructor(IEcoPortal _portal) EcoFacet(_portal) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract EcoFacetTest is TestBaseFacet {
@@ -54,21 +46,21 @@ contract EcoFacetTest is TestBaseFacet {
         functionSelectors[1] = ecoFacet
             .swapAndStartBridgeTokensViaEco
             .selector;
-        functionSelectors[2] = ecoFacet.addDex.selector;
+        functionSelectors[2] = ecoFacet.addToWhitelist.selector;
         functionSelectors[3] = ecoFacet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(ecoFacet), functionSelectors);
         ecoFacet = TestEcoFacet(address(diamond));
-        ecoFacet.addDex(ADDRESS_UNISWAP);
-        ecoFacet.setFunctionApprovalBySignature(
+        ecoFacet.addToWhitelist(ADDRESS_UNISWAP);
+        ecoFacet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        ecoFacet.setFunctionApprovalBySignature(
+        ecoFacet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        ecoFacet.setFunctionApprovalBySignature(
+        ecoFacet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 
