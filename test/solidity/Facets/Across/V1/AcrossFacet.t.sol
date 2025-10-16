@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
 
 // Stub AcrossFacet Contract
 contract TestAcrossFacet is AcrossFacet, TestWhitelistManagerBase {

@@ -94,7 +94,7 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     const networkInfo = await deployer.getNetworkInfo()
 
     // Use new utility for network info display
-    displayNetworkInfo(networkInfo, environment, network)
+    displayNetworkInfo(networkInfo, environment, rpcUrl)
 
     // Initialize TronWeb
     const tronWeb = new TronWeb({
@@ -113,8 +113,13 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       throw new Error(
         `AllBridge address not found for ${network} in config/allbridge.json`
       )
+
+    // Convert Base58 address to hex format with 0x prefix for constructor arguments
+    const allBridgeAddressHex =
+      '0x' + tronWeb.address.toHex(allBridgeAddress).replace(/^41/, '')
+
     consola.info('\nAllBridge Configuration:')
-    consola.info(`AllBridge: ${allBridgeAddress}`)
+    consola.info(`AllBridge: ${allBridgeAddress} (${allBridgeAddressHex})`)
 
     // Prepare deployment plan
     const contracts = ['AllBridgeFacet']
@@ -147,8 +152,8 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       })
     } else
       try {
-        // Constructor arguments for AllBridgeFacet
-        const constructorArgs = [allBridgeAddress]
+        // Constructor arguments for AllBridgeFacet - use hex format
+        const constructorArgs = [allBridgeAddressHex]
 
         // Deploy using new utility
         const result = await deployContractWithLogging(

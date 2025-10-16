@@ -1,8 +1,11 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 echo ""
-echo "Running 'forge build' now"
-forge build
+echo "Running 'forge build' and 'typechain generation'..."
+
+# Run forge build first (required for typechain)
+echo "Building contracts with forge..."
+forge build --skip test
 
 # If the build fails, abort the commit
 if [ $? -ne 0 ]; then

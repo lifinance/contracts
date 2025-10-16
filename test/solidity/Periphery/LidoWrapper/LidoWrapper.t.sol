@@ -12,7 +12,6 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { InvalidConfig, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
-import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 
 // Custom errors from stETH contract
 error ErrorZeroSharesWrap();
@@ -21,7 +20,7 @@ error ErrorZeroSharesUnwrap();
 error ErrorNotEnoughBalance();
 error ErrorNotEnoughAllowance();
 
-contract LidoWrapperTest is TestBase, LiFiData {
+contract LidoWrapperTest is TestBase {
     LidoWrapper private lidoWrapper;
     address private constant ST_ETH_ADDRESS_OPTIMISM =
         0x76A50b8c7349cCDDb7578c6627e79b5d99D24138;

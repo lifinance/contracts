@@ -5,7 +5,6 @@ import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
-import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 
 // Stub AllBridgeFacet Contract
@@ -19,7 +18,7 @@ contract TestAllBridgeFacet is AllBridgeFacet, TestWhitelistManagerBase {
     }
 }
 
-contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
+contract AllBridgeFacetTest is TestBaseFacet {
     IAllBridge internal constant ALLBRIDGE_ROUTER =
         IAllBridge(0x609c690e8F7D68a59885c9132e812eEbDaAf0c9e);
     address internal constant ALLBRIDGE_POOL =
@@ -36,15 +35,19 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
     uint32 private constant ALLBRIDGE_ID_BASE = 9;
     uint32 private constant ALLBRIDGE_ID_OPTIMISM = 10;
     uint32 private constant ALLBRIDGE_ID_CELO = 11;
+    uint32 private constant ALLBRIDGE_ID_SONIC = 12;
     uint32 private constant ALLBRIDGE_ID_SUI = 13;
+    uint32 private constant ALLBRIDGE_ID_UNICHAIN = 14;
     uint256 internal constant LIFI_CHAIN_ID_ETHEREUM = 1;
+    uint256 internal constant LIFI_CHAIN_ID_OPTIMISM = 10;
     uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
     uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
     uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
     uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
     uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
-    uint256 internal constant LIFI_CHAIN_ID_OPTIMISM = 10;
     uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
+    uint256 internal constant LIFI_CHAIN_ID_SONIC = 146;
+    uint256 internal constant LIFI_CHAIN_ID_UNICHAIN = 130;
 
     error UnsupportedAllBridgeChainId();
 
@@ -372,6 +375,16 @@ contract AllBridgeFacetTest is TestBaseFacet, LiFiData {
         assertEq(
             allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_SUI),
             ALLBRIDGE_ID_SUI
+        );
+        // sonic
+        assertEq(
+            allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_SONIC),
+            ALLBRIDGE_ID_SONIC
+        );
+        // unichain
+        assertEq(
+            allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_UNICHAIN),
+            ALLBRIDGE_ID_UNICHAIN
         );
         // unknown
         vm.expectRevert(UnsupportedAllBridgeChainId.selector);

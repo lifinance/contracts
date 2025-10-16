@@ -64,6 +64,14 @@
       "0x2E4E7beD12E1EeE5E98582EE41aDf36Ce40d2dE4": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0xEa4B4a6b5CC829f636A40C67DBE1e300E6d918FC": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0xFA6547a1c4c0c07A108b5e8a5f79E4512f8c2a64": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -73,8 +81,10 @@
       "GasZipPeriphery": "0xe2Bd045c9C7c765D0920BB4e12D5B584eA682C29",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6295b30297C254108E0bF16C70D513d2043E3d45",
+      "Patcher": "",
       "Permit2Proxy": "0x66C8F3F645Bc61ed1740067D381830f7c7925d98",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0xbF80bE7F2A67BC036d2d8fFa7F9Fa8228af94eB2",
       "TokenWrapper": "0xbf7d441A5015d92357bB41DB2552E11619D62326"

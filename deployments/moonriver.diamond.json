@@ -46,8 +46,8 @@
         "Version": "1.0.0"
       },
       "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-        "Name": "",
-        "Version": ""
+        "Name": "GetGasFacet",
+        "Version": "1.0.0"
       },
       "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
         "Name": "LIFuelFacet",
@@ -81,6 +81,7 @@
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
       "ReceiverChainflip": "",

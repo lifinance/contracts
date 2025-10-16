@@ -6,7 +6,6 @@ import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
 import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
-import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -17,7 +16,7 @@ contract TestChainflipFacet is ChainflipFacet, TestWhitelistManagerBase {
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
 }
 
-contract ChainflipFacetTest is TestBaseFacet, LiFiData {
+contract ChainflipFacetTest is TestBaseFacet {
     ChainflipFacet.ChainflipData internal validChainflipData;
     TestChainflipFacet internal chainflipFacet;
     address internal chainflipVault;

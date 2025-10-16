@@ -5,7 +5,8 @@ function diamondUpdatePeriphery() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running diamondUpdatePeriphery now...."
 
   # load required resources
-  source .env
+  # Note: .env is already sourced in the parent script, so we don't need to source it again
+  # This prevents overwriting exported variables like SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
   source script/config.sh
   source script/helperFunctions.sh
 

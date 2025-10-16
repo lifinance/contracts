@@ -655,8 +655,8 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract zksolc version from zksync profile
-    grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    # Extract zksolc version from zksync.zksync nested profile section
+    grep -A 10 "^\[profile\.zksync\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
   else
     echo ""
   fi
@@ -895,8 +895,7 @@ function saveDiamond_DEPRECATED() {
   if [[ ! -e $DIAMOND_FILE ]]; then
     echo "{}" >"$DIAMOND_FILE"
   fi
-  result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
-  printf %s "$result" >"$DIAMOND_FILE"
+  jq -r ". + {\"facets\": [$FACETS] }" "$DIAMOND_FILE" >"${DIAMOND_FILE}.tmp" && mv "${DIAMOND_FILE}.tmp" "$DIAMOND_FILE"
 }
 function saveDiamondFacets() {
   # read function arguments into variables
@@ -1264,9 +1263,13 @@ function saveContract() {
     echo "{}" >"$ADDRESSES_FILE"
   fi
 
-  # add new address to address log FILE
-  RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
-  printf %s "$RESULT" >"$ADDRESSES_FILE"
+  # add new address to address log FILE (atomic operation)
+  if ! jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" "$ADDRESSES_FILE" >"${ADDRESSES_FILE}.tmp"; then
+    error "Failed to update $ADDRESSES_FILE with jq"
+    rm -f "${ADDRESSES_FILE}.tmp"
+    return 1
+  fi
+  mv "${ADDRESSES_FILE}.tmp" "$ADDRESSES_FILE"
 
   # Remove lock file
   rm -f "$LOCK_FILE"
@@ -1454,6 +1457,7 @@ function getAllContractNames() {
   # src
   # src/Facets
   # src/Periphery
+  # src/Security
 
   # get all facet contracts
   local FACET_CONTRACTS=$(getIncludedAndSortedFacetContractsArray "$EXCLUDE_CONFIG")
@@ -1461,11 +1465,14 @@ function getAllContractNames() {
   # get all periphery contracts
   local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray "$EXCLUDE_CONFIG")
 
+  # get all security contracts
+  local SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+
   # get all diamond contracts
   local DIAMOND_CONTRACTS=$(getContractNamesInFolder "src")
 
   # merge
-  local ALL_CONTRACTS=("${DIAMOND_CONTRACTS[@]}" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+  local ALL_CONTRACTS=("${DIAMOND_CONTRACTS[@]}" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}" "${SECURITY_CONTRACTS[@]}")
 
   # Print the resulting array
   echo "${ALL_CONTRACTS[*]}"
@@ -1926,7 +1933,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToWhitelistedAddressesJson() {
-  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/whitelistedAddresses.json"
+  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to config/whitelistedAddresses.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -1934,7 +1941,7 @@ function addPeripheryToWhitelistedAddressesJson() {
   local FILEPATH_WHITELISTED_ADDRESSES="config/whitelistedAddresses.json"
   local FILEPATH_GLOBAL_CONFIG="config/global.json"
 
-  WHITELIST_PERIPHERY=($(jq -r '.autoWhitelistPeripheryContracts[] | select(length > 0)' "$FILEPATH_GLOBAL_CONFIG"))
+  WHITELIST_PERIPHERY=($(jq -r '.whitelistPeripheryFunctions | keys[]' "$FILEPATH_GLOBAL_CONFIG"))
 
   # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
   # IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
@@ -2070,6 +2077,10 @@ function verifyContract() {
   fi
 
   # Add verification method based on API key
+  if [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
+    VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+  fi
+
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD+=("--verifier" "blockscout")
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
@@ -2882,6 +2893,26 @@ function getIncludedPeripheryContractsArray() {
   # return ARRAY
   echo "${ARRAY[@]}"
 }
+
+function getIncludedSecurityContractsArray() {
+  # prepare required variables
+  local DIRECTORY_PATH="$CONTRACT_DIRECTORY""Security/"
+  local ARRAY=()
+
+  # extract list of excluded security contracts from config
+  local EXCLUDE_CONTRACTS_REGEX="^($(echo "$EXCLUDE_SECURITY_CONTRACTS" | tr ',' '|'))$"
+
+  # loop through contract names and add each name to ARRAY that is not excluded
+  for CONTRACT in $(getContractNamesInFolder "$DIRECTORY_PATH"); do
+    if ! [[ "$CONTRACT" =~ $EXCLUDE_CONTRACTS_REGEX ]]; then
+      ARRAY+=("$CONTRACT")
+    fi
+  done
+
+  # return ARRAY
+  echo "${ARRAY[@]}"
+}
+
 function getIncludedFacetContractsArray() {
   # read function arguments into variables
   EXCLUDE_CONFIG="$1"
@@ -3149,8 +3180,11 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
   # get all periphery contracts
   local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
 
+  # get all security contracts
+  local SECURITY_CONTRACTS=$(getIncludedSecurityContractsArray)
+
   # merge all contracts into one array
-  local ALL_CONTRACTS=("$DIAMOND_NAME" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+  local ALL_CONTRACTS=("$DIAMOND_NAME" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}" "${SECURITY_CONTRACTS[@]}")
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]}; do
@@ -4576,7 +4610,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="nightly-ae9cfd10d906b5ab350258533219da1f4775c118"
+  local FOUNDRY_ZKSYNC_VERSION="v0.0.30"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
@@ -4588,12 +4622,32 @@ install_foundry_zksync() {
 
   echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
 
-  # Check if binaries already exist and are executable
+  # Check if binaries already exist and verify their version
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
-    echo "forge and cast binaries already exist in ${install_dir} and are executable"
-    echo "Skipping download and installation"
-    return 0
+      echo "forge and cast binaries found in ${install_dir}"
+
+      # Check the version of the existing binary
+      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
+
+      # If we couldn't extract version or it doesn't match expected version
+      if [ -z "$CURRENT_VERSION" ]; then
+          echo "Could not determine version of existing foundry-zksync binary"
+          echo "Removing existing binaries and redownloading..."
+          # Remove everything except .gitignore
+          find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
+      elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+          echo "Version mismatch detected!"
+          echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "  Current:  ${CURRENT_VERSION}"
+          echo "Removing existing binaries and redownloading..."
+          # Remove everything except .gitignore
+          find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
+      else
+          echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "Skipping download and installation"
+          return 0
+      fi
   fi
 
   # Detect operating system
@@ -4625,8 +4679,8 @@ install_foundry_zksync() {
   esac
 
   # Construct download URL using the specified version
-  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_zksync_nightly_${os}_${arch}.tar.gz"
+  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${FOUNDRY_ZKSYNC_VERSION}"
+  local filename="foundry_zksync_${FOUNDRY_ZKSYNC_VERSION}_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist
