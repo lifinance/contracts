@@ -2567,11 +2567,14 @@ function updateAllContractsToTargetState() {
           checkFailure $? "deploy core facets to network $NETWORK"
           echo "[info]     core facets deployed - updating $DIAMOND_NAME now"
 
-          # update diamond with core facets
+          # update diamond with core facets (DiamondLoupeFacet first, then others)
           echo ""
-          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" false 2>/dev/null
+          echo "[info]     updating DiamondLoupeFacet first..."
+          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateDiamondLoupeFacet" false 2>/dev/null
+          checkFailure $? "update DiamondLoupeFacet in $DIAMOND_NAME on network $NETWORK"
 
-          # check if last command was executed successfully, otherwise exit script with error message
+          echo "[info]     updating other core facets..."
+          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" false 2>/dev/null
           checkFailure $? "update core facets in $DIAMOND_NAME on network $NETWORK"
           echo "[info]     core facets added to $DIAMOND_NAME"
         else
@@ -4623,29 +4626,29 @@ install_foundry_zksync() {
   # Check if binaries already exist and verify their version
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
-      echo "forge and cast binaries found in ${install_dir}"
+    echo "forge and cast binaries found in ${install_dir}"
 
-      # Check the version of the existing binary
-      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
+    # Check the version of the existing binary
+    local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
 
-      # If we couldn't extract version or it doesn't match expected version
-      if [ -z "$CURRENT_VERSION" ]; then
-          echo "Could not determine version of existing foundry-zksync binary"
-          echo "Removing existing binaries and redownloading..."
-          # Remove everything except .gitignore
-          find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
-      elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
-          echo "Version mismatch detected!"
-          echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
-          echo "  Current:  ${CURRENT_VERSION}"
-          echo "Removing existing binaries and redownloading..."
-          # Remove everything except .gitignore
-          find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
-      else
-          echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
-          echo "Skipping download and installation"
-          return 0
-      fi
+    # If we couldn't extract version or it doesn't match expected version
+    if [ -z "$CURRENT_VERSION" ]; then
+      echo "Could not determine version of existing foundry-zksync binary"
+      echo "Removing existing binaries and redownloading..."
+      # Remove everything except .gitignore
+      find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
+    elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+      echo "Version mismatch detected!"
+      echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
+      echo "  Current:  ${CURRENT_VERSION}"
+      echo "Removing existing binaries and redownloading..."
+      # Remove everything except .gitignore
+      find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
+    else
+      echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
+      echo "Skipping download and installation"
+      return 0
+    fi
   fi
 
   # Detect operating system

@@ -180,10 +180,20 @@ deployAllContracts() {
     checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
 
-    # update diamond with core facets
+    # update diamond with core facets (DiamondLoupeFacet first, then others)
+    # some networks didnt support sending two transactions in one deploy script so sometimes the DiamondLoupeFacet was not added
+    # this new approach should ensure that the DiamondLoupeFacet is always added first before we add core facets
     echo ""
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating DiamondLoupeFacet in diamond contract"
+    diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateDiamondLoupeFacet" false
+
+    # check if last command was executed successfully, otherwise exit script with error message
+    checkFailure $? "update DiamondLoupeFacet in $DIAMOND_CONTRACT_NAME on network $NETWORK"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< DiamondLoupeFacet update completed"
+
+    echo ""
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating other core facets in diamond contract"
     diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
 
     # check if last command was executed successfully, otherwise exit script with error message
@@ -323,8 +333,8 @@ deployAllContracts() {
   # Stage 10: Ownership transfer to timelock (production only)
   if [[ $START_STAGE -le 10 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]]; then
-    echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Ownership transfer to timelock (production only)"
+      echo ""
+      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Ownership transfer to timelock (production only)"
 
       # make sure SAFE_ADDRESS is available (if starting in stage 10 it's not available yet)
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
@@ -350,7 +360,7 @@ deployAllContracts() {
 
       # initiate ownership transfer
       echo "Initiating ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS)"
-      cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS" --private-key "$PRIVATE_KEY_PRODUCTION" --rpc-url "$(getRPCUrl "$NETWORK")"  --legacy
+      cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS" --private-key "$PRIVATE_KEY_PRODUCTION" --rpc-url "$(getRPCUrl "$NETWORK")" --legacy
       echo "Ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
       echo ""
 
@@ -368,11 +378,9 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
   fi
 
-
   echo "[info] updating diamond logs for network $NETWORK in environment $ENVIRONMENT"
   updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updating diamond logs completed"
-
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
