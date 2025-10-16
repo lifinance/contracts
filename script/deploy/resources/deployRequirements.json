@@ -41,6 +41,20 @@
       }
     }
   },
+  "AcrossFacetV4": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "AcrossFacetPacked": {
     "configData": {
       "_spokePool": {
@@ -63,6 +77,20 @@
         "allowToDeployWithZeroAddress": "false"
       },
       "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPackedV4": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
         "configFileName": "networks.json",
         "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
@@ -488,7 +516,35 @@
       }
     }
   },
+  "ReceiverAcrossV4": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_spokepool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "FeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "FeeForwarder": {
     "configData": {
       "_owner": {
         "configFileName": "global.json",
@@ -608,6 +664,15 @@
     },
     "contractAddresses": {
       "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GardenFacet": {
+    "configData": {
+      "_htlcRegistry": {
+        "configFileName": "garden.json",
+        "keyInConfigFile": ".<NETWORK>.htlcRegistry",
         "allowToDeployWithZeroAddress": "false"
       }
     }

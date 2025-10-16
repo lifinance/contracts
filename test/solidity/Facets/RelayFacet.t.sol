@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -34,7 +33,7 @@ contract TestRelayFacet is RelayFacet, TestWhitelistManagerBase {
     }
 }
 
-contract RelayFacetTest is TestBaseFacet, LiFiData {
+contract RelayFacetTest is TestBaseFacet {
     RelayFacet.RelayData internal validRelayData;
     TestRelayFacet internal relayFacet;
     address internal constant RELAY_RECEIVER =
@@ -62,10 +61,22 @@ contract RelayFacetTest is TestBaseFacet, LiFiData {
 
         addFacet(diamond, address(relayFacet), functionSelectors);
         relayFacet = TestRelayFacet(address(diamond));
-        relayFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        relayFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        relayFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForETH.selector);
-        relayFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactETHForTokens.selector);
+        relayFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        relayFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        relayFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForETH.selector
+        );
+        relayFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactETHForTokens.selector
+        );
 
         setFacetAddressInTestBase(address(relayFacet), "RelayFacet");
 

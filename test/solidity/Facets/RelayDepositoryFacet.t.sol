@@ -106,7 +106,10 @@ contract Reverter {
 }
 
 // Test RelayDepositoryFacet Contract
-contract TestRelayDepositoryFacet is RelayDepositoryFacet, TestWhitelistManagerBase {
+contract TestRelayDepositoryFacet is
+    RelayDepositoryFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         address _relayDepository
     ) RelayDepositoryFacet(_relayDepository) {}
@@ -138,15 +141,26 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         functionSelectors[1] = relayDepositoryFacet
             .swapAndStartBridgeTokensViaRelayDepository
             .selector;
-        functionSelectors[2] = relayDepositoryFacet.addAllowedContractSelector.selector;
+        functionSelectors[2] = relayDepositoryFacet
+            .addAllowedContractSelector
+            .selector;
 
         addFacet(diamond, address(relayDepositoryFacet), functionSelectors);
         relayDepositoryFacet = TestRelayDepositoryFacet(address(diamond));
 
         // Setup DEX approvals
-        relayDepositoryFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        relayDepositoryFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        relayDepositoryFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
 
         setFacetAddressInTestBase(
             address(relayDepositoryFacet),

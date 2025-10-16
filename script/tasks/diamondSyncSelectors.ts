@@ -6,8 +6,8 @@ import {
   getContract,
   http,
   parseAbi,
-  type Hex,
   type Chain,
+  type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as chains from 'viem/chains'
@@ -82,6 +82,29 @@ const main = defineCommand({
 
     // Check if function selectors are approved
     const { selectors } = await import(`../../config/whitelistedSelectors.json`)
+    const { blacklistedFunctionSelectors } = await import(
+      `../../config/global.json`
+    )
+
+    // Convert blacklisted selectors to lowercase once for efficiency
+    const blacklistedSelectorsLower = blacklistedFunctionSelectors.map((s) =>
+      s.toLowerCase()
+    )
+
+    // Security check: Prevent whitelisting of dangerous function selectors
+    for (const selector of selectors)
+      if (blacklistedSelectorsLower.includes(selector.toLowerCase())) {
+        consola.error(
+          `❌ ERROR: Blacklisted function selector (${selector}) detected in selectors!`
+        )
+        consola.error(`   This function is blacklisted for security reasons.`)
+        consola.error(`   Whitelisting this function is NOT ALLOWED.`)
+        consola.error(
+          `   Please remove this function selector from config/whitelistedSelectors.json before proceeding.`
+        )
+        process.exit(1)
+      }
+
     const calls = selectors.map((selector: string) => {
       return {
         ...whitelistManagerReader,

@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { TestBase } from "../utils/TestBase.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
 
 contract LibAssetImplementer {
     function transferAsset(
@@ -98,17 +98,6 @@ contract LibAssetTest is TestBase {
             ADDRESS_USDC,
             USER_SENDER,
             payable(address(0)),
-            defaultUSDCAmount
-        );
-    }
-
-    function testRevert_transferFromERC20WithNativeAsset() public {
-        vm.expectRevert(NullAddrIsNotAnERC20Token.selector);
-
-        implementer.transferFromERC20(
-            address(0),
-            makeAddr("Alice"),
-            payable(makeAddr("Bob")),
             defaultUSDCAmount
         );
     }

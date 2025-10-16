@@ -49,9 +49,13 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "TQndJ9R38eoosx6kuG5nU3ecfdPhL7gY1C": {
+      "TCyAJzpLJjGyUqPoQ9Kvm1Zjw9zDmXLUfU": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.0"
+        "Version": "2.1.1"
+      },
+      "TMLwFQAjLQqCJDUNVCVd9c9Q8LLqbmhaW8": {
+        "Name": "EcoFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

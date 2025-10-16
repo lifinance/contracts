@@ -34,7 +34,7 @@ function diamondSyncSelectors {
     echo ""
 
     if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
-      checkRequiredVariablesInDotEnv $NETWORK
+      checkRequiredVariablesInDotEnv "$NETWORK"
     fi
   fi
 
@@ -110,6 +110,26 @@ function diamondSyncSelectors {
       # Fallback to cast send
       if [[ $ATTEMPTS == 1 ]]; then
         CFG_SELECTORS=($(jq -r '.[] | @sh' "./config/whitelistedSelectors.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
+        BLACKLISTED_SELECTORS=($(jq -r '.blacklistedFunctionSelectors[] | @sh' "./config/global.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
+
+        # Check for blacklisted function selectors
+        for selector in "${CFG_SELECTORS[@]}"; do
+          for blacklisted_selector in "${BLACKLISTED_SELECTORS[@]}"; do
+            if [[ "$selector" == "$blacklisted_selector" ]]; then
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK] ❌ ERROR: Blacklisted function selector ($selector) detected in signatures!"
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    This function is blacklisted for security reasons."
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Whitelisting this function is NOT ALLOWED."
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Please remove this function selector from config/whitelistedSelectors.json before proceeding."
+              echo ""
+
+              # Log the error to the failed log file before exiting
+              echo "[$NETWORK] Error: Blacklisted function selector ($selector) detected - security check failed" >> "$FAILED_LOG_FILE"
+
+              exit 1
+            fi
+          done
+        done
+
         PARAMS=""
         for d in "${CFG_SELECTORS[@]}"; do
           PARAMS+="${d},"

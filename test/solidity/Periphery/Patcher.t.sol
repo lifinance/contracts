@@ -6,8 +6,6 @@ import { Patcher } from "../../../src/Periphery/Patcher.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
 import { RelayFacet } from "../../../src/Facets/RelayFacet.sol";
-import { LiFiData } from "../../../src/Helpers/LiFiData.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 error MockFailure();
 error TargetFailure();
@@ -158,13 +156,6 @@ contract MockPriceOracle {
     }
 }
 
-contract TestRelayFacet is RelayFacet, TestWhitelistManagerBase {
-    constructor(
-        address _relayReceiver,
-        address _relaySolver
-    ) RelayFacet(_relayReceiver, _relaySolver) {}
-}
-
 contract MockSilentFailTarget {
     bool public shouldFail;
 
@@ -204,7 +195,7 @@ contract MockInvalidReturnSource {
     }
 }
 
-contract PatcherTest is TestBase, LiFiData {
+contract PatcherTest is TestBase {
     event CallReceived(uint256 value, address sender, uint256 ethValue);
     event PatchExecuted(
         address indexed caller,
@@ -227,7 +218,7 @@ contract PatcherTest is TestBase, LiFiData {
     MockInvalidReturnSource internal invalidReturnSource;
     ERC20 internal token;
     MockPriceOracle internal priceOracle;
-    TestRelayFacet internal relayFacet;
+    RelayFacet internal relayFacet;
 
     address internal constant RELAY_RECEIVER =
         0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
@@ -245,7 +236,7 @@ contract PatcherTest is TestBase, LiFiData {
         priceOracle = new MockPriceOracle();
 
         relaySolver = vm.addr(privateKey);
-        relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
+        relayFacet = new RelayFacet(RELAY_RECEIVER, relaySolver);
     }
 
     // Tests basic single value patching into calldata
@@ -996,7 +987,7 @@ contract PatcherTest is TestBase, LiFiData {
                         bytes32(uint256(uint160(address(relayFacet)))),
                         bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                         _getMappedChainId(_bridgeData.destinationChainId),
-                        _bridgeData.receiver == LiFiData.NON_EVM_ADDRESS
+                        _bridgeData.receiver == NON_EVM_ADDRESS
                             ? _relayData.nonEVMReceiver
                             : bytes32(uint256(uint160(_bridgeData.receiver))),
                         _relayData.receivingAssetId

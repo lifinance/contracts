@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch } from "lifi/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
 
 // Stub AcrossFacetV3 Contract
 contract TestAcrossFacetV3 is AcrossFacetV3, TestWhitelistManagerBase {
@@ -43,13 +43,24 @@ contract AcrossFacetV3Test is TestBaseFacet {
         functionSelectors[1] = acrossFacetV3
             .swapAndStartBridgeTokensViaAcrossV3
             .selector;
-        functionSelectors[2] = acrossFacetV3.addAllowedContractSelector.selector;
+        functionSelectors[2] = acrossFacetV3
+            .addAllowedContractSelector
+            .selector;
 
         addFacet(diamond, address(acrossFacetV3), functionSelectors);
         acrossFacetV3 = TestAcrossFacetV3(address(diamond));
-        acrossFacetV3.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        acrossFacetV3.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        acrossFacetV3.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        acrossFacetV3.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        acrossFacetV3.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        acrossFacetV3.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
 
         setFacetAddressInTestBase(address(acrossFacetV3), "AcrossFacetV3");
 
