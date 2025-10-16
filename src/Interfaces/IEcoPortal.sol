@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 /// @title IEcoPortal
 /// @notice Interface for Eco Protocol Portal
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 interface IEcoPortal {
     enum Status {
         Initial,

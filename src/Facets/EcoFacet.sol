@@ -16,7 +16,7 @@ import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Eco Protocol
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Errors ///
 

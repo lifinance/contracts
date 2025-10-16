@@ -43367,12 +43367,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x9051a65F82C9Dc2Fb4400B9ED5A4A16938613739",
+            "ADDRESS": "0xe9cF0bad93090f26051CCCe9A15a5c7395635D35",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-10 16:08:01",
+            "TIMESTAMP": "2025-10-16 12:38:29",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000399dbd5df04f83103f77a58cba2b7c4d3cdede97",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
