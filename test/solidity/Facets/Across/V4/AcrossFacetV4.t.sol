@@ -2,28 +2,20 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
 
 // Stub AcrossFacetV4 Contract
-contract TestAcrossFacetV4 is AcrossFacetV4 {
+contract TestAcrossFacetV4 is AcrossFacetV4, TestWhitelistManagerBase {
     address internal constant ADDRESS_WETH =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(
         IAcrossSpokePoolV4 _spokePool
     ) AcrossFacetV4(_spokePool, _convertAddressToBytes32(ADDRESS_WETH)) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract AcrossFacetV4Test is TestBaseFacet {
@@ -52,21 +44,21 @@ contract AcrossFacetV4Test is TestBaseFacet {
         functionSelectors[1] = acrossFacetV4
             .swapAndStartBridgeTokensViaAcrossV4
             .selector;
-        functionSelectors[2] = acrossFacetV4.addDex.selector;
+        functionSelectors[2] = acrossFacetV4.addToWhitelist.selector;
         functionSelectors[3] = acrossFacetV4
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(diamond, address(acrossFacetV4), functionSelectors);
         acrossFacetV4 = TestAcrossFacetV4(address(diamond));
-        acrossFacetV4.addDex(ADDRESS_UNISWAP);
-        acrossFacetV4.setFunctionApprovalBySignature(
+        acrossFacetV4.addToWhitelist(ADDRESS_UNISWAP);
+        acrossFacetV4.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacetV4.setFunctionApprovalBySignature(
+        acrossFacetV4.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        acrossFacetV4.setFunctionApprovalBySignature(
+        acrossFacetV4.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

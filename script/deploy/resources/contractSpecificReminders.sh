@@ -4,7 +4,7 @@
 # e.g. precondition requirements (contract XY must be deployed before, etc.)
 
 # EXAMPLE:
-FeeCollector="Please do not forget to add the new contract address to whitelisted DEXs before using it"
-GasZipPeriphery="Please do not forget to add the new contract address to whitelisted DEXs before using it"
-LiFiDEXAggregator="Please do not forget to add the new contract address to whitelisted DEXs before using it"
-TokenWrapper="Please do not forget to add the new contract address to whitelisted DEXs before using it"
+FeeCollector="Please do not forget to add the new contract address to whitelisted addresses before using it"
+GasZipPeriphery="Please do not forget to add the new contract address to whitelisted addresses before using it"
+LiFiDEXAggregator="Please do not forget to add the new contract address to whitelisted addresses before using it"
+TokenWrapper="Please do not forget to add the new contract address to whitelisted addresses before using it"

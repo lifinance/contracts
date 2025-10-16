@@ -1,8 +1,8 @@
 #!/bin/bash
 
-function diamondSyncSigs {
+function diamondSyncSelectors {
   echo ""
-  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncSIGs now...."
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncSelectors now...."
 
   # Load environment variables
   source .env
@@ -79,7 +79,7 @@ function diamondSyncSigs {
 
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
       # Try TypeScript version first
-      TX_OUTPUT=$(bun ./script/tasks/diamondSyncSigs.ts \
+      TX_OUTPUT=$(bun ./script/tasks/diamondSyncSelectors.ts \
         --project ../../tsconfig.json \
         --network "$NETWORK" \
         --rpcUrl "$RPC_URL" \
@@ -97,33 +97,33 @@ function diamondSyncSigs {
         if echo "$TX_OUTPUT" | grep -q 'Transaction:'; then
           local TX_HASH=$(echo "$TX_OUTPUT" | grep -i 'transaction hash' | awk '{print $NF}')
           if [[ -n "$TX_HASH" ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures synced (tx: $TX_HASH)"
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Selectors synced (tx: $TX_HASH)"
           else
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures synced (no tx hash available)"
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Selectors synced (no tx hash available)"
           fi
         else
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All signatures are approved"
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All selectors are approved"
         fi
         return
       fi
 
       # Fallback to cast send
       if [[ $ATTEMPTS == 1 ]]; then
-        CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
+        CFG_SELECTORS=($(jq -r '.[] | @sh' "./config/whitelistedSelectors.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
         BLACKLISTED_SELECTORS=($(jq -r '.blacklistedFunctionSelectors[] | @sh' "./config/global.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
 
         # Check for blacklisted function selectors
-        for sig in "${CFG_SIGS[@]}"; do
-          for blacklisted_sig in "${BLACKLISTED_SELECTORS[@]}"; do
-            if [[ "$sig" == "$blacklisted_sig" ]]; then
-              printf '\033[0;31m%s\033[0m\n' "[$NETWORK] ❌ ERROR: Blacklisted function selector ($sig) detected in signatures!"
+        for selector in "${CFG_SELECTORS[@]}"; do
+          for blacklisted_selector in "${BLACKLISTED_SELECTORS[@]}"; do
+            if [[ "$selector" == "$blacklisted_selector" ]]; then
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK] ❌ ERROR: Blacklisted function selector ($selector) detected in signatures!"
               printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    This function is blacklisted for security reasons."
               printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Whitelisting this function is NOT ALLOWED."
-              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Please remove this function selector from config/sigs.json before proceeding."
+              printf '\033[0;31m%s\033[0m\n' "[$NETWORK]    Please remove this function selector from config/whitelistedSelectors.json before proceeding."
               echo ""
 
               # Log the error to the failed log file before exiting
-              echo "[$NETWORK] Error: Blacklisted function selector ($sig) detected - security check failed" >> "$FAILED_LOG_FILE"
+              echo "[$NETWORK] Error: Blacklisted function selector ($selector) detected - security check failed" >> "$FAILED_LOG_FILE"
 
               exit 1
             fi
@@ -131,12 +131,12 @@ function diamondSyncSigs {
         done
 
         PARAMS=""
-        for d in "${CFG_SIGS[@]}"; do
+        for d in "${CFG_SELECTORS[@]}"; do
           PARAMS+="${d},"
         done
       fi
 
-      TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" \
+      TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetFunctionWhitelistBySelector(bytes4[],bool)" \
         "[${PARAMS::${#PARAMS}-1}]" true \
         --rpc-url "$RPC_URL" \
         --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
@@ -147,9 +147,9 @@ function diamondSyncSigs {
       if [ $RETURN_CODE -eq 0 ]; then
         local TX_HASH=$(echo "$TX_OUTPUT" | grep -i 'transaction hash' | awk '{print $NF}')
         if [[ -n "$TX_HASH" ]]; then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures synced (tx: $TX_HASH)"
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Selectors synced (tx: $TX_HASH)"
         else
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Signatures synced"
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Selectors synced"
         fi
         return
       fi
