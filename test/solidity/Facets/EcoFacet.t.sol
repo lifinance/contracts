@@ -113,7 +113,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: validRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         // Should revert when trying to bridge native tokens
@@ -167,7 +168,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: validRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
@@ -332,11 +334,12 @@ contract EcoFacetTest is TestBaseFacet {
             memory solanaAddress = hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a";
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
+            nonEVMReceiver: solanaAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: solanaEncodedRoute,
-            solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2 // Extracted from encodedRoute ATA for USDC on Solana
+            solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2,
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -379,7 +382,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: tronEncodedRoute, // Properly encoded Route struct
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -408,7 +412,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: "", // Missing encodedRoute (now required for all chains)
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -437,7 +442,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: hex"0102030405060708090a0b0c0d0e0f10",
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -474,7 +480,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: routeWithWrongReceiver, // Route has different receiver
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -507,7 +514,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: validRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         overflowBridgeData.minAmount =
@@ -541,7 +549,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: validRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         boundaryBridgeData.minAmount =
@@ -566,11 +575,12 @@ contract EcoFacetTest is TestBaseFacet {
             memory invalidRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445";
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: "",
+            nonEVMReceiver: bytes(""),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: invalidRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -593,11 +603,12 @@ contract EcoFacetTest is TestBaseFacet {
         bytes memory tooShortRoute = hex"a9059cbb"; // Only 4 bytes
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: "",
+            nonEVMReceiver: bytes(""),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: tooShortRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -627,7 +638,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: invalidTronRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -658,7 +670,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: validRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -692,7 +705,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: validRoute,
-            solanaATA: bytes32(0)
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -719,7 +733,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: solanaRoute,
-            solanaATA: bytes32(uint256(1))
+            solanaATA: bytes32(uint256(1)),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -747,11 +762,12 @@ contract EcoFacetTest is TestBaseFacet {
         }
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: tooLongAddress,
+            nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: solanaRoute,
-            solanaATA: bytes32(uint256(1))
+            solanaATA: bytes32(uint256(1)),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -780,7 +796,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: tooShortRoute,
-            solanaATA: bytes32(uint256(1))
+            solanaATA: bytes32(uint256(1)),
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -813,7 +830,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: solanaEncodedRoute,
-            solanaATA: bytes32(0) // Set to zero - should revert
+            solanaATA: bytes32(0), // Set to zero - should revert
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -849,7 +867,8 @@ contract EcoFacetTest is TestBaseFacet {
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: solanaEncodedRoute,
-            solanaATA: bytes32(uint256(0x123456789abcdef)) // Different ATA that doesn't match the route
+            solanaATA: bytes32(uint256(0x123456789abcdef)), // Different ATA that doesn't match the route
+            refundRecipient: USER_SENDER
         });
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
@@ -860,6 +879,66 @@ contract EcoFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidReceiver.selector);
 
         // Execute bridge
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_RefundRecipientZeroAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory validRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            ADDRESS_USDC,
+            100 * 10 ** 6
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0),
+            refundRecipient: address(0)
+        });
+
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidConfig.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function test_RefundRecipientIsUsedInReward() public {
+        vm.startPrank(USER_SENDER);
+
+        address customRefundRecipient = address(0xABCD);
+
+        bytes memory validRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: validRoute,
+            solanaATA: bytes32(0),
+            refundRecipient: customRefundRecipient
+        });
+
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -918,7 +997,8 @@ contract EcoFacetTest is TestBaseFacet {
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
                 encodedRoute: encodedRoute,
-                solanaATA: bytes32(0)
+                solanaATA: bytes32(0),
+                refundRecipient: USER_SENDER
             });
     }
 }
