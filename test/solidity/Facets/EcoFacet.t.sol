@@ -936,6 +936,32 @@ contract EcoFacetTest is TestBaseFacet {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
+        IEcoPortal.TokenAmount[]
+            memory rewardTokens = new IEcoPortal.TokenAmount[](1);
+        rewardTokens[0] = IEcoPortal.TokenAmount({
+            token: bridgeData.sendingAssetId,
+            amount: bridgeData.minAmount
+        });
+
+        IEcoPortal.Reward memory expectedReward = IEcoPortal.Reward({
+            creator: customRefundRecipient,
+            prover: address(0x1234),
+            deadline: uint64(block.timestamp + 2 days),
+            nativeAmount: 0,
+            tokens: rewardTokens
+        });
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(bridgeData.destinationChainId),
+                validRoute,
+                expectedReward,
+                false
+            )
+        );
+
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
