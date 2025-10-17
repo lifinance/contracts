@@ -149,7 +149,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         if (actualAmountAfterSwap > _bridgeData.minAmount) {
             uint256 positiveSlippage = actualAmountAfterSwap -
                 _bridgeData.minAmount;
-            LibAsset.transferAsset(
+            LibAsset.transferERC20(
                 _bridgeData.sendingAssetId,
                 payable(msg.sender),
                 positiveSlippage
