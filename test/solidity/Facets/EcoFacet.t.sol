@@ -1001,4 +1001,78 @@ contract EcoFacetTest is TestBaseFacet {
                 refundRecipient: USER_SENDER
             });
     }
+
+    function testRevert_DuplicateBridgeCallIntentAlreadyFunded() public {
+        vm.startPrank(USER_SENDER);
+
+        uint256 amountToBridge = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+        bridgeData.minAmount = amountToBridge;
+
+        deal(ADDRESS_USDC, USER_SENDER, amountToBridge * 2);
+        usdc.approve(_facetTestContractAddress, amountToBridge * 2);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.expectRevert(EcoFacet.IntentAlreadyFunded.selector);
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function test_PositiveSlippageRefundedToUser() public {
+        vm.startPrank(USER_SENDER);
+
+        delete swapData;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+
+        uint256 totalAmountNeeded = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+
+        uint256[] memory amounts = uniswap.getAmountsIn(
+            totalAmountNeeded,
+            path
+        );
+        uint256 amountIn = amounts[0];
+
+        uint256 amountInWithSlippage = (amountIn * 110) / 100;
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountInWithSlippage,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountInWithSlippage,
+                    totalAmountNeeded,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        bridgeData.minAmount = totalAmountNeeded;
+        bridgeData.hasSourceSwaps = true;
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        uint256 usdcBalanceBefore = usdc.balanceOf(USER_SENDER);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        uint256 usdcBalanceAfter = usdc.balanceOf(USER_SENDER);
+
+        assertGt(
+            usdcBalanceAfter,
+            usdcBalanceBefore,
+            "User should receive positive slippage"
+        );
+
+        vm.stopPrank();
+    }
 }
