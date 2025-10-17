@@ -590,6 +590,15 @@
       }
     }
   },
+  "OutputValidator": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "PioneerFacet": {
     "configData": {
       "_pioneerAddress": {
