@@ -19,22 +19,21 @@ contract Foo {}
 /// @title Mock Swapper Facet
 /// @notice Mock facet that simulates SwapperV2 allow list logic for testing
 contract MockSwapperFacet {
-    function isContractAllowed(
-        address _contract
+    function isContractSelectorAllowed(
+        address _contract,
+        bytes4 _selector
     ) external view returns (bool) {
-        return LibAllowList.contractIsAllowed(_contract);
+        return LibAllowList.contractSelectorIsAllowed(_contract, _selector);
     }
 
-    function isSelectorAllowed(bytes4 _selector) external view returns (bool) {
-        return LibAllowList.selectorIsAllowed(_selector);
-    }
-
+    /// @notice [Backward Compatibility] Checks if a contract is on the global allow list.
     function isContractAllowedLegacy(
         address _contract
     ) external view returns (bool) {
         return LibAllowList.contractIsAllowed(_contract);
     }
 
+    /// @notice [Backward Compatibility] Checks if a selector is on the global allow list.
     function isSelectorAllowedLegacy(
         bytes4 _selector
     ) external view returns (bool) {
@@ -1091,13 +1090,14 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
     function _setupMockSwapperFacet() internal {
         mockSwapperFacet = new MockSwapperFacet();
-        bytes4[] memory mockSwapperSelectors = new bytes4[](4);
-        mockSwapperSelectors[0] = MockSwapperFacet.isContractAllowed.selector;
-        mockSwapperSelectors[1] = MockSwapperFacet.isSelectorAllowed.selector;
-        mockSwapperSelectors[2] = MockSwapperFacet
+        bytes4[] memory mockSwapperSelectors = new bytes4[](3);
+        mockSwapperSelectors[0] = MockSwapperFacet
+            .isContractSelectorAllowed
+            .selector;
+        mockSwapperSelectors[1] = MockSwapperFacet
             .isContractAllowedLegacy
             .selector;
-        mockSwapperSelectors[3] = MockSwapperFacet
+        mockSwapperSelectors[2] = MockSwapperFacet
             .isSelectorAllowedLegacy
             .selector;
         addFacet(
@@ -1616,9 +1616,10 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         address approvedDex
     ) internal returns (MockSwapperFacet) {
         mockSwapperFacet = new MockSwapperFacet();
-        bytes4[] memory mockSwapperSelectors = new bytes4[](2);
-        mockSwapperSelectors[0] = MockSwapperFacet.isContractAllowed.selector;
-        mockSwapperSelectors[1] = MockSwapperFacet.isSelectorAllowed.selector;
+        bytes4[] memory mockSwapperSelectors = new bytes4[](1);
+        mockSwapperSelectors[0] = MockSwapperFacet
+            .isContractSelectorAllowed
+            .selector;
         addFacet(
             LiFiDiamond(payable(DIAMOND)),
             address(mockSwapperFacet),
@@ -1630,12 +1631,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         // Verify pre-migration state
         bytes4 approvedSelector = 0x38ed1739;
         assertTrue(
-            mockSwapper.isContractAllowed(approvedDex),
-            "Contract should be allowed before migration"
-        );
-        assertTrue(
-            mockSwapper.isSelectorAllowed(approvedSelector),
-            "Selector should be allowed before migration"
+            mockSwapper.isContractSelectorAllowed(
+                approvedDex,
+                approvedSelector
+            ),
+            "Contract-selector pair should be allowed before migration"
         );
 
         return mockSwapper;
@@ -1789,14 +1789,12 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     ) internal {
         // Test new granular whitelist functionality
         assertTrue(
-            mockSwapper.isContractAllowed(currentlyApprovedDex),
+            mockSwapper.isContractSelectorAllowed(
+                currentlyApprovedDex,
+                approvedSelector
+            ),
             "Contract should still be allowed after migration"
         );
-        assertTrue(
-            mockSwapper.isSelectorAllowed(approvedSelector),
-            "Selector should still be allowed after migration"
-        );
-
         // Test legacy whitelist functionality for backward compatibility
         // This ensures that existing contracts like SwapperV2 continue to work
         assertTrue(
