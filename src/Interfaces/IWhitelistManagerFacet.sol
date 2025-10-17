@@ -12,7 +12,10 @@ interface IWhitelistManagerFacet {
     event AddressWhitelisted(address indexed whitelistedAddress);
 
     /// @notice Emitted when a function selector is added to the whitelist.
-    event FunctionSelectorWhitelistChanged(bytes4 indexed selector, bool indexed whitelisted);
+    event FunctionSelectorWhitelistChanged(
+        bytes4 indexed selector,
+        bool indexed whitelisted
+    );
 
     /// @notice Emitted when a contract and selector pair is whitelisted or unwhitelisted.
     event ContractSelectorWhitelistChanged(
@@ -51,7 +54,7 @@ interface IWhitelistManagerFacet {
         bytes4 _selector
     ) external view returns (bool whitelisted);
 
-    /// @notice LEGACY: Returns a list of all whitelisted addresses. 
+    /// @notice LEGACY: Returns a list of all whitelisted addresses.
     /// @dev WARNING: this does a full read of stored addresses.
     ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
     ///      the call may run out of gas. Do not rely on it for unbounded iteration.
@@ -88,12 +91,12 @@ interface IWhitelistManagerFacet {
     /// @notice Migrate the allow list configuration with new contracts and selectors.
     /// @dev This function can only be called by the diamond owner or authorized addresses.
     /// @param _selectorsToRemove Array of selectors to remove from the allow list.
-    /// @param _contractsToAdd Array of contract addresses to add to the allow list.
-    /// @param _selectorsToAdd Array of selectors to add to the allow list.
+    /// @param _contracts Array of contract addresses.
+    /// @param _selectors Parallel array of selector arrays for each contract.
     function migrate(
         bytes4[] calldata _selectorsToRemove,
-        address[] calldata _contractsToAdd,
-        bytes4[] calldata _selectorsToAdd
+        address[] calldata _contracts,
+        bytes4[][] calldata _selectors
     ) external;
 
     /// @notice Check if the allow list has been migrated.

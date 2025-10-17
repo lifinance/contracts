@@ -132,8 +132,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// @inheritdoc IWhitelistManagerFacet
     function migrate(
         bytes4[] calldata _selectorsToRemove,
-        address[] calldata _contractsToAdd,
-        bytes4[] calldata _selectorsToAdd
+        address[] calldata _contracts,
+        bytes4[][] calldata _selectors
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
@@ -144,60 +144,87 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         // return early if already migrated
         if (als.migrated) return;
 
-        // // clear old state
-        // // reset contractAllowList
-        // uint256 i;
-        // uint256 length = als.contracts.length;
-        // for (; i < length; ) {
-        //     als.contractAllowList[als.contracts[i]] = false;
-        //     ++i;
-        // }
+        // Validate input arrays have matching lengths
+        if (_contracts.length != _selectors.length) {
+            revert InvalidConfig();
+        }
 
-        // // reset selectorAllowList with external selectors array because new selectors array does not exist yet
-        // i = 0;
-        // length = _selectorsToRemove.length;
-        // for (; i < length; ) {
-        //     als.selectorAllowList[_selectorsToRemove[i]] = false;
-        //     ++i;
-        // }
+        // clear old state
+        // reset contractAllowList
+        uint256 i;
+        uint256 length = als.contracts.length;
+        for (; i < length; ) {
+            als.contractAllowList[als.contracts[i]] = false;
+            ++i;
+        }
 
-        // // reset contract array
-        // delete als.contracts;
-        // // clearing selectors (als.selectors) is not needed as it's a new variable
+        // reset selectorAllowList with external selectors array because new selectors array does not exist yet
+        i = 0;
+        length = _selectorsToRemove.length;
+        for (; i < length; ) {
+            als.selectorAllowList[_selectorsToRemove[i]] = false;
+            ++i;
+        }
 
-        // // whitelist contracts
-        // i = 0;
-        // length = _contractsToAdd.length;
-        // for (; i < length; ) {
-        //     if (_contractsToAdd[i] == address(this)) {
-        //         revert CannotAuthoriseSelf();
-        //     }
+        // reset contract array
+        delete als.contracts;
+        // clearing selectors (als.selectors) is not needed as it's a new variable
 
-        //     // check for duplicate contracts in _contractsToAdd
-        //     // this prevents both duplicates and ensures all contracts were properly reset
-        //     if (LibAllowList.contractIsAllowed(_contractsToAdd[i])) {
-        //         revert InvalidConfig();
-        //     }
+        // whitelist contract-selector pairs
+        i = 0;
+        length = _contracts.length;
+        for (; i < length; ) {
+            address contractAddr = _contracts[i];
+            bytes4[] calldata contractSelectors = _selectors[i];
 
-        //     LibAllowList.addAllowedContract(_contractsToAdd[i]);
-        //     emit AddressWhitelisted(_contractsToAdd[i]);
-        //     ++i;
-        // }
+            if (contractAddr == address(this)) {
+                revert CannotAuthoriseSelf();
+            }
 
-        // // whitelist selectors
-        // i = 0;
-        // length = _selectorsToAdd.length;
-        // for (; i < length; ) {
-        //     // check for duplicate selectors in _selectorsToAdd or selectors not present in _selectorsToRemove
-        //     // this prevents both duplicates and ensures all selectors were properly reset
-        //     if (LibAllowList.selectorIsAllowed(_selectorsToAdd[i])) {
-        //         revert InvalidConfig();
-        //     }
+            // For contracts with no functions, use empty selector (bytes4(0)) for backward compatibility
+            if (contractSelectors.length == 0) {
+                // check for duplicate contracts
+                if (LibAllowList.contractIsAllowed(contractAddr)) {
+                    revert InvalidConfig();
+                }
 
-        //     LibAllowList.addAllowedSelector(_selectorsToAdd[i]);
-        //     emit FunctionSelectorWhitelistChanged(_selectorsToAdd[i], true);
-        //     ++i;
-        // }
+                LibAllowList.addAllowedContractSelector(
+                    contractAddr,
+                    bytes4(0)
+                );
+                emit ContractSelectorWhitelistChanged(
+                    contractAddr,
+                    bytes4(0),
+                    true
+                );
+            } else {
+                // whitelist each selector for this contract
+                for (uint256 j = 0; j < contractSelectors.length; ++j) {
+                    bytes4 selector = contractSelectors[j];
+
+                    // check for duplicate contract-selector pairs
+                    if (
+                        LibAllowList.contractSelectorIsAllowed(
+                            contractAddr,
+                            selector
+                        )
+                    ) {
+                        revert InvalidConfig();
+                    }
+
+                    LibAllowList.addAllowedContractSelector(
+                        contractAddr,
+                        selector
+                    );
+                    emit ContractSelectorWhitelistChanged(
+                        contractAddr,
+                        selector,
+                        true
+                    );
+                }
+            }
+            ++i;
+        }
 
         // Mark as migrated
         als.migrated = true;
