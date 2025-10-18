@@ -32,26 +32,25 @@ contract AcrossFacetTest is TestBaseFacet {
         initTestBase();
 
         acrossFacet = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = acrossFacet.startBridgeTokensViaAcross.selector;
         functionSelectors[1] = acrossFacet
             .swapAndStartBridgeTokensViaAcross
             .selector;
-        functionSelectors[2] = acrossFacet.addToWhitelist.selector;
-        functionSelectors[3] = acrossFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = acrossFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(acrossFacet), functionSelectors);
         acrossFacet = TestAcrossFacet(address(diamond));
-        acrossFacet.addToWhitelist(ADDRESS_UNISWAP);
-        acrossFacet.setFunctionWhitelistBySelector(
+        acrossFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacet.setFunctionWhitelistBySelector(
+        acrossFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        acrossFacet.setFunctionWhitelistBySelector(
+        acrossFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 

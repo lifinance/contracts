@@ -30,28 +30,29 @@ contract PioneerFacetTest is TestBaseFacet {
         destination = payable(address(uint160(uint256(keccak256("Pioneer")))));
 
         basePioneerFacet = new TestPioneerFacet(destination);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = basePioneerFacet
             .startBridgeTokensViaPioneer
             .selector;
         functionSelectors[1] = basePioneerFacet
             .swapAndStartBridgeTokensViaPioneer
             .selector;
-        functionSelectors[2] = basePioneerFacet.addToWhitelist.selector;
-        functionSelectors[3] = basePioneerFacet
-            .setFunctionWhitelistBySelector
+        functionSelectors[2] = basePioneerFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(basePioneerFacet), functionSelectors);
         pioneerFacet = TestPioneerFacet(address(diamond));
-        pioneerFacet.addToWhitelist(ADDRESS_UNISWAP);
-        pioneerFacet.setFunctionWhitelistBySelector(
+        pioneerFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        pioneerFacet.setFunctionWhitelistBySelector(
+        pioneerFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        pioneerFacet.setFunctionWhitelistBySelector(
+        pioneerFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 
