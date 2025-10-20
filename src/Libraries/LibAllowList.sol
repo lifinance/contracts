@@ -12,6 +12,11 @@ import { LibAsset } from "./LibAsset.sol";
 /// It ensures that both the new granular mapping and the global arrays used by older
 /// contracts are kept perfectly synchronized. The long-term goal is to migrate all usage
 /// to the new granular system. New development should exclusively use the "Primary Interface" functions.
+///
+/// Special Marker Selector:
+/// - Contracts with no specific function selectors use 0xffffffff as a marker selector.
+/// - This ensures contractIsAllowed() returns true for backward compatibility when at least
+///   one selector (the marker) is registered for the contract.
 /// @custom:version 2.0.0
 library LibAllowList {
     /// Storage ///

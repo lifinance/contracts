@@ -38,8 +38,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         if (_contracts.length != _selectors.length) {
             revert InvalidConfig();
         }
-        uint256 length = _contracts.length;
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < _contracts.length; ++i) {
             _setContractSelectorWhitelist(
                 _contracts[i],
                 _selectors[i],
@@ -181,47 +180,29 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
                 revert CannotAuthoriseSelf();
             }
 
-            // For contracts with no functions, use empty selector (bytes4(0)) for backward compatibility
-            if (contractSelectors.length == 0) {
-                // check for duplicate contracts
-                if (LibAllowList.contractIsAllowed(contractAddr)) {
+            // whitelist each selector for this contract
+            for (uint256 j = 0; j < contractSelectors.length; ++j) {
+                bytes4 selector = contractSelectors[j];
+
+                // check for duplicate contract-selector pairs
+                if (
+                    LibAllowList.contractSelectorIsAllowed(
+                        contractAddr,
+                        selector
+                    )
+                ) {
                     revert InvalidConfig();
                 }
 
                 LibAllowList.addAllowedContractSelector(
                     contractAddr,
-                    bytes4(0)
+                    selector
                 );
                 emit ContractSelectorWhitelistChanged(
                     contractAddr,
-                    bytes4(0),
+                    selector,
                     true
                 );
-            } else {
-                // whitelist each selector for this contract
-                for (uint256 j = 0; j < contractSelectors.length; ++j) {
-                    bytes4 selector = contractSelectors[j];
-
-                    // check for duplicate contract-selector pairs
-                    if (
-                        LibAllowList.contractSelectorIsAllowed(
-                            contractAddr,
-                            selector
-                        )
-                    ) {
-                        revert InvalidConfig();
-                    }
-
-                    LibAllowList.addAllowedContractSelector(
-                        contractAddr,
-                        selector
-                    );
-                    emit ContractSelectorWhitelistChanged(
-                        contractAddr,
-                        selector,
-                        true
-                    );
-                }
             }
             ++i;
         }
