@@ -1045,7 +1045,7 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_PositiveSlippageRefundedToUser() public {
+    function test_PositiveSlippageRefundedToRefundRecipient() public {
         vm.startPrank(USER_SENDER);
 
         delete swapData;
@@ -1085,18 +1085,33 @@ contract EcoFacetTest is TestBaseFacet {
         bridgeData.minAmount = totalAmountNeeded;
         bridgeData.hasSourceSwaps = true;
 
+        address refundRecipient = address(0xBEEF);
+
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        uint256 usdcBalanceBefore = usdc.balanceOf(USER_SENDER);
+        uint256 refundRecipientBalanceBefore = usdc.balanceOf(refundRecipient);
 
-        initiateSwapAndBridgeTxWithFacet(false);
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: "",
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: _createEncodedRoute(
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bridgeData.minAmount
+            ),
+            solanaATA: bytes32(0),
+            refundRecipient: refundRecipient
+        });
 
-        uint256 usdcBalanceAfter = usdc.balanceOf(USER_SENDER);
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+
+        uint256 refundRecipientBalanceAfter = usdc.balanceOf(refundRecipient);
 
         assertGt(
-            usdcBalanceAfter,
-            usdcBalanceBefore,
-            "User should receive positive slippage"
+            refundRecipientBalanceAfter,
+            refundRecipientBalanceBefore,
+            "Refund recipient should receive positive slippage"
         );
 
         vm.stopPrank();

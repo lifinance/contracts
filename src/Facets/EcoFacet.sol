@@ -151,7 +151,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 _bridgeData.minAmount;
             LibAsset.transferERC20(
                 _bridgeData.sendingAssetId,
-                payable(msg.sender),
+                payable(_ecoData.refundRecipient),
                 positiveSlippage
             );
         }
