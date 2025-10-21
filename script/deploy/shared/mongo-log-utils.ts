@@ -1,11 +1,6 @@
 import { consola } from 'consola'
-import {
-  MongoClient,
-  type Db,
-  type Collection,
-  type ObjectId,
-  type Document,
-} from 'mongodb'
+import type { Collection, Db, ObjectId } from 'mongodb';
+import { MongoClient } from 'mongodb'
 
 /**
  * Represents a deployment record stored in MongoDB
@@ -161,24 +156,6 @@ export class DatabaseConnectionManager {
   }
 
   /**
-   * Gets a MongoDB collection for the specified environment
-   * @template T - The document type for the collection
-   * @param environment - The deployment environment ('staging' or 'production')
-   * @returns MongoDB collection instance
-   * @throws {Error} When database is not connected
-   */
-  public getCollection<T extends Document = IDeploymentRecord>(
-    _environment: 'staging' | 'production'
-  ): Collection<T> {
-    if (!this.db)
-      throw new Error('Database not connected. Call connect() first.')
-
-    // Note: The environment parameter is kept for backward compatibility
-    // but filtering is now done at the query level using the environment field
-    return this.db.collection<T>('ContractDeployments')
-  }
-
-  /**
    * Closes the MongoDB connection and cleans up resources
    */
   public async disconnect(): Promise<void> {
@@ -236,18 +213,6 @@ export class ValidationUtils {
     env: string
   ): env is 'staging' | 'production' {
     return env === 'staging' || env === 'production'
-  }
-
-  /**
-   * Type guard to validate if a partial record contains all required fields
-   * @param record - Partial deployment record to validate
-   * @returns True if all required fields are present
-   */
-  public static isValidDeploymentRecord(
-    record: Partial<IDeploymentRecord>
-  ): record is IDeploymentRecord {
-    const required = ['contractName', 'network', 'version', 'address']
-    return required.every((field) => record[field as keyof IDeploymentRecord])
   }
 
   /**
