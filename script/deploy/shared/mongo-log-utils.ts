@@ -22,6 +22,8 @@ export interface IDeploymentRecord {
   version: string
   /** Contract address on the blockchain */
   address: string
+  /** Deployment environment ('staging' or 'production') */
+  environment: 'staging' | 'production'
   /** Number of optimizer runs used during compilation */
   optimizerRuns: string
   /** Timestamp when the contract was deployed */
@@ -166,12 +168,12 @@ export class DatabaseConnectionManager {
    * @throws {Error} When database is not connected
    */
   public getCollection<T extends Document = IDeploymentRecord>(
-    environment: 'staging' | 'production'
+    _environment: 'staging' | 'production'
   ): Collection<T> {
     if (!this.db)
       throw new Error('Database not connected. Call connect() first.')
 
-    return this.db.collection<T>(environment)
+    return this.db.collection<T>('ContractDeployments')
   }
 
   /**
@@ -326,10 +328,11 @@ export class IndexManager {
   /**
    * Creates necessary indexes on the deployment collection if they don't exist
    * Indexes are created for common query patterns:
-   * - contract_network_version: For finding specific contract deployments
-   * - contract_network_key_version: For composite key lookups
+   * - contract_network_version_env: For finding specific contract deployments
+   * - contract_network_key_version_env: For composite key lookups
    * - timestamp_desc: For chronological queries (latest first)
    * - address: For address-based lookups
+   * - environment: For environment-based filtering
    *
    * @param collection - MongoDB collection to create indexes on
    */
@@ -341,12 +344,12 @@ export class IndexManager {
       name: string
     }> = [
       {
-        key: { contractName: 1, network: 1, version: 1 },
-        name: 'contract_network_version',
+        key: { contractName: 1, network: 1, version: 1, environment: 1 },
+        name: 'contract_network_version_env',
       },
       {
-        key: { contractNetworkKey: 1, version: 1 },
-        name: 'contract_network_key_version',
+        key: { contractNetworkKey: 1, version: 1, environment: 1 },
+        name: 'contract_network_key_version_env',
       },
       {
         key: { timestamp: -1 },
@@ -355,6 +358,10 @@ export class IndexManager {
       {
         key: { address: 1 },
         name: 'address',
+      },
+      {
+        key: { environment: 1 },
+        name: 'environment',
       },
     ]
 
@@ -472,10 +479,16 @@ export class RecordTransformer {
    * @param contractName - Name of the contract being deployed
    * @param network - Network where the contract was deployed
    * @param version - Version of the contract
+   * @param environment - Deployment environment ('staging' or 'production')
    * @returns Function that transforms raw data to IDeploymentRecord or null if invalid
    */
   public static transformRawToDeployment =
-    (contractName: string, network: string, version: string) =>
+    (
+      contractName: string,
+      network: string,
+      version: string,
+      environment: 'staging' | 'production'
+    ) =>
     (rawData: unknown): IDeploymentRecord | null => {
       if (!ValidationUtils.isValidRawDeploymentData(rawData)) return null
 
@@ -495,6 +508,7 @@ export class RecordTransformer {
           network,
           version,
           address: validData.ADDRESS,
+          environment,
           optimizerRuns: validData.OPTIMIZER_RUNS,
           timestamp: new Date(validData.TIMESTAMP),
           constructorArgs: validData.CONSTRUCTOR_ARGS,
@@ -520,7 +534,7 @@ export class RecordTransformer {
    */
   public static processJsonData(
     jsonData: unknown,
-    environment: string
+    environment: 'staging' | 'production'
   ): IDeploymentRecord[] {
     if (!jsonData || typeof jsonData !== 'object') return []
 
@@ -539,7 +553,8 @@ export class RecordTransformer {
                             RecordTransformer.transformRawToDeployment(
                               contractName,
                               network,
-                              version
+                              version,
+                              environment
                             )
                           )
                           .filter(

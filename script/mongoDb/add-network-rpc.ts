@@ -41,7 +41,7 @@ const main = defineCommand({
     const client = new MongoClient(MONGODB_URI)
     try {
       await client.connect()
-      const db = client.db('blockchain-configs')
+      const db = client.db('sc_public')
       const collection = db.collection('RpcEndpoints')
 
       // Check if there's an existing document for the given chainName
