@@ -182,7 +182,6 @@ interface IEcoQuoteRequest {
     destinationToken: string
     sourceAmount: string
     funder: string
-    refundRecipient: string
     recipient: string
   }
   contracts?: {
@@ -202,7 +201,6 @@ interface IEcoQuoteResponse {
       sourceAmount: string
       destinationAmount: string
       funder: string
-      refundRecipient: string
       recipient: string
       fees: Array<{
         name: string
@@ -216,7 +214,6 @@ interface IEcoQuoteResponse {
       }>
       deadline: number
       estimatedFulfillTimeSec: number
-      // Optional route field that may be returned by the API
       encodedRoute?: string
     }
     contracts: {
@@ -303,7 +300,6 @@ async function getEcoQuote(
       destinationToken,
       sourceAmount: amount.toString(),
       funder: signerAddress,
-      refundRecipient: signerAddress,
       recipient: recipientAddress,
     },
   }
@@ -552,11 +548,12 @@ async function main(args: {
   }
 
   const ecoData: EcoFacet.EcoDataStruct = {
-    nonEVMReceiver: nonEVMReceiverBytes, // Solana address as bytes or '0x' for EVM
-    prover: quote.data.contracts.prover, // Prover address from quote
-    rewardDeadline: BigInt(quote.data.quoteResponse.deadline), // Deadline from quote
-    encodedRoute: encodedRoute, // Encoded route information for the bridge
-    solanaATA: solanaATA, // ATA for Solana or zero for EVM chains
+    nonEVMReceiver: nonEVMReceiverBytes,
+    prover: quote.data.contracts.prover,
+    rewardDeadline: BigInt(quote.data.quoteResponse.deadline),
+    encodedRoute: encodedRoute,
+    solanaATA: solanaATA,
+    refundRecipient: signerAddress,
   }
 
   // === Ensure allowance ===

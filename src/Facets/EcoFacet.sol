@@ -16,13 +16,17 @@ import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Eco Protocol
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
-    /// Storage ///
+    /// Errors ///
+
+    error IntentAlreadyFunded();
+
+    /// Constants and Immutables ///
 
     IEcoPortal public immutable PORTAL;
-    uint64 private immutable ECO_CHAIN_ID_TRON = 728126428;
-    uint64 private immutable ECO_CHAIN_ID_SOLANA = 1399811149;
+    uint64 private constant ECO_CHAIN_ID_TRON = 728126428;
+    uint64 private constant ECO_CHAIN_ID_SOLANA = 1399811149;
 
     /// Constants ///
 
@@ -68,12 +72,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param rewardDeadline Timestamp for reward claim eligibility
     /// @param encodedRoute Encoded route data containing destination chain routing information
     /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
+    /// @param refundRecipient Address that will receive refunds if the intent expires unfulfilled
     struct EcoData {
         bytes nonEVMReceiver;
         address prover;
         uint64 rewardDeadline;
         bytes encodedRoute;
         bytes32 solanaATA;
+        address refundRecipient;
     }
 
     /// Constructor ///
@@ -117,12 +123,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param _bridgeData Bridge data containing core parameters
     /// @param _swapData Array of swap data for source swaps
     /// @param _ecoData Eco-specific parameters for the bridge
-    /// @dev IMPORTANT LIMITATION: For ERC20 tokens, positive slippage from pre-bridge swaps
-    /// may remain in the diamond contract. The intent amount is encoded in encodedRoute
-    /// (provided by Eco API), and the Portal only transfers the exact amount specified in minAmount.
-    /// If swaps produce more tokens than expected (positive slippage), only minAmount is transferred
-    /// to the Portal vault. Any excess remains in the diamond. This is a known limitation that can
-    /// be significant when bridging large amounts.
     function swapAndStartBridgeTokensViaEco(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -139,13 +139,22 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     {
         _validateEcoData(_bridgeData, _ecoData);
 
-        _bridgeData.minAmount = _depositAndSwap(
+        uint256 actualAmountAfterSwap = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender),
-            0
+            payable(msg.sender)
         );
+
+        if (actualAmountAfterSwap > _bridgeData.minAmount) {
+            uint256 positiveSlippage = actualAmountAfterSwap -
+                _bridgeData.minAmount;
+            LibAsset.transferERC20(
+                _bridgeData.sendingAssetId,
+                payable(_ecoData.refundRecipient),
+                positiveSlippage
+            );
+        }
 
         _startBridge(_bridgeData, _ecoData);
     }
@@ -166,9 +175,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
         return
             IEcoPortal.Reward({
-                // If and when native bridging is enabled ensure the creator
-                // address is able to receive ETH in the case of a refund
-                creator: msg.sender,
+                creator: _ecoData.refundRecipient,
                 prover: _ecoData.prover,
                 deadline: _ecoData.rewardDeadline,
                 nativeAmount: NATIVE_REWARD_AMOUNT,
@@ -200,6 +207,16 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             destination = uint64(_bridgeData.destinationChainId);
         }
 
+        bytes32 intentHash = _getIntentHash(
+            destination,
+            _ecoData.encodedRoute,
+            reward
+        );
+
+        if (PORTAL.getRewardStatus(intentHash) != IEcoPortal.Status.Initial) {
+            revert IntentAlreadyFunded();
+        }
+
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
             address(PORTAL),
@@ -229,10 +246,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         EcoData calldata _ecoData
     ) private view {
         if (_ecoData.prover == address(0)) revert InvalidConfig();
-        if (
-            _ecoData.rewardDeadline == 0 ||
-            _ecoData.rewardDeadline <= block.timestamp
-        ) {
+        if (_ecoData.refundRecipient == address(0)) revert InvalidConfig();
+        if (_ecoData.rewardDeadline <= block.timestamp) {
             revert InvalidConfig();
         }
 
@@ -294,16 +309,16 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidReceiver();
         }
 
-        // Extract the Solana recipient address from a Borsh-encoded Route struct
+        // Extract the Associated Token Account (ATA) from the Borsh-encoded Route struct
         // The Route struct contains TransferChecked instruction calldata where:
         // - The entire Route struct is Borsh-serialized
         // - Within the serialized Route, the TransferChecked instruction data is embedded
-        // - The recipient account (destination wallet) is located at bytes 251-283 (32 bytes)
+        // - The destination ATA address is located at bytes 251-283 (32 bytes)
         // - This position is determined by the Route struct layout and the position of the
-        //   recipient pubkey within the TransferChecked instruction calldata
+        //   ATA pubkey within the TransferChecked instruction calldata
         // - Borsh encoding preserves the exact byte positions for fixed-size fields like pubkeys
         // - The total encoded route for Solana must be exactly 319 bytes
-        // Extract bytes 251-283 (32 bytes) which contain the recipient address
+        // Extract bytes 251-283 (32 bytes) which contain the destination ATA
         bytes32 routeReceiver = bytes32(
             _ecoData.encodedRoute[SOLANA_RECEIVER_OFFSET:SOLANA_RECEIVER_END]
         );
@@ -312,5 +327,15 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         if (_ecoData.solanaATA != routeReceiver) {
             revert InvalidReceiver();
         }
+    }
+
+    function _getIntentHash(
+        uint64 destination,
+        bytes calldata route,
+        IEcoPortal.Reward memory reward
+    ) private pure returns (bytes32) {
+        bytes32 routeHash = keccak256(route);
+        bytes32 rewardHash = keccak256(abi.encode(reward));
+        return keccak256(abi.encodePacked(destination, routeHash, rewardHash));
     }
 }

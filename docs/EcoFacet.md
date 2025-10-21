@@ -28,12 +28,14 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param rewardDeadline Timestamp for reward claim eligibility
 /// @param encodedRoute Encoded route data containing destination chain routing information
 /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
+/// @param refundRecipient Address that will receive refunds if the intent expires unfulfilled
 struct EcoData {
   bytes nonEVMReceiver;
   address prover;
   uint64 rewardDeadline;
   bytes encodedRoute;
   bytes32 solanaATA;
+  address refundRecipient;
 }
 ```
 
@@ -46,12 +48,14 @@ The receiver address is specified differently depending on the destination chain
   - Set `bridgeData.receiver` to the actual EVM receiver address
   - Leave `nonEVMReceiver` empty (`""`)
   - Leave `solanaATA` as `bytes32(0)`
+  - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
   - The contract validates that the receiver in the encoded route matches `bridgeData.receiver`
 
 - **For Solana destination chain**:
   - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant (`0x11f111f111f111F111f111f111F111f111f111F1`)
   - Provide the Solana address in `nonEVMReceiver` as bytes (base58 address encoded as bytes)
   - Provide the Associated Token Account (ATA) address in `solanaATA` as bytes32
+  - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
   - The contract validates that `solanaATA` matches the ATA encoded in the route
 
 Examples:
@@ -61,14 +65,22 @@ Examples:
 bridgeData.receiver = 0x123...;      // Actual EVM receiver address
 ecoData.nonEVMReceiver = "";         // Empty bytes
 ecoData.solanaATA = bytes32(0);      // Zero for EVM chains
+ecoData.refundRecipient = msg.sender; // User address for refunds
 
 // EVM to Solana bridge
 bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
 ecoData.nonEVMReceiver = solanaAddressBytes;     // Solana address as bytes
 ecoData.solanaATA = 0x8f37c499ccbb92...;         // Solana ATA as bytes32
+ecoData.refundRecipient = msg.sender;            // User address for refunds
 ```
 
 ### Important Notes
+
+- **Refund Recipient**: The `refundRecipient` parameter specifies where funds will be sent if the intent expires unfulfilled. This is particularly important when using proxy contracts (e.g., Permit2Proxy) as intermediaries. Always set this to the end user's address to ensure they can receive refunds, not the proxy contract address.
+
+- **Duplicate Bridge Protection**: The contract prevents duplicate bridge calls with identical parameters. If you attempt to bridge with the same intent parameters twice, the second transaction will revert with an `IntentAlreadyFunded` error. This protects against accidental fund loss.
+
+- **Positive Slippage**: When using `swapAndStartBridgeTokensViaEco`, any positive slippage from the swap (tokens received above `minAmount`) is automatically refunded to the user. Only the exact `minAmount` specified is bridged.
 
 - **Native Token Bridging**: The EcoFacet contract does not support native token bridging. Only ERC20 token transfers are supported. Transactions will revert if native tokens are specified as the sending asset.
 
@@ -95,6 +107,8 @@ ecoData.solanaATA = 0x8f37c499ccbb92...;         // Solana ATA as bytes32
 - **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
 
 - **TRON Compatibility**: TRON is treated as EVM-compatible in the smart contract validation logic since it uses the same Route struct encoding as EVM chains. Only Solana requires special non-EVM handling with `nonEVMReceiver` and `solanaATA` parameters.
+
+- **Solana ATA Validation**: For Solana bridges, the contract validates that the Associated Token Account (ATA) specified in `solanaATA` matches the ATA encoded in bytes 251-283 of the route. The ATA is derived from the user's wallet address and the SPL token mint address, not the user's wallet address directly.
 
 ## Swap Data
 

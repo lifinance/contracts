@@ -419,6 +419,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.10.15_FeeForwarder(v1.0.0).pdf",
       "auditCommitHash": "5022c0aca332e2a066f1398e3456632679a836f9"
+    },
+    "audit20251020": {
+      "auditCompletedOn": "20.10.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.10.20_EcoFacet(v1.1.0).pdf",
+      "auditCommitHash": "25a5b880bca3ea51f060787e30ccc2bdcd13d6f9"
     }
   },
   "auditedContracts": {
@@ -492,7 +499,8 @@
       "1.0.2": ["audit20250413", "audit20250508"]
     },
     "EcoFacet": {
-      "1.0.0": ["audit20251001"]
+      "1.0.0": ["audit20251001"],
+      "1.1.0": ["audit20251020"]
     },
     "DiamondCutFacet": {
       "1.0.0": ["audit20250508"]
@@ -560,7 +568,8 @@
       "1.0.6": ["audit20250508"]
     },
     "IEcoPortal": {
-      "1.0.0": ["audit20251001"]
+      "1.0.0": ["audit20251001"],
+      "1.1.0": ["audit20251020"]
     },
     "IGarden": {
       "1.0.0": ["audit20250919"]

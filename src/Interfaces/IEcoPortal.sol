@@ -5,8 +5,15 @@ pragma solidity ^0.8.17;
 /// @title IEcoPortal
 /// @notice Interface for Eco Protocol Portal
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 interface IEcoPortal {
+    enum Status {
+        Initial,
+        Funded,
+        Withdrawn,
+        Refunded
+    }
+
     struct TokenAmount {
         address token;
         uint256 amount;
@@ -26,4 +33,8 @@ interface IEcoPortal {
         Reward calldata reward,
         bool allowPartial
     ) external payable returns (bytes32 intentHash, address vault);
+
+    function getRewardStatus(
+        bytes32 intentHash
+    ) external view returns (Status status);
 }
