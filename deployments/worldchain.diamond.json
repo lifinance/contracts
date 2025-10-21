@@ -54,8 +54,8 @@
         "Version": "1.0.1"
       },
       "0xB5dD83183fD7CCF859b227CA83663a034d5B2f92": {
-        "Name": "",
-        "Version": ""
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
       },
       "0x90ADbFc03002aaA3d9FEdf2517D593CfD93e6c57": {
         "Name": "AcrossFacetPackedV3",
@@ -91,20 +91,20 @@
       }
     },
     "Periphery": {
-      "ERC20Proxy": "",
-      "Executor": "",
-      "FeeCollector": "",
+      "ERC20Proxy": "0x98750e70Cf1313D9702f0f57D399DD0bA05d16E0",
+      "Executor": "0xd9318fFE1EbbfA71049A443e623Be566067C9D6B",
+      "FeeCollector": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
+      "GasZipPeriphery": "0x76aE215b11797b32397d878e6f3E65081ff58b13",
       "FeeForwarder": "",
-      "GasZipPeriphery": "",
       "LidoWrapper": "",
-      "LiFiDEXAggregator": "",
+      "LiFiDEXAggregator": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
       "Patcher": "",
-      "Permit2Proxy": "",
-      "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
+      "ReceiverAcrossV3": "0xD263a23453CB9A77860ed6393A2B9a55AF70EFAb",
+      "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "TokenWrapper": ""
+      "TokenWrapper": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a"
     }
   }
 }
