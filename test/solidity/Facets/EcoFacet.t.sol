@@ -41,26 +41,25 @@ contract EcoFacetTest is TestBaseFacet {
 
         ecoFacet = new TestEcoFacet(IEcoPortal(PORTAL));
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = ecoFacet.startBridgeTokensViaEco.selector;
         functionSelectors[1] = ecoFacet
             .swapAndStartBridgeTokensViaEco
             .selector;
-        functionSelectors[2] = ecoFacet.addToWhitelist.selector;
-        functionSelectors[3] = ecoFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = ecoFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(ecoFacet), functionSelectors);
         ecoFacet = TestEcoFacet(address(diamond));
-        ecoFacet.addToWhitelist(ADDRESS_UNISWAP);
-        ecoFacet.setFunctionWhitelistBySelector(
+        ecoFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        ecoFacet.setFunctionWhitelistBySelector(
+        ecoFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        ecoFacet.setFunctionWhitelistBySelector(
+        ecoFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 

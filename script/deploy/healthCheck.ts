@@ -20,7 +20,6 @@ import {
   coreFacets,
   corePeriphery,
   pauserWallet,
-  whitelistPeripheryFunctions,
 } from '../../config/global.json'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
@@ -89,9 +88,6 @@ const main = defineCommand({
         k.includes('Facet')
       )
     })
-    const expectedWhitelistedAddresses = (
-      await import(`../../config/whitelistedAddresses.json`)
-    )[network.toLowerCase()] as Address[]
 
     const globalConfig = await import('../../config/global.json')
     const networksConfig = await import('../../config/networks.json')
@@ -383,114 +379,46 @@ const main = defineCommand({
           'function getWhitelistedAddresses() external view returns (address[])',
           'function isFunctionSelectorWhitelisted(bytes4) external view returns (bool)',
           'function getWhitelistedFunctionSelectors() external view returns (bytes4[])',
+          'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+          'function isAddressWhitelisted(address) external view returns (bool)',
+          'function getWhitelistedSelectorsForContract(address) external view returns (bytes4[])',
+          'function getAllContractSelectorPairs() external view returns (address[],bytes4[][])',
+          'function isMigrated() external view returns (bool)',
         ]),
         client: publicClient,
       })
 
-      let onChainWhitelisted: Address[] = []
-      try {
-        onChainWhitelisted =
-          await whitelistManager.read.getWhitelistedAddresses()
-      } catch (error) {
-        logError(
-          'Failed to get whitelisted addresses from chain, most probably because facet is not deployed and WhitelistManagerFacet is not added to diamond'
-        )
-        // Don't skip the checks - we'll still check against the config
-      }
-
-      // First check all whitelisted addresses
-      for (const cfgAddress of expectedWhitelistedAddresses) {
-        if (!cfgAddress) {
-          logError(`Encountered undefined whitelisted address.`)
-          continue
-        }
-
-        try {
-          const normalized = getAddress(cfgAddress)
-          // Check if the address is a contract
-          const code = await publicClient.getCode({ address: normalized })
-          if (code === '0x')
-            logError(
-              `Whitelisted address ${normalized} is not a contract (EOA or AA account after EIP-7702)`
-            )
-          if (!onChainWhitelisted.includes(normalized))
-            logError(
-              `Address ${normalized} from whitelist config (whitelistedAddresses.json) is not whitelisted on chain`
-            )
-        } catch (err) {
-          logError(`Invalid whitelisted address in config: ${cfgAddress}`)
-        }
-      }
-
-      // Ensure that periphery contracts with selectors are deployed and whitelisted
-      // Only check contracts that are expected to be deployed according to target state
-      const targetStateContracts =
-        targetState[network]?.production?.LiFiDiamond || {}
-
-      for (const name of Object.keys(whitelistPeripheryFunctions)) {
-        // Skip if contract is not expected to be deployed on this network
-        if (!targetStateContracts[name]) continue
-
-        // get address from deploy log
-        const addr = deployedContracts[name]
-        if (!addr) {
-          logError(`Periphery contract ${name} not deployed`)
-          continue
-        }
-
-        const normalized = getAddress(addr)
-        if (!onChainWhitelisted.includes(normalized))
-          logError(`Periphery contract ${name} not whitelisted`)
-        else consola.success(`Periphery contract ${name} whitelisted`)
-      }
-
       //          ╭─────────────────────────────────────────────────────────╮
-      //          │                   Check approved selectors              │
+      //          │        Check whitelisted contract/selectors             │
       //          ╰─────────────────────────────────────────────────────────╯
 
-      consola.box('Checking selectors approved in diamond...')
-      // Check if selectors are approved
-      const { selectors } = await import(
-        `../../config/whitelistedSelectors.json`
+      // We don't check the migrated field value because:
+      // - migrated = false: Fresh deployments (granular system from start) OR pre-migration contracts
+      // - migrated = true: Only post-migration contracts (after calling migrate() function)
+      // The migration status doesn't determine checking method - WhitelistManagerFacet should be always deployed
+      // NOTE: The migrate() function should be removed after migration is complete on all chains
+      consola.box('Checking granular contract-selector whitelist...')
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │              Check granular contract-selector pairs      │
+      //          ╰─────────────────────────────────────────────────────────╯
+
+      await checkGranularWhitelist(whitelistManager, network, deployedContracts)
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │        Verify backward compatibility synchronization    │
+      //          ╰─────────────────────────────────────────────────────────╯
+
+      await verifyBackwardCompatibilitySync(
+        whitelistManager,
+        await getExpectedPairs(network, deployedContracts)
       )
 
-      // Get all approved selectors from contract
-      const approvedSelectors = await getWhitelistedFunctionSelectors(
-        whitelistManager
-      )
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check legacy compatibility               │
+      //          ╰─────────────────────────────────────────────────────────╯
 
-      // Convert selectors to normalized format for comparison
-      const normalizedConfigSelectors = selectors.map(
-        (selector) => selector.toLowerCase() as Hex
-      )
-      const normalizedApprovedSelectors = approvedSelectors.map((selector) =>
-        selector.toLowerCase()
-      )
-
-      // Find missing selectors in both directions
-      const missingInContract = normalizedConfigSelectors.filter(
-        (selector) => !normalizedApprovedSelectors.includes(selector)
-      )
-      const extraInContract = normalizedApprovedSelectors.filter(
-        (selector) => !normalizedConfigSelectors.includes(selector)
-      )
-
-      if (missingInContract.length > 0) {
-        logError(
-          `Missing ${missingInContract.length} selectors in contract that are in config:`
-        )
-        missingInContract.forEach((selector) => consola.info(`  ${selector}`))
-      }
-
-      if (extraInContract.length > 0) {
-        logError(
-          `Found ${extraInContract.length} extra selectors in contract that are not in config:`
-        )
-        extraInContract.forEach((selector) => consola.info(`  ${selector}`))
-      }
-
-      if (missingInContract.length === 0 && extraInContract.length === 0)
-        consola.success('All selectors match between config and contract.')
+      await checkLegacyCompatibility(whitelistManager)
 
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                Check contract ownership                 │
@@ -720,6 +648,268 @@ const checkIsDeployed = async (
   return true
 }
 
+const getExpectedPairs = async (
+  network: string,
+  deployedContracts: Record<string, Address>
+): Promise<Array<{ contract: Address; selector: Hex }>> => {
+  try {
+    // Load whitelist.json for DEX contracts
+    const whitelistConfig = await import(`../../config/whitelist.json`)
+    const networkConfig = whitelistConfig[network.toLowerCase()]
+
+    const expectedPairs: Array<{ contract: Address; selector: Hex }> = []
+
+    // Add DEX contracts from whitelist.json
+    if (networkConfig) {
+      for (const dex of networkConfig.DEXS || []) {
+        for (const contract of dex.contracts?.[network.toLowerCase()] || []) {
+          const contractAddr = getAddress(contract.address)
+          const functions = contract.functions || {}
+
+          if (Object.keys(functions).length === 0) {
+            // Contract with no specific functions uses marker selector
+            expectedPairs.push({
+              contract: contractAddr,
+              selector: '0xffffffff' as Hex,
+            })
+          } else {
+            // Contract with specific function selectors
+            for (const selector of Object.keys(functions)) {
+              expectedPairs.push({
+                contract: contractAddr,
+                selector: selector.toLowerCase() as Hex,
+              })
+            }
+          }
+        }
+      }
+    }
+
+    // Add periphery contracts that are deployed
+    const peripheryContracts = [
+      'FeeCollector',
+      'FeeForwarder',
+      'Executor',
+      'ERC20Proxy',
+      'Receiver',
+    ]
+    for (const contractName of peripheryContracts) {
+      const contractAddr = deployedContracts[contractName]
+      if (contractAddr) {
+        // Periphery contracts use marker selector for backward compatibility
+        expectedPairs.push({
+          contract: getAddress(contractAddr),
+          selector: '0xffffffff' as Hex,
+        })
+      }
+    }
+
+    return expectedPairs
+  } catch (error) {
+    logError(`Failed to get expected pairs: ${error}`)
+    return []
+  }
+}
+
+const checkGranularWhitelist = async (
+  whitelistManager: ReturnType<typeof getContract>,
+  network: string,
+  deployedContracts: Record<string, Address>
+) => {
+  consola.box('Checking granular contract-selector whitelist...')
+
+  try {
+    // Get expected pairs from config
+    const expectedPairs = await getExpectedPairs(network, deployedContracts)
+
+    if (expectedPairs.length === 0) {
+      logError(`No whitelist configuration found for network ${network}`)
+      return
+    }
+
+    // Use the efficient getAllContractSelectorPairs function
+    const [onChainContracts, onChainSelectors] =
+      await whitelistManager.read.getAllContractSelectorPairs()
+
+    // Create a map of on-chain contract-selector pairs for efficient lookup
+    const onChainPairs = new Map<string, Set<string>>()
+    for (let i = 0; i < onChainContracts.length; i++) {
+      const contract = onChainContracts[i].toLowerCase()
+      const selectors = onChainSelectors[i]
+      const selectorSet = new Set<string>()
+
+      for (const selector of selectors) {
+        selectorSet.add(selector.toLowerCase())
+      }
+
+      onChainPairs.set(contract, selectorSet)
+    }
+
+    consola.success(
+      `Retrieved ${onChainContracts.length} contracts with selectors from diamond`
+    )
+
+    // Check each expected contract-selector pair
+    let missingPairs = 0
+    let verifiedPairs = 0
+
+    for (const pair of expectedPairs) {
+      try {
+        const contractKey = pair.contract.toLowerCase()
+        const selectorKey = pair.selector.toLowerCase()
+
+        const contractSelectors = onChainPairs.get(contractKey)
+
+        if (!contractSelectors || !contractSelectors.has(selectorKey)) {
+          logError(
+            `Contract-selector pair not whitelisted: ${pair.contract} - ${pair.selector}`
+          )
+          missingPairs++
+        } else {
+          verifiedPairs++
+        }
+      } catch (error) {
+        logError(
+          `Failed to check contract-selector pair: ${pair.contract} - ${pair.selector}`
+        )
+        missingPairs++
+      }
+    }
+
+    consola.success(
+      `Verified ${verifiedPairs} contract-selector pairs using efficient getAllContractSelectorPairs`
+    )
+
+    if (missingPairs === 0) {
+      consola.success(
+        'All contract-selector pairs properly whitelisted in granular system'
+      )
+    } else {
+      logError(`Found ${missingPairs} missing contract-selector pairs`)
+    }
+  } catch (error) {
+    logError(`Failed to check granular whitelist: ${error}`)
+  }
+}
+
+const verifyBackwardCompatibilitySync = async (
+  whitelistManager: ReturnType<typeof getContract>,
+  expectedPairs: Array<{ contract: Address; selector: Hex }>
+) => {
+  consola.box('Verifying backward compatibility synchronization...')
+
+  try {
+    // Use the efficient getAllContractSelectorPairs function to get on-chain data
+    const [onChainContracts, onChainSelectors] =
+      await whitelistManager.read.getAllContractSelectorPairs()
+
+    // Create a set of on-chain contracts for efficient lookup
+    const onChainContractSet = new Set(
+      onChainContracts.map((addr) => addr.toLowerCase())
+    )
+
+    // Count total selectors for logging
+    const totalSelectors = onChainSelectors.reduce(
+      (sum, selectors) => sum + selectors.length,
+      0
+    )
+
+    // Get unique contracts from expected pairs
+    const uniqueContracts = new Set(
+      expectedPairs.map((p) => p.contract.toLowerCase())
+    )
+
+    // Check that each expected contract is properly synchronized in the global arrays
+    let syncIssues = 0
+
+    for (const contractAddr of uniqueContracts) {
+      if (!onChainContractSet.has(contractAddr)) {
+        logError(
+          `Contract ${contractAddr} not synchronized in global whitelist (backward compatibility issue)`
+        )
+        syncIssues++
+      }
+    }
+
+    // Check that global arrays are properly populated using legacy functions
+    const globalAddresses =
+      await whitelistManager.read.getWhitelistedAddresses()
+    const globalSelectors =
+      await whitelistManager.read.getWhitelistedFunctionSelectors()
+
+    consola.success(
+      `Global arrays synchronized: ${globalAddresses.length} addresses, ${globalSelectors.length} selectors`
+    )
+    consola.success(
+      `Granular system has: ${onChainContracts.length} contracts with ${totalSelectors} total selectors`
+    )
+
+    // Verify that granular and global systems are in sync
+    if (onChainContracts.length !== globalAddresses.length) {
+      logError(
+        `Granular system has ${onChainContracts.length} contracts but global system has ${globalAddresses.length} addresses`
+      )
+      syncIssues++
+    }
+
+    if (syncIssues === 0) {
+      consola.success('Backward compatibility synchronization verified')
+    } else {
+      logError(`Found ${syncIssues} synchronization issues`)
+    }
+  } catch (error) {
+    logError(`Failed to verify backward compatibility sync: ${error}`)
+  }
+}
+
+const checkLegacyCompatibility = async (
+  whitelistManager: ReturnType<typeof getContract>
+) => {
+  consola.box('Checking legacy compatibility...')
+
+  try {
+    // Test that legacy functions still work
+    const legacyAddresses =
+      await whitelistManager.read.getWhitelistedAddresses()
+    const legacySelectors =
+      await whitelistManager.read.getWhitelistedFunctionSelectors()
+
+    consola.success(
+      `Legacy compatibility maintained: ${legacyAddresses.length} addresses, ${legacySelectors.length} selectors`
+    )
+
+    // Verify that legacy contract checks work
+    if (legacyAddresses.length > 0) {
+      const testAddress = legacyAddresses[0]
+      const isContractAllowed =
+        await whitelistManager.read.isAddressWhitelisted([testAddress])
+
+      if (isContractAllowed) {
+        consola.success(`Legacy contract check works for ${testAddress}`)
+      } else {
+        logError(`Legacy contract check failed for ${testAddress}`)
+      }
+    }
+
+    // Verify that legacy selector checks work
+    if (legacySelectors.length > 0) {
+      const testSelector = legacySelectors[0]
+      const isSelectorAllowed =
+        await whitelistManager.read.isFunctionSelectorWhitelisted([
+          testSelector,
+        ])
+
+      if (isSelectorAllowed) {
+        consola.success(`Legacy selector check works for ${testSelector}`)
+      } else {
+        logError(`Legacy selector check failed for ${testSelector}`)
+      }
+    }
+  } catch (error) {
+    logError(`Legacy compatibility check failed: ${error}`)
+  }
+}
+
 const finish = () => {
   // this line ensures that all logs are actually written before the script ends
   process.stdout.write('', () => process.stdout.end())
@@ -729,21 +919,6 @@ const finish = () => {
   } else {
     consola.success('Deployment checks passed')
     process.exit(0)
-  }
-}
-
-const getWhitelistedFunctionSelectors = async (
-  whitelistManager: any
-): Promise<Hex[]> => {
-  try {
-    const approvedSelectors =
-      await whitelistManager.read.getWhitelistedFunctionSelectors()
-    return approvedSelectors
-  } catch (error) {
-    logError(
-      'Failed to get approved function selectors (call to getWhitelistedFunctionSelectors function)'
-    )
-    return []
   }
 }
 

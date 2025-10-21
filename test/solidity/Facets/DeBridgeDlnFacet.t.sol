@@ -39,33 +39,23 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         initTestBase();
 
         deBridgeDlnFacet = new TestDeBridgeDlnFacet(DLN_SOURCE);
-        bytes4[] memory functionSelectors = new bytes4[](7);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = deBridgeDlnFacet
             .startBridgeTokensViaDeBridgeDln
             .selector;
         functionSelectors[1] = deBridgeDlnFacet
             .swapAndStartBridgeTokensViaDeBridgeDln
             .selector;
-        functionSelectors[2] = deBridgeDlnFacet.addToWhitelist.selector;
-        functionSelectors[3] = deBridgeDlnFacet
-            .setFunctionWhitelistBySelector
-            .selector;
-        functionSelectors[4] = deBridgeDlnFacet.setDeBridgeChainId.selector;
-        functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
-        functionSelectors[6] = DeBridgeDlnFacet.initDeBridgeDln.selector;
+        functionSelectors[2] = deBridgeDlnFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] = deBridgeDlnFacet.setDeBridgeChainId.selector;
+        functionSelectors[4] = deBridgeDlnFacet.getDeBridgeChainId.selector;
+        functionSelectors[5] = DeBridgeDlnFacet.initDeBridgeDln.selector;
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
-        deBridgeDlnFacet.addToWhitelist(ADDRESS_UNISWAP);
-        deBridgeDlnFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        deBridgeDlnFacet.setFunctionWhitelistBySelector(
-            uniswap.swapTokensForExactETH.selector
-        );
-        deBridgeDlnFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
+        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         // Initialize
         string memory path = string.concat(

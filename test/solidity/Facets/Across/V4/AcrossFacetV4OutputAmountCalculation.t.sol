@@ -48,16 +48,15 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             IAcrossSpokePoolV4(SPOKE_POOL),
             _convertAddressToBytes32(ADDRESS_WRAPPED_NATIVE)
         );
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = acrossFacetV4
             .startBridgeTokensViaAcrossV4
             .selector;
         functionSelectors[1] = acrossFacetV4
             .swapAndStartBridgeTokensViaAcrossV4
             .selector;
-        functionSelectors[2] = acrossFacetV4.addToWhitelist.selector;
-        functionSelectors[3] = acrossFacetV4
-            .setFunctionWhitelistBySelector
+        functionSelectors[2] = acrossFacetV4
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(acrossFacetV4), functionSelectors);
@@ -66,12 +65,17 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         setFacetAddressInTestBase(address(acrossFacetV4), "AcrossFacetV4");
 
         // Add Uniswap router to allowlist for base tests
-        acrossFacetV4.addToWhitelist(ADDRESS_UNISWAP);
-        acrossFacetV4.setFunctionWhitelistBySelector(
+        acrossFacetV4.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacetV4.setFunctionWhitelistBySelector(
+        acrossFacetV4.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
+        );
+        acrossFacetV4.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
         );
 
         // Setup bridge data
@@ -250,7 +254,10 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             swapOutputAmount,
             0 // Use default amountIn
         );
-        acrossFacetV4.addToWhitelist(address(mockDEX));
+        acrossFacetV4.addAllowedContractSelector(
+            address(mockDEX),
+            mockDEX.swapExactTokensForTokens.selector
+        );
 
         // Setup swap data
         delete swapData;
@@ -348,7 +355,10 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             swapOutputAmount,
             0 // Use default amountIn
         );
-        acrossFacetV4.addToWhitelist(address(mockDEX));
+        acrossFacetV4.addAllowedContractSelector(
+            address(mockDEX),
+            mockDEX.swapExactTokensForTokens.selector
+        );
 
         // Setup swap data
         delete swapData;
