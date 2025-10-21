@@ -157,15 +157,16 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x499E4A6585df0638508CA45A6Bb41B9BD385030C": {
+      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
         "Name": "EcoFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x68E1Acfa805dcA813116Ed6507E01c38D44318f0",
       "Executor": "0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88",
       "FeeCollector": "0x3Ef238c36035880EfbDfa239d218186b79Ad1d6F",
+      "FeeForwarder": "",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
