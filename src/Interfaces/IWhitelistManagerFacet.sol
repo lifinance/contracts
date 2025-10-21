@@ -4,6 +4,10 @@ pragma solidity ^0.8.17;
 /// @title IWhitelistManagerFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and function selectors.
+/// @dev This interface supports a dual-model allow list system:
+///      1. NEW GRANULAR SYSTEM: Contract-selector pairs for precise control
+///      2. BACKWARD COMPATIBILITY: Global lists for existing deployed facets
+///      New development should exclusively use the granular functions.
 /// @custom:version 1.0.0
 interface IWhitelistManagerFacet {
     /// Events ///
@@ -24,11 +28,21 @@ interface IWhitelistManagerFacet {
         bool indexed whitelisted
     );
 
+    // ============================================================================
+    // NEW GRANULAR SYSTEM FUNCTIONS (PREFERRED)
+    // ============================================================================
+    // These functions operate on contract-selector pairs and provide precise control.
+    // They are the source of truth and synchronize the global arrays automatically.
+    // ============================================================================
+
     /// @notice Sets the whitelist status for a specific contract and selector pair.
     /// @param _contract The contract address to whitelist or unwhitelist.
     /// @param _selector The function selector to whitelist or unwhitelist.
     /// @param _whitelisted Whether the contract and selector pair should be whitelisted.
-    /// @dev TODO write about 0xDEADDEAD selector for contract used for approveTo
+    /// @dev MARKER SELECTOR: To maintain backward compatibility and whitelist a contract
+    ///      without knowing its exact function selectors, use 0xffffffff as a marker selector.
+    ///      This ensures that legacy contract checks (isAddressWhitelisted) return true
+    ///      while maintaining the granular contract-selector pair system.
     function setContractSelectorWhitelist(
         address _contract,
         bytes4 _selector,
@@ -39,6 +53,8 @@ interface IWhitelistManagerFacet {
     /// @param _contracts Array of contract addresses to whitelist or unwhitelist.
     /// @param _selectors Array of function selectors to whitelist or unwhitelist.
     /// @param _whitelisted Whether the contract and selector pairs should be whitelisted.
+    /// @dev MARKER SELECTOR: Use 0xffffffff as a marker selector for contracts without
+    ///      specific function selectors to maintain backward compatibility.
     function batchSetContractSelectorWhitelist(
         address[] calldata _contracts,
         bytes4[] calldata _selectors,
@@ -54,8 +70,29 @@ interface IWhitelistManagerFacet {
         bytes4 _selector
     ) external view returns (bool whitelisted);
 
-    /// @notice LEGACY: Returns a list of all whitelisted addresses.
-    /// @dev WARNING: this does a full read of stored addresses.
+    /// @notice Returns a list of whitelisted selectors for a specific contract.
+    /// @param _contract The contract address to query.
+    /// @return selectors List of whitelisted selectors for the contract.
+    function getWhitelistedSelectorsForContract(
+        address _contract
+    ) external view returns (bytes4[] memory selectors);
+
+    /// @notice Check if the allow list has been migrated.
+    /// @return True if the allow list has been migrated, false otherwise.
+    function isMigrated() external view returns (bool);
+
+    // ============================================================================
+    // BACKWARD COMPATIBILITY FUNCTIONS
+    // ============================================================================
+    // These functions read from the global arrays. They are required for existing,
+    // deployed facets to continue functioning. They should be considered part of a
+    // transitional phase and MUST NOT be used in new development.
+    // ============================================================================
+
+    /// @notice [BACKWARD COMPATIBILITY] Returns a list of all whitelisted addresses.
+    /// @dev WARNING: This function reads from the global list and is NOT granular.
+    ///      It is required for older, deployed facets to function correctly.
+    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
     ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
     ///      the call may run out of gas. Do not rely on it for unbounded iteration.
     /// @return addresses List of whitelisted addresses.
@@ -64,15 +101,20 @@ interface IWhitelistManagerFacet {
         view
         returns (address[] memory addresses);
 
-    /// @notice Returns whether an address is whitelisted.
+    /// @notice [BACKWARD COMPATIBILITY] Returns whether an address is whitelisted.
+    /// @dev WARNING: This function reads from the global list and is NOT granular.
+    ///      It is required for older, deployed facets to function correctly.
+    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
     /// @param _address The address to query.
     /// @return whitelisted Whitelisted or not.
     function isAddressWhitelisted(
         address _address
     ) external view returns (bool whitelisted);
 
-    /// @notice Returns a list of all approved function selectors.
-    /// @dev WARNING: this does a full read of stored selectors.
+    /// @notice [BACKWARD COMPATIBILITY] Returns a list of all approved function selectors.
+    /// @dev WARNING: This function reads from the global list and is NOT granular.
+    ///      It is required for older, deployed facets to function correctly.
+    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
     ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
     ///      the call may run out of gas. Do not rely on it for unbounded iteration.
     /// @return selectors List of approved function selectors.
@@ -81,14 +123,20 @@ interface IWhitelistManagerFacet {
         view
         returns (bytes4[] memory selectors);
 
-    /// @notice Returns a list of whitelisted selectors for a specific contract.
-    /// @param _contract The contract address to query.
-    /// @return selectors List of whitelisted selectors for the contract.
-    function getWhitelistedSelectorsForContract(
-        address _contract
-    ) external view returns (bytes4[] memory selectors);
+    /// @notice [BACKWARD COMPATIBILITY] Returns whether a function selector is whitelisted.
+    /// @dev WARNING: This function reads from the global list and is NOT granular.
+    ///      It is required for older, deployed facets to function correctly.
+    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
+    /// @param _selector The function selector to query.
+    /// @return whitelisted Whitelisted or not.
+    function isFunctionSelectorWhitelisted(
+        bytes4 _selector
+    ) external view returns (bool whitelisted);
 
-    /// @notice Migrate the allow list configuration with new contracts and selectors.
+    /// Temporary methods for migration ///
+
+    /// @notice Temporary method to check if the allow list has been migrated.
+    /// @dev Remove these methods after migration is complete in next facet upgrade.
     /// @dev This function can only be called by the diamond owner or authorized addresses.
     /// @param _selectorsToRemove Array of selectors to remove from the allow list.
     /// @param _contracts Array of contract addresses.
@@ -98,15 +146,4 @@ interface IWhitelistManagerFacet {
         address[] calldata _contracts,
         bytes4[][] calldata _selectors
     ) external;
-
-    /// @notice Check if the allow list has been migrated.
-    /// @return True if the allow list has been migrated, false otherwise.
-    function isMigrated() external view returns (bool);
-
-    /// @notice Returns whether a function selector is whitelisted.
-    /// @param _selector The function selector to query.
-    /// @return whitelisted Whitelisted or not.
-    function isFunctionSelectorWhitelisted(
-        bytes4 _selector
-    ) external view returns (bool whitelisted);
 }
