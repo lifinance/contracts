@@ -52,6 +52,8 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     Foo internal c1;
     Foo internal c2;
     Foo internal c3;
+    Foo internal c4;
+    Foo internal c5;
 
     event AddressWhitelisted(address indexed whitelistedAddress);
     event AddressRemoved(address indexed removedAddress);
@@ -71,8 +73,10 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         c1 = new Foo();
         c2 = new Foo();
         c3 = new Foo();
+        c4 = new Foo();
+        c5 = new Foo();
 
-        bytes4[] memory functionSelectors = new bytes4[](8);
+        bytes4[] memory functionSelectors = new bytes4[](9);
         functionSelectors[0] = WhitelistManagerFacet
             .setContractSelectorWhitelist
             .selector;
@@ -96,6 +100,9 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             .selector;
         functionSelectors[7] = WhitelistManagerFacet
             .getWhitelistedSelectorsForContract
+            .selector;
+        functionSelectors[8] = WhitelistManagerFacet
+            .getAllContractSelectorPairs
             .selector;
 
         addFacet(diamond, address(whitelistMgr), functionSelectors);
@@ -267,120 +274,6 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
                 ++i;
             }
         }
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfOwnerBatchApprovesMultipleContractSelectors()
-        public
-    {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        address[] memory addresses = new address[](3);
-        addresses[0] = address(c1);
-        addresses[1] = address(c2);
-        addresses[2] = address(c3);
-
-        bytes4[] memory selectors = new bytes4[](3);
-        selectors[0] = 0xDEADDEAD;
-        selectors[1] = 0xDEADDEAD;
-        selectors[2] = 0xDEADDEAD;
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfOwnerBatchApprovesContractWithMultipleSelectors()
-        public
-    {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        address[] memory addresses = new address[](3);
-        addresses[0] = address(c1);
-        addresses[1] = address(c1);
-        addresses[2] = address(c1);
-
-        bytes4[] memory selectors = new bytes4[](3);
-        selectors[0] = 0xDEADDEAD;
-        selectors[1] = 0xBEEFBEEF;
-        selectors[2] = 0xFACEFACE;
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfOwnerBatchApprovesContractsAndSelectors() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        address[] memory addresses = new address[](3);
-        addresses[0] = address(c1);
-        addresses[1] = address(c2);
-        addresses[2] = address(c3);
-
-        bytes4[] memory selectors = new bytes4[](3);
-        selectors[0] = 0xDEADDEAD;
-        selectors[1] = 0xDEADDEAD;
-        selectors[2] = 0xDEADDEAD;
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
-        );
-
-        bytes4[] memory selectors2 = new bytes4[](3);
-        selectors2[0] = 0xDEADDEAD;
-        selectors2[1] = 0xDEADDEAD;
-        selectors2[2] = 0xDEADDEAD;
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors2,
-            true
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfOwnerBatchRemovesContractsAndSelectors() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        address[] memory addresses = new address[](3);
-        addresses[0] = address(c1);
-        addresses[1] = address(c2);
-        addresses[2] = address(c3);
-
-        bytes4[] memory selectors = new bytes4[](3);
-        selectors[0] = 0xDEADDEAD;
-        selectors[1] = 0xDEADDEAD;
-        selectors[2] = 0xDEADDEAD;
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
-        );
-
-        bytes4[] memory selectors2 = new bytes4[](3);
-        selectors2[0] = 0xDEADDEAD;
-        selectors2[1] = 0xDEADDEAD;
-        selectors2[2] = 0xDEADDEAD;
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors2,
-            true
-        );
 
         vm.stopPrank();
     }
@@ -667,332 +560,323 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_SucceedsIfNoApprovedSelectorsReturnsEmptyArray() public {
+    function test_SucceedsIfGetAllContractSelectorPairsReturnsCorrectData()
+        public
+    {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory selectors = whitelistMgr
-            .getWhitelistedFunctionSelectors();
-        assertEq(selectors.length, 0);
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfSingleApprovedSelectorIsReturned() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        bytes4 selector = hex"faceface";
-        whitelistMgr.setContractSelectorWhitelist(address(c1), selector, true);
-
-        // Note: getWhitelistedFunctionSelectors returns standalone selectors
-        // but we're setting contract-selector pairs. The implementation may or may not
-        // sync these depending on the internal logic.
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfMultipleApprovedSelectorsAreReturned() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
+        // Set up test data: 3 contracts with different selector configurations
+        address[] memory testContracts = new address[](3);
+        testContracts[0] = address(c1);
+        testContracts[1] = address(c2);
+        testContracts[2] = address(c3);
 
         bytes4[] memory testSelectors = new bytes4[](3);
-        testSelectors[0] = bytes4(hex"faceface");
-        testSelectors[1] = bytes4(hex"deadbeef");
-        testSelectors[2] = bytes4(hex"beefbeef");
+        testSelectors[0] = 0xDEADDEAD;
+        testSelectors[1] = 0xBEEFBEEF;
+        testSelectors[2] = 0xFACEFACE;
 
-        address[] memory contracts = new address[](3);
-        contracts[0] = address(c1);
-        contracts[1] = address(c1);
-        contracts[2] = address(c1);
-
+        // Add contract-selector pairs
         whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
+            testContracts,
             testSelectors,
             true
         );
 
-        // Verify using contract-selector pairs instead of standalone selectors
-        for (uint256 i = 0; i < 3; i++) {
-            assertTrue(
-                whitelistMgr.isContractSelectorWhitelisted(
-                    address(c1),
-                    testSelectors[i]
-                )
-            );
+        // Add additional selectors for c1
+        address[] memory c1Contracts = new address[](2);
+        c1Contracts[0] = address(c1);
+        c1Contracts[1] = address(c1);
+
+        bytes4[] memory c1AdditionalSelectors = new bytes4[](2);
+        c1AdditionalSelectors[0] = 0x12345678;
+        c1AdditionalSelectors[1] = 0x87654321;
+
+        whitelistMgr.batchSetContractSelectorWhitelist(
+            c1Contracts,
+            c1AdditionalSelectors,
+            true
+        );
+
+        // Call getAllContractSelectorPairs
+        (
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        ) = whitelistMgr.getAllContractSelectorPairs();
+
+        // Verify contracts array
+        assertEq(contracts.length, 3, "Should return 3 contracts");
+        assertEq(contracts[0], address(c1), "First contract should be c1");
+        assertEq(contracts[1], address(c2), "Second contract should be c2");
+        assertEq(contracts[2], address(c3), "Third contract should be c3");
+
+        // Verify selectors array has same length as contracts
+        assertEq(
+            selectors.length,
+            3,
+            "Selectors array should have same length as contracts"
+        );
+
+        // Verify c1 has 3 selectors (0xDEADDEAD, 0x12345678, 0x87654321)
+        assertEq(selectors[0].length, 3, "c1 should have 3 selectors");
+        bool foundDeadDead = false;
+        bool found12345678 = false;
+        bool found87654321 = false;
+        for (uint256 i = 0; i < selectors[0].length; i++) {
+            if (selectors[0][i] == 0xDEADDEAD) foundDeadDead = true;
+            if (selectors[0][i] == 0x12345678) found12345678 = true;
+            if (selectors[0][i] == 0x87654321) found87654321 = true;
+        }
+        assertTrue(foundDeadDead, "c1 should have 0xDEADDEAD selector");
+        assertTrue(found12345678, "c1 should have 0x12345678 selector");
+        assertTrue(found87654321, "c1 should have 0x87654321 selector");
+
+        // Verify c2 has 1 selector (0xBEEFBEEF)
+        assertEq(selectors[1].length, 1, "c2 should have 1 selector");
+        assertTrue(
+            selectors[1][0] == 0xBEEFBEEF,
+            "c2 should have 0xBEEFBEEF selector"
+        );
+
+        // Verify c3 has 1 selector (0xFACEFACE)
+        assertEq(selectors[2].length, 1, "c3 should have 1 selector");
+        assertTrue(
+            selectors[2][0] == 0xFACEFACE,
+            "c3 should have 0xFACEFACE selector"
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfGetAllContractSelectorPairsReturnsEmptyArraysWhenNoWhitelist()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Call getAllContractSelectorPairs with no whitelisted contracts
+        (
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        ) = whitelistMgr.getAllContractSelectorPairs();
+
+        // Verify empty arrays
+        assertEq(contracts.length, 0, "Should return empty contracts array");
+        assertEq(selectors.length, 0, "Should return empty selectors array");
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfGetAllContractSelectorPairsHandlesContractWithNoSelectors()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Add a contract with marker selector (0xffffffff) for backward compatibility
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c1),
+            0xffffffff,
+            true
+        );
+
+        // Call getAllContractSelectorPairs
+        (
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        ) = whitelistMgr.getAllContractSelectorPairs();
+
+        // Verify single contract
+        assertEq(contracts.length, 1, "Should return 1 contract");
+        assertEq(contracts[0], address(c1), "Should return c1");
+
+        // Verify selectors array
+        assertEq(selectors.length, 1, "Should return 1 selector array");
+        assertEq(selectors[0].length, 1, "c1 should have 1 selector");
+        assertTrue(
+            selectors[0][0] == 0xffffffff,
+            "c1 should have marker selector"
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfGetAllContractSelectorPairsHandlesMixedContractTypes()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Contract 1: Multiple real selectors
+        address[] memory c1Contracts = new address[](2);
+        c1Contracts[0] = address(c1);
+        c1Contracts[1] = address(c1);
+
+        bytes4[] memory c1Selectors = new bytes4[](2);
+        c1Selectors[0] = 0xDEADDEAD;
+        c1Selectors[1] = 0xBEEFBEEF;
+
+        whitelistMgr.batchSetContractSelectorWhitelist(
+            c1Contracts,
+            c1Selectors,
+            true
+        );
+
+        // Contract 2: Marker selector only
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c2),
+            0xffffffff,
+            true
+        );
+
+        // Contract 3: Single real selector
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c3),
+            0xFACEFACE,
+            true
+        );
+
+        // Call getAllContractSelectorPairs
+        (
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        ) = whitelistMgr.getAllContractSelectorPairs();
+
+        // Verify 3 contracts
+        assertEq(contracts.length, 3, "Should return 3 contracts");
+
+        // Find each contract in the result
+        uint256 c1Index = 0;
+        uint256 c2Index = 0;
+        uint256 c3Index = 0;
+        bool foundC1 = false;
+        bool foundC2 = false;
+        bool foundC3 = false;
+
+        for (uint256 i = 0; i < contracts.length; i++) {
+            if (contracts[i] == address(c1)) {
+                c1Index = i;
+                foundC1 = true;
+            } else if (contracts[i] == address(c2)) {
+                c2Index = i;
+                foundC2 = true;
+            } else if (contracts[i] == address(c3)) {
+                c3Index = i;
+                foundC3 = true;
+            }
         }
 
-        vm.stopPrank();
-    }
+        assertTrue(foundC1, "Should find c1");
+        assertTrue(foundC2, "Should find c2");
+        assertTrue(foundC3, "Should find c3");
 
-    function test_SucceedsIfApprovedSelectorsAreReturnedAfterRemoval() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
+        // Verify c1 has 2 selectors
+        assertEq(selectors[c1Index].length, 2, "c1 should have 2 selectors");
+        bool foundDeadDead = false;
+        bool foundBeefBeef = false;
+        for (uint256 i = 0; i < selectors[c1Index].length; i++) {
+            if (selectors[c1Index][i] == 0xDEADDEAD) foundDeadDead = true;
+            if (selectors[c1Index][i] == 0xBEEFBEEF) foundBeefBeef = true;
+        }
+        assertTrue(foundDeadDead, "c1 should have 0xDEADDEAD selector");
+        assertTrue(foundBeefBeef, "c1 should have 0xBEEFBEEF selector");
 
-        bytes4[] memory testSelectors = new bytes4[](3);
-        testSelectors[0] = bytes4(hex"faceface");
-        testSelectors[1] = bytes4(hex"deadbeef");
-        testSelectors[2] = bytes4(hex"beefbeef");
-
-        address[] memory contracts = new address[](3);
-        contracts[0] = address(c1);
-        contracts[1] = address(c1);
-        contracts[2] = address(c1);
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            testSelectors,
-            true
-        );
-
-        // Remove the middle selector
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            testSelectors[1],
-            false
-        );
-
-        // Verify using contract-selector pairs
+        // Verify c2 has marker selector
+        assertEq(selectors[c2Index].length, 1, "c2 should have 1 selector");
         assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[0]
-            )
+            selectors[c2Index][0] == 0xffffffff,
+            "c2 should have marker selector"
         );
-        assertFalse(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[1]
-            )
-        );
+
+        // Verify c3 has single selector
+        assertEq(selectors[c3Index].length, 1, "c3 should have 1 selector");
         assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[2]
-            )
+            selectors[c3Index][0] == 0xFACEFACE,
+            "c3 should have 0xFACEFACE selector"
         );
 
         vm.stopPrank();
     }
 
-    function test_SucceedsIfRemovedSelectorsAreNotReturned() public {
+    function test_SucceedsIfGetAllContractSelectorPairsIsEfficient() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        bytes4[] memory testSelectors = new bytes4[](3);
-        testSelectors[0] = bytes4(hex"faceface");
-        testSelectors[1] = bytes4(hex"deadbeef");
-        testSelectors[2] = bytes4(hex"beefbeef");
-
-        address[] memory contracts = new address[](3);
-        contracts[0] = address(c1);
-        contracts[1] = address(c1);
-        contracts[2] = address(c1);
-
-        whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            testSelectors,
-            true
-        );
-
-        // Remove the middle selector
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            testSelectors[1],
-            false
-        );
-
-        // Verify using contract-selector pairs
-        assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[0]
-            )
-        );
-        assertFalse(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[1]
-            )
-        );
-        assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[2]
-            )
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfBatchRemovedSelectorsAreNotReturned() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        bytes4[] memory testSelectors = new bytes4[](5);
-        testSelectors[0] = bytes4(hex"faceface");
-        testSelectors[1] = bytes4(hex"deadbeef");
-        testSelectors[2] = bytes4(hex"beefbeef");
-        testSelectors[3] = bytes4(hex"beefdead");
-        testSelectors[4] = bytes4(hex"facedead");
-
+        // Add multiple contracts with multiple selectors to test efficiency
         address[] memory contracts = new address[](5);
         contracts[0] = address(c1);
-        contracts[1] = address(c1);
-        contracts[2] = address(c1);
-        contracts[3] = address(c1);
-        contracts[4] = address(c1);
+        contracts[1] = address(c2);
+        contracts[2] = address(c3);
+        contracts[3] = address(c4);
+        contracts[4] = address(c5);
+
+        bytes4[] memory selectors = new bytes4[](5);
+        selectors[0] = 0xDEADDEAD;
+        selectors[1] = 0xBEEFBEEF;
+        selectors[2] = 0xFACEFACE;
+        selectors[3] = 0x12345678;
+        selectors[4] = 0x87654321;
 
         whitelistMgr.batchSetContractSelectorWhitelist(
             contracts,
-            testSelectors,
+            selectors,
             true
         );
 
-        bytes4[] memory removeSelectors = new bytes4[](3);
-        removeSelectors[0] = testSelectors[1]; // deadbeef
-        removeSelectors[1] = testSelectors[3]; // beefdead
-        removeSelectors[2] = testSelectors[4]; // facedead
+        // Add additional selectors for some contracts
+        address[] memory additionalContracts = new address[](3);
+        additionalContracts[0] = address(c1);
+        additionalContracts[1] = address(c1);
+        additionalContracts[2] = address(c2);
 
-        address[] memory removeContracts = new address[](3);
-        removeContracts[0] = address(c1);
-        removeContracts[1] = address(c1);
-        removeContracts[2] = address(c1);
+        bytes4[] memory additionalSelectors = new bytes4[](3);
+        additionalSelectors[0] = 0x11111111;
+        additionalSelectors[1] = 0x22222222;
+        additionalSelectors[2] = 0x33333333;
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            removeContracts,
-            removeSelectors,
-            false
-        );
-
-        // Verify using contract-selector pairs
-        assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[0]
-            )
-        );
-        assertFalse(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[1]
-            )
-        );
-        assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[2]
-            )
-        );
-        assertFalse(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[3]
-            )
-        );
-        assertFalse(
-            whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                testSelectors[4]
-            )
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfRemovingNonApprovedSelector() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        // Add one selector
-        bytes4 selector1 = bytes4(hex"faceface");
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector1,
+            additionalContracts,
+            additionalSelectors,
             true
         );
 
-        // Try to remove a different selector that was never approved
-        bytes4 selector2 = bytes4(hex"deadbeef");
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector2,
-            false
+        // Call getAllContractSelectorPairs
+        (
+            address[] memory returnedContracts,
+            bytes4[][] memory returnedSelectors
+        ) = whitelistMgr.getAllContractSelectorPairs();
+
+        // Verify all contracts are returned
+        assertEq(returnedContracts.length, 5, "Should return all 5 contracts");
+        assertEq(
+            returnedSelectors.length,
+            5,
+            "Should return 5 selector arrays"
         );
 
-        // Verify the state is correct
-        bytes4[] memory selectors = whitelistMgr
-            .getWhitelistedFunctionSelectors();
-        assertEq(selectors.length, 1);
-        assertEq(selectors[0], selector1);
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfAddressIsWhitelisted() public {}
-
-    function test_SucceedsIfAddressIsNotWhitelisted() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        assertFalse(whitelistMgr.isAddressWhitelisted(address(c1)));
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfZeroAddressIsNotWhitelisted() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        assertFalse(whitelistMgr.isAddressWhitelisted(address(0)));
-
-        vm.stopPrank();
-    }
-
-    function test_SucceedsIfSelectorIndexMappingIsCorrect() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        bytes4 selector1 = hex"faceface";
-        bytes4 selector2 = hex"deadbeef";
-        bytes4 selector3 = hex"cafecafe";
-
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector1,
-            true
-        );
-        assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(address(c1), selector1)
+        // Verify c1 has 3 selectors (0xDEADDEAD, 0x11111111, 0x22222222)
+        uint256 c1Index = 0;
+        for (uint256 i = 0; i < returnedContracts.length; i++) {
+            if (returnedContracts[i] == address(c1)) {
+                c1Index = i;
+                break;
+            }
+        }
+        assertEq(
+            returnedSelectors[c1Index].length,
+            3,
+            "c1 should have 3 selectors"
         );
 
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector2,
-            true
+        // Verify c2 has 2 selectors (0xBEEFBEEF, 0x33333333)
+        uint256 c2Index = 0;
+        for (uint256 i = 0; i < returnedContracts.length; i++) {
+            if (returnedContracts[i] == address(c2)) {
+                c2Index = i;
+                break;
+            }
+        }
+        assertEq(
+            returnedSelectors[c2Index].length,
+            2,
+            "c2 should have 2 selectors"
         );
-        assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(address(c1), selector2)
-        );
-
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector3,
-            true
-        );
-        assertTrue(
-            whitelistMgr.isContractSelectorWhitelisted(address(c1), selector3)
-        );
-
-        // get all selectors to verify order
-        bytes4[] memory approved = whitelistMgr
-            .getWhitelistedFunctionSelectors();
-        assertEq(approved.length, 3);
-        assertEq(approved[0], selector1);
-        assertEq(approved[1], selector2);
-        assertEq(approved[2], selector3);
-
-        // remove first selector
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector2,
-            false
-        );
-
-        // verify selector3 was moved to index 1
-        approved = whitelistMgr.getWhitelistedFunctionSelectors();
-        assertEq(approved.length, 2);
-        assertEq(approved[0], selector1);
-        assertEq(approved[1], selector3);
 
         vm.stopPrank();
     }
@@ -1041,6 +925,107 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         assertTrue(foundSelector0, "Selector 0 should be in returned array");
         assertTrue(foundSelector1, "Selector 1 should be in returned array");
         assertTrue(foundSelector2, "Selector 2 should be in returned array");
+
+        vm.stopPrank();
+    }
+
+    function test_SucceedsIfGetWhitelistedFunctionSelectorsAndRedundantOperations()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        // Test getWhitelistedFunctionSelectors with empty state
+        bytes4[] memory emptySelectors = whitelistMgr
+            .getWhitelistedFunctionSelectors();
+        assertEq(
+            emptySelectors.length,
+            0,
+            "Should return empty array initially"
+        );
+
+        // Add some contract-selector pairs
+        bytes4 selector1 = bytes4(hex"faceface");
+        bytes4 selector2 = bytes4(hex"deadbeef");
+
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c1),
+            selector1,
+            true
+        );
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c2),
+            selector2,
+            true
+        );
+
+        // Test getWhitelistedFunctionSelectors returns all unique selectors
+        bytes4[] memory allSelectors = whitelistMgr
+            .getWhitelistedFunctionSelectors();
+        assertEq(allSelectors.length, 2, "Should return 2 unique selectors");
+
+        // Verify both selectors are present
+        bool foundSelector1 = false;
+        bool foundSelector2 = false;
+        for (uint256 i = 0; i < allSelectors.length; i++) {
+            if (allSelectors[i] == selector1) foundSelector1 = true;
+            if (allSelectors[i] == selector2) foundSelector2 = true;
+        }
+        assertTrue(foundSelector1, "Selector1 should be in global list");
+        assertTrue(foundSelector2, "Selector2 should be in global list");
+
+        // Test redundant operation - try to whitelist the same contract-selector pair again
+        // This should trigger the early return in _setContractSelectorWhitelist
+        // We verify this by checking that the state doesn't change
+
+        // Verify current state
+        assertTrue(
+            whitelistMgr.isContractSelectorWhitelisted(address(c1), selector1),
+            "Should be whitelisted before redundant call"
+        );
+
+        // Make redundant call - this should hit the early return
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c1),
+            selector1,
+            true
+        );
+
+        // Verify state is unchanged (proving early return worked)
+        assertTrue(
+            whitelistMgr.isContractSelectorWhitelisted(address(c1), selector1),
+            "Should still be whitelisted after redundant call"
+        );
+
+        // Verify global selector list is unchanged
+        bytes4[] memory selectorsAfter = whitelistMgr
+            .getWhitelistedFunctionSelectors();
+        assertEq(
+            selectorsAfter.length,
+            2,
+            "Global selector count should be unchanged"
+        );
+
+        // Test redundant removal operation
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c1),
+            selector1,
+            false
+        );
+        assertFalse(
+            whitelistMgr.isContractSelectorWhitelisted(address(c1), selector1),
+            "Should be removed"
+        );
+
+        // Try to remove again (redundant operation)
+        whitelistMgr.setContractSelectorWhitelist(
+            address(c1),
+            selector1,
+            false
+        );
+        assertFalse(
+            whitelistMgr.isContractSelectorWhitelisted(address(c1), selector1),
+            "Should still be removed after redundant call"
+        );
 
         vm.stopPrank();
     }

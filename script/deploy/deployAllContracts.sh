@@ -10,8 +10,7 @@ deployAllContracts() {
   source script/deploy/deployCoreFacets.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
-  source script/tasks/diamondSyncWhitelistedAddresses.sh
-  source script/tasks/diamondSyncSelectors.sh
+  source script/tasks/diamondSyncWhitelist.sh
   source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
   source script/tasks/updateERC20Proxy.sh
@@ -44,7 +43,7 @@ deployAllContracts() {
       "4) Set approvals (refund wallet and deployer wallet)" \
       "5) Deploy non-core facets and add to diamond" \
       "6) Deploy periphery contracts" \
-      "7) Add periphery to diamond and update whitelistedAddresses.json" \
+      "7) Add periphery to diamond and update whitelist.json" \
       "8) Execute whitelisted addresses and selectors scripts and update ERC20Proxy" \
       "9) Run health check only"
       "10) Ownership transfer to timelock (production only)"
@@ -262,32 +261,28 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
   fi
 
-  # Stage 7: Add periphery to diamond and update whitelistedAddresses.json
+  # Stage 7: Add periphery to diamond and update whitelist.json
   if [[ $START_STAGE -le 7 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update whitelistedAddresses.json"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update whitelist.json"
 
     # update periphery registry
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
-    # add core periphery addresses to whitelistedAddresses.json for whitelisting in subsequent steps
-    addPeripheryToWhitelistedAddressesJson "$NETWORK" "$ENVIRONMENT"
+    # add core periphery addresses to whitelist.json for whitelisting in subsequent steps
+    addPeripheryToWhitelistJson "$NETWORK" "$ENVIRONMENT"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
   fi
 
-  # Stage 8: Execute whitelisted addresses and selectors scripts and update ERC20Proxy
+  # Stage 8: Execute whitelist script and update ERC20Proxy
   if [[ $START_STAGE -le 8 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute whitelisted addresses and selectors scripts and update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute whitelist script and update ERC20Proxy"
 
-    # run sync whitelisted addresses script
+    # run sync whitelist script
     echo ""
-    diamondSyncWhitelistedAddresses "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-
-    # run sync selectors script
-    echo ""
-    diamondSyncSelectors "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+    diamondSyncWhitelist "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
     # register Executor as authorized caller in ERC20Proxy
     echo ""

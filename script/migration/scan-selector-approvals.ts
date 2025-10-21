@@ -41,7 +41,8 @@
  * 4. Updates whitelistManager.json (production config):
  *    - This is the ACTUAL configuration file used by the deployment scripts
  *    - Combines all unique selectors from all networks
- *    - Adds selectors from whitelistedSelectors.json
+ *    - Adds selectors from whitelist.json (DEXS + PERIPHERY sections)
+ *    - Optionally adds selectors from whitelistedSelectors.json (deprecated)
  *    - Removes duplicates and sorts for consistency
  *    - Contains only the essential functionSelectorsToRemove field
  *    - Used directly by UpdateWhitelistManagerFacet.s.sol during deployment
@@ -351,47 +352,86 @@ function extractSelectorsFromWhitelist(): string[] {
 
   try {
     if (!existsSync(whitelistPath)) {
-      consola.warn(`⚠️  whitelist.json not found in config directory`)
-      return []
+      consola.error(
+        `❌ whitelist.json not found in config directory - this file is required!`
+      )
+      throw new Error('whitelist.json is required but not found')
     }
 
     const whitelistData = JSON.parse(readFileSync(whitelistPath, 'utf-8'))
 
-    // Recursively extract function selectors from the whitelist structure
-    extractFromObject(whitelistData)
+    // Extract selectors from DEXS section
+    if (whitelistData.DEXS && Array.isArray(whitelistData.DEXS)) {
+      for (const dex of whitelistData.DEXS) {
+        if (dex.contracts && typeof dex.contracts === 'object') {
+          // Iterate through all networks in contracts
+          for (const [_network, contracts] of Object.entries(dex.contracts)) {
+            if (Array.isArray(contracts)) {
+              for (const contract of contracts) {
+                if (
+                  contract.functions &&
+                  typeof contract.functions === 'object'
+                ) {
+                  // Extract selectors from functions object
+                  for (const selector of Object.keys(contract.functions)) {
+                    if (selector.match(/^0x[a-fA-F0-9]{8}$/)) {
+                      selectors.add(selector)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Extract selectors from PERIPHERY section
+    if (
+      whitelistData.PERIPHERY &&
+      typeof whitelistData.PERIPHERY === 'object'
+    ) {
+      for (const [_network, peripheryContracts] of Object.entries(
+        whitelistData.PERIPHERY
+      )) {
+        if (Array.isArray(peripheryContracts)) {
+          for (const contract of peripheryContracts) {
+            if (contract.selectors && Array.isArray(contract.selectors)) {
+              for (const selectorObj of contract.selectors) {
+                if (
+                  selectorObj.selector &&
+                  typeof selectorObj.selector === 'string'
+                ) {
+                  const selector = selectorObj.selector
+                  if (selector.match(/^0x[a-fA-F0-9]{8}$/)) {
+                    selectors.add(selector)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     consola.success(
-      `📄 Extracted ${selectors.size} selectors from whitelist.json`
+      `📄 Extracted ${selectors.size} selectors from whitelist.json (DEXS + PERIPHERY)`
     )
     return Array.from(selectors)
   } catch (error) {
     consola.error(`❌ Error reading whitelist.json:`, error)
-    return []
-  }
-
-  function extractFromObject(obj: Record<string, unknown>) {
-    if (typeof obj === 'object' && obj !== null) {
-      for (const [key, value] of Object.entries(obj)) {
-        // Check if this is a function selector (0x followed by 8 hex characters)
-        if (key.match(/^0x[a-fA-F0-9]{8}$/)) {
-          selectors.add(key)
-        }
-        // Recursively process nested objects
-        if (typeof value === 'object') {
-          extractFromObject(value as Record<string, unknown>)
-        }
-      }
-    }
+    throw error // Re-throw to ensure the script fails if whitelist.json is missing
   }
 }
 
 function flattenAndSaveSelectors(
   existingData: ISelectorsDataFile,
-  whitelistOnly = false
+  noScan = false
 ) {
   // Create a Set to automatically handle deduplication
   const uniqueSelectors = new Set<string>()
 
-  if (!whitelistOnly) {
+  if (!noScan) {
     // Iterate through all networks and add their selectors to the Set
     Object.values(existingData.networks).forEach((network) => {
       network.selectors.forEach((selector) => {
@@ -406,7 +446,7 @@ function flattenAndSaveSelectors(
     uniqueSelectors.add(selector)
   })
 
-  // Read and add selectors from whitelistedSelectors.json
+  // Read and add selectors from whitelistedSelectors.json (deprecated)
   try {
     const whitelistedSelectorsPath = path.join(
       process.cwd(),
@@ -420,10 +460,12 @@ function flattenAndSaveSelectors(
       whitelistedSelectors.selectors.forEach((selector: string) => {
         uniqueSelectors.add(selector)
       })
-      consola.success(`📄 Added selectors from whitelistedSelectors.json`)
+      consola.success(
+        `📄 Added selectors from whitelistedSelectors.json (deprecated file)`
+      )
     } else {
-      consola.warn(
-        `⚠️  whitelistedSelectors.json not found in config directory`
+      consola.info(
+        `ℹ️  whitelistedSelectors.json not found - skipping (this file is deprecated)`
       )
     }
   } catch (error) {
@@ -476,7 +518,8 @@ function flattenAndSaveSelectors(
       'This file is automatically generated by script/migration/scan-selector-approvals.ts\n' +
       'It contains a comprehensive list of function selectors gathered from:\n' +
       '- Historical blockchain events across all networks\n' +
-      '- Additional selectors from whitelistedSelectors.json\n\n' +
+      '- Selectors from whitelist.json (DEXS + PERIPHERY sections)\n' +
+      '- Additional selectors from whitelistedSelectors.json (deprecated)\n\n' +
       'DO NOT MODIFY THIS FILE MANUALLY!\n' +
       'Instead, run scan-selector-approvals.ts to regenerate it with updated data.',
     functionSelectorsToRemove: sortedSelectors,
@@ -535,10 +578,10 @@ const cmd = defineCommand({
       required: false,
       default: '10',
     },
-    whitelistOnly: {
+    noScan: {
       type: 'string',
       description:
-        'Skip blockchain scanning and only use selectors from whitelist.json and whitelistedSelectors.json',
+        'Skip blockchain scanning and only use selectors from whitelistedSelectors.json and whitelist.json (DEXS + PERIPHERY)',
       required: false,
       default: 'false',
     },
@@ -554,14 +597,14 @@ const cmd = defineCommand({
       args?.deploymentBlocksFile ||
       './script/migration/scan-selector-approvals-config.json'
     const maxConcurrency = parseInt(args?.maxConcurrency || '10')
-    const whitelistOnly = args?.whitelistOnly === 'true'
+    const noScan = args?.noScan === 'true'
 
     consola.info(`🚀 Starting function selectors preparation...`)
-    consola.info(`🚀 Whitelist only: ${whitelistOnly}`)
-    if (whitelistOnly) {
-      consola.info(`📄 WHITELIST-ONLY MODE: Skipping blockchain scanning`)
+    consola.info(`🚀 No scan mode: ${noScan}`)
+    if (noScan) {
+      consola.info(`📄 NO-SCAN MODE: Skipping blockchain scanning`)
       consola.info(
-        `📄 Will only use selectors from whitelist.json and whitelistedSelectors.json`
+        `📄 Will only use selectors from whitelistedSelectors.json and whitelist.json (DEXS + PERIPHERY)`
       )
     } else {
       consola.info(`📡 BLOCKCHAIN SCANNING MODE: Will scan blockchain events`)
@@ -572,7 +615,7 @@ const cmd = defineCommand({
     consola.info(
       `📁 Production config file (for deployment): config/whitelistManager.json`
     )
-    if (!whitelistOnly) {
+    if (!noScan) {
       consola.info(`📁 Deployment blocks file: ${deploymentBlocksFile}`)
       consola.info(`🔧 Max concurrency: ${maxConcurrency}`)
     }
@@ -584,7 +627,7 @@ const cmd = defineCommand({
 
     // Load deployment blocks configuration
     let chunkConfigs: IChunkRangeConfig | undefined
-    if (!whitelistOnly) {
+    if (!noScan) {
       try {
         chunkConfigs = loadDeploymentBlocks(deploymentBlocksFile)
       } catch (error) {
@@ -600,7 +643,7 @@ const cmd = defineCommand({
       networks: {},
     }
 
-    if (!whitelistOnly && existsSync(tempOutputFile)) {
+    if (!noScan && existsSync(tempOutputFile)) {
       try {
         const fileContent = readFileSync(tempOutputFile, 'utf-8')
         existingData = JSON.parse(fileContent)
@@ -620,7 +663,7 @@ const cmd = defineCommand({
       chunkConfig: IChunkConfig
     }[] = []
 
-    if (!whitelistOnly) {
+    if (!noScan) {
       if (args.network) {
         const networkName = args.network.toLowerCase()
         const networkConfig = (networksData as Record<string, INetworkConfig>)[
@@ -668,14 +711,14 @@ const cmd = defineCommand({
         `📡 Will scan ${networksToScan.length} network(s) in parallel`
       )
     } else {
-      consola.info(`📄 Skipping network scanning (whitelist-only mode)`)
+      consola.info(`📄 Skipping network scanning (no-scan mode)`)
     }
 
     // Process networks in batches with concurrency limit
     const results: IScanResult[] = []
     const startTime = Date.now()
 
-    if (!whitelistOnly && networksToScan.length > 0) {
+    if (!noScan && networksToScan.length > 0) {
       for (let i = 0; i < networksToScan.length; i += maxConcurrency) {
         const batch = networksToScan.slice(i, i + maxConcurrency)
         consola.info(
@@ -728,20 +771,18 @@ const cmd = defineCommand({
           }
         }
       }
-    } else if (whitelistOnly) {
-      consola.info(`📄 Skipping network processing (whitelist-only mode)`)
+    } else if (noScan) {
+      consola.info(`📄 Skipping network processing (no-scan mode)`)
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2)
     let summary: IScanSummary | undefined
 
-    if (whitelistOnly) {
-      // Skip summary generation and temp file writing in whitelist-only mode
-      consola.success(
-        `\n🎉 Whitelist-only processing completed in ${totalTime}s!`
-      )
+    if (noScan) {
+      // Skip summary generation and temp file writing in no-scan mode
+      consola.success(`\n🎉 No-scan processing completed in ${totalTime}s!`)
       consola.info(`📊 PROCESSING SUMMARY:`)
-      consola.info(`   Mode: Whitelist-only (no blockchain scanning)`)
+      consola.info(`   Mode: No-scan (no blockchain scanning)`)
       consola.info(`   Processing time: ${totalTime}s`)
     } else {
       summary = generateSummary(results)
@@ -781,14 +822,10 @@ const cmd = defineCommand({
 
     // Add flattening step
     consola.info(`\n🔄 Flattening selectors from all sources...`)
-    flattenAndSaveSelectors(existingData, whitelistOnly)
+    flattenAndSaveSelectors(existingData, noScan)
 
     process.exit(
-      whitelistOnly
-        ? 0
-        : summary?.failedScans && summary.failedScans > 0
-        ? 1
-        : 0
+      noScan ? 0 : summary?.failedScans && summary.failedScans > 0 ? 1 : 0
     )
   },
 })

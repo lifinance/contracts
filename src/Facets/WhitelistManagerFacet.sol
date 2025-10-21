@@ -94,6 +94,26 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         return LibAllowList.getWhitelistedSelectorsForContract(_contract);
     }
 
+    /// @inheritdoc IWhitelistManagerFacet
+    function getAllContractSelectorPairs()
+        external
+        view
+        returns (address[] memory contracts, bytes4[][] memory selectors)
+    {
+        // Get all whitelisted contracts
+        contracts = LibAllowList.getAllowedContracts();
+
+        // Initialize selectors array with same length as contracts
+        selectors = new bytes4[][](contracts.length);
+
+        // For each contract, get its whitelisted selectors
+        for (uint256 i = 0; i < contracts.length; ++i) {
+            selectors[i] = LibAllowList.getWhitelistedSelectorsForContract(
+                contracts[i]
+            );
+        }
+    }
+
     /// Internal Logic ///
 
     /// @dev The single internal function that all state changes must flow through.

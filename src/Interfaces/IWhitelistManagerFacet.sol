@@ -77,6 +77,16 @@ interface IWhitelistManagerFacet {
         address _contract
     ) external view returns (bytes4[] memory selectors);
 
+    /// @notice Returns all whitelisted contract-selector pairs in a single call.
+    /// @dev This is more efficient than calling getWhitelistedAddresses() and then
+    ///      getWhitelistedSelectorsForContract() for each address separately.
+    /// @return contracts Array of whitelisted contract addresses.
+    /// @return selectors Array of corresponding selector arrays for each contract.
+    function getAllContractSelectorPairs()
+        external
+        view
+        returns (address[] memory contracts, bytes4[][] memory selectors);
+
     /// @notice Check if the allow list has been migrated.
     /// @return True if the allow list has been migrated, false otherwise.
     function isMigrated() external view returns (bool);

@@ -382,6 +382,7 @@ const main = defineCommand({
           'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
           'function isAddressWhitelisted(address) external view returns (bool)',
           'function getWhitelistedSelectorsForContract(address) external view returns (bytes4[])',
+          'function getAllContractSelectorPairs() external view returns (address[],bytes4[][])',
           'function isMigrated() external view returns (bool)',
         ]),
         client: publicClient,
@@ -726,19 +727,40 @@ const checkGranularWhitelist = async (
       return
     }
 
-    // Check each expected contract-selector pair using the granular system
+    // Use the efficient getAllContractSelectorPairs function
+    const [onChainContracts, onChainSelectors] =
+      await whitelistManager.read.getAllContractSelectorPairs()
+
+    // Create a map of on-chain contract-selector pairs for efficient lookup
+    const onChainPairs = new Map<string, Set<string>>()
+    for (let i = 0; i < onChainContracts.length; i++) {
+      const contract = onChainContracts[i].toLowerCase()
+      const selectors = onChainSelectors[i]
+      const selectorSet = new Set<string>()
+
+      for (const selector of selectors) {
+        selectorSet.add(selector.toLowerCase())
+      }
+
+      onChainPairs.set(contract, selectorSet)
+    }
+
+    consola.success(
+      `Retrieved ${onChainContracts.length} contracts with selectors from diamond`
+    )
+
+    // Check each expected contract-selector pair
     let missingPairs = 0
     let verifiedPairs = 0
 
     for (const pair of expectedPairs) {
       try {
-        const isWhitelisted =
-          await whitelistManager.read.isContractSelectorWhitelisted([
-            pair.contract,
-            pair.selector,
-          ])
+        const contractKey = pair.contract.toLowerCase()
+        const selectorKey = pair.selector.toLowerCase()
 
-        if (!isWhitelisted) {
+        const contractSelectors = onChainPairs.get(contractKey)
+
+        if (!contractSelectors || !contractSelectors.has(selectorKey)) {
           logError(
             `Contract-selector pair not whitelisted: ${pair.contract} - ${pair.selector}`
           )
@@ -755,7 +777,7 @@ const checkGranularWhitelist = async (
     }
 
     consola.success(
-      `Verified ${verifiedPairs} contract-selector pairs using granular system`
+      `Verified ${verifiedPairs} contract-selector pairs using efficient getAllContractSelectorPairs`
     )
 
     if (missingPairs === 0) {
@@ -777,18 +799,31 @@ const verifyBackwardCompatibilitySync = async (
   consola.box('Verifying backward compatibility synchronization...')
 
   try {
+    // Use the efficient getAllContractSelectorPairs function to get on-chain data
+    const [onChainContracts, onChainSelectors] =
+      await whitelistManager.read.getAllContractSelectorPairs()
+
+    // Create a set of on-chain contracts for efficient lookup
+    const onChainContractSet = new Set(
+      onChainContracts.map((addr) => addr.toLowerCase())
+    )
+
+    // Count total selectors for logging
+    const totalSelectors = onChainSelectors.reduce(
+      (sum, selectors) => sum + selectors.length,
+      0
+    )
+
     // Get unique contracts from expected pairs
     const uniqueContracts = new Set(
       expectedPairs.map((p) => p.contract.toLowerCase())
     )
 
-    // Check that each contract is properly synchronized in the global arrays
+    // Check that each expected contract is properly synchronized in the global arrays
     let syncIssues = 0
 
     for (const contractAddr of uniqueContracts) {
-      const isAddressWhitelisted =
-        await whitelistManager.read.isAddressWhitelisted([contractAddr])
-      if (!isAddressWhitelisted) {
+      if (!onChainContractSet.has(contractAddr)) {
         logError(
           `Contract ${contractAddr} not synchronized in global whitelist (backward compatibility issue)`
         )
@@ -796,7 +831,7 @@ const verifyBackwardCompatibilitySync = async (
       }
     }
 
-    // Check that global arrays are properly populated
+    // Check that global arrays are properly populated using legacy functions
     const globalAddresses =
       await whitelistManager.read.getWhitelistedAddresses()
     const globalSelectors =
@@ -805,6 +840,17 @@ const verifyBackwardCompatibilitySync = async (
     consola.success(
       `Global arrays synchronized: ${globalAddresses.length} addresses, ${globalSelectors.length} selectors`
     )
+    consola.success(
+      `Granular system has: ${onChainContracts.length} contracts with ${totalSelectors} total selectors`
+    )
+
+    // Verify that granular and global systems are in sync
+    if (onChainContracts.length !== globalAddresses.length) {
+      logError(
+        `Granular system has ${onChainContracts.length} contracts but global system has ${globalAddresses.length} addresses`
+      )
+      syncIssues++
+    }
 
     if (syncIssues === 0) {
       consola.success('Backward compatibility synchronization verified')
