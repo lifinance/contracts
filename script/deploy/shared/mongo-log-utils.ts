@@ -173,6 +173,8 @@ export class DatabaseConnectionManager {
     if (!this.db)
       throw new Error('Database not connected. Call connect() first.')
 
+    // Note: The environment parameter is kept for backward compatibility
+    // but filtering is now done at the query level using the environment field
     return this.db.collection<T>('ContractDeployments')
   }
 
