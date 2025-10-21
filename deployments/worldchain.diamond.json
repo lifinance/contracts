@@ -85,9 +85,9 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x499E4A6585df0638508CA45A6Bb41B9BD385030C": {
+      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
         "Name": "EcoFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -95,6 +95,7 @@
       "Executor": "0xd9318fFE1EbbfA71049A443e623Be566067C9D6B",
       "FeeCollector": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
       "GasZipPeriphery": "0x76aE215b11797b32397d878e6f3E65081ff58b13",
+      "FeeForwarder": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
       "Patcher": "",

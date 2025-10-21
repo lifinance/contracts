@@ -85,15 +85,16 @@
         "Name": "GlacisFacet",
         "Version": "1.1.0"
       },
-      "0xad8fEeFf8BC2d19495A0D5B1E1e287bAA67cA0Db": {
+      "0xF1C6e8d52dd124Af918A178e67D3454Aa5859D8A": {
         "Name": "EcoFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xE16150617A4560925ef8e68E8efa3D68Bec3Bb7F",
       "Executor": "0xCA847a739BA26238488cb85A2a28A4ad677716e1",
       "FeeCollector": "0x8295805320853d6B28778fC8f5199327e62e3d87",
+      "FeeForwarder": "",
       "GasZipPeriphery": "0x7859570b2196f7c764f400b41C6A0080512219b3",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
