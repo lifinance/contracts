@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.29'
-evm_version = 'cancun'
+solc_version = '0.8.17'
+evm_version = 'london'
 auto_detect_solc = false
 optimizer = true
 optimizer_runs = 1000000
@@ -20,8 +20,8 @@ libs = ["node_modules", "lib"]
 cache = true
 
 [profile.zksync]
-solc_version = '0.8.29'
-evm_version = 'cancun'
+solc_version = '0.8.17'
+evm_version = 'london'
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 test = "notest"
@@ -144,7 +144,7 @@ moonbeam = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.
 moonriver = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1285", chain = "1285" }
 nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
 optimism = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = "10" }
-opbnb = { key = "${OPBNB_ETHERSCAN_API_KEY}", url = "https://api-opbnb.bscscan.com/api", chain = "204" }
+opbnb = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=204", chain = "204" }
 plasma = { key = "${VERIFY_CONTRACT_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/9745/etherscan", chain = "9745" }
 plume = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-plume-mainnet-1.t.conduit.xyz/api", verifier = "blockscout", chain = "98866" }
 polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = "137" }
