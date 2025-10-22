@@ -5,7 +5,6 @@ import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract Reverter {
@@ -42,7 +41,7 @@ contract TestRelayFacet is RelayFacet {
     }
 }
 
-contract RelayFacetTest is TestBaseFacet, LiFiData {
+contract RelayFacetTest is TestBaseFacet {
     RelayFacet.RelayData internal validRelayData;
     TestRelayFacet internal relayFacet;
     address internal constant RELAY_RECEIVER =

@@ -1,14 +1,14 @@
 # This git action combines version control and audit checks
-# Version Control:
+# Version Control (runs on all branches):
 # - will check all modified or new contracts in src/*
 # - makes sure that all contracts that have changes in audit-relevant code require a contract version update
 # - relevant changes => anything except for single (//) or multi-line (/*) comments and changes in solidity pragma
 # - fails if contract version was not updated despite relevant changes
 # - fails if a new contract was added without a ///custom:version tag
 # - will update the PR title to contain contract names with version changes (incl. their new version)
-# Audit Checker:
+# Audit Checker (runs only on PRs targeting main branch):
 # - will check all modified or new contracts in src/*, except for interfaces (src/Interfaces/**) as these do not require an audit
-# - will only run if version-control job passed successfully
+# - will only run if version-control job passed successfully AND PR targets main branch
 # - will remove the (protected) "AuditCompleted" label in the beginning to prevent erroneous states
 # - reuses the list of relevant contracts identified by the version-control job
 # - will assign "AuditRequired" label if relevant contracts were identified, otherwise it wil assign "AuditNotRequired"
@@ -36,7 +36,7 @@ permissions:
 
 jobs:
   version-control:
-    if: ${{ github.event.pull_request.draft == false }}
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     runs-on: ubuntu-latest
     concurrency:
       group: sc-core-dev-approval-${{ github.event.pull_request.number }}
@@ -118,8 +118,8 @@ jobs:
             echo "Now checking contract: $FILE_PATH"
 
             ##### Extract version tag from file
-            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
-            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" | head -1 || true)
+            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' | tr -d '\n\r' || true)
 
             ##### Extract the filename without extension
             FILENAME=$(basename "$FILE_PATH" .sol)
@@ -217,8 +217,16 @@ jobs:
           if [[ ${#CONTRACTS_FOR_AUDIT[@]} -ne 0 ]]; then
             ##### create a string from the array with all contracts
             CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
-            CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
-            echo -e "${CONTRACTS_FOR_TITLE_STR[*]}" > contracts_for_title.txt
+            # Join array elements with comma and space
+            CONTRACTS_FOR_TITLE_STR=""
+            for i in "${!CONTRACTS_FOR_TITLE[@]}"; do
+              if [ $i -eq 0 ]; then
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE[$i]}"
+              else
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE_STR}, ${CONTRACTS_FOR_TITLE[$i]}"
+              fi
+            done
+            echo "${CONTRACTS_FOR_TITLE_STR}" > contracts_for_title.txt
           else
             echo -e "\033[32mDid not find any contracts that require an audit.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
@@ -229,8 +237,8 @@ jobs:
           ##### Upload this file in any case to prevent error in following job when trying to download this file
           echo -e ""
           echo -e ""
-          echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
-          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR[*]}"
+          echo "${CONTRACTS_FOR_AUDIT_STR}" > contracts_for_audit.txt
+          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR}"
 
       - name: Compose updated PR title
         env:
@@ -245,14 +253,14 @@ jobs:
 
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
-          ##### Step 1: Remove everything in and including brackets from the current title
-          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[.*$//')
+          ##### Step 1: Remove all bracketed content from the current title
+          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[[^]]*\]//g')
           echo "BASE_TITLE: $BASE_TITLE"
 
-          ##### Step 2: Trim whitespace from the base title
-          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/[[:space:]]*$//')"
+          ##### Step 2: Trim leading and trailing whitespace from the base title
+          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
-          ##### Step 3: Construct the new title if there are updated contracts
+          ##### Step 3: Construct the new title only if there are updated contracts
           if [[ -n "$UPDATED_CONTRACTS" ]]; then
             # Create new title with updated contracts
             PR_TITLE_UPDATED="${BASE_TITLE} [${UPDATED_CONTRACTS}]"
@@ -308,7 +316,7 @@ jobs:
         # ------------------------ end of version control checker ------------------------
 
   audit-verification:
-    if: ${{ github.event.pull_request.draft == false }}
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     needs: version-control
     runs-on: ubuntu-latest
     env:
@@ -456,7 +464,7 @@ jobs:
             echo "-----------"
             echo "now checking file $FILE"
             ##### load contract version
-            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE" | head -1)
 
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then

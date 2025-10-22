@@ -64,6 +64,22 @@
       "0x95326d42f11184DB3036061167cD202291792343": {
         "Name": "MayanFacet",
         "Version": "1.2.2"
+      },
+      "0x8475a5f359bD33D33A6381b9381af5d86BC547A5": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0x6B7E41437f0A0Cf118De22D8dF296719D5adF5a3": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
+      },
+      "0x43DE35AdfB263d551c17c713674524CDd32aeE6b": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0xA4C11D296e04a52939a1bAff7E2fD70c95c048E9": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -76,6 +92,7 @@
       "Patcher": "",
       "Permit2Proxy": "0x3e851976DCA1bc02A2F35Ce926dCAFD1dEB3359b",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "0xee2edD809EEddD4a944e6E4bb4A3AC0927CA02e1",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xdD73C6B0387018314FFBd4CB0b9F382771BB541A"

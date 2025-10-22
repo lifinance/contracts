@@ -85,6 +85,10 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
+      "0x2Af20933E5886aFe275c0EEE4A2e65daA4E8b169": {
+        "Name": "CelerIMFacetMutable",
+        "Version": ""
+      },
       "0x380157643592725677F165b67642448CDCAeE026": {
         "Name": "HopFacet",
         "Version": "2.0.0"
@@ -114,8 +118,8 @@
         "Version": ""
       },
       "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
       "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
         "Name": "AcrossFacetPackedV3",
@@ -141,9 +145,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x91559A75bd9045681265C77922b3cAeDB3D5120d": {
-        "Name": "",
-        "Version": ""
+      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       },
       "0x36e1375B0755162d720276dFF6893DF02bd49225": {
         "Name": "GlacisFacet",
@@ -161,8 +165,24 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x8962d191Ba0f2Bc29b949ACA222f8251B241190b": {
+      "0x5b932C7566AeEBaA00bD14fBF6678F7f721BDD97": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x91559A75bd9045681265C77922b3cAeDB3D5120d": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0xf536ed5A4310455FF39dBf90336e17d11550E7b4": {
         "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
+      },
+      "0xe9cF0bad93090f26051CCCe9A15a5c7395635D35": {
+        "Name": "EcoFacet",
         "Version": "1.0.0"
       }
     },
@@ -170,12 +190,14 @@
       "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
+      "FeeForwarder": "",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
       "Patcher": "",
       "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
+      "ReceiverAcrossV4": "0x1d5bD612Ce761060A4bEd77b606ab7e723D4E91E",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
