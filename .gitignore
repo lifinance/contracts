@@ -32,6 +32,7 @@ lcov-filtered.info
 .idea
 .DS_Store
 .DS_Store*
+local-local-chain-*
 
 # -----------------------------------------------------------------------------
 # Node/Yarn/Package Management

@@ -180,6 +180,14 @@
       "0x004E291b9244C811B0BE00cA2C179d54FAA5073D": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x7Ea86FE59Ab35d76ba2446b09104A52E95d3267e": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.1"
+      },
+      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -190,7 +198,7 @@
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
-      "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
+      "Permit2Proxy": "0x104BD390Fed41089650Ac14aC6D9a8F3513A04cf",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverAcrossV4": "0x8fd9e1893fdE2e52b49F2875E63277Ba5675D014",
       "ReceiverChainflip": "",
