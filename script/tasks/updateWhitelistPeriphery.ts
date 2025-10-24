@@ -35,7 +35,8 @@ interface IContractData {
 
 interface INetworkResult {
   networkName: string
-  contracts: IContractData[]
+  production: IContractData[]
+  staging: IContractData[]
 }
 
 interface IPeripheryData {
@@ -74,53 +75,101 @@ function validateSelector(selector: string, signature: string): boolean {
   }
 }
 
-// Process a single network
+// Process a single network (both production and staging)
 async function processNetwork(networkName: string): Promise<INetworkResult> {
-  const deploymentFile = path.join(
-    __dirname,
-    '../../deployments',
-    `${networkName}.json`
-  )
+  const deploymentsDir = path.join(__dirname, '../../deployments')
 
-  try {
-    // Check if deployment file exists
-    if (!fs.existsSync(deploymentFile)) {
-      consola.warn(
-        `Deployment file not found for ${networkName}: ${deploymentFile}`
+  // Define file paths for both environments
+  const productionFile = path.join(deploymentsDir, `${networkName}.json`)
+  const stagingFile = path.join(deploymentsDir, `${networkName}.staging.json`)
+
+  let production: IContractData[] = []
+  let staging: IContractData[] = []
+
+  // Process production deployment
+  if (fs.existsSync(productionFile)) {
+    try {
+      production = await processDeploymentFile(
+        productionFile,
+        networkName,
+        'production'
       )
-      return { networkName, contracts: [] }
+    } catch (error) {
+      throw new Error(
+        `Failed to process production deployment for ${networkName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
     }
+  } else {
+    consola.warn(
+      `Production deployment file not found for ${networkName}: ${productionFile}`
+    )
+  }
 
+  // Process staging deployment
+  if (fs.existsSync(stagingFile)) {
+    try {
+      staging = await processDeploymentFile(stagingFile, networkName, 'staging')
+    } catch (error) {
+      throw new Error(
+        `Failed to process staging deployment for ${networkName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+  } else {
+    consola.warn(
+      `Staging deployment file not found for ${networkName}: ${stagingFile}`
+    )
+  }
+
+  return { networkName, production, staging }
+}
+
+// Process a single deployment file
+async function processDeploymentFile(
+  filePath: string,
+  networkName: string,
+  environment: 'production' | 'staging'
+): Promise<IContractData[]> {
+  try {
     // Read deployment file
-    const deploymentData = JSON.parse(fs.readFileSync(deploymentFile, 'utf8'))
+    const deploymentData = JSON.parse(fs.readFileSync(filePath, 'utf8'))
     const networkContracts: IContractData[] = []
 
     // Process each periphery contract
-    for (const contractName of PERIPHERY_CONTRACTS)
+    for (const contractName of PERIPHERY_CONTRACTS) {
       if (deploymentData[contractName]) {
         const address = deploymentData[contractName]
 
         // Validate address
-        if (!isValidEthereumAddress(address))
+        if (!isValidEthereumAddress(address)) {
           throw new Error(
-            `Invalid address for ${contractName} on ${networkName}: ${address}`
+            `Invalid address for ${contractName} on ${networkName} (${environment}): ${address}`
           )
+        }
 
         // Get selectors for this contract
         const selectors = CONTRACT_SELECTORS[contractName]
-        if (!selectors)
+        if (!selectors) {
           throw new Error(`No selectors defined for contract: ${contractName}`)
+        }
 
         // Validate all selectors
         for (const selectorData of selectors) {
-          if (!isValidSelector(selectorData.selector))
+          if (!isValidSelector(selectorData.selector)) {
             throw new Error(
               `Invalid selector for ${contractName}: ${selectorData.selector}`
             )
-          if (!validateSelector(selectorData.selector, selectorData.signature))
+          }
+          if (
+            !validateSelector(selectorData.selector, selectorData.signature)
+          ) {
             throw new Error(
               `Selector mismatch for ${contractName}: ${selectorData.selector} != ${selectorData.signature}`
             )
+          }
         }
 
         networkContracts.push({
@@ -128,13 +177,17 @@ async function processNetwork(networkName: string): Promise<INetworkResult> {
           address: address,
           selectors: [...selectors], // Copy to avoid mutation
         })
-      } else
-        consola.warn(`Contract ${contractName} not found on ${networkName}`)
+      } else {
+        consola.warn(
+          `Contract ${contractName} not found on ${networkName} (${environment})`
+        )
+      }
+    }
 
-    return { networkName, contracts: networkContracts }
+    return networkContracts
   } catch (error) {
     throw new Error(
-      `Failed to process network ${networkName}: ${
+      `Failed to process ${environment} deployment file ${filePath}: ${
         error instanceof Error ? error.message : String(error)
       }`
     )
@@ -164,7 +217,7 @@ const main = defineCommand({
   meta: {
     name: 'update-periphery',
     description:
-      'Update the periphery section of whitelist.json with deployed contracts',
+      'Update the periphery sections of whitelist.json (production) and whitelist.staging.json (staging) with deployed contracts',
   },
   args: {
     dryRun: {
@@ -183,7 +236,7 @@ const main = defineCommand({
       const networksData: INetworksObject = networksConfig
       const networkNames = Object.keys(networksData)
 
-      // Load whitelist.json
+      // Load whitelist.json (production)
       const whitelistPath = path.join(
         __dirname,
         '../../config',
@@ -195,10 +248,36 @@ const main = defineCommand({
         fs.readFileSync(whitelistPath, 'utf8')
       )
 
+      // Load whitelist.staging.json (staging)
+      const whitelistStagingPath = path.join(
+        __dirname,
+        '../../config',
+        'whitelist.staging.json'
+      )
+      let whitelistStagingData: IWhitelistData
+      if (fs.existsSync(whitelistStagingPath)) {
+        whitelistStagingData = JSON.parse(
+          fs.readFileSync(whitelistStagingPath, 'utf8')
+        )
+      } else {
+        // Create staging whitelist with same DEXS structure as production
+        whitelistStagingData = {
+          DEXS: [...whitelistData.DEXS], // Copy DEXS from production
+          PERIPHERY: {},
+        }
+      }
+
       // Validate whitelist structure
       if (!whitelistData.DEXS || !Array.isArray(whitelistData.DEXS))
         throw new Error(
           'Invalid whitelist.json structure: DEXS section missing or invalid'
+        )
+      if (
+        !whitelistStagingData.DEXS ||
+        !Array.isArray(whitelistStagingData.DEXS)
+      )
+        throw new Error(
+          'Invalid whitelist.staging.json structure: DEXS section missing or invalid'
         )
 
       consola.info(`Processing ${networkNames.length} networks in parallel...`)
@@ -208,9 +287,9 @@ const main = defineCommand({
         networkNames.map((networkName) => processNetwork(networkName))
       )
 
-      // Filter out networks with no contracts
+      // Filter out networks with no contracts in either environment
       const networksWithContracts = networkResults.filter(
-        (result) => result.contracts.length > 0
+        (result) => result.production.length > 0 || result.staging.length > 0
       )
 
       if (networksWithContracts.length === 0)
@@ -225,38 +304,73 @@ const main = defineCommand({
         networksWithContracts.map((r) => r.networkName)
       )
 
-      // Build periphery data with proper sorting
-      const peripheryData: IPeripheryData = {}
+      // Build periphery data with proper sorting - separate production and staging
+      const productionPeripheryData: IPeripheryData = {}
+      const stagingPeripheryData: IPeripheryData = {}
+
       for (const networkName of sortedNetworkNames) {
         const result = networkResults.find((r) => r.networkName === networkName)
-        if (result && result.contracts.length > 0)
-          peripheryData[networkName] = sortSelectors(result.contracts)
+        if (result) {
+          if (result.production.length > 0) {
+            productionPeripheryData[networkName] = sortSelectors(
+              result.production
+            )
+          }
+          if (result.staging.length > 0) {
+            stagingPeripheryData[networkName] = sortSelectors(result.staging)
+          }
+        }
       }
 
-      // Update whitelist data
-      whitelistData.PERIPHERY = peripheryData
+      // Update whitelist data - separate production and staging
+      whitelistData.PERIPHERY = productionPeripheryData
+      whitelistStagingData.PERIPHERY = stagingPeripheryData
 
       if (args.dryRun) {
         consola.info('DRY RUN - Would update the following:')
-        consola.info(`Networks: ${Object.keys(peripheryData).length}`)
-
-        const totalContracts = Object.values(peripheryData).reduce(
-          (sum, contracts) => sum + contracts.length,
-          0
+        consola.info(
+          `Production networks: ${Object.keys(productionPeripheryData).length}`
         )
-        consola.info(`Total contracts: ${totalContracts}`)
+        consola.info(
+          `Staging networks: ${Object.keys(stagingPeripheryData).length}`
+        )
 
-        // Show contract distribution
-        const contractCounts: Record<string, number> = {}
-        Object.values(peripheryData).forEach((contracts) => {
+        const totalProductionContracts = Object.values(
+          productionPeripheryData
+        ).reduce((sum, contracts) => sum + contracts.length, 0)
+        const totalStagingContracts = Object.values(
+          stagingPeripheryData
+        ).reduce((sum, contracts) => sum + contracts.length, 0)
+        consola.info(`Total production contracts: ${totalProductionContracts}`)
+        consola.info(`Total staging contracts: ${totalStagingContracts}`)
+
+        // Show contract distribution by environment
+        const productionContractCounts: Record<string, number> = {}
+        const stagingContractCounts: Record<string, number> = {}
+
+        Object.values(productionPeripheryData).forEach((contracts) => {
           contracts.forEach((contract) => {
-            contractCounts[contract.name] =
-              (contractCounts[contract.name] || 0) + 1
+            productionContractCounts[contract.name] =
+              (productionContractCounts[contract.name] || 0) + 1
           })
         })
 
-        consola.info('Contract distribution:')
-        Object.entries(contractCounts)
+        Object.values(stagingPeripheryData).forEach((contracts) => {
+          contracts.forEach((contract) => {
+            stagingContractCounts[contract.name] =
+              (stagingContractCounts[contract.name] || 0) + 1
+          })
+        })
+
+        consola.info('Production contract distribution:')
+        Object.entries(productionContractCounts)
+          .sort(([, a], [, b]) => b - a)
+          .forEach(([contract, count]) => {
+            consola.info(`  ${contract}: ${count} networks`)
+          })
+
+        consola.info('Staging contract distribution:')
+        Object.entries(stagingContractCounts)
           .sort(([, a], [, b]) => b - a)
           .forEach(([contract, count]) => {
             consola.info(`  ${contract}: ${count} networks`)
@@ -265,48 +379,105 @@ const main = defineCommand({
         return
       }
 
-      // Write to temporary file first
-      const tempPath = path.join(
+      // Write production whitelist to temporary file first
+      const tempProductionPath = path.join(
         __dirname,
         '../../config',
         'whitelist.tmp.json'
       )
-      fs.writeFileSync(tempPath, JSON.stringify(whitelistData, null, 2))
-
-      // Validate the temporary file
-      const tempData: IWhitelistData = JSON.parse(
-        fs.readFileSync(tempPath, 'utf8')
+      fs.writeFileSync(
+        tempProductionPath,
+        JSON.stringify(whitelistData, null, 2)
       )
-      if (!tempData.PERIPHERY || typeof tempData.PERIPHERY !== 'object')
-        throw new Error('Generated periphery data is invalid')
 
-      // Atomic replacement
-      fs.renameSync(tempPath, whitelistPath)
+      // Validate the temporary production file
+      const tempProductionData: IWhitelistData = JSON.parse(
+        fs.readFileSync(tempProductionPath, 'utf8')
+      )
+      if (
+        !tempProductionData.PERIPHERY ||
+        typeof tempProductionData.PERIPHERY !== 'object'
+      )
+        throw new Error('Generated production periphery data is invalid')
+
+      // Atomic replacement for production
+      fs.renameSync(tempProductionPath, whitelistPath)
+
+      // Write staging whitelist to temporary file first
+      const tempStagingPath = path.join(
+        __dirname,
+        '../../config',
+        'whitelist.staging.tmp.json'
+      )
+      fs.writeFileSync(
+        tempStagingPath,
+        JSON.stringify(whitelistStagingData, null, 2)
+      )
+
+      // Validate the temporary staging file
+      const tempStagingData: IWhitelistData = JSON.parse(
+        fs.readFileSync(tempStagingPath, 'utf8')
+      )
+      if (
+        !tempStagingData.PERIPHERY ||
+        typeof tempStagingData.PERIPHERY !== 'object'
+      )
+        throw new Error('Generated staging periphery data is invalid')
+
+      // Atomic replacement for staging
+      fs.renameSync(tempStagingPath, whitelistStagingPath)
 
       const endTime = Date.now()
       const duration = ((endTime - startTime) / 1000).toFixed(2)
 
-      consola.success(`Periphery section updated successfully in ${duration}s`)
-      consola.success(`Updated ${Object.keys(peripheryData).length} networks`)
+      consola.success(`Periphery sections updated successfully in ${duration}s`)
+      consola.success(
+        `Updated production: ${
+          Object.keys(productionPeripheryData).length
+        } networks`
+      )
+      consola.success(
+        `Updated staging: ${Object.keys(stagingPeripheryData).length} networks`
+      )
 
       // Summary statistics
-      const totalContracts = Object.values(peripheryData).reduce(
+      const totalProductionContracts = Object.values(
+        productionPeripheryData
+      ).reduce((sum, contracts) => sum + contracts.length, 0)
+      const totalStagingContracts = Object.values(stagingPeripheryData).reduce(
         (sum, contracts) => sum + contracts.length,
         0
       )
-      consola.info(`Total contracts: ${totalContracts}`)
+      consola.info(`Total production contracts: ${totalProductionContracts}`)
+      consola.info(`Total staging contracts: ${totalStagingContracts}`)
 
-      // Show contract distribution
-      const contractCounts: Record<string, number> = {}
-      Object.values(peripheryData).forEach((contracts) => {
+      // Show contract distribution by environment
+      const productionContractCounts: Record<string, number> = {}
+      const stagingContractCounts: Record<string, number> = {}
+
+      Object.values(productionPeripheryData).forEach((contracts) => {
         contracts.forEach((contract) => {
-          contractCounts[contract.name] =
-            (contractCounts[contract.name] || 0) + 1
+          productionContractCounts[contract.name] =
+            (productionContractCounts[contract.name] || 0) + 1
         })
       })
 
-      consola.info('Contract distribution:')
-      Object.entries(contractCounts)
+      Object.values(stagingPeripheryData).forEach((contracts) => {
+        contracts.forEach((contract) => {
+          stagingContractCounts[contract.name] =
+            (stagingContractCounts[contract.name] || 0) + 1
+        })
+      })
+
+      consola.info('Production contract distribution:')
+      Object.entries(productionContractCounts)
+        .sort(([, a], [, b]) => b - a)
+        .forEach(([contract, count]) => {
+          consola.info(`  ${contract}: ${count} networks`)
+        })
+
+      consola.info('Staging contract distribution:')
+      Object.entries(stagingContractCounts)
         .sort(([, a], [, b]) => b - a)
         .forEach(([contract, count]) => {
           consola.info(`  ${contract}: ${count} networks`)
@@ -315,14 +486,25 @@ const main = defineCommand({
       consola.error(error instanceof Error ? error.message : String(error))
 
       // Cleanup temporary files
-      const tempPath = path.join(
+      const tempProductionPath = path.join(
         __dirname,
         '../../config',
         'whitelist.tmp.json'
       )
-      if (fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath)
-        consola.info('Cleaned up temporary file')
+      const tempStagingPath = path.join(
+        __dirname,
+        '../../config',
+        'whitelist.staging.tmp.json'
+      )
+
+      if (fs.existsSync(tempProductionPath)) {
+        fs.unlinkSync(tempProductionPath)
+        consola.info('Cleaned up temporary production file')
+      }
+
+      if (fs.existsSync(tempStagingPath)) {
+        fs.unlinkSync(tempStagingPath)
+        consola.info('Cleaned up temporary staging file')
       }
 
       process.exit(1)
