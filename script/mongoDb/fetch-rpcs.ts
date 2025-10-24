@@ -26,7 +26,7 @@ async function fetchRpcEndpoints(): Promise<{
 
   try {
     await client.connect()
-    const db = client.db('blockchain-configs')
+    const db = client.db('sc_public')
     const collection = db.collection('RpcEndpoints')
 
     const cursor = collection.find({})
