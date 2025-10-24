@@ -56,18 +56,24 @@
       "0xA77abE6A3E0Fe927d503c68fCF9B26e11A8bB1A4": {
         "Name": "MayanFacet",
         "Version": "1.2.2"
+      },
+      "0xA5b0446EFECBfee560a985139e232692C5AC44a1": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "",
       "Executor": "",
       "FeeCollector": "",
+      "FeeForwarder": "",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
