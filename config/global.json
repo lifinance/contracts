@@ -18,16 +18,8 @@
   ],
   "approvedSelectorsForDeployerWallet": [
     {
-      "selector": "0x2db6fa36",
-      "name": "WhitelistManagerFacet.batchAddToWhitelist"
-    },
-    {
-      "selector": "0x045fb888",
-      "name": "WhitelistManagerFacet.batchRemoveFromWhitelist"
-    },
-    {
-      "selector": "0xecd18517",
-      "name": "WhitelistManagerFacet.batchSetFunctionWhitelistBySelector"
+      "selector": "1171c007",
+      "name": "WhitelistManagerFacet.batchSetContractSelectorWhitelist"
     }
   ],
   "safeOwners": [

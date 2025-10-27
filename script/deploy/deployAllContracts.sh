@@ -45,7 +45,7 @@ deployAllContracts() {
       "6) Deploy periphery contracts" \
       "7) Add periphery to diamond and update whitelist.json" \
       "8) Execute whitelisted addresses and selectors scripts and update ERC20Proxy" \
-      "9) Run health check only"
+      "9) Run health check only" \
       "10) Ownership transfer to timelock (production only)"
   )
 
@@ -295,7 +295,7 @@ deployAllContracts() {
   if [[ $START_STAGE -le 9 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Run health check only"
-    bun script/deploy/healthCheck.ts --network "$NETWORK"
+    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
 
     # Pause and ask user if they want to continue with ownership transfer

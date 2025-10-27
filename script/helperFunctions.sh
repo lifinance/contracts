@@ -1933,14 +1933,23 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToWhitelistJson() {
-  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to config/whitelist.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
+  # Determine the correct whitelist file based on environment
+  local WHITELIST_FILE
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    WHITELIST_FILE="config/whitelist.json"
+  else
+    WHITELIST_FILE="config/whitelist.staging.json"
+  fi
+  
+  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to $WHITELIST_FILE"
+
   # Use file paths from config.sh
   local FILEPATH_GLOBAL_CONFIG="$GLOBAL_FILE_PATH"
-  local FILEPATH_WHITELIST="$WHITELIST_JSON_FILE_PATH"
+  local FILEPATH_WHITELIST="$WHITELIST_FILE"
 
   # Get all periphery contracts from global.json whitelistPeripheryFunctions section
   WHITELIST_PERIPHERY=($(jq -r '.whitelistPeripheryFunctions | keys[]' "$FILEPATH_GLOBAL_CONFIG"))
@@ -1967,19 +1976,19 @@ function addPeripheryToWhitelistJson() {
       continue
     fi
 
-    # check if address already exists in whitelist.json PERIPHERY section for the given network
+    # check if address already exists in whitelist file PERIPHERY section for the given network
     local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '.PERIPHERY[$network] // [] | any(.address == $address)' "$FILEPATH_WHITELIST")
 
     if [ "$EXISTS" == "true" ]; then
-      echo "The address $CONTRACT_ADDRESS is already part of the periphery contracts in network $NETWORK."
+      echo "The address $CONTRACT_ADDRESS is already part of the periphery contracts in network $NETWORK ($ENVIRONMENT)."
 
       # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
       ((ADD_COUNTER--)) # reduces by 1
     else
-      # add the contract to whitelist.json PERIPHERY section
+      # add the contract to whitelist file PERIPHERY section
       local TMP_FILE="tmp.$$.json"
       jq --arg address "$CONTRACT_ADDRESS" --arg name "$CONTRACT" --arg network "$NETWORK" '
-        (.PERIPHERY[$network] //= []) | 
+        (.PERIPHERY[$network] //= []) |
         .PERIPHERY[$network] += [{
           "name": $name,
           "address": $address,
@@ -1988,20 +1997,20 @@ function addPeripheryToWhitelistJson() {
       ' "$FILEPATH_WHITELIST" > "$TMP_FILE" && mv "$TMP_FILE" "$FILEPATH_WHITELIST"
       rm -f "$TMP_FILE"
 
-      success "$CONTRACT address $CONTRACT_ADDRESS added to whitelist.json PERIPHERY[$NETWORK]"
+      success "$CONTRACT address $CONTRACT_ADDRESS added to $WHITELIST_FILE PERIPHERY[$NETWORK]"
     fi
   done
 
-  # check how many periphery contracts are in the whitelist.json now
+  # check how many periphery contracts are in the whitelist file now
   local CURRENT_PERIPHERY_COUNT=$(jq --arg network "$NETWORK" '.PERIPHERY[$network] // [] | length' "$FILEPATH_WHITELIST")
 
   EXPECTED_PERIPHERY_COUNT=$((EXISTING_PERIPHERY_COUNT + ADD_COUNTER))
 
-  # make sure whitelist.json has been updated correctly
+  # make sure whitelist file has been updated correctly
   if [ $CURRENT_PERIPHERY_COUNT -eq $EXPECTED_PERIPHERY_COUNT ]; then
-    success "$ADD_COUNTER periphery contracts were added to config/whitelist.json"
+    success "$ADD_COUNTER periphery contracts were added to $WHITELIST_FILE for $NETWORK ($ENVIRONMENT)"
   else
-    error "The PERIPHERY array in whitelist.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $EXPECTED_PERIPHERY_COUNT, got: $CURRENT_PERIPHERY_COUNT)."
+    error "The PERIPHERY array in $WHITELIST_FILE for network $NETWORK ($ENVIRONMENT) does not have the expected number of elements after executing this script (expected: $EXPECTED_PERIPHERY_COUNT, got: $CURRENT_PERIPHERY_COUNT)."
     exit 1
   fi
 }

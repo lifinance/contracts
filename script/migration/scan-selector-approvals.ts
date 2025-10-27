@@ -391,20 +391,28 @@ function extractSelectorsFromWhitelist(): string[] {
       whitelistData.PERIPHERY &&
       typeof whitelistData.PERIPHERY === 'object'
     ) {
-      for (const [_network, peripheryContracts] of Object.entries(
+      for (const [_network, networkData] of Object.entries(
         whitelistData.PERIPHERY
       )) {
-        if (Array.isArray(peripheryContracts)) {
-          for (const contract of peripheryContracts) {
-            if (contract.selectors && Array.isArray(contract.selectors)) {
-              for (const selectorObj of contract.selectors) {
-                if (
-                  selectorObj.selector &&
-                  typeof selectorObj.selector === 'string'
-                ) {
-                  const selector = selectorObj.selector
-                  if (selector.match(/^0x[a-fA-F0-9]{8}$/)) {
-                    selectors.add(selector)
+        if (networkData && typeof networkData === 'object') {
+          // Handle both production and staging environments
+          const environments = ['production', 'staging']
+
+          for (const environment of environments) {
+            const peripheryContracts = (networkData as any)[environment]
+            if (Array.isArray(peripheryContracts)) {
+              for (const contract of peripheryContracts) {
+                if (contract.selectors && Array.isArray(contract.selectors)) {
+                  for (const selectorObj of contract.selectors) {
+                    if (
+                      selectorObj.selector &&
+                      typeof selectorObj.selector === 'string'
+                    ) {
+                      const selector = selectorObj.selector
+                      if (selector.match(/^0x[a-fA-F0-9]{8}$/)) {
+                        selectors.add(selector)
+                      }
+                    }
                   }
                 }
               }

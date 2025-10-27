@@ -44,14 +44,19 @@ contract DeployScript is UpdateScriptBase {
             );
         }
 
-        // Read whitelist.json and extract contract-selector pairs for current network
-        string memory whitelistPath = string.concat(
-            root,
-            "/config/whitelist.json"
-        );
+        // Read appropriate whitelist file based on environment and extract contract-selector pairs for current network
+        string memory whitelistPath;
+        if (bytes(fileSuffix).length == 0) {
+            whitelistPath = string.concat(root, "/config/whitelist.json");
+        } else {
+            whitelistPath = string.concat(
+                root,
+                "/config/whitelist.staging.json"
+            );
+        }
         string memory whitelistJson = vm.readFile(whitelistPath);
 
-        // Parse the whitelist.json structure and extract contracts for current network
+        // Parse the whitelist file structure and extract contracts for current network
         (
             address[] memory contracts,
             bytes4[][] memory selectors
@@ -294,7 +299,15 @@ contract DeployScript is UpdateScriptBase {
         string memory whitelistJson
     ) internal view returns (uint256 totalContracts) {
         string memory peripheryKey = string.concat(".PERIPHERY.", network);
-        return _getArrayLength(whitelistJson, peripheryKey);
+
+        // Count contracts in the network's periphery section
+        try vm.parseJson(whitelistJson, peripheryKey) returns (bytes memory) {
+            totalContracts = _getArrayLength(whitelistJson, peripheryKey);
+        } catch {
+            // Network section not found, return 0
+        }
+
+        return totalContracts;
     }
 
     function _populateDexsContracts(
@@ -496,16 +509,24 @@ contract DeployScript is UpdateScriptBase {
         uint256 contractIndex
     ) internal returns (uint256) {
         string memory peripheryKey = string.concat(".PERIPHERY.", network);
-        uint256 contractCount = _getArrayLength(whitelistJson, peripheryKey);
 
-        for (uint256 k = 0; k < contractCount; k++) {
-            (
-                address contractAddr,
-                bytes4[] memory contractSelectors
-            ) = _parsePeripheryContractData(whitelistJson, k);
-            contracts[contractIndex] = contractAddr;
-            selectors[contractIndex] = contractSelectors;
-            contractIndex++;
+        // Populate contracts from the network's periphery section
+        try vm.parseJson(whitelistJson, peripheryKey) returns (bytes memory) {
+            uint256 contractCount = _getArrayLength(
+                whitelistJson,
+                peripheryKey
+            );
+            for (uint256 k = 0; k < contractCount; k++) {
+                (
+                    address contractAddr,
+                    bytes4[] memory contractSelectors
+                ) = _parsePeripheryContractData(whitelistJson, k);
+                contracts[contractIndex] = contractAddr;
+                selectors[contractIndex] = contractSelectors;
+                contractIndex++;
+            }
+        } catch {
+            // Network section not found, continue
         }
 
         return contractIndex;
