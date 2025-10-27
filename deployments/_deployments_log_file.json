@@ -43668,6 +43668,79 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA20D724c81dDDe4A65f682A766881970245B31aF",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-24 17:06:25",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xaa7911Ce0bab34fd8D4DdfA161004CB7e4BE1958",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-24 17:07:59",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "berachain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x73f367d11ecfE15fe7E0Ab0C8077fA6c73b1Fe5e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-24 17:10:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xaa7911Ce0bab34fd8D4DdfA161004CB7e4BE1958",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-24 17:11:14",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "corn": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x48781133DE32CEA9dA957B89bA36868FF9A7E628",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-24 17:12:22",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     }
   }
