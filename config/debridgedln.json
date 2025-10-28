@@ -19,6 +19,9 @@
     "bsc": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
+    "flow": {
+      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+    },
     "gnosis": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
@@ -59,6 +62,10 @@
     {
       "chainId": 100,
       "deBridgeChainId": 100000002
+    },
+    {
+      "chainId": 747,
+      "deBridgeChainId": 100000009
     },
     {
       "chainId": 1088,

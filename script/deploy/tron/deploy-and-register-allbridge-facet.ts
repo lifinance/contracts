@@ -94,7 +94,7 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     const networkInfo = await deployer.getNetworkInfo()
 
     // Use new utility for network info display
-    displayNetworkInfo(networkInfo, environment, network)
+    displayNetworkInfo(networkInfo, environment, rpcUrl)
 
     // Initialize TronWeb
     const tronWeb = new TronWeb({
