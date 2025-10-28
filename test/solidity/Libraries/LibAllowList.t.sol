@@ -912,6 +912,98 @@ contract LibAllowListTest is Test {
         LibAllowList.addAllowedContractSelector(_contract, _selector);
     }
 
+    /// @notice Test legacy boolean storage cleanup when index mapping is missing (oneBasedIndex == 0)
+    /// @dev This test simulates edge case during migration from V1 to V2 storage layout where
+    /// legacy boolean mappings (contractAllowList/selectorAllowList) exist but 1-based index mappings
+    /// are zero. When removing items, the code cleans up these stale legacy mappings.
+    function test_LegacyBooleanStorageCleanupWhenIndexMappingMissing() public {
+        TestContract contract2 = new TestContract();
+        TestContract contract3 = new TestContract();
+
+        // Setup: Add contracts normally
+        LibAllowList.addAllowedContractSelector(
+            address(testContract),
+            SELECTOR_A
+        );
+        LibAllowList.addAllowedContractSelector(
+            address(testContract),
+            SELECTOR_B
+        );
+        LibAllowList.addAllowedContractSelector(
+            address(contract2),
+            SELECTOR_C
+        );
+
+        // Access storage to manually manipulate state (simulating V1->V2 migration edge case)
+        LibAllowList.AllowListStorage storage als = _getAllowListStorage();
+
+        // Part 1: Test legacy selector cleanup when selectorToIndex == 0
+        // This covers lines 252-256 in _removeAllowedSelector where stale selectorAllowList is cleared
+        bytes4 selectorX = bytes4(keccak256("functionX()"));
+        als.selectors.push(selectorX); // Add to array but don't set index (simulates legacy state)
+
+        // Add selector legitimately to create proper state
+        LibAllowList.addAllowedContractSelector(address(contract2), selectorX);
+
+        // Simulate corrupted/migrated state: set selectorToIndex to 0 (missing index mapping)
+        als.selectorToIndex[selectorX] = 0;
+
+        // Remove pair - when reference count hits 0, _removeAllowedSelector is called
+        // with oneBasedIndex == 0, hitting cleanup path at line 252-256
+        LibAllowList.removeAllowedContractSelector(
+            address(contract2),
+            selectorX
+        );
+
+        // Verify cleanup: selector should be removed from all mappings
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(contract2),
+                selectorX
+            )
+        );
+
+        // Part 2: Test legacy contract cleanup when contractToIndex == 0
+        bytes4 selectorY = bytes4(keccak256("functionY()"));
+        LibAllowList.addAllowedContractSelector(address(contract3), selectorY);
+
+        // Simulate corrupted/migrated state: set contractToIndex to 0 (missing index mapping)
+        als.contractToIndex[address(contract3)] = 0;
+
+        // Add another selector to contract3 first (to keep it in arrays)
+        bytes4 selectorZ = bytes4(keccak256("functionZ()"));
+        LibAllowList.addAllowedContractSelector(address(contract3), selectorZ);
+
+        // Remove first selector
+        LibAllowList.removeAllowedContractSelector(
+            address(contract3),
+            selectorY
+        );
+
+        // Remove last selector - this triggers _removeAllowedContract with contractToIndex == 0
+        // This hits cleanup path, clearing legacy contractAllowList
+        LibAllowList.removeAllowedContractSelector(
+            address(contract3),
+            selectorZ
+        );
+
+        // Verify cleanup: contract should be removed from all mappings
+        assertFalse(LibAllowList.contractIsAllowed(address(contract3)));
+    }
+
+    /// @notice Internal helper to get AllowListStorage storage
+    function _getAllowListStorage()
+        internal
+        pure
+        returns (LibAllowList.AllowListStorage storage als)
+    {
+        // Compute NAMESPACE hash directly (same as LibAllowList uses)
+        bytes32 position = keccak256("com.lifi.library.allow.list");
+        assembly {
+            als.slot := position
+        }
+    }
+
     /// @dev A single helper to check all states for simple cases.
     function _assertStateSyncedAndCorrect(
         StateAssertion memory _params

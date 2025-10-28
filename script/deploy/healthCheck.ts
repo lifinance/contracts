@@ -711,9 +711,7 @@ const main = defineCommand({
         finish()
       }
     } catch (error) {
-      consola.info(
-        'Whitelist configuration not available, skipping whitelist checks'
-      )
+      logError('Whitelist configuration not available')
       finish()
     }
   },
