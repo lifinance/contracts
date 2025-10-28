@@ -40678,6 +40678,21 @@
           }
         ]
       }
+    },
+    "soneium": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x63C8a9aAD7E8C86B891421D9c53246628640169b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-27 12:02:44",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
