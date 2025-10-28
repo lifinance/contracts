@@ -1,61 +1,69 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x06045F5FA6EA7c6AcEb104b55BcD6C3dE3a08831": {
+      "0x75bC07196970F2ac011392304CC9d7a1cAec96EF": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0x8938CEa23C3c5eAABb895765f5B0b2b07D680402": {
+      "0xF9738bCd430af935CD5C9db4d2852fa3E34CF85e": {
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x53d4Bcd5BEa4e863376b7eA43D7465351a4d71B0": {
-        "Name": "OwnershipFacet",
-        "Version": "1.0.0"
-      },
-      "0x83be9a6642c41f7ef78A0B60a355B5D7f3C9A62f": {
-        "Name": "WithdrawFacet",
-        "Version": "1.0.0"
-      },
-      "0xB94Fd26F6b138E1bE6CfEa5Ec4F67C5573F5d6AD": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0x1A841931913806FB7570B43bcD64A487A8E7A50c": {
+      "0xe13f39E892CF062678D1b0c7ee02C40A7b59d977": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x27A0B9Dd7ee2762e15CCF36DF2F54A4A7B7a9304": {
-        "Name": "PeripheryRegistryFacet",
-        "Version": "1.0.0"
+      "0x37A203B23399e90Bc88D4d3162DA928eFf014334": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
       },
-      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
+      "0x4d6555203852b2b2A01463330538c2776a9f2a75": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.2"
+      },
+      "0x9Cbbe025a2131E5d4834024BF3CAB5944D145068": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0xc7853e706e75EfF9C4647dBa5EbE1f47F5012f25": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.5"
+      },
+      "0x81E5FfC6acec3d8753B956044dB122a4ddcD0275": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x545326A460BDe1D0De5D80Bf6B5c2Db3C0dFeA5F": {
-        "Name": "GnosisBridgeL2Facet",
+      "0x33e3B5DD144Fd15d961Bff8d0Ff1458070241A87": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.2"
+      },
+      "0x1e7A6C4Daa961A2CbD2A625a90b882282fb6DF2D": {
+        "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x9a077b9dD746237d8854848BDB01521B47edC8DF": {
-        "Name": "LIFuelFacet",
+      "0xc19ab64e5DB444c0B71B860Ac40F62244FE2410F": {
+        "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x52A30797a861d61Ab4084468Cd469d0bf312566e": {
-        "Name": "OmniBridgeFacet",
+      "0x82C5E80A9803e560C306827b0300eceEa9A1a2bB": {
+        "Name": "WithdrawFacet",
         "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x6c93D0F446356725E3a51906285044f8788c72f2",
-      "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
-      "FeeCollector": "0x0222D030e8DFAEDE2a4e7B5F181Ac1A4206A75f0",
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
+      "FeeForwarder": "",
+      "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
-      "LiFuelFeeCollector": "",
-      "Receiver": "0x59B341fF54543D66C7393FfD2A050E256c97669E",
+      "LidoWrapper": "",
+      "Patcher": "",
+      "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
+      "ReceiverChainflip": "",
       "ReceiverStargateV2": "",
-      "RelayerCelerIM": "",
       "TokenWrapper": ""
     }
   }
