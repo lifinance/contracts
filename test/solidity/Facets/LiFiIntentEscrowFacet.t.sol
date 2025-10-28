@@ -2,12 +2,12 @@
 
 pragma solidity ^0.8.17;
 
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { LIFIIntentEscrowFacet } from "lifi/Facets/LIFIIntentEscrowFacet.sol";
+import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
+import { InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
-import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOIF.sol";
+import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
 contract AlwaysYesOracle {
     function isProven(
@@ -29,7 +29,7 @@ struct SolveParams {
     bytes32 solver;
 }
 
-interface ILIFIIntentEscrowSettler {
+interface ILiFiIntentEscrowSettler {
     event Open(bytes32 indexed orderId, StandardOrder order);
 
     function orderStatus(bytes32 orderid) external returns (uint8);
@@ -46,9 +46,9 @@ interface ILIFIIntentEscrowSettler {
     ) external view returns (bytes32);
 }
 
-// Stub LIFIIntentEscrowFacet Contract
-contract TestLIFIIntentEscrowFacet is LIFIIntentEscrowFacet {
-    constructor(address escrowSettler) LIFIIntentEscrowFacet(escrowSettler) {}
+// Stub LiFiIntentEscrowFacet Contract
+contract TestLiFiIntentEscrowFacet is LiFiIntentEscrowFacet {
+    constructor(address escrowSettler) LiFiIntentEscrowFacet(escrowSettler) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -59,11 +59,11 @@ contract TestLIFIIntentEscrowFacet is LIFIIntentEscrowFacet {
     }
 }
 
-contract LIFIIntentEscrowFacetTest is TestBaseFacet {
+contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     error FailedInputSettlerDeployment();
-    LIFIIntentEscrowFacet.LIFIIntentEscrowData internal validLIFIIntentData;
-    TestLIFIIntentEscrowFacet internal lifiIntentEscrowFacet;
-    TestLIFIIntentEscrowFacet internal baseLIFIIntentEscrowFacet;
+    LiFiIntentEscrowFacet.LiFiIntentEscrowData internal validLIFIIntentData;
+    TestLiFiIntentEscrowFacet internal lifiIntentEscrowFacet;
+    TestLiFiIntentEscrowFacet internal baseLiFiIntentEscrowFacet;
 
     address internal lifiIntentEscrowSettler;
 
@@ -79,28 +79,28 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
 
         lifiIntentEscrowSettler = 0x000001bf3F3175BD007f3889b50000c7006E72c0;
 
-        baseLIFIIntentEscrowFacet = new TestLIFIIntentEscrowFacet(
+        baseLiFiIntentEscrowFacet = new TestLiFiIntentEscrowFacet(
             lifiIntentEscrowSettler
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = baseLIFIIntentEscrowFacet
-            .startBridgeTokensViaLIFIIntentEscrow
+        functionSelectors[0] = baseLiFiIntentEscrowFacet
+            .startBridgeTokensViaLiFiIntentEscrow
             .selector;
-        functionSelectors[1] = baseLIFIIntentEscrowFacet
-            .swapAndStartBridgeTokensViaLIFIIntentEscrow
+        functionSelectors[1] = baseLiFiIntentEscrowFacet
+            .swapAndStartBridgeTokensViaLiFiIntentEscrow
             .selector;
-        functionSelectors[2] = baseLIFIIntentEscrowFacet.addDex.selector;
-        functionSelectors[3] = baseLIFIIntentEscrowFacet
+        functionSelectors[2] = baseLiFiIntentEscrowFacet.addDex.selector;
+        functionSelectors[3] = baseLiFiIntentEscrowFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(
             diamond,
-            address(baseLIFIIntentEscrowFacet),
+            address(baseLiFiIntentEscrowFacet),
             functionSelectors
         );
-        lifiIntentEscrowFacet = TestLIFIIntentEscrowFacet(address(diamond));
+        lifiIntentEscrowFacet = TestLiFiIntentEscrowFacet(address(diamond));
         lifiIntentEscrowFacet.addDex(ADDRESS_UNISWAP);
         lifiIntentEscrowFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
@@ -114,17 +114,17 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
 
         setFacetAddressInTestBase(
             address(lifiIntentEscrowFacet),
-            "LIFIIntentEscrowFacet"
+            "LiFiIntentEscrowFacet"
         );
 
         // adjust bridgeData
         bridgeData.bridge = "LIFIIntent";
         bridgeData.destinationChainId = 137;
 
-        // produce valid LIFIIntentEscrowData
-        validLIFIIntentData = LIFIIntentEscrowFacet.LIFIIntentEscrowData({
+        // produce valid LiFiIntentEscrowData
+        validLIFIIntentData = LiFiIntentEscrowFacet.LiFiIntentEscrowData({
             receiverAddress: bytes32(uint256(uint160(bridgeData.receiver))),
-            user: address(uint160(123123321321)),
+            depositAndRefundAddress: address(uint160(123123321321)),
             nonce: uint256(100),
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
@@ -138,6 +138,11 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
         });
     }
 
+    function testRevert_deploy_with_0_address() external {
+        vm.expectRevert(abi.encodeWithSignature("InvalidConfig()"));
+        new TestLiFiIntentEscrowFacet(address(0));
+    }
+
     event Finalised(
         bytes32 indexed orderId,
         bytes32 solver,
@@ -147,11 +152,10 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
     event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
     function test_LIFIIntent_deposit_status() external {
-        bool isNative = false;
         vm.startPrank(USER_SENDER);
-        usdc.approve(address(baseLIFIIntentEscrowFacet), bridgeData.minAmount);
+        usdc.approve(address(baseLiFiIntentEscrowFacet), bridgeData.minAmount);
 
-        bridgeData.sendingAssetId = isNative ? address(0) : address(usdc);
+        bridgeData.sendingAssetId = address(usdc);
 
         // Check that the execution happens as we would expect it to.
 
@@ -173,7 +177,7 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
         ];
 
         StandardOrder memory order = StandardOrder({
-            user: validLIFIIntentData.user,
+            user: validLIFIIntentData.depositAndRefundAddress,
             nonce: validLIFIIntentData.nonce,
             originChainId: block.chainid,
             expires: validLIFIIntentData.expires,
@@ -183,17 +187,16 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
             outputs: outputs
         });
 
-        bytes32 orderId = ILIFIIntentEscrowSettler(lifiIntentEscrowSettler)
+        bytes32 orderId = ILiFiIntentEscrowSettler(lifiIntentEscrowSettler)
             .orderIdentifier(order);
 
-        vm.expectEmit();
-        emit ILIFIIntentEscrowSettler.Open(orderId, order);
+        vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
+        emit ILiFiIntentEscrowSettler.Open(orderId, order);
 
-        baseLIFIIntentEscrowFacet.startBridgeTokensViaLIFIIntentEscrow{
-            value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
-                ? bridgeData.minAmount
-                : 0
-        }(bridgeData, validLIFIIntentData);
+        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
         vm.stopPrank();
 
         // Check that we can redeem the intent (i.e. that we registered the intent we expected.)
@@ -201,7 +204,7 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
         address solver = address(7788778877);
         vm.startPrank(solver);
 
-        uint8 orderStatus = ILIFIIntentEscrowSettler(lifiIntentEscrowSettler)
+        uint8 orderStatus = ILiFiIntentEscrowSettler(lifiIntentEscrowSettler)
             .orderStatus(orderId);
         assertEq(orderStatus, 1); // Check orderStatus is deposited.
 
@@ -212,10 +215,10 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
             solver: solverIdentifier
         });
 
-        vm.expectEmit();
+        vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
         emit Finalised(orderId, solverIdentifier, solverIdentifier);
 
-        ILIFIIntentEscrowSettler(lifiIntentEscrowSettler).finalise(
+        ILiFiIntentEscrowSettler(lifiIntentEscrowSettler).finalise(
             order,
             solveParams,
             bytes32(uint256(uint160(solver))),
@@ -225,33 +228,36 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(solver), bridgeData.minAmount);
     }
 
-    function test_revert_LIFIIntent_wrong_receiver() external {
-        bool isNative = false;
+    function testRevert_LIFIIntent_wrong_receiver() external {
         vm.startPrank(USER_SENDER);
-        usdc.approve(address(baseLIFIIntentEscrowFacet), bridgeData.minAmount);
+        usdc.approve(address(baseLiFiIntentEscrowFacet), bridgeData.minAmount);
 
-        bridgeData.sendingAssetId = isNative ? address(0) : address(usdc);
+        bridgeData.sendingAssetId = address(usdc);
 
         // Incorrectly modify the receiverAddress
         validLIFIIntentData.receiverAddress = bytes32(
             uint256(uint160(bridgeData.receiver)) + 1
         );
 
-        vm.expectRevert(LIFIIntentEscrowFacet.ReceiverDoesNotMatch.selector);
-        baseLIFIIntentEscrowFacet.startBridgeTokensViaLIFIIntentEscrow{
-            value: LibAsset.isNativeAsset(bridgeData.sendingAssetId)
-                ? bridgeData.minAmount
-                : 0
+        vm.expectRevert(InvalidReceiver.selector);
+        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+    }
+
+    function testRevert_LIFIIntent_native_not_supported() external {
+        bridgeData.sendingAssetId = address(0);
+
+        vm.expectRevert(NativeAssetNotSupported.selector);
+        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
+            value: bridgeData.minAmount
         }(bridgeData, validLIFIIntentData);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            lifiIntentEscrowFacet.startBridgeTokensViaLIFIIntentEscrow{
-                value: bridgeData.minAmount
-            }(bridgeData, validLIFIIntentData);
-        } else {
-            lifiIntentEscrowFacet.startBridgeTokensViaLIFIIntentEscrow(
+        if (isNative) {} else {
+            lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
                 bridgeData,
                 validLIFIIntentData
             );
@@ -261,12 +267,8 @@ contract LIFIIntentEscrowFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        if (isNative) {
-            lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLIFIIntentEscrow{
-                value: swapData[0].fromAmount
-            }(bridgeData, swapData, validLIFIIntentData);
-        } else {
-            lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLIFIIntentEscrow(
+        if (isNative) {} else {
+            lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
                 bridgeData,
                 swapData,
                 validLIFIIntentData

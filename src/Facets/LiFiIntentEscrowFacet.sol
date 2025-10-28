@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
+
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -9,26 +10,21 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, NativeAssetNotSupported } from "../Errors/GenericErrors.sol";
 
-import { MandateOutput, StandardOrder } from "../Interfaces/IOIF.sol";
+import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 
 /// @title LIFIIntent Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler
 /// @custom:version 1.0.0
-contract LIFIIntentEscrowFacet is
+contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
     SwapperV2,
     Validatable
 {
-    /// Errors ///
-
-    error ReceiverDoesNotMatch();
-    error NativeNotSupported();
-
     /// Storage ///
 
     /// @dev LIFI Intent Escrow Input Settler.
@@ -37,7 +33,7 @@ contract LIFIIntentEscrowFacet is
     /// Types ///
 
     /// @param receiverAddress The destination account for the delivered assets and calldata.
-    /// @param user The deposit and claim registration will be made for user. If any refund is made, it will be sent to user.
+    /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address.
     /// @param expires If the proof for the fill does not arrive before this time, the claim expires.
     /// @param fillDeadline The fill has to happen before this time.
     /// @param inputOracle Address of the validation layer used on the input chain.
@@ -47,10 +43,10 @@ contract LIFIIntentEscrowFacet is
     /// @param outputAmount The amount of the desired token.
     /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
     /// @param outputContext Context for the outputSettler to identify the order type.
-    struct LIFIIntentEscrowData {
+    struct LiFiIntentEscrowData {
         bytes32 receiverAddress; // StandardOrder.outputs.recipient
         /// BatchClaim
-        address user; // StandardOrder.user
+        address depositAndRefundAddress; // StandardOrder.user
         uint256 nonce; // StandardOrder.nonce
         uint32 expires; // StandardOrder.expiry
         uint32 fillDeadline; // StandardOrder.fillDeadline
@@ -65,10 +61,10 @@ contract LIFIIntentEscrowFacet is
 
     /// Constructor ///
 
-    /// @param inputSettler LIFIIntent Escrow / settlement implementation.
-    constructor(address inputSettler) {
-        if (inputSettler == address(0)) revert InvalidConfig();
-        LIFI_INTENT_ESCROW_SETTLER = inputSettler;
+    /// @param _inputSettler LIFIIntent Escrow / settlement implementation.
+    constructor(address _inputSettler) {
+        if (_inputSettler == address(0)) revert InvalidConfig();
+        LIFI_INTENT_ESCROW_SETTLER = _inputSettler;
     }
 
     /// External Methods ///
@@ -76,9 +72,9 @@ contract LIFIIntentEscrowFacet is
     /// @notice Bridges tokens via LIFIIntent
     /// @param _bridgeData The core information needed for bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
-    function startBridgeTokensViaLIFIIntentEscrow(
+    function startBridgeTokensViaLiFiIntentEscrow(
         ILiFi.BridgeData memory _bridgeData,
-        LIFIIntentEscrowData calldata _lifiIntentData
+        LiFiIntentEscrowData calldata _lifiIntentData
     )
         external
         payable
@@ -99,10 +95,10 @@ contract LIFIIntentEscrowFacet is
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
-    function swapAndStartBridgeTokensViaLIFIIntentEscrow(
+    function swapAndStartBridgeTokensViaLiFiIntentEscrow(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        LIFIIntentEscrowData calldata _lifiIntentData
+        LiFiIntentEscrowData calldata _lifiIntentData
     )
         external
         payable
@@ -128,33 +124,30 @@ contract LIFIIntentEscrowFacet is
     /// @param _lifiIntentData Data specific to LIFIIntent
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        LIFIIntentEscrowData calldata _lifiIntentData
+        LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
-        // Per conventions, the LiFi transfer started event should be emitted before any bridge calls are made.
-        emit LiFiTransferStarted(_bridgeData);
-
-        if (_bridgeData.sendingAssetId == address(0))
-            revert NativeNotSupported();
+        address sendingAsset = _bridgeData.sendingAssetId;
+        if (sendingAsset == address(0)) revert NativeAssetNotSupported();
 
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
         if (
-            asSanitizedAddress(_lifiIntentData.receiverAddress) !=
+            address(uint160(uint256(_lifiIntentData.receiverAddress))) !=
             _bridgeData.receiver
         ) {
-            revert ReceiverDoesNotMatch();
+            revert InvalidReceiver();
         }
 
         // Set approval.
         uint256 amount = _bridgeData.minAmount;
         LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
+            IERC20(sendingAsset),
             address(LIFI_INTENT_ESCROW_SETTLER),
             amount
         );
 
         // Convert given token and amount into a idsAndAmount array.
         uint256[2][] memory inputs = new uint256[2][](1);
-        inputs[0] = [uint256(uint160(_bridgeData.sendingAssetId)), amount];
+        inputs[0] = [uint256(uint160(sendingAsset)), amount];
 
         MandateOutput[] memory outputs = new MandateOutput[](1);
         outputs[0] = MandateOutput({
@@ -171,7 +164,7 @@ contract LIFIIntentEscrowFacet is
         // Make the deposit on behalf of the user..
         IOriginSettler(LIFI_INTENT_ESCROW_SETTLER).open(
             StandardOrder({
-                user: _lifiIntentData.user,
+                user: _lifiIntentData.depositAndRefundAddress,
                 nonce: _lifiIntentData.nonce,
                 originChainId: block.chainid,
                 expires: _lifiIntentData.expires,
@@ -181,21 +174,7 @@ contract LIFIIntentEscrowFacet is
                 outputs: outputs
             })
         );
-    }
 
-    /// Helpers ///
-
-    /**
-     * @notice Internal pure function that sanitizes an address by clearing the
-     * upper 96 bits. Used for ensuring consistent address handling.
-     * @param accountValue The value to sanitize.
-     * @return account     The sanitized address.
-     */
-    function asSanitizedAddress(
-        bytes32 accountValue
-    ) internal pure returns (address account) {
-        assembly ("memory-safe") {
-            account := shr(96, shl(96, accountValue))
-        }
+        emit LiFiTransferStarted(_bridgeData);
     }
 }
