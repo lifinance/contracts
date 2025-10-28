@@ -2063,6 +2063,7 @@ function verifyContract() {
       "--zksync"
       "--watch"
       "--chain" "$CHAIN_ID"
+      # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "$ADDRESS"
       "$FULL_PATH"
     )
@@ -2070,6 +2071,7 @@ function verifyContract() {
     VERIFY_CMD=(
       "forge"
       "verify-contract"
+      # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "--watch"
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
