@@ -40060,6 +40060,17 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-29 10:19:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000d9b2da9c45b118e4e93a004fb1452bcdb6cc0e88000000000000000000000000f5e10380213880111522dd0efd3dbb45b9f62bcc",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       }
     },
@@ -42793,10 +42804,10 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
+            "ADDRESS": "0x07Cc0a0b41641D349240e1988169Fa11b31FC24E",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-09-15 12:35:54",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000002dfadab8266483bed9fd9a292ce56596a2d1378d0000000000000000000000005c7bcd6e7de5423a257d81b442095a1a6ced35c500000000000000000000000000000000000000000000000000000000000186a0",
+            "TIMESTAMP": "2025-10-29 10:19:40",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000d9b2da9c45b118e4e93a004fb1452bcdb6cc0e880000000000000000000000005c7bcd6e7de5423a257d81b442095a1a6ced35c500000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
@@ -44097,6 +44108,19 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA5b0446EFECBfee560a985139e232692C5AC44a1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-24 10:23:27",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "berachain": {
@@ -44136,21 +44160,6 @@
             "ADDRESS": "0x48781133DE32CEA9dA957B89bA36868FF9A7E628",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-24 17:12:22",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
-            "SALT": "",
-            "VERIFIED": "true",
-            "ZK_SOLC_VERSION": ""
-          }
-        ]
-      }
-    },
-    "base": {
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0xA5b0446EFECBfee560a985139e232692C5AC44a1",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-24 10:23:27",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
             "SALT": "",
             "VERIFIED": "true",
