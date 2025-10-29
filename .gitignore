@@ -67,3 +67,4 @@ test/solidity/TestPlayground.t.sol
 
 AGENTS.md
 CLAUDE.md
+config/whitelist.staging.json
