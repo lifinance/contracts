@@ -18,7 +18,7 @@
   ],
   "approvedSelectorsForDeployerWallet": [
     {
-      "selector": "1171c007",
+      "selector": "0x1171c007",
       "name": "WhitelistManagerFacet.batchSetContractSelectorWhitelist"
     }
   ],

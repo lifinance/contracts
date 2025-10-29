@@ -289,14 +289,25 @@ contract UpdateScriptBase is ScriptBase {
             ".approvedSelectorsForDeployerWallet"
         );
 
+        emit log("rawConfig: ");
+        emit log_bytes(rawConfig);
+
+        emit log("executor: ");
+        emit log_address(executor);
+
         // parse raw data from config into FunctionSelector array
         FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
             rawConfig,
             (FunctionSelector[])
         );
 
+        emit log("funcSelectorsToBeApproved: ");
+        emit log_uint(funcSelectorsToBeApproved.length);
+
         // go through array with function selectors
         for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
+            emit log("funcSelectorsToBeApproved: ");
+            emit log(funcSelectorsToBeApproved[i].name);
             // Register executor as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
                 bytes4(funcSelectorsToBeApproved[i].selector),
