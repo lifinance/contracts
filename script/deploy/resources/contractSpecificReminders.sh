@@ -8,3 +8,4 @@ FeeCollector="Please do not forget to add the new contract address to whiteliste
 GasZipPeriphery="Please do not forget to add the new contract address to whitelisted DEXs before using it"
 LiFiDEXAggregator="Please do not forget to add the new contract address to whitelisted DEXs before using it"
 TokenWrapper="Please do not forget to add the new contract address to whitelisted DEXs before using it"
+Executor="When redeploying Executor please also redeploy all contracts that have hardcoded Executor address (e.g. all Receiver... contracts)"
