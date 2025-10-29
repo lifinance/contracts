@@ -9,3 +9,6 @@ GasZipPeriphery="Please do not forget to add the new contract address to whiteli
 LiFiDEXAggregator="Please do not forget to add the new contract address to whitelisted DEXs before using it"
 TokenWrapper="Please do not forget to add the new contract address to whitelisted DEXs before using it"
 Executor="When redeploying Executor please also redeploy all contracts that have hardcoded Executor address (e.g. all Receiver... contracts)"
+ERC20Proxy="When redeploying ERC20Proxy please also redeploy Executor, and then all contracts that depend on Executor (e.g. all Receiver... contracts)"
+LiFiDiamond="When redeploying LiFiDiamond please also redeploy LiFiTimelockController"
+LiFiDEXAggregator="When redeploying LiFiDEXAggregator please also redeploy GasZipPeriphery"
