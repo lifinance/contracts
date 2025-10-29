@@ -26,7 +26,7 @@ contract DeployScript is UpdateScriptBase {
         // Read selectors to remove from whitelistManager config
         string memory selectorsToRemovePath = string.concat(
             root,
-            "/config/whitelistManager.json"
+            "/config/functionSelectorsToRemove.json"
         );
         string memory selectorsToRemoveJson = vm.readFile(
             selectorsToRemovePath

@@ -38,7 +38,7 @@
  *    - Helps track scanning duration and success rates
  *    - NOT used in production - only for development/debugging
  *
- * 4. Updates whitelistManager.json (production config):
+ * 4. Updates functionSelectorsToRemove.json (production config):
  *    - This is the ACTUAL configuration file used by the deployment scripts
  *    - Combines all unique selectors from all networks
  *    - Adds selectors from whitelist.json (DEXS + PERIPHERY sections)
@@ -55,8 +55,8 @@
  *    - Usage: Development, debugging, and verification only
  *    - Can be safely deleted after verification
  *
- * 2. whitelistManager.json:
- *    - Location: config/whitelistManager.json
+ * 2. functionSelectorsToRemove.json:
+ *    - Location: config/functionSelectorsToRemove.json
  *    - Purpose: Production configuration
  *    - Contains: Final deduplicated selector list
  *    - Usage: Required for deployment
@@ -480,35 +480,37 @@ function flattenAndSaveSelectors(
     consola.error(`❌ Error reading whitelistedSelectors.json:`, error)
   }
 
-  // Read and add existing selectors from whitelistManager.json (functionSelectorsToRemove)
+  // Read and add existing selectors from functionSelectorsToRemove.json (functionSelectorsToRemove)
   try {
-    const whitelistManagerPath = path.join(
+    const functionSelectorsToRemovePath = path.join(
       process.cwd(),
       'config',
-      'whitelistManager.json'
+      'functionSelectorsToRemove.json'
     )
-    if (existsSync(whitelistManagerPath)) {
-      const whitelistManagerData = JSON.parse(
-        readFileSync(whitelistManagerPath, 'utf-8')
+    if (existsSync(functionSelectorsToRemovePath)) {
+      const functionSelectorsToRemoveData = JSON.parse(
+        readFileSync(functionSelectorsToRemovePath, 'utf-8')
       )
       if (
-        whitelistManagerData.functionSelectorsToRemove &&
-        Array.isArray(whitelistManagerData.functionSelectorsToRemove)
+        functionSelectorsToRemoveData.functionSelectorsToRemove &&
+        Array.isArray(functionSelectorsToRemoveData.functionSelectorsToRemove)
       ) {
-        whitelistManagerData.functionSelectorsToRemove.forEach(
+        functionSelectorsToRemoveData.functionSelectorsToRemove.forEach(
           (selector: string) => {
             uniqueSelectors.add(selector)
           }
         )
         consola.success(
-          `📄 Added ${whitelistManagerData.functionSelectorsToRemove.length} existing selectors from whitelistManager.json`
+          `📄 Added ${functionSelectorsToRemoveData.functionSelectorsToRemove.length} existing selectors from functionSelectorsToRemove.json`
         )
       }
     } else {
-      consola.warn(`⚠️  whitelistManager.json not found in config directory`)
+      consola.warn(
+        `⚠️  functionSelectorsToRemove.json not found in config directory`
+      )
     }
   } catch (error) {
-    consola.error(`❌ Error reading whitelistManager.json:`, error)
+    consola.error(`❌ Error reading functionSelectorsToRemove.json:`, error)
   }
 
   // Add special selectors just in case
@@ -519,7 +521,7 @@ function flattenAndSaveSelectors(
   // Convert Set to sorted array for consistent output
   const sortedSelectors = Array.from(uniqueSelectors).sort()
 
-  // Create output object with the correct field name for whitelistManager.json
+  // Create output object with the correct field name for functionSelectorsToRemove.json
   const output = {
     devNotes:
       '⚠️ AUTOMATICALLY GENERATED FILE ⚠️\n' +
@@ -533,8 +535,12 @@ function flattenAndSaveSelectors(
     functionSelectorsToRemove: sortedSelectors,
   }
 
-  // Write to whitelistManager.json
-  const outputPath = path.join(process.cwd(), 'config', 'whitelistManager.json')
+  // Write to functionSelectorsToRemove.json
+  const outputPath = path.join(
+    process.cwd(),
+    'config',
+    'functionSelectorsToRemove.json'
+  )
   writeFileSync(outputPath, JSON.stringify(output, null, 2))
 
   consola.success(`\n📄 Selectors summary:`)
@@ -621,7 +627,7 @@ const cmd = defineCommand({
       `📁 Temporary diagnostic file (for debugging): ${tempOutputFile}`
     )
     consola.info(
-      `📁 Production config file (for deployment): config/whitelistManager.json`
+      `📁 Production config file (for deployment): config/functionSelectorsToRemove.json`
     )
     if (!noScan) {
       consola.info(`📁 Deployment blocks file: ${deploymentBlocksFile}`)

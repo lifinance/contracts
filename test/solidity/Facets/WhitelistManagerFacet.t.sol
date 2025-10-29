@@ -1469,7 +1469,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     {
         string memory path = string.concat(
             vm.projectRoot(),
-            "/config/whitelistManager.json"
+            "/config/functionSelectorsToRemove.json"
         );
         string memory json = vm.readFile(path);
         string[] memory raw = vm.parseJsonStringArray(
