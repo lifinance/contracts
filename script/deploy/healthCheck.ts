@@ -372,15 +372,20 @@ const main = defineCommand({
       client: publicClient,
     })
 
-    const executorAddress = deployedContracts['Executor']
-    const isExecutorAuthorized = await erc20Proxy.read.authorizedCallers([
-      executorAddress,
-    ])
+    if (environment === 'production') {
+      const executorAddress = deployedContracts['Executor']
+      const isExecutorAuthorized = await erc20Proxy.read.authorizedCallers([
+        executorAddress,
+      ])
 
-    if (!isExecutorAuthorized)
-      logError('Executor is not authorized in ERC20Proxy')
-    else consola.success('Executor is authorized in ERC20Proxy')
-
+      if (!isExecutorAuthorized)
+        logError('Executor is not authorized in ERC20Proxy')
+      else consola.success('Executor is authorized in ERC20Proxy')
+    } else {
+      consola.info(
+        'Skipping Executor authorization check for staging environment because Executor is not deployed'
+      )
+    }
     //          ╭─────────────────────────────────────────────────────────╮
     //          │          Check registered periphery contracts           │
     //          ╰─────────────────────────────────────────────────────────╯
@@ -611,20 +616,25 @@ const main = defineCommand({
             name: string
           }[]
 
-        for (const selector of approveSelectors)
+        for (const selector of approveSelectors) {
+          const normalizedSelector = selector.selector.startsWith('0x')
+            ? (selector.selector as Hex)
+            : (`0x${selector.selector}` as Hex)
+
           if (
             !(await accessManager.read.addressCanExecuteMethod([
-              selector.selector,
+              normalizedSelector,
               deployerWallet,
             ]))
           )
             logError(
-              `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${selector.selector})`
+              `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${normalizedSelector})`
             )
           else
             consola.success(
-              `Deployer wallet ${deployerWallet} can execute ${selector.name} (${selector.selector})`
+              `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector})`
             )
+        }
 
         // Refund wallet
         const refundSelectors =
@@ -633,20 +643,25 @@ const main = defineCommand({
             name: string
           }[]
 
-        for (const selector of refundSelectors)
+        for (const selector of refundSelectors) {
+          const normalizedSelector = selector.selector.startsWith('0x')
+            ? (selector.selector as Hex)
+            : (`0x${selector.selector}` as Hex)
+
           if (
             !(await accessManager.read.addressCanExecuteMethod([
-              selector.selector,
+              normalizedSelector,
               refundWallet,
             ]))
           )
             logError(
-              `Refund wallet ${refundWallet} cannot execute ${selector.name} (${selector.selector})`
+              `Refund wallet ${refundWallet} cannot execute ${selector.name} (${normalizedSelector})`
             )
           else
             consola.success(
-              `Refund wallet ${refundWallet} can execute ${selector.name} (${selector.selector})`
+              `Refund wallet ${refundWallet} can execute ${selector.name} (${normalizedSelector})`
             )
+        }
 
         //          ╭─────────────────────────────────────────────────────────╮
         //          │                   SAFE Configuration                    │

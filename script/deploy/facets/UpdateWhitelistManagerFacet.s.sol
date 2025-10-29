@@ -262,36 +262,58 @@ contract DeployScript is UpdateScriptBase {
                 vm.toString(dexIndex),
                 "]"
             );
-            try vm.parseJson(whitelistJson, dexKey) returns (bytes memory) {
-                // DEX exists, check if it has contracts for current network
-                string memory networkKey = string.concat(
-                    ".DEXS[",
-                    vm.toString(dexIndex),
-                    "].contracts.",
-                    network
-                );
-                try vm.parseJson(whitelistJson, networkKey) returns (
-                    bytes memory
+
+            // Check if DEX exists by looking for "name" field
+            bytes memory nameBytes = vm.parseJson(
+                whitelistJson,
+                string.concat(dexKey, ".name")
+            );
+
+            // If name is empty or very short, likely no DEX exists
+            if (nameBytes.length == 0 || nameBytes.length < 2) {
+                // Check a few more indices to be sure
+                for (
+                    uint256 i = dexIndex + 1;
+                    i < dexIndex + 3 && i < maxDexs;
+                    i++
                 ) {
-                    // Network exists for this DEX, count contracts
-                    uint256 contractCount = _getArrayLength(
+                    bytes memory nextNameBytes = vm.parseJson(
                         whitelistJson,
-                        string.concat(
-                            ".DEXS[",
-                            vm.toString(dexIndex),
-                            "].contracts.",
-                            network
-                        )
+                        string.concat(".DEXS[", vm.toString(i), "].name")
                     );
-                    totalContracts += contractCount;
-                } catch {
-                    // Network not found for this DEX, continue
+                    if (
+                        nextNameBytes.length == 0 || nextNameBytes.length < 2
+                    ) {
+                        // No more DEX entries found
+                        break;
+                    }
                 }
-                dexIndex++;
-            } catch {
-                // No more DEXS
-                break;
+                return totalContracts; // Stop here
             }
+
+            // DEX exists, check if it has contracts for current network
+            string memory networkKey = string.concat(
+                ".DEXS[",
+                vm.toString(dexIndex),
+                "].contracts.",
+                network
+            );
+            bytes memory networkData = vm.parseJson(whitelistJson, networkKey);
+
+            if (networkData.length > 0) {
+                // Network exists for this DEX, count contracts
+                uint256 contractCount = _getArrayLength(
+                    whitelistJson,
+                    string.concat(
+                        ".DEXS[",
+                        vm.toString(dexIndex),
+                        "].contracts.",
+                        network
+                    )
+                );
+                totalContracts += contractCount;
+            }
+            dexIndex++;
         }
     }
 
@@ -325,7 +347,37 @@ contract DeployScript is UpdateScriptBase {
                 vm.toString(dexIndex),
                 "]"
             );
-            try vm.parseJson(whitelistJson, dexKey) returns (bytes memory) {
+
+            // Check if DEX exists by looking for "name" field
+            bytes memory nameBytes = vm.parseJson(
+                whitelistJson,
+                string.concat(dexKey, ".name")
+            );
+
+            // If name is empty or very short, likely no DEX exists
+            if (nameBytes.length == 0 || nameBytes.length < 2) {
+                // Check a few more indices to be sure
+                bool foundNext = false;
+                for (
+                    uint256 i = dexIndex + 1;
+                    i < dexIndex + 3 && i < maxDexs;
+                    i++
+                ) {
+                    bytes memory nextNameBytes = vm.parseJson(
+                        whitelistJson,
+                        string.concat(".DEXS[", vm.toString(i), "].name")
+                    );
+                    if (nextNameBytes.length > 2) {
+                        foundNext = true;
+                        break;
+                    }
+                }
+                if (!foundNext) {
+                    // No more DEX entries found
+                    break;
+                }
+            } else {
+                // DEX exists, process it
                 contractIndex = _processDexContracts(
                     whitelistJson,
                     contracts,
@@ -333,11 +385,8 @@ contract DeployScript is UpdateScriptBase {
                     contractIndex,
                     dexIndex
                 );
-                dexIndex++;
-            } catch {
-                // No more DEXS
-                break;
             }
+            dexIndex++;
         }
         return contractIndex;
     }
