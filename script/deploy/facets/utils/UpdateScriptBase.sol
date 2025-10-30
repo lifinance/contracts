@@ -81,9 +81,6 @@ contract UpdateScriptBase is ScriptBase {
 
             emit log("DiamondCutCalldata: ");
             emit log_bytes(cutData);
-        } else {
-            // Initialize cutData as empty bytes if no changes needed
-            cutData = "";
         }
 
         if (noBroadcast) {

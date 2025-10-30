@@ -482,7 +482,6 @@ const main = defineCommand({
         // - migrated = false: Fresh deployments (granular system from start) OR pre-migration contracts
         // - migrated = true: Only post-migration contracts (after calling migrate() function)
         // The migration status doesn't determine checking method - WhitelistManagerFacet should be always deployed
-        // NOTE: The migrate() function should be removed after migration is complete on all chains
         consola.box('Checking granular contract-selector whitelist...')
 
         // Get expected pairs from whitelist.json or whitelist.staging.json config file

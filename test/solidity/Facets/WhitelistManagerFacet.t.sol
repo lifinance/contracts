@@ -1949,19 +1949,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 }
 
 contract ExposedUpdateWhitelistManagerFacetDeployScript is DeployScript {
-    function exposed_parseWhitelistJson(
-        string memory whitelistJson
-    ) public returns (address[] memory, bytes4[][] memory) {
-        return _parseWhitelistJson(whitelistJson);
-    }
-
-    function exposed_aggregateByAddress(
-        address[] memory contracts,
-        bytes4[][] memory selectors
-    ) public pure returns (address[] memory, bytes4[][] memory) {
-        return _aggregateByAddress(contracts, selectors);
-    }
-
     function exposed_getCallData() public returns (bytes memory) {
         return getCallData();
     }
