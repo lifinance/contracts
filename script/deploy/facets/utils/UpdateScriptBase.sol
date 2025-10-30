@@ -241,9 +241,6 @@ contract UpdateScriptBase is ScriptBase {
             ".approvedSelectorsForRefundWallet"
         );
 
-        emit log("rawConfig: ");
-        emit log_bytes(rawConfig);
-
         // parse raw data from config into FunctionSelector array
         FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
             rawConfig,
@@ -285,9 +282,6 @@ contract UpdateScriptBase is ScriptBase {
         bytes memory rawConfig = json.parseRaw(
             ".approvedSelectorsForDeployerWallet"
         );
-
-        emit log("rawConfig: ");
-        emit log_bytes(rawConfig);
 
         emit log("executor: ");
         emit log_address(executor);
