@@ -52,6 +52,10 @@
       "TCyAJzpLJjGyUqPoQ9Kvm1Zjw9zDmXLUfU": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.1"
+      },
+      "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {

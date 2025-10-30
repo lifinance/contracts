@@ -655,8 +655,8 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract zksolc version from zksync profile
-    grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    # Extract zksolc version from zksync.zksync nested profile section
+    grep -A 10 "^\[profile\.zksync\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
   else
     echo ""
   fi
@@ -1933,7 +1933,7 @@ function getBytecodeFromArtifact() {
 }
 
 function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts config/.global.json.autoWhitelistPeripheryContracts to config/dexs.json"
+  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to config/dexs.json"
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -1941,7 +1941,7 @@ function addPeripheryToDexsJson() {
   local FILEPATH_DEXS="config/dexs.json"
   local FILEPATH_GLOBAL_CONFIG="config/global.json"
 
-  WHITELIST_PERIPHERY=($(jq -r '.autoWhitelistPeripheryContracts[] | select(length > 0)' "$FILEPATH_GLOBAL_CONFIG"))
+  WHITELIST_PERIPHERY=($(jq -r '.whitelistPeripheryFunctions | keys[]' "$FILEPATH_GLOBAL_CONFIG"))
 
   # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
   # IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
@@ -2046,6 +2046,7 @@ function verifyContract() {
       "--zksync"
       "--watch"
       "--chain" "$CHAIN_ID"
+      # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "$ADDRESS"
       "$FULL_PATH"
     )
@@ -2053,6 +2054,7 @@ function verifyContract() {
     VERIFY_CMD=(
       "forge"
       "verify-contract"
+      # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "--watch"
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
@@ -4617,7 +4619,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.26"
+  local FOUNDRY_ZKSYNC_VERSION="v0.0.30"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
