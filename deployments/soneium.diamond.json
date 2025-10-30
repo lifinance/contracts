@@ -84,12 +84,17 @@
       "0x6284c8F9592d43963C054D53a56086D4d8460C22": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0x63C8a9aAD7E8C86B891421D9c53246628640169b": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x1f4613847c9F7Bd053c5229c65834c9231A83bF9",
       "Executor": "0xa6aca2704C6c53F076a90FbB19A69cd62c4c5Fe4",
       "FeeCollector": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
+      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
       "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
       "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
