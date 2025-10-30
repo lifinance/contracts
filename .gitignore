@@ -21,6 +21,7 @@ contractsInfo.json
 .invalid-dexs
 lcov.info
 lcov-filtered.info
+config/whitelist.staging.json
 
 # -----------------------------------------------------------------------------
 # IDE and Editor Settings
@@ -67,4 +68,3 @@ test/solidity/TestPlayground.t.sol
 
 AGENTS.md
 CLAUDE.md
-config/whitelist.staging.json
