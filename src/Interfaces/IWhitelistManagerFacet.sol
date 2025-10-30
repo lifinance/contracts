@@ -39,10 +39,11 @@ interface IWhitelistManagerFacet {
     /// @param _contract The contract address to whitelist or unwhitelist.
     /// @param _selector The function selector to whitelist or unwhitelist.
     /// @param _whitelisted Whether the contract and selector pair should be whitelisted.
-    /// @dev MARKER SELECTOR: To maintain backward compatibility and whitelist a contract
-    ///      without knowing its exact function selectors, use 0xffffffff as a marker selector.
-    ///      This ensures that legacy contract checks (isAddressWhitelisted) return true
-    ///      while maintaining the granular contract-selector pair system.
+    /// @dev MARKER SELECTOR: For backward compatibility with legacy address-only checks,
+    ///      use 0xffffffff as an "empty/marker" selector when whitelisting a contract.
+    ///      This makes isAddressWhitelisted(_contract) return true but does not allow any
+    ///      granular calls. In the contract-selector system, actual selectors must still
+    ///      be explicitly whitelisted for real usage.
     function setContractSelectorWhitelist(
         address _contract,
         bytes4 _selector,
@@ -53,8 +54,9 @@ interface IWhitelistManagerFacet {
     /// @param _contracts Array of contract addresses to whitelist or unwhitelist.
     /// @param _selectors Array of function selectors to whitelist or unwhitelist.
     /// @param _whitelisted Whether the contract and selector pairs should be whitelisted.
-    /// @dev MARKER SELECTOR: Use 0xffffffff as a marker selector for contracts without
-    ///      specific function selectors to maintain backward compatibility.
+    /// @dev MARKER SELECTOR: Use 0xffffffff as an "empty/marker" selector to mark an
+    ///      address as whitelisted for legacy address-only checks. It is not usable for
+    ///      granular calls—explicit function selectors are still required.
     function batchSetContractSelectorWhitelist(
         address[] calldata _contracts,
         bytes4[] calldata _selectors,

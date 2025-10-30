@@ -14,9 +14,11 @@ import { LibAsset } from "./LibAsset.sol";
 /// to the new granular system. New development should exclusively use the "Primary Interface" functions.
 ///
 /// Special Marker Selector:
-/// - Contracts with no specific function selectors use 0xffffffff as a marker selector.
-/// - This ensures contractIsAllowed() returns true for backward compatibility when at least
-///   one selector (the marker) is registered for the contract.
+/// - Use 0xffffffff as an "empty/marker" selector for contracts that need legacy
+///   address-only allow-list compatibility.
+/// - This only makes contractIsAllowed(_contract) return true; it does not authorize
+///   any granular calls. In the granular system, real function selectors must be
+///   explicitly whitelisted to be callable.
 /// @custom:version 2.0.0
 library LibAllowList {
     /// Storage ///
@@ -53,9 +55,6 @@ library LibAllowList {
         /// @dev Flag to indicate completion of a one-time data migration.
         bool migrated;
     }
-
-    // All new contracts and facets should exclusively use these functions. They operate
-    // on the granular `contractSelectorAllowList` and handle all synchronization logic.
 
     /// @notice Adds a specific contract-selector pair to the allow list.
     /// @dev This is the primary entry point for whitelisting. It updates the granular
@@ -128,7 +127,7 @@ library LibAllowList {
     }
 
     /// @notice Checks if a specific contract-selector pair is allowed.
-    /// @dev This is the preferred check for all new contracts.
+    /// @dev Preferred runtime check for all new contracts/facets.
     /// @param _contract The contract address.
     /// @param _selector The function selector.
     /// @return isAllowed True if the contract-selector pair is allowed, false otherwise.
