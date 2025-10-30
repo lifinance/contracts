@@ -44321,12 +44321,12 @@
       }
     },
     "base": {
-      "staging": {
+      "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xA5b0446EFECBfee560a985139e232692C5AC44a1",
+            "ADDRESS": "0xaa7911Ce0bab34fd8D4DdfA161004CB7e4BE1958",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-24 10:23:27",
+            "TIMESTAMP": "2025-10-24 17:07:59",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
             "SALT": "",
             "VERIFIED": "true",
