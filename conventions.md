@@ -657,45 +657,59 @@ Bash scripts provide the robust deployment framework with automated retry mechan
   - **Deployment Scripts:**
 
     - Inherit `DeployScriptBase`
-    - Use JSON config with `stdJson` (if constructor args needed)
     - Call `deploy()` with `type({ContractName}).creationCode`
 
-    **Constructor Arguments Pattern:**
-
-    - **Facets WITHOUT constructor arguments:**
+    - **For contracts WITHOUT constructor arguments:**
 
       ```solidity
-      function run() public returns (FacetName deployed) {
-        deployed = FacetName(deploy(type(FacetName).creationCode));
-      }
-      // NO getConstructorArgs() function needed
-      ```
+      contract DeployScript is DeployScriptBase {
+        constructor() DeployScriptBase('ContractName') {}
 
-    - **Facets WITH constructor arguments:**
-
-      ```solidity
-      function run()
-        public
-        returns (FacetName deployed, bytes memory constructorArgs)
-      {
-        constructorArgs = getConstructorArgs();
-        deployed = FacetName(deploy(type(FacetName).creationCode));
-      }
-
-      function getConstructorArgs() internal override returns (bytes memory) {
-        // Read from config, encode arguments
-        return abi.encode(arg1, arg2);
+        function run() public returns (ContractName deployed) {
+          deployed = ContractName(deploy(type(ContractName).creationCode));
+        }
       }
       ```
 
-    - Example JSON handling for constructor args:
+      - DO NOT implement `getConstructorArgs()` function
+      - DO NOT import `stdJson`
+      - Return only the deployed contract
+
+    - **For contracts WITH constructor arguments:**
+
       ```solidity
-      string memory path = string.concat(root, "/config/{facetName}.json");
-      address configValue = _getConfigContractAddress(
-        path,
-        string.concat(".{key}.", network, ".{subkey}")
-      );
+      contract DeployScript is DeployScriptBase {
+        using stdJson for string;
+
+        constructor() DeployScriptBase('ContractName') {}
+
+        function run()
+          public
+          returns (ContractName deployed, bytes memory constructorArgs)
+        {
+          constructorArgs = getConstructorArgs();
+          deployed = ContractName(deploy(type(ContractName).creationCode));
+        }
+
+        function getConstructorArgs() internal override returns (bytes memory) {
+          // JSON config handling
+          string memory path = string.concat(root, '/config/{facetName}.json');
+          address configValue = _getConfigContractAddress(
+            path,
+            string.concat('.{key}.', network, '.{subkey}')
+          );
+          return abi.encode(configValue);
+        }
+      }
       ```
+
+      - Import `stdJson` for configuration
+      - Implement `getConstructorArgs()` function
+      - Return both deployed contract AND constructor args
+
+      - Import `stdJson` for configuration
+      - Implement `getConstructorArgs()` function
+      - Return both deployed contract AND constructor args
 
   - **Update Scripts:**
     - Inherit `UpdateScriptBase`
