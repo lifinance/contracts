@@ -43966,7 +43966,7 @@
             "TIMESTAMP": "2025-10-22 12:57:37",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -44536,7 +44536,7 @@
             "TIMESTAMP": "2025-10-22 19:01:47",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
