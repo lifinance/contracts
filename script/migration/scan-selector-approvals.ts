@@ -6,7 +6,7 @@
  * This script scans blockchain events to collect historical function selector approvals,
  * preparing data for the allowlist migration. Since we can't clear mappings on-chain,
  * we need a complete record of all previously approved selectors to properly reset the state.
- * The script also incorporates selectors from the whitelistedSelectors.json configuration file
+ * The script also incorporates selectors from the sigs.json configuration file
  * to ensure a complete set of all required selectors.
  *
  * Key Features:
@@ -15,7 +15,7 @@
  * - Support for custom RPC endpoints when public ones are unreliable
  * - Automatic retry mechanism with backoff for failed requests (via eventScanner utility)
  * - Timeout handling for unresponsive RPCs
- * - Integration with whitelistedSelectors.json for additional selectors
+ * - Integration with sigs.json for additional selectors
  *
  * Process:
  * 1. Loads network-specific configurations from scan-selector-approvals-config.json:
@@ -42,7 +42,7 @@
  *    - This is the ACTUAL configuration file used by the deployment scripts
  *    - Combines all unique selectors from all networks
  *    - Adds selectors from whitelist.json (DEXS + PERIPHERY sections)
- *    - Optionally adds selectors from whitelistedSelectors.json (deprecated)
+ *    - Optionally adds selectors from sigs.json (deprecated)
  *    - Removes duplicates and sorts for consistency
  *    - Contains only the essential functionSelectorsToRemove field
  *    - Used directly by UpdateWhitelistManagerFacet.s.sol during deployment
@@ -454,12 +454,12 @@ function flattenAndSaveSelectors(
     uniqueSelectors.add(selector)
   })
 
-  // Read and add selectors from whitelistedSelectors.json (deprecated)
+  // Read and add selectors from sigs.json (deprecated)
   try {
     const whitelistedSelectorsPath = path.join(
       process.cwd(),
       'config',
-      'whitelistedSelectors.json'
+      'sigs.json'
     )
     if (existsSync(whitelistedSelectorsPath)) {
       const whitelistedSelectors = JSON.parse(
@@ -468,16 +468,14 @@ function flattenAndSaveSelectors(
       whitelistedSelectors.selectors.forEach((selector: string) => {
         uniqueSelectors.add(selector)
       })
-      consola.success(
-        `📄 Added selectors from whitelistedSelectors.json (deprecated file)`
-      )
+      consola.success(`📄 Added selectors from sigs.json (deprecated file)`)
     } else {
       consola.info(
-        `ℹ️  whitelistedSelectors.json not found - skipping (this file is deprecated)`
+        `ℹ️  sigs.json not found - skipping (this file is deprecated)`
       )
     }
   } catch (error) {
-    consola.error(`❌ Error reading whitelistedSelectors.json:`, error)
+    consola.error(`❌ Error reading sigs.json:`, error)
   }
 
   // Read and add existing selectors from functionSelectorsToRemove.json (functionSelectorsToRemove)
@@ -529,7 +527,7 @@ function flattenAndSaveSelectors(
       'It contains a comprehensive list of function selectors gathered from:\n' +
       '- Historical blockchain events across all networks\n' +
       '- Selectors from whitelist.json (DEXS + PERIPHERY sections)\n' +
-      '- Additional selectors from whitelistedSelectors.json (deprecated)\n\n' +
+      '- Additional selectors from sigs.json (deprecated)\n\n' +
       'DO NOT MODIFY THIS FILE MANUALLY!\n' +
       'Instead, run scan-selector-approvals.ts to regenerate it with updated data.',
     functionSelectorsToRemove: sortedSelectors,
@@ -595,7 +593,7 @@ const cmd = defineCommand({
     noScan: {
       type: 'string',
       description:
-        'Skip blockchain scanning and only use selectors from whitelistedSelectors.json and whitelist.json (DEXS + PERIPHERY)',
+        'Skip blockchain scanning and only use selectors from sigs.json and whitelist.json (DEXS + PERIPHERY)',
       required: false,
       default: 'false',
     },
@@ -618,7 +616,7 @@ const cmd = defineCommand({
     if (noScan) {
       consola.info(`📄 NO-SCAN MODE: Skipping blockchain scanning`)
       consola.info(
-        `📄 Will only use selectors from whitelistedSelectors.json and whitelist.json (DEXS + PERIPHERY)`
+        `📄 Will only use selectors from sigs.json and whitelist.json (DEXS + PERIPHERY)`
       )
     } else {
       consola.info(`📡 BLOCKCHAIN SCANNING MODE: Will scan blockchain events`)
