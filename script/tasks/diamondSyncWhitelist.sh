@@ -10,8 +10,29 @@ function diamondSyncWhitelist {
   # Load configuration & helper functions
   source script/helperFunctions.sh
 
-  # Configuration flag - set to true to allow token contracts in DEX lists
+  # Configuration flag - set to true to allow token contracts to be whitelisted
   ALLOW_TOKEN_CONTRACTS=${ALLOW_TOKEN_CONTRACTS:-false}
+
+  # Confirm risky mode when allowing token contracts
+  if [[ "$ALLOW_TOKEN_CONTRACTS" == "true" ]]; then
+    echo ""
+    printf '\033[31m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
+    printf '\033[33m%s\033[0m\n' "ALLOW_TOKEN_CONTRACTS is set to true"
+    printf '\033[33m%s\033[0m\n' "This will allow token contracts to be whitelisted"
+    printf '\033[31m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo ""
+    printf '\033[33m%s\033[0m\n' "Do you want to continue?"
+    local SELECTION=$(
+      gum choose \
+        "yes" \
+        "no"
+    )
+
+    if [[ "$SELECTION" != "yes" ]]; then
+      echo "...exiting script"
+      return 0
+    fi
+  fi
 
   # Read function arguments into variables
   local NETWORK="$1"
