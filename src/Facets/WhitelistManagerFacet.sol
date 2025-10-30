@@ -38,12 +38,15 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         if (_contracts.length != _selectors.length) {
             revert InvalidConfig();
         }
-        for (uint256 i = 0; i < _contracts.length; ++i) {
+        for (uint256 i = 0; i < _contracts.length; ) {
             _setContractSelectorWhitelist(
                 _contracts[i],
                 _selectors[i],
                 _whitelisted
             );
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -107,10 +110,13 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         selectors = new bytes4[][](contracts.length);
 
         // For each contract, get its whitelisted selectors
-        for (uint256 i = 0; i < contracts.length; ++i) {
+        for (uint256 i = 0; i < contracts.length; ) {
             selectors[i] = LibAllowList.getWhitelistedSelectorsForContract(
                 contracts[i]
             );
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -174,7 +180,9 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         uint256 length = als.contracts.length;
         for (; i < length; ) {
             als.contractAllowList[als.contracts[i]] = false;
-            ++i;
+            unchecked {
+                ++i;
+            }
         }
 
         // reset selectorAllowList with external selectors array because new selectors array does not exist yet
@@ -182,7 +190,9 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         length = _selectorsToRemove.length;
         for (; i < length; ) {
             als.selectorAllowList[_selectorsToRemove[i]] = false;
-            ++i;
+            unchecked {
+                ++i;
+            }
         }
 
         // reset contract array
@@ -201,7 +211,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
             }
 
             // whitelist each selector for this contract
-            for (uint256 j = 0; j < contractSelectors.length; ++j) {
+            for (uint256 j = 0; j < contractSelectors.length; ) {
                 bytes4 selector = contractSelectors[j];
 
                 // check for duplicate contract-selector pairs
@@ -223,8 +233,13 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
                     selector,
                     true
                 );
+                unchecked {
+                    ++j;
+                }
             }
-            ++i;
+            unchecked {
+                ++i;
+            }
         }
 
         // Mark as migrated
