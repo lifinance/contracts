@@ -81,19 +81,21 @@ const main = defineCommand({
   },
   async run({ args }) {
     const { network, environment } = args
+    const networkStr = Array.isArray(network) ? network[0] : network
+    const networkLower = (networkStr as string).toLowerCase()
 
     // Skip tronshasta testnet but allow tron mainnet
-    if (network.toLowerCase() === 'tronshasta') {
+    if (networkLower === 'tronshasta') {
       consola.info('Health checks are not implemented for Tron Shasta testnet.')
       consola.info('Skipping all tests.')
       process.exit(0)
     }
 
     // Determine if we're working with Tron mainnet
-    const isTron = network.toLowerCase() === 'tron'
+    const isTron = networkLower === 'tron'
 
     const { default: deployedContracts } = await import(
-      `../../deployments/${network.toLowerCase()}${
+      `../../deployments/${networkLower}${
         environment === 'staging' ? '.staging' : ''
       }.json`
     )
@@ -112,7 +114,7 @@ const main = defineCommand({
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
       nonCoreFacets = Object.keys(
-        targetStateJson[network.toLowerCase()]['production'].LiFiDiamond
+        targetStateJson[networkLower]['production'].LiFiDiamond
       ).filter((k) => {
         return (
           !coreFacetsToCheck.includes(k) &&
@@ -133,10 +135,10 @@ const main = defineCommand({
       tronWeb = initTronWeb(
         'mainnet',
         undefined,
-        networksConfig[network].rpcUrl
+        networksConfig[networkLower].rpcUrl
       )
     else {
-      const chain = getViemChainForNetworkName(network.toLowerCase())
+      const chain = getViemChainForNetworkName(networkLower)
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,
@@ -240,7 +242,7 @@ const main = defineCommand({
       if (isTron) {
         // Use troncast for Tron
         // Diamond address in deployments is already in Tron format
-        const rpcUrl = networksConfig[network].rpcUrl
+        const rpcUrl = networksConfig[networkLower].rpcUrl
         const rawString = execSync(
           `bun troncast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
           { encoding: 'utf8' }
@@ -264,7 +266,7 @@ const main = defineCommand({
             })
             .filter(Boolean)
         }
-      } else if (networksConfig[network.toLowerCase()].rpcUrl && publicClient) {
+      } else if (networksConfig[networkLower].rpcUrl && publicClient) {
         // Existing EVM logic
         const rpcUrl: string = publicClient.chain.rpcUrls.default.http[0]
         const rawString = execSync(
@@ -403,7 +405,7 @@ const main = defineCommand({
 
       // Only check contracts that are expected to be deployed according to target state
       const targetStateContracts =
-        targetState[network]?.production?.LiFiDiamond || {}
+        targetState[networkLower]?.production?.LiFiDiamond || {}
       const contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
           corePeriphery.includes(contract) ||
@@ -453,8 +455,8 @@ const main = defineCommand({
           }>
         )?.some(
           (dex) =>
-            dex.contracts?.[network.toLowerCase()] &&
-            dex.contracts[network.toLowerCase()].length > 0
+            dex.contracts?.[networkLower] &&
+            dex.contracts[networkLower].length > 0
         ) ?? false
 
       if (hasWhitelistConfig) {
@@ -486,7 +488,7 @@ const main = defineCommand({
 
         // Get expected pairs from whitelist.json or whitelist.staging.json config file
         const expectedPairs = await getExpectedPairs(
-          network,
+          networkStr as string,
           deployedContracts,
           environment,
           whitelistConfig
@@ -662,59 +664,63 @@ const main = defineCommand({
             )
         }
 
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                   SAFE Configuration                    │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking SAFE configuration...')
-        const networkConfig: Network = networks[network.toLowerCase()]
-        if (!networkConfig.safeAddress)
-          consola.warn('SAFE address not configured')
-        else {
-          const safeOwners = globalConfig.safeOwners
-          const safeAddress = networkConfig.safeAddress
+        if (environment === 'production') {
+          //          ╭─────────────────────────────────────────────────────────╮
+          //          │                   SAFE Configuration                    │
+          //          ╰─────────────────────────────────────────────────────────╯
+          consola.box('Checking SAFE configuration...')
+          const networkConfig: Network = networks[networkLower]
+          if (!networkConfig.safeAddress)
+            consola.warn('SAFE address not configured')
+          else {
+            const safeOwners = globalConfig.safeOwners
+            const safeAddress = networkConfig.safeAddress
 
-          try {
-            // Import getSafeInfoFromContract from safe-utils.ts
-            const { getSafeInfoFromContract } = await import(
-              './safe/safe-utils'
-            )
-
-            // Get Safe info directly from the contract
-            const safeInfo = await getSafeInfoFromContract(
-              publicClient,
-              safeAddress
-            )
-
-            // Check that each safeOwner is in the Safe
-            for (const o in safeOwners) {
-              const safeOwner = getAddress(safeOwners[o])
-              const isOwner = safeInfo.owners.some(
-                (owner) => getAddress(owner) === safeOwner
+            try {
+              // Import getSafeInfoFromContract from safe-utils.ts
+              const { getSafeInfoFromContract } = await import(
+                './safe/safe-utils'
               )
 
-              if (!isOwner)
-                logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
+              // Get Safe info directly from the contract
+              const safeInfo = await getSafeInfoFromContract(
+                publicClient,
+                safeAddress
+              )
+
+              // Check that each safeOwner is in the Safe
+              for (const o in safeOwners) {
+                const safeOwner = getAddress(safeOwners[o])
+                const isOwner = safeInfo.owners.some(
+                  (owner) => getAddress(owner) === safeOwner
+                )
+
+                if (!isOwner)
+                  logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
+                else
+                  consola.success(
+                    `SAFE owner ${safeOwner} is in SAFE configuration`
+                  )
+              }
+
+              // Check that threshold is correct
+              if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
+                logError(
+                  `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
+                )
               else
                 consola.success(
-                  `SAFE owner ${safeOwner} is in SAFE configuration`
+                  `SAFE signature threshold is ${safeInfo.threshold}`
                 )
+
+              // Show current nonce
+              consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
+            } catch (error) {
+              logError(`Failed to get SAFE information: ${error}`)
             }
-
-            // Check that threshold is correct
-            if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
-              logError(
-                `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
-              )
-            else
-              consola.success(
-                `SAFE signature threshold is ${safeInfo.threshold}`
-              )
-
-            // Show current nonce
-            consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
-          } catch (error) {
-            logError(`Failed to get SAFE information: ${error}`)
           }
+        } else {
+          consola.info('Skipping SAFE checks for staging environment')
         }
 
         finish()
