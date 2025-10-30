@@ -281,6 +281,9 @@ deployAllContracts() {
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute dexs/sigs scripts and update ERC20Proxy"
 
+    # update periphery section of whitelist.json or whitelist.staging.json
+    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment "$ENVIRONMENT"
+
     # run sync dexs script
     echo ""
     diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
