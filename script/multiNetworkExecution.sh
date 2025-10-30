@@ -239,8 +239,8 @@ function getConfiguredNetworks() {
 # =============================================================================
 
 function logGroupInfo() {
-    local Ugroup="$1"
-    local Unetworks=("${@:2}")
+    local group="$1"
+    local -a networks=("${@:2}")
     logWithTimestamp "Group: $group (${#networks[@]} networks): ${networks[*]}"
 }
 
@@ -323,7 +323,7 @@ function restoreFoundryToml() {
 }
 
 function updateFoundryTomlForGroup() {
-    local Ugroup="$1"
+    local group="$1"
 
     if [[ -z "$group" ]]; then
         error "Group is required"
@@ -381,7 +381,7 @@ function updateFoundryTomlForGroup() {
 }
 
 function recompileForGroup() {
-    local Ugroup="$1"
+    local group="$1"
 
     if [[ -z "$group" ]]; then
         error "Group is required"
@@ -511,9 +511,9 @@ function isActionAlreadyCompleted() {
 # =============================================================================
 
 function initializeProgressTracking() {
-    local Ucontract="$1"
-    local Uenvironment="$2"
-    local Unetworks=("${@:3}")
+    local contract="$1"
+    local environment="$2"
+    local -a networks=("${@:3}")
 
     if [[ -z "$contract" || -z "$environment" || ${#networks[@]} -eq 0 ]]; then
         error "Contract, environment, and networks are required"
@@ -521,7 +521,7 @@ function initializeProgressTracking() {
     fi
 
     # Detect action type and set appropriate tracking file
-    local Uaction_type=$(detectActionType)
+    local action_type=$(detectActionType)
     setProgressTrackingFile "$action_type" "$contract" "$environment"
 
     logWithTimestamp "Detected action type: $action_type"
@@ -529,19 +529,19 @@ function initializeProgressTracking() {
     # Check if progress file already exists
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
         # Load existing progress and merge with new networks
-        local Uexisting_data=$(cat "$PROGRESS_TRACKING_FILE")
-        local Uexisting_contract=$(echo "$existing_data" | jq -r '.contract')
-        local Uexisting_environment=$(echo "$existing_data" | jq -r '.environment')
-        local Uexisting_action=$(echo "$existing_data" | jq -r '.actionType // "unknown"')
+        local existing_data=$(cat "$PROGRESS_TRACKING_FILE")
+        local existing_contract=$(echo "$existing_data" | jq -r '.contract')
+        local existing_environment=$(echo "$existing_data" | jq -r '.environment')
+        local existing_action=$(echo "$existing_data" | jq -r '.actionType // "unknown"')
 
         # Only merge if it's the same contract, environment, and action type
         if [[ "$existing_contract" == "$contract" && "$existing_environment" == "$environment" && "$existing_action" == "$action_type" ]]; then
             logWithTimestamp "Resuming existing progress tracking for $action_type action on $contract in $environment"
 
             # Add any new networks that aren't already tracked
-            local Uupdated_data="$existing_data"
+            local updated_data="$existing_data"
             for network in "${networks[@]}"; do
-                local Unetwork_exists=$(echo "$existing_data" | jq -r --arg network "$network" '.networks[$network] // empty' 2>/dev/null || echo "")
+                local network_exists=$(echo "$existing_data" | jq -r --arg network "$network" '.networks[$network] // empty' 2>/dev/null || echo "")
                 if [[ -z "$network_exists" || "$network_exists" == "null" ]]; then
                     logWithTimestamp "Adding new network to tracking: $network"
                     updated_data=$(echo "$updated_data" | jq --arg network "$network" --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.networks[$network] = {status: "pending", attempts: 0, lastAttempt: $timestamp, error: null} | .lastUpdate = $timestamp' 2>/dev/null || echo "$existing_data")
@@ -560,12 +560,12 @@ function initializeProgressTracking() {
     fi
 
     # Create initial progress structure, checking for existing completion status
-    local Unetworks_json="{}"
+    local networks_json="{}"
     for network in "${networks[@]}"; do
-        local Unetwork_status="pending"
-        local Uattempts=0
-        local UlastAttempt=null
-        local Uerror=null
+        local network_status="pending"
+        local attempts=0
+        local lastAttempt=null
+        local error=null
 
         # Check if action is already completed for this network
         if isActionAlreadyCompleted "$action_type" "$contract" "$network" "$environment"; then
@@ -585,7 +585,7 @@ function initializeProgressTracking() {
         fi
     done
 
-    local Uprogress_data=$(jq -n \
+    local progress_data=$(jq -n \
         --arg contract "$contract" \
         --arg environment "$environment" \
         --arg actionType "$action_type" \
@@ -609,9 +609,9 @@ function initializeProgressTracking() {
 }
 
 function updateNetworkProgress() {
-    local Unetwork="$1"
-    local Ustatus="$2"
-    local Uerror_message="$3"
+    local network="$1"
+    local status="$2"
+    local error_message="$3"
 
     if [[ -z "$network" || -z "$status" ]]; then
         error "Network and status are required"
@@ -624,7 +624,7 @@ function updateNetworkProgress() {
     fi
 
     # Update progress - use --arg for error to handle quotes/backslashes safely
-    local Uupdated_data=$(jq \
+    local updated_data=$(jq \
         --arg network "$network" \
         --arg status "$status" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -698,11 +698,11 @@ function getProgressSummary() {
         return 0
     fi
 
-    local Utotal=$(jq '.networks | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local Upending=$(jq '[.networks[] | select(.status == "pending")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local Usuccess=$(jq '[.networks[] | select(.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local Ufailed=$(jq '[.networks[] | select(.status == "failed")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local Uin_progress=$(jq '[.networks[] | select(.status == "in_progress")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local total=$(jq '.networks | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local pending=$(jq '[.networks[] | select(.status == "pending")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local success=$(jq '[.networks[] | select(.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local failed=$(jq '[.networks[] | select(.status == "failed")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local in_progress=$(jq '[.networks[] | select(.status == "in_progress")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
 
     echo ""
     echo "=========================================="
@@ -718,7 +718,7 @@ function getProgressSummary() {
     if [[ $failed -gt 0 ]]; then
         echo "❌ FAILED NETWORKS:"
         getFailedNetworks | while read -r network; do
-            local Uerror=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
+            local error=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
             echo "  - $network: $error"
         done
         echo ""
@@ -733,7 +733,7 @@ function getProgressSummary() {
   fi
 
   # Show retry instructions if there are failed or pending networks
-  local Uremaining_networks=($(getFailedNetworks) $(getPendingNetworks))
+  local remaining_networks=($(getFailedNetworks) $(getPendingNetworks))
   if [[ ${#remaining_networks[@]} -gt 0 ]]; then
     echo "🔄 TO RETRY FAILED/PENDING NETWORKS:"
     echo "  Simply run the same command again!"
@@ -749,8 +749,8 @@ function cleanupProgressTracking() {
     if [[ -n "$PROGRESS_TRACKING_FILE" && -f "$PROGRESS_TRACKING_FILE" ]]; then
         # Check if file is valid JSON
         if jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
-            local Utotal=$(jq '.networks | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-            local Usuccess=$(jq '[.networks[] | select(.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+            local total=$(jq '.networks | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+            local success=$(jq '[.networks[] | select(.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
 
             if [[ "$total" -gt 0 && "$success" -eq "$total" ]]; then
                 rm "$PROGRESS_TRACKING_FILE"
@@ -810,11 +810,11 @@ function isGroupComplete() {
 # =============================================================================
 
 function executeNetworkInGroup() {
-    local Unetwork="$1"
-    local Uenvironment="$2"
-    local Ucontract="$3"
-    local Ugroup="$4"
-    local Ulog_dir="$5"
+    local network="$1"
+    local environment="$2"
+    local contract="$3"
+    local group="$4"
+    local log_dir="$5"
 
     if [[ -z "$network" || -z "$environment" || -z "$contract" || -z "$group" || -z "$log_dir" ]]; then
         error "All parameters are required for executeNetworkInGroup"
@@ -825,7 +825,7 @@ function executeNetworkInGroup() {
     updateNetworkProgress "$network" "in_progress"
 
     # Get RPC URL
-    local Urpc_url=$(getRPCUrl "$network" "$environment")
+    local rpc_url=$(getRPCUrl "$network" "$environment")
     if [[ $? -ne 0 ]]; then
         updateNetworkProgress "$network" "failed" "Failed to get RPC URL"
         return 1
@@ -841,9 +841,9 @@ function executeNetworkInGroup() {
     export RPC_URL="$rpc_url"
 
     # Retry logic setup
-    local Uretry_count=0
-    local Ucommand_status=1
-    local Umax_attempts=3
+    local retry_count=0
+    local command_status=1
+    local max_attempts=3
 
     # Attempt operations with retries
     while [[ $command_status -ne 0 && $retry_count -lt $max_attempts ]]; do
@@ -882,10 +882,10 @@ function executeNetworkInGroup() {
 }
 
 function executeGroupSequentially() {
-    local Ugroup="$1"
-    local Uenvironment="$2"
-    local Ucontract="$3"
-    local Unetworks=("${@:4}")
+    local group="$1"
+    local environment="$2"
+    local contract="$3"
+    local -a networks=("${@:4}")
 
     if [[ -z "$group" || ${#networks[@]} -eq 0 || -z "$environment" || -z "$contract" ]]; then
         error "Group, networks, environment, and contract are required"
@@ -907,13 +907,13 @@ function executeGroupSequentially() {
     fi
 
     # Create log directory for this group
-    local Ulog_dir=$(mktemp -d)
+    local log_dir=$(mktemp -d)
 
     # Set up signal handler to kill background jobs on interrupt
     trap 'echo ""; logWithTimestamp "Interrupt received. Stopping all background jobs..."; jobs -p | xargs -r kill; rm -rf "$log_dir"; exit 1' INT TERM
 
     # Determine execution mode for this group
-    local Ushould_run_parallel="$RUN_PARALLEL"
+    local should_run_parallel="$RUN_PARALLEL"
     if [[ "$group" == "$GROUP_ZKEVM" && "$ZKEVM_ALWAYS_SEQUENTIAL" == "true" ]]; then
         should_run_parallel=false
         logWithTimestamp "zkEVM group: forcing sequential execution"
@@ -923,11 +923,11 @@ function executeGroupSequentially() {
         # Execute networks in parallel within the group
         logWithTimestamp "Executing networks in parallel"
 
-        local Upids=()
+        local -a pids=()
         for network in "${networks[@]}"; do
             # Check if this network is still pending
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
-                local Ustatus=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
+                local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
                 if [[ "$status" == "success" || "$status" == "failed" ]]; then
                     logWithTimestamp "[$network] Skipping (status: $status)"
                     continue
@@ -946,7 +946,7 @@ function executeGroupSequentially() {
         for network in "${networks[@]}"; do
             # Check if this network is still pending
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
-                local Ustatus=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
+                local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
                 if [[ "$status" == "success" || "$status" == "failed" ]]; then
                     logWithTimestamp "[$network] Skipping (status: $status)"
                     continue
@@ -960,7 +960,7 @@ function executeGroupSequentially() {
     fi
 
     # Wait for all background jobs to complete (only for parallel execution)
-    local Ucurrent_execution_failures=0
+    local current_execution_failures=0
     if [[ "$should_run_parallel" == "true" ]]; then
         for pid in "${pids[@]}"; do
             if ! wait "$pid"; then
@@ -970,10 +970,10 @@ function executeGroupSequentially() {
     fi
 
     # Count total failed networks (including those from previous runs)
-    local Utotal_failed_count=0
+    local total_failed_count=0
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
         for network in "${networks[@]}"; do
-            local Ustatus=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
+            local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
             if [[ "$status" == "failed" ]]; then
                 total_failed_count=$((total_failed_count + 1))
             fi
@@ -997,9 +997,9 @@ function executeGroupSequentially() {
 # =============================================================================
 
 function executeNetworksByGroup() {
-    local Ucontract="$1"
-    local Uenvironment="$2"
-    local Unetworks=("${@:3}")
+    local contract="$1"
+    local environment="$2"
+    local -a networks=("${@:3}")
 
     if [[ -z "$contract" || -z "$environment" || ${#networks[@]} -eq 0 ]]; then
         error "Usage: executeNetworksByGroup CONTRACT ENVIRONMENT NETWORK1 NETWORK2 ..."
@@ -1014,17 +1014,17 @@ function executeNetworksByGroup() {
     initializeProgressTracking "$contract" "$environment" "${networks[@]}"
 
     # Group networks by execution requirements
-    local Ugroups_data=$(groupNetworksByExecutionGroup "${networks[@]}")
+    local groups_data=$(groupNetworksByExecutionGroup "${networks[@]}")
     if [[ $? -ne 0 ]]; then
         error "Failed to group networks"
         return 1
     fi
 
     # Extract group arrays
-    local Ulondon_networks=($(echo "$groups_data" | jq -r '.london[]'))
-    local Uzkevm_networks=($(echo "$groups_data" | jq -r '.zkevm[]'))
-    local Ucancun_networks=($(echo "$groups_data" | jq -r '.cancun[]'))
-    local Uinvalid_networks=($(echo "$groups_data" | jq -r '.invalid[]'))
+    local -a london_networks=($(echo "$groups_data" | jq -r '.london[]'))
+    local -a zkevm_networks=($(echo "$groups_data" | jq -r '.zkevm[]'))
+    local -a cancun_networks=($(echo "$groups_data" | jq -r '.cancun[]'))
+    local -a invalid_networks=($(echo "$groups_data" | jq -r '.invalid[]'))
 
     # Report invalid networks
     if [[ ${#invalid_networks[@]} -gt 0 ]]; then
@@ -1071,7 +1071,7 @@ function executeNetworksByGroup() {
     echo "=================================================================================="
     echo ""
 
-    local Uoverall_success=true
+    local overall_success=true
 
     # Execute groups sequentially: Cancun → zkEVM (same config) → London (needs recompilation)
     if [[ ${#cancun_networks[@]} -gt 0 ]]; then
@@ -1163,8 +1163,8 @@ function executeNetworksByGroup() {
 # =============================================================================
 
 function executeAllNetworksForContract() {
-    local Ucontract="$1"
-    local Uenvironment="$2"
+    local contract="$1"
+    local environment="$2"
 
     if [[ -z "$contract" || -z "$environment" ]]; then
         error "Usage: executeAllNetworksForContract CONTRACT ENVIRONMENT"
@@ -1172,15 +1172,15 @@ function executeAllNetworksForContract() {
     fi
 
     # Get all included networks
-    local Uall_networks=($(getIncludedNetworksArray))
+    local -a all_networks=($(getIncludedNetworksArray))
 
     executeNetworksByGroup "$contract" "$environment" "${all_networks[@]}"
 }
 
 function executeNetworksByEvmVersion() {
-    local Ucontract="$1"
-    local Uenvironment="$2"
-    local Uevm_version="$3"
+    local contract="$1"
+    local environment="$2"
+    local evm_version="$3"
 
     if [[ -z "$contract" || -z "$environment" || -z "$evm_version" ]]; then
         error "Usage: executeNetworksByEvmVersion CONTRACT ENVIRONMENT EVM_VERSION"
@@ -1189,7 +1189,7 @@ function executeNetworksByEvmVersion() {
     fi
 
     # Get networks with specific EVM version
-    local Unetworks=($(getIncludedNetworksByEvmVersionArray "$evm_version"))
+    local -a networks=($(getIncludedNetworksByEvmVersionArray "$evm_version"))
 
     if [[ ${#networks[@]} -eq 0 ]]; then
         error "No networks found with EVM version: $evm_version"
@@ -1404,7 +1404,7 @@ function generateSummaryOriginal() {
         # Read all .log files in the directory to get the actual networks that were processed
         for log_file in "$LOG_DIR"/*.log; do
             if [[ -f "$log_file" ]]; then
-                local Unetwork_name=$(basename "$log_file" .log)
+                local network_name=$(basename "$log_file" .log)
                 NETWORKS+=("$network_name")
             fi
         done
@@ -1413,7 +1413,7 @@ function generateSummaryOriginal() {
     # If no log files found, fall back to the current network selection
     if [[ ${#NETWORKS[@]} -eq 0 ]]; then
         # Try to read the network list from the temporary file that was saved
-        local Unetwork_file="/tmp/network_processing_networks"
+        local network_file="/tmp/network_processing_networks"
         if [[ -f "$network_file" ]]; then
             NETWORKS=($(cat "$network_file"))
         else
@@ -1493,10 +1493,10 @@ function cleanupStaleLocksOriginal() {
 
 function executeGroupWithHandleNetwork() {
     # This function executes a group of networks using your existing handleNetwork function
-    local Ugroup="$1"
-    local Uenvironment="$2"
-    local Ucontract="$3"
-    local Unetworks=("${@:4}")
+    local group="$1"
+    local environment="$2"
+    local contract="$3"
+    local -a networks=("${@:4}")
 
     if [[ -z "$group" || ${#networks[@]} -eq 0 || -z "$environment" || -z "$contract" ]]; then
         error "Group, networks, environment, and contract are required"
@@ -1518,13 +1518,13 @@ function executeGroupWithHandleNetwork() {
     fi
 
     # Create log directory for this group
-    local Ulog_dir=$(mktemp -d)
+    local log_dir=$(mktemp -d)
 
     # Set up signal handler to kill background jobs on interrupt
     trap 'echo ""; logWithTimestamp "Interrupt received. Stopping all background jobs..."; jobs -p | xargs -r kill; rm -rf "$log_dir"; exit 1' INT TERM
 
     # Determine execution mode for this group
-    local Ushould_run_parallel="$RUN_PARALLEL"
+    local should_run_parallel="$RUN_PARALLEL"
     if [[ "$group" == "$GROUP_ZKEVM" && "$ZKEVM_ALWAYS_SEQUENTIAL" == "true" ]]; then
         should_run_parallel=false
         logWithTimestamp "zkEVM group: forcing sequential execution"
@@ -1533,11 +1533,11 @@ function executeGroupWithHandleNetwork() {
     if [[ "$should_run_parallel" == "true" ]]; then
         # Execute networks in parallel within the group using your existing handleNetwork function
         logWithTimestamp "Executing networks in parallel"
-        local Upids=()
+        local -a pids=()
         for network in "${networks[@]}"; do
             # Check if this network is still pending
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
-                local Ustatus=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
+                local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
                 if [[ "$status" == "success" || "$status" == "failed" ]]; then
                     logWithTimestamp "[$network] Skipping (status: $status)"
                     continue
@@ -1550,7 +1550,7 @@ function executeGroupWithHandleNetwork() {
         done
 
         # Wait for all background jobs to complete
-        local Ucurrent_execution_failures=0
+        local current_execution_failures=0
         for pid in "${pids[@]}"; do
             if ! wait "$pid"; then
                 current_execution_failures=$((current_execution_failures + 1))
@@ -1559,11 +1559,11 @@ function executeGroupWithHandleNetwork() {
     else
         # Execute networks sequentially within the group using your existing handleNetwork function
         logWithTimestamp "Executing networks sequentially"
-        local Ucurrent_execution_failures=0
+        local current_execution_failures=0
         for network in "${networks[@]}"; do
             # Check if this network is still pending
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
-                local Ustatus=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
+                local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
                 if [[ "$status" == "success" || "$status" == "failed" ]]; then
                     logWithTimestamp "[$network] Skipping (status: $status)"
                     continue
@@ -1578,10 +1578,10 @@ function executeGroupWithHandleNetwork() {
     fi
 
     # Count total failed networks (including those from previous runs)
-    local Utotal_failed_count=0
+    local total_failed_count=0
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
         for network in "${networks[@]}"; do
-            local Ustatus=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
+            local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
             if [[ "$status" == "failed" ]]; then
                 total_failed_count=$((total_failed_count + 1))
             fi
@@ -1602,11 +1602,11 @@ function executeGroupWithHandleNetwork() {
 
 function executeNetworkWithHandleNetwork() {
     # This function wraps your existing handleNetwork function with progress tracking
-    local Unetwork="$1"
-    local Uenvironment="$2"
-    local Ulog_dir="$3"
-    local Ucontract="$4"
-    local Ugroup="$5"
+    local network="$1"
+    local environment="$2"
+    local log_dir="$3"
+    local contract="$4"
+    local group="$5"
 
     if [[ -z "$network" || -z "$environment" || -z "$log_dir" || -z "$contract" || -z "$group" ]]; then
         error "All parameters are required for executeNetworkWithHandleNetwork"
@@ -1617,9 +1617,9 @@ function executeNetworkWithHandleNetwork() {
     updateNetworkProgress "$network" "in_progress"
 
     # Retry logic setup
-    local Uretry_count=0
-    local Ucommand_status=1
-    local Umax_attempts=3
+    local retry_count=0
+    local command_status=1
+    local max_attempts=3
 
     # Attempt operations with retries
     while [[ $command_status -ne 0 && $retry_count -lt $max_attempts ]]; do
