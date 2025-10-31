@@ -21,6 +21,7 @@ contractsInfo.json
 .invalid-dexs
 lcov.info
 lcov-filtered.info
+config/whitelist.staging.json
 
 # -----------------------------------------------------------------------------
 # IDE and Editor Settings

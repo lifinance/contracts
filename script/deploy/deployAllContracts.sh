@@ -280,6 +280,9 @@ deployAllContracts() {
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute whitelist script and update ERC20Proxy"
 
+    # update periphery section of whitelist.json or whitelist.staging.json
+    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment "$ENVIRONMENT"
+
     # run sync whitelist script
     echo ""
     diamondSyncWhitelist "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
