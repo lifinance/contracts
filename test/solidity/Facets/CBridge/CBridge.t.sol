@@ -3,22 +3,14 @@ pragma solidity ^0.8.17;
 
 import { LibSwap, TestBaseFacet, InvalidAmount } from "../../utils/TestBaseFacet.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
 
 // Stub CBridgeFacet Contract
-contract TestCBridgeFacet is CBridgeFacet {
+contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 interface Ownable {
@@ -80,28 +72,20 @@ contract CBridgeFacetTest is TestBaseFacet {
     function setUp() public {
         initTestBase();
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
-        functionSelectors[2] = cBridge.addDex.selector;
-        functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
-        functionSelectors[4] = cBridge.triggerRefund.selector;
+        functionSelectors[2] = cBridge.addAllowedContractSelector.selector;
+        functionSelectors[3] = cBridge.triggerRefund.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addDex(address(uniswap));
-        cBridge.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        cBridge.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        cBridge.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
         setFacetAddressInTestBase(address(cBridge), "cBridgeFacet");
     }
 

@@ -2,14 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CelerIMFacetMutable, IMessageBus, MsgDataTypes, IERC20, CelerIM } from "lifi/Facets/CelerIMFacetMutable.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub CelerIMFacet Contract
-contract TestCelerIMFacet is CelerIMFacetMutable {
+contract TestCelerIMFacet is CelerIMFacetMutable, TestWhitelistManagerBase {
     constructor(
         IMessageBus _messageBus,
         address _relayerOwner,
@@ -23,14 +23,6 @@ contract TestCelerIMFacet is CelerIMFacetMutable {
             _cfUSDC
         )
     {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 interface Ownable {
@@ -119,22 +111,22 @@ contract CelerIMFacetTest is TestBaseFacet {
         functionSelectors[1] = celerIMFacet
             .swapAndStartBridgeTokensViaCelerIM
             .selector;
-        functionSelectors[2] = celerIMFacet.addDex.selector;
+        functionSelectors[2] = celerIMFacet.addToWhitelist.selector;
         functionSelectors[3] = celerIMFacet
-            .setFunctionApprovalBySignature
+            .setFunctionApprovalBySelector
             .selector;
 
         addFacet(diamond, address(celerIMFacet), functionSelectors);
 
         celerIMFacet = TestCelerIMFacet(address(diamond));
-        celerIMFacet.addDex(address(uniswap));
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.addToWhitelist(address(uniswap));
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        celerIMFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySelector(
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(celerIMFacet), "cBridgeFacet");

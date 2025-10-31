@@ -1,27 +1,19 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
 import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ChainflipFacet Contract
-contract TestChainflipFacet is ChainflipFacet {
+contract TestChainflipFacet is ChainflipFacet, TestWhitelistManagerBase {
     constructor(
         address _chainflipVault
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract ChainflipFacetTest is TestBaseFacet {
@@ -47,28 +39,29 @@ contract ChainflipFacetTest is TestBaseFacet {
         vm.label(chainflipVault, "Chainflip Vault");
 
         chainflipFacet = new TestChainflipFacet(chainflipVault);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = chainflipFacet
             .startBridgeTokensViaChainflip
             .selector;
         functionSelectors[1] = chainflipFacet
             .swapAndStartBridgeTokensViaChainflip
             .selector;
-        functionSelectors[2] = chainflipFacet.addDex.selector;
-        functionSelectors[3] = chainflipFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = chainflipFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
-        chainflipFacet.addDex(ADDRESS_UNISWAP);
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 

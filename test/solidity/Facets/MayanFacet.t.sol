@@ -2,25 +2,17 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { InvalidConfig, InvalidNonEVMReceiver } from "src/Errors/GenericErrors.sol";
+import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub MayanFacet Contract
-contract TestMayanFacet is MayanFacet {
+contract TestMayanFacet is MayanFacet, TestWhitelistManagerBase {
     constructor(IMayan _bridge) MayanFacet(_bridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 /// @notice This contract exposes _parseReceiver and _replaceInputAmount for testing purposes.
@@ -104,21 +96,25 @@ contract MayanFacetTest is TestBaseFacet {
         functionSelectors[1] = mayanBridgeFacet
             .swapAndStartBridgeTokensViaMayan
             .selector;
-        functionSelectors[2] = mayanBridgeFacet.addDex.selector;
+        functionSelectors[2] = mayanBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = mayanBridgeFacet
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
         mayanBridgeFacet = TestMayanFacet(address(diamond));
-        mayanBridgeFacet.addDex(ADDRESS_UNISWAP);
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        mayanBridgeFacet.setFunctionApprovalBySignature(
+        mayanBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 

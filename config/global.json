@@ -6,28 +6,20 @@
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
   "devWallet": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62",
-  "approvedSigsForRefundWallet": [
+  "approvedSelectorsForRefundWallet": [
     {
-      "sig": "0x0d19e519",
+      "selector": "0x0d19e519",
       "name": "CBridgeFacet.triggerRefund"
     },
     {
-      "sig": "0xd9caed12",
+      "selector": "0xd9caed12",
       "name": "WithdrawFacet.withdraw"
     }
   ],
-  "approvedSigsForDeployerWallet": [
+  "approvedSelectorsForDeployerWallet": [
     {
-      "sig": "0xfcd8e49e",
-      "name": "DexManagerFacet.batchAddDex"
-    },
-    {
-      "sig": "0x9afc19c7",
-      "name": "DexManagerFacet.batchRemoveDex"
-    },
-    {
-      "sig": "0x44e2b18c",
-      "name": "DexManagerFacet.batchSetFunctionApprovalBySignature"
+      "selector": "0x1171c007",
+      "name": "WhitelistManagerFacet.batchSetContractSelectorWhitelist"
     }
   ],
   "safeOwners": [
@@ -41,7 +33,7 @@
   "coreFacets": [
     "AccessManagerFacet",
     "CalldataVerificationFacet",
-    "DexManagerFacet",
+    "WhitelistManagerFacet",
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",

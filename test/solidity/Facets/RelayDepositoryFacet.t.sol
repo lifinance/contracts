@@ -2,11 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { RelayDepositoryFacet } from "lifi/Facets/RelayDepositoryFacet.sol";
 import { IRelayDepository } from "lifi/Interfaces/IRelayDepository.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Mock depository contract for testing
 contract MockRelayDepository is IRelayDepository {
@@ -106,18 +106,13 @@ contract Reverter {
 }
 
 // Test RelayDepositoryFacet Contract
-contract TestRelayDepositoryFacet is RelayDepositoryFacet {
+contract TestRelayDepositoryFacet is
+    RelayDepositoryFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         address _relayDepository
     ) RelayDepositoryFacet(_relayDepository) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract RelayDepositoryFacetTest is TestBaseFacet {
@@ -139,30 +134,31 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
             address(mockDepository)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = relayDepositoryFacet
             .startBridgeTokensViaRelayDepository
             .selector;
         functionSelectors[1] = relayDepositoryFacet
             .swapAndStartBridgeTokensViaRelayDepository
             .selector;
-        functionSelectors[2] = relayDepositoryFacet.addDex.selector;
-        functionSelectors[3] = relayDepositoryFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = relayDepositoryFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(relayDepositoryFacet), functionSelectors);
         relayDepositoryFacet = TestRelayDepositoryFacet(address(diamond));
 
         // Setup DEX approvals
-        relayDepositoryFacet.addDex(ADDRESS_UNISWAP);
-        relayDepositoryFacet.setFunctionApprovalBySignature(
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        relayDepositoryFacet.setFunctionApprovalBySignature(
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        relayDepositoryFacet.setFunctionApprovalBySignature(
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 

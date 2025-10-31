@@ -10,8 +10,7 @@ deployAllContracts() {
   source script/deploy/deployCoreFacets.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
-  source script/tasks/diamondSyncDEXs.sh
-  source script/tasks/diamondSyncSigs.sh
+  source script/tasks/diamondSyncWhitelist.sh
   source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
   source script/tasks/updateERC20Proxy.sh
@@ -44,8 +43,8 @@ deployAllContracts() {
       "4) Set approvals (refund wallet and deployer wallet)" \
       "5) Deploy non-core facets and add to diamond" \
       "6) Deploy periphery contracts" \
-      "7) Add periphery to diamond and update dexs.json" \
-      "8) Execute dexs/sigs scripts and update ERC20Proxy" \
+      "7) Add periphery to diamond and update whitelist.json" \
+      "8) Execute whitelisted addresses and selectors scripts and update ERC20Proxy" \
       "9) Run health check only" \
       "10) Ownership transfer to timelock (production only)"
   )
@@ -119,7 +118,7 @@ deployAllContracts() {
       echo "Deployer wallet does not have any balance in network $NETWORK. Please fund the wallet and try again"
       exit 1
     fi
-
+  
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
     checkRequiredVariablesInDotEnv "$NETWORK"
@@ -262,35 +261,31 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
   fi
 
-  # Stage 7: Add periphery to diamond and update dexs.json
+  # Stage 7: Add periphery to diamond and update whitelist.json
   if [[ $START_STAGE -le 7 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update dexs.json"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update whitelist.json"
 
     # update periphery registry
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
-    # add core periphery addresses to dexs.json for whitelisting in subsequent steps
-    addPeripheryToDexsJson "$NETWORK" "$ENVIRONMENT"
+    # add core periphery addresses to whitelist.json for whitelisting in subsequent steps
+    addPeripheryToWhitelistJson "$NETWORK" "$ENVIRONMENT"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
   fi
 
-  # Stage 8: Execute dexs/sigs scripts and update ERC20Proxy
+  # Stage 8: Execute whitelist script and update ERC20Proxy
   if [[ $START_STAGE -le 8 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute dexs/sigs scripts and update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute whitelist script and update ERC20Proxy"
 
     # update periphery section of whitelist.json or whitelist.staging.json
     bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment "$ENVIRONMENT"
 
-    # run sync dexs script
+    # run sync whitelist script
     echo ""
-    diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-
-    # run sync sigs script
-    echo ""
-    diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+    diamondSyncWhitelist "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
     # register Executor as authorized caller in ERC20Proxy
     echo ""
@@ -303,7 +298,7 @@ deployAllContracts() {
   if [[ $START_STAGE -le 9 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Run health check only"
-    bun script/deploy/healthCheck.ts --network "$NETWORK"
+    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
 
     # Pause and ask user if they want to continue with ownership transfer
