@@ -98,8 +98,6 @@ if echo "$ROUTES_RESPONSE" | grep -q "error"; then
   exit 1
 fi
 
-echo response gotten: $ROUTES_RESPONSE
-
 # Extract the first route and its first step
 FIRST_STEP=$(echo "$ROUTES_RESPONSE" | jq -r '.routes[1].steps[0]')
 
@@ -137,8 +135,6 @@ fi
 echo "✓ Transaction calldata retrieved successfully"
 echo ""
 
-echo $STEP_TX_RESPONSE
-
 # Extract transaction details
 TX_TO=$(echo "$STEP_TX_RESPONSE" | jq -r '.transactionRequest.to')
 TX_DATA=$(echo "$STEP_TX_RESPONSE" | jq -r '.transactionRequest.data')
@@ -155,12 +151,16 @@ echo "  Approval Amount: $APPROVAL_AMOUNT (Bridge Amount: $FROM_AMOUNT )"
 echo "  Spender: $TX_TO"
 echo ""
 
-APPROVE_TX_HASH=$(cast send "$FROM_TOKEN" \
+APPROVE_TX_OUTPUT=$(cast send "$FROM_TOKEN" \
   "approve(address,uint256)(bool)" \
   "$TX_TO" \
   "$APPROVAL_AMOUNT" \
   --private-key "$PRIVATE_KEY" \
-  --rpc-url "$FROM_RPC_URL" | grep "transactionHash" | awk '{print $2}')
+  --rpc-url "$FROM_RPC_URL" \
+  --json)
+
+APPROVE_TX_HASH=$(echo "$APPROVE_TX_OUTPUT" | jq -r '.transactionHash')
+echo Approve tx hash: $APPROVE_TX_HASH
 
 if [ -z "$APPROVE_TX_HASH" ]; then
   echo "Error: Approval transaction failed"
@@ -172,7 +172,7 @@ echo "Approval Transaction Hash: $APPROVE_TX_HASH"
 echo ""
 
 
-echo "Sleeping to avoid nonce/tx replacement issues"
+echo "Sleeping to avoid nonce/tx replacement issues ..."
 sleep 4 
 
 # Step 3: Submit the transaction
@@ -181,11 +181,15 @@ echo "To Address:  $TX_TO"
 echo "Gas Limit:   $TX_GAS_LIMIT"
 echo ""
 
-TX_HASH=$(cast send "$TX_TO" \
+TX_OUTPUT=$(cast send "$TX_TO" \
   --private-key "$PRIVATE_KEY" \
   --gas-limit "$TX_GAS_LIMIT" \
   --rpc-url "$FROM_RPC_URL" \
-  "$TX_DATA" | grep "transactionHash" | awk '{print $2}')
+  --json \
+  "$TX_DATA")
+
+TX_HASH=$(echo "$TX_OUTPUT" | jq -r '.transactionHash')
+echo Burn tx hash: $TX_HASH
 
 if [ -z "$TX_HASH" ]; then
   echo "Error: Transaction submission failed"
@@ -213,7 +217,7 @@ echo "✓ Transaction mined successfully"
 echo ""
 
 # Step 4: Monitor CCTP transfer status
-echo "Step 4: Monitoring CCTP transfer status..."
+echo "Step 4: Monitoring CCTP transfer status at url " "${API_URL}/v1/status/${TX_HASH}"
 MAX_RETRIES=60
 RETRY_INTERVAL=10
 RETRY_COUNT=0

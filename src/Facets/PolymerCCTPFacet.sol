@@ -65,16 +65,16 @@ contract PolymerCCTPFacet is IPolymerCCTPFacet, ILiFi, ReentrancyGuard, SwapperV
         }
 
         // TODO: Do we need this check if it's always going to be usdc?
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount -  _polymerData.polymerTokenFee );
-        LibAsset.transferFromERC20( usdc,  msg.sender, polymerFeeReceiver, _polymerData.polymerTokenFee );
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount );
+        LibAsset.transferERC20( usdc,  polymerFeeReceiver, _polymerData.polymerTokenFee );
 
 
         // TODO we don't need to use safe approve here?
-        IERC20(usdc).approve(address(tokenMessenger), _bridgeData.minAmount);
+        IERC20(usdc).approve(address(tokenMessenger), _bridgeData.minAmount -  _polymerData.polymerTokenFee );
 
         // Need tocheck: can we just use destinationChainID as the normal chain id? and can we just mpass in min Amount as the amountT?
         tokenMessenger.depositForBurn(
-            _bridgeData.minAmount,
+            _bridgeData.minAmount -  _polymerData.polymerTokenFee ,
             uint32(_bridgeData.destinationChainId),
             _bridgeData.receiver == NON_EVM_ADDRESS
                 ? _polymerData.nonEvmAddress
@@ -97,7 +97,7 @@ contract PolymerCCTPFacet is IPolymerCCTPFacet, ILiFi, ReentrancyGuard, SwapperV
                 _bridgeData.referrer,
                 _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
-                _bridgeData.minAmount,
+                _bridgeData.minAmount - _polymerData.polymerTokenFee,
                 _bridgeData.destinationChainId,
                 _bridgeData.hasSourceSwaps,
                 _bridgeData.hasDestinationCall
