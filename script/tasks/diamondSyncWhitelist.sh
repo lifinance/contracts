@@ -389,8 +389,8 @@ function diamondSyncWhitelist {
       
       # Check for address zero (forbidden)
       # Handle all variations: uppercase, lowercase, mixed case
-      ADDRESS_NORMALIZED=$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]' | sed 's/^0x//')
-      if [[ "$ADDRESS_NORMALIZED" == "0000000000000000000000000000000000000000" ]]; then
+      ADDRESS_LOWER=$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')
+      if [[ "$ADDRESS_LOWER" == "0x0000000000000000000000000000000000000000" ]]; then
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Error: Whitelisting address zero is forbidden: $ADDRESS"
         printf '\033[0;33m%s\033[0m\n' "⚠️  Please check whitelist.json or whitelist.staging.json"
         printf '\033[0;33m%s\033[0m\n' "⚠️  Remove address zero from configuration and discuss with backend team"
@@ -405,7 +405,7 @@ function diamondSyncWhitelist {
       fi
       
       # Check if address has code
-      CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS")
+      CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS_LOWER")  
       CODE=$(cast code "$CHECKSUMMED" --rpc-url "$RPC_URL")
       if [[ "$CODE" == "0x" ]]; then
         echoDebug "Skipping address with no code: $CHECKSUMMED"
@@ -419,10 +419,10 @@ function diamondSyncWhitelist {
         
         for SELECTOR in "${SELECTORS[@]}"; do
           if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
-            PAIR_KEY="$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')|$SELECTOR"
+            PAIR_KEY="$ADDRESS_LOWER|$SELECTOR"
             # Check if this pair is already whitelisted
             if [[ ${#CURRENT_PAIRS[@]} -eq 0 ]] || [[ ! " ${CURRENT_PAIRS[@]} " == *" $PAIR_KEY "* ]]; then
-              NEW_PAIRS+=("$PAIR_KEY")
+              NEW_PAIRS+=("$CHECKSUMMED|$SELECTOR")
               NEW_ADDRESSES+=("$CHECKSUMMED")
             fi
           fi
@@ -437,11 +437,11 @@ function diamondSyncWhitelist {
         # This selector makes isAddressWhitelisted(_contract) return true for backward
         # compatibility with legacy address-only checks, but does not allow any granular calls.
         APPROVE_TO_SELECTOR="0xffffffff"
-        PAIR_KEY="$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')|$APPROVE_TO_SELECTOR"
+        PAIR_KEY="$ADDRESS_LOWER|$APPROVE_TO_SELECTOR"
         
         # Check if this ApproveTo-Only Selector pair is already whitelisted
         if [[ ${#CURRENT_PAIRS[@]} -eq 0 ]] || [[ ! " ${CURRENT_PAIRS[@]} " == *" $PAIR_KEY "* ]]; then
-          NEW_PAIRS+=("$PAIR_KEY")
+          NEW_PAIRS+=("$CHECKSUMMED|$APPROVE_TO_SELECTOR")
           NEW_ADDRESSES+=("$CHECKSUMMED")
         fi
       fi
@@ -486,11 +486,8 @@ function diamondSyncWhitelist {
       printf '\033[0;35m%s\033[0m\n' "🔄 [$NETWORK] Processing pairs..."
       for PAIR in "${NEW_PAIRS[@]}"; do
         # Split pair by '|' to get address and selector(s)
-        ADDRESS="${PAIR%%|*}"
+        CHECKSUMMED_ADDRESS="${PAIR%%|*}"
         SELECTORS_STR="${PAIR#*|}"
-        
-        # Convert address to checksummed format
-        CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS")
         
         # Handle multiple selectors (comma-separated)
         # Each selector needs its own contract-address pair for batchSetContractSelectorWhitelist
@@ -499,7 +496,7 @@ function diamondSyncWhitelist {
           local SELECTOR_ARRAY=($(echo "$SELECTORS_STR" | tr ',' ' '))
           for SEL in "${SELECTOR_ARRAY[@]}"; do
             if [[ -n "$SEL" && "$SEL" != "" ]]; then
-              CONTRACT_ADDRESSES+=("$CHECKSUMMED")
+              CONTRACT_ADDRESSES+=("$CHECKSUMMED_ADDRESS")
               SELECTORS+=("$SEL")
             fi
           done
