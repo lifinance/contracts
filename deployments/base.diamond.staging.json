@@ -60,6 +60,10 @@
       "0xA5b0446EFECBfee560a985139e232692C5AC44a1": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
+      },
+      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

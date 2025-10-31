@@ -33,6 +33,7 @@ config/whitelist.staging.json
 .idea
 .DS_Store
 .DS_Store*
+local-local-chain-*
 
 # -----------------------------------------------------------------------------
 # Node/Yarn/Package Management
