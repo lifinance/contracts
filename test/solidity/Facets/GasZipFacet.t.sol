@@ -43,35 +43,43 @@ contract GasZipFacetTest is TestBaseFacet {
         gasZipFacet = new TestGasZipFacet(GAS_ZIP_ROUTER_MAINNET);
 
         // add gasZipFacet to diamond
-        bytes4[] memory functionSelectors = new bytes4[](6);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = gasZipFacet.startBridgeTokensViaGasZip.selector;
         functionSelectors[1] = gasZipFacet
             .swapAndStartBridgeTokensViaGasZip
             .selector;
         functionSelectors[2] = gasZipFacet.getDestinationChainsValue.selector;
 
-        functionSelectors[3] = gasZipFacet.addToWhitelist.selector;
-        functionSelectors[4] = gasZipFacet.removeFromWhitelist.selector;
-        functionSelectors[5] = gasZipFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[3] = gasZipFacet.addAllowedContractSelector.selector; 
         addFacet(diamond, address(gasZipFacet), functionSelectors);
 
         gasZipFacet = TestGasZipFacet(payable(address(diamond)));
 
         // whitelist uniswap dex with function selectors
-        gasZipFacet.addToWhitelist(address(uniswap));
-        gasZipFacet.addToWhitelist(address(gasZipFacet));
-        gasZipFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        gasZipFacet.setFunctionWhitelistBySelector(
+        gasZipFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
-        gasZipFacet.setFunctionWhitelistBySelector(
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForETH.selector
         );
-        gasZipFacet.setFunctionWhitelistBySelector(
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
+        gasZipFacet.addAllowedContractSelector(address(gasZipFacet), uniswap.swapExactTokensForTokens.selector);
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
+            uniswap.swapTokensForExactETH.selector
+        );
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
+            uniswap.swapExactTokensForETH.selector
+        );
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
             uniswap.swapETHForExactTokens.selector
         );
 

@@ -63,27 +63,34 @@ contract UnitFacetTest is TestBaseFacet {
         functionSelectors[1] = unitFacet
             .swapAndStartBridgeTokensViaUnit
             .selector;
-        functionSelectors[2] = unitFacet.addToWhitelist.selector;
-        functionSelectors[3] = unitFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = unitFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(unitFacet), functionSelectors);
         unitFacet = TestUnitFacet(address(diamond));
         // whitelist uniswap dex with function selectors
-        unitFacet.addToWhitelist(address(uniswap));
-        unitFacet.addToWhitelist(address(unitFacet));
-        unitFacet.setFunctionWhitelistBySelector(
+        unitFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        unitFacet.setFunctionWhitelistBySelector(
+        unitFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        unitFacet.setFunctionWhitelistBySelector(
+        unitFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+        unitFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForETH.selector
         );
-        unitFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
+        unitFacet.addAllowedContractSelector(
+            address(unitFacet),
+            unitFacet.startBridgeTokensViaUnit.selector
+        );
+        unitFacet.addAllowedContractSelector(
+            address(unitFacet),
+            unitFacet.swapAndStartBridgeTokensViaUnit.selector
         );
 
         setFacetAddressInTestBase(address(unitFacet), "UnitFacet");

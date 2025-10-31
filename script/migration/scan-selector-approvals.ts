@@ -6,7 +6,7 @@
  * This script scans blockchain events to collect historical function selector approvals,
  * preparing data for the allowlist migration. Since we can't clear mappings on-chain,
  * we need a complete record of all previously approved selectors to properly reset the state.
- * The script also incorporates selectors from the whitelistedSelectors.json configuration file
+ * The script also incorporates selectors from the sigs.json configuration file
  * to ensure a complete set of all required selectors.
  *
  * Key Features:
@@ -15,7 +15,7 @@
  * - Support for custom RPC endpoints when public ones are unreliable
  * - Automatic retry mechanism with backoff for failed requests (via eventScanner utility)
  * - Timeout handling for unresponsive RPCs
- * - Integration with whitelistedSelectors.json for additional selectors
+ * - Integration with sigs.json for additional selectors
  *
  * Process:
  * 1. Loads network-specific configurations from scan-selector-approvals-config.json:
@@ -38,10 +38,11 @@
  *    - Helps track scanning duration and success rates
  *    - NOT used in production - only for development/debugging
  *
- * 4. Updates whitelistManager.json (production config):
+ * 4. Updates functionSelectorsToRemove.json (production config):
  *    - This is the ACTUAL configuration file used by the deployment scripts
  *    - Combines all unique selectors from all networks
- *    - Adds selectors from whitelistedSelectors.json
+ *    - Adds selectors from whitelist.json (DEXS + PERIPHERY sections)
+ *    - Optionally adds selectors from sigs.json (deprecated)
  *    - Removes duplicates and sorts for consistency
  *    - Contains only the essential functionSelectorsToRemove field
  *    - Used directly by UpdateWhitelistManagerFacet.s.sol during deployment
@@ -54,8 +55,8 @@
  *    - Usage: Development, debugging, and verification only
  *    - Can be safely deleted after verification
  *
- * 2. whitelistManager.json:
- *    - Location: config/whitelistManager.json
+ * 2. functionSelectorsToRemove.json:
+ *    - Location: config/functionSelectorsToRemove.json
  *    - Purpose: Production configuration
  *    - Contains: Final deduplicated selector list
  *    - Usage: Required for deployment
@@ -238,8 +239,31 @@ async function scanNetworkSelectors(
     // Get all ever-whitelisted selectors from events
     const everWhitelistedSelectors = new Set(
       selectorApprovalEvents
-        .filter((event: any) => event.args.approved) // only get events where selectors were approved
-        .map((event: any) => event.args.functionSignature as string)
+        .filter(
+          (
+            event: unknown
+          ): event is {
+            args: { approved: boolean; functionSignature: string }
+          } => {
+            if (typeof event !== 'object' || event === null) return false
+            const eventObj = event as Record<string, unknown>
+            if (
+              !('args' in eventObj) ||
+              typeof eventObj.args !== 'object' ||
+              eventObj.args === null
+            )
+              return false
+            const args = eventObj.args as Record<string, unknown>
+            return (
+              'approved' in args &&
+              typeof args.approved === 'boolean' &&
+              args.approved === true &&
+              'functionSignature' in args &&
+              typeof args.functionSignature === 'string'
+            )
+          }
+        )
+        .map((event) => event.args.functionSignature)
     )
 
     const selectors = Array.from(everWhitelistedSelectors)
@@ -322,23 +346,120 @@ function generateSummary(results: IScanResult[]): IScanSummary {
   }
 }
 
-function flattenAndSaveSelectors(existingData: ISelectorsDataFile) {
+function extractSelectorsFromWhitelist(): string[] {
+  const whitelistPath = path.join(process.cwd(), 'config', 'whitelist.json')
+  const selectors = new Set<string>()
+
+  try {
+    if (!existsSync(whitelistPath)) {
+      consola.error(
+        `❌ whitelist.json not found in config directory - this file is required!`
+      )
+      throw new Error('whitelist.json is required but not found')
+    }
+
+    const whitelistData = JSON.parse(readFileSync(whitelistPath, 'utf-8'))
+
+    // Extract selectors from DEXS section
+    if (whitelistData.DEXS && Array.isArray(whitelistData.DEXS)) {
+      for (const dex of whitelistData.DEXS) {
+        if (dex.contracts && typeof dex.contracts === 'object') {
+          // Iterate through all networks in contracts
+          for (const [_network, contracts] of Object.entries(dex.contracts)) {
+            if (Array.isArray(contracts)) {
+              for (const contract of contracts) {
+                if (
+                  contract.functions &&
+                  typeof contract.functions === 'object'
+                ) {
+                  // Extract selectors from functions object
+                  for (const selector of Object.keys(contract.functions)) {
+                    if (selector.match(/^0x[a-fA-F0-9]{8}$/)) {
+                      selectors.add(selector)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Extract selectors from PERIPHERY section
+    if (
+      whitelistData.PERIPHERY &&
+      typeof whitelistData.PERIPHERY === 'object'
+    ) {
+      for (const [_network, networkData] of Object.entries(
+        whitelistData.PERIPHERY
+      )) {
+        if (networkData && typeof networkData === 'object') {
+          // Handle both production and staging environments
+          const environments = ['production', 'staging']
+
+          for (const environment of environments) {
+            const peripheryContracts = (networkData as any)[environment]
+            if (Array.isArray(peripheryContracts)) {
+              for (const contract of peripheryContracts) {
+                if (contract.selectors && Array.isArray(contract.selectors)) {
+                  for (const selectorObj of contract.selectors) {
+                    if (
+                      selectorObj.selector &&
+                      typeof selectorObj.selector === 'string'
+                    ) {
+                      const selector = selectorObj.selector
+                      if (selector.match(/^0x[a-fA-F0-9]{8}$/)) {
+                        selectors.add(selector)
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    consola.success(
+      `📄 Extracted ${selectors.size} selectors from whitelist.json (DEXS + PERIPHERY)`
+    )
+    return Array.from(selectors)
+  } catch (error) {
+    consola.error(`❌ Error reading whitelist.json:`, error)
+    throw error // Re-throw to ensure the script fails if whitelist.json is missing
+  }
+}
+
+function flattenAndSaveSelectors(
+  existingData: ISelectorsDataFile,
+  noScan = false
+) {
   // Create a Set to automatically handle deduplication
   const uniqueSelectors = new Set<string>()
 
-  // Iterate through all networks and add their selectors to the Set
-  Object.values(existingData.networks).forEach((network) => {
-    network.selectors.forEach((selector) => {
-      uniqueSelectors.add(selector)
+  if (!noScan) {
+    // Iterate through all networks and add their selectors to the Set
+    Object.values(existingData.networks).forEach((network) => {
+      network.selectors.forEach((selector) => {
+        uniqueSelectors.add(selector)
+      })
     })
+  }
+
+  // Always add selectors from whitelist.json
+  const whitelistSelectors = extractSelectorsFromWhitelist()
+  whitelistSelectors.forEach((selector) => {
+    uniqueSelectors.add(selector)
   })
 
-  // Read and add selectors from whitelistedSelectors.json
+  // Read and add selectors from sigs.json (deprecated)
   try {
     const whitelistedSelectorsPath = path.join(
       process.cwd(),
       'config',
-      'whitelistedSelectors.json'
+      'sigs.json'
     )
     if (existsSync(whitelistedSelectorsPath)) {
       const whitelistedSelectors = JSON.parse(
@@ -347,34 +468,77 @@ function flattenAndSaveSelectors(existingData: ISelectorsDataFile) {
       whitelistedSelectors.selectors.forEach((selector: string) => {
         uniqueSelectors.add(selector)
       })
-      consola.success(`📄 Added selectors from whitelistedSelectors.json`)
+      consola.success(`📄 Added selectors from sigs.json (deprecated file)`)
     } else {
-      consola.warn(
-        `⚠️  whitelistedSelectors.json not found in config directory`
+      consola.info(
+        `ℹ️  sigs.json not found - skipping (this file is deprecated)`
       )
     }
   } catch (error) {
-    consola.error(`❌ Error reading whitelistedSelectors.json:`, error)
+    consola.error(`❌ Error reading sigs.json:`, error)
   }
+
+  // Read and add existing selectors from functionSelectorsToRemove.json (functionSelectorsToRemove)
+  try {
+    const functionSelectorsToRemovePath = path.join(
+      process.cwd(),
+      'config',
+      'functionSelectorsToRemove.json'
+    )
+    if (existsSync(functionSelectorsToRemovePath)) {
+      const functionSelectorsToRemoveData = JSON.parse(
+        readFileSync(functionSelectorsToRemovePath, 'utf-8')
+      )
+      if (
+        functionSelectorsToRemoveData.functionSelectorsToRemove &&
+        Array.isArray(functionSelectorsToRemoveData.functionSelectorsToRemove)
+      ) {
+        functionSelectorsToRemoveData.functionSelectorsToRemove.forEach(
+          (selector: string) => {
+            uniqueSelectors.add(selector)
+          }
+        )
+        consola.success(
+          `📄 Added ${functionSelectorsToRemoveData.functionSelectorsToRemove.length} existing selectors from functionSelectorsToRemove.json`
+        )
+      }
+    } else {
+      consola.warn(
+        `⚠️  functionSelectorsToRemove.json not found in config directory`
+      )
+    }
+  } catch (error) {
+    consola.error(`❌ Error reading functionSelectorsToRemove.json:`, error)
+  }
+
+  // Add special selectors just in case
+  uniqueSelectors.add('0x00000000')
+  uniqueSelectors.add('0xffffffff')
+  consola.success(`📄 Added special selectors: 0x00000000, 0xffffffff`)
 
   // Convert Set to sorted array for consistent output
   const sortedSelectors = Array.from(uniqueSelectors).sort()
 
-  // Create output object with the correct field name for whitelistManager.json
+  // Create output object with the correct field name for functionSelectorsToRemove.json
   const output = {
     devNotes:
       '⚠️ AUTOMATICALLY GENERATED FILE ⚠️\n' +
       'This file is automatically generated by script/migration/scan-selector-approvals.ts\n' +
       'It contains a comprehensive list of function selectors gathered from:\n' +
       '- Historical blockchain events across all networks\n' +
-      '- Additional selectors from whitelistedSelectors.json\n\n' +
+      '- Selectors from whitelist.json (DEXS + PERIPHERY sections)\n' +
+      '- Additional selectors from sigs.json (deprecated)\n\n' +
       'DO NOT MODIFY THIS FILE MANUALLY!\n' +
       'Instead, run scan-selector-approvals.ts to regenerate it with updated data.',
     functionSelectorsToRemove: sortedSelectors,
   }
 
-  // Write to whitelistManager.json
-  const outputPath = path.join(process.cwd(), 'config', 'whitelistManager.json')
+  // Write to functionSelectorsToRemove.json
+  const outputPath = path.join(
+    process.cwd(),
+    'config',
+    'functionSelectorsToRemove.json'
+  )
   writeFileSync(outputPath, JSON.stringify(output, null, 2))
 
   consola.success(`\n📄 Selectors summary:`)
@@ -387,7 +551,7 @@ const cmd = defineCommand({
   meta: {
     name: 'scan-selector-approvals',
     description:
-      'Scan blockchain events in parallel to scan selector approvals',
+      'Scan blockchain events in parallel to collect selector approvals, or use whitelist-only mode to extract selectors from configuration files',
   },
   args: {
     network: {
@@ -426,6 +590,13 @@ const cmd = defineCommand({
       required: false,
       default: '10',
     },
+    noScan: {
+      type: 'string',
+      description:
+        'Skip blockchain scanning and only use selectors from sigs.json and whitelist.json (DEXS + PERIPHERY)',
+      required: false,
+      default: 'false',
+    },
   },
   async run({ args }) {
     const rpcUrlOverride = args?.rpcUrl
@@ -438,16 +609,28 @@ const cmd = defineCommand({
       args?.deploymentBlocksFile ||
       './script/migration/scan-selector-approvals-config.json'
     const maxConcurrency = parseInt(args?.maxConcurrency || '10')
+    const noScan = args?.noScan === 'true'
 
-    consola.info(`🚀 Starting parallel function selectors preparation...`)
+    consola.info(`🚀 Starting function selectors preparation...`)
+    consola.info(`🚀 No scan mode: ${noScan}`)
+    if (noScan) {
+      consola.info(`📄 NO-SCAN MODE: Skipping blockchain scanning`)
+      consola.info(
+        `📄 Will only use selectors from sigs.json and whitelist.json (DEXS + PERIPHERY)`
+      )
+    } else {
+      consola.info(`📡 BLOCKCHAIN SCANNING MODE: Will scan blockchain events`)
+    }
     consola.info(
       `📁 Temporary diagnostic file (for debugging): ${tempOutputFile}`
     )
     consola.info(
-      `📁 Production config file (for deployment): config/whitelistManager.json`
+      `📁 Production config file (for deployment): config/functionSelectorsToRemove.json`
     )
-    consola.info(`📁 Deployment blocks file: ${deploymentBlocksFile}`)
-    consola.info(`🔧 Max concurrency: ${maxConcurrency}`)
+    if (!noScan) {
+      consola.info(`📁 Deployment blocks file: ${deploymentBlocksFile}`)
+      consola.info(`🔧 Max concurrency: ${maxConcurrency}`)
+    }
     consola.info(
       `🌍 Environment: ${
         environment === EnvironmentEnum.staging ? 'staging' : 'production'
@@ -455,22 +638,24 @@ const cmd = defineCommand({
     )
 
     // Load deployment blocks configuration
-    let chunkConfigs: IChunkRangeConfig
-    try {
-      chunkConfigs = loadDeploymentBlocks(deploymentBlocksFile)
-    } catch (error) {
-      consola.error(`Failed to load chunk configurations: ${error}`)
-      process.exit(1)
+    let chunkConfigs: IChunkRangeConfig | undefined
+    if (!noScan) {
+      try {
+        chunkConfigs = loadDeploymentBlocks(deploymentBlocksFile)
+      } catch (error) {
+        consola.error(`Failed to load chunk configurations: ${error}`)
+        process.exit(1)
+      }
     }
 
-    // Load existing data if file exists
+    // Load existing data if file exists (only in scanning mode)
     let existingData: ISelectorsDataFile = {
       version: '1.0.0',
       generatedAt: new Date().toISOString(),
       networks: {},
     }
 
-    if (existsSync(tempOutputFile)) {
+    if (!noScan && existsSync(tempOutputFile)) {
       try {
         const fileContent = readFileSync(tempOutputFile, 'utf-8')
         existingData = JSON.parse(fileContent)
@@ -484,153 +669,176 @@ const cmd = defineCommand({
       }
     }
 
-    // Determine which networks to scan
+    // Determine which networks to scan (skip if whitelistOnly)
     const networksToScan: {
       network: INetworkConfig
       chunkConfig: IChunkConfig
     }[] = []
 
-    if (args.network) {
-      const networkName = args.network.toLowerCase()
-      const networkConfig = (networksData as Record<string, INetworkConfig>)[
-        networkName
-      ]
+    if (!noScan) {
+      if (args.network) {
+        const networkName = args.network.toLowerCase()
+        const networkConfig = (networksData as Record<string, INetworkConfig>)[
+          networkName
+        ]
 
-      if (!networkConfig) {
-        consola.error(`Network '${args.network}' not found in configuration`)
-        process.exit(1)
-      }
+        if (!networkConfig) {
+          consola.error(`Network '${args.network}' not found in configuration`)
+          process.exit(1)
+        }
 
-      const chunkConfig = chunkConfigs.networks[networkName]
-      if (!chunkConfig) {
-        consola.error(`No chunk size configured for network '${networkName}'`)
-        process.exit(1)
-      }
+        const chunkConfig = chunkConfigs?.networks[networkName]
+        if (!chunkConfig) {
+          consola.error(`No chunk size configured for network '${networkName}'`)
+          process.exit(1)
+        }
 
-      networksToScan.push({ network: networkConfig, chunkConfig })
-    } else {
-      // Scan all active networks that have chunk sizes configured
-      for (const [networkName, networkConfig] of Object.entries(
-        networksData as Record<string, INetworkConfig>
-      )) {
-        if (networkConfig.status === 'active') {
-          const chunkConfig = chunkConfigs.networks[networkName]
-          if (chunkConfig) {
-            // Skip networks that are marked to be skipped
-            if (chunkConfig.skip) {
-              consola.info(
-                `⏭️  Skipping ${networkName}: marked as skip in config`
+        networksToScan.push({ network: networkConfig, chunkConfig })
+      } else {
+        // Scan all active networks that have chunk sizes configured
+        for (const [networkName, networkConfig] of Object.entries(
+          networksData as Record<string, INetworkConfig>
+        )) {
+          if (networkConfig.status === 'active') {
+            const chunkConfig = chunkConfigs?.networks[networkName]
+            if (chunkConfig) {
+              // Skip networks that are marked to be skipped
+              if (chunkConfig.skip) {
+                consola.info(
+                  `⏭️  Skipping ${networkName}: marked as skip in config`
+                )
+                continue
+              }
+              networksToScan.push({ network: networkConfig, chunkConfig })
+            } else {
+              consola.warn(
+                `⚠️  Skipping ${networkName}: no chunk size configured`
               )
-              continue
             }
-            networksToScan.push({ network: networkConfig, chunkConfig })
-          } else {
-            consola.warn(
-              `⚠️  Skipping ${networkName}: no chunk size configured`
-            )
           }
         }
       }
-    }
 
-    consola.info(`📡 Will scan ${networksToScan.length} network(s) in parallel`)
+      consola.info(
+        `📡 Will scan ${networksToScan.length} network(s) in parallel`
+      )
+    } else {
+      consola.info(`📄 Skipping network scanning (no-scan mode)`)
+    }
 
     // Process networks in batches with concurrency limit
     const results: IScanResult[] = []
     const startTime = Date.now()
 
-    for (let i = 0; i < networksToScan.length; i += maxConcurrency) {
-      const batch = networksToScan.slice(i, i + maxConcurrency)
-      consola.info(
-        `\n🔄 Processing batch ${
-          Math.floor(i / maxConcurrency) + 1
-        }/${Math.ceil(networksToScan.length / maxConcurrency)}`
-      )
-
-      const batchPromises = batch.map(({ network, chunkConfig }) =>
-        scanNetworkSelectors(
-          network,
-          chunkConfig,
-          args.network ? rpcUrlOverride : undefined, // Only use RPC override for single network
-          environment
+    if (!noScan && networksToScan.length > 0) {
+      for (let i = 0; i < networksToScan.length; i += maxConcurrency) {
+        const batch = networksToScan.slice(i, i + maxConcurrency)
+        consola.info(
+          `\n🔄 Processing batch ${
+            Math.floor(i / maxConcurrency) + 1
+          }/${Math.ceil(networksToScan.length / maxConcurrency)}`
         )
-      )
 
-      const batchResults = await Promise.allSettled(batchPromises)
+        const batchPromises = batch.map(({ network, chunkConfig }) =>
+          scanNetworkSelectors(
+            network,
+            chunkConfig,
+            args.network ? rpcUrlOverride : undefined, // Only use RPC override for single network
+            environment
+          )
+        )
 
-      // Process batch results
-      for (const result of batchResults) {
-        if (result.status === 'fulfilled') {
-          results.push(result.value)
+        const batchResults = await Promise.allSettled(batchPromises)
 
-          // Save successful results immediately
-          if (result.value.success && result.value.data) {
-            existingData.networks[result.value.network] = result.value.data
-            existingData.generatedAt = new Date().toISOString()
+        // Process batch results
+        for (const result of batchResults) {
+          if (result.status === 'fulfilled') {
+            results.push(result.value)
 
-            try {
-              writeFileSync(
-                tempOutputFile,
-                JSON.stringify(existingData, null, 2)
-              )
-              consola.success(`💾 Saved data for ${result.value.network}`)
-            } catch (error) {
-              consola.error(
-                `Failed to save data for ${result.value.network}:`,
-                error
-              )
+            // Save successful results immediately
+            if (result.value.success && result.value.data) {
+              existingData.networks[result.value.network] = result.value.data
+              existingData.generatedAt = new Date().toISOString()
+
+              try {
+                writeFileSync(
+                  tempOutputFile,
+                  JSON.stringify(existingData, null, 2)
+                )
+                consola.success(`💾 Saved data for ${result.value.network}`)
+              } catch (error) {
+                consola.error(
+                  `Failed to save data for ${result.value.network}:`,
+                  error
+                )
+              }
             }
+          } else {
+            // Handle completely failed promises (shouldn't happen with our error handling)
+            results.push({
+              success: false,
+              network: 'unknown',
+              error: result.reason?.message || 'Promise rejected',
+            })
           }
-        } else {
-          // Handle completely failed promises (shouldn't happen with our error handling)
-          results.push({
-            success: false,
-            network: 'unknown',
-            error: result.reason?.message || 'Promise rejected',
-          })
         }
       }
+    } else if (noScan) {
+      consola.info(`📄 Skipping network processing (no-scan mode)`)
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2)
-    const summary = generateSummary(results)
+    let summary: IScanSummary | undefined
 
-    // Final save
-    writeFileSync(tempOutputFile, JSON.stringify(existingData, null, 2))
+    if (noScan) {
+      // Skip summary generation and temp file writing in no-scan mode
+      consola.success(`\n🎉 No-scan processing completed in ${totalTime}s!`)
+      consola.info(`📊 PROCESSING SUMMARY:`)
+      consola.info(`   Mode: No-scan (no blockchain scanning)`)
+      consola.info(`   Processing time: ${totalTime}s`)
+    } else {
+      summary = generateSummary(results)
 
-    // Print comprehensive summary
-    consola.success(`\n🎉 Parallel scanning completed in ${totalTime}s!`)
-    consola.info(`📊 SCAN SUMMARY:`)
-    consola.info(`   Networks processed: ${summary.totalNetworks}`)
-    consola.info(`   Successful scans: ${summary.successfulScans}`)
-    consola.info(`   Failed scans: ${summary.failedScans}`)
-    consola.info(`   Total selectors found: ${summary.totalSelectors}`)
-    consola.info(`   Total scan time: ${summary.totalDuration.toFixed(2)}s`)
+      // Final save
+      writeFileSync(tempOutputFile, JSON.stringify(existingData, null, 2))
 
-    if (summary.successfulScans > 0) {
-      consola.success(`\n✅ SUCCESSFUL NETWORKS (${summary.successfulScans}):`)
-      summary.successfulNetworks.forEach((network) => {
-        const data = existingData.networks[network]
-        consola.info(
-          `   ${network}: ${data?.selectors.length ?? 0} selectors (${
-            data?.scanDurationSeconds ?? 0
-          }s)`
+      consola.success(`\n🎉 Parallel scanning completed in ${totalTime}s!`)
+      consola.info(`📊 SCAN SUMMARY:`)
+      consola.info(`   Networks processed: ${summary.totalNetworks}`)
+      consola.info(`   Successful scans: ${summary.successfulScans}`)
+      consola.info(`   Failed scans: ${summary.failedScans}`)
+      consola.info(`   Total selectors found: ${summary.totalSelectors}`)
+      consola.info(`   Total scan time: ${summary.totalDuration.toFixed(2)}s`)
+
+      if (summary.successfulScans > 0) {
+        consola.success(
+          `\n✅ SUCCESSFUL NETWORKS (${summary.successfulScans}):`
         )
-      })
-    }
+        summary.successfulNetworks.forEach((network) => {
+          const data = existingData.networks[network]
+          consola.info(
+            `   ${network}: ${data?.selectors.length ?? 0} selectors (${
+              data?.scanDurationSeconds ?? 0
+            }s)`
+          )
+        })
+      }
 
-    if (summary.failedScans > 0) {
-      consola.error(`\n❌ FAILED NETWORKS (${summary.failedScans}):`)
-      summary.failedNetworks.forEach(({ network, error }) => {
-        consola.error(`   ${network}: ${error}`)
-      })
+      if (summary.failedScans > 0) {
+        consola.error(`\n❌ FAILED NETWORKS (${summary.failedScans}):`)
+        summary.failedNetworks.forEach(({ network, error }) => {
+          consola.error(`   ${network}: ${error}`)
+        })
+      }
     }
 
     // Add flattening step
-    consola.info(`\n🔄 Flattening selectors from all networks...`)
-    flattenAndSaveSelectors(existingData)
+    consola.info(`\n🔄 Flattening selectors from all sources...`)
+    flattenAndSaveSelectors(existingData, noScan)
 
-    process.exit(summary.failedScans > 0 ? 1 : 0)
+    process.exit(
+      noScan ? 0 : summary?.failedScans && summary.failedScans > 0 ? 1 : 0
+    )
   },
 })
 

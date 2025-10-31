@@ -39,28 +39,27 @@ contract GardenFacetTest is TestBaseFacet {
         initTestBase();
 
         gardenFacet = new TestGardenFacet(HTLC_REGISTRY);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = gardenFacet.startBridgeTokensViaGarden.selector;
         functionSelectors[1] = gardenFacet
             .swapAndStartBridgeTokensViaGarden
             .selector;
-        functionSelectors[2] = gardenFacet.addToWhitelist.selector;
-        functionSelectors[3] = gardenFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = gardenFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(gardenFacet), functionSelectors);
 
         gardenFacet = TestGardenFacet(address(diamond));
 
-        gardenFacet.addToWhitelist(address(uniswap));
-        gardenFacet.setFunctionWhitelistBySelector(
+        gardenFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        gardenFacet.setFunctionWhitelistBySelector(
+        gardenFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        gardenFacet.setFunctionWhitelistBySelector(
+        gardenFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(gardenFacet), "GardenFacet");

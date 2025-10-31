@@ -254,14 +254,8 @@ contract GasZipPeripheryTest is TestBase {
         });
 
         // whitelist gasZipPeriphery and FeeCollector
-        gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
-        gasZipPeriphery.setFunctionWhitelistBySelector(
-            gasZipPeriphery.depositToGasZipERC20.selector
-        );
-        gasZipPeriphery.addToWhitelist(address(feeCollector));
-        gasZipPeriphery.setFunctionWhitelistBySelector(
-            feeCollector.collectTokenFees.selector
-        );
+        gasZipPeriphery.addAllowedContractSelector(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipERC20.selector);
+        gasZipPeriphery.addAllowedContractSelector(address(feeCollector), feeCollector.collectTokenFees.selector);
 
         // set approval for bridging
         usdc.approve(address(gnosisBridgeFacet), defaultUSDCAmount);
@@ -346,10 +340,7 @@ contract GasZipPeripheryTest is TestBase {
         });
 
         // whitelist gasZipPeriphery and FeeCollector
-        gasZipPeriphery.addToWhitelist(address(gasZipPeriphery));
-        gasZipPeriphery.setFunctionWhitelistBySelector(
-            gasZipPeriphery.depositToGasZipNative.selector
-        );
+        gasZipPeriphery.addAllowedContractSelector(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipNative.selector);
 
         gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge{
             value: nativeFromAmount
@@ -447,53 +438,32 @@ contract GasZipPeripheryTest is TestBase {
             IGnosisBridgeRouter(GNOSIS_BRIDGE_ROUTER)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = _gnosisBridgeFacet
             .startBridgeTokensViaGnosisBridge
             .selector;
         functionSelectors[1] = _gnosisBridgeFacet
             .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
-        functionSelectors[2] = _gnosisBridgeFacet.addToWhitelist.selector;
-        functionSelectors[3] = _gnosisBridgeFacet
-            .setFunctionWhitelistBySelector
-            .selector;
+        functionSelectors[2] = _gnosisBridgeFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(_gnosisBridgeFacet), functionSelectors);
 
         _gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        // whitelist DEXs / Periphery contracts
-        _gnosisBridgeFacet.addToWhitelist(address(uniswap));
-        _gnosisBridgeFacet.addToWhitelist(address(gasZipPeriphery));
-        _gnosisBridgeFacet.addToWhitelist(address(feeCollector));
-
         // add function selectors for GasZipPeriphery
-        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            gasZipPeriphery.depositToGasZipERC20.selector
-        );
-        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            gasZipPeriphery.depositToGasZipNative.selector
-        );
+        _gnosisBridgeFacet.addAllowedContractSelector(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipNative.selector);
+        _gnosisBridgeFacet.addAllowedContractSelector(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipERC20.selector);
 
         // add function selectors for FeeCollector
-        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            feeCollector.collectTokenFees.selector
-        );
+        _gnosisBridgeFacet.addAllowedContractSelector(address(feeCollector), feeCollector.collectTokenFees.selector);
+        _gnosisBridgeFacet.addAllowedContractSelector(address(feeCollector), feeCollector.collectNativeFees.selector);
 
         // add function selectors for Uniswap
-        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactTokensForETH.selector
-        );
-        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapETHForExactTokens.selector
-        );
-        _gnosisBridgeFacet.setFunctionWhitelistBySelector(
-            uniswap.swapExactETHForTokens.selector
-        );
+        _gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        _gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForETH.selector);
+        _gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
+        _gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactETHForTokens.selector);
 
         setFacetAddressInTestBase(address(gnosisBridgeFacet), "GnosisFacet");
     }

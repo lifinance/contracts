@@ -1530,32 +1530,6 @@
       }
     },
     {
-      "name": "TestAggregator",
-      "key": "testaggregator",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/openocean.svg",
-      "webUrl": "https://openocean.finance/classic",
-      "contracts": {
-        "mainnet": [
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "functions": {}
-          }
-        ],
-        "optimism": [
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "functions": {}
-          }
-        ],
-        "polygon": [
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "functions": {}
-          }
-        ]
-      }
-    },
-    {
       "name": "Kyberswap",
       "key": "kyberswap",
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/kyberswap.svg",

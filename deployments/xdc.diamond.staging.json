@@ -1,66 +1,62 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xb402351A057c4A850831CB6AE258e994251e8268": {
+      "0x42c10c8566f67Ad114656191DD441d96dDca8c8E": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0xC5F227033277f2eAbDA193eEF81704a605A23FE4": {
+      "0x5649A0258DdEb8a9ee81aeFcB692Ec2BC07e22e3": {
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x0f121a9E2bd75488d766B86f62b152b11aA177B7": {
+      "0xAcf5f8Ab0937B3352193440F312E9828F4D310eb": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x36DEac1896a96D7F57D3F7c0bbbFBF049b524e9f": {
+      "0xcfAB5D82951AF1e1fAA508bE554F077577C69C9a": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0xe33043c523b177046911430053bF4D8A6A9AdbF7": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0x285fa1a7aC66B639188EfA2dd85bCBc7FfcaE036": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
-      "0x9C9138d681f0D7167BE975A166F00B4cA5A87148": {
+      "0x341Dd8cbB8b59bd66226Ad7Dcc5425564E1C45da": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x6c8Fd095e8ac2e999A46a57D01EbdFD94d93eD72": {
+      "0x03970825D92ab24e5eFEb81F6bc358d8B758b4Ad": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0xD8C3016De12591fd08eC1F97D65046d61c1DEfE4": {
+      "0x31B20C95e8a2FA3e231Ced331B1644C97Ed3B474": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x568Bef361eC25D6Da4C3bc608e6283059AB832D9": {
+      "0xc73a86C4c57EB46D521F54d71624d28E97E7Ad74": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0x746DCB34012311867dfdea787E98EA05F0F9Bb01": {
+      "0x286648915D4DF441766FE7E826326bC638632cec": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x9b94dec1A8d8f62e6216a3aBBD982E4BDdFb71a9": {
+      "0xA0446118F768e7cd294492E9b16dD9BDFEd9aCA7": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xFfAfb72430852940DBa6EbE429879DEEc812892A": {
+      "0x63D1fBaA643a098A79C8e98008ce2c4a85d8db25": {
         "Name": "WithdrawFacet",
-        "Version": "1.0.0"
-      },
-      "0xA6b8c24BeB8006cA68ED95a1151077B6564786ac": {
-        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x6d8d25Ad236DB13af86C699285f02531FACB8ED2",
-      "Executor": "0xe30314B09Fe4151fC1Cad70440b3775c8c253037",
+      "ERC20Proxy": "",
+      "Executor": "",
       "FeeCollector": "",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
+      "LiFiDEXAggregator": "0x2f90A38624e17f0722cbf1b14806BAB1D17B6A82",
       "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "",

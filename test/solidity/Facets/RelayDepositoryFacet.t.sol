@@ -134,30 +134,31 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
             address(mockDepository)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = relayDepositoryFacet
             .startBridgeTokensViaRelayDepository
             .selector;
         functionSelectors[1] = relayDepositoryFacet
             .swapAndStartBridgeTokensViaRelayDepository
             .selector;
-        functionSelectors[2] = relayDepositoryFacet.addToWhitelist.selector;
-        functionSelectors[3] = relayDepositoryFacet
-            .setFunctionWhitelistBySelector
+        functionSelectors[2] = relayDepositoryFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(relayDepositoryFacet), functionSelectors);
         relayDepositoryFacet = TestRelayDepositoryFacet(address(diamond));
 
         // Setup DEX approvals
-        relayDepositoryFacet.addToWhitelist(ADDRESS_UNISWAP);
-        relayDepositoryFacet.setFunctionWhitelistBySelector(
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        relayDepositoryFacet.setFunctionWhitelistBySelector(
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        relayDepositoryFacet.setFunctionWhitelistBySelector(
+        relayDepositoryFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 
