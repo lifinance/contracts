@@ -101,7 +101,7 @@ fi
 echo response gotten: $ROUTES_RESPONSE
 
 # Extract the first route and its first step
-FIRST_STEP=$(echo "$ROUTES_RESPONSE" | jq -r '.routes[0].steps[0]')
+FIRST_STEP=$(echo "$ROUTES_RESPONSE" | jq -r '.routes[1].steps[0]')
 
 if [ "$FIRST_STEP" = "null" ]; then
   echo "No routes found"
@@ -170,6 +170,10 @@ fi
 echo "✓ Approval transaction successful"
 echo "Approval Transaction Hash: $APPROVE_TX_HASH"
 echo ""
+
+
+echo "Sleeping to avoid nonce/tx replacement issues"
+sleep 4 
 
 # Step 3: Submit the transaction
 echo "Step 3: Submitting transaction..."
