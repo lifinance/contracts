@@ -233,12 +233,12 @@
     "explorerUrl": "https://botanixscan.io",
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/3637/etherscan",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
-    "safeAddress": "",
+    "safeAddress": "0x68feA7dc931B1de6F251Cb5F5A9798192E533e53",
     "gasZipChainId": 0,
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": ""
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "bsc": {
     "name": "bsc",
