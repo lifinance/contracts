@@ -13,12 +13,14 @@ import { LibAsset } from "./LibAsset.sol";
 /// contracts are kept perfectly synchronized. The long-term goal is to migrate all usage
 /// to the new granular system. New development should exclusively use the "Primary Interface" functions.
 ///
-/// Special Marker Selector:
-/// - Use 0xffffffff as an "empty/marker" selector for contracts that need legacy
-///   address-only allow-list compatibility.
-/// - This only makes contractIsAllowed(_contract) return true; it does not authorize
-///   any granular calls. In the granular system, real function selectors must be
-///   explicitly whitelisted to be callable.
+/// Special ApproveTo-Only Selector:
+/// - Use 0xffffffff to whitelist contracts that are used only as approveTo in
+///   LibSwap.SwapData, without allowing function calls to them.
+/// - Some DEXs have specific contracts that need to be approved to while another
+///   (router) contract must be called to initiate the swap.
+/// - This selector makes contractIsAllowed(_contract) return true for backward
+///   compatibility, but does not authorize any granular calls. In the granular
+///   system, real function selectors must be explicitly whitelisted to be callable.
 /// @custom:version 2.0.0
 library LibAllowList {
     /// Storage ///

@@ -861,7 +861,7 @@ contract DeployScript is UpdateScriptBase {
     ) internal pure returns (bytes4[] memory selectors) {
         // Handle empty object: "{}"
         if (bytes(functionsJson).length <= 2) {
-            // Use 0xffffffff as a marker for "no functions specified"
+            // Use 0xffffffff as a ApproveTo-Only Selector (0xffffffff)
             // for backward compatibility.
             selectors = new bytes4[](1);
             selectors[0] = bytes4(0xffffffff);
@@ -872,7 +872,7 @@ contract DeployScript is UpdateScriptBase {
         uint256 selectorCount = _countSelectorsInJson(functionsJson);
 
         if (selectorCount == 0) {
-            // No selectors found, use the marker
+            // No selectors found, use the ApproveTo-Only Selector (0xffffffff)
             selectors = new bytes4[](1);
             selectors[0] = bytes4(0xffffffff);
             return selectors;
@@ -977,9 +977,9 @@ contract DeployScript is UpdateScriptBase {
         bytes memory data
     ) internal pure returns (bytes4[] memory) {
         if (data.length == 0) {
-            bytes4[] memory markerSel = new bytes4[](1);
-            markerSel[0] = bytes4(0xffffffff);
-            return markerSel;
+            bytes4[] memory approveToOnlySelector = new bytes4[](1);
+            approveToOnlySelector[0] = bytes4(0xffffffff);
+            return approveToOnlySelector;
         }
         // 1. Count occurrences of 0x + 8 hex
         uint256 count = 0;
@@ -999,9 +999,9 @@ contract DeployScript is UpdateScriptBase {
             }
         }
         if (count == 0) {
-            bytes4[] memory markerSel2 = new bytes4[](1);
-            markerSel2[0] = bytes4(0xffffffff);
-            return markerSel2;
+            bytes4[] memory approveToOnlySelector2 = new bytes4[](1);
+            approveToOnlySelector2[0] = bytes4(0xffffffff);
+            return approveToOnlySelector2;
         }
 
         // 2. Populate

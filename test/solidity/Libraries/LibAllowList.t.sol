@@ -17,9 +17,9 @@ contract LibAllowListTest is Test {
     bytes4 public constant SELECTOR_B = bytes4(keccak256("functionB()"));
     bytes4 public constant SELECTOR_C = bytes4(keccak256("functionC()"));
 
-    // The special selector used to mark a contract as a valid target for approvals.
-    // This value must match the `APPROVE_SELECTOR` constant in `LibAllowList.sol`.
-    bytes4 internal constant APPROVE_SELECTOR = 0xffffffff;
+    // The ApproveTo-Only Selector (0xffffffff) used to whitelist contracts that are used
+    // only as approveTo in LibSwap.SwapData, without allowing function calls to them.
+    bytes4 internal constant APPROVE_TO_SELECTOR = 0xffffffff;
 
     /// @dev A helper struct to define the expected state of the allow list for assertions.
     struct StateAssertion {
@@ -507,26 +507,29 @@ contract LibAllowListTest is Test {
     }
 
     function test_ApproveTargetSelectorFunctionality() public {
-        // Add contract as an approve-only target. APPROVE_SELECTOR is a special selector used to mark a contract as a valid target for approvals. Used for backward compatibility. It is not used for the new granular system.
+        // Add contract as an approve-only target using ApproveTo-Only Selector.
+        // This selector allows the contract to be whitelisted for token approvals (approveTo)
+        // in LibSwap.SwapData, but prevents any function calls to it.
+        // Used for DEX integrations where the approval contract differs from the router contract.
         LibAllowList.addAllowedContractSelector(
             address(testContract),
-            APPROVE_SELECTOR
+            APPROVE_TO_SELECTOR
         );
 
         // Check New Granular State
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
                 address(testContract),
-                APPROVE_SELECTOR
+                APPROVE_TO_SELECTOR
             ),
-            "New: Pair 1 should NOT be allowed"
+            "New: ApproveTo-Only Selector should be allowed"
         );
         assertEq(
             LibAllowList
                 .getWhitelistedSelectorsForContract(address(testContract))
                 .length,
             1,
-            "New: Contract should have 1 selectors left"
+            "New: Contract should have 1 selector"
         );
         // Backward Compatibility State
         assertTrue(
@@ -536,31 +539,31 @@ contract LibAllowListTest is Test {
         assertEq(
             LibAllowList.getAllowedContracts().length,
             1,
-            "BC: There should be 1 contracts in global list"
+            "BC: There should be 1 contract in global list"
         );
         assertTrue(
-            LibAllowList.selectorIsAllowed(APPROVE_SELECTOR),
-            "BC: Selector should exist"
+            LibAllowList.selectorIsAllowed(APPROVE_TO_SELECTOR),
+            "BC: ApproveTo-Only Selector should exist"
         );
         assertEq(
             LibAllowList.getAllowedSelectors().length,
             1,
-            "BC: Only 1 selectors in global list"
+            "BC: Only 1 selector in global list"
         );
 
         // Remove approve target status
         LibAllowList.removeAllowedContractSelector(
             address(testContract),
-            APPROVE_SELECTOR
+            APPROVE_TO_SELECTOR
         );
 
         // Check New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
                 address(testContract),
-                APPROVE_SELECTOR
+                APPROVE_TO_SELECTOR
             ),
-            "New: Pair 1 should NOT be allowed"
+            "New: ApproveTo-Only Selector should NOT be allowed after removal"
         );
         assertEq(
             LibAllowList
@@ -580,8 +583,8 @@ contract LibAllowListTest is Test {
             "BC: There should be 0 contracts in global list"
         );
         assertFalse(
-            LibAllowList.selectorIsAllowed(APPROVE_SELECTOR),
-            "BC: Selector should NOT exist"
+            LibAllowList.selectorIsAllowed(APPROVE_TO_SELECTOR),
+            "BC: ApproveTo-Only Selector should NOT exist"
         );
         assertEq(
             LibAllowList.getAllowedSelectors().length,

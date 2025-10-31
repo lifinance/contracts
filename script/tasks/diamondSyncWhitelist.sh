@@ -428,20 +428,18 @@ function diamondSyncWhitelist {
           fi
         done
       else
-        # No selectors defined - add marker selector 0xffffffff for backward compatibility
+        # No selectors defined - add ApproveTo-Only Selector (0xffffffff) for backward compatibility
         # 
         # Context: During migration from DexManagerFacet to WhitelistManagerFacet, the old system
         # used simple address-based whitelisting (e.g., approve entire DEX contract). The new 
         # WhitelistManagerFacet uses granular contract-selector pairs for better security.
         # 
-        # The marker selector 0xffffffff serves as a compatibility bridge. Indicates the contract should be whitelisted at the address level (legacy behavior)
-        # 
-        # This marker will be replaced with specific function selectors as configurations
-        # are updated to use the new granular whitelist system.
-        MARKER_SELECTOR="0xffffffff"
-        PAIR_KEY="$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')|$MARKER_SELECTOR"
+        # This selector makes isAddressWhitelisted(_contract) return true for backward
+        # compatibility with legacy address-only checks, but does not allow any granular calls.
+        APPROVE_TO_SELECTOR="0xffffffff"
+        PAIR_KEY="$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')|$APPROVE_TO_SELECTOR"
         
-        # Check if this marker pair is already whitelisted
+        # Check if this ApproveTo-Only Selector pair is already whitelisted
         if [[ ${#CURRENT_PAIRS[@]} -eq 0 ]] || [[ ! " ${CURRENT_PAIRS[@]} " == *" $PAIR_KEY "* ]]; then
           NEW_PAIRS+=("$PAIR_KEY")
           NEW_ADDRESSES+=("$CHECKSUMMED")

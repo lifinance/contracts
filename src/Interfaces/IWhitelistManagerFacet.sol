@@ -39,11 +39,14 @@ interface IWhitelistManagerFacet {
     /// @param _contract The contract address to whitelist or unwhitelist.
     /// @param _selector The function selector to whitelist or unwhitelist.
     /// @param _whitelisted Whether the contract and selector pair should be whitelisted.
-    /// @dev MARKER SELECTOR: For backward compatibility with legacy address-only checks,
-    ///      use 0xffffffff as an "empty/marker" selector when whitelisting a contract.
-    ///      This makes isAddressWhitelisted(_contract) return true but does not allow any
-    ///      granular calls. In the contract-selector system, actual selectors must still
-    ///      be explicitly whitelisted for real usage.
+    /// @dev APPROVE TO-ONLY SELECTOR: Use 0xffffffff to whitelist contracts that are used
+    ///      only as approveTo in LibSwap.SwapData, without allowing function calls to them.
+    ///      Some DEXs have specific contracts that need to be approved to while another
+    ///      (router) contract must be called to initiate the swap. This selector enables
+    ///      whitelisting such approveTo-only contracts while preventing any function calls.
+    ///      Note: This makes isAddressWhitelisted(_contract) return true for backward
+    ///      compatibility, but does not allow any granular calls. Actual selectors must
+    ///      still be explicitly whitelisted for real function call usage.
     function setContractSelectorWhitelist(
         address _contract,
         bytes4 _selector,
@@ -54,9 +57,14 @@ interface IWhitelistManagerFacet {
     /// @param _contracts Array of contract addresses to whitelist or unwhitelist.
     /// @param _selectors Array of function selectors to whitelist or unwhitelist.
     /// @param _whitelisted Whether the contract and selector pairs should be whitelisted.
-    /// @dev MARKER SELECTOR: Use 0xffffffff as an "empty/marker" selector to mark an
-    ///      address as whitelisted for legacy address-only checks. It is not usable for
-    ///      granular calls—explicit function selectors are still required.
+    /// @dev APPROVE TO-ONLY SELECTOR: Use 0xffffffff to whitelist contracts that are used
+    ///      only as approveTo in LibSwap.SwapData, without allowing function calls to them.
+    ///      Some DEXs have specific contracts that need to be approved to while another
+    ///      (router) contract must be called to initiate the swap. This selector enables
+    ///      whitelisting such approveTo-only contracts while preventing any function calls.
+    ///      Note: This makes isAddressWhitelisted(_contract) return true for backward
+    ///      compatibility, but does not allow any granular calls. Actual selectors must
+    ///      still be explicitly whitelisted for real function call usage.
     function batchSetContractSelectorWhitelist(
         address[] calldata _contracts,
         bytes4[] calldata _selectors,

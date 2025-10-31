@@ -808,7 +808,7 @@ const getExpectedPairs = async (
         const functions = contract.functions || {}
 
         if (Object.keys(functions).length === 0) {
-          // Contract with no specific functions uses marker selector
+          // Contract with no specific functions uses ApproveTo-Only Selector (0xffffffff)
           expectedPairs.push({
             contract: contractAddr,
             selector: '0xffffffff' as Hex,
@@ -833,7 +833,7 @@ const getExpectedPairs = async (
       for (const peripheryContract of networkPeripheryContracts) {
         const contractAddr = deployedContracts[peripheryContract.name]
         if (contractAddr) {
-          // Use the actual selectors from config instead of marker selector
+          // Use the actual selectors from config instead of ApproveTo-Only Selector (0xffffffff) selector
           for (const selectorInfo of peripheryContract.selectors || []) {
             expectedPairs.push({
               contract: getAddress(contractAddr),

@@ -671,7 +671,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        // Add a contract with marker selector (0xffffffff) for backward compatibility
+        // Add a contract with ApproveTo-Only Selector (0xffffffff)
         whitelistMgr.setContractSelectorWhitelist(
             address(c1),
             0xffffffff,
@@ -693,7 +693,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         assertEq(selectors[0].length, 1, "c1 should have 1 selector");
         assertTrue(
             selectors[0][0] == 0xffffffff,
-            "c1 should have marker selector"
+            "c1 should have ApproveTo-Only Selector"
         );
 
         vm.stopPrank();
@@ -719,7 +719,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             true
         );
 
-        // Contract 2: Marker selector only
+        // Contract 2: ApproveTo-Only Selector only (no function calls allowed)
         whitelistMgr.setContractSelectorWhitelist(
             address(c2),
             0xffffffff,
@@ -778,11 +778,11 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         assertTrue(foundDeadDead, "c1 should have 0xDEADDEAD selector");
         assertTrue(foundBeefBeef, "c1 should have 0xBEEFBEEF selector");
 
-        // Verify c2 has marker selector
+        // Verify c2 has ApproveTo-Only Selector
         assertEq(selectors[c2Index].length, 1, "c2 should have 1 selector");
         assertTrue(
             selectors[c2Index][0] == 0xffffffff,
-            "c2 should have marker selector"
+            "c2 should have ApproveTo-Only Selector"
         );
 
         // Verify c3 has single selector
@@ -1536,12 +1536,12 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         )
     {
         // Find up to 5 test contracts to avoid OutOfGas errors
-        // Include diverse contract types: marker selector, single real, multiple real
+        // Include diverse contract types: ApproveTo-Only Selector (0xffffffff), single real selector, multiple real selectors
         uint256 maxTestContracts = contracts.length < 5 ? contracts.length : 5;
 
         // First pass: count how many we can find
         uint256 foundCount = 0;
-        bool foundMarker = false;
+        bool foundApproveToOnly = false;
         bool foundSingleReal = false;
         bool foundMultipleReal = false;
 
@@ -1553,11 +1553,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             bool shouldAdd = false;
 
             if (
-                !foundMarker &&
+                !foundApproveToOnly &&
                 selectors[i].length > 0 &&
                 selectors[i][0] == bytes4(0xffffffff)
             ) {
-                foundMarker = true;
+                foundApproveToOnly = true;
                 shouldAdd = true;
             } else if (
                 !foundSingleReal &&
@@ -1592,7 +1592,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Second pass: collect the contracts
         uint256 currentIndex = 0;
-        foundMarker = false;
+        foundApproveToOnly = false;
         foundSingleReal = false;
         foundMultipleReal = false;
 
@@ -1604,11 +1604,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             bool shouldAdd = false;
 
             if (
-                !foundMarker &&
+                !foundApproveToOnly &&
                 selectors[i].length > 0 &&
                 selectors[i][0] == bytes4(0xffffffff)
             ) {
-                foundMarker = true;
+                foundApproveToOnly = true;
                 shouldAdd = true;
             } else if (
                 !foundSingleReal &&
@@ -1840,13 +1840,13 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         bytes4[] memory contractSelectors
     ) internal {
         if (contractSelectors.length == 0) {
-            // Contract with no functions should have 0xffffffff marker selector
+            // Contract with no callable functions uses ApproveTo-Only Selector (0xffffffff).
             assertTrue(
                 WhitelistManagerFacet(DIAMOND).isContractSelectorWhitelisted(
                     contractAddr,
                     bytes4(0xffffffff)
                 ),
-                "Contract with no functions should have marker selector whitelisted"
+                "Contract with no callable functions should have ApproveTo-Only Selector whitelisted"
             );
         } else {
             // Verify each selector for this contract
@@ -1892,20 +1892,20 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
                 contractSelectors.length == 0 ||
                 contractSelectors[0] == bytes4(0xffffffff)
             ) {
-                // Contract with marker selector
+                // Contract with ApproveTo-Only Selector (0xffffffff)
                 assertTrue(
                     WhitelistManagerFacet(DIAMOND)
                         .isContractSelectorWhitelisted(
                             testContract,
                             bytes4(0xffffffff)
                         ),
-                    "Marker selector should be whitelisted"
+                    "ApproveTo-Only Selector should be whitelisted"
                 );
 
-                // Verify legacy selector check returns true for marker
+                // Verify legacy selector check returns true for ApproveTo-Only Selector
                 assertTrue(
                     mockSwapper.isSelectorAllowedLegacy(bytes4(0xffffffff)),
-                    "Marker selector should be allowed via legacy check"
+                    "ApproveTo-Only Selector should be allowed via legacy check"
                 );
             } else {
                 // Contract with real selectors
