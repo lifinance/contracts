@@ -55,7 +55,7 @@ contract LiFiIntentEscrowFacet is
         bytes32 outputSettler; // StandardOrder.outputs.settler
         bytes32 outputToken; // StandardOrder.outputs.token
         uint256 outputAmount; // StandardOrder.outputs.amount
-        bytes outputCall; // StandardOrder.outputs.call
+        bytes outputCall; // StandardOrder.outputs.callbackData
         bytes outputContext; // StandardOrder.outputs.context
     }
 
@@ -157,7 +157,7 @@ contract LiFiIntentEscrowFacet is
             token: _lifiIntentData.outputToken,
             amount: _lifiIntentData.outputAmount,
             recipient: _lifiIntentData.receiverAddress,
-            call: _lifiIntentData.outputCall,
+            callbackData: _lifiIntentData.outputCall,
             context: _lifiIntentData.outputContext
         });
 

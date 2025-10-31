@@ -71,13 +71,13 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
     function setUp() public {
         // Block after deployment.
-        customBlockNumberForForking = 23445613;
+        customBlockNumberForForking = 23695990;
         initTestBase();
 
         // deploy oracle & allocator
         alwaysYesOracle = address(new AlwaysYesOracle());
 
-        lifiIntentEscrowSettler = 0x000001bf3F3175BD007f3889b50000c7006E72c0;
+        lifiIntentEscrowSettler = 0x000025c3226C00B2Cdc200005a1600509f4e00C0;
 
         baseLiFiIntentEscrowFacet = new TestLiFiIntentEscrowFacet(
             lifiIntentEscrowSettler
@@ -167,7 +167,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             token: validLIFIIntentData.outputToken,
             amount: validLIFIIntentData.outputAmount,
             recipient: validLIFIIntentData.receiverAddress,
-            call: validLIFIIntentData.outputCall,
+            callbackData: validLIFIIntentData.outputCall,
             context: validLIFIIntentData.outputContext
         });
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);

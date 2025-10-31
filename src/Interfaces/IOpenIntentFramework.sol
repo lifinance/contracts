@@ -13,7 +13,7 @@ struct MandateOutput {
     bytes32 recipient;
     /// @dev Data that will be delivered to recipient through the settlement callback on the output chain. Can be used
     /// to schedule additional actions.
-    bytes call;
+    bytes callbackData;
     /// @dev Additional output context for the output settlement, encoding order types or other information.
     bytes context;
 }
