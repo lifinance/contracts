@@ -12,12 +12,10 @@ struct PolymerCCTPData {
 
 interface IPolymerCCTPFacet {
     error InvalidAddress();
-    error InvalidBridgeAmount();
-    error InvalidBridgeReceiver();
-    error InvalidSendingAsset( address actual, address expected);
+    error InvalidSendingAsset(address actual, address expected);
     error FeeCannotBeLessThanAmount();
 
-    event PolymerCCTPFeeSent( uint256 bridgeAmount, uint256 polymerFee, uint32 minFinalityThreshold);
+    event PolymerCCTPFeeSent(uint256 bridgeAmount, uint256 polymerFee, uint32 minFinalityThreshold);
 
     function startBridgeTokensViaPolymerCCTP(ILiFi.BridgeData memory _bridgeData, PolymerCCTPData calldata _polymerData)
         external
