@@ -855,6 +855,170 @@ contract LibAllowListTest is Test {
             2,
             "BC: Only 2 selectors in global list"
         );
+
+        // Action: Remove SELECTOR_B from contract2
+        LibAllowList.removeAllowedContractSelector(
+            address(contract2),
+            SELECTOR_B
+        );
+
+        // Check state after removing SELECTOR_B from contract2
+        // Check New Granular State
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(testContract),
+                SELECTOR_A
+            ),
+            "New: Pair 1 should NOT be allowed"
+        );
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(testContract),
+                SELECTOR_B
+            ),
+            "New: Pair 2 should NOT be allowed"
+        );
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(contract2),
+                SELECTOR_B
+            ),
+            "New: Pair 3 should NOT be allowed"
+        );
+        assertTrue(
+            LibAllowList.contractSelectorIsAllowed(
+                address(contract2),
+                SELECTOR_C
+            ),
+            "New: Pair 4 should be allowed"
+        );
+        assertEq(
+            LibAllowList
+                .getWhitelistedSelectorsForContract(address(testContract))
+                .length,
+            0,
+            "New: testContract should have 0 selectors"
+        );
+        assertEq(
+            LibAllowList
+                .getWhitelistedSelectorsForContract(address(contract2))
+                .length,
+            1,
+            "New: contract2 should have 1 selector left"
+        );
+        // Backward Compatibility State
+        assertFalse(
+            LibAllowList.contractIsAllowed(address(testContract)),
+            "BC: testContract should NOT be allowed"
+        );
+        assertTrue(
+            LibAllowList.contractIsAllowed(address(contract2)),
+            "BC: contract2 should still be allowed"
+        );
+        assertEq(
+            LibAllowList.getAllowedContracts().length,
+            1,
+            "BC: There should be 1 contract in global list"
+        );
+        assertFalse(
+            LibAllowList.selectorIsAllowed(SELECTOR_A),
+            "BC: SELECTOR_A should NOT exist"
+        );
+        assertFalse(
+            LibAllowList.selectorIsAllowed(SELECTOR_B),
+            "BC: SELECTOR_B should NOT exist (last usage removed)"
+        );
+        assertTrue(
+            LibAllowList.selectorIsAllowed(SELECTOR_C),
+            "BC: SELECTOR_C should still exist"
+        );
+        assertEq(
+            LibAllowList.getAllowedSelectors().length,
+            1,
+            "BC: Only 1 selector in global list"
+        );
+
+        // Action: Remove SELECTOR_C from contract2 (last selector)
+        LibAllowList.removeAllowedContractSelector(
+            address(contract2),
+            SELECTOR_C
+        );
+
+        // Check final state - everything should be cleaned up
+        // Check New Granular State
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(testContract),
+                SELECTOR_A
+            ),
+            "New: Pair 1 should NOT be allowed"
+        );
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(testContract),
+                SELECTOR_B
+            ),
+            "New: Pair 2 should NOT be allowed"
+        );
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(contract2),
+                SELECTOR_B
+            ),
+            "New: Pair 3 should NOT be allowed"
+        );
+        assertFalse(
+            LibAllowList.contractSelectorIsAllowed(
+                address(contract2),
+                SELECTOR_C
+            ),
+            "New: Pair 4 should NOT be allowed"
+        );
+        assertEq(
+            LibAllowList
+                .getWhitelistedSelectorsForContract(address(testContract))
+                .length,
+            0,
+            "New: testContract should have 0 selectors"
+        );
+        assertEq(
+            LibAllowList
+                .getWhitelistedSelectorsForContract(address(contract2))
+                .length,
+            0,
+            "New: contract2 should have 0 selectors"
+        );
+        // Backward Compatibility State - should be completely empty
+        assertFalse(
+            LibAllowList.contractIsAllowed(address(testContract)),
+            "BC: testContract should NOT be allowed"
+        );
+        assertFalse(
+            LibAllowList.contractIsAllowed(address(contract2)),
+            "BC: contract2 should NOT be allowed"
+        );
+        assertEq(
+            LibAllowList.getAllowedContracts().length,
+            0,
+            "BC: Global contracts list should be empty"
+        );
+        assertFalse(
+            LibAllowList.selectorIsAllowed(SELECTOR_A),
+            "BC: SELECTOR_A should NOT exist"
+        );
+        assertFalse(
+            LibAllowList.selectorIsAllowed(SELECTOR_B),
+            "BC: SELECTOR_B should NOT exist"
+        );
+        assertFalse(
+            LibAllowList.selectorIsAllowed(SELECTOR_C),
+            "BC: SELECTOR_C should NOT exist"
+        );
+        assertEq(
+            LibAllowList.getAllowedSelectors().length,
+            0,
+            "BC: Global selectors list should be empty"
+        );
     }
 
     function test_IterableListMaintainsCorrectOrderAfterRemoval() public {

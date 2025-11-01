@@ -1010,7 +1010,7 @@ const verifyBackwardCompatibilityAndLegacy = async (
 
     if (granularOnlySelectors.size > 0 || globalOnlySelectors.size > 0) {
       if (granularOnlySelectors.size > 0) {
-        consola.warn(
+        logError(
           `Granular system has ${
             granularOnlySelectors.size
           } selectors not in global: ${Array.from(granularOnlySelectors)
@@ -1019,7 +1019,7 @@ const verifyBackwardCompatibilityAndLegacy = async (
         )
       }
       if (globalOnlySelectors.size > 0) {
-        consola.warn(
+        logError(
           `Global system has ${
             globalOnlySelectors.size
           } selectors not in granular: ${Array.from(globalOnlySelectors)
