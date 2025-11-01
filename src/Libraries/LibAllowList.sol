@@ -30,9 +30,13 @@ library LibAllowList {
 
     struct AllowListStorage {
         // --- STORAGE FOR OLDER VERSIONS ---
-        /// @dev [V1 DATA] Unused boolean mapping. Kept for storage layout compatibility.
+        /// @dev [BACKWARD COMPATIBILITY] [V1 DATA] Boolean mapping actively maintained
+        /// by functions to support older, deployed contracts that read from it.
+        /// Also kept for storage layout compatibility.
         mapping(address => bool) contractAllowList;
-        /// @dev [V1 DATA] Unused boolean mapping. Kept for storage layout compatibility.
+        /// @dev [BACKWARD COMPATIBILITY] [V1 DATA] Boolean mapping actively maintained
+        /// by functions to support older, deployed contracts that read from it.
+        /// Also kept for storage layout compatibility.
         mapping(bytes4 => bool) selectorAllowList;
         /// @dev [BACKWARD COMPATIBILITY] The global list of all unique whitelisted contracts for older facets.
         address[] contracts;
@@ -77,13 +81,13 @@ library LibAllowList {
         // 1. Update the source of truth for the new system.
         als.contractSelectorAllowList[_contract][_selector] = true;
 
-        // 2. Update the `contracts` array if this is the first selector for this contract.
+        // 2. Update the `contracts` variables if this is the first selector for this contract.
         // We use the length of the iterable array as an implicit reference count.
         if (als.whitelistedSelectorsByContract[_contract].length == 0) {
             _addAllowedContract(_contract);
         }
 
-        // 3. Update the `selectors` array if this is the first time this selector is used globally.
+        // 3. Update the `selectors` variables if this is the first time this selector is used globally.
         if (++als.selectorReferenceCount[_selector] == 1) {
             _addAllowedSelector(_selector);
         }
@@ -150,7 +154,7 @@ library LibAllowList {
         return _getStorage().whitelistedSelectorsByContract[_contract];
     }
 
-    /// Backward Compatibility Interface ///
+    /// Backward Compatibility Interface (V1) ///
 
     // These functions read from the global arrays. They are required for existing,
     // deployed facets to continue functioning. They should be considered part of a
@@ -164,7 +168,7 @@ library LibAllowList {
     function contractIsAllowed(
         address _contract
     ) internal view returns (bool) {
-        return _getStorage().contractToIndex[_contract] > 0;
+        return _getStorage().contractAllowList[_contract];
     }
 
     /// @notice [Backward Compatibility] Checks if a selector is on the global allow list.
@@ -173,16 +177,18 @@ library LibAllowList {
     /// @param _selector The function selector.
     /// @return isAllowed True if the selector is allowed, false otherwise.
     function selectorIsAllowed(bytes4 _selector) internal view returns (bool) {
-        return _getStorage().selectorToIndex[_selector] > 0;
+        return _getStorage().selectorAllowList[_selector];
     }
 
     /// @notice [Backward Compatibility] Gets the entire global list of whitelisted contracts.
+    /// @dev Returns the `contracts` array, which is synchronized with the new granular system.
     /// @return contracts The global list of whitelisted contracts.
     function getAllowedContracts() internal view returns (address[] memory) {
         return _getStorage().contracts;
     }
 
     /// @notice [Backward Compatibility] Gets the entire global list of whitelisted selectors.
+    /// @dev Returns the `selectors` array, which is synchronized with the new granular system.
     function getAllowedSelectors() internal view returns (bytes4[] memory) {
         return _getStorage().selectors;
     }
@@ -195,6 +201,9 @@ library LibAllowList {
         // Ensure address is actually a contract.
         if (!LibAsset.isContract(_contract)) revert InvalidContract();
         AllowListStorage storage als = _getStorage();
+
+        // Add contract to the old allow list for backward compatibility
+        als.contractAllowList[_contract] = true;
 
         // Skip if contract is already in allow list (1-based index).
         if (als.contractToIndex[_contract] > 0) return;
@@ -209,11 +218,22 @@ library LibAllowList {
     /// @param _contract The contract address.
     function _removeAllowedContract(address _contract) private {
         AllowListStorage storage als = _getStorage();
+
+        // The V1 boolean mapping must be cleared before any checks.
+        // This delete operation is placed at the top to ensure V1/V2 sync
+        // and primarily solves two issues of stale item where
+        // V1 data - als.selectorAllowList[_selector]=true,
+        // V2 data - als.selectorToIndex[_selector]=0.
+        // This scenario is different from selectors; it's an unlikely
+        // edge case for contracts because the migration iterates the
+        // full on-chain `contracts` array for a "perfect" cleanup.
+        // However, this defensive delete ensures the function is robust
+        //against any state corruption.
+        delete als.contractAllowList[_contract];
+
         // Get the 1-based index; return if not found.
         uint256 oneBasedIndex = als.contractToIndex[_contract];
         if (oneBasedIndex == 0) {
-            // Legacy cleanup: clear stale boolean if present.
-            als.contractAllowList[_contract] = false;
             return;
         }
         // Convert to 0-based index for array operations.
@@ -227,6 +247,7 @@ library LibAllowList {
             als.contracts[index] = lastContract;
             als.contractToIndex[lastContract] = oneBasedIndex;
         }
+
         // Remove the last element and clean up mappings.
         als.contracts.pop();
         delete als.contractToIndex[_contract];
@@ -236,10 +257,16 @@ library LibAllowList {
     /// @param _selector The function selector.
     function _addAllowedSelector(bytes4 _selector) private {
         AllowListStorage storage als = _getStorage();
+
+        // Add selector to the old allow list for backward compatibility
+        als.selectorAllowList[_selector] = true;
+
         // Skip if selector is already in allow list (1-based index).
         if (als.selectorToIndex[_selector] > 0) return;
+
         // Add selector to the array.
         als.selectors.push(_selector);
+
         // Store 1-based index for efficient removal later.
         als.selectorToIndex[_selector] = als.selectors.length;
     }
@@ -248,13 +275,21 @@ library LibAllowList {
     /// @param _selector The function selector.
     function _removeAllowedSelector(bytes4 _selector) private {
         AllowListStorage storage als = _getStorage();
+
+        // The V1 boolean mapping must be cleared before any checks.
+        // The migration's selector cleanup is "imperfect" as it relies on an
+        // off-chain list. A "stale selector" ( V1 data - als.selectorAllowList[_selector]=true, V2 data - als.selectorToIndex[_selector]=0) is possible.
+        // Placing `delete` here allows an admin to fix this by
+        // add-then-remove, as this line will clean the V1 bool even if
+        // the V2 `oneBasedIndex` is 0.
+        delete als.selectorAllowList[_selector];
+
         // Get the 1-based index; return if not found.
         uint256 oneBasedIndex = als.selectorToIndex[_selector];
         if (oneBasedIndex == 0) {
-            // legacy cleanup: clear stale boolean if present
-            als.selectorAllowList[_selector] = false;
             return;
         }
+
         // Convert to 0-based index for array operations.
         uint256 index = oneBasedIndex - 1;
         uint256 lastIndex = als.selectors.length - 1;
@@ -266,6 +301,7 @@ library LibAllowList {
             als.selectors[index] = lastSelector;
             als.selectorToIndex[lastSelector] = oneBasedIndex;
         }
+
         // Remove the last element and clean up mappings.
         als.selectors.pop();
         delete als.selectorToIndex[_selector];
@@ -279,9 +315,11 @@ library LibAllowList {
         bytes4 _selector
     ) private {
         AllowListStorage storage als = _getStorage();
+
         // Get the 1-based index; return if not found.
         uint256 oneBasedIndex = als.selectorIndices[_contract][_selector];
         if (oneBasedIndex == 0) return;
+
         // Convert to 0-based index for array operations.
         uint256 index = oneBasedIndex - 1;
         bytes4[] storage selectorsArray = als.whitelistedSelectorsByContract[
@@ -296,6 +334,7 @@ library LibAllowList {
             selectorsArray[index] = lastSelector;
             als.selectorIndices[_contract][lastSelector] = oneBasedIndex;
         }
+
         // Remove the last element and clean up mappings.
         selectorsArray.pop();
         delete als.selectorIndices[_contract][_selector];
