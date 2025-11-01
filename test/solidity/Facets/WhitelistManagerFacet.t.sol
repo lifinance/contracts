@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
@@ -26,14 +26,14 @@ contract MockSwapperFacet {
         return LibAllowList.contractSelectorIsAllowed(_contract, _selector);
     }
 
-    /// @notice [Backward Compatibility] Checks if a contract is on the global allow list.
+    /// @notice [Backward Compatibility] Checks if a contract is on the global V1 allow list.
     function isContractAllowedLegacy(
         address _contract
     ) external view returns (bool) {
         return LibAllowList.contractIsAllowed(_contract);
     }
 
-    /// @notice [Backward Compatibility] Checks if a selector is on the global allow list.
+    /// @notice [Backward Compatibility] Checks if a selector is on the global V1 allow list.
     function isSelectorAllowedLegacy(
         bytes4 _selector
     ) external view returns (bool) {
