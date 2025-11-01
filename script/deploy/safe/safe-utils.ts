@@ -918,7 +918,7 @@ export async function getSafeMongoCollection(): Promise<{
     throw new Error('MONGODB_URI environment variable is required')
 
   const client = new MongoClient(process.env.MONGODB_URI)
-  const db = client.db('SAFE')
+  const db = client.db('sc_private')
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )
