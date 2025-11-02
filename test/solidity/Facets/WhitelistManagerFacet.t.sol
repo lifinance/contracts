@@ -1434,6 +1434,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Read config data first to get the contracts that will be migrated
         (
+            bytes4[] memory selectorsToRemove,
             address[] memory contracts,
             bytes4[][] memory selectors
         ) = _loadAndVerifyConfigData();
@@ -1449,8 +1450,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Prepare and execute diamond cut
         LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
-        // Build calldata ourselves to ensure we use the corrected selectors
-        bytes4[] memory selectorsToRemove = _readSelectorsToRemoveForTest();
         bytes memory initCallData = abi.encodeWithSelector(
             WhitelistManagerFacet.migrate.selector,
             selectorsToRemove,
@@ -1461,25 +1460,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Verify final state
         _verifyFinalState(contracts, selectors, testContracts, testSelectors);
-    }
-
-    function _readSelectorsToRemoveForTest()
-        internal
-        returns (bytes4[] memory out)
-    {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/functionSelectorsToRemove.json"
-        );
-        string memory json = vm.readFile(path);
-        string[] memory raw = vm.parseJsonStringArray(
-            json,
-            ".functionSelectorsToRemove"
-        );
-        out = new bytes4[](raw.length);
-        for (uint256 i = 0; i < raw.length; i++) {
-            out[i] = bytes4(vm.parseBytes(raw[i]));
-        }
     }
 
     function _setupMockSwapperFacet() internal {
@@ -1651,7 +1631,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
     function _loadAndVerifyConfigData()
         internal
-        returns (address[] memory contracts, bytes4[][] memory selectors)
+        returns (
+            bytes4[] memory selectorsToRemove,
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        )
     {
         // Increase gas limit for parsing
         vm.pauseGasMetering();
@@ -1664,12 +1648,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Decode the calldata to extract contracts and selectors
         // migrate(bytes4[] selectorsToRemove, address[] contracts, bytes4[][] selectors)
-        (
-            ,
-            // Skip selectorsToRemove
-            contracts,
-            selectors
-        ) = abi.decode(
+        (selectorsToRemove, contracts, selectors) = abi.decode(
             _sliceBytes(initCallData, 4), // Skip function selector
             (bytes4[], address[], bytes4[][])
         );
