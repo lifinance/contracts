@@ -617,6 +617,17 @@ const main = defineCommand({
           client: publicClient,
         })
 
+        // Check if deployer wallet is the owner
+        const diamondOwner = getContract({
+          address: deployedContracts['LiFiDiamond'],
+          abi: parseAbi(['function owner() external view returns (address)']),
+          client: publicClient,
+        })
+
+        const ownerAddress = await diamondOwner.read.owner()
+        const isDeployerOwner =
+          getAddress(ownerAddress) === getAddress(deployerWallet)
+
         // Deployer wallet
         const approveSelectors =
           globalConfig.approvedSelectorsForDeployerWallet as {
@@ -629,7 +640,12 @@ const main = defineCommand({
             ? (selector.selector as Hex)
             : (`0x${selector.selector}` as Hex)
 
-          if (
+          if (isDeployerOwner) {
+            // Owner can execute all methods, skip access check
+            consola.success(
+              `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector}) - owner has full access`
+            )
+          } else if (
             !(await accessManager.read.addressCanExecuteMethod([
               normalizedSelector,
               deployerWallet,
