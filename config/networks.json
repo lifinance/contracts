@@ -778,7 +778,7 @@
     "rpcUrl": "https://mainnet.optimism.io",
     "verificationType": "etherscan",
     "explorerUrl": "https://optimistic.etherscan.io",
-    "explorerApiUrl": "https://api-optimistic.etherscan.io/api",
+    "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=10",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeAddress": "0xDd6e4Eb5399dDdE78881EfA00D3554D12Cb3402b",
     "gasZipChainId": 55,
