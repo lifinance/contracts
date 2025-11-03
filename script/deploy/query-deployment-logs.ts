@@ -23,7 +23,6 @@ interface IDeploymentRecord {
   network: string
   version: string
   address: string
-  environment: 'staging' | 'production'
   optimizerRuns: string
   timestamp: Date
   constructorArgs: string
@@ -44,7 +43,7 @@ interface IConfig {
 const config: IConfig = {
   mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
   batchSize: 100,
-  databaseName: 'sc_public',
+  databaseName: 'contract-deployments',
 }
 
 class DeploymentLogQuerier {
@@ -63,7 +62,7 @@ class DeploymentLogQuerier {
     try {
       await this.client.connect()
       this.db = this.client.db(this.config.databaseName)
-      const collectionName = 'ContractDeployments'
+      const collectionName = this.environment
       this.collection = this.db.collection<IDeploymentRecord>(collectionName)
     } catch (error) {
       consola.error('Failed to connect to MongoDB:', error)
@@ -76,7 +75,7 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord | null> {
     return this.collection.findOne(
-      { contractName, network, environment: this.environment },
+      { contractName, network },
       { sort: { timestamp: -1 } }
     )
   }
@@ -100,7 +99,6 @@ class DeploymentLogQuerier {
     const filter: Record<string, unknown> = {}
     if (contractName) filter.contractName = contractName
     if (network) filter.network = network
-    filter.environment = this.environment
 
     const skip = (page - 1) * limit
     const total = await this.collection.countDocuments(filter)
@@ -129,7 +127,7 @@ class DeploymentLogQuerier {
   public async findByAddress(
     address: string
   ): Promise<IDeploymentRecord | null> {
-    return this.collection.findOne({ address, environment: this.environment })
+    return this.collection.findOne({ address })
   }
 
   public async filterDeployments(filters: {
@@ -145,7 +143,6 @@ class DeploymentLogQuerier {
     if (filters.network) query.network = filters.network
     if (filters.version) query.version = filters.version
     if (filters.verified !== undefined) query.verified = filters.verified
-    query.environment = this.environment
 
     return this.collection
       .find(query)
@@ -159,7 +156,7 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord[]> {
     return this.collection
-      .find({ contractName, network, environment: this.environment })
+      .find({ contractName, network })
       .sort({ timestamp: -1 })
       .toArray()
   }

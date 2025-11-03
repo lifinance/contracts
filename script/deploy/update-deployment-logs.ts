@@ -35,7 +35,6 @@ interface IDeploymentRecord {
   network: string
   version: string
   address: string
-  environment: 'staging' | 'production'
   optimizerRuns: string
   timestamp: Date
   constructorArgs: string
@@ -93,7 +92,7 @@ const config: IConfig = {
     'deployments/_deployments_log_file.json'
   ),
   batchSize: 100,
-  databaseName: 'sc_public',
+  databaseName: 'contract-deployments',
 }
 
 class DeploymentLogManager {
@@ -116,7 +115,7 @@ class DeploymentLogManager {
       try {
         await this.client.connect()
         this.db = this.client.db(config.databaseName)
-        const collectionName = 'ContractDeployments'
+        const collectionName = this.environment
         this.collection = this.db.collection<IDeploymentRecord>(collectionName)
 
         consola.info(`Connected to MongoDB collection: ${collectionName}`)
@@ -142,29 +141,14 @@ class DeploymentLogManager {
 
     const indexSpecs: IIndexSpec[] = [
       {
-        key: {
-          contractName: 1,
-          network: 1,
-          version: 1,
-          environment: 1,
-        } as IndexSpecification,
-        name: 'contract_network_version_env',
-        oldNames: [
-          'contract_network_version',
-          'contractName_1_network_1_version_1',
-        ], // Known old names
+        key: { contractName: 1, network: 1, version: 1 } as IndexSpecification,
+        name: 'contract_network_version',
+        oldNames: ['contractName_1_network_1_version_1'], // Known old name
       },
       {
-        key: {
-          contractNetworkKey: 1,
-          version: 1,
-          environment: 1,
-        } as IndexSpecification,
-        name: 'contract_network_key_version_env',
-        oldNames: [
-          'contract_network_key_version',
-          'contractNetworkKey_1_version_1',
-        ], // Known old names
+        key: { contractNetworkKey: 1, version: 1 } as IndexSpecification,
+        name: 'contract_network_key_version',
+        oldNames: ['contractNetworkKey_1_version_1'], // Known old name
       },
       {
         key: { timestamp: -1 } as IndexSpecification,
@@ -175,11 +159,6 @@ class DeploymentLogManager {
         key: { address: 1 } as IndexSpecification,
         name: 'address',
         oldNames: ['address_1'], // Known old name
-      },
-      {
-        key: { environment: 1 } as IndexSpecification,
-        name: 'environment',
-        oldNames: [], // New index
       },
     ]
     try {
@@ -356,7 +335,6 @@ class DeploymentLogManager {
                   network,
                   version,
                   address: typedDeployment.ADDRESS,
-                  environment: this.environment,
                   optimizerRuns: typedDeployment.OPTIMIZER_RUNS,
                   timestamp: new Date(typedDeployment.TIMESTAMP),
                   constructorArgs: typedDeployment.CONSTRUCTOR_ARGS,
@@ -398,7 +376,6 @@ class DeploymentLogManager {
       network: record.network,
       version: record.version,
       address: record.address,
-      environment: this.environment,
     }
 
     const update = {
@@ -407,7 +384,6 @@ class DeploymentLogManager {
         network: record.network,
         version: record.version,
         address: record.address,
-        environment: this.environment,
         optimizerRuns: record.optimizerRuns,
         timestamp: record.timestamp,
         constructorArgs: record.constructorArgs,
@@ -442,7 +418,6 @@ class DeploymentLogManager {
           network: record.network,
           version: record.version,
           address: record.address,
-          environment: this.environment,
         },
         update: {
           $set: {
@@ -450,7 +425,6 @@ class DeploymentLogManager {
             network: record.network,
             version: record.version,
             address: record.address,
-            environment: this.environment,
             optimizerRuns: record.optimizerRuns,
             timestamp: record.timestamp,
             constructorArgs: record.constructorArgs,
@@ -515,9 +489,6 @@ class DeploymentLogManager {
       consola.info('Fetching existing record keys from MongoDB...')
       const existingKeys = await this.collection
         .aggregate([
-          {
-            $match: { environment: this.environment },
-          },
           {
             $project: {
               _id: 0,
@@ -623,7 +594,6 @@ class DeploymentLogManager {
                   network: record.network,
                   version: record.version,
                   address: record.address,
-                  environment: this.environment,
                 },
               },
             }
@@ -837,7 +807,6 @@ const addCommand = defineCommand({
 
       version: args.version,
       address: args.address,
-      environment: args.env as 'staging' | 'production',
       optimizerRuns: args['optimizer-runs'],
       timestamp: new Date(args.timestamp),
       constructorArgs: args['constructor-args'],
