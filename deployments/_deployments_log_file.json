@@ -3532,7 +3532,7 @@
             "TIMESTAMP": "2025-11-01 23:35:53",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32335152",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -8479,7 +8479,7 @@
             "TIMESTAMP": "2025-11-02 12:46:42",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62000000000000000000000000c4647e210eec3744d017cc3d8bb347f10e3da339",
             "SALT": "32335152",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -29909,7 +29909,7 @@
             "TIMESTAMP": "2025-11-02 12:45:26",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "32335152",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -33694,7 +33694,7 @@
             "TIMESTAMP": "2025-11-02 12:44:26",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "32335152",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -42491,6 +42491,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32335152",
             "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9FDeC3388cf4400B0F8eb8ed81D8edBAeEC65c2f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-02 13:34:30",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "32335152",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]

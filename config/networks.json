@@ -858,7 +858,7 @@
     "rpcUrl": "https://polygon-rpc.com",
     "verificationType": "etherscan",
     "explorerUrl": "https://polygonscan.com",
-    "explorerApiUrl": "https://api.polygonscan.com/api",
+    "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=137",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeAddress": "0x5beFc110D47851531FBDbF23B029Cc691A8091e0",
     "gasZipChainId": 17,
