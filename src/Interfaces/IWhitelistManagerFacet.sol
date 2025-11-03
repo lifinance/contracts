@@ -12,15 +12,6 @@ pragma solidity ^0.8.17;
 interface IWhitelistManagerFacet {
     /// Events ///
 
-    /// @notice Emitted when a new address is added to the whitelist.
-    event AddressWhitelisted(address indexed whitelistedAddress);
-
-    /// @notice Emitted when a function selector is added to the whitelist.
-    event FunctionSelectorWhitelistChanged(
-        bytes4 indexed selector,
-        bool indexed whitelisted
-    );
-
     /// @notice Emitted when a contract and selector pair is whitelisted or unwhitelisted.
     event ContractSelectorWhitelistChanged(
         address indexed contractAddress,

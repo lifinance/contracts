@@ -55,12 +55,6 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     Foo internal c4;
     Foo internal c5;
 
-    event AddressWhitelisted(address indexed whitelistedAddress);
-    event AddressRemoved(address indexed removedAddress);
-    event FunctionSelectorWhitelistChanged(
-        bytes4 indexed functionSelector,
-        bool indexed approved
-    );
     event ContractSelectorWhitelistChanged(
         address indexed contractAddress,
         bytes4 indexed functionSelector,
