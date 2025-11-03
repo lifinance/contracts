@@ -179,7 +179,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         uint256 i;
         uint256 length = als.contracts.length;
         for (; i < length; ) {
-            als.contractAllowList[als.contracts[i]] = false;
+            delete als.contractAllowList[als.contracts[i]];
             unchecked {
                 ++i;
             }
@@ -189,7 +189,7 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         i = 0;
         length = _selectorsToRemove.length;
         for (; i < length; ) {
-            als.selectorAllowList[_selectorsToRemove[i]] = false;
+            delete als.selectorAllowList[_selectorsToRemove[i]];
             unchecked {
                 ++i;
             }
