@@ -3570,7 +3570,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -3616,7 +3617,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -3662,7 +3664,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -3698,7 +3701,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -3744,7 +3748,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -3852,7 +3857,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -3970,7 +3976,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -4016,7 +4023,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -4052,7 +4060,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -4098,7 +4107,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -4144,7 +4154,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -4190,7 +4201,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ],
@@ -4236,7 +4248,8 @@
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
               "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
               "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
-              "0x01617fab": "swapWrap(uint256,uint256)"
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": ""
             }
           }
         ]
