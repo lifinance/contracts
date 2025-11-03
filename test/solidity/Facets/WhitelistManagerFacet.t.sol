@@ -1935,22 +1935,10 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             for (uint256 j = 0; j < selectors[i].length; j++) {
                 bytes4 targetSelector = selectors[i][j];
 
-                // Verify each selector with isFunctionApproved
-                (bool success, bytes memory data) = DIAMOND.staticcall(
-                    abi.encodeWithSignature(
-                        "isFunctionApproved(bytes4)",
-                        targetSelector
-                    )
-                );
-                assertTrue(
-                    success,
-                    "isFunctionApproved call should not revert"
-                );
-                bool isSelectorApproved = abi.decode(data, (bool));
-
+                // Verify each selector with isFunctionApproved using helper function
                 // Selectors in the whitelist should be approved
                 assertTrue(
-                    isSelectorApproved,
+                    _checkV1SelectorStorage(DIAMOND, targetSelector),
                     "Selector in whitelist should be approved"
                 );
             }
@@ -1976,24 +1964,228 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             // If selector is in functionSelectorsToRemove but NOT in selectors,
             // it should return false
             if (!isInSelectors) {
-                (bool success, bytes memory data) = DIAMOND.staticcall(
-                    abi.encodeWithSignature(
-                        "isFunctionApproved(bytes4)",
-                        selectorToRemove
-                    )
-                );
-                assertTrue(
-                    success,
-                    "isFunctionApproved call should not revert"
-                );
-                bool isSelectorApproved = abi.decode(data, (bool));
-
                 assertFalse(
-                    isSelectorApproved,
+                    _checkV1SelectorStorage(DIAMOND, selectorToRemove),
                     "Selector in functionSelectorsToRemove but not in selectors should return false"
                 );
             }
         }
+    }
+
+    /// @notice Test that verifies a stale selector can still be removed after migration using the two-step fix
+    /// @dev This test simulates the scenario where:
+    ///      1. Before migration: selectorAllowList[0xBADBAD] = true (V1)
+    ///      2. Before migration: contractSelectorAllowList[contract][0xBADBAD] = false (V2 source of truth)
+    ///      3. Before migration: selectorToIndex[0xBADBAD] = 0 (V2)
+    ///      4. After migration: The stale selector remains in V1 storage but not in V2
+    ///      5. We verify the two-step fix works: add-then-remove to clear all states
+    function test_SucceedsIfStaleSelectorCanBeRemovedAfterMigration() public {
+        vm.pauseGasMetering();
+
+        // Deploy WhitelistManagerFacet first
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // Set up mock swapper to verify existing integrations
+        _setupMockSwapperFacet();
+
+        // Get current state from legacy DexManagerFacet
+        _getLegacyState();
+
+        // Read config data to get the contracts that will be migrated
+        (
+            bytes4[] memory selectorsToRemove,
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        ) = _loadAndVerifyConfigData();
+
+        // Mock contracts for testing BEFORE diamond cut
+        _mockContractsForTesting(contracts);
+
+        // Create a stale selector state BEFORE migration using the old DexManagerFacet function
+        // We'll use a selector that will be in selectorsToRemove but simulate it staying in V1 storage
+        bytes4 staleSelector = bytes4(uint32(0xBADBAD)); // Our stale selector (padded to 4 bytes)
+        address testContract = contracts.length > 0
+            ? contracts[0]
+            : address(0x1234);
+
+        // Ensure testContract is a valid contract
+        if (testContract == address(0) || contracts.length == 0) {
+            testContract = address(0x1234567890123456789012345678901234567890);
+            vm.etch(
+                testContract,
+                hex"600180808080800180808080800180808080800180808080801b"
+            );
+        }
+
+        // Use the old DexManagerFacet.setFunctionApprovalBySignature to add selector to V1 storage
+        // This creates stale state: V1 has the selector (via old function) but V2 doesn't (no contract-selector pair)
+        // The diamond should already have DexManagerFacet before migration
+        address owner = OwnershipFacet(DIAMOND).owner();
+        vm.startPrank(owner);
+
+        // Use the old function to add selector to V1 storage (but not V2 contract-selector pair)
+        // This will only update V1 selectorAllowList, not create contract-selector pairs
+        // Call setFunctionApprovalBySignature(bytes4,bool) using low-level call
+        (bool success, ) = DIAMOND.call(
+            abi.encodeWithSignature(
+                "setFunctionApprovalBySignature(bytes4,bool)",
+                staleSelector,
+                true
+            )
+        );
+        assertTrue(
+            success,
+            "setFunctionApprovalBySignature call should succeed"
+        );
+        vm.stopPrank();
+
+        vm.resumeGasMetering();
+
+        // Prepare and execute diamond cut
+        LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
+
+        // Remove the stale selector from selectorsToRemove if it's there, so migration doesn't clear it
+        bytes4[] memory adjustedSelectorsToRemove = _removeFromArray(
+            selectorsToRemove,
+            staleSelector
+        );
+
+        bytes memory initCallData = abi.encodeWithSelector(
+            WhitelistManagerFacet.migrate.selector,
+            adjustedSelectorsToRemove,
+            contracts,
+            selectors
+        );
+        _executeDiamondCut(cuts, initCallData);
+
+        vm.pauseGasMetering();
+
+        // Verify stale state exists after migration
+        // V1 storage should still have the selector (it wasn't in selectorsToRemove anymore)
+        bool v1SelectorExists = _checkV1SelectorStorage(
+            DIAMOND,
+            staleSelector
+        );
+        // V2 source of truth should be false (selector wasn't in migration data)
+        bool v2SelectorExists = WhitelistManagerFacet(DIAMOND)
+            .isContractSelectorWhitelisted(testContract, staleSelector);
+
+        // The stale state should exist: V1 true, V2 false
+        assertTrue(
+            v1SelectorExists,
+            "Stale selector should exist in V1 storage after migration"
+        );
+        assertFalse(
+            v2SelectorExists,
+            "Stale selector should NOT exist in V2 storage (source of truth)"
+        );
+
+        // Now test the two-step fix: add-then-remove
+        vm.startPrank(owner);
+
+        // Step 1: "Add" the selector to sync all states to true
+        // This will make contractSelectorAllowList[testContract][staleSelector] = true
+        WhitelistManagerFacet(DIAMOND).setContractSelectorWhitelist(
+            testContract,
+            staleSelector,
+            true
+        );
+
+        // Verify after step 1: all states should be true
+        assertTrue(
+            WhitelistManagerFacet(DIAMOND).isContractSelectorWhitelisted(
+                testContract,
+                staleSelector
+            ),
+            "After step 1: selector should be in V2 storage"
+        );
+        assertTrue(
+            WhitelistManagerFacet(DIAMOND).isFunctionSelectorWhitelisted(
+                staleSelector
+            ),
+            "After step 1: selector should be in V1 storage"
+        );
+
+        // Verify that DexManagerFacet's isFunctionApproved also returns true
+        // (DexManagerFacet is still on the diamond, so we should verify V1 storage is synced)
+        assertTrue(
+            _checkV1SelectorStorage(DIAMOND, staleSelector),
+            "After step 1: isFunctionApproved should return true (V1 storage synced)"
+        );
+
+        // Step 2: "Remove" the selector to clear all states
+        WhitelistManagerFacet(DIAMOND).setContractSelectorWhitelist(
+            testContract,
+            staleSelector,
+            false
+        );
+
+        // Verify after step 2: all states should be cleared
+        assertFalse(
+            WhitelistManagerFacet(DIAMOND).isContractSelectorWhitelisted(
+                testContract,
+                staleSelector
+            ),
+            "After step 2: selector should NOT be in V2 storage"
+        );
+        assertFalse(
+            WhitelistManagerFacet(DIAMOND).isFunctionSelectorWhitelisted(
+                staleSelector
+            ),
+            "After step 2: selector should NOT be in V1 storage"
+        );
+
+        // Verify that DexManagerFacet's isFunctionApproved also returns false
+        // (DexManagerFacet is still on the diamond, so we should verify V1 storage is cleared)
+        assertFalse(
+            _checkV1SelectorStorage(DIAMOND, staleSelector),
+            "After step 2: isFunctionApproved should return false (V1 storage cleared)"
+        );
+
+        vm.stopPrank();
+
+        vm.resumeGasMetering();
+    }
+
+    /// @notice Helper function to check if a selector exists in V1 storage
+    function _checkV1SelectorStorage(
+        address diamond,
+        bytes4 selector
+    ) internal returns (bool) {
+        // call isFunctionApproved on DexManagerFacet
+        (bool success, bytes memory data) = diamond.staticcall(
+            abi.encodeWithSignature("isFunctionApproved(bytes4)", selector)
+        );
+        assertTrue(success, "isFunctionApproved call should not revert");
+        bool isSelectorApproved = abi.decode(data, (bool));
+        return isSelectorApproved;
+    }
+
+    /// @notice Helper function to remove an element from a bytes4 array
+    function _removeFromArray(
+        bytes4[] memory arr,
+        bytes4 element
+    ) internal pure returns (bytes4[] memory) {
+        uint256 count = 0;
+        for (uint256 i = 0; i < arr.length; i++) {
+            if (arr[i] != element) {
+                count++;
+            }
+        }
+
+        if (count == arr.length) {
+            return arr; // Element not found, return original
+        }
+
+        bytes4[] memory result = new bytes4[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < arr.length; i++) {
+            if (arr[i] != element) {
+                result[j] = arr[i];
+                j++;
+            }
+        }
+        return result;
     }
 }
 
