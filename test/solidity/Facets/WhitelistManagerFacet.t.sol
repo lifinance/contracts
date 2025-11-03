@@ -1233,7 +1233,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Set required environment variables for deployment script
         vm.setEnv("NETWORK", "base");
-        vm.setEnv("FILE_SUFFIX", "staging.");
+        vm.setEnv("FILE_SUFFIX", "");
         vm.setEnv("USE_DEF_DIAMOND", "true");
         // Use a dummy private key for testing (32 bytes) - needed for github action
         vm.setEnv(
@@ -1423,6 +1423,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     /// 6. Executes diamond cut with that calldata
     /// 7. Verifies post-migration state matches expected values
     function test_DiamondCutWithInitCallDataThatCallsMigrate() public {
+        vm.pauseGasMetering();
         // Deploy WhitelistManagerFacet first
         whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
 
@@ -1441,6 +1442,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Mock contracts for testing BEFORE diamond cut
         _mockContractsForTesting(contracts);
+        vm.resumeGasMetering();
 
         // Prepare and execute diamond cut
         LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
@@ -1452,8 +1454,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         );
         _executeDiamondCut(cuts, initCallData);
 
+        vm.pauseGasMetering();
+
         // Verify final state
         _verifyFinalState(selectorsToRemove, contracts, selectors);
+        vm.resumeGasMetering();
     }
 
     function _setupMockSwapperFacet() internal {
