@@ -520,7 +520,7 @@ const main = defineCommand({
 
         //
         //          ╭─────────────────────────────────────────────────────────╮
-        //          │            Check Legacy Selector Cleanup                │
+        //          │            Check legacy selector cleanup                │
         //          ╰─────────────────────────────────────────────────────────╯
         //
         await checkMigrationCleanup(
@@ -528,235 +528,226 @@ const main = defineCommand({
           publicClient,
           expectedPairs
         )
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check contract ownership                 │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking ownership...')
-
-        const refundWallet = getAddress(globalConfig.refundWallet)
-        const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
-
-        // Check ERC20Proxy ownership (skip for staging)
-        if (environment === 'production') {
-          const erc20ProxyOwner = await erc20Proxy.read.owner()
-          if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
-            logError(
-              `ERC20Proxy owner is ${getAddress(
-                erc20ProxyOwner
-              )}, expected ${getAddress(deployerWallet)}`
-            )
-          else consola.success('ERC20Proxy owner is correct')
-        } else {
-          consola.info(
-            'Skipping ERC20Proxy ownership check for staging environment'
-          )
-        }
-
-        // Check that Diamond is owned by Timelock (skip for staging)
-        if (environment === 'production') {
-          if (deployedContracts.LiFiTimelockController) {
-            const timelockAddress = deployedContracts.LiFiTimelockController
-
-            await checkOwnership(
-              'LiFiDiamond',
-              timelockAddress,
-              deployedContracts,
-              publicClient
-            )
-          } else
-            consola.error(
-              'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
-            )
-        } else {
-          consola.info(
-            'Skipping diamond ownership check for staging environment'
-          )
-        }
-
-        // FeeCollector
-        await checkOwnership(
-          'FeeCollector',
-          feeCollectorOwner,
-          deployedContracts,
-          publicClient
-        )
-
-        // Receiver
-        await checkOwnership(
-          'Receiver',
-          refundWallet,
-          deployedContracts,
-          publicClient
-        )
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check emergency pause config             │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking funding of pauser wallet...')
-
-        const pauserBalance = formatEther(
-          await publicClient.getBalance({
-            address: pauserWallet,
-          })
-        )
-
-        if (!pauserBalance || pauserBalance === '0')
-          logError(`PauserWallet does not have any native balance`)
-        else consola.success(`PauserWallet is funded: ${pauserBalance}`)
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check access permissions                 │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking access permissions...')
-        const accessManager = getContract({
-          address: deployedContracts['LiFiDiamond'],
-          abi: parseAbi([
-            'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
-          ]),
-          client: publicClient,
-        })
-
-        // Check if deployer wallet is the owner
-        const diamondOwner = getContract({
-          address: deployedContracts['LiFiDiamond'],
-          abi: parseAbi(['function owner() external view returns (address)']),
-          client: publicClient,
-        })
-
-        const ownerAddress = await diamondOwner.read.owner()
-        const isDeployerOwner =
-          getAddress(ownerAddress) === getAddress(deployerWallet)
-
-        // Deployer wallet
-        const approveSelectors =
-          globalConfig.approvedSelectorsForDeployerWallet as {
-            selector: Hex
-            name: string
-          }[]
-
-        for (const selector of approveSelectors) {
-          const normalizedSelector = selector.selector.startsWith('0x')
-            ? (selector.selector as Hex)
-            : (`0x${selector.selector}` as Hex)
-
-          if (isDeployerOwner) {
-            // Owner can execute all methods, skip access check
-            consola.success(
-              `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector}) - owner has full access`
-            )
-          } else if (
-            !(await accessManager.read.addressCanExecuteMethod([
-              normalizedSelector,
-              deployerWallet,
-            ]))
-          )
-            logError(
-              `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${normalizedSelector})`
-            )
-          else
-            consola.success(
-              `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector})`
-            )
-        }
-
-        // Refund wallet
-        const refundSelectors =
-          globalConfig.approvedSelectorsForRefundWallet as {
-            selector: Hex
-            name: string
-          }[]
-
-        for (const selector of refundSelectors) {
-          const normalizedSelector = selector.selector.startsWith('0x')
-            ? (selector.selector as Hex)
-            : (`0x${selector.selector}` as Hex)
-
-          if (
-            !(await accessManager.read.addressCanExecuteMethod([
-              normalizedSelector,
-              refundWallet,
-            ]))
-          )
-            logError(
-              `Refund wallet ${refundWallet} cannot execute ${selector.name} (${normalizedSelector})`
-            )
-          else
-            consola.success(
-              `Refund wallet ${refundWallet} can execute ${selector.name} (${normalizedSelector})`
-            )
-        }
-
-        if (environment === 'production') {
-          //          ╭─────────────────────────────────────────────────────────╮
-          //          │                   SAFE Configuration                    │
-          //          ╰─────────────────────────────────────────────────────────╯
-          consola.box('Checking SAFE configuration...')
-          const networkConfig: Network = networks[networkLower]
-          if (!networkConfig.safeAddress)
-            consola.warn('SAFE address not configured')
-          else {
-            const safeOwners = globalConfig.safeOwners
-            const safeAddress = networkConfig.safeAddress
-
-            try {
-              // Import getSafeInfoFromContract from safe-utils.ts
-              const { getSafeInfoFromContract } = await import(
-                './safe/safe-utils'
-              )
-
-              // Get Safe info directly from the contract
-              const safeInfo = await getSafeInfoFromContract(
-                publicClient,
-                safeAddress
-              )
-
-              // Check that each safeOwner is in the Safe
-              for (const o in safeOwners) {
-                const safeOwner = getAddress(safeOwners[o])
-                const isOwner = safeInfo.owners.some(
-                  (owner) => getAddress(owner) === safeOwner
-                )
-
-                if (!isOwner)
-                  logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-                else
-                  consola.success(
-                    `SAFE owner ${safeOwner} is in SAFE configuration`
-                  )
-              }
-
-              // Check that threshold is correct
-              if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
-                logError(
-                  `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
-                )
-              else
-                consola.success(
-                  `SAFE signature threshold is ${safeInfo.threshold}`
-                )
-
-              // Show current nonce
-              consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
-            } catch (error) {
-              logError(`Failed to get SAFE information: ${error}`)
-            }
-          }
-        } else {
-          consola.info('Skipping SAFE checks for staging environment')
-        }
-
-        finish()
       } else {
         consola.info(
           'No whitelist configuration found for this network, skipping whitelist checks'
         )
-        finish()
       }
     } catch (error) {
       logError('Whitelist configuration not available')
-      finish()
     }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check contract ownership                 │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking ownership...')
+
+    const refundWallet = getAddress(globalConfig.refundWallet)
+    const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
+
+    // Check ERC20Proxy ownership (skip for staging)
+    if (environment === 'production') {
+      const erc20ProxyOwner = await erc20Proxy.read.owner()
+      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
+        logError(
+          `ERC20Proxy owner is ${getAddress(
+            erc20ProxyOwner
+          )}, expected ${getAddress(deployerWallet)}`
+        )
+      else consola.success('ERC20Proxy owner is correct')
+    } else {
+      consola.info(
+        'Skipping ERC20Proxy ownership check for staging environment'
+      )
+    }
+
+    // Check that Diamond is owned by Timelock (skip for staging)
+    if (environment === 'production') {
+      if (deployedContracts.LiFiTimelockController) {
+        const timelockAddress = deployedContracts.LiFiTimelockController
+
+        await checkOwnership(
+          'LiFiDiamond',
+          timelockAddress,
+          deployedContracts,
+          publicClient
+        )
+      } else
+        consola.error(
+          'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
+        )
+    } else {
+      consola.info('Skipping diamond ownership check for staging environment')
+    }
+
+    // FeeCollector
+    await checkOwnership(
+      'FeeCollector',
+      feeCollectorOwner,
+      deployedContracts,
+      publicClient
+    )
+
+    // Receiver
+    await checkOwnership(
+      'Receiver',
+      refundWallet,
+      deployedContracts,
+      publicClient
+    )
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check emergency pause config             │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking funding of pauser wallet...')
+
+    const pauserBalance = formatEther(
+      await publicClient.getBalance({
+        address: pauserWallet,
+      })
+    )
+
+    if (!pauserBalance || pauserBalance === '0')
+      logError(`PauserWallet does not have any native balance`)
+    else consola.success(`PauserWallet is funded: ${pauserBalance}`)
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check access permissions                 │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking access permissions...')
+    const accessManager = getContract({
+      address: deployedContracts['LiFiDiamond'],
+      abi: parseAbi([
+        'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
+      ]),
+      client: publicClient,
+    })
+
+    // Check if deployer wallet is the owner
+    const diamondOwner = getContract({
+      address: deployedContracts['LiFiDiamond'],
+      abi: parseAbi(['function owner() external view returns (address)']),
+      client: publicClient,
+    })
+
+    const ownerAddress = await diamondOwner.read.owner()
+    const isDeployerOwner =
+      getAddress(ownerAddress) === getAddress(deployerWallet)
+
+    // Deployer wallet
+    const approveSelectors =
+      globalConfig.approvedSelectorsForDeployerWallet as {
+        selector: Hex
+        name: string
+      }[]
+
+    for (const selector of approveSelectors) {
+      const normalizedSelector = selector.selector.startsWith('0x')
+        ? (selector.selector as Hex)
+        : (`0x${selector.selector}` as Hex)
+
+      if (isDeployerOwner) {
+        // Owner can execute all methods, skip access check
+        consola.success(
+          `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector}) - owner has full access`
+        )
+      } else if (
+        !(await accessManager.read.addressCanExecuteMethod([
+          normalizedSelector,
+          deployerWallet,
+        ]))
+      )
+        logError(
+          `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${normalizedSelector})`
+        )
+      else
+        consola.success(
+          `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector})`
+        )
+    }
+
+    // Refund wallet
+    const refundSelectors = globalConfig.approvedSelectorsForRefundWallet as {
+      selector: Hex
+      name: string
+    }[]
+
+    for (const selector of refundSelectors) {
+      const normalizedSelector = selector.selector.startsWith('0x')
+        ? (selector.selector as Hex)
+        : (`0x${selector.selector}` as Hex)
+
+      if (
+        !(await accessManager.read.addressCanExecuteMethod([
+          normalizedSelector,
+          refundWallet,
+        ]))
+      )
+        logError(
+          `Refund wallet ${refundWallet} cannot execute ${selector.name} (${normalizedSelector})`
+        )
+      else
+        consola.success(
+          `Refund wallet ${refundWallet} can execute ${selector.name} (${normalizedSelector})`
+        )
+    }
+
+    if (environment === 'production') {
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                   SAFE Configuration                    │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking SAFE configuration...')
+      const networkConfig: Network = networks[networkLower]
+      if (!networkConfig.safeAddress)
+        consola.warn('SAFE address not configured')
+      else {
+        const safeOwners = globalConfig.safeOwners
+        const safeAddress = networkConfig.safeAddress
+
+        try {
+          // Import getSafeInfoFromContract from safe-utils.ts
+          const { getSafeInfoFromContract } = await import('./safe/safe-utils')
+
+          // Get Safe info directly from the contract
+          const safeInfo = await getSafeInfoFromContract(
+            publicClient,
+            safeAddress
+          )
+
+          // Check that each safeOwner is in the Safe
+          for (const o in safeOwners) {
+            const safeOwner = getAddress(safeOwners[o])
+            const isOwner = safeInfo.owners.some(
+              (owner) => getAddress(owner) === safeOwner
+            )
+
+            if (!isOwner)
+              logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
+            else
+              consola.success(
+                `SAFE owner ${safeOwner} is in SAFE configuration`
+              )
+          }
+
+          // Check that threshold is correct
+          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
+            logError(
+              `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
+            )
+          else
+            consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
+
+          // Show current nonce
+          consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
+        } catch (error) {
+          logError(`Failed to get SAFE information: ${error}`)
+        }
+      }
+    } else {
+      consola.info('Skipping SAFE checks for staging environment')
+    }
+
+    finish()
   },
 })
 
@@ -1260,7 +1251,7 @@ const checkMigrationCleanup = async (
   publicClient: PublicClient,
   expectedPairs: Array<{ contract: Address; selector: Hex }>
 ) => {
-  consola.box('Checking Legacy Selector Cleanup (Migration Check)...')
+  consola.box('Checking legacy selector cleanup (Migration check)...')
 
   try {
     // 1. Load functionSelectorsToRemove.json
