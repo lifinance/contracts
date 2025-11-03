@@ -1439,12 +1439,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             bytes4[][] memory selectors
         ) = _loadAndVerifyConfigData();
 
-        // Find test contracts (at least 2) for verification
-        (
-            address[] memory testContracts,
-            bytes4[][] memory testSelectors
-        ) = _findTestContracts(contracts, selectors);
-
         // Mock contracts for testing BEFORE diamond cut
         _mockContractsForTesting(contracts);
 
@@ -1459,7 +1453,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         _executeDiamondCut(cuts, initCallData);
 
         // Verify final state
-        _verifyFinalState(contracts, selectors, testContracts, testSelectors);
+        _verifyFinalState(selectorsToRemove, contracts, selectors);
     }
 
     function _setupMockSwapperFacet() internal {
@@ -1637,14 +1631,9 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             bytes4[][] memory selectors
         )
     {
-        // Increase gas limit for parsing
-        vm.pauseGasMetering();
-
         // Get the calldata that will be used in the actual migration
         // This already contains the parsed and aggregated contracts/selectors
         bytes memory initCallData = deployScript.exposed_getCallData();
-
-        vm.resumeGasMetering();
 
         // Decode the calldata to extract contracts and selectors
         // migrate(bytes4[] selectorsToRemove, address[] contracts, bytes4[][] selectors)
@@ -1768,10 +1757,9 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     }
 
     function _verifyFinalState(
+        bytes4[] memory selectorsToRemove,
         address[] memory contracts,
-        bytes4[][] memory selectors,
-        address[] memory testContracts,
-        bytes4[][] memory testSelectors
+        bytes4[][] memory selectors
     ) internal {
         MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
 
@@ -1789,9 +1777,10 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Verify each contract is correctly migrated
         _verifyContractMigration(contracts, selectors, finalContracts);
-
         // Verify test contracts specifically
-        _verifyTestContracts(testContracts, testSelectors, mockSwapper);
+        _verifyTestContracts(contracts, selectors, mockSwapper);
+        // Verify legacy isFunctionApproved for all selectors
+        _verifyLegacyIsFunctionApproved(selectorsToRemove, selectors);
     }
 
     function _verifyContractMigration(
@@ -1922,6 +1911,82 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
                         "Selector should be allowed via legacy check"
                     );
                 }
+            }
+        }
+    }
+
+    /// @notice Verify legacy isFunctionApproved for all selectors
+    /// @dev Checks that:
+    ///      1. All selectors in the whitelist return true from isFunctionApproved
+    ///      2. Selectors in functionSelectorsToRemove but NOT in selectors return false
+    /// @param selectorsToRemove Selectors from initCallData that were passed to migrate
+    /// @param selectors Selectors from initCallData that were passed to migrate
+    function _verifyLegacyIsFunctionApproved(
+        bytes4[] memory selectorsToRemove,
+        bytes4[][] memory selectors
+    ) internal {
+        // For each selector in selectors, verify isFunctionApproved returns true
+        for (uint256 i = 0; i < selectors.length; i++) {
+            for (uint256 j = 0; j < selectors[i].length; j++) {
+                bytes4 targetSelector = selectors[i][j];
+
+                // Verify each selector with isFunctionApproved
+                (bool success, bytes memory data) = DIAMOND.staticcall(
+                    abi.encodeWithSignature(
+                        "isFunctionApproved(bytes4)",
+                        targetSelector
+                    )
+                );
+                assertTrue(
+                    success,
+                    "isFunctionApproved call should not revert"
+                );
+                bool isSelectorApproved = abi.decode(data, (bool));
+
+                // Selectors in the whitelist should be approved
+                assertTrue(
+                    isSelectorApproved,
+                    "Selector in whitelist should be approved"
+                );
+            }
+        }
+
+        // For selectors in functionSelectorsToRemove that are NOT in selectors,
+        // verify they return false
+        for (uint256 i = 0; i < selectorsToRemove.length; i++) {
+            bytes4 selectorToRemove = selectorsToRemove[i];
+
+            // Check if this selector is in the selectors array
+            bool isInSelectors = false;
+            for (uint256 j = 0; j < selectors.length; j++) {
+                for (uint256 k = 0; k < selectors[j].length; k++) {
+                    if (selectors[j][k] == selectorToRemove) {
+                        isInSelectors = true;
+                        break;
+                    }
+                }
+                if (isInSelectors) break;
+            }
+
+            // If selector is in functionSelectorsToRemove but NOT in selectors,
+            // it should return false
+            if (!isInSelectors) {
+                (bool success, bytes memory data) = DIAMOND.staticcall(
+                    abi.encodeWithSignature(
+                        "isFunctionApproved(bytes4)",
+                        selectorToRemove
+                    )
+                );
+                assertTrue(
+                    success,
+                    "isFunctionApproved call should not revert"
+                );
+                bool isSelectorApproved = abi.decode(data, (bool));
+
+                assertFalse(
+                    isSelectorApproved,
+                    "Selector in functionSelectorsToRemove but not in selectors should return false"
+                );
             }
         }
     }
