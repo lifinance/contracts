@@ -120,39 +120,6 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         }
     }
 
-    /// Internal Logic ///
-
-    /// @dev The single internal function that all state changes must flow through.
-    function _setContractSelectorWhitelist(
-        address _contract,
-        bytes4 _selector,
-        bool _whitelisted
-    ) internal {
-        if (_contract == address(this)) {
-            revert CannotAuthoriseSelf();
-        }
-        // Check current status to prevent redundant operations and emitting unnecessary events.
-        bool isCurrentlyWhitelisted = LibAllowList.contractSelectorIsAllowed(
-            _contract,
-            _selector
-        );
-        if (isCurrentlyWhitelisted == _whitelisted) {
-            return;
-        }
-
-        if (_whitelisted) {
-            LibAllowList.addAllowedContractSelector(_contract, _selector);
-        } else {
-            LibAllowList.removeAllowedContractSelector(_contract, _selector);
-        }
-        emit ContractSelectorWhitelistChanged(
-            _contract,
-            _selector,
-            _whitelisted
-        );
-    }
-
-    /// Temporary methods for migration ///
     /// @dev Remove these methods after migration is complete in next facet upgrade.
     /// @inheritdoc IWhitelistManagerFacet
     function migrate(
@@ -246,12 +213,14 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         als.migrated = true;
     }
 
+    /// @dev Remove these methods after migration is complete in next facet upgrade.
     /// @inheritdoc IWhitelistManagerFacet
     function isMigrated() external view returns (bool) {
         LibAllowList.AllowListStorage storage als = _getAllowListStorage();
         return als.migrated;
     }
 
+    /// @dev Remove these methods after migration is complete in next facet upgrade.
     /// @dev Fetch allow list storage struct
     function _getAllowListStorage()
         internal
@@ -262,5 +231,37 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         assembly {
             als.slot := position
         }
+    }
+
+    /// Internal Logic ///
+
+    /// @dev The single internal function that all state changes must flow through.
+    function _setContractSelectorWhitelist(
+        address _contract,
+        bytes4 _selector,
+        bool _whitelisted
+    ) internal {
+        if (_contract == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
+        // Check current status to prevent redundant operations and emitting unnecessary events.
+        bool isCurrentlyWhitelisted = LibAllowList.contractSelectorIsAllowed(
+            _contract,
+            _selector
+        );
+        if (isCurrentlyWhitelisted == _whitelisted) {
+            return;
+        }
+
+        if (_whitelisted) {
+            LibAllowList.addAllowedContractSelector(_contract, _selector);
+        } else {
+            LibAllowList.removeAllowedContractSelector(_contract, _selector);
+        }
+        emit ContractSelectorWhitelistChanged(
+            _contract,
+            _selector,
+            _whitelisted
+        );
     }
 }
