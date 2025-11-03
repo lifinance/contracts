@@ -188,12 +188,37 @@
       "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
+      },
+      "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x33EcEb68994E0499a61FAda3b49Ab243e63555F1": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x4582FD200173F1717F6C53fD1531b2F6fE33Fe3D": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
+      "FeeForwarder": "",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
