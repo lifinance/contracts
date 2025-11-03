@@ -1980,8 +1980,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     ///      4. After migration: The stale selector remains in V1 storage but not in V2
     ///      5. We verify the two-step fix works: add-then-remove to clear all states
     function test_SucceedsIfStaleSelectorCanBeRemovedAfterMigration() public {
-        vm.pauseGasMetering();
-
         // Deploy WhitelistManagerFacet first
         whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
 
@@ -2039,8 +2037,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         );
         vm.stopPrank();
 
-        vm.resumeGasMetering();
-
         // Prepare and execute diamond cut
         LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
 
@@ -2057,8 +2053,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             selectors
         );
         _executeDiamondCut(cuts, initCallData);
-
-        vm.pauseGasMetering();
 
         // Verify stale state exists after migration
         // V1 storage should still have the selector (it wasn't in selectorsToRemove anymore)
@@ -2143,8 +2137,6 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         );
 
         vm.stopPrank();
-
-        vm.resumeGasMetering();
     }
 
     /// @notice Helper function to check if a selector exists in V1 storage
