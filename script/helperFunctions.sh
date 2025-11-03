@@ -2046,6 +2046,7 @@ function verifyContract() {
       "--zksync"
       "--watch"
       "--chain" "$CHAIN_ID"
+      # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "$ADDRESS"
       "$FULL_PATH"
     )
@@ -2053,6 +2054,7 @@ function verifyContract() {
     VERIFY_CMD=(
       "forge"
       "verify-contract"
+      # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "--watch"
       "--chain" "$CHAIN_ID"
       "$ADDRESS"
@@ -3624,8 +3626,17 @@ function getRPCUrl() {
   # get RPC KEY using the helper function
   RPC_KEY=$(getRPCEnvVarName "$NETWORK")
 
+  # get RPC URL
+  local RPC_URL="${!RPC_KEY}"
+
+  # check if RPC URL is empty
+  if [[ -z "$RPC_URL" ]]; then
+    echo "Error: Empty RPC URL for network '$NETWORK'. Environment variable '$RPC_KEY' is not set or empty." >&2
+    return 1
+  fi
+
   # return RPC URL
-  echo "${!RPC_KEY}"
+  echo "$RPC_URL"
 }
 function getRpcUrlFromNetworksJson() {
   local NETWORK="$1"
