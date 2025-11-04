@@ -1071,6 +1071,15 @@ contract LibAllowListTest is Test {
         this._addAllowedContractSelectorExternal(address(0), SELECTOR_A);
     }
 
+    function testRevert_AddZeroSelector() public {
+        // Expect a revert when adding a zero selector
+        vm.expectRevert(InvalidCallData.selector);
+        this._addAllowedContractSelectorExternal(
+            address(testContract),
+            bytes4(0)
+        );
+    }
+
     // External wrapper function to create proper call depth
     function _addAllowedContractSelectorExternal(
         address _contract,
