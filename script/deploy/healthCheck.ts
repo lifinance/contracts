@@ -1,5 +1,9 @@
 // @ts-nocheck
 import { execSync } from 'child_process'
+import * as fs from 'fs'
+import * as path from 'path'
+import { dirname } from 'path'
+import { fileURLToPath } from 'url'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -11,6 +15,10 @@ import {
   getContract,
   http,
   parseAbi,
+  keccak256,
+  toHex,
+  pad,
+  concat,
   type Address,
   type Hex,
   type PublicClient,
@@ -36,6 +44,9 @@ import {
   getTronCorePeriphery,
   parseTroncastFacetsOutput,
 } from './tron/utils'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 const SAFE_THRESHOLD = 3
 
@@ -446,8 +457,6 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     // Check if whitelist configuration exists for this network
     try {
-      // Check if DEXS exist and have contracts for this network
-      // Both staging and production have DEXS at root level with contracts nested under network
       const hasWhitelistConfig =
         (
           whitelistConfig.DEXS as Array<{
@@ -476,17 +485,12 @@ const main = defineCommand({
           client: publicClient,
         })
 
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │    Check whitelisted granular contract-selector pairs   │
-        //          ╰─────────────────────────────────────────────────────────╯
-
         // We don't check the migrated field value because:
         // - migrated = false: Fresh deployments (granular system from start) OR pre-migration contracts
         // - migrated = true: Only post-migration contracts (after calling migrate() function)
         // The migration status doesn't determine checking method - WhitelistManagerFacet should be always deployed
-        consola.box('Checking granular contract-selector whitelist...')
 
-        // Get expected pairs from whitelist.json or whitelist.staging.json config file
+        // Get expected pairs from whitelist.json or whitelist.staging.json file
         const expectedPairs = await getExpectedPairs(
           networkStr as string,
           deployedContracts,
@@ -497,243 +501,253 @@ const main = defineCommand({
         // Get on-chain data once and use for all checks
         const [onChainContracts, onChainSelectors] =
           await whitelistManager.read.getAllContractSelectorPairs()
+
         const globalAddresses =
           await whitelistManager.read.getWhitelistedAddresses()
         const globalSelectors =
           await whitelistManager.read.getWhitelistedFunctionSelectors()
 
-        await checkGranularWhitelist(
+        await checkWhitelistIntegrity(
+          publicClient,
+          diamondAddress,
           whitelistManager,
           expectedPairs,
+          globalAddresses,
+          globalSelectors,
           onChainContracts,
           onChainSelectors
         )
 
+        //
         //          ╭─────────────────────────────────────────────────────────╮
-        //          │  Verify backward compatibility and legacy system       │
+        //          │            Check legacy selector cleanup                │
         //          ╰─────────────────────────────────────────────────────────╯
-
-        await verifyBackwardCompatibilityAndLegacy(
+        //
+        await checkMigrationCleanup(
           whitelistManager,
-          expectedPairs,
-          onChainContracts,
-          onChainSelectors,
-          globalAddresses,
-          globalSelectors
+          publicClient,
+          expectedPairs
         )
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check contract ownership                 │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking ownership...')
-
-        const refundWallet = getAddress(globalConfig.refundWallet)
-        const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
-
-        // Check ERC20Proxy ownership (skip for staging)
-        if (environment === 'production') {
-          const erc20ProxyOwner = await erc20Proxy.read.owner()
-          if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
-            logError(
-              `ERC20Proxy owner is ${getAddress(
-                erc20ProxyOwner
-              )}, expected ${getAddress(deployerWallet)}`
-            )
-          else consola.success('ERC20Proxy owner is correct')
-        } else {
-          consola.info(
-            'Skipping ERC20Proxy ownership check for staging environment'
-          )
-        }
-
-        // Check that Diamond is owned by Timelock (skip for staging)
-        if (environment === 'production') {
-          if (deployedContracts.LiFiTimelockController) {
-            const timelockAddress = deployedContracts.LiFiTimelockController
-
-            await checkOwnership(
-              'LiFiDiamond',
-              timelockAddress,
-              deployedContracts,
-              publicClient
-            )
-          } else
-            consola.error(
-              'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
-            )
-        } else {
-          consola.info(
-            'Skipping diamond ownership check for staging environment'
-          )
-        }
-
-        // FeeCollector
-        await checkOwnership(
-          'FeeCollector',
-          feeCollectorOwner,
-          deployedContracts,
-          publicClient
-        )
-
-        // Receiver
-        await checkOwnership(
-          'Receiver',
-          refundWallet,
-          deployedContracts,
-          publicClient
-        )
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check emergency pause config             │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking funding of pauser wallet...')
-
-        const pauserBalance = formatEther(
-          await publicClient.getBalance({
-            address: pauserWallet,
-          })
-        )
-
-        if (!pauserBalance || pauserBalance === '0')
-          logError(`PauserWallet does not have any native balance`)
-        else consola.success(`PauserWallet is funded: ${pauserBalance}`)
-
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │                Check access permissions                 │
-        //          ╰─────────────────────────────────────────────────────────╯
-        consola.box('Checking access permissions...')
-        const accessManager = getContract({
-          address: deployedContracts['LiFiDiamond'],
-          abi: parseAbi([
-            'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
-          ]),
-          client: publicClient,
-        })
-
-        // Deployer wallet
-        const approveSelectors =
-          globalConfig.approvedSelectorsForDeployerWallet as {
-            selector: Hex
-            name: string
-          }[]
-
-        for (const selector of approveSelectors) {
-          const normalizedSelector = selector.selector.startsWith('0x')
-            ? (selector.selector as Hex)
-            : (`0x${selector.selector}` as Hex)
-
-          if (
-            !(await accessManager.read.addressCanExecuteMethod([
-              normalizedSelector,
-              deployerWallet,
-            ]))
-          )
-            logError(
-              `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${normalizedSelector})`
-            )
-          else
-            consola.success(
-              `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector})`
-            )
-        }
-
-        // Refund wallet
-        const refundSelectors =
-          globalConfig.approvedSelectorsForRefundWallet as {
-            selector: Hex
-            name: string
-          }[]
-
-        for (const selector of refundSelectors) {
-          const normalizedSelector = selector.selector.startsWith('0x')
-            ? (selector.selector as Hex)
-            : (`0x${selector.selector}` as Hex)
-
-          if (
-            !(await accessManager.read.addressCanExecuteMethod([
-              normalizedSelector,
-              refundWallet,
-            ]))
-          )
-            logError(
-              `Refund wallet ${refundWallet} cannot execute ${selector.name} (${normalizedSelector})`
-            )
-          else
-            consola.success(
-              `Refund wallet ${refundWallet} can execute ${selector.name} (${normalizedSelector})`
-            )
-        }
-
-        if (environment === 'production') {
-          //          ╭─────────────────────────────────────────────────────────╮
-          //          │                   SAFE Configuration                    │
-          //          ╰─────────────────────────────────────────────────────────╯
-          consola.box('Checking SAFE configuration...')
-          const networkConfig: Network = networks[networkLower]
-          if (!networkConfig.safeAddress)
-            consola.warn('SAFE address not configured')
-          else {
-            const safeOwners = globalConfig.safeOwners
-            const safeAddress = networkConfig.safeAddress
-
-            try {
-              // Import getSafeInfoFromContract from safe-utils.ts
-              const { getSafeInfoFromContract } = await import(
-                './safe/safe-utils'
-              )
-
-              // Get Safe info directly from the contract
-              const safeInfo = await getSafeInfoFromContract(
-                publicClient,
-                safeAddress
-              )
-
-              // Check that each safeOwner is in the Safe
-              for (const o in safeOwners) {
-                const safeOwner = getAddress(safeOwners[o])
-                const isOwner = safeInfo.owners.some(
-                  (owner) => getAddress(owner) === safeOwner
-                )
-
-                if (!isOwner)
-                  logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-                else
-                  consola.success(
-                    `SAFE owner ${safeOwner} is in SAFE configuration`
-                  )
-              }
-
-              // Check that threshold is correct
-              if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
-                logError(
-                  `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
-                )
-              else
-                consola.success(
-                  `SAFE signature threshold is ${safeInfo.threshold}`
-                )
-
-              // Show current nonce
-              consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
-            } catch (error) {
-              logError(`Failed to get SAFE information: ${error}`)
-            }
-          }
-        } else {
-          consola.info('Skipping SAFE checks for staging environment')
-        }
-
-        finish()
       } else {
         consola.info(
           'No whitelist configuration found for this network, skipping whitelist checks'
         )
-        finish()
       }
     } catch (error) {
       logError('Whitelist configuration not available')
-      finish()
     }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check contract ownership                 │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking ownership...')
+
+    const refundWallet = getAddress(globalConfig.refundWallet)
+    const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
+
+    // Check ERC20Proxy ownership (skip for staging)
+    if (environment === 'production') {
+      const erc20ProxyOwner = await erc20Proxy.read.owner()
+      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
+        logError(
+          `ERC20Proxy owner is ${getAddress(
+            erc20ProxyOwner
+          )}, expected ${getAddress(deployerWallet)}`
+        )
+      else consola.success('ERC20Proxy owner is correct')
+    } else {
+      consola.info(
+        'Skipping ERC20Proxy ownership check for staging environment'
+      )
+    }
+
+    // Check that Diamond is owned by Timelock (skip for staging)
+    if (environment === 'production') {
+      if (deployedContracts.LiFiTimelockController) {
+        const timelockAddress = deployedContracts.LiFiTimelockController
+
+        await checkOwnership(
+          'LiFiDiamond',
+          timelockAddress,
+          deployedContracts,
+          publicClient
+        )
+      } else
+        consola.error(
+          'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
+        )
+    } else {
+      consola.info('Skipping diamond ownership check for staging environment')
+    }
+
+    // FeeCollector
+    await checkOwnership(
+      'FeeCollector',
+      feeCollectorOwner,
+      deployedContracts,
+      publicClient
+    )
+
+    // Receiver
+    await checkOwnership(
+      'Receiver',
+      refundWallet,
+      deployedContracts,
+      publicClient
+    )
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check emergency pause config             │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking funding of pauser wallet...')
+
+    const pauserBalance = formatEther(
+      await publicClient.getBalance({
+        address: pauserWallet,
+      })
+    )
+
+    if (!pauserBalance || pauserBalance === '0')
+      logError(`PauserWallet does not have any native balance`)
+    else consola.success(`PauserWallet is funded: ${pauserBalance}`)
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check access permissions                 │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking access permissions...')
+    const accessManager = getContract({
+      address: deployedContracts['LiFiDiamond'],
+      abi: parseAbi([
+        'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
+      ]),
+      client: publicClient,
+    })
+
+    // Check if deployer wallet is the owner
+    const diamondOwner = getContract({
+      address: deployedContracts['LiFiDiamond'],
+      abi: parseAbi(['function owner() external view returns (address)']),
+      client: publicClient,
+    })
+
+    const ownerAddress = await diamondOwner.read.owner()
+    const isDeployerOwner =
+      getAddress(ownerAddress) === getAddress(deployerWallet)
+
+    // Deployer wallet
+    const approveSelectors =
+      globalConfig.approvedSelectorsForDeployerWallet as {
+        selector: Hex
+        name: string
+      }[]
+
+    for (const selector of approveSelectors) {
+      const normalizedSelector = selector.selector.startsWith('0x')
+        ? (selector.selector as Hex)
+        : (`0x${selector.selector}` as Hex)
+
+      if (isDeployerOwner) {
+        // Owner can execute all methods, skip access check
+        consola.success(
+          `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector}) - owner has full access`
+        )
+      } else if (
+        !(await accessManager.read.addressCanExecuteMethod([
+          normalizedSelector,
+          deployerWallet,
+        ]))
+      )
+        logError(
+          `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${normalizedSelector})`
+        )
+      else
+        consola.success(
+          `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector})`
+        )
+    }
+
+    // Refund wallet
+    const refundSelectors = globalConfig.approvedSelectorsForRefundWallet as {
+      selector: Hex
+      name: string
+    }[]
+
+    for (const selector of refundSelectors) {
+      const normalizedSelector = selector.selector.startsWith('0x')
+        ? (selector.selector as Hex)
+        : (`0x${selector.selector}` as Hex)
+
+      if (
+        !(await accessManager.read.addressCanExecuteMethod([
+          normalizedSelector,
+          refundWallet,
+        ]))
+      )
+        logError(
+          `Refund wallet ${refundWallet} cannot execute ${selector.name} (${normalizedSelector})`
+        )
+      else
+        consola.success(
+          `Refund wallet ${refundWallet} can execute ${selector.name} (${normalizedSelector})`
+        )
+    }
+
+    if (environment === 'production') {
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                   SAFE Configuration                    │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking SAFE configuration...')
+      const networkConfig: Network = networks[networkLower]
+      if (!networkConfig.safeAddress)
+        consola.warn('SAFE address not configured')
+      else {
+        const safeOwners = globalConfig.safeOwners
+        const safeAddress = networkConfig.safeAddress
+
+        try {
+          // Import getSafeInfoFromContract from safe-utils.ts
+          const { getSafeInfoFromContract } = await import('./safe/safe-utils')
+
+          // Get Safe info directly from the contract
+          const safeInfo = await getSafeInfoFromContract(
+            publicClient,
+            safeAddress
+          )
+
+          // Check that each safeOwner is in the Safe
+          for (const o in safeOwners) {
+            const safeOwner = getAddress(safeOwners[o])
+            const isOwner = safeInfo.owners.some(
+              (owner) => getAddress(owner) === safeOwner
+            )
+
+            if (!isOwner)
+              logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
+            else
+              consola.success(
+                `SAFE owner ${safeOwner} is in SAFE configuration`
+              )
+          }
+
+          // Check that threshold is correct
+          if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
+            logError(
+              `SAFE signature threshold is ${safeInfo.threshold}, expected at least ${SAFE_THRESHOLD}`
+            )
+          else
+            consola.success(`SAFE signature threshold is ${safeInfo.threshold}`)
+
+          // Show current nonce
+          consola.info(`Current SAFE nonce: ${safeInfo.nonce}`)
+        } catch (error) {
+          logError(`Failed to get SAFE information: ${error}`)
+        }
+      }
+    } else {
+      consola.info('Skipping SAFE checks for staging environment')
+    }
+
+    finish()
   },
 })
 
@@ -851,249 +865,471 @@ const getExpectedPairs = async (
   }
 }
 
-const checkGranularWhitelist = async (
+// Checks the config.json (source of truth) against all on-chain states.
+// This one function handles all checks for data integrity and synchronization.
+const checkWhitelistIntegrity = async (
+  publicClient: PublicClient,
+  diamondAddress: Address,
   whitelistManager: ReturnType<typeof getContract>,
   expectedPairs: Array<{ contract: Address; selector: Hex }>,
+  globalAddresses: Address[],
+  globalSelectors: Hex[],
   onChainContracts: Address[],
   onChainSelectors: Hex[][]
 ) => {
+  consola.box('Checking Whitelist Integrity (Config vs. All On-Chain State)...')
+
+  if (expectedPairs.length === 0) {
+    consola.warn('No expected pairs in config. Skipping all checks.')
+    return
+  }
+
+  // --- 1. Preparation ---
+  consola.info('Preparing expected data sets from config...')
+  const expectedPairSet = new Set(
+    expectedPairs.map(
+      (p) => `${p.contract.toLowerCase()}:${p.selector.toLowerCase()}`
+    )
+  )
+  const expectedContractSet = new Set(
+    expectedPairs.map((p) => p.contract.toLowerCase())
+  )
+  const expectedSelectorSet = new Set(
+    expectedPairs.map((p) => p.selector.toLowerCase())
+  )
+  consola.info(
+    `Config has ${expectedPairs.length} pairs, ${expectedContractSet.size} unique contracts, and ${expectedSelectorSet.size} unique selectors.`
+  )
+
   try {
-    if (expectedPairs.length === 0) {
-      logError(`No whitelist configuration found`)
-      return
-    }
+    // --- 2. Check Config vs. Contract Functions (Multicall) ---
+    consola.start('Step 1/4: Checking Config vs. On-Chain Functions...')
 
-    // Create a map of on-chain contract-selector pairs for efficient lookup
-    const onChainPairs = new Map<string, Set<string>>()
-    for (let i = 0; i < onChainContracts.length; i++) {
-      const contract = onChainContracts[i].toLowerCase()
-      const selectors = onChainSelectors[i]
-      const selectorSet = new Set<string>()
+    // A. Check V2 Source of Truth: isContractSelectorWhitelisted
+    const granularMulticall = expectedPairs.map((pair) => ({
+      address: whitelistManager.address,
+      abi: whitelistManager.abi,
+      functionName: 'isContractSelectorWhitelisted',
+      args: [pair.contract, pair.selector],
+    }))
+    const granularResults = await publicClient.multicall({
+      contracts: granularMulticall,
+      allowFailure: false,
+    })
 
-      for (const selector of selectors) {
-        selectorSet.add(selector.toLowerCase())
-      }
-
-      onChainPairs.set(contract, selectorSet)
-    }
-
-    consola.success(
-      `Retrieved ${onChainContracts.length} contracts with selectors from diamond`
-    )
-
-    // Check each expected contract-selector pair
-    let missingPairs = 0
-    let verifiedPairs = 0
-
-    for (const pair of expectedPairs) {
-      try {
-        const contractKey = pair.contract.toLowerCase()
-        const selectorKey = pair.selector.toLowerCase()
-
-        const contractSelectors = onChainPairs.get(contractKey)
-
-        if (!contractSelectors || !contractSelectors.has(selectorKey)) {
-          logError(
-            `Contract-selector pair not whitelisted: ${pair.contract} - ${pair.selector}`
-          )
-          missingPairs++
-        } else {
-          verifiedPairs++
-        }
-      } catch (error) {
+    let granularFails = 0
+    granularResults.forEach((isWhitelisted, index) => {
+      if (isWhitelisted === false) {
+        const pair = expectedPairs[index]
         logError(
-          `Failed to check contract-selector pair: ${pair.contract} - ${pair.selector}`
+          `V2 Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
         )
-        missingPairs++
+        granularFails++
       }
-    }
-
-    consola.success(
-      `Verified ${verifiedPairs} contract-selector pairs using getAllContractSelectorPairs`
-    )
-
-    if (missingPairs === 0) {
+    })
+    if (granularFails === 0)
       consola.success(
-        'All contract-selector pairs properly whitelisted in granular system'
+        'V2 Source of Truth (isContractSelectorWhitelisted) is synced.'
+      )
+
+    // B. Check V1 Legacy: isAddressWhitelisted
+    const v1ContractMulticall = Array.from(expectedContractSet).map(
+      (contract) => ({
+        address: whitelistManager.address,
+        abi: whitelistManager.abi,
+        functionName: 'isAddressWhitelisted',
+        args: [contract as Address],
+      })
+    )
+    const v1ContractResults = await publicClient.multicall({
+      contracts: v1ContractMulticall,
+      allowFailure: false,
+    })
+
+    let v1ContractFails = 0
+    v1ContractResults.forEach((isWhitelisted, index) => {
+      if (isWhitelisted === false) {
+        const contract = Array.from(expectedContractSet)[index]
+        logError(
+          `V1 Legacy FAILED: isAddressWhitelisted(${contract}) is 'false'.`
+        )
+        v1ContractFails++
+      }
+    })
+    if (v1ContractFails === 0)
+      consola.success('V1 Legacy (isAddressWhitelisted) is synced.')
+
+    // C. Check V1 Legacy: isFunctionSelectorWhitelisted
+    const v1SelectorMulticall = Array.from(expectedSelectorSet).map(
+      (selector) => ({
+        address: whitelistManager.address,
+        abi: whitelistManager.abi,
+        functionName: 'isFunctionSelectorWhitelisted',
+        args: [selector as Hex],
+      })
+    )
+    const v1SelectorResults = await publicClient.multicall({
+      contracts: v1SelectorMulticall,
+      allowFailure: false,
+    })
+
+    let v1SelectorFails = 0
+    v1SelectorResults.forEach((isWhitelisted, index) => {
+      if (isWhitelisted === false) {
+        const selector = Array.from(expectedSelectorSet)[index]
+        logError(
+          `V1 Legacy FAILED: isFunctionSelectorWhitelisted(${selector}) is 'false'.`
+        )
+        v1SelectorFails++
+      }
+    })
+    if (v1SelectorFails === 0)
+      consola.success('V1 Legacy (isFunctionSelectorWhitelisted) is synced.')
+  } catch (error) {
+    logError(`Failed during functional checks: ${error.message}`)
+  }
+
+  // --- 3. Check Config vs. Getter Arrays ---
+  consola.start('Step 2/4: Checking Config vs. Getter Arrays...')
+  try {
+    // A. Check V1 Contracts Array: getWhitelistedAddresses
+    const globalAddressesSet = new Set(
+      globalAddresses.map((a) => a.toLowerCase())
+    )
+    let missingContracts = 0
+    let staleContracts = 0
+    for (const expected of expectedContractSet) {
+      if (!globalAddressesSet.has(expected)) missingContracts++
+    }
+    for (const onChain of globalAddressesSet) {
+      if (!expectedContractSet.has(onChain)) staleContracts++
+    }
+    if (missingContracts === 0 && staleContracts === 0) {
+      consola.success(
+        `V1 Contract Array (getWhitelistedAddresses) is synced. (${globalAddresses.length} entries)`
       )
     } else {
-      logError(`Found ${missingPairs} missing contract-selector pairs`)
+      if (missingContracts > 0)
+        logError(
+          `V1 Contract Array is missing ${missingContracts} contracts from config.`
+        )
+      if (staleContracts > 0)
+        logError(
+          `V1 Contract Array has ${staleContracts} stale contracts not in config.`
+        )
+    }
+
+    // B. Check V1 Selectors Array: getWhitelistedFunctionSelectors
+    const globalSelectorsSet = new Set(
+      globalSelectors.map((s) => s.toLowerCase())
+    )
+    let missingSelectors = 0
+    let staleSelectors = 0
+    for (const expected of expectedSelectorSet) {
+      if (!globalSelectorsSet.has(expected)) missingSelectors++
+    }
+    for (const onChain of globalSelectorsSet) {
+      if (!expectedSelectorSet.has(onChain)) staleSelectors++
+    }
+    if (missingSelectors === 0 && staleSelectors === 0) {
+      consola.success(
+        `V1 Selector Array (getWhitelistedFunctionSelectors) is synced. (${globalSelectors.length} entries)`
+      )
+    } else {
+      if (missingSelectors > 0)
+        logError(
+          `V1 Selector Array is missing ${missingSelectors} selectors from config.`
+        )
+      if (staleSelectors > 0)
+        logError(
+          `V1 Selector Array has ${staleSelectors} stale selectors not in config.`
+        )
+    }
+
+    // C. Check V2 Pair Array: getAllContractSelectorPairs
+    const onChainPairSet = new Set<string>()
+    for (let i = 0; i < onChainContracts.length; i++) {
+      const contract = onChainContracts[i].toLowerCase()
+      for (const selector of onChainSelectors[i]) {
+        onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
+      }
+    }
+    let missingPairs = 0
+    let stalePairs = 0
+    for (const expected of expectedPairSet) {
+      if (!onChainPairSet.has(expected)) missingPairs++
+    }
+    for (const onChain of onChainPairSet) {
+      if (!expectedPairSet.has(onChain)) stalePairs++
+    }
+    if (missingPairs === 0 && stalePairs === 0) {
+      consola.success(
+        `V2 Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
+      )
+    } else {
+      if (missingPairs > 0)
+        logError(`V2 Pair Array is missing ${missingPairs} pairs from config.`)
+      if (stalePairs > 0)
+        logError(`V2 Pair Array has ${stalePairs} stale pairs not in config.`)
     }
   } catch (error) {
-    logError(`Failed to check granular whitelist: ${error}`)
+    logError(`Failed during getter array checks: ${error.message}`)
+  }
+
+  // --- 4. Check Config vs. Raw Storage Slots ---
+  consola.start('Step 3/4: Checking Config vs. Raw Storage Slots...')
+  try {
+    // --- USER COMMENT: Added NAMESPACE hash ---
+    // cast keccak "com.lifi.library.allow.list"
+    // 0x7a8ac5d3b7183f220a0602439da45ea337311d699902d1ed11a3725a714e7f1e
+    const ALLOW_LIST_NAMESPACE =
+      '0x7a8ac5d3b7183f220a0602439da45ea337311d699902d1ed11a3725a714e7f1e'
+    const baseSlot = BigInt(ALLOW_LIST_NAMESPACE)
+    const contractAllowListSlot = baseSlot + 0n
+    const selectorAllowListSlot = baseSlot + 1n
+    const contractsSlot = baseSlot + 2n
+    const contractToIndexSlot = baseSlot + 3n
+    const selectorToIndexSlot = baseSlot + 4n
+    const selectorsSlot = baseSlot + 5n
+    const granularListSlot = baseSlot + 6n
+
+    // Check array lengths
+    const contractsLengthHex = await publicClient.getStorageAt({
+      address: diamondAddress,
+      slot: toHex(contractsSlot),
+    })
+    const contractsLength = parseInt(contractsLengthHex ?? '0x0', 16)
+    if (contractsLength === globalAddresses.length) {
+      consola.success(
+        `Raw contracts[] length (${contractsLength}) matches getter.`
+      )
+    } else {
+      logError(
+        `Raw contracts[] length (${contractsLength}) does NOT match getter length (${globalAddresses.length}).`
+      )
+    }
+
+    const selectorsLengthHex = await publicClient.getStorageAt({
+      address: diamondAddress,
+      slot: toHex(selectorsSlot),
+    })
+    const selectorsLength = parseInt(selectorsLengthHex ?? '0x0', 16)
+    if (selectorsLength === globalSelectors.length) {
+      consola.success(
+        `Raw selectors[] length (${selectorsLength}) matches getter.`
+      )
+    } else {
+      logError(
+        `Raw selectors[] length (${selectorsLength}) does NOT match getter length (${globalSelectors.length}).`
+      )
+    }
+
+    // --- Probe all pairs ---
+    consola.info(`Probing all ${expectedPairs.length} pairs in raw storage...`)
+    let v1ContractFails = 0
+    let v1SelectorFails = 0
+    let v2ContractIndexFails = 0
+    let v2SelectorIndexFails = 0
+    let v2GranularFails = 0
+
+    const getMappingSlot = async (key: Hex, baseMappingSlot: bigint) => {
+      const slot = keccak256(
+        concat([key, pad(toHex(baseMappingSlot), { size: 32 })])
+      )
+      return publicClient.getStorageAt({ address: diamondAddress, slot })
+    }
+    const getGranularMappingSlot = async (
+      contract: Hex,
+      selector: Hex,
+      baseMappingSlot: bigint
+    ) => {
+      const innerSlot = keccak256(
+        concat([contract, pad(toHex(baseMappingSlot), { size: 32 })])
+      )
+      const granularSlot = keccak256(concat([selector, innerSlot]))
+      return publicClient.getStorageAt({
+        address: diamondAddress,
+        slot: granularSlot,
+      })
+    }
+
+    for (const pair of expectedPairs) {
+      const probeContract = pad(pair.contract, { size: 32 })
+      const probeSelector = pad(pair.selector, { size: 32, dir: 'right' })
+
+      // Check V1 contractAllowList
+      const v1ContractBool = await getMappingSlot(
+        probeContract,
+        contractAllowListSlot
+      )
+      if (!v1ContractBool?.endsWith('01')) {
+        logError(`Raw V1 contractAllowList FAILED for ${pair.contract}`)
+        v1ContractFails++
+      }
+
+      // Check V1 selectorAllowList
+      const v1SelectorBool = await getMappingSlot(
+        probeSelector,
+        selectorAllowListSlot
+      )
+      if (!v1SelectorBool?.endsWith('01')) {
+        logError(`Raw V1 selectorAllowList FAILED for ${pair.selector}`)
+        v1SelectorFails++
+      }
+
+      // Check V2 contractToIndex
+      const v2ContractIndex = await getMappingSlot(
+        probeContract,
+        contractToIndexSlot
+      )
+      if (parseInt(v2ContractIndex ?? '0x0', 16) === 0) {
+        logError(`Raw V2 contractToIndex FAILED for ${pair.contract}`)
+        v2ContractIndexFails++
+      }
+
+      // Check V2 selectorToIndex
+      const v2SelectorIndex = await getMappingSlot(
+        probeSelector,
+        selectorToIndexSlot
+      )
+      if (parseInt(v2SelectorIndex ?? '0x0', 16) === 0) {
+        logError(`Raw V2 selectorToIndex FAILED for ${pair.selector}`)
+        v2SelectorIndexFails++
+      }
+
+      // Check V2 granularList (source of truth)
+      const v2GranularBool = await getGranularMappingSlot(
+        probeContract,
+        probeSelector,
+        granularListSlot
+      )
+      if (!v2GranularBool?.endsWith('01')) {
+        logError(
+          `Raw V2 granularList (Source of Truth) FAILED for ${pair.contract} / ${pair.selector}`
+        )
+        v2GranularFails++
+      }
+    }
+
+    // Report Results
+    consola.info('Raw storage probe summary:')
+    if (v1ContractFails === 0)
+      consola.success('Raw V1 contractAllowList is synced')
+    else logError(`Raw V1 contractAllowList has ${v1ContractFails} sync errors`)
+
+    if (v1SelectorFails === 0)
+      consola.success('Raw V1 selectorAllowList is synced')
+    else logError(`Raw V1 selectorAllowList has ${v1SelectorFails} sync errors`)
+
+    if (v2ContractIndexFails === 0)
+      consola.success('Raw V2 contractToIndex is synced')
+    else
+      logError(`Raw V2 contractToIndex has ${v2ContractIndexFails} sync errors`)
+
+    if (v2SelectorIndexFails === 0)
+      consola.success('Raw V2 selectorToIndex is synced')
+    else
+      logError(`Raw V2 selectorToIndex has ${v2SelectorIndexFails} sync errors`)
+
+    if (v2GranularFails === 0)
+      consola.success('Raw V2 granular contractSelectorAllowList is synced')
+    else
+      logError(
+        `Raw V2 granular contractSelectorAllowList has ${v2GranularFails} sync errors`
+      )
+  } catch (error) {
+    logError(`Failed to check direct storage: ${error.message}`)
   }
 }
 
-const verifyBackwardCompatibilityAndLegacy = async (
+/// Check 5: Migration Cleanup
+/// Verifies that any selector in `functionSelectorsToRemove.json` that is NOT
+/// in the current `whitelist.json` correctly returns `false` from the
+/// legacy V1 `isFunctionSelectorWhitelisted()` function.
+const checkMigrationCleanup = async (
   whitelistManager: ReturnType<typeof getContract>,
-  expectedPairs: Array<{ contract: Address; selector: Hex }>,
-  onChainContracts: Address[],
-  onChainSelectors: Hex[][],
-  globalAddresses: Address[],
-  globalSelectors: Hex[]
+  publicClient: PublicClient,
+  expectedPairs: Array<{ contract: Address; selector: Hex }>
 ) => {
-  consola.box('Verifying backward compatibility and legacy system...')
+  consola.box('Checking legacy selector cleanup (Migration check)...')
 
   try {
-    // Create a set of on-chain contracts for efficient lookup
-    const onChainContractSet = new Set(
-      onChainContracts.map((addr) => addr.toLowerCase())
+    // 1. Load functionSelectorsToRemove.json
+    const removeJsonPath = path.resolve(
+      __dirname,
+      '../../config/functionSelectorsToRemove.json'
+    )
+    const removeFile = fs.readFileSync(removeJsonPath, 'utf8')
+    const { functionSelectorsToRemove } = JSON.parse(removeFile) as {
+      functionSelectorsToRemove: string[]
+    }
+
+    // 2. Create a Set of *expected* selectors from the whitelist config
+    const expectedSelectorSet = new Set(
+      expectedPairs.map((p) => p.selector.toLowerCase())
     )
 
-    // Count total selectors for logging
-    const totalSelectors = onChainSelectors.reduce(
-      (sum, selectors) => sum + selectors.length,
-      0
+    // 3. Create the list of selectors that *must* be false
+    const selectorsToCheck: Hex[] = []
+    for (const rawSelector of functionSelectorsToRemove) {
+      const selector = (
+        rawSelector.startsWith('0x') ? rawSelector : `0x${rawSelector}`
+      ).toLowerCase() as Hex
+
+      // --- USER COMMENT: Added logic explanation ---
+      // We do not expect selectors from whitelist.json to be whitelisted
+      if (!expectedSelectorSet.has(selector)) {
+        selectorsToCheck.push(selector)
+      }
+    }
+
+    if (selectorsToCheck.length === 0) {
+      consola.warn(
+        'No selectors found in functionSelectorsToRemove.json that are not in the current whitelist. Skipping check.'
+      )
+      return
+    }
+
+    consola.info(
+      `Checking ${selectorsToCheck.length} selectors from 'functionSelectorsToRemove.json' for proper cleanup...`
     )
 
-    // Get unique contracts from expected pairs
-    const uniqueContracts = new Set(
-      expectedPairs.map((p) => p.contract.toLowerCase())
-    )
+    // 4. Use multicall to check isFunctionSelectorWhitelisted (the V1 bool)
+    const multicallContracts = selectorsToCheck.map((selector) => ({
+      address: whitelistManager.address,
+      abi: whitelistManager.abi,
+      functionName: 'isFunctionSelectorWhitelisted',
+      args: [selector],
+    }))
 
-    // Check that each expected contract is properly synchronized in the global arrays
-    let syncIssues = 0
+    const results = await publicClient.multicall({
+      contracts: multicallContracts,
+      allowFailure: false,
+    })
 
-    for (const contractAddr of uniqueContracts) {
-      if (!onChainContractSet.has(contractAddr)) {
+    // 5. Report any selectors that are still true
+    let staleSelectorErrors = 0
+    results.forEach((isStillWhitelisted, index) => {
+      if (isStillWhitelisted === true) {
+        const selector = selectorsToCheck[index]
         logError(
-          `Contract ${contractAddr} not synchronized in global whitelist (backward compatibility issue)`
+          `STALE SELECTOR FOUND: ${selector} is still 'true' in V1 selectorAllowList but should have been removed.`
         )
-        syncIssues++
+        staleSelectorErrors++
       }
-    }
+    })
 
-    consola.success(
-      `Global arrays synchronized: ${globalAddresses.length} addresses, ${globalSelectors.length} selectors`
-    )
-    consola.success(
-      `Granular system has: ${onChainContracts.length} contracts with ${totalSelectors} total selectors`
-    )
-
-    // Analyze selector differences between granular and global systems
-    const granularSelectorSet = new Set<string>()
-    for (const selectors of onChainSelectors) {
-      for (const selector of selectors) {
-        granularSelectorSet.add(selector.toLowerCase())
-      }
-    }
-
-    const globalSelectorSet = new Set<string>()
-    for (const selector of globalSelectors) {
-      globalSelectorSet.add(selector.toLowerCase())
-    }
-
-    const granularUniqueCount = granularSelectorSet.size
-    const globalUniqueCount = globalSelectorSet.size
-
-    consola.info(
-      `Granular system has ${totalSelectors} total selectors (${granularUniqueCount} unique)`
-    )
-    consola.info(
-      `Global system has ${globalSelectors.length} selectors (${globalUniqueCount} unique)`
-    )
-
-    // Check for differences
-    const granularOnlySelectors = new Set<string>()
-    for (const selector of granularSelectorSet) {
-      if (!globalSelectorSet.has(selector)) {
-        granularOnlySelectors.add(selector)
-      }
-    }
-
-    const globalOnlySelectors = new Set<string>()
-    for (const selector of globalSelectorSet) {
-      if (!granularSelectorSet.has(selector)) {
-        globalOnlySelectors.add(selector)
-      }
-    }
-
-    if (granularOnlySelectors.size > 0 || globalOnlySelectors.size > 0) {
-      if (granularOnlySelectors.size > 0) {
-        consola.warn(
-          `Granular system has ${
-            granularOnlySelectors.size
-          } selectors not in global: ${Array.from(granularOnlySelectors)
-            .slice(0, 5)
-            .join(', ')}${granularOnlySelectors.size > 5 ? '...' : ''}`
-        )
-      }
-      if (globalOnlySelectors.size > 0) {
-        consola.warn(
-          `Global system has ${
-            globalOnlySelectors.size
-          } selectors not in granular: ${Array.from(globalOnlySelectors)
-            .slice(0, 5)
-            .join(', ')}${globalOnlySelectors.size > 5 ? '...' : ''}`
-        )
-      }
-      syncIssues++
-    }
-
-    // Verify that granular and global systems are in sync
-    if (onChainContracts.length !== globalAddresses.length) {
-      logError(
-        `Granular system has ${onChainContracts.length} contracts but global system has ${globalAddresses.length} addresses`
-      )
-      syncIssues++
-    }
-
-    // Test legacy functions
-    consola.success(
-      `Legacy compatibility maintained: ${globalAddresses.length} addresses, ${globalSelectors.length} selectors`
-    )
-
-    // Verify that all legacy contract checks work
-    let legacyContractFailures = 0
-    for (const address of globalAddresses) {
-      const isContractAllowed =
-        await whitelistManager.read.isAddressWhitelisted([address])
-
-      if (!isContractAllowed) {
-        logError(`Legacy contract check failed for ${address}`)
-        legacyContractFailures++
-      }
-    }
-
-    if (legacyContractFailures === 0 && globalAddresses.length > 0) {
+    if (staleSelectorErrors === 0) {
       consola.success(
-        `All ${globalAddresses.length} addresses pass legacy contract checks`
+        `All ${selectorsToCheck.length} selectors were correctly cleaned up.`
       )
-    }
-
-    // Verify that all legacy selector checks work
-    let legacySelectorFailures = 0
-    for (const selector of globalSelectors) {
-      const isSelectorAllowed =
-        await whitelistManager.read.isFunctionSelectorWhitelisted([selector])
-
-      if (!isSelectorAllowed) {
-        logError(`Legacy selector check failed for ${selector}`)
-        legacySelectorFailures++
-      }
-    }
-
-    if (legacySelectorFailures === 0 && globalSelectors.length > 0) {
-      consola.success(
-        `All ${globalSelectors.length} selectors pass legacy function checks`
-      )
-    }
-
-    if (
-      syncIssues === 0 &&
-      legacyContractFailures === 0 &&
-      legacySelectorFailures === 0
-    ) {
-      consola.success('Backward compatibility and legacy system verified')
     } else {
-      const totalIssues =
-        syncIssues + legacyContractFailures + legacySelectorFailures
       logError(
-        `Found ${totalIssues} issues: ${syncIssues} sync, ${legacyContractFailures} contract checks, ${legacySelectorFailures} selector checks`
+        `Found ${staleSelectorErrors} stale selectors from the migration list.`
       )
     }
   } catch (error) {
-    logError(`Failed to verify backward compatibility and legacy: ${error}`)
+    logError(`Failed to check legacy selector cleanup: ${error.message}`)
   }
 }
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
@@ -26,14 +26,14 @@ contract MockSwapperFacet {
         return LibAllowList.contractSelectorIsAllowed(_contract, _selector);
     }
 
-    /// @notice [Backward Compatibility] Checks if a contract is on the global allow list.
+    /// @notice [Backward Compatibility] Checks if a contract is on the global V1 allow list.
     function isContractAllowedLegacy(
         address _contract
     ) external view returns (bool) {
         return LibAllowList.contractIsAllowed(_contract);
     }
 
-    /// @notice [Backward Compatibility] Checks if a selector is on the global allow list.
+    /// @notice [Backward Compatibility] Checks if a selector is on the global V1 allow list.
     function isSelectorAllowedLegacy(
         bytes4 _selector
     ) external view returns (bool) {
@@ -55,12 +55,6 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
     Foo internal c4;
     Foo internal c5;
 
-    event AddressWhitelisted(address indexed whitelistedAddress);
-    event AddressRemoved(address indexed removedAddress);
-    event FunctionSelectorWhitelistChanged(
-        bytes4 indexed functionSelector,
-        bool indexed approved
-    );
     event ContractSelectorWhitelistChanged(
         address indexed contractAddress,
         bytes4 indexed functionSelector,
@@ -1225,6 +1219,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     WhitelistManagerFacet internal whitelistManagerWithMigrationLogic;
     MockSwapperFacet internal mockSwapperFacet;
     ExposedUpdateWhitelistManagerFacetDeployScript internal deployScript;
+    address[] internal oldContractsBeforeMigration;
 
     function setUp() public {
         // fork mainnet to test with real production state
@@ -1233,7 +1228,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Set required environment variables for deployment script
         vm.setEnv("NETWORK", "base");
-        vm.setEnv("FILE_SUFFIX", "staging.");
+        vm.setEnv("FILE_SUFFIX", "");
         vm.setEnv("USE_DEF_DIAMOND", "true");
         // Use a dummy private key for testing (32 bytes) - needed for github action
         vm.setEnv(
@@ -1423,6 +1418,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     /// 6. Executes diamond cut with that calldata
     /// 7. Verifies post-migration state matches expected values
     function test_DiamondCutWithInitCallDataThatCallsMigrate() public {
+        vm.pauseGasMetering();
         // Deploy WhitelistManagerFacet first
         whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
 
@@ -1434,23 +1430,17 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Read config data first to get the contracts that will be migrated
         (
+            bytes4[] memory selectorsToRemove,
             address[] memory contracts,
             bytes4[][] memory selectors
         ) = _loadAndVerifyConfigData();
 
-        // Find test contracts (at least 2) for verification
-        (
-            address[] memory testContracts,
-            bytes4[][] memory testSelectors
-        ) = _findTestContracts(contracts, selectors);
-
         // Mock contracts for testing BEFORE diamond cut
         _mockContractsForTesting(contracts);
+        vm.resumeGasMetering();
 
         // Prepare and execute diamond cut
         LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
-        // Build calldata ourselves to ensure we use the corrected selectors
-        bytes4[] memory selectorsToRemove = _readSelectorsToRemoveForTest();
         bytes memory initCallData = abi.encodeWithSelector(
             WhitelistManagerFacet.migrate.selector,
             selectorsToRemove,
@@ -1459,27 +1449,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         );
         _executeDiamondCut(cuts, initCallData);
 
-        // Verify final state
-        _verifyFinalState(contracts, selectors, testContracts, testSelectors);
-    }
+        vm.pauseGasMetering();
 
-    function _readSelectorsToRemoveForTest()
-        internal
-        returns (bytes4[] memory out)
-    {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/functionSelectorsToRemove.json"
-        );
-        string memory json = vm.readFile(path);
-        string[] memory raw = vm.parseJsonStringArray(
-            json,
-            ".functionSelectorsToRemove"
-        );
-        out = new bytes4[](raw.length);
-        for (uint256 i = 0; i < raw.length; i++) {
-            out[i] = bytes4(vm.parseBytes(raw[i]));
-        }
+        // Verify final state
+        _verifyFinalState(selectorsToRemove, contracts, selectors);
+        vm.resumeGasMetering();
     }
 
     function _setupMockSwapperFacet() internal {
@@ -1516,6 +1490,9 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             data,
             (address[])
         );
+
+        // Store old contracts to verify they're cleared after migration
+        oldContractsBeforeMigration = currentWhitelistedAddresses;
 
         // Log the count for debugging
         emit log_named_uint(
@@ -1651,25 +1628,19 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
     function _loadAndVerifyConfigData()
         internal
-        returns (address[] memory contracts, bytes4[][] memory selectors)
+        returns (
+            bytes4[] memory selectorsToRemove,
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        )
     {
-        // Increase gas limit for parsing
-        vm.pauseGasMetering();
-
         // Get the calldata that will be used in the actual migration
         // This already contains the parsed and aggregated contracts/selectors
         bytes memory initCallData = deployScript.exposed_getCallData();
 
-        vm.resumeGasMetering();
-
         // Decode the calldata to extract contracts and selectors
         // migrate(bytes4[] selectorsToRemove, address[] contracts, bytes4[][] selectors)
-        (
-            ,
-            // Skip selectorsToRemove
-            contracts,
-            selectors
-        ) = abi.decode(
+        (selectorsToRemove, contracts, selectors) = abi.decode(
             _sliceBytes(initCallData, 4), // Skip function selector
             (bytes4[], address[], bytes4[][])
         );
@@ -1732,7 +1703,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         returns (LibDiamond.FacetCut[] memory cuts)
     {
         // Build selectors array excluding migrate()
-        bytes4[] memory allSelectors = new bytes4[](8);
+        bytes4[] memory allSelectors = new bytes4[](10);
         allSelectors[0] = WhitelistManagerFacet
             .setContractSelectorWhitelist
             .selector;
@@ -1753,6 +1724,12 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             .getWhitelistedFunctionSelectors
             .selector;
         allSelectors[7] = WhitelistManagerFacet.isMigrated.selector;
+        allSelectors[8] = WhitelistManagerFacet
+            .getWhitelistedSelectorsForContract
+            .selector;
+        allSelectors[9] = WhitelistManagerFacet
+            .getAllContractSelectorPairs
+            .selector;
 
         // Build diamond cut
         cuts = new LibDiamond.FacetCut[](1);
@@ -1789,13 +1766,10 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     }
 
     function _verifyFinalState(
+        bytes4[] memory selectorsToRemove,
         address[] memory contracts,
-        bytes4[][] memory selectors,
-        address[] memory testContracts,
-        bytes4[][] memory testSelectors
+        bytes4[][] memory selectors
     ) internal {
-        MockSwapperFacet mockSwapper = MockSwapperFacet(DIAMOND);
-
         // Get final state
         address[] memory finalContracts = WhitelistManagerFacet(DIAMOND)
             .getWhitelistedAddresses();
@@ -1808,142 +1782,650 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         );
         assertTrue(finalContracts.length > 0, "No contracts were migrated");
 
-        // Verify each contract is correctly migrated
-        _verifyContractMigration(contracts, selectors, finalContracts);
-
-        // Verify test contracts specifically
-        _verifyTestContracts(testContracts, testSelectors, mockSwapper);
+        // Verify migration completeness: all contracts migrated, V1 state set/cleared, indices initialized
+        _verifyMigrationCompleteness(contracts, selectors, finalContracts);
+        // Verify legacy isFunctionApproved for all selectors (unique check)
+        _verifyLegacyIsFunctionApproved(selectorsToRemove, selectors);
+        // Verify state consistency: mappings match arrays, reference counts correct (unique check)
+        _verifyStateConsistency(finalContracts);
     }
 
-    function _verifyContractMigration(
-        address[] memory contracts,
-        bytes4[][] memory selectors,
+    /// @notice Verify legacy isFunctionApproved for all selectors
+    /// @dev Checks that:
+    ///      1. All selectors in the whitelist return true from isFunctionApproved
+    ///      2. Selectors in functionSelectorsToRemove but NOT in selectors return false
+    /// @param selectorsToRemove Selectors from initCallData that were passed to migrate
+    /// @param selectors Selectors from initCallData that were passed to migrate
+    function _verifyLegacyIsFunctionApproved(
+        bytes4[] memory selectorsToRemove,
+        bytes4[][] memory selectors
+    ) internal {
+        // For each selector in selectors, verify isFunctionApproved returns true
+        for (uint256 i = 0; i < selectors.length; i++) {
+            for (uint256 j = 0; j < selectors[i].length; j++) {
+                bytes4 targetSelector = selectors[i][j];
+
+                // Verify each selector with isFunctionApproved using helper function
+                // Selectors in the whitelist should be approved
+                assertTrue(
+                    _checkV1SelectorStorage(DIAMOND, targetSelector),
+                    "Selector in whitelist should be approved"
+                );
+            }
+        }
+
+        // For selectors in functionSelectorsToRemove that are NOT in selectors,
+        // verify they return false
+        for (uint256 i = 0; i < selectorsToRemove.length; i++) {
+            bytes4 selectorToRemove = selectorsToRemove[i];
+
+            // Check if this selector is in the selectors array
+            bool isInSelectors = false;
+            for (uint256 j = 0; j < selectors.length; j++) {
+                for (uint256 k = 0; k < selectors[j].length; k++) {
+                    if (selectors[j][k] == selectorToRemove) {
+                        isInSelectors = true;
+                        break;
+                    }
+                }
+                if (isInSelectors) break;
+            }
+
+            // If selector is in functionSelectorsToRemove but NOT in selectors,
+            // it should return false
+            if (!isInSelectors) {
+                assertFalse(
+                    _checkV1SelectorStorage(DIAMOND, selectorToRemove),
+                    "Selector in functionSelectorsToRemove but not in selectors should return false"
+                );
+            }
+        }
+    }
+
+    /// @notice Test that verifies a stale selector can still be removed after migration using the two-step fix
+    /// @dev This test simulates the scenario where:
+    ///      1. Before migration: selectorAllowList[0xBADBAD] = true (V1)
+    ///      2. Before migration: contractSelectorAllowList[contract][0xBADBAD] = false (V2 source of truth)
+    ///      3. Before migration: selectorToIndex[0xBADBAD] = 0 (V2)
+    ///      4. After migration: The stale selector remains in V1 storage but not in V2
+    ///      5. We verify the two-step fix works: add-then-remove to clear all states
+    function test_SucceedsIfStaleSelectorCanBeRemovedAfterMigration() public {
+        vm.pauseGasMetering();
+
+        // Deploy WhitelistManagerFacet first
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // Set up mock swapper to verify existing integrations
+        _setupMockSwapperFacet();
+
+        // Get current state from legacy DexManagerFacet
+        _getLegacyState();
+
+        // Read config data to get the contracts that will be migrated
+        (
+            bytes4[] memory selectorsToRemove,
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        ) = _loadAndVerifyConfigData();
+
+        // Mock contracts for testing BEFORE diamond cut
+        _mockContractsForTesting(contracts);
+
+        // Create a stale selector state BEFORE migration using the old DexManagerFacet function
+        // We'll use a selector that will be in selectorsToRemove but simulate it staying in V1 storage
+        bytes4 staleSelector = bytes4(uint32(0xBADBAD)); // Our stale selector (padded to 4 bytes)
+        address testContract = contracts.length > 0
+            ? contracts[0]
+            : address(0x1234);
+
+        // Ensure testContract is a valid contract
+        if (testContract == address(0) || contracts.length == 0) {
+            testContract = address(0x1234567890123456789012345678901234567890);
+            vm.etch(
+                testContract,
+                hex"600180808080800180808080800180808080800180808080801b"
+            );
+        }
+
+        // Use the old DexManagerFacet.setFunctionApprovalBySignature to add selector to V1 storage
+        // This creates stale state: V1 has the selector (via old function) but V2 doesn't (no contract-selector pair)
+        // The diamond should already have DexManagerFacet before migration
+        address owner = OwnershipFacet(DIAMOND).owner();
+        vm.startPrank(owner);
+
+        // Use the old function to add selector to V1 storage (but not V2 contract-selector pair)
+        // This will only update V1 selectorAllowList, not create contract-selector pairs
+        // Call setFunctionApprovalBySignature(bytes4,bool) using low-level call
+        (bool success, ) = DIAMOND.call(
+            abi.encodeWithSignature(
+                "setFunctionApprovalBySignature(bytes4,bool)",
+                staleSelector,
+                true
+            )
+        );
+        assertTrue(
+            success,
+            "setFunctionApprovalBySignature call should succeed"
+        );
+        vm.stopPrank();
+
+        // Prepare and execute diamond cut
+        LibDiamond.FacetCut[] memory cuts = _prepareDiamondCut();
+
+        // Remove the stale selector from selectorsToRemove if it's there, so migration doesn't clear it
+        bytes4[] memory adjustedSelectorsToRemove = _removeFromArray(
+            selectorsToRemove,
+            staleSelector
+        );
+
+        vm.resumeGasMetering();
+
+        bytes memory initCallData = abi.encodeWithSelector(
+            WhitelistManagerFacet.migrate.selector,
+            adjustedSelectorsToRemove,
+            contracts,
+            selectors
+        );
+        _executeDiamondCut(cuts, initCallData);
+
+        vm.pauseGasMetering();
+
+        // Verify stale state exists after migration
+        // V1 storage should still have the selector (it wasn't in selectorsToRemove anymore)
+        bool v1SelectorExists = _checkV1SelectorStorage(
+            DIAMOND,
+            staleSelector
+        );
+        // V2 source of truth should be false (selector wasn't in migration data)
+        bool v2SelectorExists = WhitelistManagerFacet(DIAMOND)
+            .isContractSelectorWhitelisted(testContract, staleSelector);
+
+        // The stale state should exist: V1 true, V2 false
+        assertTrue(
+            v1SelectorExists,
+            "Stale selector should exist in V1 storage after migration"
+        );
+        assertFalse(
+            v2SelectorExists,
+            "Stale selector should NOT exist in V2 storage (source of truth)"
+        );
+
+        // Now test the two-step fix: add-then-remove
+        vm.startPrank(owner);
+
+        // Step 1: "Add" the selector to sync all states to true
+        // This will make contractSelectorAllowList[testContract][staleSelector] = true
+        WhitelistManagerFacet(DIAMOND).setContractSelectorWhitelist(
+            testContract,
+            staleSelector,
+            true
+        );
+
+        // Verify after step 1: all states should be true
+        assertTrue(
+            WhitelistManagerFacet(DIAMOND).isContractSelectorWhitelisted(
+                testContract,
+                staleSelector
+            ),
+            "After step 1: selector should be in V2 storage"
+        );
+        assertTrue(
+            WhitelistManagerFacet(DIAMOND).isFunctionSelectorWhitelisted(
+                staleSelector
+            ),
+            "After step 1: selector should be in V1 storage"
+        );
+
+        // Verify that DexManagerFacet's isFunctionApproved also returns true
+        // (DexManagerFacet is still on the diamond, so we should verify V1 storage is synced)
+        assertTrue(
+            _checkV1SelectorStorage(DIAMOND, staleSelector),
+            "After step 1: isFunctionApproved should return true (V1 storage synced)"
+        );
+
+        // Step 2: "Remove" the selector to clear all states
+        WhitelistManagerFacet(DIAMOND).setContractSelectorWhitelist(
+            testContract,
+            staleSelector,
+            false
+        );
+
+        // Verify after step 2: all states should be cleared
+        assertFalse(
+            WhitelistManagerFacet(DIAMOND).isContractSelectorWhitelisted(
+                testContract,
+                staleSelector
+            ),
+            "After step 2: selector should NOT be in V2 storage"
+        );
+        assertFalse(
+            WhitelistManagerFacet(DIAMOND).isFunctionSelectorWhitelisted(
+                staleSelector
+            ),
+            "After step 2: selector should NOT be in V1 storage"
+        );
+
+        // Verify that DexManagerFacet's isFunctionApproved also returns false
+        // (DexManagerFacet is still on the diamond, so we should verify V1 storage is cleared)
+        assertFalse(
+            _checkV1SelectorStorage(DIAMOND, staleSelector),
+            "After step 2: isFunctionApproved should return false (V1 storage cleared)"
+        );
+
+        vm.stopPrank();
+
+        vm.resumeGasMetering();
+    }
+
+    /// @notice Helper function to check if a selector exists in V1 storage
+    function _checkV1SelectorStorage(
+        address diamond,
+        bytes4 selector
+    ) internal returns (bool) {
+        // call isFunctionApproved on DexManagerFacet
+        (bool success, bytes memory data) = diamond.staticcall(
+            abi.encodeWithSignature("isFunctionApproved(bytes4)", selector)
+        );
+        assertTrue(success, "isFunctionApproved call should not revert");
+        bool isSelectorApproved = abi.decode(data, (bool));
+        return isSelectorApproved;
+    }
+
+    /// @notice Helper function to remove an element from a bytes4 array
+    function _removeFromArray(
+        bytes4[] memory arr,
+        bytes4 element
+    ) internal pure returns (bytes4[] memory) {
+        uint256 count = 0;
+        for (uint256 i = 0; i < arr.length; i++) {
+            if (arr[i] != element) {
+                count++;
+            }
+        }
+
+        if (count == arr.length) {
+            return arr; // Element not found, return original
+        }
+
+        bytes4[] memory result = new bytes4[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < arr.length; i++) {
+            if (arr[i] != element) {
+                result[j] = arr[i];
+                j++;
+            }
+        }
+        return result;
+    }
+
+    /// @notice Verify migration completeness: V1 state cleared, indices initialized
+    /// @dev Checks that:
+    ///      1. All migrated contracts have V1 contractAllowList set correctly
+    ///      2. All migrated selectors have V1 selectorAllowList set correctly
+    ///      3. V2 indices (contractToIndex, selectorToIndex) are properly initialized
+    ///      4. All migrated data is immediately queryable via getter functions
+    ///      5. Expected contracts that were successfully migrated are in finalContracts
+    ///      6. Old V1 state is properly cleared (contracts and selectors not in migration)
+    function _verifyMigrationCompleteness(
+        address[] memory expectedContracts,
+        bytes4[][] memory expectedSelectors,
         address[] memory finalContracts
     ) internal {
-        for (uint256 i = 0; i < contracts.length; i++) {
+        // Verify old V1 state is cleared for contracts that existed before migration but weren't migrated
+        _verifyV1StateCleared(expectedContracts, finalContracts);
+        // Verify all expected contracts that were successfully migrated are in finalContracts
+        for (uint256 i = 0; i < finalContracts.length; i++) {
+            address contractAddr = finalContracts[i];
+
+            // Verify this final contract was in the expected contracts list
+            bool foundInExpected = false;
+            for (uint256 j = 0; j < expectedContracts.length; j++) {
+                if (expectedContracts[j] == contractAddr) {
+                    foundInExpected = true;
+                    break;
+                }
+            }
+            assertTrue(
+                foundInExpected,
+                "Final contract should be in expected contracts list"
+            );
+
+            // Verify contract is queryable via getter
+            assertTrue(
+                WhitelistManagerFacet(DIAMOND).isAddressWhitelisted(
+                    contractAddr
+                ),
+                "Migrated contract should be queryable via isAddressWhitelisted"
+            );
+
+            // Verify V1 contractAllowList is set (via legacy check)
+            (bool success, ) = DIAMOND.staticcall(
+                abi.encodeWithSignature(
+                    "isFunctionApproved(bytes4)",
+                    bytes4(0)
+                )
+            );
+            assertTrue(success, "DexManagerFacet should exist");
+            // DexManagerFacet exists, verify via MockSwapper
+            assertTrue(
+                MockSwapperFacet(DIAMOND).isContractAllowedLegacy(
+                    contractAddr
+                ),
+                "Migrated contract should have V1 contractAllowList set"
+            );
+
+            // Verify contract selector pairs are properly set
+            // Find the corresponding selectors for this contract
+            for (uint256 k = 0; k < expectedContracts.length; k++) {
+                if (expectedContracts[k] == contractAddr) {
+                    bytes4[] memory contractSelectors = expectedSelectors[k];
+
+                    if (contractSelectors.length == 0) {
+                        // Contract with no callable functions uses ApproveTo-Only Selector (0xffffffff)
+                        assertTrue(
+                            WhitelistManagerFacet(DIAMOND)
+                                .isContractSelectorWhitelisted(
+                                    contractAddr,
+                                    bytes4(0xffffffff)
+                                ),
+                            "Contract with no callable functions should have ApproveTo-Only Selector whitelisted"
+                        );
+
+                        // Verify legacy selector check
+                        assertTrue(
+                            MockSwapperFacet(DIAMOND).isSelectorAllowedLegacy(
+                                bytes4(0xffffffff)
+                            ),
+                            "ApproveTo-Only Selector should be allowed via legacy check"
+                        );
+                    } else {
+                        // Verify each selector for this contract
+                        for (
+                            uint256 j = 0;
+                            j < contractSelectors.length;
+                            j++
+                        ) {
+                            bytes4 selector = contractSelectors[j];
+
+                            // Verify contract-selector pair via facet
+                            assertTrue(
+                                WhitelistManagerFacet(DIAMOND)
+                                    .isContractSelectorWhitelisted(
+                                        contractAddr,
+                                        selector
+                                    ),
+                                "Contract-selector pair should be whitelisted"
+                            );
+
+                            // Verify contract selector pair via library (mock swapper integration check)
+                            assertTrue(
+                                MockSwapperFacet(DIAMOND)
+                                    .isContractSelectorAllowed(
+                                        contractAddr,
+                                        selector
+                                    ),
+                                "Contract-selector pair should be allowed via library check"
+                            );
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Collect all unique selectors from expectedSelectors
+        bytes4[] memory uniqueSelectors = new bytes4[](256);
+        uint256 uniqueCount = 0;
+
+        for (uint256 i = 0; i < expectedSelectors.length; i++) {
+            for (uint256 j = 0; j < expectedSelectors[i].length; j++) {
+                bytes4 selector = expectedSelectors[i][j];
+
+                // Check if already collected
+                bool found = false;
+                for (uint256 k = 0; k < uniqueCount; k++) {
+                    if (uniqueSelectors[k] == selector) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    uniqueSelectors[uniqueCount] = selector;
+                    uniqueCount++;
+                }
+            }
+        }
+
+        // Verify all unique selectors have V1 state set and are queryable
+        bytes4[] memory allSelectors = WhitelistManagerFacet(DIAMOND)
+            .getWhitelistedFunctionSelectors();
+
+        for (uint256 i = 0; i < uniqueCount; i++) {
+            bytes4 selector = uniqueSelectors[i];
+
+            // Verify selector is in the final whitelist
             bool found = false;
-            for (uint256 j = 0; j < finalContracts.length; j++) {
-                if (finalContracts[j] == contracts[i]) {
+            for (uint256 j = 0; j < allSelectors.length; j++) {
+                if (allSelectors[j] == selector) {
                     found = true;
                     break;
                 }
             }
-            assertTrue(found, "Contract not found in final whitelist");
+            assertTrue(
+                found,
+                "Migrated selector should be in final whitelist"
+            );
 
-            // Verify contract-selector pairs are properly set
-            _verifyContractSelectors(contracts[i], selectors[i]);
+            // Verify selector is queryable
+            assertTrue(
+                WhitelistManagerFacet(DIAMOND).isFunctionSelectorWhitelisted(
+                    selector
+                ),
+                "Migrated selector should be queryable via isFunctionSelectorWhitelisted"
+            );
         }
     }
 
-    function _verifyContractSelectors(
-        address contractAddr,
-        bytes4[] memory contractSelectors
+    /// @notice Verify that old V1 state is properly cleared for contracts not in migration
+    /// @dev Checks that contracts that existed before migration but weren't migrated have V1 state cleared
+    function _verifyV1StateCleared(
+        address[] memory expectedContracts,
+        address[] memory finalContracts
     ) internal {
-        if (contractSelectors.length == 0) {
-            // Contract with no callable functions uses ApproveTo-Only Selector (0xffffffff).
-            assertTrue(
-                WhitelistManagerFacet(DIAMOND).isContractSelectorWhitelisted(
-                    contractAddr,
-                    bytes4(0xffffffff)
-                ),
-                "Contract with no callable functions should have ApproveTo-Only Selector whitelisted"
+        // Check if DexManagerFacet exists to verify legacy state
+        (bool success, ) = DIAMOND.staticcall(
+            abi.encodeWithSignature("isFunctionApproved(bytes4)", bytes4(0))
+        );
+        assertTrue(success, "DexManagerFacet should exist");
+
+        // For each old contract, verify it's either migrated or cleared
+        for (uint256 i = 0; i < oldContractsBeforeMigration.length; i++) {
+            address oldContract = oldContractsBeforeMigration[i];
+
+            // Check if this contract was migrated
+            bool wasMigrated = false;
+            for (uint256 j = 0; j < finalContracts.length; j++) {
+                if (finalContracts[j] == oldContract) {
+                    wasMigrated = true;
+                    break;
+                }
+            }
+
+            // Check if contract was in expected contracts (should be migrated)
+            bool wasExpected = false;
+            for (uint256 j = 0; j < expectedContracts.length; j++) {
+                if (expectedContracts[j] == oldContract) {
+                    wasExpected = true;
+                    break;
+                }
+            }
+
+            // If contract was expected but not migrated, it means it didn't exist at fork block
+            // (which is expected and acceptable)
+            // If contract was NOT expected, it should have been cleared from V1 state
+            if (!wasExpected && !wasMigrated) {
+                // This contract existed before migration but wasn't in migration data
+                // Verify it was cleared from V1 state - should not be in finalContracts
+                assertFalse(
+                    WhitelistManagerFacet(DIAMOND).isAddressWhitelisted(
+                        oldContract
+                    ),
+                    "Old contract not in migration should be cleared from whitelist"
+                );
+
+                // Verify V1 contractAllowList is cleared via legacy check
+                assertFalse(
+                    MockSwapperFacet(DIAMOND).isContractAllowedLegacy(
+                        oldContract
+                    ),
+                    "Old contract not in migration should have V1 state cleared"
+                );
+            }
+        }
+    }
+
+    /// @notice Verify state consistency: mappings match arrays, reference counts correct
+    /// @dev Checks that:
+    ///      1. contractToIndex[contract] points to correct position in contracts array
+    ///      2. selectorToIndex[selector] points to correct position in selectors array
+    ///      3. selectorReferenceCount matches actual usage
+    ///      4. whitelistedSelectorsByContract matches contractSelectorAllowList
+    ///      5. Arrays and mappings are synchronized
+    function _verifyStateConsistency(address[] memory contracts) internal {
+        bytes4[] memory selectors = WhitelistManagerFacet(DIAMOND)
+            .getWhitelistedFunctionSelectors();
+
+        // Verify contractToIndex consistency
+        // Note: We can't directly access contractToIndex mapping without storage access,
+        // but we verify indirectly that the index mapping is correct by checking that:
+        // 1. getAllContractSelectorPairs returns contracts in the same order as getWhitelistedAddresses
+        // 2. Each contract in the contracts array appears exactly once in getAllContractSelectorPairs
+        // 3. The position of each contract in getAllContractSelectorPairs matches its position in contracts
+        (
+            address[] memory allContracts1,
+            bytes4[][] memory allSelectors1
+        ) = WhitelistManagerFacet(DIAMOND).getAllContractSelectorPairs();
+
+        // Verify arrays have same length
+        assertEq(
+            allContracts1.length,
+            contracts.length,
+            "getAllContractSelectorPairs should return same number of contracts as getWhitelistedAddresses"
+        );
+
+        for (uint256 i = 0; i < contracts.length; i++) {
+            address contractAddr = contracts[i];
+
+            // Verify the contract appears at the expected position (contractToIndex consistency)
+            // Since contracts array and getAllContractSelectorPairs should be in same order,
+            // we verify that each contract appears at the correct index
+            // This indirectly verifies that contractToIndex[contract] points to the correct position
+            assertEq(
+                allContracts1[i],
+                contracts[i],
+                "Contract should be at same index in both arrays (contractToIndex consistency)"
             );
-        } else {
-            // Verify each selector for this contract
-            for (uint256 k = 0; k < contractSelectors.length; k++) {
+
+            // Verify getWhitelistedSelectorsForContract matches the returned selectors
+            bytes4[] memory contractSelectors = WhitelistManagerFacet(DIAMOND)
+                .getWhitelistedSelectorsForContract(contractAddr);
+            assertEq(
+                contractSelectors.length,
+                allSelectors1[i].length,
+                "getWhitelistedSelectorsForContract should match getAllContractSelectorPairs"
+            );
+
+            // Verify all selectors for this contract are queryable
+            for (uint256 j = 0; j < contractSelectors.length; j++) {
                 assertTrue(
                     WhitelistManagerFacet(DIAMOND)
                         .isContractSelectorWhitelisted(
                             contractAddr,
-                            contractSelectors[k]
+                            contractSelectors[j]
                         ),
-                    "Contract-selector pair not whitelisted"
+                    "Selector should be queryable for contract"
                 );
             }
         }
-    }
 
-    function _verifyTestContracts(
-        address[] memory testContracts,
-        bytes4[][] memory testSelectors,
-        MockSwapperFacet mockSwapper
-    ) internal {
-        // Verify each test contract
-        for (uint256 i = 0; i < testContracts.length; i++) {
-            address testContract = testContracts[i];
-            bytes4[] memory contractSelectors = testSelectors[i];
+        // Verify selectorReferenceCount consistency
+        // Each selector should appear in selectors array if it's used by at least one contract
+        for (uint256 i = 0; i < selectors.length; i++) {
+            bytes4 selector = selectors[i];
 
-            // Verify contract is in whitelist
+            // Verify selector is used by at least one contract
+            bool foundUsage = false;
+            for (uint256 j = 0; j < contracts.length; j++) {
+                bytes4[] memory contractSelectors = WhitelistManagerFacet(
+                    DIAMOND
+                ).getWhitelistedSelectorsForContract(contracts[j]);
+
+                for (uint256 k = 0; k < contractSelectors.length; k++) {
+                    if (contractSelectors[k] == selector) {
+                        foundUsage = true;
+                        break;
+                    }
+                }
+                if (foundUsage) break;
+            }
             assertTrue(
-                WhitelistManagerFacet(DIAMOND).isAddressWhitelisted(
-                    testContract
-                ),
-                "Test contract should be whitelisted"
+                foundUsage,
+                "Selector in selectors array should be used by at least one contract"
             );
 
-            // Verify legacy compatibility - contract should be allowed
-            assertTrue(
-                mockSwapper.isContractAllowedLegacy(testContract),
-                "Test contract should be allowed via legacy check"
-            );
-
-            // Verify each selector for this contract
-            if (
-                contractSelectors.length == 0 ||
-                contractSelectors[0] == bytes4(0xffffffff)
-            ) {
-                // Contract with ApproveTo-Only Selector (0xffffffff)
-                assertTrue(
-                    WhitelistManagerFacet(DIAMOND)
-                        .isContractSelectorWhitelisted(
-                            testContract,
-                            bytes4(0xffffffff)
-                        ),
-                    "ApproveTo-Only Selector should be whitelisted"
-                );
-
-                // Verify legacy selector check returns true for ApproveTo-Only Selector
-                assertTrue(
-                    mockSwapper.isSelectorAllowedLegacy(bytes4(0xffffffff)),
-                    "ApproveTo-Only Selector should be allowed via legacy check"
-                );
-            } else {
-                // Contract with real selectors
-                for (uint256 j = 0; j < contractSelectors.length; j++) {
-                    bytes4 selector = contractSelectors[j];
-
-                    // Verify granular contract-selector whitelist
-                    assertTrue(
-                        mockSwapper.isContractSelectorAllowed(
-                            testContract,
-                            selector
-                        ),
-                        "Contract-selector pair should be allowed"
-                    );
-
-                    // Verify selector is whitelisted
-                    assertTrue(
-                        WhitelistManagerFacet(DIAMOND)
-                            .isContractSelectorWhitelisted(
-                                testContract,
-                                selector
-                            ),
-                        "Selector should be whitelisted for contract"
-                    );
-
-                    // Verify legacy contract check
-                    assertTrue(
-                        mockSwapper.isContractAllowedLegacy(testContract),
-                        "Contract should be allowed via legacy check"
-                    );
-
-                    // Verify legacy selector check
-                    assertTrue(
-                        mockSwapper.isSelectorAllowedLegacy(selector),
-                        "Selector should be allowed via legacy check"
-                    );
+            // Verify selector appears exactly once in selectors array
+            uint256 countInArray = 0;
+            for (uint256 j = 0; j < selectors.length; j++) {
+                if (selectors[j] == selector) {
+                    countInArray++;
                 }
             }
+            assertEq(
+                countInArray,
+                1,
+                "Selector should appear exactly once in selectors array"
+            );
+        }
+
+        // Verify no duplicate contracts in contracts array
+        for (uint256 i = 0; i < contracts.length; i++) {
+            uint256 count = 0;
+            for (uint256 j = 0; j < contracts.length; j++) {
+                if (contracts[j] == contracts[i]) {
+                    count++;
+                }
+            }
+            assertEq(
+                count,
+                1,
+                "Contract should appear exactly once in contracts array"
+            );
+        }
+
+        // Verify getAllContractSelectorPairs consistency
+        (address[] memory allContracts2, ) = WhitelistManagerFacet(DIAMOND)
+            .getAllContractSelectorPairs();
+
+        assertEq(
+            allContracts2.length,
+            contracts.length,
+            "getAllContractSelectorPairs should return same number of contracts"
+        );
+
+        // Verify each contract in getAllContractSelectorPairs matches getWhitelistedAddresses
+        for (uint256 i = 0; i < allContracts2.length; i++) {
+            bool found = false;
+            for (uint256 j = 0; j < contracts.length; j++) {
+                if (contracts[j] == allContracts2[i]) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(
+                found,
+                "Contract in getAllContractSelectorPairs should be in getWhitelistedAddresses"
+            );
         }
     }
 }
