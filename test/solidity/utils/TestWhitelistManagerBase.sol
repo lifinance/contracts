@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
@@ -9,14 +9,23 @@ abstract contract TestWhitelistManagerBase {
     /// @notice Adds a specific contract-selector pair to the allow list.
     /// @param _contractAddress The contract address to add.
     /// @param _selector The function selector to add.
-    function addAllowedContractSelector(address _contractAddress, bytes4 _selector) external {
+    function addAllowedContractSelector(
+        address _contractAddress,
+        bytes4 _selector
+    ) external {
         LibAllowList.addAllowedContractSelector(_contractAddress, _selector);
     }
 
     /// @notice Removes a specific contract-selector pair from the allow list.
     /// @param _contractAddress The contract address to remove.
     /// @param _selector The function selector to remove.
-    function removeAllowedContractSelector(address _contractAddress, bytes4 _selector) external {
-        LibAllowList.removeAllowedContractSelector(_contractAddress, _selector);
+    function removeAllowedContractSelector(
+        address _contractAddress,
+        bytes4 _selector
+    ) external {
+        LibAllowList.removeAllowedContractSelector(
+            _contractAddress,
+            _selector
+        );
     }
 }
