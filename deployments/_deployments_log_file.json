@@ -42466,11 +42466,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xF8875Bee262eA56113257B4035ab545bef2C38b6",
+            "ADDRESS": "0x610808987E1da09a8F82a30084Cc176c51f66aAB",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-04 16:43:36",
+            "TIMESTAMP": "2025-11-04 22:42:58",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "32345168",
+            "SALT": "32345163",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
