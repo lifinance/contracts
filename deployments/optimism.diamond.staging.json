@@ -1,6 +1,7 @@
 {
   "LiFiDiamond": {
     "Facets": {
+<<<<<<< HEAD
       "0xC4647E210eeC3744D017cc3d8Bb347f10e3Da339": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
@@ -51,6 +52,54 @@
       },
       "0x022346bd4Ba1c6936D01740Dd29f232D8b23461d": {
         "Name": "WhitelistManagerFacet",
+=======
+      "0xb402351A057c4A850831CB6AE258e994251e8268": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0xC5F227033277f2eAbDA193eEF81704a605A23FE4": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x0f121a9E2bd75488d766B86f62b152b11aA177B7": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x36DEac1896a96D7F57D3F7c0bbbFBF049b524e9f": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
+      },
+      "0xe33043c523b177046911430053bF4D8A6A9AdbF7": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.2"
+      },
+      "0x9C9138d681f0D7167BE975A166F00B4cA5A87148": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0x6c8Fd095e8ac2e999A46a57D01EbdFD94d93eD72": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.5"
+      },
+      "0xD8C3016De12591fd08eC1F97D65046d61c1DEfE4": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x568Bef361eC25D6Da4C3bc608e6283059AB832D9": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.2"
+      },
+      "0x746DCB34012311867dfdea787E98EA05F0F9Bb01": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x9b94dec1A8d8f62e6216a3aBBD982E4BDdFb71a9": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0xFfAfb72430852940DBa6EbE429879DEEc812892A": {
+        "Name": "WithdrawFacet",
+>>>>>>> deploy-old-optimism
         "Version": "1.0.0"
       }
     },
