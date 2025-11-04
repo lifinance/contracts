@@ -31,12 +31,11 @@ contract DeployScript is UpdateScriptBase {
         string memory selectorsToRemoveJson = vm.readFile(
             selectorsToRemovePath
         );
-        // Example: `{"functionSelectorsToRemove": ["0x12345678", "0xabcdef01"]}`
+
         string[] memory rawSelectorsToRemove = vm.parseJsonStringArray(
             selectorsToRemoveJson,
             ".functionSelectorsToRemove"
         );
-
         // Convert string selectors to bytes4
         bytes4[] memory selectorsToRemove = new bytes4[](
             rawSelectorsToRemove.length
@@ -55,61 +54,54 @@ contract DeployScript is UpdateScriptBase {
         );
 
         if (bytes(fileSuffix).length == 0) {
-            // No suffix provided, use the default production whitelist
             whitelistJson = vm.readFile(fallbackPath);
+            emit log("getCallData6");
         } else {
             // A suffix (e.g., "staging.") is provided
             string memory stagingPath = string.concat(
                 root,
                 "/config/whitelist.",
-                fileSuffix, // e.g., "staging."
+                fileSuffix,
                 "json"
             );
             try vm.readFile(stagingPath) returns (string memory stagingJson) {
-                // Staging file exists, use it
                 whitelistJson = stagingJson;
             } catch {
-                // Staging file not found, fall back to production whitelist
                 whitelistJson = vm.readFile(fallbackPath);
             }
         }
 
         // --- 3. Parse Whitelist ---
-        // This helper function does the heavy lifting of parsing the JSON
         (
             address[] memory contracts,
             bytes4[][] memory selectors
         ) = _parseWhitelistJson(whitelistJson);
 
         // --- 4. ABI-Encode Call Data ---
-        // This is the data that will be passed to the `migrate` function.
         bytes memory callData = abi.encodeWithSelector(
             WhitelistManagerFacet.migrate.selector,
-            selectorsToRemove, // bytes4[]
-            contracts, // address[]
-            selectors // bytes4[][]
+            selectorsToRemove,
+            contracts,
+            selectors
         );
 
         return callData;
     }
 
     /// @notice Orchestrates the parsing of the entire whitelist JSON.
-    /// @param whitelistJson The raw JSON string content.
-    /// @return allContracts An aggregated list of unique contract addresses.
-    /// @return allSelectors A list of selector arrays, one for each address.
     function _parseWhitelistJson(
         string memory whitelistJson
     )
         internal
         returns (address[] memory allContracts, bytes4[][] memory allSelectors)
     {
-        // 1. Parse the ".DEXS" section of the JSON
+        // 1. Parse the ".DEXS" section
         (
             address[] memory dexContracts,
             bytes4[][] memory dexSelectors
         ) = _parseDexsSection(whitelistJson);
 
-        // 2. Parse the ".PERIPHERY" section of the JSON
+        // 2. Parse the ".PERIPHERY" section
         (
             address[] memory peripheryContracts,
             bytes4[][] memory peripherySelectors
@@ -134,8 +126,6 @@ contract DeployScript is UpdateScriptBase {
         }
 
         // 4. Aggregate duplicates
-        // The JSON might have multiple entries for the same address.
-        // This function combines them into a single entry with merged selectors.
         (allContracts, allSelectors) = _aggregateByAddress(
             allContracts,
             allSelectors
@@ -269,55 +259,43 @@ contract DeployScript is UpdateScriptBase {
     }
 
     /// @notice Parses the ".DEXS" section of the whitelist JSON.
-    /// @dev Uses a two-pass strategy: first count, then allocate, then populate.
-    /// @param whitelistJson The raw JSON string.
-    /// @return contracts Array of addresses from the DEXS section.
-    /// @return selectors Array of selector arrays for each address.
     function _parseDexsSection(
         string memory whitelistJson
     )
         internal
         returns (address[] memory contracts, bytes4[][] memory selectors)
     {
-        // 1. Count total contracts for this network to pre-allocate arrays
-        uint256 totalContracts = _countDexsContracts(whitelistJson);
+        (uint256 totalContracts, uint256 totalDexs) = _countDexsContracts(
+            whitelistJson
+        );
 
-        // 2. Allocate arrays
         contracts = new address[](totalContracts);
         selectors = new bytes4[][](totalContracts);
 
-        // 3. Populate arrays with data
         uint256 contractIndex = 0;
         contractIndex = _populateDexsContracts(
             whitelistJson,
             contracts,
             selectors,
-            contractIndex
+            contractIndex,
+            totalDexs
         );
     }
 
     /// @notice Parses the ".PERIPHERY" section of the whitelist JSON.
-    /// @dev Uses a two-pass strategy: first count, then allocate, then populate.
-    /// @param whitelistJson The raw JSON string.
-    /// @return contracts Array of addresses from the PERIPHERY section.
-    /// @return selectors Array of selector arrays for each address.
     function _parsePeripherySection(
         string memory whitelistJson
     )
         internal
         returns (address[] memory contracts, bytes4[][] memory selectors)
     {
-        // Check if PERIPHERY section exists for current network
         string memory peripheryKey = string.concat(".PERIPHERY.", network);
-        try vm.parseJson(whitelistJson, peripheryKey) returns (bytes memory) {
-            // 1. Count contracts
+        try vm.parseJson(whitelistJson, peripheryKey) {
             uint256 totalContracts = _countPeripheryContracts(whitelistJson);
 
-            // 2. Allocate arrays
             contracts = new address[](totalContracts);
             selectors = new bytes4[][](totalContracts);
 
-            // 3. Populate arrays
             uint256 contractIndex = 0;
             contractIndex = _populatePeripheryContracts(
                 whitelistJson,
@@ -326,7 +304,6 @@ contract DeployScript is UpdateScriptBase {
                 contractIndex
             );
         } catch {
-            // Network not found, throw error
             revert(
                 string.concat(
                     "PERIPHERY section does not exist for network: ",
@@ -336,81 +313,40 @@ contract DeployScript is UpdateScriptBase {
         }
     }
 
-    /// @notice Counts the total number of contracts in the ".DEXS" section
-    /// for the current network.
-    /// @param whitelistJson The raw JSON string.
-    /// @return totalContracts The total count.
+    /// @notice Counts the total number of contracts in the ".DEXS" section.
     function _countDexsContracts(
         string memory whitelistJson
-    ) internal view returns (uint256 totalContracts) {
-        // Get total number of DEXS entries in the ".DEXS" array
-        uint256 totalDexs = _getArrayLength(whitelistJson, ".DEXS");
+    ) internal view returns (uint256 totalContracts, uint256 totalDexs) {
+        totalDexs = _getArrayLength(whitelistJson, ".DEXS");
 
-        // Iterate through each DEX entry
         for (uint256 dexIndex = 0; dexIndex < totalDexs; dexIndex++) {
-            // Example key: ".DEXS[0].contracts.polygon"
             string memory networkKey = string.concat(
                 ".DEXS[",
                 vm.toString(dexIndex),
                 "].contracts.",
                 network
             );
-
-            // Check if this DEX has an entry for the current network
-            try vm.parseJson(whitelistJson, networkKey) returns (
-                bytes memory
-            ) {
-                // Network exists, count how many contracts are in its array
-                uint256 contractCount = _getArrayLength(
-                    whitelistJson,
-                    networkKey
-                );
-                totalContracts += contractCount;
-            } catch {
-                // Network not found for this DEX, continue to next
-            }
+            // Add contract count for this network (is 0 if key not found)
+            totalContracts += _getArrayLength(whitelistJson, networkKey);
         }
     }
 
-    /**
-     * @notice Counts the total number of contracts in the ".PERIPHERY" section
-     * for the *current network*.
-     * @param whitelistJson The raw JSON string.
-     * @return totalContracts The total count.
-     */
+    /// @notice Counts the total number of contracts in the ".PERIPHERY" section.
     function _countPeripheryContracts(
         string memory whitelistJson
     ) internal view returns (uint256 totalContracts) {
-        // Example key: ".PERIPHERY.polygon"
         string memory peripheryKey = string.concat(".PERIPHERY.", network);
-
-        try vm.parseJson(whitelistJson, peripheryKey) returns (bytes memory) {
-            // If the key exists, get the length of the array at that key
-            totalContracts = _getArrayLength(whitelistJson, peripheryKey);
-        } catch {
-            // Network section not found, return 0
-        }
-
-        return totalContracts;
+        return _getArrayLength(whitelistJson, peripheryKey);
     }
 
-    /// @notice Populates the `contracts` and `selectors` arrays with data
-    /// from the ".DEXS" section.
-    /// @param whitelistJson The raw JSON string.
-    /// @param contracts The pre-allocated array to fill with addresses.
-    /// @param selectors The pre-allocated array to fill with selector arrays.
-    /// @param contractIndex The starting index to write into the arrays.
-    /// @return The updated contractIndex after filling.
+    /// @notice Populates arrays from the ".DEXS" section.
     function _populateDexsContracts(
         string memory whitelistJson,
         address[] memory contracts,
         bytes4[][] memory selectors,
-        uint256 contractIndex
+        uint256 contractIndex,
+        uint256 totalDexs
     ) internal returns (uint256) {
-        // Get total number of DEXS
-        uint256 totalDexs = _getArrayLength(whitelistJson, ".DEXS");
-
-        // Iterate through each DEX and populate contracts for current network
         for (uint256 dexIndex = 0; dexIndex < totalDexs; dexIndex++) {
             contractIndex = _processDexContracts(
                 whitelistJson,
@@ -420,7 +356,6 @@ contract DeployScript is UpdateScriptBase {
                 dexIndex
             );
         }
-
         return contractIndex;
     }
 
@@ -432,34 +367,28 @@ contract DeployScript is UpdateScriptBase {
         uint256 contractIndex,
         uint256 dexIndex
     ) internal returns (uint256) {
-        // Example key: ".DEXS[0].contracts.polygon"
         string memory networkKey = string.concat(
             ".DEXS[",
             vm.toString(dexIndex),
             "].contracts.",
             network
         );
-        try vm.parseJson(whitelistJson, networkKey) returns (bytes memory) {
-            // Get number of contracts for this specific DEX on this network
-            uint256 contractCount = _getArrayLength(whitelistJson, networkKey);
-            if (contractCount > 0) {
-                // Populate the data for these contracts
-                contractIndex = _populateContractsForDex(
-                    whitelistJson,
-                    contracts,
-                    selectors,
-                    contractIndex,
-                    dexIndex,
-                    contractCount
-                );
-            }
-        } catch {
-            // Network not found for this DEX, continue
+
+        uint256 contractCount = _getArrayLength(whitelistJson, networkKey);
+        if (contractCount > 0) {
+            contractIndex = _populateContractsForDex(
+                whitelistJson,
+                contracts,
+                selectors,
+                contractIndex,
+                dexIndex,
+                contractCount
+            );
         }
         return contractIndex;
     }
 
-    /// @notice Helper for `_processDexContracts`. Populates the data for all
+    /// @notice Helper for `_processDexContracts`. Populates data for all
     /// contracts within a single DEX entry.
     function _populateContractsForDex(
         string memory whitelistJson,
@@ -469,7 +398,6 @@ contract DeployScript is UpdateScriptBase {
         uint256 dexIndex,
         uint256 contractCount
     ) internal returns (uint256) {
-        // Loop through each contract in the array (e.g., ".DEXS[0].contracts.polygon[0]")
         for (uint256 j = 0; j < contractCount; j++) {
             (
                 address contractAddr,
@@ -491,7 +419,6 @@ contract DeployScript is UpdateScriptBase {
         internal
         returns (address contractAddr, bytes4[] memory contractSelectors)
     {
-        // Example key: ".DEXS[0].contracts.polygon[0]"
         string memory contractKey = string.concat(
             ".DEXS[",
             vm.toString(dexIndex),
@@ -501,7 +428,6 @@ contract DeployScript is UpdateScriptBase {
             vm.toString(contractIndex),
             "]"
         );
-        // Example key: ".DEXS[0].contracts.polygon[0].address"
         string memory addressKey = string.concat(contractKey, ".address");
 
         // 1. Parse contract address
@@ -511,14 +437,14 @@ contract DeployScript is UpdateScriptBase {
         );
         contractAddr = vm.parseAddress(addressStr);
 
-        // 2. Find and extract the ".functions" object as a string
-        // We use the raw `addressStr` (lowercase) for string matching
+        // 2. Parse functions using string search
+        // Note: vm.parseJson for objects returns ABI-encoded bytes, not a JSON string,
+        // so we must use the string search method to extract the actual JSON string
+        // The address string from JSON should already be lowercase, but ensure it matches
         string memory functionsAscii = _extractFunctionsAsciiByAddress(
             whitelistJson,
             addressStr
         );
-
-        // 3. Parse the extracted string to get the selectors
         contractSelectors = _parseFunctionSelectors(functionsAscii);
     }
 
@@ -731,43 +657,30 @@ contract DeployScript is UpdateScriptBase {
         return string(trimmed);
     }
 
-    /// @notice Populates the `contracts` and `selectors` arrays with data
-    /// from the ".PERIPHERY" section.
+    /// @notice Populates arrays from the ".PERIPHERY" section.
     function _populatePeripheryContracts(
         string memory whitelistJson,
         address[] memory contracts,
         bytes4[][] memory selectors,
         uint256 contractIndex
     ) internal returns (uint256) {
-        // Example key: ".PERIPHERY.polygon"
         string memory peripheryKey = string.concat(".PERIPHERY.", network);
+        uint256 contractCount = _getArrayLength(whitelistJson, peripheryKey);
 
-        try vm.parseJson(whitelistJson, peripheryKey) returns (bytes memory) {
-            uint256 contractCount = _getArrayLength(
-                whitelistJson,
-                peripheryKey
-            );
-            // Loop through each contract in the array (e.g., ".PERIPHERY.polygon[0]")
-            for (uint256 k = 0; k < contractCount; k++) {
-                (
-                    address contractAddr,
-                    bytes4[] memory contractSelectors
-                ) = _parsePeripheryContractData(whitelistJson, k); // The *simple* parser
-                contracts[contractIndex] = contractAddr;
-                selectors[contractIndex] = contractSelectors;
-                contractIndex++;
-            }
-        } catch {
-            // Network section not found, continue
+        for (uint256 k = 0; k < contractCount; k++) {
+            (
+                address contractAddr,
+                bytes4[] memory contractSelectors
+            ) = _parsePeripheryContractData(whitelistJson, k);
+            contracts[contractIndex] = contractAddr;
+            selectors[contractIndex] = contractSelectors;
+            contractIndex++;
         }
 
         return contractIndex;
     }
 
     /// @notice Parses a single contract entry from the ".PERIPHERY" section.
-    /// @dev This is much simpler than `_parseContractData` because the JSON
-    /// structure for PERIPHERY is a simple array of selectors, which
-    /// `vm.parseJsonString` can handle.
     function _parsePeripheryContractData(
         string memory whitelistJson,
         uint256 contractIndex
@@ -775,7 +688,6 @@ contract DeployScript is UpdateScriptBase {
         internal
         returns (address contractAddr, bytes4[] memory contractSelectors)
     {
-        // Example key: ".PERIPHERY.polygon[0]"
         string memory contractKey = string.concat(
             ".PERIPHERY.",
             network,
@@ -783,9 +695,7 @@ contract DeployScript is UpdateScriptBase {
             vm.toString(contractIndex),
             "]"
         );
-        // Example: ".PERIPHERY.polygon[0].address"
         string memory addressKey = string.concat(contractKey, ".address");
-        // Example: ".PERIPHERY.polygon[0].selectors"
         string memory selectorsKey = string.concat(contractKey, ".selectors");
 
         // 1. Parse contract address
@@ -800,7 +710,6 @@ contract DeployScript is UpdateScriptBase {
         contractSelectors = new bytes4[](selectorCount);
 
         for (uint256 m = 0; m < selectorCount; m++) {
-            // Example: ".PERIPHERY.polygon[0].selectors[0].selector"
             string memory selectorKey = string.concat(
                 selectorsKey,
                 "[",
@@ -826,8 +735,9 @@ contract DeployScript is UpdateScriptBase {
         string memory key
     ) internal pure returns (uint256 length) {
         uint256 index = 0;
+        uint256 maxIterations = 10000; // Safety limit to prevent infinite loops
 
-        while (true) {
+        while (index < maxIterations) {
             string memory indexedKey = string.concat(
                 key,
                 "[",
@@ -848,6 +758,16 @@ contract DeployScript is UpdateScriptBase {
                 break;
             }
         }
+
+        if (index >= maxIterations) {
+            revert(
+                string.concat(
+                    "_getArrayLength: Maximum iterations reached for key: ",
+                    key
+                )
+            );
+        }
+
         return index;
     }
 
@@ -967,65 +887,6 @@ contract DeployScript is UpdateScriptBase {
 
         // Use cheat code to parse the string "0x..." into bytes
         return bytes4(vm.parseBytes(selectorStr));
-    }
-
-    /// @notice A utility function that appears to be a duplicate/alternative
-    /// of `_parseFunctionSelectors` but operates on `bytes`.
-    /// @dev This function is not explicitly called by `getCallData`'s flow
-    /// but is part of the original contract.
-    function _extractSelectorsFromJsonBytes(
-        bytes memory data
-    ) internal pure returns (bytes4[] memory) {
-        if (data.length == 0) {
-            bytes4[] memory approveToOnlySelector = new bytes4[](1);
-            approveToOnlySelector[0] = bytes4(0xffffffff);
-            return approveToOnlySelector;
-        }
-        // 1. Count occurrences of 0x + 8 hex
-        uint256 count = 0;
-        for (uint256 i = 0; i + 9 < data.length; i++) {
-            if (data[i] == "0" && data[i + 1] == "x") {
-                bool valid = true;
-                for (uint256 h = i + 2; h < i + 10; h++) {
-                    if (!_isHexChar(data[h])) {
-                        valid = false;
-                        break;
-                    }
-                }
-                if (valid) {
-                    count++;
-                    i += 9; // Skip this selector
-                }
-            }
-        }
-        if (count == 0) {
-            bytes4[] memory approveToOnlySelector2 = new bytes4[](1);
-            approveToOnlySelector2[0] = bytes4(0xffffffff);
-            return approveToOnlySelector2;
-        }
-
-        // 2. Populate
-        bytes4[] memory selectors = new bytes4[](count);
-        uint256 idx = 0;
-        for (uint256 i = 0; i + 9 < data.length && idx < count; i++) {
-            if (data[i] == "0" && data[i + 1] == "x") {
-                bool valid = true;
-                for (uint256 h = i + 2; h < i + 10; h++) {
-                    if (!_isHexChar(data[h])) {
-                        valid = false;
-                        break;
-                    }
-                }
-                if (valid) {
-                    bytes memory s = new bytes(10);
-                    for (uint256 j = 0; j < 10; j++) s[j] = data[i + j];
-                    selectors[idx] = bytes4(vm.parseBytes(string(s)));
-                    idx++;
-                    i += 9; // Skip this selector
-                }
-            }
-        }
-        return selectors;
     }
 
     /// @notice Utility to check if a byte is a valid hexadecimal character.

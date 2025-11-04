@@ -48,6 +48,10 @@
       "0xFfAfb72430852940DBa6EbE429879DEEc812892A": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0xa0c303400685Cfc819a109642d0D816a95708e12": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

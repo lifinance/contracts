@@ -42440,12 +42440,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x022346bd4Ba1c6936D01740Dd29f232D8b23461d",
+            "ADDRESS": "0xa0c303400685Cfc819a109642d0D816a95708e12",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-02 02:04:27",
+            "TIMESTAMP": "2025-11-04 13:11:06",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "32335152",
-            "VERIFIED": "true",
+            "SALT": "32345170",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]
