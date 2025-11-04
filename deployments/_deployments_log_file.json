@@ -21,7 +21,7 @@
             "TIMESTAMP": "2025-11-04 20:45:40",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -127,7 +127,7 @@
             "TIMESTAMP": "2025-11-04 19:19:26",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -220,7 +220,7 @@
             "TIMESTAMP": "2025-11-04 21:22:29",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -1193,7 +1193,7 @@
             "TIMESTAMP": "2025-11-04 20:45:55",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -1215,12 +1215,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x92f1a2Db76a8d874563d7641253b65f8b9c1822E",
+            "ADDRESS": "0x3B75025167b5fEc275266F43c132709d58329cf4",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-04 20:56:30",
+            "TIMESTAMP": "2024-07-31 14:12:43",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "32345163",
-            "VERIFIED": "false",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -1287,7 +1287,7 @@
             "TIMESTAMP": "2025-11-04 19:19:42",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -1366,7 +1366,7 @@
             "TIMESTAMP": "2025-11-04 21:22:32",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -2354,7 +2354,7 @@
             "TIMESTAMP": "2025-11-04 20:47:29",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -2376,12 +2376,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xAf3d3D101F8a75E16B24E7dA5cdd43935d9D8b67",
+            "ADDRESS": "0x050cd05AFf1367e6DC4c20dA96fFD31FCB39e219",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-04 21:01:01",
+            "TIMESTAMP": "2024-07-31 14:12:56",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "32345163",
-            "VERIFIED": "false",
+            "SALT": "31072024",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -2447,7 +2447,7 @@
             "TIMESTAMP": "2025-11-04 20:39:31",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -2526,7 +2526,7 @@
             "TIMESTAMP": "2025-11-04 21:23:10",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -4987,7 +4987,7 @@
             "TIMESTAMP": "2025-11-04 20:44:57",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -5011,10 +5011,10 @@
           {
             "ADDRESS": "0x420631E4D63Ce2D0609BDC0eb1aD3aBD93575611",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-04 20:54:45",
+            "TIMESTAMP": "2024-07-31 14:13:21",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "32345163",
-            "VERIFIED": "false",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -5095,7 +5095,7 @@
             "TIMESTAMP": "2025-11-04 19:18:18",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -5147,7 +5147,7 @@
             "TIMESTAMP": "2025-11-04 21:21:34",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -6158,7 +6158,7 @@
             "TIMESTAMP": "2025-11-04 20:47:57",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -6250,7 +6250,7 @@
             "TIMESTAMP": "2025-11-04 20:40:01",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -6303,7 +6303,7 @@
             "TIMESTAMP": "2025-11-04 21:23:16",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -7307,7 +7307,7 @@
             "TIMESTAMP": "2025-11-04 20:47:43",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -7329,12 +7329,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xE5FEE40E92D16e655F1e195158b13A66FA51C3A0",
+            "ADDRESS": "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-04 21:01:15",
+            "TIMESTAMP": "2024-07-31 14:13:46",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "32345163",
-            "VERIFIED": "false",
+            "SALT": "31072024",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -7400,7 +7400,7 @@
             "TIMESTAMP": "2025-11-04 20:39:46",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -7452,7 +7452,7 @@
             "TIMESTAMP": "2025-11-04 21:23:13",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -8535,7 +8535,7 @@
             "TIMESTAMP": "2025-11-04 21:23:37",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62000000000000000000000000c8d63aabfadeaf927fb1b7d1df62974c3cb4af48",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -8666,7 +8666,7 @@
             "TIMESTAMP": "2025-11-04 20:40:17",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62000000000000000000000000c8d63aabfadeaf927fb1b7d1df62974c3cb4af48",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -8803,7 +8803,7 @@
             "TIMESTAMP": "2025-11-04 20:48:12",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62000000000000000000000000c8d63aabfadeaf927fb1b7d1df62974c3cb4af48",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -10619,7 +10619,7 @@
             "TIMESTAMP": "2025-11-04 20:46:58",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -10748,7 +10748,7 @@
             "TIMESTAMP": "2025-11-04 19:20:28",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -10811,7 +10811,7 @@
             "TIMESTAMP": "2025-11-04 21:22:57",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -25384,7 +25384,7 @@
             "TIMESTAMP": "2025-11-04 19:18:54",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -25517,7 +25517,7 @@
             "TIMESTAMP": "2025-11-04 21:21:46",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -25612,7 +25612,7 @@
             "TIMESTAMP": "2025-11-04 20:45:11",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -30082,7 +30082,7 @@
             "TIMESTAMP": "2025-11-04 19:20:43",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -30161,7 +30161,7 @@
             "TIMESTAMP": "2025-11-04 21:23:07",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -30264,7 +30264,7 @@
             "TIMESTAMP": "2025-11-04 20:47:13",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -33746,7 +33746,7 @@
             "TIMESTAMP": "2025-11-04 19:19:57",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -33809,7 +33809,7 @@
             "TIMESTAMP": "2025-11-04 20:46:10",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -34001,7 +34001,7 @@
             "TIMESTAMP": "2025-11-04 21:22:35",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -37510,7 +37510,7 @@
             "TIMESTAMP": "2025-11-04 19:20:13",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -37604,17 +37604,6 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
             "SALT": "",
             "VERIFIED": "true"
-          }
-        ],
-        "2.0.5": [
-          {
-            "ADDRESS": "0x843A1AA0131CBD55F188de709806B8046848E392",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-04 21:09:33",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
-            "SALT": "32345163",
-            "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -37735,7 +37724,7 @@
             "TIMESTAMP": "2025-11-04 21:22:47",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -37878,7 +37867,7 @@
             "TIMESTAMP": "2025-11-04 20:46:24",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -42471,7 +42460,7 @@
             "TIMESTAMP": "2025-11-04 22:42:58",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -42486,7 +42475,7 @@
             "TIMESTAMP": "2025-11-04 22:29:04",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -42516,7 +42505,7 @@
             "TIMESTAMP": "2025-11-04 22:32:22",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345163",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
