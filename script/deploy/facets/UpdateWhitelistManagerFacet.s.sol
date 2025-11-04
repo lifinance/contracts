@@ -110,6 +110,7 @@ contract DeployScript is UpdateScriptBase {
         string memory whitelistJson
     )
         internal
+        view
         returns (address[] memory allContracts, bytes4[][] memory allSelectors)
     {
         // 1. Parse the ".DEXS" section
@@ -302,6 +303,7 @@ contract DeployScript is UpdateScriptBase {
         string memory whitelistJson
     )
         internal
+        view
         returns (address[] memory contracts, bytes4[][] memory selectors)
     {
         // Parse JSON once using JSONParserLib
@@ -331,6 +333,7 @@ contract DeployScript is UpdateScriptBase {
         string memory whitelistJson
     )
         internal
+        view
         returns (address[] memory contracts, bytes4[][] memory selectors)
     {
         // Parse JSON once using JSONParserLib
@@ -410,7 +413,7 @@ contract DeployScript is UpdateScriptBase {
         bytes4[][] memory selectors,
         uint256 contractIndex,
         uint256 totalDexs
-    ) internal returns (uint256) {
+    ) internal view returns (uint256) {
         for (uint256 dexIndex = 0; dexIndex < totalDexs; dexIndex++) {
             JSONParserLib.Item memory dex = JSONParserLib.at(dexs, dexIndex);
             contractIndex = _processDexContracts(
@@ -429,7 +432,7 @@ contract DeployScript is UpdateScriptBase {
         address[] memory contracts,
         bytes4[][] memory selectors,
         uint256 contractIndex
-    ) internal returns (uint256) {
+    ) internal view returns (uint256) {
         // prettier-ignore
         JSONParserLib.Item memory contractsObj = JSONParserLib.at(
             dex,
@@ -466,7 +469,7 @@ contract DeployScript is UpdateScriptBase {
         bytes4[][] memory selectors,
         uint256 contractIndex,
         uint256 contractCount
-    ) internal returns (uint256) {
+    ) internal pure returns (uint256) {
         for (uint256 j = 0; j < contractCount; j++) {
             (
                 address contractAddr,
@@ -490,6 +493,7 @@ contract DeployScript is UpdateScriptBase {
         uint256 contractIndex
     )
         internal
+        view
         returns (address contractAddr, bytes4[] memory contractSelectors)
     {
         // Parse JSON once using JSONParserLib
@@ -522,6 +526,7 @@ contract DeployScript is UpdateScriptBase {
         uint256 contractIndex
     )
         internal
+        pure
         returns (address contractAddr, bytes4[] memory contractSelectors)
     {
         // Get the contract at the specified index
@@ -588,7 +593,7 @@ contract DeployScript is UpdateScriptBase {
         address[] memory contracts,
         bytes4[][] memory selectors,
         uint256 contractIndex
-    ) internal returns (uint256) {
+    ) internal pure returns (uint256) {
         uint256 contractCount = JSONParserLib.size(networkPeriphery);
 
         for (uint256 k = 0; k < contractCount; k++) {
@@ -610,6 +615,7 @@ contract DeployScript is UpdateScriptBase {
         uint256 contractIndex
     )
         internal
+        pure
         returns (address contractAddr, bytes4[] memory contractSelectors)
     {
         // Get the contract at the specified index
