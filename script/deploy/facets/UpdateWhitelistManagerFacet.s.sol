@@ -23,6 +23,7 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function getCallData() internal override returns (bytes memory) {
+        vm.pauseGasMetering();
         // --- 1. Read Selectors to Remove ---
         string memory selectorsToRemovePath = string.concat(
             root,
@@ -55,7 +56,6 @@ contract DeployScript is UpdateScriptBase {
 
         if (bytes(fileSuffix).length == 0) {
             whitelistJson = vm.readFile(fallbackPath);
-            emit log("getCallData6");
         } else {
             // A suffix (e.g., "staging.") is provided
             string memory stagingPath = string.concat(
@@ -84,7 +84,7 @@ contract DeployScript is UpdateScriptBase {
             contracts,
             selectors
         );
-
+        vm.resumeGasMetering();
         return callData;
     }
 
