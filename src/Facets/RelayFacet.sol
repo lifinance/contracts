@@ -39,8 +39,8 @@ contract RelayFacet is
     /// @dev Relay specific parameters
     /// @param requestId Relay API request ID
     /// @param nonEVMReceiver set only if bridging to non-EVM chain
-    /// @params receivingAssetId address of receiving asset
-    /// @params signature attestation signature provided by the Relay solver
+    /// @param receivingAssetId address of receiving asset
+    /// @param signature attestation signature provided by the Relay solver
     struct RelayData {
         bytes32 requestId;
         bytes32 nonEVMReceiver;
