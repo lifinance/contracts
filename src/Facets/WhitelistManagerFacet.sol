@@ -220,6 +220,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
         return als.migrated;
     }
 
+    /// Internal Logic ///
+
     /// @dev Remove these methods after migration is complete in next facet upgrade.
     /// @dev Fetch allow list storage struct
     function _getAllowListStorage()
@@ -232,8 +234,6 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
             als.slot := position
         }
     }
-
-    /// Internal Logic ///
 
     /// @dev The single internal function that all state changes must flow through.
     function _setContractSelectorWhitelist(
