@@ -1,57 +1,53 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xb402351A057c4A850831CB6AE258e994251e8268": {
+      "0x1f372cab431d2Cb4974876B18B9A98755b16C8EE": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0xC5F227033277f2eAbDA193eEF81704a605A23FE4": {
+      "0x86C14414D6Ec47B3462Df1ba9810cc043C23ed9b": {
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x0f121a9E2bd75488d766B86f62b152b11aA177B7": {
+      "0xA83Baf23e1fdCF8C0C6Ea599F874a3321A459AF2": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x36DEac1896a96D7F57D3F7c0bbbFBF049b524e9f": {
+      "0x1AAcdCAAf97FD6d2bC466fDAD656844e8B731948": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0xe33043c523b177046911430053bF4D8A6A9AdbF7": {
+      "0x1969DC523Ad5FA4D77a9f2Fb413eD6B8DE3eF0bE": {
         "Name": "DexManagerFacet",
         "Version": "1.0.2"
       },
-      "0x9C9138d681f0D7167BE975A166F00B4cA5A87148": {
+      "0x2D9dfB0335daC1062838087D7142b7852CC990db": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x6c8Fd095e8ac2e999A46a57D01EbdFD94d93eD72": {
+      "0x23C5994D4a3e00daC092E1331c5e09CF7517e303": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0xD8C3016De12591fd08eC1F97D65046d61c1DEfE4": {
+      "0x3e5cf51D9394823dc6C45CcC3134e6972bee1c7b": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x568Bef361eC25D6Da4C3bc608e6283059AB832D9": {
+      "0x0651bE1b2e97ef675f78B08Ae7BFF4761B27E4eC": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0x746DCB34012311867dfdea787E98EA05F0F9Bb01": {
+      "0xb1a2974072fE4a40BEDA27E21a279e600951BEB7": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x9b94dec1A8d8f62e6216a3aBBD982E4BDdFb71a9": {
+      "0x1437df4629787d08c06003E7C496164057745B11": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xFfAfb72430852940DBa6EbE429879DEEc812892A": {
+      "0x28d53D5b4F49DECC735512830EF1c1328b87F357": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
-      },
-      "0xa0c303400685Cfc819a109642d0D816a95708e12": {
-        "Name": "",
-        "Version": ""
       }
     },
     "Periphery": {
