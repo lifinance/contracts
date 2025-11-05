@@ -113,17 +113,20 @@ contract DeployScript is UpdateScriptBase {
         view
         returns (address[] memory allContracts, bytes4[][] memory allSelectors)
     {
+        // Parse JSON once
+        JSONParserLib.Item memory root = JSONParserLib.parse(whitelistJson);
+
         // 1. Parse the ".DEXS" section
         (
             address[] memory dexContracts,
             bytes4[][] memory dexSelectors
-        ) = _parseDexsSection(whitelistJson);
+        ) = _parseDexsSection(root);
 
         // 2. Parse the ".PERIPHERY" section
         (
             address[] memory peripheryContracts,
             bytes4[][] memory peripherySelectors
-        ) = _parsePeripherySection(whitelistJson);
+        ) = _parsePeripherySection(root);
 
         // 3. Merge the results from both sections
         uint256 totalContracts = dexContracts.length +
@@ -300,14 +303,12 @@ contract DeployScript is UpdateScriptBase {
 
     /// @notice Parses the ".DEXS" section of the whitelist JSON.
     function _parseDexsSection(
-        string memory whitelistJson
+        JSONParserLib.Item memory root
     )
         internal
         view
         returns (address[] memory contracts, bytes4[][] memory selectors)
     {
-        // Parse JSON once using JSONParserLib
-        JSONParserLib.Item memory root = JSONParserLib.parse(whitelistJson);
         // prettier-ignore
         JSONParserLib.Item memory dexs = JSONParserLib.at(root, "\"DEXS\"");
 
@@ -330,14 +331,12 @@ contract DeployScript is UpdateScriptBase {
 
     /// @notice Parses the ".PERIPHERY" section of the whitelist JSON.
     function _parsePeripherySection(
-        string memory whitelistJson
+        JSONParserLib.Item memory root
     )
         internal
         view
         returns (address[] memory contracts, bytes4[][] memory selectors)
     {
-        // Parse JSON once using JSONParserLib
-        JSONParserLib.Item memory root = JSONParserLib.parse(whitelistJson);
         // prettier-ignore
         JSONParserLib.Item memory periphery = JSONParserLib.at(
             root,
