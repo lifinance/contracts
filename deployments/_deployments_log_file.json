@@ -44439,6 +44439,19 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe97dE44bb0d050fCd0c114cE34f0a22BAC4ca274",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-05 15:48:55",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "32335145",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "moonbeam": {
