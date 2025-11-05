@@ -48,13 +48,17 @@
       "0x1d7f7Eb21ca80fA5cab7bCAcC59c940CCc588ad9": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0xCcC2c6A3851E62A3aA317a5B52b8E566B35E5359": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "",
       "Executor": "",
       "FeeCollector": "",
-      "FeeForwarder": "",
+      "FeeForwarder": "0xe97dE44bb0d050fCd0c114cE34f0a22BAC4ca274",
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LidoWrapper": "",
