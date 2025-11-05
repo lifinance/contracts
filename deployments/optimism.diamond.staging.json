@@ -53,7 +53,7 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x610808987E1da09a8F82a30084Cc176c51f66aAB": {
+      "0x2A6DB28EEe8d006d4F0781b57af3B24603b65A70": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       }
@@ -64,8 +64,8 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "0x462A9B6879770050021823D63aE62470E65Af8D4",
+      "LiFiDEXAggregator": "",
       "Patcher": "",
       "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
