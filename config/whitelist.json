@@ -5671,6 +5671,20 @@
         ]
       },
       {
+        "name": "FeeForwarder",
+        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
         "name": "GasZipPeriphery",
         "address": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
         "selectors": [
