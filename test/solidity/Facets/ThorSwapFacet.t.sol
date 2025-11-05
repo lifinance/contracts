@@ -3,20 +3,12 @@ pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ThorSwapFacet Contract
-contract TestThorSwapFacet is ThorSwapFacet {
+contract TestThorSwapFacet is ThorSwapFacet, TestWhitelistManagerBase {
     constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract ThorSwapFacetTest is TestBaseFacet {
@@ -38,25 +30,18 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[1] = thorSwapFacet
             .swapAndStartBridgeTokensViaThorSwap
             .selector;
-        functionSelectors[2] = thorSwapFacet.addDex.selector;
+        functionSelectors[2] = thorSwapFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = thorSwapFacet
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
-        thorSwapFacet.addDex(ADDRESS_UNISWAP);
-        thorSwapFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        thorSwapFacet.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        thorSwapFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
-
+        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        
         setFacetAddressInTestBase(address(thorSwapFacet), "ThorSwapFacet");
 
         // adjust bridgeData

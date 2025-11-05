@@ -2,24 +2,16 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import { NotInitialized, OnlyContractOwner, InvalidConfig } from "src/Errors/GenericErrors.sol";
+import { NotInitialized, OnlyContractOwner, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub DeBridgeDlnFacet Contract
-contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
+contract TestDeBridgeDlnFacet is DeBridgeDlnFacet, TestWhitelistManagerBase {
     constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract DeBridgeDlnFacetTest is TestBaseFacet {
@@ -47,33 +39,23 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         initTestBase();
 
         deBridgeDlnFacet = new TestDeBridgeDlnFacet(DLN_SOURCE);
-        bytes4[] memory functionSelectors = new bytes4[](7);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = deBridgeDlnFacet
             .startBridgeTokensViaDeBridgeDln
             .selector;
         functionSelectors[1] = deBridgeDlnFacet
             .swapAndStartBridgeTokensViaDeBridgeDln
             .selector;
-        functionSelectors[2] = deBridgeDlnFacet.addDex.selector;
-        functionSelectors[3] = deBridgeDlnFacet
-            .setFunctionApprovalBySignature
-            .selector;
-        functionSelectors[4] = deBridgeDlnFacet.setDeBridgeChainId.selector;
-        functionSelectors[5] = deBridgeDlnFacet.getDeBridgeChainId.selector;
-        functionSelectors[6] = DeBridgeDlnFacet.initDeBridgeDln.selector;
+        functionSelectors[2] = deBridgeDlnFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] = deBridgeDlnFacet.setDeBridgeChainId.selector;
+        functionSelectors[4] = deBridgeDlnFacet.getDeBridgeChainId.selector;
+        functionSelectors[5] = DeBridgeDlnFacet.initDeBridgeDln.selector;
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
-        deBridgeDlnFacet.addDex(ADDRESS_UNISWAP);
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        deBridgeDlnFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
+        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         // Initialize
         string memory path = string.concat(

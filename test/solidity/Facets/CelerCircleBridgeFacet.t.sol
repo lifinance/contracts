@@ -2,24 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
 import { ICircleBridgeProxy } from "lifi/Interfaces/ICircleBridgeProxy.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub CelerCircleBridgeFacet Contract
-contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
+contract TestCelerCircleBridgeFacet is
+    CelerCircleBridgeFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         ICircleBridgeProxy _circleBridgeProxy,
         address _usdc
     ) CelerCircleBridgeFacet(_circleBridgeProxy, _usdc) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract CelerCircleBridgeFacetTest is TestBaseFacet {
@@ -42,32 +37,22 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             ADDRESS_USDC
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = celerCircleBridgeFacet
             .startBridgeTokensViaCelerCircleBridge
             .selector;
         functionSelectors[1] = celerCircleBridgeFacet
             .swapAndStartBridgeTokensViaCelerCircleBridge
             .selector;
-        functionSelectors[2] = celerCircleBridgeFacet.addDex.selector;
-        functionSelectors[3] = celerCircleBridgeFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[2] = celerCircleBridgeFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
-        celerCircleBridgeFacet.addDex(address(uniswap));
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForETH.selector
-        );
-        celerCircleBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
+        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForETH.selector);
+        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(
             address(celerCircleBridgeFacet),
