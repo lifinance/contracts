@@ -71,8 +71,8 @@ library LibAllowList {
         address _contract,
         bytes4 _selector
     ) internal {
-        // Validate contract address is not zero address.
-        if (_contract == address(0)) revert InvalidCallData();
+        if (_contract == address(0) || _selector == bytes4(0))
+            revert InvalidCallData();
         AllowListStorage storage als = _getStorage();
 
         // Skip if the pair is already allowed.
