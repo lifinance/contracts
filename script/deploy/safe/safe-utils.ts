@@ -907,18 +907,19 @@ export async function storeTransactionInMongoDB(
 
 /**
  * Gets a MongoDB client and collection for Safe transactions
+ * Connects to the new MongoDB cluster using SC_MONGODB_URI
  * @returns MongoDB client and pendingTransactions collection
- * @throws Error if MONGODB_URI is not set
+ * @throws Error if SC_MONGODB_URI is not set
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
   pendingTransactions: Collection<ISafeTxDocument>
 }> {
-  if (!process.env.MONGODB_URI)
-    throw new Error('MONGODB_URI environment variable is required')
+  if (!process.env.SC_MONGODB_URI)
+    throw new Error('SC_MONGODB_URI environment variable is required')
 
-  const client = new MongoClient(process.env.MONGODB_URI)
-  const db = client.db('SAFE')
+  const client = new MongoClient(process.env.SC_MONGODB_URI)
+  const db = client.db('sc_private')
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )
