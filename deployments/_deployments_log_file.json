@@ -42709,6 +42709,21 @@
           }
         ]
       }
+    },
+    "aurora": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xae4CC962a7F728cf29dD293caD79773D8a989F4F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-05 16:40:56",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "Patcher": {
