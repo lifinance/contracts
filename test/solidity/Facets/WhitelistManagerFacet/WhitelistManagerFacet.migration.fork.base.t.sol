@@ -255,10 +255,10 @@ contract WhitelistManagerFacetMigrationForkBaseTest is Test {
             expectedCount
         );
         emit log_named_uint("Actual count (on-chain)", actualAddresses.length);
-        emit log_named_uint(
-            "Difference (extra addresses on-chain)",
-            actualAddresses.length - expectedCount
-        );
+        uint256 diff = actualAddresses.length >= expectedCount
+            ? actualAddresses.length - expectedCount
+            : 0;
+        emit log_named_uint("Difference (extra addresses on-chain)", diff);
 
         if (actualAddresses.length > expectedCount) {
             emit log(
@@ -636,10 +636,10 @@ contract WhitelistManagerFacetMigrationForkBaseTest is Test {
             expectedCount
         );
         emit log_named_uint("Actual count (on-chain)", actualSelectors.length);
-        emit log_named_uint(
-            "Difference (extra selectors on-chain)",
-            actualSelectors.length - expectedCount
-        );
+        uint256 diff = actualSelectors.length >= expectedCount
+            ? actualSelectors.length - expectedCount
+            : 0;
+        emit log_named_uint("Difference (extra selectors on-chain)", diff);
 
         if (actualSelectors.length > expectedCount) {
             emit log(
@@ -669,10 +669,10 @@ contract WhitelistManagerFacetMigrationForkBaseTest is Test {
             expectedCount
         );
         emit log_named_uint("Actual total pairs (on-chain)", actualPairs);
-        emit log_named_uint(
-            "Difference (extra pairs on-chain)",
-            actualPairs - expectedCount
-        );
+        uint256 diff = actualPairs >= expectedCount
+            ? actualPairs - expectedCount
+            : 0;
+        emit log_named_uint("Difference (extra pairs on-chain)", diff);
 
         if (actualPairs > expectedCount) {
             emit log(
