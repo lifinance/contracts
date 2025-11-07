@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { {{titleCase name}}Facet } from "lifi/Facets/{{titleCase name}}Facet.sol";
 
 // Stub {{titleCase name}}Facet Contract
@@ -10,12 +11,12 @@ contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
         address _example
     ) {{titleCase name}}Facet(_example) {}
 
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
+    function addToWhitelist(address _contractAddress) external {
+        LibAllowList.addAllowedContract(_contractAddress);
     }
 
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
+    function setFunctionWhitelistBySelector(bytes4 _selector) external {
+        LibAllowList.addAllowedSelector(_selector);
     }
 }
 
@@ -40,21 +41,21 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
         functionSelectors[1] = {{camelCase name}}Facet
             .swapAndStartBridgeTokensVia{{titleCase name}}
             .selector;
-        functionSelectors[2] = {{camelCase name}}Facet.addDex.selector;
+        functionSelectors[2] = {{camelCase name}}Facet.addToWhitelist.selector;
         functionSelectors[3] = {{camelCase name}}Facet
-            .setFunctionApprovalBySignature
+            .setFunctionWhitelistBySelector
             .selector;
 
         addFacet(address(diamond), address({{camelCase name}}Facet), functionSelectors);
         {{camelCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
-        {{camelCase name}}Facet.addDex(ADDRESS_UNISWAP);
-        {{camelCase name}}Facet.setFunctionApprovalBySignature(
+        {{camelCase name}}Facet.addToWhitelist(ADDRESS_UNISWAP);
+        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
             uniswap.swapExactTokensForTokens.selector
         );
-        {{camelCase name}}Facet.setFunctionApprovalBySignature(
+        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
             uniswap.swapTokensForExactETH.selector
         );
-        {{camelCase name}}Facet.setFunctionApprovalBySignature(
+        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
             uniswap.swapETHForExactTokens.selector
         );
 

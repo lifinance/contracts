@@ -245,7 +245,7 @@ abstract contract UpdateScriptBase is ScriptBase {
     function getSelectors(
         string memory _facetName,
         bytes4[] memory _exclude
-    ) internal returns (bytes4[] memory selectors) {
+    ) internal virtual returns (bytes4[] memory selectors) {
         string[] memory cmd = new string[](3);
         cmd[0] = "script/deploy/zksync/utils/contract-selectors.sh";
         cmd[1] = _facetName;

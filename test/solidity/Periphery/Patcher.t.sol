@@ -6,7 +6,6 @@ import { Patcher } from "../../../src/Periphery/Patcher.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
 import { RelayFacet } from "../../../src/Facets/RelayFacet.sol";
-import { LibAllowList } from "../../../src/Libraries/LibAllowList.sol";
 
 error MockFailure();
 error TargetFailure();
@@ -157,21 +156,6 @@ contract MockPriceOracle {
     }
 }
 
-contract TestRelayFacet is RelayFacet {
-    constructor(
-        address _relayReceiver,
-        address _relaySolver
-    ) RelayFacet(_relayReceiver, _relaySolver) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
-}
-
 contract MockSilentFailTarget {
     bool public shouldFail;
 
@@ -234,7 +218,7 @@ contract PatcherTest is TestBase {
     MockInvalidReturnSource internal invalidReturnSource;
     ERC20 internal token;
     MockPriceOracle internal priceOracle;
-    TestRelayFacet internal relayFacet;
+    RelayFacet internal relayFacet;
 
     address internal constant RELAY_RECEIVER =
         0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
@@ -252,7 +236,7 @@ contract PatcherTest is TestBase {
         priceOracle = new MockPriceOracle();
 
         relaySolver = vm.addr(privateKey);
-        relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
+        relayFacet = new RelayFacet(RELAY_RECEIVER, relaySolver);
     }
 
     // Tests basic single value patching into calldata

@@ -156,20 +156,29 @@
       "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
+      },
+      "0xA20D724c81dDDe4A65f682A766881970245B31aF": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x68E1Acfa805dcA813116Ed6507E01c38D44318f0",
       "Executor": "0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88",
       "FeeCollector": "0x3Ef238c36035880EfbDfa239d218186b79Ad1d6F",
+      "FeeForwarder": "0x685527c551Cc40ce1f1C9818cD8683307076E4eD",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
+      "LidoWrapper": "",
       "Patcher": "0xD0D1222a437e73F845e94a37098619B72be1540b",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x81F35E762B6792Eea8781fC52F72e62235A5C416",
-      "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
-      "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
+      "ReceiverAcrossV4": "0x07Cc0a0b41641D349240e1988169Fa11b31FC24E",
+      "ReceiverChainflip": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",
       "ReceiverStargateV2": "0xB539B40793171211DCA8834da044fC14bCe64BDC",
       "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6"
     }

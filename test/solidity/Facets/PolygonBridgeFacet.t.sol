@@ -2,24 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { IRootChainManager } from "lifi/Interfaces/IRootChainManager.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub PolygonBridgeFacet Contract
-contract TestPolygonBridgeFacet is PolygonBridgeFacet {
+contract TestPolygonBridgeFacet is
+    PolygonBridgeFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         IRootChainManager _rootChainManager,
         address _erc20Predicate
     ) PolygonBridgeFacet(_rootChainManager, _erc20Predicate) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract PolygonBridgeFacetTest is TestBaseFacet {
@@ -48,9 +43,11 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = polygonBridgeFacet
             .swapAndStartBridgeTokensViaPolygonBridge
             .selector;
-        functionSelectors[2] = polygonBridgeFacet.addDex.selector;
+        functionSelectors[2] = polygonBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = polygonBridgeFacet
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(
@@ -61,11 +58,12 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
 
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 
-        polygonBridgeFacet.addDex(address(uniswap));
-        polygonBridgeFacet.setFunctionApprovalBySignature(
+        polygonBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        polygonBridgeFacet.setFunctionApprovalBySignature(
+        polygonBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
 

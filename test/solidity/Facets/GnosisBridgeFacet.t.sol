@@ -3,24 +3,16 @@ pragma solidity ^0.8.17;
 
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { TransferFromFailed, InvalidConfig, InvalidSendingToken } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GnosisBridgeFacet Contract
-contract TestGnosisBridgeFacet is GnosisBridgeFacet {
+contract TestGnosisBridgeFacet is GnosisBridgeFacet, TestWhitelistManagerBase {
     constructor(
         IGnosisBridgeRouter _xDaiBridge
     ) GnosisBridgeFacet(_xDaiBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract GnosisBridgeFacetTest is TestBaseFacet {
@@ -57,9 +49,11 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = gnosisBridgeFacet
             .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
-        functionSelectors[2] = gnosisBridgeFacet.addDex.selector;
+        functionSelectors[2] = gnosisBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = gnosisBridgeFacet
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(
@@ -70,14 +64,20 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        gnosisBridgeFacet.addDex(address(uniswap));
-        gnosisBridgeFacet.setFunctionApprovalBySignature(
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        gnosisBridgeFacet.setFunctionApprovalBySignature(
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForETH.selector
         );
-        gnosisBridgeFacet.setFunctionApprovalBySignature(
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapETHForExactTokens.selector
         );
 

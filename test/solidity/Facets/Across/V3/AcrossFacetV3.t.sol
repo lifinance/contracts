@@ -2,28 +2,20 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
 
 // Stub AcrossFacetV3 Contract
-contract TestAcrossFacetV3 is AcrossFacetV3 {
+contract TestAcrossFacetV3 is AcrossFacetV3, TestWhitelistManagerBase {
     address internal constant ADDRESS_WETH =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(
         IAcrossSpokePool _spokePool
     ) AcrossFacetV3(_spokePool, ADDRESS_WETH) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract AcrossFacetV3Test is TestBaseFacet {
@@ -44,28 +36,29 @@ contract AcrossFacetV3Test is TestBaseFacet {
         initTestBase();
 
         acrossFacetV3 = new TestAcrossFacetV3(IAcrossSpokePool(SPOKE_POOL));
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = acrossFacetV3
             .startBridgeTokensViaAcrossV3
             .selector;
         functionSelectors[1] = acrossFacetV3
             .swapAndStartBridgeTokensViaAcrossV3
             .selector;
-        functionSelectors[2] = acrossFacetV3.addDex.selector;
-        functionSelectors[3] = acrossFacetV3
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = acrossFacetV3
+            .addAllowedContractSelector
             .selector;
 
         addFacet(address(diamond), address(acrossFacetV3), functionSelectors);
         acrossFacetV3 = TestAcrossFacetV3(address(diamond));
-        acrossFacetV3.addDex(ADDRESS_UNISWAP);
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        acrossFacetV3.setFunctionApprovalBySignature(
+        acrossFacetV3.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 

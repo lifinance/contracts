@@ -83,7 +83,7 @@ Scripts:
 
 - [ ] Make sure you have deployed a new diamond contract (see above)
 - [ ] Make sure the diamond contract is owned by the SAFE wallet you will use for the upgrade
-- [ ] Ensure that you have granted access to a secondary wallet to add dexs/sigs
+- [ ] Ensure that you have granted access to a secondary wallet to whitelist contracts and selectors
 - [ ] Make sure the facet you wish to upgrade is deployed but not added to the diamond yet
 - [ ] Run this script `./scripts/scriptMaster.sh`, select `11) Propose upgrade TX to Gnosis SAFE`
 - [ ] Choose the network you want to run the upgrade on

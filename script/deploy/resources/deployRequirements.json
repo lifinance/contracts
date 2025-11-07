@@ -544,6 +544,15 @@
       }
     }
   },
+  "FeeForwarder": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ServiceFeeCollector": {
     "configData": {
       "_owner": {
@@ -655,6 +664,15 @@
     },
     "contractAddresses": {
       "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GardenFacet": {
+    "configData": {
+      "_htlcRegistry": {
+        "configFileName": "garden.json",
+        "keyInConfigFile": ".<NETWORK>.htlcRegistry",
         "allowToDeployWithZeroAddress": "false"
       }
     }
