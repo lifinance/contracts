@@ -2,18 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
-import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
+import { LibSwap, TestBase } from "../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
-contract TestGenericSwapFacet is GenericSwapFacet {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
-}
+contract TestGenericSwapFacet is GenericSwapFacet, TestWhitelistManagerBase {}
 
 contract GenericSwapFacetTest is TestBase {
     // These values are for Mainnet
@@ -35,9 +28,8 @@ contract GenericSwapFacetTest is TestBase {
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[1] = genericSwapFacet.addDex.selector;
-        functionSelectors[2] = genericSwapFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[1] = genericSwapFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(
@@ -47,8 +39,8 @@ contract GenericSwapFacetTest is TestBase {
         );
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
-        genericSwapFacet.addDex(address(uniswap));
-        genericSwapFacet.setFunctionApprovalBySignature(
+        genericSwapFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
 

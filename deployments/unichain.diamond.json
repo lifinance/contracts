@@ -96,15 +96,20 @@
       "0xb323926DB2E4dF85568b1247499e9a6F8b741961": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.1"
+      },
+      "0xF1C6e8d52dd124Af918A178e67D3454Aa5859D8A": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x1f4613847c9F7Bd053c5229c65834c9231A83bF9",
       "Executor": "0xa6aca2704C6c53F076a90FbB19A69cd62c4c5Fe4",
       "FeeCollector": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
+      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
-      "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
       "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
+      "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
       "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "0xd62d7C4Bb23f65EF3d312C74Cd77a367285CA8fc",

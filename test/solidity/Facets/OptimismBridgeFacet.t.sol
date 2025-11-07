@@ -3,19 +3,15 @@ pragma solidity ^0.8.17;
 
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
-import { LibAllowList, LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
+import { LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
 import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub OptimismBridgeFacet Contract
-contract TestOptimismBridgeFacet is OptimismBridgeFacet {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
-}
+contract TestOptimismBridgeFacet is
+    OptimismBridgeFacet,
+    TestWhitelistManagerBase
+{}
 
 contract OptimismBridgeFacetTest is TestBase {
     // These values are for Mainnet
@@ -58,9 +54,11 @@ contract OptimismBridgeFacetTest is TestBase {
             .swapAndStartBridgeTokensViaOptimismBridge
             .selector;
         functionSelectors[2] = optimismBridgeFacet.initOptimism.selector;
-        functionSelectors[3] = optimismBridgeFacet.addDex.selector;
+        functionSelectors[3] = optimismBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[4] = optimismBridgeFacet
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(
@@ -79,12 +77,17 @@ contract OptimismBridgeFacetTest is TestBase {
             IL1StandardBridge(STANDARD_BRIDGE)
         );
 
-        optimismBridgeFacet.addDex(address(uniswap));
-        optimismBridgeFacet.setFunctionApprovalBySignature(
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        optimismBridgeFacet.setFunctionApprovalBySignature(
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapETHForExactTokens.selector
+        );
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
         );
 
         validBridgeData = ILiFi.BridgeData({

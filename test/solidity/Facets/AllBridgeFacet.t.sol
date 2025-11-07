@@ -1,23 +1,15 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 
 // Stub AllBridgeFacet Contract
-contract TestAllBridgeFacet is AllBridgeFacet {
+contract TestAllBridgeFacet is AllBridgeFacet, TestWhitelistManagerBase {
     constructor(IAllBridge _allBridge) AllBridgeFacet(_allBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 
     function getAllBridgeChainId(
         uint256 _chainId
@@ -68,30 +60,31 @@ contract AllBridgeFacetTest is TestBaseFacet {
         initTestBase();
 
         allBridgeFacet = new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = allBridgeFacet
             .startBridgeTokensViaAllBridge
             .selector;
         functionSelectors[1] = allBridgeFacet
             .swapAndStartBridgeTokensViaAllBridge
             .selector;
-        functionSelectors[2] = allBridgeFacet.addDex.selector;
-        functionSelectors[3] = allBridgeFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = allBridgeFacet
+            .addAllowedContractSelector
             .selector;
-        functionSelectors[4] = allBridgeFacet.getAllBridgeChainId.selector;
+        functionSelectors[3] = allBridgeFacet.getAllBridgeChainId.selector;
 
         addFacet(address(diamond), address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
-        allBridgeFacet.addDex(ADDRESS_UNISWAP);
-        allBridgeFacet.setFunctionApprovalBySignature(
+        allBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        allBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        allBridgeFacet.setFunctionApprovalBySignature(
+        allBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
+        );
+        allBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
         );
 
         setFacetAddressInTestBase(address(allBridgeFacet), "AllBridgeFacet");

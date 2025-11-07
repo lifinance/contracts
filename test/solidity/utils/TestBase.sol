@@ -7,7 +7,6 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { DSTest } from "ds-test/test.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ReentrancyError, ETHTransferFailed } from "lifi/Errors/GenericErrors.sol";
 import { LiFiDEXAggregatorDiamondTest } from "../Periphery/LDA/LiFiDEXAggregatorDiamond.t.sol";
@@ -15,20 +14,13 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestBaseRandomConstants } from "./TestBaseRandomConstants.sol";
 import { TestHelpers } from "./TestHelpers.sol";
+import { TestWhitelistManagerBase } from "./TestWhitelistManagerBase.sol";
 import { LiFiData } from "src/Helpers/LiFiData.sol";
 
 using stdJson for string;
 
-contract TestFacet {
+contract TestFacet is TestWhitelistManagerBase {
     constructor() {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract ReentrancyChecker is DSTest {
