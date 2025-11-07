@@ -46039,7 +46039,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0x3598833FA88c04f4e06Fe41D44b71402f5832660",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:37:17",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -46161,7 +46161,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0x75D734DD826Aa126178B1AC5920FE7EF61252FF6",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:46:13",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -46283,7 +46283,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0xf0fcd6a8db420D5DEB48F84adDF89d783e13927f",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:44:58",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -46405,7 +46405,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0xb08d2084955370ba83452a55c4b79Fb895852599",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:42:16",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -46527,7 +46527,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0xd56c60D32fC9343Ff75386498940BA6d6bE71E92",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:39:41",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -46696,7 +46696,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0x2215937Eda2Fb876f904BEFB78712E36369C61E7",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:35:39",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -46818,7 +46818,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0x8A3e0E1De58E73cA37273613F39211fF4d29DF3d",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:38:31",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -46940,7 +46940,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0x6F3e876F8701264996B176AD2df2f99D5B070aD6",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:41:01",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -47062,7 +47062,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0x8028d853E44CaC441340e9b4fde6039604d8C9c2",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:43:35",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
@@ -47184,7 +47184,7 @@
         "1.0.0": [
           {
             "ADDRESS": "0x83A82B653B30A96F2f3DefDDB3E329Bc3dA9a6D7",
-            "OPTIMIZER_RUNS": "1000000\n1000000",
+            "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-13 20:47:34",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "22345094",
