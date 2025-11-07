@@ -47194,5 +47194,22 @@
         ]
       }
     }
+  },
+  "ContractBasedNativeWrapperFacet": {
+    "celo": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xfAbc0E644ECbfdd2ea3f08cf433ac447895A7EA4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-15 15:24:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "22345091",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
   }
 }
