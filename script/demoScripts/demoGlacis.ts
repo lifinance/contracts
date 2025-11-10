@@ -40,6 +40,10 @@ const AIRLIFT_ABI = airliftArtifact.abi as Abi
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
 // ARB.W > OPT.W: https://arbiscan.io/tx/0xb1a1aaf006c0d9fde5da4006dc3d8b86c795cba1eb0bc4757181869503698230
+//
+// Note: This script uses Glacis Airlift v1.1.0+ with outputToken parameter support.
+// The outputToken parameter enables multibridge routing for tokens like USDT & LBTC.
+// Use bytes32(0) for default routing, or specify a token address for specific routing.
 
 async function main() {
   // === Set up environment ===
@@ -130,6 +134,7 @@ async function main() {
         BigInt(destinationChainId),
         signerAddress,
         parseEther('1'),
+        `0x${'0'.repeat(64)}`, // outputToken: bytes32(0) for default routing
       ],
     })
 
@@ -175,6 +180,7 @@ async function main() {
     receiverAddress: zeroPadAddressToBytes32(signerAddress),
     refundAddress: signerAddress,
     nativeFee,
+    outputToken: `0x${'0'.repeat(64)}`, // bytes32(0) for default routing
   }
 
   // === Debug: Print all parameters ===
@@ -211,6 +217,11 @@ async function main() {
   consola.info('Receiver Address:', glacisData.receiverAddress)
   consola.info('Refund Address:', glacisData.refundAddress)
   consola.info('Native Fee:', glacisData.nativeFee.toString())
+  consola.info(
+    'Output Token:',
+    glacisData.outputToken,
+    '(bytes32(0) for default routing)'
+  )
 
   consola.info('\n=== Fee Breakdown ===')
   consola.info('GMP Fee (native):', structuredFees.gmpFee.nativeFee.toString())
@@ -234,7 +245,7 @@ async function main() {
 
   consola.info('\n=== Calldata ===')
   consola.info(
-    'Function Signature: startBridgeTokensViaGlacis((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes32,address,uint256))'
+    'Function Signature: startBridgeTokensViaGlacis((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes32,address,uint256,bytes32))'
   )
   consola.info('Calldata:', calldata)
   consola.info('Calldata Length:', calldata.length, 'characters')
