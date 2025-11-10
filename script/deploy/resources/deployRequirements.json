@@ -398,6 +398,25 @@
       }
     }
   },
+  "PolymerCCTPFacet": {
+    "configData": {
+      "_tokenMessenger": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.tokenMessenger",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_usdc": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.usdc",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_polymerFeeReceiver": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.polymerFeeReceiver",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "RoninBridgeFacet": {
     "configData": {
       "_gateway": {
