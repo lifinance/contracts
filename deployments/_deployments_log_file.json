@@ -40831,6 +40831,17 @@
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
+        ],
+        "1.2.0": [
+          {
+            "ADDRESS": "0xE2Bf645a908A5515C2FEC03d3edDb59c6eF606Fe",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-10 16:56:37",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000568c2c0c94b85b23e1c3cf3e79d51b1566c8f663",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       }
     },

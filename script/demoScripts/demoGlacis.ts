@@ -40,23 +40,29 @@ const AIRLIFT_ABI = airliftArtifact.abi as Abi
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
 // ARB.W > OPT.W: https://arbiscan.io/tx/0xb1a1aaf006c0d9fde5da4006dc3d8b86c795cba1eb0bc4757181869503698230
+// OP.USD₮0 > UNI.USD₮0: Bridge USD₮0 (0x01bFF41798a0BcF287b996046Ca68b395DbC1071) from Optimism
+//                        to USD₮0 (0x9151434b16b9763660705744891fA906F660EcC5) on Unichain (chainId: 130)
 //
 // Note: This script uses Glacis Airlift v1.1.0+ with outputToken parameter support.
 // The outputToken parameter enables multibridge routing for tokens like USDT & LBTC.
-// Use bytes32(0) for default routing, or specify a token address for specific routing.
+// In this case, we specify the destination token address to route USD₮0 on Optimism to USD₮0 on Unichain.
 
 async function main() {
   // === Set up environment ===
-  const srcChain: SupportedChain = 'arbitrum'
-  const destinationChainId = 10
+  const srcChain: SupportedChain = 'optimism'
+  const destinationChainId = 130 // Unichain
 
   const { publicClient, walletClient, walletAccount, lifiDiamondAddress } =
     await setupEnvironment(srcChain, GLACIS_FACET_ABI)
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
+  // USD₮0 on Optimism -> USD₮0 on Unichain
   const SRC_TOKEN_ADDRESS = getAddress(
-    '0xB0fFa8000886e57F86dd5264b9582b2Ad87b2b91'
+    '0x01bFF41798a0BcF287b996046Ca68b395DbC1071' // USD₮0 on Optimism
+  )
+  const DST_TOKEN_ADDRESS = getAddress(
+    '0x9151434b16b9763660705744891fA906F660EcC5' // USD₮0 on Unichain
   )
   const AIRLIFT_ADDRESS = getConfigElement(glacisConfig, srcChain, 'airlift')
 
@@ -82,7 +88,7 @@ async function main() {
   const amount = parseUnits('1', Number(srcTokenDecimals))
 
   consola.info(
-    `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> Optimism`
+    `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> Unichain`
   )
   consola.info(`Connected wallet address: ${signerAddress}`)
 
@@ -134,7 +140,7 @@ async function main() {
         BigInt(destinationChainId),
         signerAddress,
         parseEther('1'),
-        `0x${'0'.repeat(64)}`, // outputToken: bytes32(0) for default routing
+        zeroPadAddressToBytes32(DST_TOKEN_ADDRESS), // outputToken: route to specific USDT on Unichain
       ],
     })
 
@@ -180,7 +186,7 @@ async function main() {
     receiverAddress: zeroPadAddressToBytes32(signerAddress),
     refundAddress: signerAddress,
     nativeFee,
-    outputToken: `0x${'0'.repeat(64)}`, // bytes32(0) for default routing
+    outputToken: zeroPadAddressToBytes32(DST_TOKEN_ADDRESS), // Route to USDT on Unichain
   }
 
   // === Debug: Print all parameters ===
@@ -191,12 +197,14 @@ async function main() {
   consola.info('Source Token Name:', srcTokenName)
   consola.info('Source Token Symbol:', srcTokenSymbol)
   consola.info('Source Token Decimals:', srcTokenDecimals)
+  consola.info('Destination Token Address:', DST_TOKEN_ADDRESS)
+  consola.info('Destination Token:', 'USD₮0 on Unichain')
   consola.info('Amount:', amount.toString())
   consola.info(
     'Amount (formatted):',
     `${amount / BigInt(10 ** Number(srcTokenDecimals))} ${srcTokenSymbol}`
   )
-  consola.info('Destination Chain ID:', destinationChainId)
+  consola.info('Destination Chain ID:', destinationChainId, '(Unichain)')
   consola.info('Signer Address:', signerAddress)
   consola.info('Native Fee:', nativeFee.toString())
   consola.info('Native Fee (ETH):', `${Number(nativeFee) / 1e18} ETH`)
@@ -220,7 +228,7 @@ async function main() {
   consola.info(
     'Output Token:',
     glacisData.outputToken,
-    '(bytes32(0) for default routing)'
+    `(${DST_TOKEN_ADDRESS} - USD₮0 on Unichain)`
   )
 
   consola.info('\n=== Fee Breakdown ===')
