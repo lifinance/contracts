@@ -235,16 +235,19 @@ jobs:
             COMMENT_BODY+="✅ **No unresolved security alerts!** 🎉\n\n"
           fi
 
+          # Properly escape the comment body for JSON using jq
+          ESCAPED_COMMENT_BODY=$(echo -n "$COMMENT_BODY" | jq -Rs .)
+
           # Update existing comment if found; otherwise, post a new one.
           if [[ -n "$EXISTING_COMMENT_ID" ]]; then
             echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
             curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              -d "{\"body\": $ESCAPED_COMMENT_BODY}" \
               "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
           else
             echo "Posting new comment to PR..."
             curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              -d "{\"body\": $ESCAPED_COMMENT_BODY}" \
               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
           fi
 
