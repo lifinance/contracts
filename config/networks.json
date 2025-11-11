@@ -1041,11 +1041,12 @@
     "explorerUrl": "https://stablescan.xyz",
     "explorerApiUrl": "https://partners-explorer.stable.xyz/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeAddress": "",
+    "safeAddress": "0xBa663f314B78492de579835F85Dc90d62E563cD1",
     "gasZipChainId": 513,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29"
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "superposition": {
     "name": "superposition",
