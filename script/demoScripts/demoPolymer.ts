@@ -493,7 +493,7 @@ async function main() {
 
   // Set from/to addresses based on chain types
   const fromUserAddress = isFromSolana ? solanaAddress : evmAddress
-  const toUserAddress = "2sFuM27ehoddDAjGbrZTbYo25LfGbdfUgvqRT4XYehdW" // isToSolana ? solanaAddress : evmAddress
+  const toUserAddress =  isToSolana ? solanaAddress : evmAddress
 
   console.log(`From Address (${isFromSolana ? 'Solana' : 'EVM'}): ${fromUserAddress}`)
   console.log(`To Address (${isToSolana ? 'Solana' : 'EVM'}): ${toUserAddress}`)

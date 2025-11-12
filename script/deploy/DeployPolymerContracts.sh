@@ -130,3 +130,6 @@ jq --arg chainId "$CHAIN_ID" \
 echo -e "${GREEN}Updated $ADDRESSES_FILE${NC}"
 echo -e "${GREEN}Deployment complete!${NC}"
 echo -e "${BLUE}To call the facet, run: ./script/deploy/CallPolymerCCTP.sh <RPC_URL> <PRIVATE_KEY> <DESTINATION_DOMAIN> $ADDRESSES_FILE${NC}"
+
+echo -e "${BLUE}Initializing polymer facet ${NC}"
+cast send "$DIAMOND_ADDRESS" "initPolymerCCTP()" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY"
