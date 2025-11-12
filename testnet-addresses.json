@@ -1,4 +1,10 @@
 {
+  "11155111": {
+    "usdc": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+    "polymerFeeRecipient": "0x81b5c1c0343ff0087C04F543D0f36dC4745b999F",
+    "tokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    "diamondProxy": "0x4d09Dd99652e20E6795D08d25ecC03e9600836a4"
+  },
   "11155420": {
     "usdc": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
     "polymerFeeRecipient": "0x81b5c1c0343ff0087C04F543D0f36dC4745b999F",
@@ -16,5 +22,9 @@
     "polymerFeeRecipient": "0x81b5c1c0343ff0087C04F543D0f36dC4745b999F",
     "tokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
     "diamondProxy": "0x4a0258A6627e9D8cef54B52Bde9814B13570Cbb7"
+  },
+  "2": {
+    "usdc": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "diamondProxy": "2sFuM27ehoddDAjGbrZTbYo25LfGbdfUgvqRT4XYehdW"
   }
 }
