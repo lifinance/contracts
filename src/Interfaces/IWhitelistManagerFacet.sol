@@ -152,9 +152,11 @@ interface IWhitelistManagerFacet {
     /// @param _selectorsToRemove Array of selectors to remove from the allow list.
     /// @param _contracts Array of contract addresses.
     /// @param _selectors Parallel array of selector arrays for each contract.
+    /// @param _grantAccessTo Address to grant access to batchSetContractSelectorWhitelist after migration.
     function migrate(
         bytes4[] calldata _selectorsToRemove,
         address[] calldata _contracts,
-        bytes4[][] calldata _selectors
+        bytes4[][] calldata _selectors,
+        address _grantAccessTo
     ) external;
 }

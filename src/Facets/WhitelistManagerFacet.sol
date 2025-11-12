@@ -125,7 +125,8 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     function migrate(
         bytes4[] calldata _selectorsToRemove,
         address[] calldata _contracts,
-        bytes4[][] calldata _selectors
+        bytes4[][] calldata _selectors,
+        address _grantAccessTo
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
@@ -211,6 +212,14 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
 
         // Mark as migrated
         als.migrated = true;
+
+        // Grant access to batchSetContractSelectorWhitelist if address provided
+        if (_grantAccessTo != address(0)) {
+            LibAccess.addAccess(
+                this.batchSetContractSelectorWhitelist.selector,
+                _grantAccessTo
+            );
+        }
     }
 
     /// @dev Remove these methods after migration is complete in next facet upgrade.
