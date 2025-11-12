@@ -2,23 +2,22 @@
   "mainnet": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "arbitrum": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    "TODO: replace with correct address": "",
-    "polymerFeeReceiver": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "avalanche": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "base": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "bsc": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -43,8 +42,7 @@
   "optimism": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
-    "TODO: replace with correct address": "",
-    "polymerFeeReceiver": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "plume": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -54,7 +52,7 @@
   "polygon": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "sei": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -69,7 +67,7 @@
   "unichain": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "worldchain": {
     "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -85,21 +83,21 @@
   "arbitrumSepolia": {
     "tokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
     "usdc": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-    "polymerFeeReceiver": "0x81b5c1c0343ff0087C04F543D0f36dC4745b999F"
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
   },
   "baseSepolia": {
     "tokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
     "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    "polymerFeeReceiver": "0x81b5c1c0343ff0087C04F543D0f36dC4745b999F"
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
   },
   "optimismSepolia": {
     "tokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
     "usdc": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
-    "polymerFeeReceiver": "0x81b5c1c0343ff0087C04F543D0f36dC4745b999F"
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
   },
   "sepolia": {
     "tokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
     "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
   }
 }
