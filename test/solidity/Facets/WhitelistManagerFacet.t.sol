@@ -1273,7 +1273,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         WhitelistManagerFacet(DIAMOND).migrate(
             selectorsToRemove,
             contracts,
-            selectors
+            selectors,
+            address(0)
         );
     }
 
@@ -1314,7 +1315,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         WhitelistManagerFacet(DIAMOND).migrate(
             selectorsToRemove,
             contracts,
-            selectors
+            selectors,
+            address(0)
         );
     }
 
@@ -1354,7 +1356,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         WhitelistManagerFacet(DIAMOND).migrate(
             selectorsToRemove,
             contracts,
-            selectors
+            selectors,
+            address(0)
         );
     }
 
@@ -1404,7 +1407,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         WhitelistManagerFacet(DIAMOND).migrate(
             selectorsToRemove,
             contracts,
-            selectors
+            selectors,
+            address(0)
         );
     }
 
@@ -1445,7 +1449,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             WhitelistManagerFacet.migrate.selector,
             selectorsToRemove,
             contracts,
-            selectors
+            selectors,
+            address(0)
         );
         _executeDiamondCut(cuts, initCallData);
 
@@ -1639,10 +1644,11 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
         bytes memory initCallData = deployScript.exposed_getCallData();
 
         // Decode the calldata to extract contracts and selectors
-        // migrate(bytes4[] selectorsToRemove, address[] contracts, bytes4[][] selectors)
-        (selectorsToRemove, contracts, selectors) = abi.decode(
+        // migrate(bytes4[] selectorsToRemove, address[] contracts, bytes4[][] selectors, address grantAccessTo)
+        address grantAccessTo;
+        (selectorsToRemove, contracts, selectors, grantAccessTo) = abi.decode(
             _sliceBytes(initCallData, 4), // Skip function selector
-            (bytes4[], address[], bytes4[][])
+            (bytes4[], address[], bytes4[][], address)
         );
 
         // Log summary
@@ -1924,7 +1930,8 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             WhitelistManagerFacet.migrate.selector,
             adjustedSelectorsToRemove,
             contracts,
-            selectors
+            selectors,
+            address(0)
         );
         _executeDiamondCut(cuts, initCallData);
 
@@ -2427,6 +2434,180 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
                 "Contract in getAllContractSelectorPairs should be in getWhitelistedAddresses"
             );
         }
+    }
+
+    /// @notice Test that migrate correctly grants access to the specified address
+    function test_SucceedsIfMigrateGrantsAccessToSpecifiedAddress() public {
+        // Deploy WhitelistManagerFacet first
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // Check if migrate function already exists, if not add it
+        (bool migrateExists, ) = DIAMOND.staticcall(
+            abi.encodeWithSignature("isMigrated()")
+        );
+
+        address owner = OwnershipFacet(DIAMOND).owner();
+
+        if (!migrateExists) {
+            // Add the migrate function to the diamond
+            bytes4[] memory migrateFunctionSelector = new bytes4[](1);
+            migrateFunctionSelector[0] = WhitelistManagerFacet
+                .migrate
+                .selector;
+
+            LibDiamond.FacetCut[] memory cuts = new LibDiamond.FacetCut[](1);
+            cuts[0] = LibDiamond.FacetCut({
+                facetAddress: address(whitelistManagerWithMigrationLogic),
+                action: LibDiamond.FacetCutAction.Add,
+                functionSelectors: migrateFunctionSelector
+            });
+
+            vm.prank(owner);
+            DiamondCutFacet(DIAMOND).diamondCut(cuts, address(0), "");
+        }
+
+        // Add AccessManagerFacet to verify access was granted
+        // Check if AccessManagerFacet already exists
+        (bool accessExists, ) = DIAMOND.staticcall(
+            abi.encodeWithSignature(
+                "addressCanExecuteMethod(bytes4,address)",
+                bytes4(0),
+                address(0)
+            )
+        );
+
+        if (!accessExists) {
+            AccessManagerFacet accessManager = new AccessManagerFacet();
+            bytes4[] memory accessSelectors = new bytes4[](1);
+            accessSelectors[0] = AccessManagerFacet
+                .addressCanExecuteMethod
+                .selector;
+
+            LibDiamond.FacetCut[]
+                memory accessCuts = new LibDiamond.FacetCut[](1);
+            accessCuts[0] = LibDiamond.FacetCut({
+                facetAddress: address(accessManager),
+                action: LibDiamond.FacetCutAction.Add,
+                functionSelectors: accessSelectors
+            });
+
+            vm.prank(owner);
+            DiamondCutFacet(DIAMOND).diamondCut(accessCuts, address(0), "");
+        }
+
+        // Define the address to grant access to
+        address grantTo = address(0xDEF456);
+
+        // Create migration data
+        bytes4[] memory selectorsToRemove = new bytes4[](0);
+        address[] memory contracts = new address[](0);
+        bytes4[][] memory selectors = new bytes4[][](0);
+
+        // Call migrate with the grantTo address
+        vm.prank(owner);
+        WhitelistManagerFacet(DIAMOND).migrate(
+            selectorsToRemove,
+            contracts,
+            selectors,
+            grantTo
+        );
+
+        // Verify that grantTo address now has access to batchSetContractSelectorWhitelist
+        assertTrue(
+            AccessManagerFacet(DIAMOND).addressCanExecuteMethod(
+                WhitelistManagerFacet
+                    .batchSetContractSelectorWhitelist
+                    .selector,
+                grantTo
+            ),
+            "Granted address should have access to batchSetContractSelectorWhitelist"
+        );
+    }
+
+    /// @notice Test that migrate doesn't grant access when zero address is passed
+    function test_SucceedsIfMigrateDoesNotGrantAccessForZeroAddress() public {
+        // Deploy WhitelistManagerFacet first
+        whitelistManagerWithMigrationLogic = new WhitelistManagerFacet();
+
+        // Check if migrate function already exists, if not add it
+        (bool migrateExists, ) = DIAMOND.staticcall(
+            abi.encodeWithSignature("isMigrated()")
+        );
+
+        address owner = OwnershipFacet(DIAMOND).owner();
+
+        if (!migrateExists) {
+            // Add the migrate function to the diamond
+            bytes4[] memory migrateFunctionSelector = new bytes4[](1);
+            migrateFunctionSelector[0] = WhitelistManagerFacet
+                .migrate
+                .selector;
+
+            LibDiamond.FacetCut[] memory cuts = new LibDiamond.FacetCut[](1);
+            cuts[0] = LibDiamond.FacetCut({
+                facetAddress: address(whitelistManagerWithMigrationLogic),
+                action: LibDiamond.FacetCutAction.Add,
+                functionSelectors: migrateFunctionSelector
+            });
+
+            vm.prank(owner);
+            DiamondCutFacet(DIAMOND).diamondCut(cuts, address(0), "");
+        }
+
+        // Add AccessManagerFacet to verify no access was granted
+        // Check if AccessManagerFacet already exists
+        (bool accessExists, ) = DIAMOND.staticcall(
+            abi.encodeWithSignature(
+                "addressCanExecuteMethod(bytes4,address)",
+                bytes4(0),
+                address(0)
+            )
+        );
+
+        if (!accessExists) {
+            AccessManagerFacet accessManager = new AccessManagerFacet();
+            bytes4[] memory accessSelectors = new bytes4[](1);
+            accessSelectors[0] = AccessManagerFacet
+                .addressCanExecuteMethod
+                .selector;
+
+            LibDiamond.FacetCut[]
+                memory accessCuts = new LibDiamond.FacetCut[](1);
+            accessCuts[0] = LibDiamond.FacetCut({
+                facetAddress: address(accessManager),
+                action: LibDiamond.FacetCutAction.Add,
+                functionSelectors: accessSelectors
+            });
+
+            vm.prank(owner);
+            DiamondCutFacet(DIAMOND).diamondCut(accessCuts, address(0), "");
+        }
+
+        // Create migration data
+        bytes4[] memory selectorsToRemove = new bytes4[](0);
+        address[] memory contracts = new address[](0);
+        bytes4[][] memory selectors = new bytes4[][](0);
+
+        // Call migrate with zero address
+        vm.prank(owner);
+        WhitelistManagerFacet(DIAMOND).migrate(
+            selectorsToRemove,
+            contracts,
+            selectors,
+            address(0)
+        );
+
+        // Verify that no random address has access to batchSetContractSelectorWhitelist
+        address randomAddress = address(0x123456);
+        assertFalse(
+            AccessManagerFacet(DIAMOND).addressCanExecuteMethod(
+                WhitelistManagerFacet
+                    .batchSetContractSelectorWhitelist
+                    .selector,
+                randomAddress
+            ),
+            "Random address should not have access to batchSetContractSelectorWhitelist"
+        );
     }
 }
 
