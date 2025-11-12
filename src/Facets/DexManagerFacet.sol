@@ -29,6 +29,10 @@ contract DexManagerFacet {
             LibAccess.enforceAccessControl();
         }
 
+        if (_dex == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
+
         // Use 0xffffffff selector for approveTo-only contracts (backward compatibility)
         LibAllowList.addAllowedContractSelector(_dex, bytes4(0xffffffff));
 
