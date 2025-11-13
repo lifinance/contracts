@@ -1046,7 +1046,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "devNotes": "contracts not verified. Etherscan explorer not live yet and blockscout will be deprecated once etherscan comes live"
   },
   "superposition": {
     "name": "superposition",
