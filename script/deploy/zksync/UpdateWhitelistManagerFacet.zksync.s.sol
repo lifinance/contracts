@@ -22,9 +22,6 @@ contract DeployScript is UpdateScriptBase {
         migrateContract = address(new MigrateWhitelistManager());
         vm.stopBroadcast();
 
-        emit log("MigrateWhitelistManager deployed at:");
-        emit log_address(migrateContract);
-
         // Use the overloaded update function with the migration contract address
         return update("WhitelistManagerFacet", migrateContract);
     }
@@ -36,8 +33,66 @@ contract DeployScript is UpdateScriptBase {
         return excludes;
     }
 
+    /// @notice Override getSelectors to read from a simple JSON file instead of using FFI
+    /// @dev This avoids the "zk vm halted" error when using FFI with large JSON files
+    function getSelectors(
+        string memory _facetName,
+        bytes4[] memory _exclude
+    ) internal override returns (bytes4[] memory selectors) {
+        // Read selectors from a simple JSON file instead of using FFI
+        string memory selectorsPath = string.concat(
+            root,
+            "/config/",
+            _facetName,
+            ".selectors.json"
+        );
+
+        string memory selectorsJson = vm.readFile(selectorsPath);
+
+        // Parse JSON array
+        JSONParserLib.Item memory root = JSONParserLib.parse(selectorsJson);
+        uint256 selectorCount = JSONParserLib.size(root);
+        selectors = new bytes4[](selectorCount);
+
+        // Create exclude set for fast lookup
+        bytes4[] memory excludeTemp = _exclude;
+        uint256 excludeCount = excludeTemp.length;
+
+        uint256 actualCount = 0;
+        for (uint256 i = 0; i < selectorCount; i++) {
+            JSONParserLib.Item memory item = JSONParserLib.at(root, i);
+            string memory selectorStr = JSONParserLib.decodeString(
+                JSONParserLib.value(item)
+            );
+            bytes4 selector = bytes4(vm.parseBytes(selectorStr));
+
+            // Check if selector should be excluded
+            bool shouldExclude = false;
+            for (uint256 j = 0; j < excludeCount; j++) {
+                if (selector == excludeTemp[j]) {
+                    shouldExclude = true;
+                    break;
+                }
+            }
+
+            if (!shouldExclude) {
+                selectors[actualCount] = selector;
+                actualCount++;
+            }
+        }
+
+        // Resize array if any selectors were excluded
+        if (actualCount < selectorCount) {
+            bytes4[] memory trimmed = new bytes4[](actualCount);
+            for (uint256 i = 0; i < actualCount; i++) {
+                trimmed[i] = selectors[i];
+            }
+            selectors = trimmed;
+        }
+    }
+
     function getCallData() internal override returns (bytes memory) {
-        vm.pauseGasMetering();
+        // vm.pauseGasMetering();
         // --- 1. Read Selectors to Remove ---
         bytes4[] memory selectorsToRemove = _readSelectorsToRemove();
 
@@ -79,10 +134,7 @@ contract DeployScript is UpdateScriptBase {
             selectorsToRemoveJson
         );
         // prettier-ignore
-        JSONParserLib.Item memory selectorsArray = JSONParserLib.at(
-            selectorsRoot,
-            "\"functionSelectorsToRemove\""
-        );
+        JSONParserLib.Item memory selectorsArray = JSONParserLib.at(selectorsRoot, "\"functionSelectorsToRemove\"");
         uint256 selectorCount = JSONParserLib.size(selectorsArray);
         string[] memory rawSelectorsToRemove = new string[](selectorCount);
         for (uint256 i = 0; i < selectorCount; i++) {
@@ -136,6 +188,7 @@ contract DeployScript is UpdateScriptBase {
             root,
             "/config/global.json"
         );
+        // vm.resumeGasMetering();
         string memory globalConfigJson = vm.readFile(globalConfigPath);
         JSONParserLib.Item memory globalRoot = JSONParserLib.parse(
             globalConfigJson
@@ -321,8 +374,9 @@ contract DeployScript is UpdateScriptBase {
 
         // 3. Copy base elements
         uint256 idx = 0;
-        for (uint256 i = 0; i < baseArr.length; i++)
+        for (uint256 i = 0; i < baseArr.length; i++) {
             merged[idx++] = baseArr[i];
+        }
 
         // 4. Copy new elements
         for (uint256 i = 0; i < addArr.length; i++) {
@@ -384,15 +438,9 @@ contract DeployScript is UpdateScriptBase {
         returns (address[] memory contracts, bytes4[][] memory selectors)
     {
         // prettier-ignore
-        JSONParserLib.Item memory periphery = JSONParserLib.at(
-            root,
-            "\"PERIPHERY\""
-        );
+        JSONParserLib.Item memory periphery = JSONParserLib.at(root, "\"PERIPHERY\"");
         // prettier-ignore
-        JSONParserLib.Item memory networkPeriphery = JSONParserLib.at(
-            periphery,
-            string.concat("\"", network, "\"")
-        );
+        JSONParserLib.Item memory networkPeriphery = JSONParserLib.at(periphery, string.concat("\"", network, "\""));
 
         // Check if network section exists
         if (JSONParserLib.isUndefined(networkPeriphery)) {
@@ -427,15 +475,9 @@ contract DeployScript is UpdateScriptBase {
         for (uint256 dexIndex = 0; dexIndex < totalDexs; dexIndex++) {
             JSONParserLib.Item memory dex = JSONParserLib.at(dexs, dexIndex);
             // prettier-ignore
-            JSONParserLib.Item memory contracts = JSONParserLib.at(
-                dex,
-                "\"contracts\""
-            );
+            JSONParserLib.Item memory contracts = JSONParserLib.at(dex, "\"contracts\"");
             // prettier-ignore
-            JSONParserLib.Item memory networkContracts = JSONParserLib.at(
-                contracts,
-                string.concat("\"", network, "\"")
-            );
+            JSONParserLib.Item memory networkContracts = JSONParserLib.at(contracts, string.concat("\"", network, "\""));
 
             // Add contract count for this network (0 if undefined)
             if (!JSONParserLib.isUndefined(networkContracts)) {
@@ -479,15 +521,9 @@ contract DeployScript is UpdateScriptBase {
         uint256 contractIndex
     ) internal view returns (uint256) {
         // prettier-ignore
-        JSONParserLib.Item memory contractsObj = JSONParserLib.at(
-            dex,
-            "\"contracts\""
-        );
+        JSONParserLib.Item memory contractsObj = JSONParserLib.at(dex, "\"contracts\"");
         // prettier-ignore
-        JSONParserLib.Item memory networkContracts = JSONParserLib.at(
-            contractsObj,
-            string.concat("\"", network, "\"")
-        );
+        JSONParserLib.Item memory networkContracts = JSONParserLib.at(contractsObj, string.concat("\"", network, "\""));
 
         if (JSONParserLib.isUndefined(networkContracts)) {
             return contractIndex;
@@ -549,15 +585,9 @@ contract DeployScript is UpdateScriptBase {
         JSONParserLib.Item memory dexs = JSONParserLib.at(root, "\"DEXS\"");
         JSONParserLib.Item memory dex = JSONParserLib.at(dexs, dexIndex);
         // prettier-ignore
-        JSONParserLib.Item memory contracts = JSONParserLib.at(
-            dex,
-            "\"contracts\""
-        );
+        JSONParserLib.Item memory contracts = JSONParserLib.at(dex, "\"contracts\"");
         // prettier-ignore
-        JSONParserLib.Item memory networkContracts = JSONParserLib.at(
-            contracts,
-            string.concat("\"", network, "\"")
-        );
+        JSONParserLib.Item memory networkContracts = JSONParserLib.at(contracts, string.concat("\"", network, "\""));
 
         return _parseContractDataFromItem(networkContracts, contractIndex);
     }
@@ -582,10 +612,7 @@ contract DeployScript is UpdateScriptBase {
 
         // Parse contract address
         // prettier-ignore
-        JSONParserLib.Item memory addressItem = JSONParserLib.at(
-            contractItem,
-            "\"address\""
-        );
+        JSONParserLib.Item memory addressItem = JSONParserLib.at(contractItem, "\"address\"");
         string memory addressStr = JSONParserLib.decodeString(
             JSONParserLib.value(addressItem)
         );
@@ -593,10 +620,7 @@ contract DeployScript is UpdateScriptBase {
 
         // Parse functions object
         // prettier-ignore
-        JSONParserLib.Item memory functions = JSONParserLib.at(
-            contractItem,
-            "\"functions\""
-        );
+        JSONParserLib.Item memory functions = JSONParserLib.at(contractItem, "\"functions\"");
 
         // Check if functions object exists and is not empty
         if (
@@ -671,10 +695,7 @@ contract DeployScript is UpdateScriptBase {
 
         // 1. Parse contract address
         // prettier-ignore
-        JSONParserLib.Item memory addressItem = JSONParserLib.at(
-            contractItem,
-            "\"address\""
-        );
+        JSONParserLib.Item memory addressItem = JSONParserLib.at(contractItem, "\"address\"");
         string memory addressStr = JSONParserLib.decodeString(
             JSONParserLib.value(addressItem)
         );
@@ -682,10 +703,7 @@ contract DeployScript is UpdateScriptBase {
 
         // 2. Parse selectors array
         // prettier-ignore
-        JSONParserLib.Item memory selectorsItem = JSONParserLib.at(
-            contractItem,
-            "\"selectors\""
-        );
+        JSONParserLib.Item memory selectorsItem = JSONParserLib.at(contractItem, "\"selectors\"");
 
         if (
             JSONParserLib.isUndefined(selectorsItem) ||
@@ -704,10 +722,7 @@ contract DeployScript is UpdateScriptBase {
                 m
             );
             // prettier-ignore
-            JSONParserLib.Item memory selectorValue = JSONParserLib.at(
-                selectorItem,
-                "\"selector\""
-            );
+            JSONParserLib.Item memory selectorValue = JSONParserLib.at(selectorItem, "\"selector\"");
             string memory selectorStr = JSONParserLib.decodeString(
                 JSONParserLib.value(selectorValue)
             );
