@@ -402,7 +402,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     }
 
     function test_ChainIdToDomainIdMapping() public {
-        ChainMapping[] memory mappings = new ChainMapping[](20);
+        ChainMapping[] memory mappings = new ChainMapping[](19);
         mappings[0] = ChainMapping({ chainId: 1, domainId: 0 }); // Ethereum
         mappings[1] = ChainMapping({ chainId: 43114, domainId: 1 }); // Avalanche
         mappings[2] = ChainMapping({ chainId: 10, domainId: 2 }); // OP Mainnet
@@ -415,14 +415,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         mappings[9] = ChainMapping({ chainId: 146, domainId: 13 }); // Sonic
         mappings[10] = ChainMapping({ chainId: 480, domainId: 14 }); // World Chain
         mappings[11] = ChainMapping({ chainId: 1329, domainId: 16 }); // Sei
-        mappings[12] = ChainMapping({ chainId: 56, domainId: 17 }); // BNB Smart Chain
-        mappings[13] = ChainMapping({ chainId: 50, domainId: 18 }); // XDC
-        mappings[14] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
-        mappings[15] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
-        mappings[16] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
-        mappings[17] = ChainMapping({ chainId: 11155111, domainId: 0 }); // Sepolia
-        mappings[18] = ChainMapping({ chainId: 11155420, domainId: 2 }); // OP Sepolia
-        mappings[19] = ChainMapping({ chainId: 84532, domainId: 6 }); // Base Sepolia
+        mappings[12] = ChainMapping({ chainId: 50, domainId: 18 }); // XDC
+        mappings[13] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
+        mappings[14] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
+        mappings[15] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
+        mappings[16] = ChainMapping({ chainId: 11155111, domainId: 0 }); // Sepolia
+        mappings[17] = ChainMapping({ chainId: 11155420, domainId: 2 }); // OP Sepolia
+        mappings[18] = ChainMapping({ chainId: 84532, domainId: 6 }); // Base Sepolia
 
         for (uint256 i = 0; i < mappings.length; i++) {
             assertEq(
