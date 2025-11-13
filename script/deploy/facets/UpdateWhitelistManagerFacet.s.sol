@@ -4,17 +4,29 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
+import { MigrateWhitelistManager } from "./utils/MigrateWhitelistManager.sol";
 import { JSONParserLib } from "solady/utils/JSONParserLib.sol";
 import { LibSort } from "solady/utils/LibSort.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    address public migrateContract;
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        return update("WhitelistManagerFacet");
+        // Deploy the migration contract
+        vm.startBroadcast(deployerPrivateKey);
+        migrateContract = address(new MigrateWhitelistManager());
+        vm.stopBroadcast();
+
+        emit log("MigrateWhitelistManager deployed at:");
+        emit log_address(migrateContract);
+
+        // Use the overloaded update function with the migration contract address
+        return update("WhitelistManagerFacet", migrateContract);
     }
 
     function getExcludes() internal pure override returns (bytes4[] memory) {
@@ -128,9 +140,10 @@ contract DeployScript is UpdateScriptBase {
         JSONParserLib.Item memory globalRoot = JSONParserLib.parse(
             globalConfigJson
         );
+        // prettier-ignore
         JSONParserLib.Item memory deployerWalletItem = JSONParserLib.at(
             globalRoot,
-            '"deployerWallet"'
+            "\"deployerWallet\""
         );
         string memory deployerWalletStr = JSONParserLib.decodeString(
             JSONParserLib.value(deployerWalletItem)
