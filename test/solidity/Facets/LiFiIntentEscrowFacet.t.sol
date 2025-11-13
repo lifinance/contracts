@@ -138,7 +138,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         });
     }
 
-    function testRevert_deploy_with_0_address() external {
+    function testRevert_deployWith0Address() external {
         vm.expectRevert(abi.encodeWithSignature("InvalidConfig()"));
         new TestLiFiIntentEscrowFacet(address(0));
     }
@@ -251,9 +251,10 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
 
         vm.expectRevert(NativeAssetNotSupported.selector);
-        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
-            value: bridgeData.minAmount
-        }(bridgeData, validLIFIIntentData);
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

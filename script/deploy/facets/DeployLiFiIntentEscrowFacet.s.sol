@@ -30,7 +30,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         address lifiIntentEscrowSettler = json.readAddress(
-            ".LIFI_ESCROW_INPUT_SETTLER"
+            ".lifiEscrowInputSettler"
         );
 
         return abi.encode(lifiIntentEscrowSettler);

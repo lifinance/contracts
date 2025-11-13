@@ -10,7 +10,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, InvalidReceiver, NativeAssetNotSupported } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
@@ -77,9 +77,8 @@ contract LiFiIntentEscrowFacet is
         LiFiIntentEscrowData calldata _lifiIntentData
     )
         external
-        payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        noNativeAsset(_bridgeData)
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -103,6 +102,7 @@ contract LiFiIntentEscrowFacet is
         external
         payable
         nonReentrant
+        noNativeAsset(_bridgeData)
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -126,9 +126,6 @@ contract LiFiIntentEscrowFacet is
         ILiFi.BridgeData memory _bridgeData,
         LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
-        address sendingAsset = _bridgeData.sendingAssetId;
-        if (sendingAsset == address(0)) revert NativeAssetNotSupported();
-
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
         if (
             address(uint160(uint256(_lifiIntentData.receiverAddress))) !=
@@ -137,6 +134,7 @@ contract LiFiIntentEscrowFacet is
             revert InvalidReceiver();
         }
 
+        address sendingAsset = _bridgeData.sendingAssetId;
         // Set approval
         uint256 amount = _bridgeData.minAmount;
         LibAsset.maxApproveERC20(
