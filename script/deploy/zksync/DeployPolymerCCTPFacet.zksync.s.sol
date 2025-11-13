@@ -34,8 +34,7 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".usdc")
         );
 
-        // TODO: Replace with _getConfigContractAddress once polymerFeeReceiver is deployed as a contract
-        // Temporarily allows EOA (DEV wallet) as placeholder
+        // polymerFeeReceiver is an EOA
         string memory json = vm.readFile(path);
         address polymerFeeReceiver = json.readAddress(
             string.concat(".", network, ".polymerFeeReceiver")
