@@ -25,9 +25,9 @@ The methods listed above take a variable labeled `_polymerData`. This data is sp
 
 ```solidity
 struct PolymerCCTPData {
-  // Token fee taken in USDC by the facet (optional; may be zero)
+  // Token fee taken in USDC by the facet (optional; should be zero for slow path )
   uint256 polymerTokenFee;
-  // maximum fee to pay on the destination domain, specified in units of burnToken
+  // maximum fee to paid on the destination domain through the difference between burned tokens on src chain and minted token on dest chain, specified in units of burnToken
   uint256 maxCCTPFee;
   // Should only be nonzero if submitting to a nonEVM chain
   bytes32 nonEVMReceiver;
