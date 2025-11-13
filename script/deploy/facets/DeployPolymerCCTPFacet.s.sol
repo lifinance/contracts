@@ -26,7 +26,7 @@ contract DeployScript is DeployScriptBase {
 
         address tokenMessenger = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".tokenMessenger")
+            string.concat(".", network, ".tokenMessengerV2")
         );
 
         address usdc = _getConfigContractAddress(

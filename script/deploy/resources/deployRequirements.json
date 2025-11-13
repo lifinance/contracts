@@ -402,7 +402,7 @@
     "configData": {
       "_tokenMessenger": {
         "configFileName": "polymercctp.json",
-        "keyInConfigFile": ".<NETWORK>.tokenMessenger",
+        "keyInConfigFile": ".<NETWORK>.tokenMessengerV2",
         "allowToDeployWithZeroAddress": "false"
       },
       "_usdc": {
