@@ -151,7 +151,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
     event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
-    function test_LIFIIntent_deposit_status() external {
+    function test_LIFIIntentDepositStatus() external {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
@@ -228,7 +228,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(solver), bridgeData.minAmount);
     }
 
-    function testRevert_LIFIIntent_wrong_receiver() external {
+    function testRevert_LIFIIntentWrongReceiver() external {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
@@ -247,7 +247,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_LIFIIntent_native_not_supported() external {
+    function testRevert_LIFIIntentNativeNotSupported() external {
         bridgeData.sendingAssetId = address(0);
 
         vm.expectRevert(NativeAssetNotSupported.selector);
