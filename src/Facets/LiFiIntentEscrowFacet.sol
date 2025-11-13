@@ -15,7 +15,7 @@ import { InvalidConfig, InvalidReceiver, NativeAssetNotSupported } from "../Erro
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 
-/// @title LIFIIntent Facet
+/// @title LiFiIntentEscrowFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler
 /// @custom:version 1.0.0
@@ -27,22 +27,22 @@ contract LiFiIntentEscrowFacet is
 {
     /// Storage ///
 
-    /// @dev LIFI Intent Escrow Input Settler.
+    /// @dev LIFI Intent Escrow Input Settler
     address public immutable LIFI_INTENT_ESCROW_SETTLER;
 
     /// Types ///
 
-    /// @param receiverAddress The destination account for the delivered assets and calldata.
-    /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address.
-    /// @param expires If the proof for the fill does not arrive before this time, the claim expires.
-    /// @param fillDeadline The fill has to happen before this time.
-    /// @param inputOracle Address of the validation layer used on the input chain.
-    /// @param outputOracle Address of the validation layer used on the output chain.
-    /// @param outputSettler Address of the output settlement contract containing the fill logic.
-    /// @param outputToken The desired destination token.
-    /// @param outputAmount The amount of the desired token.
-    /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
-    /// @param outputContext Context for the outputSettler to identify the order type.
+    /// @param receiverAddress The destination account for the delivered assets and calldata
+    /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
+    /// @param expires If the proof for the fill does not arrive before this time, the claim expires
+    /// @param fillDeadline The fill has to happen before this time
+    /// @param inputOracle Address of the validation layer used on the input chain
+    /// @param outputOracle Address of the validation layer used on the output chain
+    /// @param outputSettler Address of the output settlement contract containing the fill logic
+    /// @param outputToken The desired destination token
+    /// @param outputAmount The amount of the desired token
+    /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made
+    /// @param outputContext Context for the outputSettler to identify the order type
     struct LiFiIntentEscrowData {
         bytes32 receiverAddress; // StandardOrder.outputs.recipient
         /// BatchClaim
@@ -61,7 +61,7 @@ contract LiFiIntentEscrowFacet is
 
     /// Constructor ///
 
-    /// @param _inputSettler LIFIIntent Escrow / settlement implementation.
+    /// @param _inputSettler LIFIIntent Escrow / settlement implementation
     constructor(address _inputSettler) {
         if (_inputSettler == address(0)) revert InvalidConfig();
         LIFI_INTENT_ESCROW_SETTLER = _inputSettler;
@@ -137,7 +137,7 @@ contract LiFiIntentEscrowFacet is
             revert InvalidReceiver();
         }
 
-        // Set approval.
+        // Set approval
         uint256 amount = _bridgeData.minAmount;
         LibAsset.maxApproveERC20(
             IERC20(sendingAsset),
@@ -145,7 +145,7 @@ contract LiFiIntentEscrowFacet is
             amount
         );
 
-        // Convert given token and amount into a idsAndAmount array.
+        // Convert given token and amount into a idsAndAmount array
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(sendingAsset)), amount];
 
@@ -161,7 +161,7 @@ contract LiFiIntentEscrowFacet is
             context: _lifiIntentData.outputContext
         });
 
-        // Make the deposit on behalf of the user..
+        // Make the deposit on behalf of the user
         IOriginSettler(LIFI_INTENT_ESCROW_SETTLER).open(
             StandardOrder({
                 user: _lifiIntentData.depositAndRefundAddress,
