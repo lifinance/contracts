@@ -20,21 +20,6 @@ struct Fee {
     uint256 tokenFee;
 }
 
-struct TokenFacetConfig {
-    mapping(bytes4 entryPoint => bytes4[] facetSelectors) facets;
-    mapping(bytes32 bridgeKey => uint256 bridgeIndex) bridgeToFacetIndex;
-    // This is the version of the bridge mapping, which gets changed when reset to 0.
-    uint16 bridgeKeyVersion;
-    // This is essentially a tally of the number of times a facet has been registered to this token.
-    uint128 normalizedFacetLength;
-}
-
-struct BridgeRoute {
-    uint256 destinationChainId;
-    address outputToken;
-    uint256 bridgeIndex;
-}
-
 interface IGlacisAirlift {
     /// Use to send a token from chain A to chain B after approving this contract with the token.
     /// This function should only be used when a smart contract calls it, so that the token's transfer
