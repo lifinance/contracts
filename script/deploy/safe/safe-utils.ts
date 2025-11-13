@@ -907,18 +907,48 @@ export async function storeTransactionInMongoDB(
 
 /**
  * Gets a MongoDB client and collection for Safe transactions
+ * Connects to the new MongoDB cluster using SC_MONGODB_URI
  * @returns MongoDB client and pendingTransactions collection
- * @throws Error if MONGODB_URI is not set
+ * @throws Error if SC_MONGODB_URI is not set or if not connected to VPN
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
   pendingTransactions: Collection<ISafeTxDocument>
 }> {
-  if (!process.env.MONGODB_URI)
-    throw new Error('MONGODB_URI environment variable is required')
+  if (!process.env.SC_MONGODB_URI)
+    throw new Error('SC_MONGODB_URI environment variable is required')
 
-  const client = new MongoClient(process.env.MONGODB_URI)
-  const db = client.db('SAFE')
+  // Check VPN connection by verifying IP address
+  try {
+    const response = await fetch('https://api.ipify.org?format=json')
+    const data = (await response.json()) as { ip: string }
+
+    if (data.ip !== '18.195.61.255') {
+      consola.warn(`VPN connection required! Current IP: ${data.ip}`)
+      consola.warn(
+        'Please connect to the VPN before accessing the Safe MongoDB collection.'
+      )
+      throw new Error(
+        'VPN connection required to access Safe MongoDB collection'
+      )
+    }
+  } catch (error) {
+    // If the error is our VPN error, re-throw it
+    if (
+      error instanceof Error &&
+      error.message.includes('VPN connection required')
+    ) {
+      throw error
+    }
+    // For other errors (network issues, etc.), log and continue with a warning
+    consola.warn('Could not verify VPN connection:', error)
+    consola.warn(
+      'Proceeding with caution - ensure you are connected to the VPN'
+    )
+  }
+
+  const client = new MongoClient(process.env.SC_MONGODB_URI)
+  const db = client.db('sc_private')
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )

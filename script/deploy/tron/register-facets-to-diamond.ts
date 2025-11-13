@@ -61,7 +61,7 @@ function getAllFacetSelectors(): Record<string, string[]> {
     'DiamondLoupeFacet',
     'OwnershipFacet',
     'WithdrawFacet',
-    'DexManagerFacet',
+    'WhitelistManagerFacet',
     'AccessManagerFacet',
     'PeripheryRegistryFacet',
     'GenericSwapFacet',
@@ -87,7 +87,7 @@ function getAllFacetSelectors(): Record<string, string[]> {
 const FACET_GROUPS = [
   ['DiamondLoupeFacet'], // Critical - must be first
   ['OwnershipFacet', 'WithdrawFacet', 'AccessManagerFacet'], // Core management
-  ['DexManagerFacet', 'PeripheryRegistryFacet'], // Configuration
+  ['WhitelistManagerFacet', 'PeripheryRegistryFacet'], // Configuration
   ['GenericSwapFacet', 'GenericSwapFacetV3'], // Swap functionality
   ['CalldataVerificationFacet', 'EmergencyPauseFacet'], // Security
 ]
@@ -596,7 +596,7 @@ async function registerFacetsToDiamond(
         'DiamondLoupeFacet',
         'OwnershipFacet',
         'WithdrawFacet',
-        'DexManagerFacet',
+        'WhitelistManagerFacet',
         'AccessManagerFacet',
         'PeripheryRegistryFacet',
         'GenericSwapFacet',

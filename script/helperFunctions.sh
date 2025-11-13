@@ -1932,26 +1932,36 @@ function getBytecodeFromArtifact() {
   fi
 }
 
-function addPeripheryToDexsJson() {
-  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to config/dexs.json"
+function addPeripheryToWhitelistJson() {
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
-  local FILEPATH_DEXS="config/dexs.json"
-  local FILEPATH_GLOBAL_CONFIG="config/global.json"
+  # Determine the correct whitelist file based on environment
+  local WHITELIST_FILE
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    WHITELIST_FILE="config/whitelist.json"
+  else
+    WHITELIST_FILE="config/whitelist.staging.json"
+  fi
+  
+  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to $WHITELIST_FILE"
 
+  # Use file paths from config.sh
+  local FILEPATH_GLOBAL_CONFIG="$GLOBAL_FILE_PATH"
+  local FILEPATH_WHITELIST="$WHITELIST_FILE"
+
+  # Get all periphery contracts from global.json whitelistPeripheryFunctions section
   WHITELIST_PERIPHERY=($(jq -r '.whitelistPeripheryFunctions | keys[]' "$FILEPATH_GLOBAL_CONFIG"))
 
-  # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
-  # IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
+  # Get all contracts that need to be whitelisted
   CONTRACTS=("${WHITELIST_PERIPHERY[@]}")
 
   # get number of periphery contracts to be added
   local ADD_COUNTER=${#CONTRACTS[@]}
 
-  # get number of existing DEX addresses in the file for the given network
-  local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
+  # get number of existing periphery contracts in the file for the given network
+  local EXISTING_PERIPHERY_COUNT=$(jq --arg network "$NETWORK" '.PERIPHERY[$network] // [] | length' "$FILEPATH_WHITELIST")
 
   # Iterate through all contracts
   for CONTRACT in "${CONTRACTS[@]}"; do
@@ -1966,34 +1976,41 @@ function addPeripheryToDexsJson() {
       continue
     fi
 
-    # check if address already exists in dexs.json for the given network
-    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_DEXS)
+    # check if address already exists in whitelist file PERIPHERY section for the given network
+    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '.PERIPHERY[$network] // [] | any(.address == $address)' "$FILEPATH_WHITELIST")
 
     if [ "$EXISTS" == "true" ]; then
-      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted DEXs in network $NETWORK."
+      echo "The address $CONTRACT_ADDRESS is already part of the periphery contracts in network $NETWORK ($ENVIRONMENT)."
 
       # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
       ((ADD_COUNTER--)) # reduces by 1
     else
-      # add the address to dexs.json
+      # add the contract to whitelist file PERIPHERY section
       local TMP_FILE="tmp.$$.json"
-      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS >"$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
+      jq --arg address "$CONTRACT_ADDRESS" --arg name "$CONTRACT" --arg network "$NETWORK" '
+        (.PERIPHERY[$network] //= []) |
+        .PERIPHERY[$network] += [{
+          "name": $name,
+          "address": $address,
+          "selectors": []
+        }]
+      ' "$FILEPATH_WHITELIST" > "$TMP_FILE" && mv "$TMP_FILE" "$FILEPATH_WHITELIST"
       rm -f "$TMP_FILE"
 
-      success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
+      success "$CONTRACT address $CONTRACT_ADDRESS added to $WHITELIST_FILE PERIPHERY[$NETWORK]"
     fi
   done
 
-  # check how many DEX addresses are in the dexs.json now
-  local ADDRESS_COUNTER=${#CONTRACTS[@]}
+  # check how many periphery contracts are in the whitelist file now
+  local CURRENT_PERIPHERY_COUNT=$(jq --arg network "$NETWORK" '.PERIPHERY[$network] // [] | length' "$FILEPATH_WHITELIST")
 
-  EXPECTED_DEXS=$((EXISTING_DEXS + ADD_COUNTER))
+  EXPECTED_PERIPHERY_COUNT=$((EXISTING_PERIPHERY_COUNT + ADD_COUNTER))
 
-  # make sure dexs.json has been updated correctly
-  if [ $EXPECTED_DEXS -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
-    success "$ADD_COUNTER addresses were added to config/dexs.json"
+  # make sure whitelist file has been updated correctly
+  if [ $CURRENT_PERIPHERY_COUNT -eq $EXPECTED_PERIPHERY_COUNT ]; then
+    success "$ADD_COUNTER periphery contracts were added to $WHITELIST_FILE for $NETWORK ($ENVIRONMENT)"
   else
-    error "The array in dexs.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
+    error "The PERIPHERY array in $WHITELIST_FILE for network $NETWORK ($ENVIRONMENT) does not have the expected number of elements after executing this script (expected: $EXPECTED_PERIPHERY_COUNT, got: $CURRENT_PERIPHERY_COUNT)."
     exit 1
   fi
 }
