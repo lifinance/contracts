@@ -244,6 +244,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             bridgeData,
             validLIFIIntentData
         );
+        vm.stopPrank();
     }
 
     function testRevert_LIFIIntent_native_not_supported() external {
