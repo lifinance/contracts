@@ -24,6 +24,9 @@ import {
 
 config()
 
+// Example successful transaction hash
+// Bridge USDC (Base -> Arbitrum): https://basescan.org/tx/0xe55b6a14405887fedf58858605f652e20dc721897379bf13d822f193825b6d3f
+
 // #region ABIs
 
 const ERC20_ABI = erc20Artifact.abi as Narrow<typeof erc20Artifact.abi>
@@ -164,7 +167,7 @@ async function main() {
         {
           receiver: getInteropableAddress(signerAddress, destinationChainId),
           asset: DST_TOKEN_INTEROPABLE_ADDRESS,
-          amount: 0, // Repesents: Send us your best quote.
+          amount: 0, // Represents: Send us your best quote.
         },
       ],
       swapType: 'exact-input', // Only exact input is currently supported
