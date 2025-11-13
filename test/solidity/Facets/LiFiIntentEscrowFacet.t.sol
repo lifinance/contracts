@@ -3,8 +3,8 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
@@ -12,9 +12,12 @@ import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramewo
 contract AlwaysYesOracle {
     function isProven(
         uint256,
-        /* remoteChainId */ bytes32,
-        /* outputOracle */ bytes32,
-        /* application */ bytes32 /* dataHash */
+        /* remoteChainId */
+        bytes32,
+        /* outputOracle */
+        bytes32,
+        /* application */
+        bytes32 /* dataHash */
     ) external pure returns (bool) {
         return true;
     }
@@ -47,20 +50,16 @@ interface ILiFiIntentEscrowSettler {
 }
 
 // Stub LiFiIntentEscrowFacet Contract
-contract TestLiFiIntentEscrowFacet is LiFiIntentEscrowFacet {
+contract TestLiFiIntentEscrowFacet is
+    LiFiIntentEscrowFacet,
+    TestWhitelistManagerBase
+{
     constructor(address escrowSettler) LiFiIntentEscrowFacet(escrowSettler) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     error FailedInputSettlerDeployment();
+
     LiFiIntentEscrowFacet.LiFiIntentEscrowData internal validLIFIIntentData;
     TestLiFiIntentEscrowFacet internal lifiIntentEscrowFacet;
     TestLiFiIntentEscrowFacet internal baseLiFiIntentEscrowFacet;
@@ -83,16 +82,15 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             lifiIntentEscrowSettler
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = baseLiFiIntentEscrowFacet
             .startBridgeTokensViaLiFiIntentEscrow
             .selector;
         functionSelectors[1] = baseLiFiIntentEscrowFacet
             .swapAndStartBridgeTokensViaLiFiIntentEscrow
             .selector;
-        functionSelectors[2] = baseLiFiIntentEscrowFacet.addDex.selector;
-        functionSelectors[3] = baseLiFiIntentEscrowFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = baseLiFiIntentEscrowFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(
@@ -101,14 +99,16 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             functionSelectors
         );
         lifiIntentEscrowFacet = TestLiFiIntentEscrowFacet(address(diamond));
-        lifiIntentEscrowFacet.addDex(ADDRESS_UNISWAP);
-        lifiIntentEscrowFacet.setFunctionApprovalBySignature(
+        lifiIntentEscrowFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        lifiIntentEscrowFacet.setFunctionApprovalBySignature(
+        lifiIntentEscrowFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        lifiIntentEscrowFacet.setFunctionApprovalBySignature(
+        lifiIntentEscrowFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 
@@ -153,7 +153,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
     function test_LIFIIntent_deposit_status() external {
         vm.startPrank(USER_SENDER);
-        usdc.approve(address(baseLiFiIntentEscrowFacet), bridgeData.minAmount);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
         bridgeData.sendingAssetId = address(usdc);
 
@@ -193,7 +193,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
         emit ILiFiIntentEscrowSettler.Open(orderId, order);
 
-        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             validLIFIIntentData
         );
@@ -230,7 +230,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
     function testRevert_LIFIIntent_wrong_receiver() external {
         vm.startPrank(USER_SENDER);
-        usdc.approve(address(baseLiFiIntentEscrowFacet), bridgeData.minAmount);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
         bridgeData.sendingAssetId = address(usdc);
 
@@ -240,7 +240,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         );
 
         vm.expectRevert(InvalidReceiver.selector);
-        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             validLIFIIntentData
         );
@@ -250,7 +250,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
 
         vm.expectRevert(NativeAssetNotSupported.selector);
-        baseLiFiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow{
             value: bridgeData.minAmount
         }(bridgeData, validLIFIIntentData);
     }
