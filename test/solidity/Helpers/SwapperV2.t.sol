@@ -94,10 +94,7 @@ contract SwapperV2Test is TestBase {
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addAllowedContractSelector(address(amm), amm.swap.selector);
-        swapper.addAllowedContractSelector(
-            address(amm),
-            amm.partialSwap.selector
-        );
+        swapper.addAllowedContractSelector(address(amm), amm.partialSwap.selector);
     }
 
     function test_SwapCleanup() public {

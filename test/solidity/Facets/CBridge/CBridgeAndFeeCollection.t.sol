@@ -37,26 +37,11 @@ contract CBridgeAndFeeCollectionTest is TestBase {
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
-        );
-        cBridge.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
-        );
-        cBridge.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
-        );
-        cBridge.addAllowedContractSelector(
-            address(feeCollector),
-            feeCollector.collectTokenFees.selector
-        );
-        cBridge.addAllowedContractSelector(
-            address(feeCollector),
-            feeCollector.collectNativeFees.selector
-        );
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        cBridge.addAllowedContractSelector(address(feeCollector), feeCollector.collectTokenFees.selector);
+        cBridge.addAllowedContractSelector(address(feeCollector), feeCollector.collectNativeFees.selector);
     }
 
     function testCanCollectTokenFeesAndBridgeTokens() public {

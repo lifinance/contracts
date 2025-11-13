@@ -43,9 +43,7 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = polygonBridgeFacet
             .swapAndStartBridgeTokensViaPolygonBridge
             .selector;
-        functionSelectors[2] = polygonBridgeFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[2] = polygonBridgeFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = polygonBridgeFacet
             .removeAllowedContractSelector
             .selector;
@@ -54,14 +52,8 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
 
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 
-        polygonBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
-        );
-        polygonBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
-        );
+        polygonBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        polygonBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
 
         setFacetAddressInTestBase(
             address(polygonBridgeFacet),
