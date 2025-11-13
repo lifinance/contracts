@@ -28,7 +28,7 @@ contract TestPolymerCCTPFacet is PolymerCCTPFacet, TestWhitelistManagerBase {
 
 contract PolymerCCTPFacetTest is TestBaseFacet {
     TestPolymerCCTPFacet internal polymerCCTPFacet;
-    address internal constant TOKEN_MESSENGER_MAINNET =
+    address internal constant TOKEN_MESSENGER_V2_MAINNET =
         0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
     address internal polymerFeeReceiver = address(0x123);
 
@@ -44,7 +44,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         initTestBase();
 
         polymerCCTPFacet = new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_MAINNET,
+            TOKEN_MESSENGER_V2_MAINNET,
             ADDRESS_USDC,
             polymerFeeReceiver
         );
@@ -92,7 +92,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         });
 
         assertEq(
-            usdc.allowance(address(diamond), TOKEN_MESSENGER_MAINNET),
+            usdc.allowance(address(diamond), TOKEN_MESSENGER_V2_MAINNET),
             type(uint256).max
         );
     }
@@ -278,7 +278,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     function testRevert_ConstructorWithZeroUSDC() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_MAINNET,
+            TOKEN_MESSENGER_V2_MAINNET,
             address(0),
             polymerFeeReceiver
         );
@@ -287,7 +287,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     function testRevert_ConstructorWithZeroFeeReceiver() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_MAINNET,
+            TOKEN_MESSENGER_V2_MAINNET,
             ADDRESS_USDC,
             address(0)
         );
@@ -446,7 +446,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         // Create actual facet (not the test version)
         PolymerCCTPFacet actualFacet = new PolymerCCTPFacet(
-            TOKEN_MESSENGER_MAINNET,
+            TOKEN_MESSENGER_V2_MAINNET,
             ADDRESS_USDC,
             polymerFeeReceiver
         );
@@ -464,7 +464,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         assertEq(
             IERC20(ADDRESS_USDC).allowance(
                 address(testDiamond),
-                TOKEN_MESSENGER_MAINNET
+                TOKEN_MESSENGER_V2_MAINNET
             ),
             type(uint256).max
         );
