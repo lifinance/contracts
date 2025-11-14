@@ -433,6 +433,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.11.04_WhitelistManagerFacet(v1.0.0)_1.pdf",
       "auditCommitHash": "e87f69019e59b8060f9c53e00acd4ed07ac4084a"
+    },
+    "audit20251113": {
+      "auditCompletedOn": "13.11.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.11.13_GlacisFacet(v1.2.0).pdf",
+      "auditCommitHash": "13c4296cb4783a2c1108a62afe181f3dbf81cbc0"
     }
   },
   "auditedContracts": {
@@ -558,7 +565,8 @@
     },
     "GlacisFacet": {
       "1.0.0": ["audit20250219"],
-      "1.1.0": ["audit20250822"]
+      "1.1.0": ["audit20250822"],
+      "1.2.0": ["audit20251113"]
     },
     "GnosisBridgeFacet": {
       "1.0.0": ["audit20250508"],
@@ -580,6 +588,9 @@
     },
     "IGarden": {
       "1.0.0": ["audit20250919"]
+    },
+    "IGlacisAirlift": {
+      "1.1.0": ["audit20251113"]
     },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
