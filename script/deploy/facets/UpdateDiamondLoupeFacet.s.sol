@@ -16,7 +16,7 @@ contract DeployScript is UpdateScriptBase {
             emit log("Loupe exists on diamond already");
             loupeExists = true;
         } catch {
-            emit log("Loupe exists");
+            emit log("Loupe does not exist");
             // No need to do anything, just making sure that the flow continues in both cases with try/catch
         }
 
