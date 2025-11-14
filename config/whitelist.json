@@ -4109,7 +4109,7 @@
           {
             "address": "0xb4580138102bda0c7e8c9a05529ba5f70cdf1e93",
             "functions": {
-              "0xb4c95169": ""
+              "0xb4c95169": "targetBridge(uint256,address,address,(uint256,address,bytes),(uint32,bool,bool,uint8),bytes)"
             }
           }
         ]
