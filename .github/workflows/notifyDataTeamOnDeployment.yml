@@ -1,0 +1,139 @@
+name: Notify Data Team on Contract Deployments
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deployments/*.json'
+      - '!deployments/*.diamond.json'
+      - '!deployments/*.staging.json'
+      - '!deployments/_deployments_log_file.json'
+
+permissions:
+  contents: read
+
+jobs:
+  notify-deployments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 2 # Need previous commit to compare changes
+
+      - name: Get Changed Deployment Files
+        id: get-changes
+        run: |
+          # Get list of changed deployment files (excluding diamond and staging)
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD -- 'deployments/*.json' | \
+            grep -v '\.diamond\.json$' | \
+            grep -v '\.staging\.json$' | \
+            grep -v '_deployments_log_file\.json$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No production deployment files changed"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Changed deployment files:"
+          echo "$CHANGED_FILES"
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+      - name: Parse Deployment Changes
+        id: parse-changes
+        if: steps.get-changes.outputs.has_changes == 'true'
+        run: |
+          # Initialize variables to store contract changes
+          SLACK_MESSAGE="📋 Contract Deployment Update\n\n"
+          CONTRACTS_FOUND=false
+
+          # Create associative array to group contracts across networks
+          declare -A CONTRACT_NETWORKS
+
+          # Process each changed file
+          while IFS= read -r file; do
+            if [ -z "$file" ]; then
+              continue
+            fi
+            
+            # Extract network name from filename (e.g., arbitrum.json -> arbitrum)
+            NETWORK=$(basename "$file" .json)
+            
+            echo "Processing $file (Network: $NETWORK)"
+            
+            # Get the previous version of the file
+            PREV_FILE=$(git show HEAD~1:"$file" 2>/dev/null || echo '{}')
+            CURR_FILE=$(cat "$file" 2>/dev/null || echo '{}')
+            
+            # Use jq to find new or changed contracts
+            # This compares the current file with the previous version
+            CHANGES=$(jq -r --arg network "$NETWORK" --argjson prev "$PREV_FILE" '
+              . as $curr |
+              # Get all contract names from current file
+              keys[] as $contract |
+              # Check if contract is new or address changed
+              select(
+                ($prev | has($contract) | not) or 
+                ($prev[$contract] != $curr[$contract])
+              ) |
+              # Output format: ContractName|Network|Address
+              "\($contract)|\($network)|\($curr[$contract])"
+            ' <<< "$CURR_FILE" 2>/dev/null || true)
+            
+            # Process changes and group by contract
+            while IFS='|' read -r contract network address; do
+              if [ -n "$contract" ] && [ -n "$address" ]; then
+                CONTRACTS_FOUND=true
+                # Append network and address to contract's entry
+                if [ -z "${CONTRACT_NETWORKS[$contract]}" ]; then
+                  CONTRACT_NETWORKS[$contract]="• $network: $address"
+                else
+                  CONTRACT_NETWORKS[$contract]="${CONTRACT_NETWORKS[$contract]}\n• $network: $address"
+                fi
+              fi
+            done <<< "$CHANGES"
+          done <<< "${{ steps.get-changes.outputs.changed_files }}"
+
+          # Build the final message grouped by contract
+          if [ "$CONTRACTS_FOUND" = true ]; then
+            for contract in "${!CONTRACT_NETWORKS[@]}"; do
+              SLACK_MESSAGE="${SLACK_MESSAGE}*${contract}*\n${CONTRACT_NETWORKS[$contract]}\n\n"
+            done
+          else
+            SLACK_MESSAGE="${SLACK_MESSAGE}No contract address changes detected.\n\n"
+          fi
+
+          # Add commit information
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          SLACK_MESSAGE="${SLACK_MESSAGE}---\nView changes: ${COMMIT_URL}"
+
+          # Save message for next step (escape for JSON)
+          echo "slack_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$SLACK_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "contracts_found=$CONTRACTS_FOUND" >> $GITHUB_OUTPUT
+
+      - name: Send Slack Notification
+        if: steps.get-changes.outputs.has_changes == 'true' && steps.parse-changes.outputs.contracts_found == 'true'
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_DATA_TEAM }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "${{ steps.parse-changes.outputs.slack_message }}"
+
+      - name: Log Notification Status
+        if: always()
+        run: |
+          if [ "${{ steps.get-changes.outputs.has_changes }}" == "false" ]; then
+            echo "✅ No production deployment changes detected - no notification sent"
+          elif [ "${{ steps.parse-changes.outputs.contracts_found }}" == "false" ]; then
+            echo "✅ Deployment files changed but no contract address changes - no notification sent"
+          else
+            echo "✅ Deployment notification sent to Data Team Slack channel"
+          fi
