@@ -41849,6 +41849,21 @@
           }
         ]
       }
+    },
+    "monad": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x73388a39CC5bb0fe45c12231727D33f2B2ef4DF7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-14 07:16:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000290d54179960984599f16f77dcda81320301b158",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
