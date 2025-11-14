@@ -726,7 +726,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
-    "devNotes": "Verification not yet working"
+    "devNotes": "Verification not yet working, also UpdateScripts often fail with weird errors while deployments work fine. Workaround is to copy the calldata and send/propose it directly"
   },
   "moonbeam": {
     "name": "moonbeam",
