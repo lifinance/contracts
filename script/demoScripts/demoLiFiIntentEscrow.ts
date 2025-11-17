@@ -115,7 +115,7 @@ async function main() {
   const srcTokenName = (await srcTokenContract.read.name()) as string
   const srcTokenSymbol = (await srcTokenContract.read.symbol()) as string
   const srcTokenDecimals = (await srcTokenContract.read.decimals()) as bigint
-  const amount = parseUnits('0.2', Number(srcTokenDecimals)) // 0.2 * 1e{source token decimals}
+  const amount = parseUnits('2.0', Number(srcTokenDecimals)) // 2.0 * 1e{source token decimals}
 
   console.info(
     `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> ${destinationChainId}`
@@ -278,7 +278,7 @@ async function main() {
         .padStart(64, '0'), // Polymer oracle on mainnet.
     outputSettler:
       '0x' +
-      '0x00000000D7278408CE7a490015577c41e57143a5'
+      '0x0000000000eC36B683C2E6AC89e9A75989C22a2e'
         .replace('0x', '')
         .padStart(64, '0'),
     outputToken: '0x' + DST_TOKEN_ADDRESS.replace('0x', '').padStart(64, '0'),
