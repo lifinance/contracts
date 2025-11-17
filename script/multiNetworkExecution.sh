@@ -19,6 +19,123 @@ source script/helperFunctions.sh
 source script/playgroundHelpers.sh
 
 # =============================================================================
+# MANUAL CONFIGURATION SECTIONS
+# =============================================================================
+# These sections are where you manually configure what to execute
+# All configuration should be done here - helper functions are below
+
+# =============================================================================
+# EXECUTION CONFIGURATION
+# =============================================================================
+# Environment to use (e.g., "production", "staging")
+# ENVIRONMENT="staging"
+ENVIRONMENT="production"
+
+# =============================================================================
+# NETWORK SELECTION CONFIGURATION
+# =============================================================================
+# Configure which networks to execute by modifying the NETWORKS array below
+# This is the main place to adjust your network list for multi-execution
+
+# Option 1: Use all included networks (default)
+# NETWORKS=($(getIncludedNetworksArray))
+
+# Option 2: Use specific networks (uncomment and modify as needed)
+# NETWORKS=("mainnet" "arbitrum" "base" "blast" "zksync" "hyperevm")
+  # NETWORKS=("arbitrum" "optimism" "base" "bsc" "linea" "scroll" "polygon" "blast" "mainnet" "worldchain")
+
+# Option 3: Use networks by EVM version (uncomment as needed)
+# NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))
+NETWORKS=($(getIncludedNetworksByEvmVersionArray "cancun"))
+
+# Option 4: Use networks where contract is deployed (uncomment as needed)
+# NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
+
+# Option 5: Use whitelist filtering (uncomment and modify as needed)
+# NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "zksync")
+# NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "bsc" "blast" "ink" "linea" "lisk" "mode" "optimism" "polygon" "scroll" "soneium" "unichain" "worldchain" "zksync")
+
+# Option 6: Use blacklist filtering (applied after network selection)
+# Networks in the blacklist will be excluded from the final network list
+# This is useful for excluding networks that need to be skipped (e.g. already done manually)
+NETWORKS_BLACKLIST=("aurora" "moonriver" "xlayer")
+
+# Foundry.toml backup file
+FOUNDRY_TOML_BACKUP="foundry.toml.backup"
+
+# =============================================================================
+# NETWORK ACTION EXECUTION
+# =============================================================================
+
+function executeNetworkActions() {
+    # This function executes the actions configured below
+    # To modify actions, edit the code in this function
+    # ENVIRONMENT is read from the global configuration variable
+    # CONTRACT is determined here based on the actions being performed
+
+    local NETWORK="$1"
+    local LOG_DIR="$2"
+    local RETURN_CODE=0
+
+    # Determine the contract based on the actions being performed
+    # This should be set based on what contract you're working with
+    CONTRACT="WhitelistManagerFacet"
+    # Export CONTRACT so it can be used by other functions
+    export CONTRACT
+
+    # Also write CONTRACT to a temp file if CONTRACT_FILE is set (for parent shell access)
+    if [[ -n "${CONTRACT_FILE:-}" ]]; then
+        echo "$CONTRACT" > "$CONTRACT_FILE"
+        # If CONTRACT_FILE is set, we're just determining CONTRACT, so skip actual execution
+        return 0
+    fi
+
+    # Get RPC URL for the network
+    # RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
+
+    # Execute configured actions (uncomment the ones you want)
+    # All commands will be executed, and the last command's exit code will be returned
+
+    # DEPLOY & VERIFY CONTRACT
+    # CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+    # echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
+    # deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false
+    # RETURN_CODE=$?
+    # echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
+
+    # VERIFY - Verify the contract on the network
+    getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+
+    # PROPOSE - Create multisig proposal for the contract
+    # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
+
+    # UPDATE DIAMOND - Update diamond log for the network
+    # updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
+
+    # CUSTOM ACTIONS - Add your custom actions here
+    # CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
+    # cast send "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "$CALLDATA" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_PRODUCTION"
+
+    # bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --ledger
+
+    # RESPONSE=$(cast call "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "isFunctionApproved(bytes4) returns (bool)" 0x23b872dd --rpc-url "$RPC_URL")
+    # echo "[$NETWORK] function 0x23b872dd is approved: $RESPONSE"
+
+    # Return the exit code of the last executed command (defaults to 0 if no commands executed)
+    # If you need more sophisticated error handling, you can add it here
+    if [ $? -ne 0 ]; then
+        RETURN_CODE=1
+    fi
+    return "${RETURN_CODE}"
+}
+
+# =============================================================================
+# HELPER FUNCTIONS AND EXECUTION LOGIC
+# =============================================================================
+# All helper functions and execution logic are below
+# Do not modify these unless you know what you're doing
+
+# =============================================================================
 # Environment and Dependency Validation
 # =============================================================================
 
@@ -116,60 +233,6 @@ ZKEVM_ALWAYS_SEQUENTIAL=true
 FOUNDRY_TOML_BACKUP="foundry.toml.backup"
 
 # =============================================================================
-# NETWORK ACTION EXECUTION
-# =============================================================================
-
-function executeNetworkActions() {
-    # This function executes the actions configured in the NETWORK ACTION CONFIGURATION section above
-    # To modify actions, edit the configuration section at the top of this file
-
-    local NETWORK="$1"
-    local ENVIRONMENT="$2"
-    local LOG_DIR="$3"
-    local CONTRACT="$4"
-    local RETURN_CODE=0
-
-    # Get RPC URL for the network
-    # RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
-
-    # Execute configured actions (uncomment the ones you want in the configuration section above)
-    # All commands will be executed, and the last command's exit code will be returned
-
-
-    # DEPLOY & VERIFY CONTRACT
-    # CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
-    # echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
-    # deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false
-    # RETURN_CODE=$?
-    # echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
-
-    # VERIFY - Verify the contract on the network
-    # getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-
-    # PROPOSE - Create multisig proposal for the contract
-    # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
-
-    # UPDATE DIAMOND - Update diamond log for the network
-    updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
-
-    # CUSTOM ACTIONS - Add your custom actions here
-    # CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
-    # cast send "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "$CALLDATA" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_PRODUCTION"
-
-    # bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --ledger
-
-    # RESPONSE=$(cast call "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "isFunctionApproved(bytes4) returns (bool)" 0x23b872dd --rpc-url "$RPC_URL")
-    # echo "[$NETWORK] function 0x23b872dd is approved: $RESPONSE"
-
-    # Return the exit code of the last executed command (defaults to 0 if no commands executed)
-    # If you need more sophisticated error handling, you can add it here
-    if [ $? -ne 0 ]; then
-        RETURN_CODE=1
-    fi
-    return "${RETURN_CODE}"
-}
-
- # =============================================================================
 # NETWORK SELECTION HELPER
 # =============================================================================
 
@@ -239,6 +302,8 @@ function getConfiguredNetworks() {
 # =============================================================================
 
 function logGroupInfo() {
+    # This function is kept for potential future use but currently not called
+    # to avoid duplicate output (group info is already shown in execution plan)
     local group="$1"
     local -a networks=("${@:2}")
     logWithTimestamp "Group: $group (${#networks[@]} networks): ${networks[*]}"
@@ -561,6 +626,9 @@ function initializeProgressTracking() {
 
     # Create initial progress structure, checking for existing completion status
     local networks_json="{}"
+    local total_networks=${#networks[@]}
+    local checked_count=0
+
     for network in "${networks[@]}"; do
         local network_status="pending"
         local attempts=0
@@ -568,7 +636,12 @@ function initializeProgressTracking() {
         local error=null
 
         # Check if action is already completed for this network
-        if isActionAlreadyCompleted "$action_type" "$contract" "$network" "$environment"; then
+        checked_count=$((checked_count + 1))
+        if [[ $((checked_count % 10)) -eq 0 ]] || [[ $checked_count -eq $total_networks ]]; then
+            logWithTimestamp "Checking completion status: $checked_count/$total_networks networks..."
+        fi
+
+        if isActionAlreadyCompleted "$action_type" "$contract" "$network" "$environment" 2>/dev/null; then
             network_status="success"
             attempts=1
             lastAttempt="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -811,21 +884,18 @@ function isGroupComplete() {
 
 function executeNetworkInGroup() {
     local network="$1"
-    local environment="$2"
-    local contract="$3"
-    local group="$4"
-    local log_dir="$5"
+    local log_dir="$2"
 
-    if [[ -z "$network" || -z "$environment" || -z "$contract" || -z "$group" || -z "$log_dir" ]]; then
-        error "All parameters are required for executeNetworkInGroup"
+    if [[ -z "$network" || -z "$log_dir" ]]; then
+        error "Network and log_dir are required for executeNetworkInGroup"
         return 1
     fi
 
     # Update progress to in_progress
     updateNetworkProgress "$network" "in_progress"
 
-    # Get RPC URL
-    local rpc_url=$(getRPCUrl "$network" "$environment")
+    # Get RPC URL (ENVIRONMENT is read from global variable)
+    local rpc_url=$(getRPCUrl "$network" "$ENVIRONMENT")
     if [[ $? -ne 0 ]]; then
         updateNetworkProgress "$network" "failed" "Failed to get RPC URL"
         return 1
@@ -844,10 +914,12 @@ function executeNetworkInGroup() {
     local retry_count=0
     local command_status=1
     local max_attempts=3
+    local last_error=""
 
     # Attempt operations with retries
     while [[ $command_status -ne 0 && $retry_count -lt $max_attempts ]]; do
-        logWithTimestamp "[$network] Attempt $((retry_count + 1))/$max_attempts: Executing operations..."
+        local attempt_num=$((retry_count + 1))
+        logWithTimestamp "[$network] ===== Attempt $attempt_num/$max_attempts: Starting execution ====="
 
         # Check if we should exit (in case of interrupt)
         if [[ -n "$EXIT_REQUESTED" ]]; then
@@ -858,17 +930,116 @@ function executeNetworkInGroup() {
 
         # Execute the actual network operations
         # This calls the executeNetworkActions function which contains the configured actions
-        executeNetworkActions "$network" "$environment" "$log_dir" "$contract"
-        command_status=$?
-        echo "[$network] executeNetworkActions returned with status: $command_status"
+        # CONTRACT is determined and exported in executeNetworkActions
+        logWithTimestamp "[$network] Attempt $attempt_num: Calling executeNetworkActions..."
+        local start_time=$(date +%s)
+        # Use tee to capture output
+        # Note: PIPESTATUS must be captured immediately after the pipe command
+        executeNetworkActions "$network" "$log_dir" 2>&1 | tee "$log_dir/${network}_attempt_${attempt_num}.log" >/dev/null 2>&1
+        command_status=${PIPESTATUS[0]}
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
 
-        # Increase retry counter
+        logWithTimestamp "[$network] Attempt $attempt_num: Completed with exit code $command_status (duration: ${duration}s)"
+
+        # Extract meaningful error message from log file if execution failed
+        if [[ $command_status -ne 0 ]]; then
+            logWithTimestamp "[$network] Attempt $attempt_num: Execution failed, extracting error details..."
+
+            # Priority order for error extraction (most specific first):
+            # 1. Flattening errors
+            # 2. API verification errors
+            # 3. General verification errors
+            # 4. Generic execution errors
+
+            local log_file=""
+            if [[ -f "$log_dir/${network}_attempt_${attempt_num}.log" ]]; then
+                log_file="$log_dir/${network}_attempt_${attempt_num}.log"
+            elif [[ -f "$log_dir/${network}.log" ]]; then
+                log_file="$log_dir/${network}.log"
+            fi
+
+            if [[ -n "$log_file" && -f "$log_file" ]]; then
+                # Try to extract the most specific error first
+                # Look for flattening errors
+                local flatten_error=$(grep -iE "\[$network\].*(flatten|pragma|solidity|compilation)" "$log_file" 2>/dev/null | grep -iE "(error|failed|invalid|malformed)" | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
+                if [[ -n "$flatten_error" ]]; then
+                    last_error="$flatten_error"
+                    logWithTimestamp "[$network] Attempt $attempt_num: Flattening error extracted: $last_error"
+                fi
+
+                # Look for API verification errors
+                if [[ -z "$last_error" ]]; then
+                    local api_error=$(grep -iE "\[$network\].*(etherscan.*api|verification.*failed|api.*error|NOTOK|timeout)" "$log_file" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
+                    if [[ -n "$api_error" ]]; then
+                        last_error="$api_error"
+                        logWithTimestamp "[$network] Attempt $attempt_num: API error extracted: $last_error"
+                    fi
+                fi
+
+                # Look for general verification errors
+                if [[ -z "$last_error" ]]; then
+                    local verify_error=$(grep -iE "\[$network\].*(verify|verification)" "$log_file" 2>/dev/null | grep -iE "(error|failed)" | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
+                    if [[ -n "$verify_error" ]]; then
+                        last_error="$verify_error"
+                        logWithTimestamp "[$network] Attempt $attempt_num: Verification error extracted: $last_error"
+                    fi
+                fi
+
+                # Look for any error message with network prefix
+                if [[ -z "$last_error" ]]; then
+                    local any_error=$(grep -iE "\[$network\].*(error|failed)" "$log_file" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
+                    if [[ -n "$any_error" ]]; then
+                        last_error="$any_error"
+                        logWithTimestamp "[$network] Attempt $attempt_num: General error extracted: $last_error"
+                    fi
+                fi
+
+                # If still no error found, look for error messages without network prefix (from helper functions)
+                if [[ -z "$last_error" ]]; then
+                    local generic_error=$(grep -iE "(error|failed|revert|invalid|missing|timeout)" "$log_file" 2>/dev/null | grep -v "^\[" | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
+                    if [[ -n "$generic_error" ]]; then
+                        last_error="$generic_error"
+                        logWithTimestamp "[$network] Attempt $attempt_num: Generic error extracted: $last_error"
+                    fi
+                fi
+            fi
+
+            # If no log error found, use generic message
+            if [[ -z "$last_error" ]]; then
+                last_error="Execution failed with exit code $command_status (check logs for details)"
+                logWithTimestamp "[$network] Attempt $attempt_num: No specific error found, using generic message"
+            fi
+        else
+            logWithTimestamp "[$network] Attempt $attempt_num: Execution succeeded!"
+        fi
+
+        # Get CONTRACT from executeNetworkActions (it's exported)
+        local contract="${CONTRACT:-}"
+        if [[ -z "$contract" ]]; then
+            error "[$network] CONTRACT was not determined in executeNetworkActions"
+            updateNetworkProgress "$network" "failed" "CONTRACT not determined"
+            return 1
+        fi
+
+        # Increase retry counter (must happen regardless of success/failure to prevent infinite loop)
         retry_count=$((retry_count + 1))
 
-        # Sleep for 2 seconds before trying again if failed
-        if [[ $command_status -ne 0 ]]; then
-            sleep 2
+        # If command succeeded, exit the loop immediately
+        if [[ $command_status -eq 0 ]]; then
+            logWithTimestamp "[$network] Attempt $attempt_num: Command succeeded, exiting retry loop"
+            break
         fi
+
+        # If we've reached max attempts, exit the loop
+        if [[ $retry_count -ge $max_attempts ]]; then
+            logWithTimestamp "[$network] Maximum attempts ($max_attempts) reached, exiting retry loop"
+            break
+        fi
+
+        # Sleep for 2 seconds before trying again
+        logWithTimestamp "[$network] Attempt $attempt_num: Waiting 2 seconds before retry..."
+        sleep 2
     done
 
     # Check final status and update progress
@@ -876,23 +1047,26 @@ function executeNetworkInGroup() {
         updateNetworkProgress "$network" "success"
         return 0
     else
-        updateNetworkProgress "$network" "failed" "Failed after $max_attempts attempts"
+        # Use captured error message if available, otherwise generic message
+        local final_error="Failed after $max_attempts attempts"
+        if [[ -n "$last_error" ]]; then
+            final_error="Failed after $max_attempts attempts: $last_error"
+        fi
+        updateNetworkProgress "$network" "failed" "$final_error"
         return 1
     fi
 }
 
 function executeGroupSequentially() {
     local group="$1"
-    local environment="$2"
-    local contract="$3"
-    local -a networks=("${@:4}")
+    local -a networks=("${@:2}")
 
-    if [[ -z "$group" || ${#networks[@]} -eq 0 || -z "$environment" || -z "$contract" ]]; then
-        error "Group, networks, environment, and contract are required"
+    if [[ -z "$group" || ${#networks[@]} -eq 0 ]]; then
+        error "Group and networks are required"
         return 1
     fi
 
-    logGroupInfo "$group" "${networks[@]}"
+    # Group info is already shown in execution plan, skipping duplicate logGroupInfo call
 
     # Update foundry.toml for this group
     if ! updateFoundryTomlForGroup "$group"; then
@@ -924,38 +1098,61 @@ function executeGroupSequentially() {
         logWithTimestamp "Executing networks in parallel"
 
         local -a pids=()
+        local networks_to_execute=0
         for network in "${networks[@]}"; do
-            # Check if this network is still pending
+            # Check if this network is already successful
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
                 local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
-                if [[ "$status" == "success" || "$status" == "failed" ]]; then
-                    logWithTimestamp "[$network] Skipping (status: $status)"
+                if [[ "$status" == "success" ]]; then
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[0;32m[%s] [%s] Skipping (status: %s)\033[0m\n' "$TIMESTAMP" "$network" "$status"
                     continue
+                elif [[ "$status" == "failed" ]]; then
+                    # Reset failed networks to pending so they can retry
+                    local error_msg=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[31m[%s] [%s] Resetting failed status to pending for retry (previous error: %s)\033[0m\n' "$TIMESTAMP" "$network" "$error_msg"
+                    updateNetworkProgress "$network" "pending"
                 fi
             fi
 
-
             # Start network execution in background
-            executeNetworkInGroup "$network" "$environment" "$contract" "$group" "$log_dir" &
-            pids+=($!)
+            # Each process runs independently and updates progress file atomically
+            logWithTimestamp "[$network] Starting parallel execution (PID will be logged)"
+            executeNetworkInGroup "$network" "$log_dir" &
+            local pid=$!
+            pids+=($pid)
+            networks_to_execute=$((networks_to_execute + 1))
+            logWithTimestamp "[$network] Started in background with PID: $pid"
 
         done
+
+        if [[ $networks_to_execute -gt 0 ]]; then
+            logWithTimestamp "Started $networks_to_execute network(s) in parallel"
+        fi
     else
         # Execute networks sequentially within the group
         logWithTimestamp "Executing networks sequentially"
         for network in "${networks[@]}"; do
-            # Check if this network is still pending
+            # Check if this network is already successful
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
                 local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
-                if [[ "$status" == "success" || "$status" == "failed" ]]; then
-                    logWithTimestamp "[$network] Skipping (status: $status)"
+                if [[ "$status" == "success" ]]; then
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[0;32m[%s] [%s] Skipping (status: %s)\033[0m\n' "$TIMESTAMP" "$network" "$status"
                     continue
+                elif [[ "$status" == "failed" ]]; then
+                    # Reset failed networks to pending so they can retry
+                    local error_msg=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[31m[%s] [%s] Resetting failed status to pending for retry (previous error: %s)\033[0m\n' "$TIMESTAMP" "$network" "$error_msg"
+                    updateNetworkProgress "$network" "pending"
                 fi
             fi
 
-
             # Execute network in foreground
-            executeNetworkInGroup "$network" "$environment" "$contract" "$group" "$log_dir"
+            logWithTimestamp "[$network] Starting sequential execution"
+            executeNetworkInGroup "$network" "$log_dir"
         done
     fi
 
@@ -1010,8 +1207,29 @@ function executeNetworksByGroup() {
     logWithTimestamp "Starting network execution for $contract in $environment"
     logWithTimestamp "Networks to process: ${networks[*]}"
 
-    # Initialize progress tracking
+    # Determine CONTRACT from executeNetworkActions (using first network)
+    local first_network="${networks[0]}"
+    local temp_contract_file=$(mktemp)
+    local temp_log_dir=$(mktemp -d)
+
+    logWithTimestamp "Determining CONTRACT from executeNetworkActions (using first network: $first_network)..."
+
+    # Call executeNetworkActions with CONTRACT_FILE set so it writes CONTRACT to file
+    CONTRACT_FILE="$temp_contract_file" executeNetworkActions "$first_network" "$temp_log_dir" > /dev/null 2>&1
+    local contract=$(cat "$temp_contract_file" 2>/dev/null || echo "")
+    rm -rf "$temp_log_dir" "$temp_contract_file"
+
+    if [[ -z "$contract" ]]; then
+        error "CONTRACT could not be determined. Please ensure executeNetworkActions sets CONTRACT."
+        return 1
+    fi
+
+    logWithTimestamp "CONTRACT determined: $contract"
+
+    # Initialize progress tracking with progress logging
+    logWithTimestamp "Initializing progress tracking for ${#networks[@]} networks..."
     initializeProgressTracking "$contract" "$environment" "${networks[@]}"
+    logWithTimestamp "Progress tracking initialized"
 
     # Group networks by execution requirements
     local groups_data=$(groupNetworksByExecutionGroup "${networks[@]}")
@@ -1082,12 +1300,7 @@ function executeNetworksByGroup() {
             echo "=================================================================================="
             echo ""
         else
-            echo ""
-            echo "=================================================================================="
-            logWithTimestamp "🚀 EXECUTING CANCUN EVM GROUP (${#cancun_networks[@]} networks)"
-            echo "=================================================================================="
-
-            if ! executeGroupSequentially "$GROUP_CANCUN" "$environment" "$contract" "${cancun_networks[@]}"; then
+            if ! executeGroupSequentially "$GROUP_CANCUN" "${cancun_networks[@]}"; then
                 overall_success=false
             fi
             echo ""
@@ -1105,11 +1318,7 @@ function executeNetworksByGroup() {
             echo "=================================================================================="
             echo ""
         else
-            echo ""
-            echo "=================================================================================="
-            logWithTimestamp "🚀 EXECUTING ZKEVM GROUP (${#zkevm_networks[@]} networks)"
-            echo "=================================================================================="
-            if ! executeGroupSequentially "$GROUP_ZKEVM" "$environment" "$contract" "${zkevm_networks[@]}"; then
+            if ! executeGroupSequentially "$GROUP_ZKEVM" "${zkevm_networks[@]}"; then
                 overall_success=false
             fi
             echo ""
@@ -1127,11 +1336,7 @@ function executeNetworksByGroup() {
             echo "=================================================================================="
             echo ""
         else
-            echo ""
-            echo "=================================================================================="
-            logWithTimestamp "🚀 EXECUTING LONDON EVM GROUP (${#london_networks[@]} networks)"
-            echo "=================================================================================="
-            if ! executeGroupSequentially "$GROUP_LONDON" "$environment" "$contract" "${london_networks[@]}"; then
+            if ! executeGroupSequentially "$GROUP_LONDON" "${london_networks[@]}"; then
                 overall_success=false
             fi
             echo ""
@@ -1324,6 +1529,24 @@ function iterateAllNetworksGrouped() {
         error "No networks found for contract '$CONTRACT' in environment '$ENVIRONMENT'"
         return 1
     fi
+
+    # Log execution summary before starting
+    echo ""
+    echo "=================================================================================="
+    logWithTimestamp "📋 MULTI-NETWORK EXECUTION SUMMARY"
+    echo "=================================================================================="
+    logWithTimestamp "Environment: $ENVIRONMENT"
+
+    # Try to detect action type early (before CONTRACT is determined)
+    local action_type=$(detectActionType)
+    logWithTimestamp "Action Type: $action_type"
+
+    # Show network count and list
+    logWithTimestamp "Total Networks: ${#SELECTED_NETWORKS_ARRAY[@]}"
+    local network_list=$(IFS=', '; echo "${SELECTED_NETWORKS_ARRAY[*]}")
+    logWithTimestamp "Networks: $network_list"
+    echo "=================================================================================="
+    echo ""
 
     # Use the new execution logic with group skipping
     executeNetworksByGroup "$CONTRACT" "$ENVIRONMENT" "${NETWORKS[@]}"
@@ -1538,8 +1761,14 @@ function executeGroupWithHandleNetwork() {
             # Check if this network is still pending
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
                 local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
-                if [[ "$status" == "success" || "$status" == "failed" ]]; then
-                    logWithTimestamp "[$network] Skipping (status: $status)"
+                if [[ "$status" == "success" ]]; then
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[0;32m[%s] [%s] Skipping (status: %s)\033[0m\n' "$TIMESTAMP" "$network" "$status"
+                    continue
+                elif [[ "$status" == "failed" ]]; then
+                    local error_msg=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[31m[%s] [%s] Skipping (status: %s) - %s\033[0m\n' "$TIMESTAMP" "$network" "$status" "$error_msg"
                     continue
                 fi
             fi
@@ -1564,8 +1793,14 @@ function executeGroupWithHandleNetwork() {
             # Check if this network is still pending
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
                 local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
-                if [[ "$status" == "success" || "$status" == "failed" ]]; then
-                    logWithTimestamp "[$network] Skipping (status: $status)"
+                if [[ "$status" == "success" ]]; then
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[0;32m[%s] [%s] Skipping (status: %s)\033[0m\n' "$TIMESTAMP" "$network" "$status"
+                    continue
+                elif [[ "$status" == "failed" ]]; then
+                    local error_msg=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[31m[%s] [%s] Skipping (status: %s) - %s\033[0m\n' "$TIMESTAMP" "$network" "$status" "$error_msg"
                     continue
                 fi
             fi
