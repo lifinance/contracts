@@ -68,6 +68,7 @@ katana = "${ETH_NODE_URI_KATANA}"
 lens = "${ETH_NODE_URI_LENS}"
 linea = "${ETH_NODE_URI_LINEA}"
 lisk = "${ETH_NODE_URI_LISK}"
+monad= "${ETH_NODE_URI_MONAD}"
 moonbeam = "${ETH_NODE_URI_MOONBEAM}"
 moonriver = "${ETH_NODE_URI_MOONRIVER}"
 nova = "${ETH_NODE_URI_NOVA}"
@@ -140,6 +141,7 @@ lisk = { key = "${BLOCKSCOUT_API_KEY}", url = "https://blockscout.lisk.com/api",
 mantle = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=5000", chain = "5000" }
 metis = { key = "${VERIFY_CONTRACT_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
+monad = { key = "${SOURCIFY_API_KEY}", url = "https://sourcify-api-monad.blockvision.org", verifier = "sourcify", chain = "143" }
 moonbeam = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1284", chain = "1284" }
 moonriver = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1285", chain = "1285" }
 nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
