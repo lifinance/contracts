@@ -7,26 +7,38 @@ import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { MigrateWhitelistManager } from "./utils/MigrateWhitelistManager.sol";
 import { JSONParserLib } from "solady/utils/JSONParserLib.sol";
 import { LibSort } from "solady/utils/LibSort.sol";
+import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
-
-    address public migrateContract;
 
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        // Deploy the migration contract
-        vm.startBroadcast(deployerPrivateKey);
-        migrateContract = address(new MigrateWhitelistManager());
-        vm.stopBroadcast();
-
-        emit log("MigrateWhitelistManager deployed at:");
-        emit log_address(migrateContract);
+        // Get predicted address of MigrateWhitelistManager from CREATE3
+        address migrateContract = _getPredictedMigrateAddress();
 
         // Use the overloaded update function with the migration contract address
         return update("WhitelistManagerFacet", migrateContract);
+    }
+
+    function _getPredictedMigrateAddress() internal returns (address) {
+        // Read CREATE3 factory address from networks.json
+        string memory networksPath = string.concat(
+            root,
+            "/config/networks.json"
+        );
+        string memory networksJson = vm.readFile(networksPath);
+        address factoryAddress = networksJson.readAddress(
+            string.concat(".", network, ".create3Factory")
+        );
+
+        bytes32 migrateSalt = keccak256(
+            abi.encodePacked("MigrateWhitelistManager")
+        );
+        CREATE3Factory create3Factory = CREATE3Factory(factoryAddress);
+        return create3Factory.getDeployed(deployerAddress, migrateSalt);
     }
 
     function getExcludes() internal pure override returns (bytes4[] memory) {
@@ -55,7 +67,7 @@ contract DeployScript is UpdateScriptBase {
 
         // --- 5. ABI-Encode Call Data ---
         bytes memory callData = abi.encodeWithSelector(
-            WhitelistManagerFacet.migrate.selector,
+            MigrateWhitelistManager.migrate.selector,
             selectorsToRemove,
             contracts,
             selectors,
