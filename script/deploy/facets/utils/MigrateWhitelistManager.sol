@@ -5,6 +5,7 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { LibAccess } from "lifi/Libraries/LibAccess.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { CannotAuthoriseSelf, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 
 /// @title MigrateWhitelistManager
 /// @author LI.FI (https://li.fi)
@@ -123,7 +124,9 @@ contract MigrateWhitelistManager {
             // Note: We need to use the selector from the actual facet, not this contract
             // The selector is: 0x63ebf099
             LibAccess.addAccess(
-                0x63ebf099, // batchSetContractSelectorWhitelist selector
+                WhitelistManagerFacet
+                    .batchSetContractSelectorWhitelist
+                    .selector, // batchSetContractSelectorWhitelist selector
                 _grantAccessTo
             );
         }
