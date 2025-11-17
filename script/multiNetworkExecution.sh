@@ -1530,8 +1530,8 @@ function iterateAllNetworksGrouped() {
     logWithTimestamp "Action Type: $action_type"
 
     # Show network count and list
-    logWithTimestamp "Total Networks: ${#SELECTED_NETWORKS_ARRAY[@]}"
-    local network_list=$(IFS=', '; echo "${SELECTED_NETWORKS_ARRAY[*]}")
+    logWithTimestamp "Total Networks: ${#NETWORKS[@]}"
+    local network_list=$(IFS=', '; echo "${NETWORKS[*]}")
     logWithTimestamp "Networks: $network_list"
     echo "=================================================================================="
     echo ""
