@@ -42709,6 +42709,50 @@
           }
         ]
       }
+    },
+    "aurora": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xae4CC962a7F728cf29dD293caD79773D8a989F4F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-05 18:40:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      },
+    "xlayer": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "Patcher": {
@@ -45709,4 +45753,5 @@
       }
     }
   }
+}
 }
