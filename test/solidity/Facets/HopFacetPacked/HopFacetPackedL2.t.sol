@@ -69,7 +69,7 @@ contract HopFacetPackedL2Test is TestBase {
     BridgeParams internal usdcBridgeParams;
     BridgeParams internal usdtBridgeParams;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 58467500;
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
         initTestBase();
@@ -120,7 +120,7 @@ contract HopFacetPackedL2Test is TestBase {
             .encode_startBridgeTokensViaHopL1ERC20Packed
             .selector;
 
-        addFacet(diamond, address(hopFacetPacked), functionSelectors);
+        addFacet(address(diamond), address(hopFacetPacked), functionSelectors);
         hopFacetPacked = HopFacetPacked(address(diamond));
 
         /// Approval
@@ -150,7 +150,7 @@ contract HopFacetPackedL2Test is TestBase {
             .setApprovalForBridges
             .selector;
         addFacet(
-            diamond,
+            address(diamond),
             address(hopFacetOptimized),
             functionSelectorsApproval
         );

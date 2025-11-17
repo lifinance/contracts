@@ -122,7 +122,7 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
     address internal constant ALLOCATOR_ADDRESS =
         0x1234567890123456789012345678901234567890;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19767662;
         initTestBase();
 
@@ -145,7 +145,11 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
             .addAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(relayDepositoryFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(relayDepositoryFacet),
+            functionSelectors
+        );
         relayDepositoryFacet = TestRelayDepositoryFacet(address(diamond));
 
         // Setup DEX approvals

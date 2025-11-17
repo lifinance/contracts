@@ -5,8 +5,8 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { OnlyContractOwner, InvalidConfig, InvalidAmount } from "src/Errors/GenericErrors.sol";
-import { LiFiDiamond } from "../utils/DiamondTest.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub HopFacet Contract
@@ -31,7 +31,7 @@ contract HopFacetTest is TestBaseFacet {
     ILiFi.BridgeData internal validBridgeData;
     HopFacet.HopData internal validHopData;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
@@ -42,11 +42,9 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
         functionSelectors[4] = hopFacet.addAllowedContractSelector.selector;
-        functionSelectors[5] = hopFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[5] = hopFacet.removeAllowedContractSelector.selector;
 
-        addFacet(diamond, address(hopFacet), functionSelectors);
+        addFacet(address(diamond), address(hopFacet), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](3);
         configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
@@ -56,10 +54,22 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet = TestHopFacet(address(diamond));
         hopFacet.initHop(configs);
 
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactETHForTokens.selector);
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactETHForTokens.selector
+        );
 
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
@@ -234,7 +244,7 @@ contract HopFacetTest is TestBaseFacet {
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond2, address(hopFacet2), functionSelectors);
+        addFacet(address(diamond2), address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](3);
         configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
@@ -269,7 +279,7 @@ contract HopFacetTest is TestBaseFacet {
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
 
-        addFacet(diamond, address(hopFacet2), functionSelectors);
+        addFacet(address(diamond), address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](1);
         configs[0] = HopFacet.Config(addressUSDCPolygon, ammWrapperPolygon);

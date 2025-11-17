@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
-import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
+import { MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibSwap, TestBase } from "../utils/TestBase.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
@@ -20,7 +20,7 @@ contract TestGenericSwapFacetV3 is
 
 contract TestGenericSwapFacet is GenericSwapFacet, TestWhitelistManagerBase {}
 
-contract GenericSwapFacetV3Test is TestBase, TestHelpers {
+contract GenericSwapFacetV3Test is TestBase {
     using SafeTransferLib for ERC20;
 
     // These values are for Mainnet
@@ -38,7 +38,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
     TestGenericSwapFacet internal genericSwapFacet;
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 19834820;
         initTestBase();
@@ -49,9 +49,17 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[1] = genericSwapFacet.addAllowedContractSelector.selector;
-        functionSelectors[2] = genericSwapFacet.removeAllowedContractSelector.selector;
-        addFacet(diamond, address(genericSwapFacet), functionSelectors);
+        functionSelectors[1] = genericSwapFacet
+            .addAllowedContractSelector
+            .selector;
+        functionSelectors[2] = genericSwapFacet
+            .removeAllowedContractSelector
+            .selector;
+        addFacet(
+            address(diamond),
+            address(genericSwapFacet),
+            functionSelectors
+        );
 
         // add genericSwapFacet (v3) to diamond
         bytes4[] memory functionSelectorsV3 = new bytes4[](6);
@@ -74,15 +82,25 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             .swapTokensMultipleV3NativeToERC20
             .selector;
 
-        addFacet(diamond, address(genericSwapFacetV3), functionSelectorsV3);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacetV3),
+            functionSelectorsV3
+        );
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         genericSwapFacetV3 = TestGenericSwapFacetV3(address(diamond));
 
         // whitelist uniswap dex with function selectors
         // v1
-        genericSwapFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        genericSwapFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
+        genericSwapFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        genericSwapFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
         genericSwapFacet.addAllowedContractSelector(
             address(uniswap),
             uniswap.swapExactTokensForETH.selector
@@ -92,21 +110,51 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uniswap.swapExactETHForTokens.selector
         );
         // v3
-        genericSwapFacetV3.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        genericSwapFacetV3.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
-        genericSwapFacetV3.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForETH.selector);
-        genericSwapFacetV3.addAllowedContractSelector(address(uniswap), uniswap.swapExactETHForTokens.selector);
+        genericSwapFacetV3.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        genericSwapFacetV3.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
+        genericSwapFacetV3.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForETH.selector
+        );
+        genericSwapFacetV3.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactETHForTokens.selector
+        );
 
         // whitelist feeCollector with function selectors
         // v1
-        genericSwapFacet.addAllowedContractSelector(FEE_COLLECTOR, feeCollector.collectTokenFees.selector);
-        genericSwapFacet.addAllowedContractSelector(FEE_COLLECTOR, feeCollector.collectNativeFees.selector);
+        genericSwapFacet.addAllowedContractSelector(
+            FEE_COLLECTOR,
+            feeCollector.collectTokenFees.selector
+        );
+        genericSwapFacet.addAllowedContractSelector(
+            FEE_COLLECTOR,
+            feeCollector.collectNativeFees.selector
+        );
         // v3
-        genericSwapFacetV3.addAllowedContractSelector(FEE_COLLECTOR, feeCollector.collectTokenFees.selector);
-        genericSwapFacetV3.addAllowedContractSelector(FEE_COLLECTOR, feeCollector.collectNativeFees.selector);
+        genericSwapFacetV3.addAllowedContractSelector(
+            FEE_COLLECTOR,
+            feeCollector.collectTokenFees.selector
+        );
+        genericSwapFacetV3.addAllowedContractSelector(
+            FEE_COLLECTOR,
+            feeCollector.collectNativeFees.selector
+        );
         // v3
-        genericSwapFacetV3.addAllowedContractSelector(FEE_COLLECTOR, feeCollector.collectTokenFees.selector);
-        genericSwapFacetV3.addAllowedContractSelector(FEE_COLLECTOR, feeCollector.collectNativeFees.selector);
+        genericSwapFacetV3.addAllowedContractSelector(
+            FEE_COLLECTOR,
+            feeCollector.collectTokenFees.selector
+        );
+        genericSwapFacetV3.addAllowedContractSelector(
+            FEE_COLLECTOR,
+            feeCollector.collectNativeFees.selector
+        );
 
         // set facet address in TestBase
         setFacetAddressInTestBase(
@@ -627,7 +675,10 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         vm.startPrank(USDC_HOLDER);
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
+        genericSwapFacetV3.removeAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -783,7 +834,10 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         ) = _produceSwapDataNativeToERC20();
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactETHForTokens.selector);
+        genericSwapFacetV3.removeAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactETHForTokens.selector
+        );
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -1091,7 +1145,10 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             );
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
+        genericSwapFacetV3.removeAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -1924,7 +1981,10 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         );
 
         // whitelist DEX & function selector
-        genericSwapFacet.addAllowedContractSelector(address(mockDex), mockDex.swapTokensForExactTokens.selector);
+        genericSwapFacet.addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapTokensForExactTokens.selector
+        );
 
         usdc.approve(address(genericSwapFacet), amountIn);
 

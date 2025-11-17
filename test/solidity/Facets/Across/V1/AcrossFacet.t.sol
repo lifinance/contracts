@@ -27,7 +27,7 @@ contract AcrossFacetTest is TestBaseFacet {
     AcrossFacet.AcrossData internal validAcrossData;
     TestAcrossFacet internal acrossFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 17130542;
         initTestBase();
 
@@ -39,7 +39,7 @@ contract AcrossFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = acrossFacet.addAllowedContractSelector.selector;
 
-        addFacet(diamond, address(acrossFacet), functionSelectors);
+        addFacet(address(diamond), address(acrossFacet), functionSelectors);
         acrossFacet = TestAcrossFacet(address(diamond));
         acrossFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,

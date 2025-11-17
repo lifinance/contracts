@@ -44,7 +44,7 @@ contract StargateFacetV2Test is TestBaseFacet {
     TestStargateFacetV2 internal stargateFacetV2;
     StargateFacetV2.StargateData internal stargateData;
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block number for forking
         customBlockNumberForForking = 19979843;
 
@@ -61,22 +61,46 @@ contract StargateFacetV2Test is TestBaseFacet {
         functionSelectors[1] = stargateFacetV2
             .swapAndStartBridgeTokensViaStargate
             .selector;
-        functionSelectors[2] = stargateFacetV2.addAllowedContractSelector.selector;
+        functionSelectors[2] = stargateFacetV2
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = stargateFacetV2
             .removeAllowedContractSelector
             .selector;
         functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
 
-        addFacet(diamond, address(stargateFacetV2), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(stargateFacetV2),
+            functionSelectors
+        );
         stargateFacetV2 = TestStargateFacetV2(payable(address(diamond)));
 
         // whitelist DEX and feeCollector addresses and function selectors in diamond
-        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
-        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForETH.selector);
-        stargateFacetV2.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
-        stargateFacetV2.addAllowedContractSelector(address(feeCollector), feeCollector.collectNativeFees.selector);
-        stargateFacetV2.addAllowedContractSelector(address(feeCollector), feeCollector.collectTokenFees.selector);
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForETH.selector
+        );
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
+        stargateFacetV2.addAllowedContractSelector(
+            address(feeCollector),
+            feeCollector.collectNativeFees.selector
+        );
+        stargateFacetV2.addAllowedContractSelector(
+            address(feeCollector),
+            feeCollector.collectTokenFees.selector
+        );
 
         // set facet address in TestBase
         setFacetAddressInTestBase(address(stargateFacetV2), "StargateFacetV2");

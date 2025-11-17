@@ -55,6 +55,11 @@
     "Permit2Proxy",
     "TokenWrapper"
   ],
+  "ldaCoreFacets": [
+    "DiamondCutFacet",
+    "DiamondLoupeFacet",
+    "OwnershipFacet"
+  ],
   "blacklistedFunctionSelectors": ["0x23b872dd"],
   "whitelistPeripheryFunctions": {
     "FeeCollector": [

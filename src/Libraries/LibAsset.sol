@@ -4,8 +4,6 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibSwap } from "./LibSwap.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-
-// solhint-disable-next-line max-line-length
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
 
 /// @title LibAsset

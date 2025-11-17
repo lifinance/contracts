@@ -34,7 +34,7 @@ contract GardenFacetTest is TestBaseFacet {
     ILiFi.BridgeData internal validBridgeData;
     GardenFacet.GardenData internal validGardenData;
 
-    function setUp() public {
+    function setUp() public virtual override {
         customBlockNumberForForking = 23346384;
         initTestBase();
 
@@ -46,7 +46,7 @@ contract GardenFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = gardenFacet.addAllowedContractSelector.selector;
 
-        addFacet(diamond, address(gardenFacet), functionSelectors);
+        addFacet(address(diamond), address(gardenFacet), functionSelectors);
 
         gardenFacet = TestGardenFacet(address(diamond));
 

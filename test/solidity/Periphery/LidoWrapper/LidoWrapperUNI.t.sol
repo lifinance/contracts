@@ -16,7 +16,8 @@ contract LidoWrapperTestUNI is TestBase {
 
     uint256 private whaleBalance;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         vm.label(ST_ETH_ADDRESS, "stETH");
         vm.label(WST_ETH_ADDRESS, "wstETH");
 

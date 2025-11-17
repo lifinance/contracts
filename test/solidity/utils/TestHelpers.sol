@@ -4,10 +4,14 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockUniswapDEX } from "./MockUniswapDEX.sol";
+import { TestBaseForksConstants } from "./TestBaseForksConstants.sol";
 import { TestWhitelistManagerBase } from "./TestWhitelistManagerBase.sol";
 
 //common utilities for forge tests
-contract TestHelpers is Test {
+contract TestHelpers is Test, TestBaseForksConstants {
+    uint256 internal customBlockNumberForForking;
+    string internal customRpcUrlForForking;
+
     /// @notice will deploy and fund a mock DEX that can simulate the following behaviour for both ERC20/Native:
     ///         positive slippage#1: uses less input tokens as expected
     ///         positive slippage#2: returns more output tokens as expected
@@ -48,13 +52,45 @@ contract TestHelpers is Test {
             amountInActual
         );
         // whitelist DEX & function selector
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapTokensForExactTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactTokensForTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapETHForExactTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactETHForTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactTokensForETH.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapTokensForExactETH.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.mockSwapWillRevertWithReason.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapTokensForExactTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapExactTokensForTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapETHForExactTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapExactETHForTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapExactTokensForETH.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapTokensForExactETH.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.mockSwapWillRevertWithReason.selector
+        );
+    }
+
+    function fork() internal virtual {
+        string memory rpcUrl = bytes(customRpcUrlForForking).length > 0
+            ? vm.envString(customRpcUrlForForking)
+            : vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = customBlockNumberForForking > 0
+            ? customBlockNumberForForking
+            : DEFAULT_BLOCK_NUMBER_MAINNET;
+
+        vm.createSelectFork(rpcUrl, blockNumber);
     }
 }
 

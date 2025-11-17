@@ -23,7 +23,7 @@ contract PioneerFacetTest is TestBaseFacet {
 
     PioneerFacet.PioneerData internal pioneerData;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 17130542;
         initTestBase();
 
@@ -41,7 +41,11 @@ contract PioneerFacetTest is TestBaseFacet {
             .addAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(basePioneerFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(basePioneerFacet),
+            functionSelectors
+        );
         pioneerFacet = TestPioneerFacet(address(diamond));
         pioneerFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,

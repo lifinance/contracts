@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { OwnershipFacet } from "src/Facets/OwnershipFacet.sol";
@@ -12,6 +10,7 @@ import { TestBase } from "../utils/TestBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DeployScript } from "../../../script/deploy/facets/UpdateWhitelistManagerFacet.s.sol";
 
 contract Foo {}
@@ -41,12 +40,10 @@ contract MockSwapperFacet {
     }
 }
 
-contract WhitelistManagerFacetTest is DSTest, DiamondTest {
-    address internal constant USER_PAUSER = address(0xdeadbeef);
-    address internal constant USER_DIAMOND_OWNER = address(0x123456);
+// contract WhitelistManagerFacetTest is DSTest, DiamondTest {
+contract WhitelistManagerFacetTest is TestBase {
     address internal constant NOT_DIAMOND_OWNER = address(0xabc123456);
 
-    LiFiDiamond internal diamond;
     WhitelistManagerFacet internal whitelistMgr;
     AccessManagerFacet internal accessMgr;
     Foo internal c1;
@@ -61,8 +58,8 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         bool indexed approved
     );
 
-    function setUp() public {
-        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+    function setUp() public virtual override {
+        initTestBase();
         whitelistMgr = new WhitelistManagerFacet();
         c1 = new Foo();
         c2 = new Foo();
@@ -99,7 +96,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
             .getAllContractSelectorPairs
             .selector;
 
-        addFacet(diamond, address(whitelistMgr), functionSelectors);
+        addFacet(address(diamond), address(whitelistMgr), functionSelectors);
 
         // add AccessManagerFacet to be able to whitelist addresses for execution of protected functions
         accessMgr = new AccessManagerFacet();
@@ -107,7 +104,7 @@ contract WhitelistManagerFacetTest is DSTest, DiamondTest {
         functionSelectors = new bytes4[](2);
         functionSelectors[0] = accessMgr.setCanExecute.selector;
         functionSelectors[1] = accessMgr.addressCanExecuteMethod.selector;
-        addFacet(diamond, address(accessMgr), functionSelectors);
+        addFacet(address(diamond), address(accessMgr), functionSelectors);
 
         accessMgr = AccessManagerFacet(address(diamond));
         whitelistMgr = WhitelistManagerFacet(address(diamond));
@@ -1221,10 +1218,14 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
     ExposedUpdateWhitelistManagerFacetDeployScript internal deployScript;
     address[] internal oldContractsBeforeMigration;
 
-    function setUp() public {
+    function setUp() public virtual override {
         // fork mainnet to test with real production state
         string memory rpcUrl = vm.envString("ETH_NODE_URI_BASE");
         vm.createSelectFork(rpcUrl, 33206380);
+
+        // Initialize diamond to point to the forked diamond address
+        // This is needed for inherited tests like test_DeploysWithoutErrors()
+        diamond = LiFiDiamond(payable(DIAMOND));
 
         // Set required environment variables for deployment script
         vm.setEnv("NETWORK", "base");
@@ -1238,6 +1239,28 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
 
         // Create instance of deployment script to access getCallData
         deployScript = new ExposedUpdateWhitelistManagerFacetDeployScript();
+    }
+
+    /// @notice Override to return the forked diamond address
+    function getDiamondAddress() internal pure override returns (address) {
+        return DIAMOND;
+    }
+
+    /// @notice Override to return the actual owner of the forked diamond
+    function getDiamondOwner() internal view override returns (address) {
+        return OwnershipFacet(DIAMOND).owner();
+    }
+
+    /// @notice Override test to use forked diamond instead of creating a new one
+    function test_DeploysWithoutErrors() public override {
+        assertTrue(
+            getDiamondAddress() != address(0),
+            "Diamond should be deployed"
+        );
+        assertTrue(
+            getDiamondAddress() == DIAMOND,
+            "Diamond should be the forked diamond address"
+        );
     }
 
     /// @notice Test that non-owner cannot call migrate function
@@ -1469,7 +1492,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             .isSelectorAllowedLegacy
             .selector;
         addFacet(
-            LiFiDiamond(payable(DIAMOND)),
+            address(diamond),
             address(mockSwapperFacet),
             mockSwapperSelectors
         );
@@ -1677,7 +1700,7 @@ contract WhitelistManagerFacetMigrationTest is TestBase {
             .isContractSelectorAllowed
             .selector;
         addFacet(
-            LiFiDiamond(payable(DIAMOND)),
+            address(diamond),
             address(mockSwapperFacet),
             mockSwapperSelectors
         );

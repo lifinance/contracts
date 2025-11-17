@@ -43,7 +43,7 @@ contract LidoWrapperTest is TestBase {
 
     error ContractNotYetReadyForMainnet();
 
-    function setUp() public {
+    function setUp() public override {
         vm.label(ST_ETH_ADDRESS_OPTIMISM, "stETH");
         vm.label(WST_ETH_ADDRESS_OPTIMISM, "wstETH");
 
@@ -95,7 +95,7 @@ contract LidoWrapperTest is TestBase {
         functionSelectors[3] = relayFacet.getMappedChainId.selector;
         functionSelectors[4] = relayFacet.setConsumedId.selector;
 
-        addFacet(diamond, address(relayFacet), functionSelectors);
+        addFacet(address(diamond), address(relayFacet), functionSelectors);
         // slither-disable-next-line reentrancy-no-eth
         relayFacet = TestRelayFacet(address(diamond));
 
@@ -502,7 +502,11 @@ contract LidoWrapperTest is TestBase {
             .selector;
 
         // add facet to diamond and  store diamond with facet interface in variable
-        addFacet(diamond, address(genericSwapFacetV3), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacetV3),
+            functionSelectors
+        );
         genericSwapFacetV3 = GenericSwapFacetV3(address(diamond));
     }
 }

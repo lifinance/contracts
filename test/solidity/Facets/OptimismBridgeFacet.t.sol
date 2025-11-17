@@ -40,7 +40,7 @@ contract OptimismBridgeFacetTest is TestBase {
     ILiFi.BridgeData internal validBridgeData;
     OptimismBridgeFacet.OptimismData internal validOptimismData;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 15876510;
         initTestBase();
 
@@ -54,12 +54,18 @@ contract OptimismBridgeFacetTest is TestBase {
             .swapAndStartBridgeTokensViaOptimismBridge
             .selector;
         functionSelectors[2] = optimismBridgeFacet.initOptimism.selector;
-        functionSelectors[3] = optimismBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] = optimismBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[4] = optimismBridgeFacet
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(optimismBridgeFacet),
+            functionSelectors
+        );
 
         OptimismBridgeFacet.Config[]
             memory configs = new OptimismBridgeFacet.Config[](1);
@@ -71,9 +77,18 @@ contract OptimismBridgeFacetTest is TestBase {
             IL1StandardBridge(STANDARD_BRIDGE)
         );
 
-        optimismBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        optimismBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
-        optimismBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
 
         validBridgeData = ILiFi.BridgeData({
             transactionId: "",

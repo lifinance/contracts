@@ -34,7 +34,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     bytes32 internal namespace = keccak256("com.lifi.facets.debridgedln");
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19279222;
         initTestBase();
 
@@ -46,16 +46,31 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         functionSelectors[1] = deBridgeDlnFacet
             .swapAndStartBridgeTokensViaDeBridgeDln
             .selector;
-        functionSelectors[2] = deBridgeDlnFacet.addAllowedContractSelector.selector;
+        functionSelectors[2] = deBridgeDlnFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = deBridgeDlnFacet.setDeBridgeChainId.selector;
         functionSelectors[4] = deBridgeDlnFacet.getDeBridgeChainId.selector;
         functionSelectors[5] = DeBridgeDlnFacet.initDeBridgeDln.selector;
 
-        addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(deBridgeDlnFacet),
+            functionSelectors
+        );
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
-        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        deBridgeDlnFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        deBridgeDlnFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        deBridgeDlnFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        deBridgeDlnFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
 
         // Initialize
         string memory path = string.concat(

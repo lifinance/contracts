@@ -21,7 +21,7 @@ contract CBridgeAndFeeCollectionTest is TestBase {
 
     TestCBridgeFacet internal cBridge;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 14847528;
         initTestBase();
 
@@ -34,14 +34,29 @@ contract CBridgeAndFeeCollectionTest is TestBase {
             .selector;
         functionSelectors[2] = cBridge.addAllowedContractSelector.selector;
 
-        addFacet(diamond, address(cBridge), functionSelectors);
+        addFacet(address(diamond), address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        cBridge.addAllowedContractSelector(address(feeCollector), feeCollector.collectTokenFees.selector);
-        cBridge.addAllowedContractSelector(address(feeCollector), feeCollector.collectNativeFees.selector);
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        cBridge.addAllowedContractSelector(
+            address(feeCollector),
+            feeCollector.collectTokenFees.selector
+        );
+        cBridge.addAllowedContractSelector(
+            address(feeCollector),
+            feeCollector.collectNativeFees.selector
+        );
     }
 
     function testCanCollectTokenFeesAndBridgeTokens() public {

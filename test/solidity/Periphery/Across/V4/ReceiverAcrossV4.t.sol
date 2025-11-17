@@ -25,7 +25,7 @@ contract ReceiverAcrossV4Test is TestBase {
 
     event ExecutorSet(address indexed executor);
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 22989702;
         initTestBase();
 

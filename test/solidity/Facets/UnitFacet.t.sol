@@ -53,7 +53,7 @@ contract UnitFacetTest is TestBaseFacet {
 
     error NotSupported();
 
-    function setUp() public {
+    function setUp() public virtual override {
         customBlockNumberForForking = 17130542;
         initTestBase();
 
@@ -65,7 +65,7 @@ contract UnitFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = unitFacet.addAllowedContractSelector.selector;
 
-        addFacet(diamond, address(unitFacet), functionSelectors);
+        addFacet(address(diamond), address(unitFacet), functionSelectors);
         unitFacet = TestUnitFacet(address(diamond));
         // whitelist uniswap dex with function selectors
         unitFacet.addAllowedContractSelector(

@@ -31,7 +31,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
     error InvalidQuoteTimestamp();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19960294;
         initTestBase();
 
@@ -47,7 +47,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
             .addAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(acrossFacetV3), functionSelectors);
+        addFacet(address(diamond), address(acrossFacetV3), functionSelectors);
         acrossFacetV3 = TestAcrossFacetV3(address(diamond));
         acrossFacetV3.addAllowedContractSelector(
             ADDRESS_UNISWAP,

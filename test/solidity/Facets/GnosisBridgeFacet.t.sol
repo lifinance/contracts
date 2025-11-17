@@ -29,7 +29,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 22566858;
         initTestBase();
         defaultUSDSAmount = defaultDAIAmount;
@@ -49,19 +49,37 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = gnosisBridgeFacet
             .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
-        functionSelectors[2] = gnosisBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[2] = gnosisBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = gnosisBridgeFacet
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(gnosisBridgeFacet),
+            functionSelectors
+        );
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
-        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForETH.selector);
-        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
-        gnosisBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForETH.selector
+        );
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
+        gnosisBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
 
         setFacetAddressInTestBase(address(gnosisBridgeFacet), "GnosisFacet");
 

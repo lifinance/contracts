@@ -33,7 +33,7 @@ contract GasZipFacetTest is TestBaseFacet {
     error OnlyNativeAllowed();
     error TooManyChainIds();
 
-    function setUp() public {
+    function setUp() public override {
         // set custom block no for mainnet forking
         customBlockNumberForForking = 20828620;
 
@@ -50,13 +50,16 @@ contract GasZipFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = gasZipFacet.getDestinationChainsValue.selector;
 
-        functionSelectors[3] = gasZipFacet.addAllowedContractSelector.selector; 
-        addFacet(diamond, address(gasZipFacet), functionSelectors);
+        functionSelectors[3] = gasZipFacet.addAllowedContractSelector.selector;
+        addFacet(address(diamond), address(gasZipFacet), functionSelectors);
 
         gasZipFacet = TestGasZipFacet(payable(address(diamond)));
 
         // whitelist uniswap dex with function selectors
-        gasZipFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
         gasZipFacet.addAllowedContractSelector(
             address(uniswap),
             uniswap.swapTokensForExactETH.selector
@@ -69,7 +72,10 @@ contract GasZipFacetTest is TestBaseFacet {
             address(uniswap),
             uniswap.swapETHForExactTokens.selector
         );
-        gasZipFacet.addAllowedContractSelector(address(gasZipFacet), uniswap.swapExactTokensForTokens.selector);
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
+            uniswap.swapExactTokensForTokens.selector
+        );
         gasZipFacet.addAllowedContractSelector(
             address(gasZipFacet),
             uniswap.swapTokensForExactETH.selector

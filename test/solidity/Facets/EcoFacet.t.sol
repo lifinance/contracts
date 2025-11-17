@@ -22,7 +22,7 @@ contract EcoFacetTest is TestBaseFacet {
         0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
 
-    function setUp() public {
+    function setUp() public virtual override {
         customBlockNumberForForking = 35717845;
         customRpcUrlForForking = "ETH_NODE_URI_BASE";
         initTestBase();
@@ -48,7 +48,7 @@ contract EcoFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = ecoFacet.addAllowedContractSelector.selector;
 
-        addFacet(diamond, address(ecoFacet), functionSelectors);
+        addFacet(address(diamond), address(ecoFacet), functionSelectors);
         ecoFacet = TestEcoFacet(address(diamond));
         ecoFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,

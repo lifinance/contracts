@@ -18,7 +18,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
     ThorSwapFacet.ThorSwapData internal validThorSwapData;
     TestThorSwapFacet internal thorSwapFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 16661275;
         initTestBase();
 
@@ -30,18 +30,29 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[1] = thorSwapFacet
             .swapAndStartBridgeTokensViaThorSwap
             .selector;
-        functionSelectors[2] = thorSwapFacet.addAllowedContractSelector.selector;
+        functionSelectors[2] = thorSwapFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = thorSwapFacet
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(thorSwapFacet), functionSelectors);
+        addFacet(address(diamond), address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
-        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
-        
+        thorSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        thorSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        thorSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+
         setFacetAddressInTestBase(address(thorSwapFacet), "ThorSwapFacet");
 
         // adjust bridgeData

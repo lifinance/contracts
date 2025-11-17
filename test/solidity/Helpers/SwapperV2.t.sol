@@ -73,7 +73,7 @@ contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
 contract SwapperV2Test is TestBase {
     TestAMM internal amm;
     TestSwapperV2 internal swapper;
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         amm = new TestAMM();
@@ -90,11 +90,14 @@ contract SwapperV2Test is TestBase {
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(swapper), functionSelectors);
+        addFacet(address(diamond), address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addAllowedContractSelector(address(amm), amm.swap.selector);
-        swapper.addAllowedContractSelector(address(amm), amm.partialSwap.selector);
+        swapper.addAllowedContractSelector(
+            address(amm),
+            amm.partialSwap.selector
+        );
     }
 
     function test_SwapCleanup() public {

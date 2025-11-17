@@ -34,7 +34,7 @@ contract SquidFacetTest is TestBaseFacet {
     ISquidMulticall.Call internal sourceCall;
     TestSquidFacet internal squidFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 18810880;
         customBlockNumberForForking = 19664946;
         initTestBase();
@@ -50,12 +50,24 @@ contract SquidFacetTest is TestBaseFacet {
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(squidFacet), functionSelectors);
+        addFacet(address(diamond), address(squidFacet), functionSelectors);
         squidFacet = TestSquidFacet(address(diamond));
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForETH.selector);
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForETH.selector
+        );
 
         setFacetAddressInTestBase(address(squidFacet), "SquidFacet");
 

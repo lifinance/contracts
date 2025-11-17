@@ -27,7 +27,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 
     uint256 internal payableAmount = 1 ether;
 
-    function setUp() public virtual {
+    function setUp() public virtual override {
         initTestBase();
 
         srcToken = ERC20(addressSrcToken);
@@ -51,7 +51,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(glacisFacet), functionSelectors);
+        addFacet(address(diamond), address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
         glacisFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,

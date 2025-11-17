@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
-import { TestHelpers, MockUniswapDEX } from "../../../utils/TestHelpers.sol";
+import { MockUniswapDEX } from "../../../utils/TestHelpers.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -23,10 +23,7 @@ contract TestAcrossFacetV4 is AcrossFacetV4, TestWhitelistManagerBase {
 /// @author LI.FI (https://li.fi)
 /// @notice Integration tests for AcrossFacetV4 outputAmount calculation with mock DEX
 /// @custom:version 1.0.0
-contract AcrossFacetV4OutputAmountIntegrationTest is
-    TestBaseFacet,
-    TestHelpers
-{
+contract AcrossFacetV4OutputAmountIntegrationTest is TestBaseFacet {
     address internal constant SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
 
@@ -39,7 +36,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
     error InvalidQuoteTimestamp();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 22989702;
         initTestBase();
 
@@ -59,7 +56,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             .addAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(acrossFacetV4), functionSelectors);
+        addFacet(address(diamond), address(acrossFacetV4), functionSelectors);
         acrossFacetV4 = TestAcrossFacetV4(address(diamond));
 
         setFacetAddressInTestBase(address(acrossFacetV4), "AcrossFacetV4");

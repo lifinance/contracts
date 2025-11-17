@@ -54,7 +54,7 @@ contract MayanFacetTest is TestBaseFacet {
     error InvalidReceiver(address expected, address actual);
     error ProtocolDataTooShort();
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 19968172;
         initTestBase();
 
@@ -103,7 +103,11 @@ contract MayanFacetTest is TestBaseFacet {
             .removeAllowedContractSelector
             .selector;
 
-        addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(mayanBridgeFacet),
+            functionSelectors
+        );
         mayanBridgeFacet = TestMayanFacet(address(diamond));
         mayanBridgeFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,

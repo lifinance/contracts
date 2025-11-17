@@ -73,7 +73,7 @@ contract AcrossFacetPackedV4Test is TestBase {
 
     event LiFiAcrossTransfer(bytes8 _transactionId);
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 22993652;
 
         initTestBase();
@@ -123,7 +123,11 @@ contract AcrossFacetPackedV4Test is TestBase {
             .selector;
 
         // add facet to diamond
-        addFacet(diamond, address(acrossFacetPackedV4), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(acrossFacetPackedV4),
+            functionSelectors
+        );
         acrossFacetPackedV4 = AcrossFacetPackedV4(payable(address(diamond)));
 
         /// Prepare parameters

@@ -49,6 +49,32 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
+      "0x14cc46348EC4877d7a70e0f3e228aDa34af34DF2": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.3"
+      },
+      "0x371E073f6A09DCBEE1D2Ac56E940F878a0Ba9DAE": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
+      },
+      "0x2Af20933E5886aFe275c0EEE4A2e65daA4E8b169": {
+        "Name": "CelerIMFacetMutable",
+        "Version": ""
+      },
+      "0x380157643592725677F165b67642448CDCAeE026": {
+        "Name": "HopFacet",
+        "Version": "2.0.0"
+      },
+      "0xf82135385765f1324257ffF74489F16382EBBb8A": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
+      },
+      "0x5C3550CFA82803fC7342d55d8F806a2EdE675288": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.6"
+      },
+      "0x4C362E97dAcF097e0CA71309375a4C13932f6217": {
+        "Name": "HyphenFacet",
       "0xF8875Bee262eA56113257B4035ab545bef2C38b6": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
@@ -56,6 +82,62 @@
       "0x2A6DB28EEe8d006d4F0781b57af3B24603b65A70": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0xa137Fe4C41A2E04ca34578DC9023ad45cC194389": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
+      },
+      "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": "1.0.0"
+      },
+      "0x3cf7dE0e31e13C93c8Aada774ADF1C7eD58157f5": {
+        "Name": "RelayFacet",
+        "Version": "1.0.0"
+      },
+      "0x605Daee0FF23B5d678D47BF17037789115bF5750": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
+      },
+      "0x7A7dA456a99B5C8fef3D3E3c032a9F13949AdF07": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.1.0"
+      },
+      "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
+        "Name": "PioneerFacet",
+        "Version": "1.0.0"
+      },
+      "0xfEeCe7B3e68B9cBeADB60598973704a776ac3ca1": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
+      },
+      "0x91559A75bd9045681265C77922b3cAeDB3D5120d": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0xf536ed5A4310455FF39dBf90336e17d11550E7b4": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
+      },
+      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
+      },
+      "0x0f4D0D8890bAF9036D3895315559a6F0d573e2EC": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x59A1Bcaa32EdB1a233fEF945857529BBD6df247f": {
+        "Name": "MayanFacet",
+        "Version": "1.2.2"
+      },
+      "0xc4884225aeFe7218f9f489A5Eb8beB504ab272AA": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -75,4 +157,5 @@
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
+}
 }

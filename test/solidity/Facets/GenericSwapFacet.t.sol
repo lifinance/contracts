@@ -19,7 +19,7 @@ contract GenericSwapFacetTest is TestBase {
 
     TestGenericSwapFacet internal genericSwapFacet;
 
-    function setUp() public {
+    function setUp() public override {
         customBlockNumberForForking = 15588208;
         initTestBase();
 
@@ -28,12 +28,21 @@ contract GenericSwapFacetTest is TestBase {
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[1] = genericSwapFacet.addAllowedContractSelector.selector;
+        functionSelectors[1] = genericSwapFacet
+            .addAllowedContractSelector
+            .selector;
 
-        addFacet(diamond, address(genericSwapFacet), functionSelectors);
+        addFacet(
+            address(diamond),
+            address(genericSwapFacet),
+            functionSelectors
+        );
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
-        genericSwapFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
+        genericSwapFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
 
         // set facet address in TestBase
         setFacetAddressInTestBase(

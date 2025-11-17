@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
@@ -22,7 +21,7 @@ contract WithdrawablePeripheryTest is TestBase {
 
     error UnAuthorized();
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
 
         // deploy contract

@@ -27,7 +27,7 @@ contract FeeForwarderTest is TestBase {
         FeeForwarder.FeeDistribution[] distributions
     );
 
-    function setUp() public {
+    function setUp() public virtual override {
         // Initialize TestBase which sets up USER_SENDER, WITHDRAW_WALLET, etc.
         initTestBase();
 

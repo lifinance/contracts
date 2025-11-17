@@ -46,7 +46,7 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
             .setFunctionWhitelistBySelector
             .selector;
 
-        addFacet(diamond, address({{camelCase name}}Facet), functionSelectors);
+        addFacet(address(diamond), address({{camelCase name}}Facet), functionSelectors);
         {{camelCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
         {{camelCase name}}Facet.addToWhitelist(ADDRESS_UNISWAP);
         {{camelCase name}}Facet.setFunctionWhitelistBySelector(

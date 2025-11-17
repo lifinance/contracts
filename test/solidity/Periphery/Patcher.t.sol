@@ -225,7 +225,7 @@ contract PatcherTest is TestBase {
     uint256 internal privateKey = 0x1234567890;
     address internal relaySolver;
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
         patcher = new Patcher();
         valueSource = new MockValueSource();

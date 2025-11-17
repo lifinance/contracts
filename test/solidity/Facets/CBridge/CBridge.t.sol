@@ -69,7 +69,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         }
     }
 
-    function setUp() public {
+    function setUp() public override {
         initTestBase();
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
         bytes4[] memory functionSelectors = new bytes4[](4);
@@ -80,12 +80,21 @@ contract CBridgeFacetTest is TestBaseFacet {
         functionSelectors[2] = cBridge.addAllowedContractSelector.selector;
         functionSelectors[3] = cBridge.triggerRefund.selector;
 
-        addFacet(diamond, address(cBridge), functionSelectors);
+        addFacet(address(diamond), address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
         setFacetAddressInTestBase(address(cBridge), "cBridgeFacet");
     }
 
