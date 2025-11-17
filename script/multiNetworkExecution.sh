@@ -203,36 +203,6 @@ RUN_PARALLEL=true
 ZKEVM_ALWAYS_SEQUENTIAL=true
 
 # =============================================================================
-# NETWORK SELECTION CONFIGURATION
-# =============================================================================
-# Configure which networks to execute by modifying the NETWORKS array below
-# This is the main place to adjust your network list for multi-execution
-
-# Option 1: Use all included networks (default)
-# NETWORKS=($(getIncludedNetworksArray))
-
-# Option 2: Use specific networks (uncomment and modify as needed)
-# NETWORKS=("mainnet" "arbitrum" "base" "zksync" "blast" "hyperevm")
-  # NETWORKS=("arbitrum" "optimism" "base" "bsc" "linea" "scroll" "polygon" "blast" "mainnet" "worldchain")
-
-# Option 3: Use networks by EVM version (uncomment as needed)
-# NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))
-# NETWORKS=($(getIncludedNetworksByEvmVersionArray "cancun"))
-
-# Option 4: Use networks where contract is deployed (uncomment as needed)
-# NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
-
-# Option 5: Use whitelist filtering (uncomment and modify as needed)
-# NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "zksync")
-# NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "bsc" "blast" "ink" "linea" "lisk" "mode" "optimism" "polygon" "scroll" "soneium" "unichain" "worldchain" "zksync")
-
-# NETWORKS=($(getIncludedNetworksArray))
-# # Filter logic would go here
-
-# Foundry.toml backup file
-FOUNDRY_TOML_BACKUP="foundry.toml.backup"
-
-# =============================================================================
 # NETWORK SELECTION HELPER
 # =============================================================================
 
@@ -289,6 +259,24 @@ function getConfiguredNetworks() {
                     break
                 fi
             done
+        done
+        SELECTED_NETWORKS=("${FILTERED_NETWORKS[@]}")
+    fi
+
+    # Apply blacklist filtering if NETWORKS_BLACKLIST is defined and not empty
+    if [[ ${NETWORKS_BLACKLIST+x} && ${#NETWORKS_BLACKLIST[@]} -gt 0 ]]; then
+        local FILTERED_NETWORKS=()
+        for NETWORK in "${SELECTED_NETWORKS[@]}"; do
+            local IS_BLACKLISTED=false
+            for BLACKLISTED_NETWORK in "${NETWORKS_BLACKLIST[@]}"; do
+                if [[ "$NETWORK" == "$BLACKLISTED_NETWORK" ]]; then
+                    IS_BLACKLISTED=true
+                    break
+                fi
+            done
+            if [[ "$IS_BLACKLISTED" == "false" ]]; then
+                FILTERED_NETWORKS+=("$NETWORK")
+            fi
         done
         SELECTED_NETWORKS=("${FILTERED_NETWORKS[@]}")
     fi
