@@ -21,9 +21,9 @@
             "address": "0xa356867fdcea8e71aeaf87805808803806231fdc",
             "functions": {
               "0x54bacd13": "externalSwap(address,address,address,address,uint256,uint256,bytes,bool,uint256)",
-              "0xf87dc1b7": "",
-              "0x1e6d24c2": "",
-              "0x5028bb95": ""
+              "0xf87dc1b7": "dodoSwapV2TokenToToken(address,address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x1e6d24c2": "dodoSwapV2TokenToETH(address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x5028bb95": "dodoSwapV2ETHToToken(address,uint256,address[],uint256,bool,uint256)"
             }
           },
           {
@@ -57,9 +57,9 @@
             "address": "0xfd9d2827ad469b72b69329daa325ba7afbdb3c98",
             "functions": {
               "0x54bacd13": "externalSwap(address,address,address,address,uint256,uint256,bytes,bool,uint256)",
-              "0xf87dc1b7": "",
-              "0x1e6d24c2": "",
-              "0x5028bb95": ""
+              "0xf87dc1b7": "dodoSwapV2TokenToToken(address,address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x1e6d24c2": "dodoSwapV2TokenToETH(address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x5028bb95": "dodoSwapV2ETHToToken(address,uint256,address[],uint256,bool,uint256)"
             }
           },
           {
@@ -86,9 +86,9 @@
             "address": "0x8f8dd7db1bda5ed3da8c9daf3bfa471c12d58486",
             "functions": {
               "0x54bacd13": "externalSwap(address,address,address,address,uint256,uint256,bytes,bool,uint256)",
-              "0xf87dc1b7": "",
-              "0x1e6d24c2": "",
-              "0x5028bb95": ""
+              "0xf87dc1b7": "dodoSwapV2TokenToToken(address,address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x1e6d24c2": "dodoSwapV2TokenToETH(address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x5028bb95": "dodoSwapV2ETHToToken(address,uint256,address[],uint256,bool,uint256)"
             }
           },
           {
@@ -122,9 +122,9 @@
             "address": "0xa222e6a71d1a1dd5f279805fbe38d5329c1d0e70",
             "functions": {
               "0x54bacd13": "externalSwap(address,address,address,address,uint256,uint256,bytes,bool,uint256)",
-              "0xf87dc1b7": "",
-              "0x1e6d24c2": "",
-              "0x5028bb95": ""
+              "0xf87dc1b7": "dodoSwapV2TokenToToken(address,address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x1e6d24c2": "dodoSwapV2TokenToETH(address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x5028bb95": "dodoSwapV2ETHToToken(address,uint256,address[],uint256,bool,uint256)"
             }
           },
           {
@@ -152,9 +152,9 @@
             "address": "0x88cbf433471a0cd8240d2a12354362988b4593e5",
             "functions": {
               "0x54bacd13": "externalSwap(address,address,address,address,uint256,uint256,bytes,bool,uint256)",
-              "0xf87dc1b7": "",
-              "0x1e6d24c2": "",
-              "0x5028bb95": ""
+              "0xf87dc1b7": "dodoSwapV2TokenToToken(address,address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x1e6d24c2": "dodoSwapV2TokenToETH(address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x5028bb95": "dodoSwapV2ETHToToken(address,uint256,address[],uint256,bool,uint256)"
             }
           },
           {
@@ -187,9 +187,9 @@
             "address": "0x2cd18557e14af72daa8090bcaa95b231ffc9ea26",
             "functions": {
               "0x54bacd13": "externalSwap(address,address,address,address,uint256,uint256,bytes,bool,uint256)",
-              "0xf87dc1b7": "",
-              "0x1e6d24c2": "",
-              "0x5028bb95": ""
+              "0xf87dc1b7": "dodoSwapV2TokenToToken(address,address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x1e6d24c2": "dodoSwapV2TokenToETH(address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x5028bb95": "dodoSwapV2ETHToToken(address,uint256,address[],uint256,bool,uint256)"
             }
           },
           {
@@ -217,9 +217,9 @@
             "address": "0xd9dec7c3c06e62a4c1beeb07cadf568f496b14c2",
             "functions": {
               "0x54bacd13": "externalSwap(address,address,address,address,uint256,uint256,bytes,bool,uint256)",
-              "0xf87dc1b7": "",
-              "0x1e6d24c2": "",
-              "0x5028bb95": ""
+              "0xf87dc1b7": "dodoSwapV2TokenToToken(address,address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x1e6d24c2": "dodoSwapV2TokenToETH(address,uint256,uint256,address[],uint256,bool,uint256)",
+              "0x5028bb95": "dodoSwapV2ETHToToken(address,uint256,address[],uint256,bool,uint256)"
             }
           },
           {
@@ -4098,7 +4098,7 @@
           }
         ]
       }
-    },    
+    },
     {
       "name": "CoreWriter",
       "key": "corewriter",
@@ -4110,38 +4110,6 @@
             "address": "0xb4580138102bda0c7e8c9a05529ba5f70cdf1e93",
             "functions": {
               "0xb4c95169": "targetBridge(uint256,address,address,(uint256,address,bytes),(uint32,bool,bool,uint8),bytes)"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "Kuru",
-      "key": "kuru",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/kuru.svg",
-      "webUrl": "https://www.kuru.io/",
-      "contracts": {
-        "monad": [
-          {
-            "address": "0xb3e6778480b2e488385e8205ea05e20060b813cb",
-            "functions": {
-              "0xce1e7030": "executeSwap((address,uint256,address,uint256),(address,uint256,address,uint256,bool),bytes)"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "Monorail",
-      "key": "monorail",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/monorail.svg",
-      "webUrl": "https://testnet-preview.monorail.xyz/",
-      "contracts": {
-        "monad": [
-          {
-            "address": "0xa68a7f0601effdc65c64d9c47ca1b18d96b4352c",
-            "functions": {
-              "0xf99cae99": "aggregate(address,address,uint256,uint256,address,uint256,uint64,uint64,(uint256,uint32,uint8,address,address,address,bytes)[])"
             }
           }
         ]

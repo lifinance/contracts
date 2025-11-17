@@ -35,23 +35,25 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(loupeSelectors, diamondLoupeAddress);
             vm.startBroadcast(deployerPrivateKey);
             if (cut.length > 0) {
-                // Prepare full diamondCut calldata and log for debugging purposes
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(0),
-                    ""
-                );
-
-                emit log("DiamondCutCalldata: ");
-                emit log_bytes(cutData);
-
                 cutter.diamondCut(cut, address(0), "");
             }
             vm.stopBroadcast();
 
             // Reset diamond cut variable to remove diamondLoupe information
             delete cut;
+        }
+
+        // Prepare full diamondCut calldata and log for debugging purposes
+        if (cut.length > 0) {
+            cutData = abi.encodeWithSelector(
+                DiamondCutFacet.diamondCut.selector,
+                cut,
+                address(0),
+                ""
+            );
+
+            emit log("DiamondCutCalldata: ");
+            emit log_bytes(cutData);
         }
 
         if (noBroadcast) {
