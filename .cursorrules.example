@@ -69,7 +69,7 @@
 
 [style, licensing, docs]
 
-- SPDX first line `LGPL-3.0-only`, blank line, then pragma (per `foundry.toml`).
+- SPDX first line `LGPL-3.0-only`, immediately followed by pragma (no blank line).
 - NatSpec required order on contracts/interfaces with `@custom:version X.Y.Z`.
 - Naming: interfaces `I*`; funcs/vars camelCase; constants/immutables CONSTANT*CASE; params prefixed `*`.
 - Follow blank-line rules inside/outside functions and tests.
