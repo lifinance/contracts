@@ -2,7 +2,7 @@
 
 [CONV:LICENSE]
 
-- Our own files: `// SPDX-License-Identifier: LGPL-3.0-only` (then blank line, then pragma).
+- Our own files: `// SPDX-License-Identifier: LGPL-3.0-only` immediately followed by the pragma statement with no blank line in between.
 
 - External copies retain original license + source note.
 

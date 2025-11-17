@@ -20,7 +20,7 @@
 
 [CONV:EVENTS]
 
-- `LiFiTransferStarted`: emit in Facets at start (before external calls).
+- `LiFiTransferStarted`: must be emitted at the end of the internal `_startBridge` function, after all validations and external bridge calls have completed successfully.
 
 - `LiFiTransferCompleted`: only in Executor.
 
