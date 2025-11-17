@@ -4,26 +4,17 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
-import { MigrateWhitelistManager } from "./utils/MigrateWhitelistManager.sol";
 import { JSONParserLib } from "solady/utils/JSONParserLib.sol";
 import { LibSort } from "solady/utils/LibSort.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    address public migrateContract;
-
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        // Deploy the migration contract
-        vm.startBroadcast(deployerPrivateKey);
-        migrateContract = address(new MigrateWhitelistManager());
-        vm.stopBroadcast();
-
-        // Use the overloaded update function with the migration contract address
-        return update("WhitelistManagerFacet", migrateContract);
+        return update("WhitelistManagerFacet");
     }
 
     function getExcludes() internal pure override returns (bytes4[] memory) {
@@ -94,33 +85,6 @@ contract DeployScript is UpdateScriptBase {
     function getCallData() internal override returns (bytes memory) {
         // vm.pauseGasMetering();
         // --- 1. Read Selectors to Remove ---
-        bytes4[] memory selectorsToRemove = _readSelectorsToRemove();
-
-        // --- 2. Read Whitelist JSON ---
-        string memory whitelistJson = _readWhitelistJson();
-
-        // --- 3. Parse Whitelist ---
-        (
-            address[] memory contracts,
-            bytes4[][] memory selectors
-        ) = _parseWhitelistJson(whitelistJson);
-
-        // --- 4. Read deployerWallet from global.json ---
-        address deployerWallet = _readDeployerWallet();
-
-        // --- 5. ABI-Encode Call Data ---
-        bytes memory callData = abi.encodeWithSelector(
-            WhitelistManagerFacet.migrate.selector,
-            selectorsToRemove,
-            contracts,
-            selectors,
-            deployerWallet
-        );
-        vm.resumeGasMetering();
-        return callData;
-    }
-
-    function _readSelectorsToRemove() internal view returns (bytes4[] memory) {
         string memory selectorsToRemovePath = string.concat(
             root,
             "/config/functionSelectorsToRemove.json"
@@ -155,10 +119,8 @@ contract DeployScript is UpdateScriptBase {
                 vm.parseBytes(rawSelectorsToRemove[i])
             );
         }
-        return selectorsToRemove;
-    }
 
-    function _readWhitelistJson() internal view returns (string memory) {
+        // --- 2. Read Whitelist JSON ---
         string memory whitelistJson;
         string memory fallbackPath = string.concat(
             root,
@@ -180,28 +142,22 @@ contract DeployScript is UpdateScriptBase {
                 whitelistJson = vm.readFile(fallbackPath);
             }
         }
-        return whitelistJson;
-    }
 
-    function _readDeployerWallet() internal view returns (address) {
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
+        // --- 3. Parse Whitelist ---
+        (
+            address[] memory contracts,
+            bytes4[][] memory selectors
+        ) = _parseWhitelistJson(whitelistJson);
+
+        // --- 4. ABI-Encode Call Data ---
+        bytes memory callData = abi.encodeWithSelector(
+            WhitelistManagerFacet.migrate.selector,
+            selectorsToRemove,
+            contracts,
+            selectors
         );
         // vm.resumeGasMetering();
-        string memory globalConfigJson = vm.readFile(globalConfigPath);
-        JSONParserLib.Item memory globalRoot = JSONParserLib.parse(
-            globalConfigJson
-        );
-        // prettier-ignore
-        JSONParserLib.Item memory deployerWalletItem = JSONParserLib.at(
-            globalRoot,
-            "\"deployerWallet\""
-        );
-        string memory deployerWalletStr = JSONParserLib.decodeString(
-            JSONParserLib.value(deployerWalletItem)
-        );
-        return vm.parseAddress(deployerWalletStr);
+        return callData;
     }
 
     /// @notice Orchestrates the parsing of the entire whitelist JSON.

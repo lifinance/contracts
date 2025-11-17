@@ -57,18 +57,6 @@ contract UpdateScriptBase is ScriptBase {
         returns (address[] memory facets, bytes memory cutData)
     {
         address facet = json.readAddress(string.concat(".", name));
-        return update(name, facet);
-    }
-
-    function update(
-        string memory name,
-        address updater
-    )
-        internal
-        virtual
-        returns (address[] memory facets, bytes memory cutData)
-    {
-        address facet = json.readAddress(string.concat(".", name));
 
         bytes4[] memory excludes = getExcludes();
         bytes memory callData = getCallData();
@@ -80,7 +68,7 @@ contract UpdateScriptBase is ScriptBase {
                 cutData = abi.encodeWithSelector(
                     DiamondCutFacet.diamondCut.selector,
                     cut,
-                    callData.length > 0 ? updater : address(0),
+                    callData.length > 0 ? facet : address(0),
                     callData
                 );
             }
@@ -92,7 +80,7 @@ contract UpdateScriptBase is ScriptBase {
         if (cut.length > 0) {
             cutter.diamondCut(
                 cut,
-                callData.length > 0 ? updater : address(0),
+                callData.length > 0 ? facet : address(0),
                 callData
             );
         }
