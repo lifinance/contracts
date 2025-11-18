@@ -2,24 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ArbitrumBridgeFacet } from "lifi/Facets/ArbitrumBridgeFacet.sol";
 import { IGatewayRouter } from "lifi/Interfaces/IGatewayRouter.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ArbitrumBridgeFacet Contract
-contract TestArbitrumBridgeFacet is ArbitrumBridgeFacet {
+contract TestArbitrumBridgeFacet is
+    ArbitrumBridgeFacet,
+    TestWhitelistManagerBase
+{
     constructor(
         IGatewayRouter _gatewayRouter,
         IGatewayRouter _inbox
     ) ArbitrumBridgeFacet(_gatewayRouter, _inbox) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract ArbitrumBridgeFacetTest is TestBaseFacet {
@@ -45,30 +40,31 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             IGatewayRouter(INBOX)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = arbitrumBridgeFacet
             .startBridgeTokensViaArbitrumBridge
             .selector;
         functionSelectors[1] = arbitrumBridgeFacet
             .swapAndStartBridgeTokensViaArbitrumBridge
             .selector;
-        functionSelectors[2] = arbitrumBridgeFacet.addDex.selector;
-        functionSelectors[3] = arbitrumBridgeFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = arbitrumBridgeFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
 
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
-        arbitrumBridgeFacet.addDex(address(uniswap));
-        arbitrumBridgeFacet.setFunctionApprovalBySignature(
+        arbitrumBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        arbitrumBridgeFacet.setFunctionApprovalBySignature(
+        arbitrumBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        arbitrumBridgeFacet.setFunctionApprovalBySignature(
+        arbitrumBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 

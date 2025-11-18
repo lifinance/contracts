@@ -3,11 +3,12 @@ pragma solidity ^0.8.17;
 
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
+import { LibSwap, TestBase } from "../utils/TestBase.sol";
 import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub SwapperV2 Contract
-contract TestSwapperV2 is SwapperV2 {
+contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
     function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
         _depositAndSwap(
             "",
@@ -67,14 +68,6 @@ contract TestSwapperV2 is SwapperV2 {
             finalAsset.transfer(address(1337), finalBalance);
         }
     }
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract SwapperV2Test is TestBase {
@@ -90,18 +83,20 @@ contract SwapperV2Test is TestBase {
         functionSelectors[0] = TestSwapperV2.doSwaps.selector;
         functionSelectors[1] = TestSwapperV2.doSwapsWithLowSlippage.selector;
         functionSelectors[2] = TestSwapperV2.doSwapsWithReserve.selector;
-        functionSelectors[3] = TestSwapperV2.addDex.selector;
-        functionSelectors[4] = TestSwapperV2
-            .setFunctionApprovalBySignature
+        functionSelectors[3] = TestWhitelistManagerBase
+            .addAllowedContractSelector
+            .selector;
+        functionSelectors[4] = TestWhitelistManagerBase
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
-        swapper.addDex(address(amm));
-        swapper.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
-        swapper.setFunctionApprovalBySignature(
-            bytes4(amm.partialSwap.selector)
+        swapper.addAllowedContractSelector(address(amm), amm.swap.selector);
+        swapper.addAllowedContractSelector(
+            address(amm),
+            amm.partialSwap.selector
         );
     }
 

@@ -2,22 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "src/Libraries/LibAllowList.sol";
 import { ILiFi } from "src/Interfaces/ILiFi.sol";
 import { GardenFacet } from "src/Facets/GardenFacet.sol";
 import { InvalidConfig, InvalidReceiver } from "src/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GardenFacet Contract
-contract TestGardenFacet is GardenFacet {
+contract TestGardenFacet is GardenFacet, TestWhitelistManagerBase {
     constructor(address _htlcRegistry) GardenFacet(_htlcRegistry) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract GardenFacetTest is TestBaseFacet {
@@ -47,28 +39,27 @@ contract GardenFacetTest is TestBaseFacet {
         initTestBase();
 
         gardenFacet = new TestGardenFacet(HTLC_REGISTRY);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = gardenFacet.startBridgeTokensViaGarden.selector;
         functionSelectors[1] = gardenFacet
             .swapAndStartBridgeTokensViaGarden
             .selector;
-        functionSelectors[2] = gardenFacet.addDex.selector;
-        functionSelectors[3] = gardenFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[2] = gardenFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(gardenFacet), functionSelectors);
 
         gardenFacet = TestGardenFacet(address(diamond));
 
-        gardenFacet.addDex(address(uniswap));
-        gardenFacet.setFunctionApprovalBySignature(
+        gardenFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        gardenFacet.setFunctionApprovalBySignature(
+        gardenFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        gardenFacet.setFunctionApprovalBySignature(
+        gardenFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(gardenFacet), "GardenFacet");
