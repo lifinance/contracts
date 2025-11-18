@@ -100,9 +100,8 @@ contract PolymerCCTPFacet is
     function initPolymerCCTP() external virtual {
         LibDiamond.enforceIsContractOwner();
 
-        // TODO - confirm during audit that:
-        // 1.) We can just do a one-time max approve instead of doing an as-needed approve within the startBridge method.
-        // 2.) We don't need to safeApprove and can just use approve since we're only ever transferring usdc
+        // approve max allowance to TokenMessenger
+        // since this facet only supports one token: USDC, we can safely use approve instead of safeApprove
         IERC20(USDC).approve(address(TOKEN_MESSENGER), type(uint256).max);
     }
 

@@ -19,11 +19,6 @@
     "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
-  "bsc": {
-    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
-    "usdc": "",
-    "polymerFeeReceiver": ""
-  },
   "hyperevm": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
