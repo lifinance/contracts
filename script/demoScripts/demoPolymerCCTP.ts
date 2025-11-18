@@ -4,8 +4,6 @@ import { consola } from 'consola'
 import { config } from 'dotenv'
 import { BigNumber, constants, utils } from 'ethers'
 
-import deploymentsARB from '../../deployments/arbitrum.staging.json'
-import deploymentsOPT from '../../deployments/optimism.staging.json'
 import {
   type ILiFi,
   type PolymerCCTPFacet,
@@ -16,10 +14,12 @@ import {
   ADDRESS_DEV_WALLET_SOLANA_BYTES32,
   ADDRESS_USDC_ARB,
   ADDRESS_USDC_OPT,
+  ADDRESS_USDC_SOL,
   DEV_WALLET_ADDRESS,
   ensureBalanceAndAllowanceToDiamond,
   getProvider,
   getWalletFromPrivateKeyInDotEnv,
+  logBridgeDataStruct,
   sendTransaction,
 } from './utils/demoScriptHelpers'
 
@@ -28,33 +28,35 @@ config()
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
 const BRIDGE_TO_SOLANA = false // Set BRIDGE_TO_SOLANA=true to bridge to Solana
 const SEND_TX = false // Set to false to dry-run without sending transaction
-const USE_FAST_MODE = false // Set to true for fast route (1000), false for standard route (2000)
+const USE_FAST_MODE = true // Set to true for fast route (1000), false for standard route (2000)
 
 // Polymer API configuration
-// TODO: update to mainnet API URL once available
-const POLYMER_API_URL = 'https://lifi.devnet.polymer.zone'
+// const POLYMER_API_URL = 'https://lifi.devnet.polymer.zone' // testnet API URL
+const POLYMER_API_URL = 'https://lifi.shadownet.polymer.zone' // mainnet API URL
 
 // Source chain: 'arbitrum' or 'optimism'
 const SRC_CHAIN = 'optimism' as 'arbitrum' | 'optimism'
+// const DIAMOND_ADDRESS_SRC =
+//   SRC_CHAIN === 'arbitrum'
+//     ? deploymentsARB.LiFiDiamond
+//     : deploymentsOPT.LiFiDiamond
+
+// these are test deployments by Polymer team
+const LIFI_DIAMOND_ADDRESS_ARB = '0xD99A49304227d3fE2c27A1F12Ef66A95b95837b6'
+const LIFI_DIAMOND_ADDRESS_OPT = '0x36d7A6e0B2FE968a9558C5AaF5713aC2DAc0DbFc'
 const DIAMOND_ADDRESS_SRC =
-  SRC_CHAIN === 'arbitrum'
-    ? deploymentsARB.LiFiDiamond
-    : deploymentsOPT.LiFiDiamond
+  SRC_CHAIN === 'arbitrum' ? LIFI_DIAMOND_ADDRESS_ARB : LIFI_DIAMOND_ADDRESS_OPT
 
 // Destination chain ID
 const LIFI_CHAIN_ID_SOLANA = 1151111081099710
-// Testnet chain IDs (for devnet API)
-// TODO: update to mainnet values once supported by API
-const LIFI_CHAIN_ID_ARBITRUM_SEPOLIA = 421614
-const LIFI_CHAIN_ID_OPTIMISM_SEPOLIA = 11155420
+// Mainnet chain IDs
+const LIFI_CHAIN_ID_ARBITRUM = 42161
+const LIFI_CHAIN_ID_OPTIMISM = 10
 const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 
 // For EVM destinations, use Arbitrum if source is Optimism, and vice versa
-// Using testnet chain IDs for devnet API
 const DST_CHAIN_ID_EVM =
-  SRC_CHAIN === 'arbitrum'
-    ? LIFI_CHAIN_ID_OPTIMISM_SEPOLIA
-    : LIFI_CHAIN_ID_ARBITRUM_SEPOLIA // Optimism Sepolia or Arbitrum Sepolia
+  SRC_CHAIN === 'arbitrum' ? LIFI_CHAIN_ID_OPTIMISM : LIFI_CHAIN_ID_ARBITRUM // Optimism or Arbitrum
 const DST_CHAIN_ID = BRIDGE_TO_SOLANA ? LIFI_CHAIN_ID_SOLANA : DST_CHAIN_ID_EVM
 
 // Token addresses
@@ -212,16 +214,13 @@ async function main() {
   // Display route details
   consola.info('\n🌉 BRIDGE ROUTE DETAILS:')
   const sourceChainId =
-    SRC_CHAIN === 'arbitrum'
-      ? LIFI_CHAIN_ID_ARBITRUM_SEPOLIA
-      : LIFI_CHAIN_ID_OPTIMISM_SEPOLIA
-  const sourceChainName =
-    SRC_CHAIN === 'arbitrum' ? 'Arbitrum Sepolia' : 'Optimism Sepolia'
+    SRC_CHAIN === 'arbitrum' ? LIFI_CHAIN_ID_ARBITRUM : LIFI_CHAIN_ID_OPTIMISM
+  const sourceChainName = SRC_CHAIN === 'arbitrum' ? 'Arbitrum' : 'Optimism'
   const destChainName = BRIDGE_TO_SOLANA
     ? 'Solana'
     : SRC_CHAIN === 'arbitrum'
-    ? 'Optimism Sepolia'
-    : 'Arbitrum Sepolia'
+    ? 'Optimism'
+    : 'Arbitrum'
   consola.info(
     `📤 Source Chain: ${sourceChainName} (Chain ID: ${sourceChainId})`
   )
@@ -241,10 +240,7 @@ async function main() {
   consola.info('')
 
   // Get quote from Polymer API
-  // Using testnet chain IDs for devnet API
   // For Solana, use LiFi chain ID directly (Polymer API may use LiFi chain IDs for non-EVM chains)
-  // Note: Solana support may be limited in devnet - if you get "not supported by CCTP" error,
-  // Solana might not be available in the devnet API yet
   const destinationChainIdPolymer = BRIDGE_TO_SOLANA
     ? LIFI_CHAIN_ID_SOLANA
     : DST_CHAIN_ID
@@ -253,7 +249,7 @@ async function main() {
     sourceChainId,
     destinationChainIdPolymer,
     sendingAssetId,
-    sendingAssetId, // Same token (USDC) on both sides
+    BRIDGE_TO_SOLANA ? ADDRESS_USDC_SOL : sendingAssetId, // Use Solana USDC (base58) for Solana destinations, otherwise same token
     fromAmount,
     receiverAddress
   )
@@ -279,8 +275,9 @@ async function main() {
   // Note: The facet transfers minAmount from user, then deducts polymerTokenFee before bridging
   // So if minAmount = fromAmount, the bridged amount will be fromAmount - polymerTokenFee
   // User must approve minAmount (which equals fromAmount in this case)
+  const transactionId = utils.randomBytes(32)
   const bridgeData: ILiFi.BridgeDataStruct = {
-    transactionId: utils.randomBytes(32),
+    transactionId,
     bridge: 'polymercctp',
     integrator: 'demoScript',
     referrer: constants.AddressZero,
@@ -291,14 +288,8 @@ async function main() {
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
-  consola.info('📋 bridgeData prepared')
-  consola.info(
-    `  minAmount: ${fromAmount} (bridged amount will be ${BigNumber.from(
-      fromAmount
-    )
-      .sub(BigNumber.from(polymerTokenFee))
-      .toString()})`
-  )
+  consola.info('')
+  logBridgeDataStruct(bridgeData, consola.info)
 
   // Prepare PolymerCCTP data
   const polymerData: PolymerCCTPFacet.PolymerCCTPDataStruct = {
@@ -309,13 +300,11 @@ async function main() {
       : constants.HashZero,
     minFinalityThreshold,
   }
-  consola.info('📋 polymerData prepared')
-  consola.info(`  polymerTokenFee: ${polymerTokenFee}`)
-  consola.info(
-    `  minFinalityThreshold: ${minFinalityThreshold} (${
-      USE_FAST_MODE ? 'fast' : 'standard'
-    } path)`
-  )
+  consola.info('📋 polymerData prepared:')
+  consola.info(`  polymerTokenFee: ${polymerData.polymerTokenFee}`)
+  consola.info(`  maxCCTPFee: ${polymerData.maxCCTPFee}`)
+  consola.info(`  nonEVMReceiver: ${polymerData.nonEVMReceiver}`)
+  consola.info(`  minFinalityThreshold: ${polymerData.minFinalityThreshold}`)
 
   // Ensure balance and allowance
   // Contract transfers minAmount, so user must approve minAmount (fromAmount)
