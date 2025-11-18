@@ -38584,6 +38584,17 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.5": [
+          {
+            "ADDRESS": "0x904309A3a1000CA0521f49d6170a4347eB5d250d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-12 15:22:30",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       },
       "staging": {
@@ -42723,6 +42734,35 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
+      },
+    "xlayer": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     }
   },
@@ -45756,4 +45796,5 @@
       }
     }
   }
+}
 }

@@ -40,7 +40,16 @@ deployAndStoreCREATE3Factory() {
   echo "Trying to deploy CREATE3Factory now"
   echo ""
   local PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
-	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" -vvvv --json --legacy --broadcast --gas-limit 2000000)
+
+  # Set gas estimate multiplier (default to 200 if not set in .env)
+  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
+    GAS_ESTIMATE_MULTIPLIER=200
+  fi
+
+  # Add skip simulation flag based on environment variable
+  SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
+
+	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" -vvv --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" 2>&1)
   echo ""
   echo "RAW_RETURN_DATA: $RAW_RETURN_DATA"
   echo ""
