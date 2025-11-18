@@ -17,13 +17,13 @@ interface IEverclearFeeAdapter {
      * @param receiver The address of the intent receiver
      * @param inputAsset The address of the intent asset on origin
      * @param outputAsset The address of the intent asset on destination
-     * @param amountOutMin The minimum amount out
      * @param origin The origin chain of the intent
-     * @param destinations The possible destination chains of the intent
      * @param nonce The nonce of the intent
      * @param timestamp The timestamp of the intent
      * @param ttl The time to live of the intent
      * @param amount The amount of the intent asset normalized to 18 decimals
+     * @param amountOutMin The minimum amount out
+     * @param destinations The possible destination chains of the intent
      * @param data The data of the intent
      */
     struct Intent {
@@ -31,12 +31,12 @@ interface IEverclearFeeAdapter {
         bytes32 receiver;
         bytes32 inputAsset;
         bytes32 outputAsset;
-        uint256 amountOutMin;
         uint32 origin;
         uint64 nonce;
         uint48 timestamp;
         uint48 ttl;
         uint256 amount;
+        uint256 amountOutMin;
         uint32[] destinations;
         bytes data;
     }
