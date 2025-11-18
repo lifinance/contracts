@@ -40,10 +40,6 @@ contract PolymerCCTPFacet is
         uint32 minFinalityThreshold;
     }
 
-    /// Errors ///
-
-    error InvalidSendingAsset(address actual, address expected);
-
     /// Events ///
 
     event PolymerCCTPFeeSent(
