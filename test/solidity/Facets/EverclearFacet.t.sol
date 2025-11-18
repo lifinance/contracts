@@ -66,6 +66,56 @@ contract EverclearFacetTest is TestBaseFacet {
         }
     }
 
+    /// @dev Creates a signature for the Everclear V2 FeeAdapter
+    /// The FeeAdapter expects: keccak256(abi.encode(_dataHash, address(this), block.chainid))
+    /// where _dataHash includes the intent parameters
+    function createEverclearV2Signature(
+        uint256 nativeFee,
+        uint32[] memory destinations,
+        bytes32 receiver,
+        address inputAsset,
+        bytes32 outputAsset,
+        uint256 amount,
+        uint256 amountOutMin,
+        uint48 ttl,
+        bytes memory data,
+        uint256 tokenFee,
+        uint256 deadline,
+        uint256 privateKey
+    ) internal view returns (bytes memory) {
+        // Step 1: Create the data hash (same as FeeAdapter's _sigData)
+        bytes32 dataHash = keccak256(
+            abi.encode(
+                nativeFee,
+                destinations,
+                receiver,
+                inputAsset,
+                outputAsset,
+                amount,
+                amountOutMin,
+                ttl,
+                data,
+                tokenFee,
+                deadline
+            )
+        );
+
+        // Step 2: Wrap with FeeAdapter address and chainid (same as FeeAdapter's _hash)
+        bytes32 hash = keccak256(
+            abi.encode(dataHash, address(FEE_ADAPTER), block.chainid)
+        );
+
+        // Step 3: Wrap with Eth signed message prefix
+        bytes32 ethSignedMessageHash = toEthSignedMessageHash(hash);
+
+        // Step 4: Sign
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
+    }
+
     function setUp() public {
         customBlockNumberForForking = 23782028;
         initTestBase();
@@ -115,19 +165,25 @@ contract EverclearFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = usdCAmountToSend + fee;
 
-        // 3. Hash the data that needs to be signed
-        // The FeeAdapter signs: abi.encode(_tokenFee, _nativeFee, _inputAsset, _deadline)
-        bytes32 messageHash = keccak256(
-            abi.encode(fee, 0, bridgeData.sendingAssetId, deadline)
-        );
-        bytes32 ethSignedMessageHash = toEthSignedMessageHash(messageHash);
+        // Create destinations array
+        uint32[] memory destinations = new uint32[](1);
+        destinations[0] = uint32(bridgeData.destinationChainId);
 
-        // 4. Sign the hash
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            signerPrivateKey,
-            ethSignedMessageHash
+        // Generate signature for V2 FeeAdapter
+        bytes memory signature = createEverclearV2Signature(
+            0, // nativeFee
+            destinations,
+            bytes32(uint256(uint160(USER_RECEIVER))), // receiver
+            ADDRESS_USDC, // inputAsset
+            bytes32(uint256(uint160(ADDRESS_USDC_BASE))), // outputAsset
+            usdCAmountToSend, // amount
+            0, // amountOutMin
+            0, // ttl
+            "", // data
+            fee, // tokenFee
+            deadline,
+            signerPrivateKey
         );
-        bytes memory signature = abi.encodePacked(r, s, v);
 
         // produce valid EverclearData
         validEverclearData = EverclearFacet.EverclearData({
@@ -141,6 +197,8 @@ contract EverclearFacetTest is TestBaseFacet {
             deadline: deadline,
             sig: signature
         });
+
+        vm.label(address(FEE_ADAPTER), "FEE ADAPTER");
     }
 
     function testBase_CanBridgeNativeTokens() public override {
@@ -598,17 +656,25 @@ contract EverclearFacetTest is TestBaseFacet {
         uint256 nativeFee = 0.01 ether;
         uint256 deadline = block.timestamp + 10000;
 
-        // Create signature with native fee
-        bytes32 messageHash = keccak256(
-            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
-        );
-        bytes32 ethSignedMessageHash = toEthSignedMessageHash(messageHash);
+        // Create destinations array
+        uint32[] memory destinations = new uint32[](1);
+        destinations[0] = uint32(bridgeData.destinationChainId);
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            signerPrivateKey,
-            ethSignedMessageHash
+        // Generate signature for V2 FeeAdapter with native fee
+        bytes memory signature = createEverclearV2Signature(
+            nativeFee,
+            destinations,
+            bytes32(uint256(uint160(USER_RECEIVER))),
+            ADDRESS_USDC,
+            bytes32(uint256(uint160(ADDRESS_USDC_BASE))),
+            usdCAmountToSend,
+            0, // amountOutMin
+            0, // ttl
+            "",
+            fee,
+            deadline,
+            signerPrivateKey
         );
-        bytes memory signature = abi.encodePacked(r, s, v);
 
         // Update everclear data with native fee
         EverclearFacet.EverclearData
