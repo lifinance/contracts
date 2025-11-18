@@ -114,9 +114,7 @@ contract PolymerCCTPFacet is
         PolymerCCTPData calldata _polymerData
     )
         external
-        payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         validatePolymerData(_bridgeData, _polymerData)
         onlyAllowSourceToken(_bridgeData, USDC)
         doesNotContainSourceSwaps(_bridgeData)
