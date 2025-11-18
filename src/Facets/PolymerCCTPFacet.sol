@@ -146,9 +146,10 @@ contract PolymerCCTPFacet is
         payable
         nonReentrant
         refundExcessNative(payable(msg.sender))
+        validatePolymerData(_bridgeData, _polymerData)
+        onlyAllowSourceToken(_bridgeData, USDC)
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        validatePolymerData(_bridgeData, _polymerData)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
