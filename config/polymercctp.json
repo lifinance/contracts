@@ -1,4 +1,5 @@
 {
+  "Note: Networks with missing polymerFeeReceiver are not supported by Polymer yet and will be added later": {},
   "mainnet": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
