@@ -6,7 +6,6 @@ The Everclear Facet enables cross-chain token bridging through the Everclear pro
 
 Everclear uses an intent-based architecture where users create intents that specify their desired cross-chain transfers. These intents are then matched and settled through a netting mechanism that optimizes liquidity across chains. The protocol supports both EVM and non-EVM destination chains.
 
-
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->EverclearFacet;
@@ -27,32 +26,43 @@ The methods listed above take a variable labeled `_everclearData`. This data is 
 
 ```solidity
 /// @param receiverAddress The address of the receiver (bytes32 for non-EVM chains)
+/// @param nativeFee The native fee amount (in native tokens, e.g., ETH)
 /// @param outputAsset The address of the output asset on destination chain (bytes32 format)
-/// @param maxFee The maximum fee that can be taken by solvers (in basis points)
+/// @param amountOutMin The minimum amount out on destination chain
 /// @param ttl The time to live for the intent (in seconds)
 /// @param data Additional data for the intent (typically empty)
 /// @param fee The protocol fee amount (in input token units)
 /// @param deadline The deadline timestamp for the fee signature
 /// @param sig The signature from the fee signer authorizing the fee
 struct EverclearData {
-    bytes32 receiverAddress;
-    bytes32 outputAsset;
-    uint24 maxFee;
-    uint48 ttl;
-    bytes data;
-    uint256 fee;
-    uint256 deadline;
-    bytes sig;
+  bytes32 receiverAddress;
+  uint256 nativeFee;
+  bytes32 outputAsset;
+  uint256 amountOutMin;
+  uint48 ttl;
+  bytes data;
+  uint256 fee;
+  uint256 deadline;
+  bytes sig;
 }
 ```
 
 ### Fee Structure
 
 The Everclear protocol uses a signed fee mechanism where:
+
 - The `fee` is deducted from the bridge amount and collected separately
-- The `sig` parameter contains an EIP-191 signature of `abi.encode(fee, 0, inputAsset, deadline)`
+- The `nativeFee` (if non-zero) must be sent as msg.value and is used for cross-chain messaging costs
+- The `sig` parameter contains an EIP-191 signature of `abi.encode(fee, nativeFee, inputAsset, deadline, msg.sender)`
+- **V2 Change**: The signature now includes `msg.sender` (the diamond address) in the signed data for enhanced security
 - The signature must be created by the authorized fee signer in the EverclearFeeAdapter
 - The `deadline` must be greater than or equal to the current block timestamp
+
+### V2 Changes
+
+- **Parameter Change**: `maxFee` (uint24) has been replaced with `amountOutMin` (uint256)
+- **Native Fee Support**: Added `nativeFee` parameter for cross-chain messaging costs
+- **Signature Validation**: Signatures now include `msg.sender` in the signed data
 
 ### Chain Support
 
@@ -68,7 +78,6 @@ The facet will revert with specific errors in the following cases:
 - `InvalidNonEVMReceiver()`: Non-EVM bridging with `receiverAddress` as bytes32(0)
 - `InvalidReceiver()`: EVM bridging where `bridgeData.receiver` doesn't match `everclearData.receiverAddress`
 - Standard LiFi validation errors for invalid bridge data
-
 
 ## Swap Data
 

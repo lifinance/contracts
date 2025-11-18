@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 /// @title Interface for Everclear Fee Adapter
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 interface IEverclearFeeAdapter {
     struct FeeParams {
         uint256 fee;
@@ -17,7 +17,7 @@ interface IEverclearFeeAdapter {
      * @param receiver The address of the intent receiver
      * @param inputAsset The address of the intent asset on origin
      * @param outputAsset The address of the intent asset on destination
-     * @param maxFee The maximum fee that can be taken by solvers
+     * @param amountOutMin The minimum amount out
      * @param origin The origin chain of the intent
      * @param destinations The possible destination chains of the intent
      * @param nonce The nonce of the intent
@@ -31,7 +31,7 @@ interface IEverclearFeeAdapter {
         bytes32 receiver;
         bytes32 inputAsset;
         bytes32 outputAsset;
-        uint24 maxFee;
+        uint256 amountOutMin;
         uint32 origin;
         uint64 nonce;
         uint48 timestamp;
@@ -47,7 +47,7 @@ interface IEverclearFeeAdapter {
         address _inputAsset,
         bytes32 _outputAsset,
         uint256 _amount,
-        uint24 _maxFee,
+        uint256 _amountOutMin,
         uint48 _ttl,
         bytes calldata _data,
         FeeParams calldata _feeParams
@@ -59,7 +59,7 @@ interface IEverclearFeeAdapter {
         address _inputAsset,
         address _outputAsset,
         uint256 _amount,
-        uint24 _maxFee,
+        uint256 _amountOutMin,
         uint48 _ttl,
         bytes calldata _data,
         FeeParams calldata _feeParams

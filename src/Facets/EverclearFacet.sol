@@ -15,7 +15,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 /// @title EverclearFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Everclear
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract EverclearFacet is
     ILiFi,
     ReentrancyGuard,
@@ -36,7 +36,7 @@ contract EverclearFacet is
     /// @param receiverAddress The address of the receiver
     /// @param nativeFee The native fee
     /// @param outputAsset The address of the output asset
-    /// @param maxFee The maximum fee
+    /// @param amountOutMin The minimum amount out
     /// @param ttl The time to live
     /// @param data The data
     /// @param fee The fee
@@ -46,7 +46,7 @@ contract EverclearFacet is
         bytes32 receiverAddress;
         uint256 nativeFee;
         bytes32 outputAsset;
-        uint24 maxFee;
+        uint256 amountOutMin;
         uint48 ttl;
         bytes data;
         uint256 fee;
@@ -165,7 +165,7 @@ contract EverclearFacet is
                 _bridgeData.sendingAssetId,
                 _everclearData.outputAsset,
                 _bridgeData.minAmount - _everclearData.fee, // fee is deducted from the minAmount and it's pulled from the sender separately
-                _everclearData.maxFee,
+                _everclearData.amountOutMin,
                 _everclearData.ttl,
                 _everclearData.data,
                 IEverclearFeeAdapter.FeeParams({
@@ -201,7 +201,7 @@ contract EverclearFacet is
                 _bridgeData.sendingAssetId,
                 address(uint160(uint256(_everclearData.outputAsset))),
                 _bridgeData.minAmount - _everclearData.fee, // fee is deducted from the minAmount and it's pulled from the sender separately
-                _everclearData.maxFee,
+                _everclearData.amountOutMin,
                 _everclearData.ttl,
                 _everclearData.data,
                 IEverclearFeeAdapter.FeeParams({

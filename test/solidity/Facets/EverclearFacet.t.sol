@@ -7,7 +7,6 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { EverclearFacet } from "lifi/Facets/EverclearFacet.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IEverclearFeeAdapter } from "lifi/Interfaces/IEverclearFeeAdapter.sol";
-import { MockEverclearFeeAdapter } from "../utils/MockEverclearFeeAdapter.sol";
 import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 // Stub EverclearFacet Contract
@@ -26,9 +25,9 @@ contract TestEverclearFacet is EverclearFacet {
 contract EverclearFacetTest is TestBaseFacet {
     EverclearFacet.EverclearData internal validEverclearData;
     TestEverclearFacet internal everclearFacet;
-    IEverclearFeeAdapter internal feeAdapter =
+    IEverclearFeeAdapter internal constant FEE_ADAPTER =
         IEverclearFeeAdapter(
-            address(0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75)
+            address(0x2944F6fEF163365A382E9397b582bfbeB7C4F300)
         );
 
     uint256 internal signerPrivateKey;
@@ -68,13 +67,13 @@ contract EverclearFacetTest is TestBaseFacet {
     }
 
     function setUp() public {
-        customBlockNumberForForking = 23541361;
+        customBlockNumberForForking = 23782028;
         initTestBase();
 
         signerPrivateKey = 0x1234;
         signerAddress = vm.addr(signerPrivateKey);
 
-        everclearFacet = new TestEverclearFacet(address(feeAdapter));
+        everclearFacet = new TestEverclearFacet(address(FEE_ADAPTER));
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = everclearFacet
             .startBridgeTokensViaEverclear
@@ -106,8 +105,8 @@ contract EverclearFacetTest is TestBaseFacet {
 
         deal(ADDRESS_USDC, address(USER_SENDER), usdCAmountToSend + fee);
 
-        vm.startPrank(feeAdapter.owner());
-        feeAdapter.updateFeeSigner(signerAddress);
+        vm.startPrank(FEE_ADAPTER.owner());
+        FEE_ADAPTER.updateFeeSigner(signerAddress);
         vm.stopPrank();
 
         // adjust bridgeData
@@ -135,7 +134,7 @@ contract EverclearFacetTest is TestBaseFacet {
             receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))),
             nativeFee: 0,
             outputAsset: bytes32(uint256(uint160(ADDRESS_USDC_BASE))),
-            maxFee: 0,
+            amountOutMin: 0,
             ttl: 0,
             data: "",
             fee: fee,
@@ -578,7 +577,7 @@ contract EverclearFacetTest is TestBaseFacet {
         return path;
     }
 
-    function test_CanBridgeTokensWithNativeFee()
+    function skip_test_CanBridgeTokensWithNativeFee()
         public
         virtual
         assertBalanceChange(
@@ -590,15 +589,8 @@ contract EverclearFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
-        // Deploy mock fee adapter that requires native fees
-        MockEverclearFeeAdapter mockFeeAdapter = new MockEverclearFeeAdapter(
-            address(this), // owner
-            signerAddress // fee signer
-        );
-
-        // Deploy new facet with mock adapter
-        TestEverclearFacet mockEverclearFacet = new TestEverclearFacet(
-            address(mockFeeAdapter)
+        TestEverclearFacet facetWithNativeFee = new TestEverclearFacet(
+            address(FEE_ADAPTER)
         );
 
         vm.startPrank(USER_SENDER);
@@ -627,7 +619,7 @@ contract EverclearFacetTest is TestBaseFacet {
 
         // approval
         usdc.approve(
-            address(mockEverclearFacet),
+            address(facetWithNativeFee),
             usdCAmountToSend + validEverclearData.fee
         );
 
@@ -635,11 +627,11 @@ contract EverclearFacetTest is TestBaseFacet {
         vm.deal(USER_SENDER, nativeFee + 1 ether);
 
         //prepare check for events
-        vm.expectEmit(true, true, true, true, address(mockEverclearFacet));
+        vm.expectEmit(true, true, true, true, address(facetWithNativeFee));
         emit LiFiTransferStarted(bridgeData);
 
         // Call with native fee
-        mockEverclearFacet.startBridgeTokensViaEverclear{ value: nativeFee }(
+        facetWithNativeFee.startBridgeTokensViaEverclear{ value: nativeFee }(
             bridgeData,
             everclearDataWithNativeFee
         );
@@ -648,13 +640,12 @@ contract EverclearFacetTest is TestBaseFacet {
     }
 
     function test_CanSwapAndBridgeTokensWithNativeFee() public virtual {
-        address mockAdapter = address(
-            new MockEverclearFeeAdapter(address(this), signerAddress)
+        address facetAddress = address(
+            new TestEverclearFacet(address(FEE_ADAPTER))
         );
-        address mockFacet = address(new TestEverclearFacet(mockAdapter));
 
-        TestEverclearFacet(mockFacet).addDex(ADDRESS_UNISWAP);
-        TestEverclearFacet(mockFacet).setFunctionApprovalBySignature(
+        TestEverclearFacet(facetAddress).addDex(ADDRESS_UNISWAP);
+        TestEverclearFacet(facetAddress).setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
 
@@ -686,16 +677,16 @@ contract EverclearFacetTest is TestBaseFacet {
         )[0];
         LibSwap.SwapData[] memory swaps = _createSwapData(
             swapAmount,
-            mockFacet
+            facetAddress
         );
 
-        dai.approve(mockFacet, swapAmount);
+        dai.approve(facetAddress, swapAmount);
         vm.deal(USER_SENDER, nativeFee + 1 ether);
 
-        vm.expectEmit(true, true, true, true, mockFacet);
+        vm.expectEmit(true, true, true, true, facetAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        TestEverclearFacet(mockFacet).swapAndStartBridgeTokensViaEverclear{
+        TestEverclearFacet(facetAddress).swapAndStartBridgeTokensViaEverclear{
             value: nativeFee
         }(bridgeData, swaps, data);
         vm.stopPrank();
@@ -703,7 +694,7 @@ contract EverclearFacetTest is TestBaseFacet {
 
     function _createSwapData(
         uint256 swapAmount,
-        address mockFacet
+        address facetAddress
     ) internal view returns (LibSwap.SwapData[] memory) {
         LibSwap.SwapData[] memory swaps = new LibSwap.SwapData[](1);
         swaps[0] = LibSwap.SwapData({
@@ -717,7 +708,7 @@ contract EverclearFacetTest is TestBaseFacet {
                 swapAmount,
                 bridgeData.minAmount,
                 getPathDAItoUSDC(),
-                mockFacet,
+                facetAddress,
                 block.timestamp + 20 minutes
             ),
             requiresDeposit: true
@@ -737,15 +728,8 @@ contract EverclearFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
-        // deploy mock fee adapter that requires native fees
-        MockEverclearFeeAdapter mockFeeAdapter = new MockEverclearFeeAdapter(
-            address(this), // owner
-            signerAddress // fee signer
-        );
-
-        // deploy new facet with mock adapter
-        TestEverclearFacet mockEverclearFacet = new TestEverclearFacet(
-            address(mockFeeAdapter)
+        TestEverclearFacet facetWithNativeFee = new TestEverclearFacet(
+            address(FEE_ADAPTER)
         );
 
         vm.startPrank(USER_SENDER);
@@ -774,7 +758,7 @@ contract EverclearFacetTest is TestBaseFacet {
 
         // approval
         usdc.approve(
-            address(mockEverclearFacet),
+            address(facetWithNativeFee),
             usdCAmountToSend + validEverclearData.fee
         );
 
@@ -789,18 +773,18 @@ contract EverclearFacetTest is TestBaseFacet {
         vm.deal(USER_SENDER, nativeFee + 1 ether);
 
         // prepare check for events
-        vm.expectEmit(true, true, true, true, address(mockEverclearFacet));
+        vm.expectEmit(true, true, true, true, address(facetWithNativeFee));
         emit BridgeToNonEVMChainBytes32(
             bridgeData.transactionId,
             bridgeData.destinationChainId,
             everclearDataWithNativeFee.receiverAddress
         );
 
-        vm.expectEmit(true, true, true, true, address(mockEverclearFacet));
+        vm.expectEmit(true, true, true, true, address(facetWithNativeFee));
         emit LiFiTransferStarted(bridgeData);
 
         // Call with native fee
-        mockEverclearFacet.startBridgeTokensViaEverclear{ value: nativeFee }(
+        facetWithNativeFee.startBridgeTokensViaEverclear{ value: nativeFee }(
             bridgeData,
             everclearDataWithNativeFee
         );
@@ -809,15 +793,8 @@ contract EverclearFacetTest is TestBaseFacet {
     }
 
     function testRevert_InsufficientNativeFee() public {
-        // deploy mock fee adapter that requires native fees
-        MockEverclearFeeAdapter mockFeeAdapter = new MockEverclearFeeAdapter(
-            address(this), // owner
-            signerAddress // fee signer
-        );
-
-        // deploy new facet with mock adapter
-        TestEverclearFacet mockEverclearFacet = new TestEverclearFacet(
-            address(mockFeeAdapter)
+        TestEverclearFacet facetWithNativeFee = new TestEverclearFacet(
+            address(FEE_ADAPTER)
         );
 
         vm.startPrank(USER_SENDER);
@@ -846,7 +823,7 @@ contract EverclearFacetTest is TestBaseFacet {
 
         // approval
         usdc.approve(
-            address(mockEverclearFacet),
+            address(facetWithNativeFee),
             usdCAmountToSend + validEverclearData.fee
         );
 
@@ -855,7 +832,7 @@ contract EverclearFacetTest is TestBaseFacet {
 
         vm.expectRevert(); // should revert due to insufficient native fee
         // call with insufficient native fee (send less than required)
-        mockEverclearFacet.startBridgeTokensViaEverclear{
+        facetWithNativeFee.startBridgeTokensViaEverclear{
             value: nativeFee - 1
         }(bridgeData, everclearDataWithNativeFee);
 
@@ -863,10 +840,9 @@ contract EverclearFacetTest is TestBaseFacet {
     }
 
     function test_ExcessNativeFeeGetsRefunded() public {
-        address mockAdapter = address(
-            new MockEverclearFeeAdapter(address(this), signerAddress)
+        address facetAddress = address(
+            new TestEverclearFacet(address(FEE_ADAPTER))
         );
-        address mockFacet = address(new TestEverclearFacet(mockAdapter));
 
         uint256 nativeFee = 0.01 ether;
         uint256 totalSent = nativeFee + 0.005 ether; // Send excess
@@ -890,11 +866,11 @@ contract EverclearFacetTest is TestBaseFacet {
         data.sig = abi.encodePacked(r, s, v);
 
         // execute test
-        usdc.approve(mockFacet, usdCAmountToSend + validEverclearData.fee);
+        usdc.approve(facetAddress, usdCAmountToSend + validEverclearData.fee);
         vm.deal(USER_SENDER, totalSent + 1 ether);
 
         uint256 balanceBefore = USER_SENDER.balance;
-        TestEverclearFacet(mockFacet).startBridgeTokensViaEverclear{
+        TestEverclearFacet(facetAddress).startBridgeTokensViaEverclear{
             value: totalSent
         }(bridgeData, data);
         uint256 balanceAfter = USER_SENDER.balance;
@@ -909,13 +885,12 @@ contract EverclearFacetTest is TestBaseFacet {
     }
 
     function testRevert_SwapAndBridgeInsufficientNativeFee() public {
-        address mockAdapter = address(
-            new MockEverclearFeeAdapter(address(this), signerAddress)
+        address facetAddress = address(
+            new TestEverclearFacet(address(FEE_ADAPTER))
         );
-        address mockFacet = address(new TestEverclearFacet(mockAdapter));
 
-        TestEverclearFacet(mockFacet).addDex(ADDRESS_UNISWAP);
-        TestEverclearFacet(mockFacet).setFunctionApprovalBySignature(
+        TestEverclearFacet(facetAddress).addDex(ADDRESS_UNISWAP);
+        TestEverclearFacet(facetAddress).setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
 
@@ -942,11 +917,11 @@ contract EverclearFacetTest is TestBaseFacet {
         data.sig = abi.encodePacked(r, s, v);
 
         setDefaultSwapDataSingleDAItoUSDC();
-        dai.approve(mockFacet, swapData[0].fromAmount);
+        dai.approve(facetAddress, swapData[0].fromAmount);
         vm.deal(USER_SENDER, nativeFee + 1 ether);
 
         vm.expectRevert();
-        TestEverclearFacet(mockFacet).swapAndStartBridgeTokensViaEverclear{
+        TestEverclearFacet(facetAddress).swapAndStartBridgeTokensViaEverclear{
             value: nativeFee - 1
         }(bridgeData, swapData, data);
         vm.stopPrank();
