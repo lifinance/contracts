@@ -1011,8 +1011,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1031,8 +1031,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1051,8 +1051,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1071,8 +1071,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1091,8 +1091,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1111,8 +1111,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1131,8 +1131,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1151,8 +1151,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1171,8 +1171,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1191,8 +1191,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1211,8 +1211,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1231,8 +1231,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1251,8 +1251,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1271,8 +1271,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1291,8 +1291,8 @@
             "functions": {
               "0x83bd37f9": "swapCompact()",
               "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "",
-              "0xfef828dc": ""
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ]
