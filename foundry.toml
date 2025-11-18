@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.17'
-evm_version = 'london'
+solc_version = '0.8.29'
+evm_version = 'cancun'
 auto_detect_solc = false
 optimizer = true
 optimizer_runs = 1000000
