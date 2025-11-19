@@ -7,6 +7,7 @@ import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidReceiver, NativeAssetNotSupported, InvalidAmount, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
@@ -227,6 +228,43 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         );
 
         assertEq(usdc.balanceOf(solver), bridgeData.minAmount);
+    }
+
+    function test_LIFIIntentNonEvm() external {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Incorrectly modify the receiverAddress
+        validLIFIIntentData.receiverAddress = keccak256("");
+        bridgeData.receiver = LiFiData.NON_EVM_ADDRESS;
+
+        // This call should not revert as the address comparision is skipped.
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_LIFIIntentNonEvmIsZeroAddress() external {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Incorrectly modify the receiverAddress
+        validLIFIIntentData.receiverAddress = bytes32(0);
+        bridgeData.receiver = LiFiData.NON_EVM_ADDRESS;
+
+        // This call should not revert as the address comparision is skipped.
+        vm.expectRevert(InvalidReceiver.selector);
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
     }
 
     function testRevert_LIFIIntentWrongReceiver() external {

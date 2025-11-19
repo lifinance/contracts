@@ -11,6 +11,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { InvalidConfig, InvalidReceiver, InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
@@ -23,7 +24,8 @@ contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
     SwapperV2,
-    Validatable
+    Validatable,
+    LiFiData
 {
     /// Storage ///
 
@@ -144,17 +146,21 @@ contract LiFiIntentEscrowFacet is
         }
 
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
-        if (
-            address(uint160(uint256(_lifiIntentData.receiverAddress))) !=
-            _bridgeData.receiver ||
-            _lifiIntentData.depositAndRefundAddress == address(0)
-        ) {
-            revert InvalidReceiver();
+        address bridgeDataReceiver = _bridgeData.receiver;
+        if (bridgeDataReceiver != NON_EVM_ADDRESS) {
+            if (
+                _lifiIntentData.receiverAddress !=
+                bytes32(uint256(uint160(bridgeDataReceiver)))
+            ) {
+                revert InvalidReceiver();
+            }
         }
+        if (_lifiIntentData.depositAndRefundAddress == address(0)) revert InvalidReceiver();
+        if (_lifiIntentData.receiverAddress == bytes32(0)) revert InvalidReceiver();
+
 
         // Check outputAmount
         if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
-
         address sendingAsset = _bridgeData.sendingAssetId;
         // Set approval
         uint256 amount = _bridgeData.minAmount;
