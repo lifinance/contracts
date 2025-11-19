@@ -129,7 +129,8 @@ contract LiFiIntentEscrowFacet is
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
         if (
             address(uint160(uint256(_lifiIntentData.receiverAddress))) !=
-            _bridgeData.receiver
+            _bridgeData.receiver ||
+            _lifiIntentData.depositAndRefundAddress == address(0)
         ) {
             revert InvalidReceiver();
         }

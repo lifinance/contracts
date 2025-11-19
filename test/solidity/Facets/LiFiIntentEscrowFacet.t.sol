@@ -257,6 +257,23 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         );
     }
 
+    function testRevert_LIFIIntentZeroDepositAndRefundAddress() external {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Set depositAndRefundAddress to address(0)
+        validLIFIIntentData.depositAndRefundAddress = address(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {} else {
             lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
