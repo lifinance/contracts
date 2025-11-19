@@ -10,7 +10,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
@@ -134,6 +134,9 @@ contract LiFiIntentEscrowFacet is
         ) {
             revert InvalidReceiver();
         }
+
+        // Check outputAmount
+        if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
 
         address sendingAsset = _bridgeData.sendingAssetId;
         // Set approval

@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver, NativeAssetNotSupported, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
@@ -267,6 +267,23 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         validLIFIIntentData.depositAndRefundAddress = address(0);
 
         vm.expectRevert(InvalidReceiver.selector);
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_LIFIIntentZeroOutputAmount() external {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Set outputAmount to 0
+        validLIFIIntentData.outputAmount = 0;
+
+        vm.expectRevert(InvalidAmount.selector);
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             validLIFIIntentData
