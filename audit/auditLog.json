@@ -433,6 +433,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.11.04_WhitelistManagerFacet(v1.0.0)_1.pdf",
       "auditCommitHash": "e87f69019e59b8060f9c53e00acd4ed07ac4084a"
+    },
+    "audit20251119": {
+      "auditCompletedOn": "19.11.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.11.19_LiFiIntentFacet(v1.0.0).pdf",
+      "auditCommitHash": "4e71699761d075f43f5d9cd66c4e1be082fa08ee"
     }
   },
   "auditedContracts": {
@@ -581,6 +588,12 @@
     "IGarden": {
       "1.0.0": ["audit20250919"]
     },
+    "IOpenIntentFramework": {
+      "1.0.0": ["audit20251119"]
+    },
+    "IOriginSettler": {
+      "1.0.0": ["audit20251119"]
+    },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
     },
@@ -645,6 +658,9 @@
     },
     "LIFuelFacet": {
       "1.0.1": ["audit20250508"]
+    },
+    "LiFiIntentEscrowFacet": {
+      "1.0.0": ["audit20251119"]
     },
     "LidoWrapper": {
       "1.0.0": ["audit20250610"]
