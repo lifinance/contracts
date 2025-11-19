@@ -81,7 +81,9 @@ function diamondSyncDEXs {
       fi
     done
 
-    echo "${TOKEN_CONTRACTS[@]}"
+    if [[ ${#TOKEN_CONTRACTS[@]} -gt 0 ]]; then
+      echo "${TOKEN_CONTRACTS[@]}"
+    fi
   }
 
   # Function to process a network in parallel
@@ -187,7 +189,31 @@ function diamondSyncDEXs {
 
       local ATTEMPTS=1
       while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy >/dev/null
+        local CAST_OUTPUT
+        CAST_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
+        local CAST_EXIT_CODE=$?
+
+        if [[ $CAST_EXIT_CODE -ne 0 ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] cast send failed (attempt $ATTEMPTS/$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
+          if [[ -n "$CAST_OUTPUT" ]]; then
+            printf '\033[0;31m%s\033[0m\n' "Error: $CAST_OUTPUT"
+          fi
+
+          if [[ $ATTEMPTS -lt $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; then
+            sleep 5
+            ATTEMPTS=$((ATTEMPTS + 1))
+            continue
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Max attempts reached - cast send failed"
+            {
+              echo "[$NETWORK] Error: cast send failed after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+              echo "[$NETWORK] Error output: $CAST_OUTPUT"
+              echo ""
+            } >> "$FAILED_LOG_FILE"
+            return 1
+          fi
+        fi
+
         sleep 5
 
         # Verify updated DEX list
@@ -199,7 +225,7 @@ function diamondSyncDEXs {
             echo "[$NETWORK] Error: DEX update verification failed"
             echo ""
           } >> "$FAILED_LOG_FILE"
-          return
+          return 1
         fi
 
         MISSING_DEXS=()
@@ -223,6 +249,7 @@ function diamondSyncDEXs {
         echo "[$NETWORK] Attempted to add: ${NEW_DEXS[*]}"
         echo ""
       } >> "$FAILED_LOG_FILE"
+      return 1
     else
       printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] - All addresses are whitelisted already"
     fi
