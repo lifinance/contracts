@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { InvalidReceiver, NativeAssetNotSupported, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver, NativeAssetNotSupported, InvalidAmount, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
@@ -329,7 +329,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // Set hasDestinationCall to true but leave outputCall empty
         bridgeData.hasDestinationCall = true;
 
-        vm.expectRevert(abi.encodeWithSignature("InformationMismatch()"));
+        vm.expectRevert(InformationMismatch.selector);
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             validLIFIIntentData
@@ -347,7 +347,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         bridgeData.hasDestinationCall = false;
         validLIFIIntentData.outputCall = hex"1234567890";
 
-        vm.expectRevert(abi.encodeWithSignature("InformationMismatch()"));
+        vm.expectRevert(InformationMismatch.selector);
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             validLIFIIntentData
