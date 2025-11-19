@@ -12,6 +12,8 @@ source script/helperFunctions.sh
 source script/tasks/diamondUpdateFacet.sh
 source script/tasks/diamondUpdatePeriphery.sh
 source script/deploy/deploySingleContract.sh
+source script/tasks/diamondSyncSigs.sh
+source script/tasks/diamondSyncDEXs.sh
 
 # =============================================================================
 # CONTRACT VERIFICATION FUNCTIONS
@@ -707,6 +709,150 @@ function compareContractBytecode() {
   echo "(Full bytecodes are available in CODE1 and CODE2 variables for further inspection)"
 }
 
+function analyzeFailingTx() {
+  # Function: analyzeFailingTx
+  # Description: Analyzes a failing transaction hash using cast run, receipt fetch, and trace attempts
+  # Arguments:
+  #   $1 - TX_HASH: Transaction hash to analyze
+  #   $2 - RPC_URL: RPC URL for the transaction (required)
+  # Returns:
+  #   0 on success, 1 on failure
+  # Example:
+  #   analyzeFailingTx "0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9" "<RPC_URL>"
+
+  local TX_HASH="$1"
+  local RPC_URL="$2"
+
+  # Validate required parameters
+  if [[ -z "$TX_HASH" ]]; then
+    error "Usage: analyzeFailingTx TX_HASH RPC_URL"
+    error "Example: analyzeFailingTx 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9 <RPC_URL>"
+    return 1
+  fi
+
+  if [[ -z "$RPC_URL" ]]; then
+    error "RPC_URL is required"
+    error "Usage: analyzeFailingTx TX_HASH RPC_URL"
+    error "Example: analyzeFailingTx 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9 <RPC_URL>"
+    return 1
+  fi
+
+  echo "Analyzing transaction: $TX_HASH with RPC URL: $RPC_URL"
+  echo ""
+
+  # Step 1: Run cast run
+  echo "------- Step 1: Running cast run -------"
+  echo ""
+  cast run "$TX_HASH" --rpc-url "$RPC_URL" || true
+  # cast run "$TX_HASH" --rpc-url "$RPC_URL" --trace-printer|| true
+  echo ""
+  echo "-------"
+  echo ""
+
+  # Step 2: Fetch transaction receipt
+  echo "------- Step 2: Fetching transaction receipt -------"
+  echo ""
+  local RECEIPT_RESPONSE
+  RECEIPT_RESPONSE=$(curl -X POST "$RPC_URL" \
+    -H "Content-Type: application/json" \
+    --data "{
+      \"jsonrpc\":\"2.0\",
+      \"method\":\"eth_getTransactionReceipt\",
+      \"params\":[\"$TX_HASH\"],
+      \"id\":1
+    }" 2>&1)
+
+  if [[ $? -eq 0 ]]; then
+    echo "$RECEIPT_RESPONSE" | jq '.' 2>/dev/null || echo "$RECEIPT_RESPONSE"
+  else
+    error "Failed to fetch transaction receipt: $RECEIPT_RESPONSE"
+  fi
+  echo ""
+  echo "-------"
+  echo ""
+
+  # Step 3: Attempt to fetch traces
+  echo "------- Step 3: Attempting to fetch traces -------"
+  echo ""
+  local TRACE_RESPONSE
+  TRACE_RESPONSE=$(curl -X POST "$RPC_URL" \
+    -H "Content-Type: application/json" \
+    --data "{
+      \"jsonrpc\":\"2.0\",
+      \"method\":\"debug_traceTransaction\",
+      \"params\":[
+        \"$TX_HASH\",
+        {
+          \"tracer\": \"callTracer\",
+          \"timeout\": \"30s\"
+        }
+      ],
+      \"id\":1
+    }" 2>&1)
+
+  if [[ $? -eq 0 ]]; then
+    echo "$TRACE_RESPONSE" | jq '.' 2>/dev/null || echo "$TRACE_RESPONSE"
+    # Check if response contains an error field
+    if echo "$TRACE_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+      error "Trace fetch returned error: $(echo "$TRACE_RESPONSE" | jq -r '.error')"
+    fi
+  else
+    error "Failed to fetch traces: $TRACE_RESPONSE"
+  fi
+  echo ""
+  echo "-------"
+  echo ""
+}
+
+# =============================================================================
+# SYNC FUNCTIONS
+# =============================================================================
+
+function syncSigsAndDEXsForNetwork() {
+  local NETWORK="${1}"
+  local ENVIRONMENT="${2:-production}"
+
+  if [[ -z "$NETWORK" ]]; then
+    error "Network is required"
+    echo "Usage: syncSigsAndDEXsForNetwork <network> [environment]"
+    return 1
+  fi
+
+  echo "=========================================="
+  echo "Syncing Sigs and DEXs for network"
+  echo "Network: $NETWORK"
+  echo "Environment: $ENVIRONMENT"
+  echo "=========================================="
+  echo ""
+
+  # Run both syncs in parallel
+  echo "[$NETWORK] Starting syncSigs and syncDEXs in parallel..."
+  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" "" &
+  SIGS_PID=$!
+  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" &
+  DEXS_PID=$!
+
+  # Wait for both to complete
+  wait $SIGS_PID
+  local SIGS_RESULT=$?
+  wait $DEXS_PID
+  local DEXS_RESULT=$?
+
+  echo ""
+  if [[ $SIGS_RESULT -eq 0 && $DEXS_RESULT -eq 0 ]]; then
+    success "[$NETWORK] Both syncSigs and syncDEXs completed successfully"
+    return 0
+  else
+    if [[ $SIGS_RESULT -ne 0 ]]; then
+      error "[$NETWORK] syncSigs failed with exit code $SIGS_RESULT"
+    fi
+    if [[ $DEXS_RESULT -ne 0 ]]; then
+      error "[$NETWORK] syncDEXs failed with exit code $DEXS_RESULT"
+    fi
+    return 1
+  fi
+}
+
 # =============================================================================
 # EXPORT FUNCTIONS FOR USE IN OTHER SCRIPTS
 # =============================================================================
@@ -729,3 +875,5 @@ export -f isContractAlreadyDeployed
 export -f isContractAlreadyVerified
 export -f logWithTimestamp
 export -f logNetworkResult
+export -f analyzeFailingTx
+export -f syncSigsAndDEXsForNetwork
