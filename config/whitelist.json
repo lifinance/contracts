@@ -1926,6 +1926,15 @@
             }
           }
         ],
+        "monad": [
+          {
+            "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+            "functions": {
+              "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+              "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
+            }
+          }
+        ],
         "sonic": [
           {
             "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
