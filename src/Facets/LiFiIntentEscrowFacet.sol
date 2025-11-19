@@ -10,7 +10,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
 import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
@@ -81,7 +81,6 @@ contract LiFiIntentEscrowFacet is
         noNativeAsset(_bridgeData)
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
     {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -105,7 +104,6 @@ contract LiFiIntentEscrowFacet is
         noNativeAsset(_bridgeData)
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
@@ -126,6 +124,14 @@ contract LiFiIntentEscrowFacet is
         ILiFi.BridgeData memory _bridgeData,
         LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
+        // Validate destination call flag matches actual behavior
+        if (
+            (_lifiIntentData.outputCall.length > 0) !=
+            _bridgeData.hasDestinationCall
+        ) {
+            revert InformationMismatch();
+        }
+
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
         if (
             address(uint160(uint256(_lifiIntentData.receiverAddress))) !=

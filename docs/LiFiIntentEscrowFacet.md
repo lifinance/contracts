@@ -29,6 +29,10 @@ graph LR;
 - `swapAndStartBridgeTokensViaLiFiIntentEscrow(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LiFiIntentEscrowData memory _lifiIntentData)`
   - Performs swap(s) before bridging tokens using LIFIIntent
 
+## Destination Calls
+
+The facet supports destination calls through the `outputCall` parameter in `LiFiIntentEscrowData`. When `outputCall` contains calldata (length > 0), it will be executed on the destination chain after token delivery to the `receiverAddress`. The `BridgeData.hasDestinationCall` flag must be set to `true` when providing `outputCall` data, and `false` when no destination call is intended.
+
 ## LIFIIntent Specific Parameters
 
 The methods listed above take a variable labeled `_lifiIntentData`. This data is specific to LIFIIntent and is represented as the following struct type:
@@ -46,19 +50,19 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
 /// @param outputContext Context for the outputSettler to identify the order type.
 struct LiFiIntentEscrowData {
-    bytes32 receiverAddress; // StandardOrder.outputs.recipient
-    /// BatchClaim
-    address depositAndRefundAddress; // StandardOrder.user
-    uint256 nonce; // StandardOrder.nonce
-    uint32 expires; // StandardOrder.expiry
-    uint32 fillDeadline; // StandardOrder.fillDeadline
-    address inputOracle; // StandardOrder.inputOracle
-    bytes32 outputOracle; // StandardOrder.outputs.oracle
-    bytes32 outputSettler; // StandardOrder.outputs.settler
-    bytes32 outputToken; // StandardOrder.outputs.token
-    uint256 outputAmount; // StandardOrder.outputs.amount
-    bytes outputCall; // StandardOrder.outputs.call
-    bytes outputContext; // StandardOrder.outputs.context
+  bytes32 receiverAddress; // StandardOrder.outputs.recipient
+  /// BatchClaim
+  address depositAndRefundAddress; // StandardOrder.user
+  uint256 nonce; // StandardOrder.nonce
+  uint32 expires; // StandardOrder.expiry
+  uint32 fillDeadline; // StandardOrder.fillDeadline
+  address inputOracle; // StandardOrder.inputOracle
+  bytes32 outputOracle; // StandardOrder.outputs.oracle
+  bytes32 outputSettler; // StandardOrder.outputs.settler
+  bytes32 outputToken; // StandardOrder.outputs.token
+  uint256 outputAmount; // StandardOrder.outputs.amount
+  bytes outputCall; // StandardOrder.outputs.call
+  bytes outputContext; // StandardOrder.outputs.context
 }
 ```
 

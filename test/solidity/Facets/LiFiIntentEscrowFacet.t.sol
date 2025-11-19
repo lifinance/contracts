@@ -319,4 +319,90 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     function testBase_CanSwapAndBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
     }
+
+    function testRevert_MismatchedDestinationCallFlag() external {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Set hasDestinationCall to true but leave outputCall empty
+        bridgeData.hasDestinationCall = true;
+
+        vm.expectRevert(abi.encodeWithSignature("InformationMismatch()"));
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_MismatchedDestinationCallFlagReverse() external {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Set hasDestinationCall to false but provide outputCall data
+        bridgeData.hasDestinationCall = false;
+        validLIFIIntentData.outputCall = hex"1234567890";
+
+        vm.expectRevert(abi.encodeWithSignature("InformationMismatch()"));
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
+    function test_WithDestinationCall() external {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Correctly set hasDestinationCall to true with outputCall data
+        bridgeData.hasDestinationCall = true;
+        validLIFIIntentData.outputCall = hex"1234567890abcdef";
+
+        MandateOutput[] memory outputs = new MandateOutput[](1);
+        outputs[0] = MandateOutput({
+            oracle: validLIFIIntentData.outputOracle,
+            settler: validLIFIIntentData.outputSettler,
+            chainId: bridgeData.destinationChainId,
+            token: validLIFIIntentData.outputToken,
+            amount: validLIFIIntentData.outputAmount,
+            recipient: validLIFIIntentData.receiverAddress,
+            callbackData: validLIFIIntentData.outputCall,
+            context: validLIFIIntentData.outputContext
+        });
+        uint256[2][] memory idsAndAmounts = new uint256[2][](1);
+        idsAndAmounts[0] = [
+            uint256(uint160(bridgeData.sendingAssetId)),
+            bridgeData.minAmount
+        ];
+
+        StandardOrder memory order = StandardOrder({
+            user: validLIFIIntentData.depositAndRefundAddress,
+            nonce: validLIFIIntentData.nonce,
+            originChainId: block.chainid,
+            expires: validLIFIIntentData.expires,
+            fillDeadline: validLIFIIntentData.fillDeadline,
+            inputOracle: validLIFIIntentData.inputOracle,
+            inputs: idsAndAmounts,
+            outputs: outputs
+        });
+
+        bytes32 orderId = ILiFiIntentEscrowSettler(lifiIntentEscrowSettler)
+            .orderIdentifier(order);
+
+        vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
+        emit ILiFiIntentEscrowSettler.Open(orderId, order);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
 }
