@@ -1,13 +1,24 @@
 #!/usr/bin/env bunx tsx
 
+import { randomBytes } from 'crypto'
+
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { BigNumber, constants, utils } from 'ethers'
+import {
+  encodeFunctionData,
+  formatUnits,
+  getAddress,
+  getContract,
+  parseUnits,
+  toHex,
+  zeroAddress,
+} from 'viem'
 
 import {
+  ERC20__factory,
+  PolymerCCTPFacet__factory,
   type ILiFi,
   type PolymerCCTPFacet,
-  PolymerCCTPFacet__factory,
 } from '../../typechain'
 
 import {
@@ -16,11 +27,13 @@ import {
   ADDRESS_USDC_OPT,
   ADDRESS_USDC_SOL,
   DEV_WALLET_ADDRESS,
-  ensureBalanceAndAllowanceToDiamond,
-  getProvider,
-  getWalletFromPrivateKeyInDotEnv,
+  NON_EVM_ADDRESS,
+  createContractObject,
+  ensureAllowance,
+  ensureBalance,
+  executeTransaction,
   logBridgeDataStruct,
-  sendTransaction,
+  setupEnvironment,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -44,15 +57,15 @@ const SRC_CHAIN = 'optimism' as 'arbitrum' | 'optimism'
 // these are test deployments by Polymer team
 const LIFI_DIAMOND_ADDRESS_ARB = '0xD99A49304227d3fE2c27A1F12Ef66A95b95837b6'
 const LIFI_DIAMOND_ADDRESS_OPT = '0x36d7A6e0B2FE968a9558C5AaF5713aC2DAc0DbFc'
-const DIAMOND_ADDRESS_SRC =
+const DIAMOND_ADDRESS_SRC = getAddress(
   SRC_CHAIN === 'arbitrum' ? LIFI_DIAMOND_ADDRESS_ARB : LIFI_DIAMOND_ADDRESS_OPT
+)
 
 // Destination chain ID
 const LIFI_CHAIN_ID_SOLANA = 1151111081099710
 // Mainnet chain IDs
 const LIFI_CHAIN_ID_ARBITRUM = 42161
 const LIFI_CHAIN_ID_OPTIMISM = 10
-const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 
 // For EVM destinations, use Arbitrum if source is Optimism, and vice versa
 const DST_CHAIN_ID_EVM =
@@ -60,21 +73,24 @@ const DST_CHAIN_ID_EVM =
 const DST_CHAIN_ID = BRIDGE_TO_SOLANA ? LIFI_CHAIN_ID_SOLANA : DST_CHAIN_ID_EVM
 
 // Token addresses
-const sendingAssetId =
+const sendingAssetId = getAddress(
   SRC_CHAIN === 'arbitrum' ? ADDRESS_USDC_ARB : ADDRESS_USDC_OPT
-const fromAmount = '1000000' // 1 USDC (6 decimals)
+)
+const fromAmount = parseUnits('1', 6) // 1 USDC (6 decimals)
 
 // Receiver address
-const receiverAddress = BRIDGE_TO_SOLANA
-  ? NON_EVM_ADDRESS // Use NON_EVM_ADDRESS for Solana
-  : DEV_WALLET_ADDRESS // Use EVM address for EVM destinations
+const receiverAddress = getAddress(
+  BRIDGE_TO_SOLANA
+    ? NON_EVM_ADDRESS // Use NON_EVM_ADDRESS for Solana
+    : DEV_WALLET_ADDRESS
+) // Use EVM address for EVM destinations
 
 // Solana receiver (bytes32 format) - only used when BRIDGE_TO_SOLANA is true
 const solanaReceiverBytes32 = ADDRESS_DEV_WALLET_SOLANA_BYTES32
 
 // Polymer CCTP specific parameters
 // polymerTokenFee will be extracted from API response
-const maxCCTPFee = '0' // Max CCTP fee (0 = no limit)
+const maxCCTPFee = 0n // Max CCTP fee (0 = no limit)
 const minFinalityThreshold = USE_FAST_MODE ? 1000 : 2000 // 1000 = fast path, 2000 = standard path
 
 const EXPLORER_BASE_URL =
@@ -129,9 +145,9 @@ async function getPolymerQuote(
   toChainId: number,
   fromToken: string,
   toToken: string,
-  fromAmount: string,
+  fromAmount: bigint,
   toAddress: string
-): Promise<{ quote: IQuoteResponse; polymerTokenFee: string }> {
+): Promise<{ quote: IQuoteResponse; polymerTokenFee: bigint }> {
   const quoteType = USE_FAST_MODE ? 'fast' : 'standard'
   consola.info(`\n📡 Fetching ${quoteType} quote from Polymer API...`)
 
@@ -141,14 +157,14 @@ async function getPolymerQuote(
     toChain: toChainId.toString(),
     fromToken,
     toToken,
-    fromAmount,
+    fromAmount: fromAmount.toString(),
     toAddress,
   })
 
   const fullApiUrl = `${POLYMER_API_URL}/v1/quote/${quoteType}?${queryParams.toString()}`
   consola.info(`API URL: ${fullApiUrl}`)
   consola.info(
-    `Request: fromChain=${fromChainId}, toChain=${toChainId}, fromAmount=${fromAmount}`
+    `Request: fromChain=${fromChainId}, toChain=${toChainId}, fromAmount=${fromAmount.toString()}`
   )
 
   const quoteResponse = await fetch(fullApiUrl, {
@@ -175,7 +191,7 @@ async function getPolymerQuote(
   // Standard path: polymerTokenFee = 0 (no CCTP service fee)
   // Fast path: polymerTokenFee > 0 (CCTP service fee charged by Circle, included in amount)
   // The "CCTP service fee" with included: true is the fee deducted from the bridged amount
-  let polymerTokenFee = '0'
+  let polymerTokenFee = 0n
   if (quoteData.feeCosts) {
     // Look for CCTP service fee (fast path) - this is the fee that's included/deducted
     const cctpServiceFee = quoteData.feeCosts.find(
@@ -185,7 +201,7 @@ async function getPolymerQuote(
         fee.included === true
     )
     if (cctpServiceFee && cctpServiceFee.amount) {
-      polymerTokenFee = cctpServiceFee.amount
+      polymerTokenFee = BigInt(cctpServiceFee.amount)
     }
   }
 
@@ -199,17 +215,19 @@ async function getPolymerQuote(
 }
 
 async function main() {
-  const provider = getProvider(SRC_CHAIN)
-  const wallet = getWalletFromPrivateKeyInDotEnv(provider)
-  const walletAddress = await wallet.getAddress()
+  // Setup environment using helper function
+  const { client, publicClient, walletAccount, walletClient } =
+    await setupEnvironment(SRC_CHAIN, null)
+  const walletAddress = walletAccount.address
   consola.info('Using wallet address:', walletAddress)
 
-  // Get diamond contract
-  const polymerCCTPFacet = PolymerCCTPFacet__factory.connect(
-    DIAMOND_ADDRESS_SRC,
-    wallet
-  )
-  consola.info('Diamond/PolymerCCTPFacet connected:', polymerCCTPFacet.address)
+  // Get diamond contract with custom address
+  const polymerCCTPFacet = getContract({
+    address: DIAMOND_ADDRESS_SRC,
+    abi: PolymerCCTPFacet__factory.abi,
+    client,
+  })
+  consola.info('Diamond/PolymerCCTPFacet connected:', DIAMOND_ADDRESS_SRC)
 
   // Display route details
   consola.info('\n🌉 BRIDGE ROUTE DETAILS:')
@@ -227,9 +245,7 @@ async function main() {
   consola.info(
     `📥 Destination Chain: ${destChainName} (Chain ID: ${DST_CHAIN_ID})`
   )
-  consola.info(
-    `💰 Amount: ${BigNumber.from(fromAmount).div(1e6).toString()} USDC`
-  )
+  consola.info(`💰 Amount: ${formatUnits(fromAmount, 6)} USDC`)
   consola.info(`🎯 Sending Asset: ${sendingAssetId}`)
   consola.info(
     `👤 Receiver: ${
@@ -275,15 +291,15 @@ async function main() {
   // Note: The facet transfers minAmount from user, then deducts polymerTokenFee before bridging
   // So if minAmount = fromAmount, the bridged amount will be fromAmount - polymerTokenFee
   // User must approve minAmount (which equals fromAmount in this case)
-  const transactionId = utils.randomBytes(32)
+  const transactionId = toHex(new Uint8Array(randomBytes(32)))
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId,
     bridge: 'polymercctp',
     integrator: 'demoScript',
-    referrer: constants.AddressZero,
+    referrer: zeroAddress,
     sendingAssetId,
     receiver: receiverAddress,
-    minAmount: fromAmount, // Total amount to transfer; bridged amount = minAmount - polymerTokenFee
+    minAmount: fromAmount.toString(), // Total amount to transfer; bridged amount = minAmount - polymerTokenFee
     destinationChainId: DST_CHAIN_ID,
     hasSourceSwaps: false,
     hasDestinationCall: false,
@@ -293,11 +309,11 @@ async function main() {
 
   // Prepare PolymerCCTP data
   const polymerData: PolymerCCTPFacet.PolymerCCTPDataStruct = {
-    polymerTokenFee,
-    maxCCTPFee,
+    polymerTokenFee: polymerTokenFee.toString(),
+    maxCCTPFee: maxCCTPFee.toString(),
     nonEVMReceiver: BRIDGE_TO_SOLANA
-      ? solanaReceiverBytes32
-      : constants.HashZero,
+      ? toHex(solanaReceiverBytes32)
+      : toHex(0, { size: 32 }),
     minFinalityThreshold,
   }
   consola.info('📋 polymerData prepared:')
@@ -308,22 +324,28 @@ async function main() {
 
   // Ensure balance and allowance
   // Contract transfers minAmount, so user must approve minAmount (fromAmount)
-  const totalAmountNeeded = BigNumber.from(fromAmount)
   if (SEND_TX) {
-    await ensureBalanceAndAllowanceToDiamond(
+    // Create ERC20 contract for balance/allowance checks
+    const tokenContract = createContractObject(
       sendingAssetId,
-      wallet,
+      ERC20__factory.abi,
+      publicClient,
+      walletClient
+    )
+
+    await ensureBalance(tokenContract, walletAddress, fromAmount, publicClient)
+    await ensureAllowance(
+      tokenContract,
+      walletAddress,
       DIAMOND_ADDRESS_SRC,
-      totalAmountNeeded,
-      false
+      fromAmount,
+      publicClient
     )
     consola.info('✅ Balance and allowance verified')
     consola.info(
-      `  Approved amount: ${totalAmountNeeded.toString()} (will bridge: ${BigNumber.from(
-        fromAmount
-      )
-        .sub(BigNumber.from(polymerTokenFee))
-        .toString()}, fee: ${polymerTokenFee})`
+      `  Approved amount: ${fromAmount.toString()} (will bridge: ${(
+        fromAmount - polymerTokenFee
+      ).toString()}, fee: ${polymerTokenFee.toString()})`
     )
   }
 
@@ -331,31 +353,25 @@ async function main() {
   if (SEND_TX) {
     consola.info('🚀 Executing bridge transaction...')
 
-    const executeTxData = await polymerCCTPFacet.populateTransaction
-      .startBridgeTokensViaPolymerCCTP(bridgeData, polymerData)
-      .then((tx) => tx.data)
+    const hash = await executeTransaction(
+      () =>
+        (polymerCCTPFacet.write as any).startBridgeTokensViaPolymerCCTP([
+          bridgeData,
+          polymerData,
+        ]),
+      'Starting bridge via PolymerCCTP',
+      publicClient,
+      true
+    )
 
-    if (!executeTxData) {
-      throw new Error('Failed to populate transaction data')
+    if (!hash) {
+      throw new Error('Failed to execute transaction')
     }
 
-    const transactionResponse = await sendTransaction(
-      wallet,
-      polymerCCTPFacet.address,
-      executeTxData,
-      BigNumber.from(0)
-    )
-
     consola.info('\n🎉 BRIDGE TRANSACTION EXECUTED SUCCESSFULLY!')
-    consola.info(`📤 Transaction Hash: ${transactionResponse.hash}`)
-    consola.info(
-      `🔗 Explorer Link: ${EXPLORER_BASE_URL}${transactionResponse.hash}`
-    )
-    consola.info(
-      `💰 Amount Bridged: ${BigNumber.from(fromAmount)
-        .div(1e6)
-        .toString()} USDC`
-    )
+    consola.info(`📤 Transaction Hash: ${hash}`)
+    consola.info(`🔗 Explorer Link: ${EXPLORER_BASE_URL}${hash}`)
+    consola.info(`💰 Amount Bridged: ${formatUnits(fromAmount, 6)} USDC`)
     consola.info(
       `📥 Destination: ${
         BRIDGE_TO_SOLANA
@@ -368,9 +384,11 @@ async function main() {
     consola.info('')
   } else {
     consola.info('🔍 Dry-run mode: Transaction not sent')
-    const executeTxData = await polymerCCTPFacet.populateTransaction
-      .startBridgeTokensViaPolymerCCTP(bridgeData, polymerData)
-      .then((tx) => tx.data)
+    const executeTxData = encodeFunctionData({
+      abi: PolymerCCTPFacet__factory.abi,
+      functionName: 'startBridgeTokensViaPolymerCCTP',
+      args: [bridgeData, polymerData] as any,
+    })
     consola.info('Calldata:', executeTxData)
   }
 }

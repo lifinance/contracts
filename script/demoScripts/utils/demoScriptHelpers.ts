@@ -15,6 +15,7 @@ import {
   createWalletClient,
   formatEther,
   formatUnits,
+  getAddress,
   getContract,
   http,
   parseAbi,
@@ -37,6 +38,11 @@ import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 config()
 
 export const DEV_WALLET_ADDRESS = globalConfig.devWallet
+
+// NON_EVM_ADDRESS constant from LiFiData.sol - used as receiver address when bridging to non-EVM chains
+export const NON_EVM_ADDRESS = getAddress(
+  '0x11f111f111f111F111f111f111F111f111f111F1'
+)
 
 export const DEFAULT_DEST_PAYLOAD_ABI = [
   'bytes32', // Transaction Id
