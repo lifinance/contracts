@@ -34,7 +34,7 @@ contract LiFiIntentEscrowFacet is
 
     /// @param receiverAddress The destination account for the delivered assets and calldata
     /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
-    /// @param nonce Unique identifier for the order to prevent replay attacks
+    /// @param nonce OrderId mixer. Used within the intent system to generate unqiue orderIds for each user. Should not be reused for `depositAndRefundAddress`
     /// @param expires If the proof for the fill does not arrive before this time, the claim expires
     /// @param fillDeadline The fill has to happen before this time
     /// @param inputOracle Address of the validation layer used on the input chain
