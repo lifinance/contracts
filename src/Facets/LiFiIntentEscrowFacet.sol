@@ -106,12 +106,22 @@ contract LiFiIntentEscrowFacet is
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        _bridgeData.minAmount = _depositAndSwap(
+        uint256 swapOutcome = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
+        // Return positive slippage to user if any
+        if (swapOutcome > _bridgeData.minAmount) {
+            LibAsset.transferAsset(
+                _bridgeData.sendingAssetId,
+                payable(msg.sender),
+                swapOutcome - _bridgeData.minAmount
+            );
+        }
+
         _startBridge(_bridgeData, _lifiIntentData);
     }
 
