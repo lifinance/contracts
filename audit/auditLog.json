@@ -662,9 +662,6 @@
     "LIFuelFacet": {
       "1.0.0": ["audit20251119"]
     },
-    "LiFiIntentEscrowFacet": {
-      "1.0.0": ["audit20251119"]
-    },
     "LidoWrapper": {
       "1.0.0": ["audit20250610"]
     },
