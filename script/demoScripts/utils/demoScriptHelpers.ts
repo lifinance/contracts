@@ -2,12 +2,20 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 import { config } from 'dotenv'
-import { BigNumber, constants, Contract, providers, Wallet } from 'ethers'
+import {
+  BigNumber,
+  constants,
+  Contract,
+  providers,
+  utils,
+  Wallet,
+} from 'ethers'
 import {
   createPublicClient,
   createWalletClient,
   formatEther,
   formatUnits,
+  getAddress,
   getContract,
   http,
   parseAbi,
@@ -20,6 +28,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
+import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
@@ -29,6 +38,11 @@ import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 config()
 
 export const DEV_WALLET_ADDRESS = globalConfig.devWallet
+
+// NON_EVM_ADDRESS constant from LiFiData.sol - used as receiver address when bridging to non-EVM chains
+export const NON_EVM_ADDRESS = getAddress(
+  '0x11f111f111f111F111f111f111F111f111f111F1'
+)
 
 export const DEFAULT_DEST_PAYLOAD_ABI = [
   'bytes32', // Transaction Id
@@ -991,3 +1005,43 @@ export const createContractObject = (
     },
   },
 })
+
+/**
+ * Logs a BridgeDataStruct in a formatted, human-readable way
+ * @param bridgeData The BridgeDataStruct to log
+ * @param logger Optional logger function (defaults to console.info)
+ */
+export function logBridgeDataStruct(
+  bridgeData: ILiFi.BridgeDataStruct,
+  logger: (message: string) => void = console.info
+): void {
+  // Convert transactionId to hex string if it's bytes
+  // Handle both string (hex) and BytesLike (Uint8Array, etc.) types
+  let transactionIdHex: string
+  if (typeof bridgeData.transactionId === 'string') {
+    transactionIdHex = bridgeData.transactionId
+  } else {
+    // It's BytesLike (Uint8Array or similar), convert to hex
+    transactionIdHex = utils.hexlify(
+      bridgeData.transactionId as utils.BytesLike
+    )
+  }
+
+  // Format referrer address
+  const referrerDisplay =
+    bridgeData.referrer === constants.AddressZero
+      ? `${bridgeData.referrer} (zero address)`
+      : bridgeData.referrer
+
+  logger('📋 BridgeData:')
+  logger(`  transactionId:     ${transactionIdHex}`)
+  logger(`  bridge:           ${bridgeData.bridge}`)
+  logger(`  integrator:       ${bridgeData.integrator}`)
+  logger(`  referrer:         ${referrerDisplay}`)
+  logger(`  sendingAssetId:   ${bridgeData.sendingAssetId}`)
+  logger(`  receiver:         ${bridgeData.receiver}`)
+  logger(`  minAmount:        ${bridgeData.minAmount}`)
+  logger(`  destinationChainId: ${bridgeData.destinationChainId}`)
+  logger(`  hasSourceSwaps:   ${bridgeData.hasSourceSwaps}`)
+  logger(`  hasDestinationCall: ${bridgeData.hasDestinationCall}`)
+}
