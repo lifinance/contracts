@@ -42745,7 +42745,8 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
-      },
+      }
+    },
     "xlayer": {
       "production": {
         "1.0.0": [
@@ -43803,6 +43804,21 @@
           }
         ]
       }
+    },
+    "plasma": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9B43Db66881128762B646576941C29059b13cbd6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-19 10:29:06",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000050039faefebef707cfd94d6d462fe6d10b39207a0000000000000000000000006100e367285b01f48d07953803a2d8dca5d1987300000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "RelayDepositoryFacet": {
@@ -44719,6 +44735,38 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-11-18 20:57:59",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000981ccf8c09633f6f2af3fe661c285ca1db09cae1",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
+  "LiFiIntentEscrowFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:24:32",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "base": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:20:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
@@ -45775,5 +45823,4 @@
       }
     }
   }
-}
 }

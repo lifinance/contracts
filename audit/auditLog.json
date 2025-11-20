@@ -440,6 +440,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.11.13_GlacisFacet(v1.2.0).pdf",
       "auditCommitHash": "13c4296cb4783a2c1108a62afe181f3dbf81cbc0"
+    },
+    "audit20251119": {
+      "auditCompletedOn": "19.11.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.11.19_LiFiIntentEscrowFacet(v1.0.0).pdf",
+      "auditCommitHash": "4e71699761d075f43f5d9cd66c4e1be082fa08ee"
     }
   },
   "auditedContracts": {
@@ -592,6 +599,12 @@
     "IGlacisAirlift": {
       "1.1.0": ["audit20251113"]
     },
+    "IOpenIntentFramework": {
+      "1.0.0": ["audit20251119"]
+    },
+    "IOriginSettler": {
+      "1.0.0": ["audit20251119"]
+    },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
     },
@@ -647,6 +660,9 @@
       "1.11.0": ["audit20250630"],
       "1.12.0": ["audit20250728"]
     },
+    "LiFiIntentEscrowFacet": {
+      "1.0.0": ["audit20251119"]
+    },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],
       "1.0.1": ["audit20250706"]
@@ -655,7 +671,7 @@
       "1.0.2": ["audit20250109_3", "audit20250508"]
     },
     "LIFuelFacet": {
-      "1.0.1": ["audit20250508"]
+      "1.0.0": ["audit20251119"]
     },
     "LidoWrapper": {
       "1.0.0": ["audit20250610"]
