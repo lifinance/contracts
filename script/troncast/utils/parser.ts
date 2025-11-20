@@ -41,19 +41,20 @@ function parseParameters(paramsStr: string): IParameter[] {
 
 export function parseArgument(type: string, value: string): any {
   // Convert string arguments to appropriate types
-  if (type === 'address') return value
-  else if (type.startsWith('uint') || type.startsWith('int')) return value
-  else if (type === 'bool') return value === 'true'
-  else if (type.startsWith('bytes'))
-    return value.startsWith('0x') ? value : '0x' + value
-  else if (type === 'string') return value
-  else if (type.endsWith('[]'))
+  // Check for arrays FIRST (before bytes) since bytes4[] should be treated as array, not bytes
+  if (type.endsWith('[]')) {
     // Parse arrays like "[1,2,3]"
     try {
       return JSON.parse(value)
     } catch {
       throw new Error(`Invalid array format: ${value}`)
     }
+  } else if (type === 'address') return value
+  else if (type.startsWith('uint') || type.startsWith('int')) return value
+  else if (type === 'bool') return value === 'true'
+  else if (type.startsWith('bytes'))
+    return value.startsWith('0x') ? value : '0x' + value
+  else if (type === 'string') return value
 
   return value
 }
