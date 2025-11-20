@@ -44732,6 +44732,38 @@
       }
     }
   },
+  "LiFiIntentEscrowFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:24:32",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "base": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:20:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
   "GardenFacet": {
     "mainnet": {
       "staging": {
