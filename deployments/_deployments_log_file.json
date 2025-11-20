@@ -38584,6 +38584,17 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.5": [
+          {
+            "ADDRESS": "0x904309A3a1000CA0521f49d6170a4347eB5d250d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-12 15:22:30",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       },
       "staging": {
@@ -42734,6 +42745,35 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
+      },
+    "xlayer": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     }
   },
@@ -44675,11 +44715,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xA9B94B8D37EdC4833E27Ce1eAf21188097959EDB",
+            "ADDRESS": "0x14a60Af2bE3e85efCF43575344868b15b6ef2eA5",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-03 12:16:24",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
-            "SALT": "22345102",
+            "TIMESTAMP": "2025-11-18 20:57:59",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000981ccf8c09633f6f2af3fe661c285ca1db09cae1",
+            "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
@@ -45735,4 +45775,5 @@
       }
     }
   }
+}
 }

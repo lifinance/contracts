@@ -184,21 +184,21 @@ deploySingleContract() {
       # Build zksync artifacts first
       echo "[info] building zksync artifacts"
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test
-      
+
       # Compute deploy salt for zk path and check for potential CREATE2 collision
       local BYTECODE
       BYTECODE=$(getBytecodeFromArtifact "$CONTRACT") || return 1
-      
+
       # Add custom salt from .env file (allows to re-deploy contracts with same bytecode)
       local SALT_INPUT="$BYTECODE""$SALT"
-      
+
       # Create salt that is used to deploy contract (same logic as non-zkEVM path)
       local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
 
       # Get predicted contract address for zksync deployment
       # Note: zksync uses CREATE2-like deterministic addressing
       # We need to check if this address already has code deployed
-      
+
       # Check if this version was already deployed and compare derived salts
       DEPLOYED=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
       if [[ $? == 0 ]]; then
@@ -237,12 +237,15 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
+    # Add skip simulation flag based on environment variable
+    SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
+
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --gas-limit 50000000)
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --gas-limit 50000000)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     fi
 
     RETURN_CODE=$?
@@ -268,14 +271,14 @@ deploySingleContract() {
         'zksync DEPLOYMENT FAILED - ADDRESS COLLISION' \
         'Error Code 3: Contract already exists at the predicted address' \
         'The deployment address is deterministic based on bytecode + SALT'
-      
+
       echo ""
       echo "🔧 To fix this issue:"
       echo "1. Add or modify SALT in your .env file:"
       echo "   SALT=your_custom_salt_value"
       echo "2. Re-run the deployment script"
       echo ""
-      
+
       # Set flag and break out of retry loop - no point in retrying with same SALT
       ADDRESS_COLLISION_DETECTED=true
       break
@@ -300,7 +303,7 @@ deploySingleContract() {
   # check if we broke out due to address collision
   if [[ "$ADDRESS_COLLISION_DETECTED" == "true" ]]; then
     error "Deployment stopped due to address collision. Please change SALT and retry."
-    
+
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1

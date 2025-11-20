@@ -661,6 +661,10 @@ function getZkSolcVersion() {
     echo ""
   fi
 }
+
+function getSkipSimulationFlag() {
+  [[ "$SKIP_SIMULATION" == "true" ]] && echo "--skip-simulation" || echo ""
+}
 # <<<<< MongoDB logging integration
 
 # <<<<< logging
