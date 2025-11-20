@@ -649,15 +649,15 @@
       "1.11.0": ["audit20250630"],
       "1.12.0": ["audit20250728"]
     },
+    "LiFiIntentEscrowFacet": {
+      "1.0.0": ["audit20251119"]
+    },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],
       "1.0.1": ["audit20250706"]
     },
     "LiFuelFeeCollector": {
       "1.0.2": ["audit20250109_3", "audit20250508"]
-    },
-    "LiFiIntentEscrowFacet": {
-      "1.0.0": ["audit20251119"]
     },
     "LIFuelFacet": {
       "1.0.0": ["audit20251119"]
