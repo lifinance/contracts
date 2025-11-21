@@ -53,8 +53,7 @@ The Everclear protocol uses a signed fee mechanism where:
 
 - The `fee` is deducted from the bridge amount and collected separately
 - The `nativeFee` (if non-zero) must be sent as msg.value and is used for cross-chain messaging costs
-- The `sig` parameter contains an EIP-191 signature of `abi.encode(fee, nativeFee, inputAsset, deadline, msg.sender)`
-- **V2 Change**: The signature now includes `msg.sender` (the diamond address) in the signed data for enhanced security
+- The `sig` parameter contains an EIP-191 signature over the four parameters: `abi.encode(fee, nativeFee, inputAsset, deadline)`
 - The signature must be created by the authorized fee signer in the EverclearFeeAdapter
 - The `deadline` must be greater than or equal to the current block timestamp
 
@@ -62,7 +61,6 @@ The Everclear protocol uses a signed fee mechanism where:
 
 - **Parameter Change**: `maxFee` (uint24) has been replaced with `amountOutMin` (uint256)
 - **Native Fee Support**: Added `nativeFee` parameter for cross-chain messaging costs
-- **Signature Validation**: Signatures now include `msg.sender` in the signed data
 
 ### Chain Support
 
