@@ -5046,6 +5046,74 @@
         ]
       }
     ],
+    "botanix": [
+      {
+        "name": "FeeCollector",
+        "address": "0x9391Bdac8F2e23F3510e40B156D1a86269f23EA2",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xE73883FDe24f49A1F7850d090E40D812db299618",
+        "selectors": [
+          {
+            "selector": "0x1078c579",
+            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+          },
+          {
+            "selector": "0xa7a4a271",
+            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x25fcf0C48ca9908c7a279027B669be5ea22c74FA",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x0AcF63fCabe57364a70F0cAAac536365AdcA7607",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
     "bsc": [
       {
         "name": "FeeCollector",
