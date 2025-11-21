@@ -44152,6 +44152,21 @@
           }
         ]
       }
+    },
+    "plasma": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9B43Db66881128762B646576941C29059b13cbd6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-19 10:29:06",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000050039faefebef707cfd94d6d462fe6d10b39207a0000000000000000000000006100e367285b01f48d07953803a2d8dca5d1987300000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "RelayDepositoryFacet": {
@@ -45051,6 +45066,55 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-10-20 17:35:31",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000399dbd5df04f83103f77a58cba2b7c4d3cdede97",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
+  "UnitFacet": {
+    "plasma": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14a60Af2bE3e85efCF43575344868b15b6ef2eA5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-18 20:57:59",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000981ccf8c09633f6f2af3fe661c285ca1db09cae1",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
+  "LiFiIntentEscrowFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:24:32",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "base": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:20:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
@@ -46100,23 +46164,6 @@
             "TIMESTAMP": "2025-10-31 16:04:45",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": "true",
-            "ZK_SOLC_VERSION": ""
-          }
-        ]
-      }
-    }
-  },
-  "UnitFacet": {
-    "plasma": {
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0xA9B94B8D37EdC4833E27Ce1eAf21188097959EDB",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-03 12:16:24",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
-            "SALT": "22345102",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
