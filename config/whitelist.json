@@ -3886,6 +3886,14 @@
               "0xd46cadbc": ""
             }
           }
+        ],
+        "monad": [
+          {
+            "address": "0x5fbd1b5aa82d09359c05428647871fe9add3f411",
+            "functions": {
+              "0xd46cadbc": ""
+            }
+          }
         ]
       }
     },
