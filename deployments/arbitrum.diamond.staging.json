@@ -204,6 +204,22 @@
       "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
         "Name": "",
         "Version": ""
+      },
+      "0x28871221E2a1Ca351218797EF33d133d48d710ab": {
+        "Name": "EverclearFacet",
+        "Version": "2.0.0"
+      },
+      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -211,8 +227,8 @@
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x104BD390Fed41089650Ac14aC6D9a8F3513A04cf",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
