@@ -80,6 +80,11 @@ diamondUpdateFacet() {
     return 1
   fi
 
+  # make sure GAS_ESTIMATE_MULTIPLIER is set
+  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
+    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
+  fi
+
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
     echo "Please select which facet you would like to update"
@@ -113,6 +118,10 @@ diamondUpdateFacet() {
   attempts=1
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
+
+    # Add skip simulation flag based on environment variable
+    SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
+
     # check if we are deploying to PROD
     if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
@@ -122,10 +131,10 @@ diamondUpdateFacet() {
 
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync --gas-limit 50000000)
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json "$SKIP_SIMULATION_FLAG" --slow --zksync --gas-limit 50000000)
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json "$SKIP_SIMULATION_FLAG" --legacy)
       fi
 
       # Extract JSON starting with {"logs": from mixed output
@@ -163,9 +172,9 @@ diamondUpdateFacet() {
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
+        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --zksync --gas-limit 50000000 --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
       else
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --broadcast --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --broadcast --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" "$SKIP_SIMULATION_FLAG")
       fi
     fi
     RETURN_CODE=$?

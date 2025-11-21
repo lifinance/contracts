@@ -60,6 +60,18 @@
       "0xA5b0446EFECBfee560a985139e232692C5AC44a1": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
+      },
+      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
