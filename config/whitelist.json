@@ -357,6 +357,14 @@
             }
           }
         ],
+        "plume": [
+          {
+            "address": "0x85efa14c12f5fe42ff9d7da460a71088b26bea31",
+            "functions": {
+              "0xe3665a43": ""
+            }
+          }
+        ],
         "taiko": [
           {
             "address": "0xa091aed5265cadb389100096cbdd363683a867e5",
