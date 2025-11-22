@@ -56,6 +56,10 @@
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x6e92B66195BfDb19C58be6799ddba755935B79F7": {
+        "Name": "MayanFacet",
+        "Version": "1.2.2"
       }
     },
     "Periphery": {
