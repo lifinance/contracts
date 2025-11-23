@@ -68,6 +68,10 @@
       "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
         "Name": "RelayFacet",
         "Version": "1.0.1"
+      },
+      "0xA8e7e5B35507C873865bd512d0A97E362e6A6e10": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

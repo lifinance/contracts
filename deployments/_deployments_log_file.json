@@ -40792,6 +40792,21 @@
           }
         ]
       }
+    },
+    "monad": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-23 11:19:28",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f17902d51fdff7bf50aacc78d6bb399baf88b479000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
@@ -43541,6 +43556,21 @@
             }
           ]
         }
+      },
+      "monad": {
+        "production": {
+          "1.0.0": [
+            {
+              "ADDRESS": "0x960B7a177dAaD7D1beA69354d023984Af6b75847",
+              "OPTIMIZER_RUNS": "1000000",
+              "TIMESTAMP": "2025-11-23 11:20:17",
+              "CONSTRUCTOR_ARGS": "0x000000000000000000000000d2ecb3afe598b746f8123cae365a598da831a4490000000000000000000000003bd359c1119da7da1d913d1c4d2b7c461115433a",
+              "SALT": "",
+              "VERIFIED": "false",
+              "ZK_SOLC_VERSION": ""
+            }
+          ]
+        }
       }
     },
     "ReceiverAcrossV4": {
@@ -43850,6 +43880,21 @@
               "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000765faa0ffb5557c6cce2ea1097d50acfd5f5c58c00000000000000000000000050039faefebef707cfd94d6d462fe6d10b39207a00000000000000000000000000000000000000000000000000000000000186a0",
               "SALT": "",
               "VERIFIED": "true",
+              "ZK_SOLC_VERSION": ""
+            }
+          ]
+        }
+      },
+      "monad": {
+        "production": {
+          "1.0.0": [
+            {
+              "ADDRESS": "0xeebc9F9D77b8982CDC48C995995eBB7dd74A3Dcf",
+              "OPTIMIZER_RUNS": "1000000",
+              "TIMESTAMP": "2025-11-23 11:20:56",
+              "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000765faa0ffb5557c6cce2ea1097d50acfd5f5c58c000000000000000000000000d2ecb3afe598b746f8123cae365a598da831a44900000000000000000000000000000000000000000000000000000000000186a0",
+              "SALT": "",
+              "VERIFIED": "false",
               "ZK_SOLC_VERSION": ""
             }
           ]
@@ -44778,6 +44823,21 @@
               "CONSTRUCTOR_ARGS": "0x0000000000000000000000004cd00e387622c35bddb9b4c962c136462338bc31",
               "SALT": "",
               "VERIFIED": "true",
+              "ZK_SOLC_VERSION": ""
+            }
+          ]
+        }
+      },
+      "monad": {
+        "production": {
+          "1.0.0": [
+            {
+              "ADDRESS": "0xA8e7e5B35507C873865bd512d0A97E362e6A6e10",
+              "OPTIMIZER_RUNS": "1000000",
+              "TIMESTAMP": "2025-11-23 11:40:39",
+              "CONSTRUCTOR_ARGS": "0x0000000000000000000000004cd00e387622c35bddb9b4c962c136462338bc31",
+              "SALT": "",
+              "VERIFIED": "false",
               "ZK_SOLC_VERSION": ""
             }
           ]
