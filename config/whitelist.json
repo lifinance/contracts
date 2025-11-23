@@ -4131,6 +4131,38 @@
           }
         ]
       }
+    },
+    {
+      "name": "Monorail",
+      "key": "monorail",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/monorail.svg",
+      "webUrl": "https://monorail.xyz/",
+      "contracts": {
+        "monad": [
+          {
+            "address": "0xa68a7f0601effdc65c64d9c47ca1b18d96b4352c",
+            "functions": {
+              "0xf99cae99": "aggregate(address,address,uint256,uint256,address,uint256,uint64,uint64,(uint256,uint32,uint8,address,address,address,bytes)[])"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Kuru",
+      "key": "kuru",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/kuru.svg",
+      "webUrl": "https://kuru.io/",
+      "contracts": {
+        "monad": [
+          {
+            "address": "0xb3e6778480b2e488385e8205ea05e20060b813cb",
+            "functions": {
+              "0xce1e7030": "executeSwap((address,uint256,address,uint256),(address,uint256,address,uint256,bool),bytes)"
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
