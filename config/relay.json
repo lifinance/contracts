@@ -1,5 +1,5 @@
 {
-  "--- link_to_relay_docs_for_contract_addresses ---": "https://docs.relay.link/resources/contract-addresses",
+  "--- link_to_relay_docs_for_contract_addresses ---": "https://docs.relay.link/references/api/api_resources/supported-chains",
   "--- alternative (API) ---": "https://api.relay.link/chains?includeChains=562da1f0-bffe-4208-a3d8-143c2fbdb380",
   "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
   "mainnet": {
