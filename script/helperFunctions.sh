@@ -1948,7 +1948,7 @@ function addPeripheryToWhitelistJson() {
   else
     WHITELIST_FILE="config/whitelist.staging.json"
   fi
-  
+
   echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to $WHITELIST_FILE"
 
   # Use file paths from config.sh
@@ -4640,7 +4640,7 @@ function updateDiamondLogs() {
 #   1 - Failure (with error message)
 install_foundry_zksync() {
   # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.30"
+  local FOUNDRY_ZKSYNC_VERSION="v0.0.32"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 

@@ -12,6 +12,12 @@ interface IContractDeployer {
         bytes32 _salt,
         bytes calldata _input
     ) external view returns (address newAddress);
+
+    function create2(
+        bytes32 _salt,
+        bytes32 _bytecodeHash,
+        bytes calldata _input
+    ) external payable returns (address newAddress);
 }
 
 contract DeployScriptBase is ScriptBase {
@@ -32,7 +38,7 @@ contract DeployScriptBase is ScriptBase {
     function getConstructorArgs() internal virtual returns (bytes memory) {}
 
     function deploy(
-        bytes memory creationCode
+        bytes memory /* creationCode */
     ) internal virtual returns (address payable deployed) {
         bytes memory constructorArgs = getConstructorArgs();
 
@@ -46,10 +52,10 @@ contract DeployScriptBase is ScriptBase {
         );
         string memory json = vm.readFile(path);
         bytes32 bytecodeHash = json.readBytes32(".hash");
-        bytes memory deploymentBytecode = bytes.concat(
-            creationCode,
-            constructorArgs
-        );
+        // bytes memory deploymentBytecode = bytes.concat(
+        //     creationCode,
+        //     constructorArgs
+        // );
         vm.startBroadcast(deployerPrivateKey);
 
         address predicted = IContractDeployer(DEPLOYER_CONTRACT_ADDRESS)
@@ -69,10 +75,16 @@ contract DeployScriptBase is ScriptBase {
         }
 
         // Deploy a contract using the CREATE2 opcode for deterministic addr
-        assembly {
-            let len := mload(deploymentBytecode)
-            let data := add(deploymentBytecode, 0x20)
-            deployed := create2(0, data, len, sload(salt.slot))
+        try
+            IContractDeployer(DEPLOYER_CONTRACT_ADDRESS).create2(
+                salt,
+                bytecodeHash,
+                constructorArgs
+            )
+        returns (address result) {
+            deployed = payable(result);
+        } catch {
+            deployed = payable(predicted);
         }
 
         vm.stopBroadcast();
