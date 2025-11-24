@@ -1,13 +1,21 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
 
-import { getPrivateKey } from '../../deploy/tron/utils'
-import type { Environment, ITransactionReceipt } from '../types'
-import { formatReceipt, formatGasUsage } from '../utils/formatter'
+import { EnvironmentEnum } from '../../common/types'
 import {
-  parseFunctionSignature,
-  parseArgument,
+  getEnvironment,
+  getPrivateKey,
+  loadForgeArtifact,
+} from '../../deploy/tron/utils'
+import type { Environment, ITransactionReceipt } from '../types'
+import { formatGasUsage, formatReceipt } from '../utils/formatter'
+import {
   isValidAddress,
+  parseArgument,
+  parseFunctionSignature,
 } from '../utils/parser'
 import { initTronWeb, parseValue, waitForConfirmation } from '../utils/tronweb'
 
@@ -97,9 +105,68 @@ export const sendCommand = defineCommand({
       consola.info(`Preparing to call ${funcSig.name} on ${args.address}`)
 
       // Parse parameters
-      const params = args.params
-        ? args.params.split(',').map((p) => p.trim())
-        : []
+      // Special handling for arrays: need to properly parse JSON arrays in any position
+      let params: string[] = []
+      if (args.params) {
+        const paramsStr = args.params.trim()
+
+        // Check if any parameter is an array type
+        const hasArrayParam = funcSig.inputs.some((input) =>
+          input.type.endsWith('[]')
+        )
+
+        if (hasArrayParam) {
+          // Smart parsing: handle arrays in any position
+          // Strategy: parse by finding JSON arrays and splitting around them
+          const parsed: string[] = []
+          let currentPos = 0
+          let bracketDepth = 0
+          let inString = false
+          let stringChar = ''
+
+          for (let i = 0; i < paramsStr.length; i++) {
+            const char = paramsStr[i]
+
+            // Track string boundaries to avoid splitting inside strings
+            if (
+              (char === '"' || char === "'") &&
+              (i === 0 || paramsStr[i - 1] !== '\\')
+            ) {
+              if (!inString) {
+                inString = true
+                stringChar = char
+              } else if (char === stringChar) {
+                inString = false
+              }
+            }
+
+            // Track bracket depth (only when not in string)
+            if (!inString) {
+              if (char === '[') bracketDepth++
+              else if (char === ']') bracketDepth--
+
+              // When we hit a comma at depth 0, we've found a parameter boundary
+              if (char === ',' && bracketDepth === 0) {
+                const param = paramsStr.slice(currentPos, i).trim()
+                if (param) parsed.push(param)
+                currentPos = i + 1
+              }
+            }
+          }
+
+          // Add the last parameter
+          if (currentPos < paramsStr.length) {
+            const param = paramsStr.slice(currentPos).trim()
+            if (param) parsed.push(param)
+          }
+
+          params = parsed.length > 0 ? parsed : [paramsStr]
+        } else {
+          // No arrays, simple comma split
+          params = paramsStr.split(',').map((p) => p.trim())
+        }
+      }
+
       if (params.length !== funcSig.inputs.length)
         throw new Error(
           `Expected ${funcSig.inputs.length} parameters, got ${params.length}`
@@ -129,7 +196,108 @@ export const sendCommand = defineCommand({
       }
 
       // Get contract instance
-      const contract = await tronWeb.contract().at(args.address)
+      // For functions with array parameters, we need to use the ABI directly
+      // Try to load the ABI if it's a known contract, otherwise use contract().at()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let contract: any
+      try {
+        // Try to detect if this is a diamond call by checking for common facet functions
+        const functionName = funcSig.name
+        const isArrayFunction = funcSig.inputs.some((input) =>
+          input.type.endsWith('[]')
+        )
+
+        if (isArrayFunction) {
+          // For array functions, we need to load the ABI
+          // Dynamically discover facets from deployment files
+          let artifact = null
+
+          try {
+            // Determine network and environment
+            const environment = await getEnvironment()
+            const networkName =
+              environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+            const fileSuffix =
+              environment === EnvironmentEnum.production ? '' : 'staging.'
+            const deploymentPath = resolve(
+              process.cwd(),
+              `deployments/${networkName}.${fileSuffix}json`
+            )
+
+            // Read deployment file to get all facet contracts
+            const deployments = JSON.parse(
+              readFileSync(deploymentPath, 'utf-8')
+            )
+
+            // Filter for contracts ending with "Facet"
+            const facetNames = Object.keys(deployments).filter((name) =>
+              name.endsWith('Facet')
+            )
+
+            consola.debug(
+              `Found ${
+                facetNames.length
+              } facets in deployment file: ${facetNames.join(', ')}`
+            )
+
+            // Try each facet's ABI to find the function
+            for (const facetName of facetNames) {
+              try {
+                const candidateArtifact = await loadForgeArtifact(facetName)
+                const hasFunction = candidateArtifact.abi.some(
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (item: any) =>
+                    item.type === 'function' && item.name === functionName
+                )
+                if (hasFunction) {
+                  artifact = candidateArtifact
+                  consola.debug(`Using ABI from ${facetName}`)
+                  break
+                }
+              } catch {
+                // Facet artifact not found, try next
+                continue
+              }
+            }
+          } catch (error) {
+            // Deployment file not found or can't be read, continue to fallback
+            consola.debug(
+              'Could not read deployment file, will use fallback ABI'
+            )
+          }
+
+          if (artifact) {
+            contract = tronWeb.contract(artifact.abi, args.address)
+          } else {
+            // Fallback: create a minimal ABI with just this function
+            const minimalABI = [
+              {
+                type: 'function',
+                name: functionName,
+                inputs: funcSig.inputs.map((input) => ({
+                  name: input.name || '',
+                  type: input.type,
+                })),
+                outputs: funcSig.outputs.map((output) => ({
+                  name: output.name || '',
+                  type: output.type,
+                })),
+                stateMutability: 'nonpayable',
+              },
+            ]
+            contract = tronWeb.contract(minimalABI, args.address)
+          }
+        } else {
+          // For non-array functions, use the simpler contract().at()
+          contract = await tronWeb.contract().at(args.address)
+        }
+      } catch (error) {
+        consola.warn(
+          'Failed to load ABI, using default contract instance:',
+          error
+        )
+        contract = await tronWeb.contract().at(args.address)
+      }
 
       if (args.dryRun) {
         consola.info('Dry run mode - transaction will not be sent')

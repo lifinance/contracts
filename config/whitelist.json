@@ -357,6 +357,14 @@
             }
           }
         ],
+        "plume": [
+          {
+            "address": "0x85efa14c12f5fe42ff9d7da460a71088b26bea31",
+            "functions": {
+              "0xe3665a43": ""
+            }
+          }
+        ],
         "taiko": [
           {
             "address": "0xa091aed5265cadb389100096cbdd363683a867e5",
@@ -1005,6 +1013,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "optimism": [
@@ -1015,6 +1032,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1027,6 +1053,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "polygon": [
@@ -1037,6 +1072,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1049,6 +1093,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "fantom": [
@@ -1059,6 +1112,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1071,6 +1133,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "zksync": [
@@ -1081,6 +1152,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1093,6 +1173,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "base": [
@@ -1103,6 +1192,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1115,6 +1213,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "arbitrum": [
@@ -1125,6 +1232,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1137,6 +1253,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "linea": [
@@ -1148,6 +1273,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "scroll": [
@@ -1158,6 +1292,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ]
@@ -4944,6 +5087,74 @@
       {
         "name": "LiFiDEXAggregator",
         "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
+    "botanix": [
+      {
+        "name": "FeeCollector",
+        "address": "0x9391Bdac8F2e23F3510e40B156D1a86269f23EA2",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xE73883FDe24f49A1F7850d090E40D812db299618",
+        "selectors": [
+          {
+            "selector": "0x1078c579",
+            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+          },
+          {
+            "selector": "0xa7a4a271",
+            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x25fcf0C48ca9908c7a279027B669be5ea22c74FA",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x0AcF63fCabe57364a70F0cAAac536365AdcA7607",
         "selectors": [
           {
             "selector": "0x2646478b",

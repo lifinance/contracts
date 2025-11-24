@@ -1197,6 +1197,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x40a675F1A8f2b872d62CD1aA576DaE6da89D3647",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:23:50",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -2386,6 +2401,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xdFFDaFe43B29d233419fe75e04A543797E741fa3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:24:25",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -3570,6 +3600,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x72299cA75d403219e0FDBa28bA511C1518208B30",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:27:36",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -5075,6 +5120,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0x21540378FB199fB2A1aF394E87cB2FdBE221605a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:22:53",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -6273,6 +6333,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcB1167957E7a6F8325981FCd0921EA1daa83F55D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:20:36",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -7447,6 +7522,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x3f7D6413f1F59DE21Be3232eE783A979DE8Cb964",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:29:17",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -8639,6 +8729,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb7e9ba39F0713C70dAc49356045ac893196eB43D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:28:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -9783,6 +9888,21 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c00000000000000000000000094a7ddfeb0cd13026f732703cf5596fd44a2a385",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x374Fba7a7Ee709728595995e4701332F71B1F103",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:45:46",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c00000000000000000000000040a675f1a8f2b872d62cd1aa576dae6da89d3647",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -12021,6 +12141,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf9609D3B8640C3a5Fae0CA5790eda14B529B5165",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:25:32",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -15902,6 +16037,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xe5b95953a5769cB88595F66dfa3BA49b74cD2a79",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:52:38",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -17217,6 +17367,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0x650659134DFD3a0F56C69b949E4b9e82f7802679",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:53:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e5b95953a5769cb88595f66dfa3ba49b74cd2a79000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -18316,6 +18481,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x9391Bdac8F2e23F3510e40B156D1a86269f23EA2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:54:32",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -26796,6 +26976,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.3.1": [
+          {
+            "ADDRESS": "0xf37A44B4af8452D5595D225101B2C760982DE51E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:21:16",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -28772,6 +28967,20 @@
     }
   },
   "TokenWrapper": {
+    "botanix": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x25fcf0C48ca9908c7a279027B669be5ea22c74FA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 12:18:43",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000D2437F93Fed6EA64Ef01cCde385FB1263910C56",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
     "polygon": {
       "staging": {
         "1.0.0": [
@@ -31389,6 +31598,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.2": [
+          {
+            "ADDRESS": "0xBd4a482e386a164baDa631AD76bEFc7bca2E5869",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:26:45",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -32050,6 +32274,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x08E5CAf41C27Fd6c24864CB4fA7FB080470ff57C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:50:49",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003a1e3062414165a15d4cae4a6cbff6d83f60be55",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ReceiverStargateV2": {
@@ -32596,6 +32835,21 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-09-16 10:28:04",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000765faa0ffb5557c6cce2ea1097d50acfd5f5c58c000000000000000000000000af5191b0de278c7286d6c7cc6ab6bb8a73ba2cd60000000000000000000000006f475642a6e85809b1c36fa62763669b1b48dd5b00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x4D3d4fFa6Cf7D1B052b05a9065E19AB5ec654CaD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:59:14",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000650659134dfd3a0f56c69b949e4b9e82f78026790000000000000000000000003a1e3062414165a15d4cae4a6cbff6d83f60be550000000000000000000000006f475642a6e85809b1c36fa62763669b1b48dd5b00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
@@ -34085,6 +34339,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.12.0": [
+          {
+            "ADDRESS": "0x0AcF63fCabe57364a70F0cAAac536365AdcA7607",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:56:25",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "EmergencyPauseFacet": {
@@ -35143,6 +35412,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x747621D74289DEC570daCaB96026472b03Fd4E68",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:24:57",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -37919,6 +38203,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.4": [
+          {
+            "ADDRESS": "0xa6f203753D45C73Be36dD875de2d2f8Af3DAF207",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 11:59:56",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000374fba7a7ee709728595995e4701332f71b1f103000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba300000000000000000000000068fea7dc931b1de6f251cb5f5a9798192e533e53",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GasZipFacet": {
@@ -39278,6 +39577,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "2.0.5": [
+          {
+            "ADDRESS": "0x10D232275F6Cf19ace3280F53381f5E933B6C0B5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-18 07:50:46",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
@@ -40163,6 +40477,21 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390000000000000000000000000588c00159aed9a9ab258850b33dedfac1c794fa100000000000000000000000094288db96fbe7eb6847965120be91eab81f3a6d0",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xE73883FDe24f49A1F7850d090E40D812db299618",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-18 07:50:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d83900000000000000000000000000acf63fcabe57364a70f0caaac536365adca760700000000000000000000000068fea7dc931b1de6f251cb5f5a9798192e533e53",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -42929,6 +43258,21 @@
           }
         ]
       }
+    },
+    "botanix": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x8C234c16D8DDd18b09546F39Dc5700729A3669e8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-31 12:00:57",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000002a3000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000068fea7dc931b1de6f251cb5f5a9798192e533e53000000000000000000000000374fba7a7ee709728595995e4701332f71b1f103000000000000000000000000000000000000000000000000000000000000000100000000000000000000000068fea7dc931b1de6f251cb5f5a9798192e533e5300000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "WhitelistManagerFacet": {
@@ -43136,6 +43480,21 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "botanix": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1c2a47D0867C618179B12D9e159b92Aa8A1617C5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-18 07:52:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -43635,13 +43994,13 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x628E85a5144edba27c8808424D24B5955B426c96",
+            "ADDRESS": "0x1c82465c73e62A197E5f4f8C0a939a9856CDfA8D",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-09-12 17:25:47",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ab30c390671f509d89527f2ffea6f9a072e3b636000000000000000000000000d524a49274d7b55852a2195d7622457fd77ba9bd00000000000000000000000000000000000000000000000000000000000186a0",
+            "TIMESTAMP": "2025-11-17 10:17:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ab30c390671f509d89527f2ffea6f9a072e3b636000000000000000000000000b234ca484866c811d0e6d3318866f583781ed04500000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true",
-            "ZK_SOLC_VERSION": "1.5.15"
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }
@@ -44192,6 +44551,21 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-09-19 13:10:28",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000035e63ea3eb0fb7a3bc543c71fb66412e1f6b0e04000000000000000000000000555555555555555555555555555555555555555500000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "plasma": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9B43Db66881128762B646576941C29059b13cbd6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-19 10:29:06",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000050039faefebef707cfd94d6d462fe6d10b39207a0000000000000000000000006100e367285b01f48d07953803a2d8dca5d1987300000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
@@ -45125,11 +45499,43 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xA9B94B8D37EdC4833E27Ce1eAf21188097959EDB",
+            "ADDRESS": "0x14a60Af2bE3e85efCF43575344868b15b6ef2eA5",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-10-03 12:16:24",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
-            "SALT": "22345102",
+            "TIMESTAMP": "2025-11-18 20:57:59",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000981ccf8c09633f6f2af3fe661c285ca1db09cae1",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
+  "LiFiIntentEscrowFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:24:32",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "base": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-03 10:20:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
+            "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }

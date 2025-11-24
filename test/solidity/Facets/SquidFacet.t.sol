@@ -52,10 +52,22 @@ contract SquidFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(squidFacet), functionSelectors);
         squidFacet = TestSquidFacet(address(diamond));
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
-        squidFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForETH.selector);
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+        squidFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForETH.selector
+        );
 
         setFacetAddressInTestBase(address(squidFacet), "SquidFacet");
 
