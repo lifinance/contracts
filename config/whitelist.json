@@ -4243,16 +4243,240 @@
       }
     },
     {
-      "name": "CoreWriter",
-      "key": "corewriter",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/hyperflow_corewriter.svg",
-      "webUrl": "https://hyperflow.fun",
+      "name": "Nordstern Finance",
+      "key": "nordstern",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/nordstern_finance.svg",
+      "webUrl": "https://nordstern.finance",
       "contracts": {
-        "hyperevm": [
+        "mainnet": [
           {
-            "address": "0xb4580138102bda0c7e8c9a05529ba5f70cdf1e93",
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
             "functions": {
-              "0xb4c95169": "targetBridge(uint256,address,address,(uint256,address,bytes),(uint32,bool,bool,uint8),bytes)"
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "optimism": [
+          {
+            "address": "0xa575f37e869e6887564f87c07e2885e08d542c4a",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "cronos": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "rootstock": [
+          {
+            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "bsc": [
+          {
+            "address": "0x1a3304cbef66de00fbe1548cc4c6585ad22fbcff",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "gnosis": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "fuse": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "unichain": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "polygon": [
+          {
+            "address": "0x99ba7d569ea69671b399a7cc488b687515f7ec23",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "sonic": [
+          {
+            "address": "0x0a354845411cc1212cfb33acc6a52fcd4a80e3ae",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "boba": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "sei": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "gravity": [
+          {
+            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "soneium": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "mantle": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "kaia": [
+          {
+            "address": "0xb4fe60cd05a3e68668007cee83ddfd9a50a45b36",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "base": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "immutablezkevm": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "mode": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "arbitrum": [
+          {
+            "address": "0x57f96440f1b1cad53b40a8924bd540b1279a491c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "celo": [
+          {
+            "address": "0x911a744ab8eccb504173fbcabbd7c34648f2a773",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "avalanche": [
+          {
+            "address": "0xa575f37e869e6887564f87c07e2885e08d542c4a",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "ink": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "linea": [
+          {
+            "address": "0x2ff506ed9729580ef8bf04429614beb1bae5f76d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "berachain": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "blast": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "taiko": [
+          {
+            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "scroll": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "aurora": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
             }
           }
         ]
