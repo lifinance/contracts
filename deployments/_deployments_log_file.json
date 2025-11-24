@@ -43094,51 +43094,51 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
-      },
-      "xlayer": {
-        "production": {
-          "1.0.0": [
-            {
-              "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
-              "OPTIMIZER_RUNS": "1000000",
-              "TIMESTAMP": "2025-11-06 15:26:21",
-              "CONSTRUCTOR_ARGS": "0x",
-              "SALT": "",
-              "VERIFIED": "false",
-              "ZK_SOLC_VERSION": ""
-            }
-          ]
-        }
-      },
-      "moonriver": {
-        "production": {
-          "1.0.0": [
-            {
-              "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
-              "OPTIMIZER_RUNS": "1000000",
-              "TIMESTAMP": "2025-11-06 15:26:40",
-              "CONSTRUCTOR_ARGS": "0x",
-              "SALT": "",
-              "VERIFIED": "false",
-              "ZK_SOLC_VERSION": ""
-            }
-          ]
-        }
-      },
-      "monad": {
-        "production": {
-          "1.0.0": [
-            {
-              "ADDRESS": "0x746E5c2ea5b3C005368645544D4B532255177e5c",
-              "OPTIMIZER_RUNS": "1000000",
-              "TIMESTAMP": "2025-11-14 07:17:19",
-              "CONSTRUCTOR_ARGS": "0x",
-              "SALT": "",
-              "VERIFIED": "false",
-              "ZK_SOLC_VERSION": ""
-            }
-          ]
-        }
+      }
+    },
+    "xlayer": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb28Dd740D27853A91639795223AB409088A73E23",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-06 15:26:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "monad": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x746E5c2ea5b3C005368645544D4B532255177e5c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-14 07:17:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     }
   },
