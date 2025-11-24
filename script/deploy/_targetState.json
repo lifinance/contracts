@@ -2189,7 +2189,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "AcrossFacetV4": "1.0.0",
-        "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.1.0",
         "RelayFacet": "1.0.1"
