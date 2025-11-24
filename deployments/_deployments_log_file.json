@@ -8724,7 +8724,7 @@
             "TIMESTAMP": "2025-10-03 17:17:00",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -17362,7 +17362,7 @@
             "TIMESTAMP": "2025-10-04 10:58:43",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef3d879e24741973d7f7e78858bfa4fbb9cfa74d000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -18480,7 +18480,7 @@
             "TIMESTAMP": "2025-10-04 10:59:09",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ab483d44705af49a83553821a1f7aad8bbc70576",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -34334,7 +34334,7 @@
             "TIMESTAMP": "2025-10-04 10:59:37",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -40476,7 +40476,7 @@
             "TIMESTAMP": "2025-10-04 11:20:32",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390000000000000000000000000588c00159aed9a9ab258850b33dedfac1c794fa100000000000000000000000094288db96fbe7eb6847965120be91eab81f3a6d0",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
