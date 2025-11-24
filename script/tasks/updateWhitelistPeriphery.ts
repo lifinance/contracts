@@ -101,6 +101,13 @@ function getComposerContractsForNetwork(networkName: string): IContractData[] {
       throw new Error(`Invalid Composer address for ${networkName}: ${address}`)
     }
 
+    // Ensure we have at least one function selector
+    if (!Array.isArray(functionSelectors) || functionSelectors.length === 0) {
+      throw new Error(
+        `Composer entry for ${networkName} at ${address} must define a non-empty functionSelectors array`
+      )
+    }
+
     // Validate selectors and map into ISelectorData[]
     const selectors: ISelectorData[] = functionSelectors.map(
       ({ selector, signature }) => {
@@ -110,9 +117,21 @@ function getComposerContractsForNetwork(networkName: string): IContractData[] {
           )
         }
 
+        if (!signature || signature.trim().length === 0) {
+          throw new Error(
+            `Missing or empty Composer signature for ${networkName} (address: ${address}, selector: ${selector})`
+          )
+        }
+
+        if (!validateSelector(selector, signature)) {
+          throw new Error(
+            `Selector mismatch for Composer on ${networkName} (address: ${address}): ${selector} != ${signature}`
+          )
+        }
+
         return {
           selector,
-          signature: signature || '',
+          signature,
         }
       }
     )
