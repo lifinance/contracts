@@ -4355,7 +4355,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -4569,7 +4569,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -4723,7 +4723,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -4823,7 +4823,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -4901,7 +4901,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -5237,7 +5237,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -5301,7 +5301,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -5917,7 +5917,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -6131,7 +6131,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -6263,7 +6263,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -6395,7 +6395,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -6609,7 +6609,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -6687,7 +6687,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -7145,7 +7145,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -7291,7 +7291,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -7391,7 +7391,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -7645,7 +7645,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -7791,7 +7791,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -7869,7 +7869,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -8277,7 +8277,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
@@ -8491,7 +8491,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": ""
+            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
           }
         ]
       }
