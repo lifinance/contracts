@@ -1192,7 +1192,7 @@
             "TIMESTAMP": "2025-10-03 17:02:17",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -2396,7 +2396,7 @@
             "TIMESTAMP": "2025-10-03 17:06:04",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -3599,7 +3599,7 @@
             "TIMESTAMP": "2025-10-03 17:16:44",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
