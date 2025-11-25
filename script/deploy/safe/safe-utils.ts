@@ -430,10 +430,50 @@ export class ViemSafe {
     }
   }
 
+  /**
+   * Alternative signing path: sign the Safe transaction hash via eth_sign
+   * instead of EIP-712 typed data.
+   *
+   * This is useful for hardware wallets (e.g. Ledger) that may reject very
+   * large EIP-712 payloads (status 0x6a80). The Safe contracts fully support
+   * eth_sign signatures over the Safe transaction hash.
+   */
+  public async signTransactionWithHash(
+    safeTx: ISafeTransaction
+  ): Promise<ISafeTransaction> {
+    try {
+      // 1) Compute the Safe transaction hash on-chain (via viem client)
+      const hash = await this.getTransactionHash(safeTx)
+      consola.info(
+        `[safe-utils] Signing Safe tx hash (ENABLE_SAFE_TX_HASH_SIGNING=true): ${hash}`
+      )
+
+      // 2) Sign the hash using eth_sign-compatible flow
+      const sig = await this.signHash(hash)
+
+      // 3) Attach signature to the Safe transaction
+      safeTx.signatures.set(sig.signer.toLowerCase(), sig)
+
+      return safeTx
+    } catch (error: any) {
+      console.error('Error signing transaction hash:', error)
+      throw new Error(
+        `Failed to sign transaction hash: ${error.message || error}`
+      )
+    }
+  }
+
   // Sign a Safe transaction (replaces signTransaction from Safe SDK)
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    // Optional feature flag to switch between EIP-712 signing and hash signing.
+    // If ENABLE_SAFE_TX_HASH_SIGNING === 'true', we sign the Safe tx hash
+    // using eth_sign instead of constructing a large EIP-712 payload.
+    if (process.env.ENABLE_SAFE_TX_HASH_SIGNING === 'true') {
+      return this.signTransactionWithHash(safeTx)
+    }
+
     try {
       // Get chain ID for domain
       const chainId = await this.publicClient.getChainId()

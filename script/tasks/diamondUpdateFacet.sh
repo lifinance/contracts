@@ -137,13 +137,42 @@ diamondUpdateFacet() {
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json "$SKIP_SIMULATION_FLAG" --legacy)
       fi
 
+      echo ""
+      echo ""
+      echo ""
+      echo ""
+      echo "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+      echo ""
+      echo ""
+      echo ""
+      echo ""
+
       # Extract JSON starting with {"logs": from mixed output
       # sometimes there are leading or trailing characters such as error messages, etc.
       # we dont want/need those
-      JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+      # IMPORTANT: Use sed to extract JSON between {"logs": and closing brace, handling multi-line output
+      # This is critical for large hex strings that may cause forge to output multi-line JSON
+      # The pattern matches from {"logs": to the last } on a line, handling multi-line JSON
+      JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+
+      # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
+      if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+        JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+      fi
 
       # Extract cutData from the cleaned JSON output
       FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
+
+      # Validate extracted calldata length (should be even number of hex chars after 0x)
+      if [[ -n "$FACET_CUT" && "$FACET_CUT" != "0x" ]]; then
+        CALLDATA_LENGTH=$((${#FACET_CUT} - 2))
+        if [[ $((CALLDATA_LENGTH % 2)) -ne 0 ]]; then
+          error "Extracted calldata appears truncated (odd length: $CALLDATA_LENGTH hex chars)"
+          return 1
+        fi
+        echoDebug "Extracted calldata length: $CALLDATA_LENGTH hex chars ($((CALLDATA_LENGTH / 2)) bytes)"
+      fi
+
       echo "FACET_CUT: ($FACET_CUT)"
       echo ""
 
@@ -156,12 +185,31 @@ diamondUpdateFacet() {
         # Check if timelock is enabled and available
         TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
-        if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-          echo "[info] Using timelock controller for facet update"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
+        # For very long calldata, use a temporary file to avoid command line length limits
+        # Check if calldata exceeds a safe threshold (e.g., 20KB hex = 10KB bytes)
+        CALLDATA_BYTES=$(((${#FACET_CUT} - 2) / 2))
+        if [[ $CALLDATA_BYTES -gt 10000 ]]; then
+          echoDebug "Calldata is large ($CALLDATA_BYTES bytes), using temporary file to avoid truncation"
+          TEMP_CALLDATA_FILE=$(mktemp)
+          echo "$FACET_CUT" > "$TEMP_CALLDATA_FILE"
+
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            echo "[info] Using timelock controller for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
+          else
+            echo "[info] Using diamond directly for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+          fi
+
+          rm -f "$TEMP_CALLDATA_FILE"
         else
-          echo "[info] Using diamond directly for facet update"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            echo "[info] Using timelock controller for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
+          else
+            echo "[info] Using diamond directly for facet update"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+          fi
         fi
       else
         error "FacetCut is empty"
