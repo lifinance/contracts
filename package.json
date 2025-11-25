@@ -68,7 +68,7 @@
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
     "execute": "node ./_scripts.js run",
-    "execute-timelock": "bunx tsx ./script/deploy/safe/execute-pending-timelock-tx.ts",
+    "execute-timelock": "bun typechain && bunx tsx ./script/deploy/safe/execute-pending-timelock-tx.ts",
     "fetch-rpcs": "bunx tsx ./script/mongoDb/fetch-rpcs.ts",
     "flatten": "forge flatten --output",
     "format": "prettier --check \"**/*.{ts,js,sol}\"",
