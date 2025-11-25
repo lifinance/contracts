@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
-import { stdJson } from "forge-std/Script.sol";
 
 interface IContractDeployer {
     function getNewAddressCreate2(
@@ -12,17 +11,9 @@ interface IContractDeployer {
         bytes32 _salt,
         bytes calldata _input
     ) external view returns (address newAddress);
-
-    function create2(
-        bytes32 _salt,
-        bytes32 _bytecodeHash,
-        bytes calldata _input
-    ) external payable returns (address newAddress);
 }
 
 contract DeployScriptBase is ScriptBase {
-    using stdJson for string;
-
     /// @dev The prefix used to create CREATE2 addresses.
     bytes32 internal salt;
     string internal contractName;
@@ -38,53 +29,34 @@ contract DeployScriptBase is ScriptBase {
     function getConstructorArgs() internal virtual returns (bytes memory) {}
 
     function deploy(
-        bytes memory /* creationCode */
+        bytes memory creationCode
     ) internal virtual returns (address payable deployed) {
         bytes memory constructorArgs = getConstructorArgs();
-
-        string memory path = string.concat(
-            root,
-            "/zkout/",
-            contractName,
-            ".sol/",
-            contractName,
-            ".json"
+        bytes memory deploymentBytecode = bytes.concat(
+            creationCode,
+            constructorArgs
         );
-        string memory json = vm.readFile(path);
-        bytes32 bytecodeHash = json.readBytes32(".hash");
-        // bytes memory deploymentBytecode = bytes.concat(
-        //     creationCode,
-        //     constructorArgs
-        // );
-        vm.startBroadcast(deployerPrivateKey);
 
+        // Predict CREATE2 address using zkSync's ContractDeployer
         address predicted = IContractDeployer(DEPLOYER_CONTRACT_ADDRESS)
             .getNewAddressCreate2(
                 deployerAddress,
+                keccak256(deploymentBytecode),
                 salt,
-                bytecodeHash,
                 constructorArgs
             );
 
-        emit log_named_address("LI.FI: Predicted Address: ", predicted);
-
         if (LibAsset.isContract(predicted)) {
-            emit log("LI.FI: Contract is already deployed");
-
             return payable(predicted);
         }
 
+        vm.startBroadcast(deployerPrivateKey);
+
         // Deploy a contract using the CREATE2 opcode for deterministic addr
-        try
-            IContractDeployer(DEPLOYER_CONTRACT_ADDRESS).create2(
-                salt,
-                bytecodeHash,
-                constructorArgs
-            )
-        returns (address result) {
-            deployed = payable(result);
-        } catch {
-            deployed = payable(predicted);
+        assembly {
+            let len := mload(deploymentBytecode)
+            let data := add(deploymentBytecode, 0x20)
+            deployed := create2(0, data, len, sload(salt.slot))
         }
 
         vm.stopBroadcast();

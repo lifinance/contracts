@@ -43124,6 +43124,51 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-25 10:04:35",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-25 10:06:08",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-25 10:09:57",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "Patcher": {
