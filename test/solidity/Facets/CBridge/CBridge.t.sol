@@ -83,9 +83,18 @@ contract CBridgeFacetTest is TestBaseFacet {
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        cBridge.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        cBridge.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
         setFacetAddressInTestBase(address(cBridge), "cBridgeFacet");
     }
 

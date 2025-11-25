@@ -8,6 +8,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { utils } from 'ethers'
 
+import composerWhitelist from '../../config/composerWhitelist.json'
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
 import type { INetworksObject } from '../common/types'
@@ -28,7 +29,7 @@ interface ISelectorData {
 }
 
 interface IContractData {
-  name: PeripheryContract
+  name: PeripheryContract | 'Composer'
   address: string
   selectors: ISelectorData[]
 }
@@ -47,6 +48,13 @@ interface IWhitelistData {
   DEXS: unknown[]
   PERIPHERY: IPeripheryData
 }
+
+interface IComposerNetworkConfig {
+  address: string
+  functionSelectors: ISelectorData[]
+}
+
+type IComposerWhitelist = Record<string, IComposerNetworkConfig[]>
 
 // Function selectors loaded from global.json
 const CONTRACT_SELECTORS: Record<PeripheryContract, ISelectorData[]> =
@@ -77,6 +85,63 @@ function validateSelector(selector: string, signature: string): boolean {
   } catch (error) {
     return false
   }
+}
+
+function getComposerContractsForNetwork(networkName: string): IContractData[] {
+  const composerConfigs =
+    (composerWhitelist as unknown as IComposerWhitelist)[networkName] || []
+
+  if (!Array.isArray(composerConfigs) || composerConfigs.length === 0) {
+    return []
+  }
+
+  return composerConfigs.map(({ address, functionSelectors }) => {
+    // Validate address
+    if (!isValidEthereumAddress(address)) {
+      throw new Error(`Invalid Composer address for ${networkName}: ${address}`)
+    }
+
+    // Ensure we have at least one function selector
+    if (!Array.isArray(functionSelectors) || functionSelectors.length === 0) {
+      throw new Error(
+        `Composer entry for ${networkName} at ${address} must define a non-empty functionSelectors array`
+      )
+    }
+
+    // Validate selectors and map into ISelectorData[]
+    const selectors: ISelectorData[] = functionSelectors.map(
+      ({ selector, signature }) => {
+        if (!isValidSelector(selector)) {
+          throw new Error(
+            `Invalid Composer selector for ${networkName}: ${selector}`
+          )
+        }
+
+        if (!signature || signature.trim().length === 0) {
+          throw new Error(
+            `Missing or empty Composer signature for ${networkName} (address: ${address}, selector: ${selector})`
+          )
+        }
+
+        if (!validateSelector(selector, signature)) {
+          throw new Error(
+            `Selector mismatch for Composer on ${networkName} (address: ${address}): ${selector} != ${signature}`
+          )
+        }
+
+        return {
+          selector,
+          signature,
+        }
+      }
+    )
+
+    return {
+      name: 'Composer',
+      address,
+      selectors,
+    }
+  })
 }
 
 // Process a single network (both production and staging)
@@ -334,14 +399,24 @@ const main = defineCommand({
       )
 
       // Filter out networks with no contracts in the requested environment(s)
+      // Include networks that only have Composer entries in composerWhitelist.json
       const networksWithContracts = networkResults.filter((result) => {
-        if (isProduction && result.production.length > 0) {
-          return true
-        }
-        if (isStaging && result.staging.length > 0) {
-          return true
-        }
-        return false
+        const composerConfigs =
+          (composerWhitelist as unknown as IComposerWhitelist)[
+            result.networkName
+          ] || []
+
+        const hasComposer =
+          Array.isArray(composerConfigs) && composerConfigs.length > 0
+
+        const hasProductionContracts =
+          (isProduction && result.production.length > 0) ||
+          (isProduction && hasComposer)
+
+        const hasStagingContracts =
+          (isStaging && result.staging.length > 0) || (isStaging && hasComposer)
+
+        return hasProductionContracts || hasStagingContracts
       })
 
       if (networksWithContracts.length === 0) {
@@ -371,6 +446,60 @@ const main = defineCommand({
           }
           if (isStaging && result.staging.length > 0) {
             stagingPeripheryData[networkName] = sortSelectors(result.staging)
+          }
+
+          if (isProduction) {
+            const composerContracts =
+              getComposerContractsForNetwork(networkName)
+
+            if (composerContracts.length > 0) {
+              const existingContracts =
+                productionPeripheryData[networkName] ?? []
+
+              const mergedContracts = [...existingContracts]
+
+              for (const composerContract of composerContracts) {
+                const hasComposerAlready = mergedContracts.some(
+                  (contract) =>
+                    contract.name === composerContract.name &&
+                    contract.address.toLowerCase() ===
+                      composerContract.address.toLowerCase()
+                )
+
+                if (!hasComposerAlready) {
+                  mergedContracts.push(composerContract)
+                }
+              }
+
+              productionPeripheryData[networkName] =
+                sortSelectors(mergedContracts)
+            }
+          }
+
+          if (isStaging) {
+            const composerContracts =
+              getComposerContractsForNetwork(networkName)
+
+            if (composerContracts.length > 0) {
+              const existingContracts = stagingPeripheryData[networkName] ?? []
+
+              const mergedContracts = [...existingContracts]
+
+              for (const composerContract of composerContracts) {
+                const hasComposerAlready = mergedContracts.some(
+                  (contract) =>
+                    contract.name === composerContract.name &&
+                    contract.address.toLowerCase() ===
+                      composerContract.address.toLowerCase()
+                )
+
+                if (!hasComposerAlready) {
+                  mergedContracts.push(composerContract)
+                }
+              }
+
+              stagingPeripheryData[networkName] = sortSelectors(mergedContracts)
+            }
           }
         }
       }
