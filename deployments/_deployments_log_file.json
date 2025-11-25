@@ -43169,6 +43169,21 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-25 14:26:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "Patcher": {

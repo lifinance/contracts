@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { DeployScriptBase, IContractDeployer } from "./utils/DeployScriptBase.sol";
+import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { MigrateWhitelistManager } from "../facets/utils/MigrateWhitelistManager.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 
 contract DeployScript is DeployScriptBase {
-    using stdJson for string;
-
     constructor() DeployScriptBase("WhitelistManagerFacet") {}
 
     function run() public returns (WhitelistManagerFacet deployed) {
@@ -22,44 +19,33 @@ contract DeployScript is DeployScriptBase {
         );
     }
 
-    function _deployMigrateContract() internal returns (address) {
+    function _deployMigrateContract() internal returns (address deployed) {
         bytes32 migrateSalt = keccak256(
             abi.encodePacked("MigrateWhitelistManager")
         );
 
-        // Get bytecode hash for zkSync CREATE2 prediction
-        string memory path = string.concat(
-            root,
-            "/zkout/",
-            "MigrateWhitelistManager",
-            ".sol/",
-            "MigrateWhitelistManager",
-            ".json"
+        // Get bytecode hash and predict CREATE2 address
+        bytes32 bytecodeHash = getZkSyncBytecodeHash(
+            "MigrateWhitelistManager"
         );
-        string memory json = vm.readFile(path);
-        bytes32 bytecodeHash = json.readBytes32(".hash");
-
-        address predictedMigrate = IContractDeployer(DEPLOYER_CONTRACT_ADDRESS)
-            .getNewAddressCreate2(
-                deployerAddress,
-                bytecodeHash,
-                migrateSalt,
-                ""
-            );
-
-        vm.startBroadcast(deployerPrivateKey);
+        address predictedMigrate = predictCreate2Address(
+            bytecodeHash,
+            migrateSalt,
+            ""
+        );
 
         if (LibAsset.isContract(predictedMigrate)) {
-            vm.stopBroadcast();
             return predictedMigrate;
         }
 
-        MigrateWhitelistManager deployed = new MigrateWhitelistManager{
+        vm.startBroadcast(deployerPrivateKey);
+
+        // Deploy using CREATE2 - foundry-zksync routes through ZKSYNC_CREATE2_FACTORY
+        MigrateWhitelistManager migrateContract = new MigrateWhitelistManager{
             salt: migrateSalt
         }();
+        deployed = address(migrateContract);
 
         vm.stopBroadcast();
-
-        return address(deployed);
     }
 }

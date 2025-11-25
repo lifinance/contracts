@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ScriptBase } from "../../facets/utils/ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
-
-interface IContractDeployer {
-    function getNewAddressCreate2(
-        address _sender,
-        bytes32 _bytecodeHash,
-        bytes32 _salt,
-        bytes calldata _input
-    ) external view returns (address newAddress);
-}
+import { stdJson } from "forge-std/StdJson.sol";
 
 contract DeployScriptBase is ScriptBase {
-    /// @dev The prefix used to create CREATE2 addresses.
+    using stdJson for string;
+
+    /// @dev The CREATE2 salt for this contract deployment
     bytes32 internal salt;
     string internal contractName;
-    address internal constant DEPLOYER_CONTRACT_ADDRESS =
-        0x0000000000000000000000000000000000008006;
 
     constructor(string memory _contractName) {
         contractName = _contractName;
@@ -32,19 +24,18 @@ contract DeployScriptBase is ScriptBase {
         bytes memory creationCode
     ) internal virtual returns (address payable deployed) {
         bytes memory constructorArgs = getConstructorArgs();
-        bytes memory deploymentBytecode = bytes.concat(
-            creationCode,
-            constructorArgs
-        );
+
+        // Get bytecode hash from zkout for accurate CREATE2 prediction
+        bytes32 bytecodeHash = getZkSyncBytecodeHash(contractName);
 
         // Predict CREATE2 address using zkSync's ContractDeployer
-        address predicted = IContractDeployer(DEPLOYER_CONTRACT_ADDRESS)
-            .getNewAddressCreate2(
-                deployerAddress,
-                keccak256(deploymentBytecode),
-                salt,
-                constructorArgs
-            );
+        // NOTE: foundry-zksync routes CREATE2 through ZKSYNC_CREATE2_FACTORY,
+        // so we use that as the sender for prediction
+        address predicted = predictCreate2Address(
+            bytecodeHash,
+            salt,
+            constructorArgs
+        );
 
         if (LibAsset.isContract(predicted)) {
             return payable(predicted);
@@ -52,7 +43,11 @@ contract DeployScriptBase is ScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy a contract using the CREATE2 opcode for deterministic addr
+        // Deploy using CREATE2 opcode - foundry-zksync routes through ZKSYNC_CREATE2_FACTORY
+        bytes memory deploymentBytecode = bytes.concat(
+            creationCode,
+            constructorArgs
+        );
         assembly {
             let len := mload(deploymentBytecode)
             let data := add(deploymentBytecode, 0x20)

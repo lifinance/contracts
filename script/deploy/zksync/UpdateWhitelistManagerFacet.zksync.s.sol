@@ -2,27 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { MigrateWhitelistManager } from "../facets/utils/MigrateWhitelistManager.sol";
 import { JSONParserLib } from "solady/utils/JSONParserLib.sol";
 import { LibSort } from "solady/utils/LibSort.sol";
 
-interface IContractDeployer {
-    function getNewAddressCreate2(
-        address _sender,
-        bytes32 _bytecodeHash,
-        bytes32 _salt,
-        bytes calldata _input
-    ) external view returns (address newAddress);
-}
-
 contract DeployScript is UpdateScriptBase {
-    using stdJson for string;
-
-    address internal constant DEPLOYER_CONTRACT_ADDRESS =
-        0x0000000000000000000000000000000000008006;
-
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -39,27 +24,12 @@ contract DeployScript is UpdateScriptBase {
             abi.encodePacked("MigrateWhitelistManager")
         );
 
-        // Get bytecode hash for zkSync CREATE2 prediction
-        string memory path = string.concat(
-            root,
-            "/zkout/",
-            "MigrateWhitelistManager",
-            ".sol/",
-            "MigrateWhitelistManager",
-            ".json"
+        // Get bytecode hash and predict CREATE2 address
+        // Must match DeployWhitelistManagerFacet.zksync.s.sol
+        bytes32 bytecodeHash = getZkSyncBytecodeHash(
+            "MigrateWhitelistManager"
         );
-        string memory json = vm.readFile(path);
-        bytes32 bytecodeHash = json.readBytes32(".hash");
-
-        address predictedMigrate = IContractDeployer(DEPLOYER_CONTRACT_ADDRESS)
-            .getNewAddressCreate2(
-                deployerAddress,
-                bytecodeHash,
-                migrateSalt,
-                ""
-            );
-
-        return predictedMigrate;
+        return predictCreate2Address(bytecodeHash, migrateSalt, "");
     }
 
     function getExcludes() internal pure override returns (bytes4[] memory) {
