@@ -82,22 +82,25 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// External Methods ///
 
     /// @notice Register token and bridge
-    /// @param assetId Address of token
-    /// @param bridge Address of bridge for asset
-    function registerMegaETHBridge(address assetId, address bridge) external {
+    /// @param _assetId Address of token
+    /// @param _bridge Address of bridge for asset
+    function registerMegaETHBridge(
+        address _assetId,
+        address _bridge
+    ) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
 
         if (!s.initialized) revert NotInitialized();
 
-        if (bridge == address(0)) {
+        if (_bridge == address(0)) {
             revert InvalidConfig();
         }
 
-        s.bridges[assetId] = IL1StandardBridge(bridge);
+        s.bridges[_assetId] = IL1StandardBridge(_bridge);
 
-        emit MegaETHBridgeRegistered(assetId, bridge);
+        emit MegaETHBridgeRegistered(_assetId, _bridge);
     }
 
     /// @notice Bridges tokens via MegaETH Bridge
