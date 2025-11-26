@@ -1,0 +1,233 @@
+{
+  "arbitrum": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "avalanche": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "base": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "berachain": [
+    {
+      "address": "0x37C407e4adeAD6b1E2Fe89673Ecd66e3f371eE9D",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "bsc": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "celo": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "gnosis": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "hyperevm": [
+    {
+      "address": "0xd6FEa938eF552Eb52507cdc1ac2AB5987792F0C2",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "ink": [
+    {
+      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "katana": [
+    {
+      "address": "0x40d037C6AaD6Df87D757195ef841B246B52F5103",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "lisk": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "mainnet": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "mantle": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "optimism": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "plume": [
+    {
+      "address": "0x125d9e76cDAF61B352548e39567382a2AAa1d378",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "polygon": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "scroll": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "soneium": [
+    {
+      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "sonic": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "unichain": [
+    {
+      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ],
+  "worldchain": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+        }
+      ]
+    }
+  ]
+}
