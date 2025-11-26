@@ -29,7 +29,12 @@ contract DexManagerFacet {
             LibAccess.enforceAccessControl();
         }
 
-        LibAllowList.addAllowedContract(_dex);
+        if (_dex == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
+
+        // Use 0xffffffff selector for approveTo-only contracts (backward compatibility)
+        LibAllowList.addAllowedContractSelector(_dex, bytes4(0xffffffff));
 
         emit DexAdded(_dex);
     }
@@ -53,7 +58,8 @@ contract DexManagerFacet {
                 }
                 continue;
             }
-            LibAllowList.addAllowedContract(dex);
+            // Use 0xffffffff selector for approveTo-only contracts (backward compatibility)
+            LibAllowList.addAllowedContractSelector(dex, bytes4(0xffffffff));
             emit DexAdded(dex);
             unchecked {
                 ++i;
@@ -67,7 +73,8 @@ contract DexManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        LibAllowList.removeAllowedContract(_dex);
+        // Remove the 0xffffffff selector for this contract
+        LibAllowList.removeAllowedContractSelector(_dex, bytes4(0xffffffff));
         emit DexRemoved(_dex);
     }
 
@@ -79,7 +86,11 @@ contract DexManagerFacet {
         }
         uint256 length = _dexs.length;
         for (uint256 i = 0; i < length; ) {
-            LibAllowList.removeAllowedContract(_dexs[i]);
+            // Remove the 0xffffffff selector for this contract
+            LibAllowList.removeAllowedContractSelector(
+                _dexs[i],
+                bytes4(0xffffffff)
+            );
             emit DexRemoved(_dexs[i]);
             unchecked {
                 ++i;
@@ -98,10 +109,12 @@ contract DexManagerFacet {
             LibAccess.enforceAccessControl();
         }
 
+        // Use diamond address as the contract for global selector approval (backward compatibility)
+        address diamond = address(this);
         if (_approval) {
-            LibAllowList.addAllowedSelector(_signature);
+            LibAllowList.addAllowedContractSelector(diamond, _signature);
         } else {
-            LibAllowList.removeAllowedSelector(_signature);
+            LibAllowList.removeAllowedContractSelector(diamond, _signature);
         }
 
         emit FunctionSignatureApprovalChanged(_signature, _approval);
@@ -117,13 +130,18 @@ contract DexManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
+        // Use diamond address as the contract for global selector approval (backward compatibility)
+        address diamond = address(this);
         uint256 length = _signatures.length;
         for (uint256 i = 0; i < length; ) {
             bytes4 _signature = _signatures[i];
             if (_approval) {
-                LibAllowList.addAllowedSelector(_signature);
+                LibAllowList.addAllowedContractSelector(diamond, _signature);
             } else {
-                LibAllowList.removeAllowedSelector(_signature);
+                LibAllowList.removeAllowedContractSelector(
+                    diamond,
+                    _signature
+                );
             }
             emit FunctionSignatureApprovalChanged(_signature, _approval);
             unchecked {

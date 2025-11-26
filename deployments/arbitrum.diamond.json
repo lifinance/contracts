@@ -180,13 +180,21 @@
       "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x66FD4424bc4E24b6183e95DD74A3f3857725457F": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "FeeForwarder": "",
+      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",

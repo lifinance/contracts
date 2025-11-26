@@ -13,9 +13,9 @@ contract UpdateScriptBase is ScriptBase {
 
     error InvalidHexDigit(uint8 d);
 
-    struct FunctionSignature {
+    struct FunctionSelector {
         string name;
-        bytes sig;
+        bytes selector;
     }
 
     struct Approval {
@@ -63,18 +63,31 @@ contract UpdateScriptBase is ScriptBase {
         returns (address[] memory facets, bytes memory cutData)
     {
         address facet = json.readAddress(string.concat(".", name));
+        return update(name, facet);
+    }
 
+    function update(
+        string memory name,
+        address updater
+    )
+        internal
+        virtual
+        returns (address[] memory facets, bytes memory cutData)
+    {
+        address facet = json.readAddress(string.concat(".", name));
         bytes4[] memory excludes = getExcludes();
         bytes memory callData = getCallData();
 
-        buildDiamondCut(getSelectors(name, excludes), facet);
+        bytes4[] memory newSelectors = getSelectors(name, excludes);
+
+        buildDiamondCut(newSelectors, facet);
 
         // prepare full diamondCut calldata and log for debugging purposes
         if (cut.length > 0) {
             cutData = abi.encodeWithSelector(
                 DiamondCutFacet.diamondCut.selector,
                 cut,
-                callData.length > 0 ? facet : address(0),
+                callData.length > 0 ? updater : address(0),
                 callData
             );
 
@@ -83,6 +96,8 @@ contract UpdateScriptBase is ScriptBase {
         }
 
         if (noBroadcast) {
+            // Get current facets for return value even when not broadcasting
+            facets = loupe.facetAddresses();
             return (facets, cutData);
         }
 
@@ -91,7 +106,7 @@ contract UpdateScriptBase is ScriptBase {
         if (cut.length > 0) {
             cutter.diamondCut(
                 cut,
-                callData.length > 0 ? facet : address(0),
+                callData.length > 0 ? updater : address(0),
                 callData
             );
         }
@@ -133,27 +148,32 @@ contract UpdateScriptBase is ScriptBase {
 
         // Get selectors to add or replace
         for (uint256 i; i < newSelectors.length; i++) {
-            if (loupe.facetAddress(newSelectors[i]) == address(0)) {
+            address existingFacet = loupe.facetAddress(newSelectors[i]);
+            if (existingFacet == address(0)) {
                 selectorsToAdd.push(newSelectors[i]);
                 // Don't replace if the new facet address is the same as the old facet address
-            } else if (loupe.facetAddress(newSelectors[i]) != newFacet) {
+            } else if (existingFacet != newFacet) {
                 selectorsToReplace.push(newSelectors[i]);
-                oldFacet = loupe.facetAddress(newSelectors[i]);
+                oldFacet = existingFacet;
             }
         }
 
         // Get selectors to remove
-        bytes4[] memory oldSelectors = loupe.facetFunctionSelectors(oldFacet);
-        for (uint256 i; i < oldSelectors.length; i++) {
-            bool found = false;
-            for (uint256 j; j < newSelectors.length; j++) {
-                if (oldSelectors[i] == newSelectors[j]) {
-                    found = true;
-                    break;
+        if (oldFacet != address(0)) {
+            bytes4[] memory oldSelectors = loupe.facetFunctionSelectors(
+                oldFacet
+            );
+            for (uint256 i; i < oldSelectors.length; i++) {
+                bool found = false;
+                for (uint256 j; j < newSelectors.length; j++) {
+                    if (oldSelectors[i] == newSelectors[j]) {
+                        found = true;
+                        break;
+                    }
                 }
-            }
-            if (!found) {
-                selectorsToRemove.push(oldSelectors[i]);
+                if (!found) {
+                    selectorsToRemove.push(oldSelectors[i]);
+                }
             }
         }
 
@@ -228,20 +248,27 @@ contract UpdateScriptBase is ScriptBase {
         json = vm.readFile(path);
         address refundWallet = json.readAddress(".refundWallet");
 
-        // get function signatures that should be approved for refundWallet
-        bytes memory rawConfig = json.parseRaw(".approvedSigsForRefundWallet");
-
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSignature[])
+        // get function selectors that should be approved for refundWallet
+        bytes memory rawConfig = json.parseRaw(
+            ".approvedSelectorsForRefundWallet"
         );
 
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
+        // parse raw data from config into FunctionSelector array
+        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSelector[])
+        );
+
+        emit log("funcSelectorsToBeApproved: ");
+        emit log_uint(funcSelectorsToBeApproved.length);
+
+        // go through array with function selectors
+        for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
+            emit log("funcSelectorsToBeApproved: ");
+            emit log(funcSelectorsToBeApproved[i].name);
             // Register refundWallet as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
+                bytes4(funcSelectorsToBeApproved[i].selector),
                 refundWallet,
                 true
             );
@@ -249,28 +276,45 @@ contract UpdateScriptBase is ScriptBase {
     }
 
     function approveDeployerWallet() internal {
-        // get refund wallet address from global config file
+        // get global config file
         path = string.concat(root, "/config/global.json");
         json = vm.readFile(path);
-        address refundWallet = json.readAddress(".deployerWallet");
 
-        // get function signatures that should be approved for refundWallet
+        // determine wallet address based on environment
+        // if fileSuffix is empty, we're in production (use deployerWallet)
+        // if fileSuffix is not empty (staging.), we're in staging (use devWallet)
+        address executor;
+        if (bytes(fileSuffix).length == 0) {
+            executor = json.readAddress(".deployerWallet");
+        } else {
+            executor = json.readAddress(".devWallet");
+        }
+
+        // get function selectors that should be approved for executor
         bytes memory rawConfig = json.parseRaw(
-            ".approvedSigsForDeployerWallet"
+            ".approvedSelectorsForDeployerWallet"
         );
 
-        // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
+        emit log("executor: ");
+        emit log_address(executor);
+
+        // parse raw data from config into FunctionSelector array
+        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
             rawConfig,
-            (FunctionSignature[])
+            (FunctionSelector[])
         );
 
-        // go through array with function signatures
-        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
-            // Register refundWallet as authorized wallet to call these functions
+        emit log("funcSelectorsToBeApproved: ");
+        emit log_uint(funcSelectorsToBeApproved.length);
+
+        // go through array with function selectors
+        for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
+            emit log("funcSelectorsToBeApproved: ");
+            emit log(funcSelectorsToBeApproved[i].name);
+            // Register executor as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
-                refundWallet,
+                bytes4(funcSelectorsToBeApproved[i].selector),
+                executor,
                 true
             );
         }

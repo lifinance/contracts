@@ -11,8 +11,8 @@ import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 /// @title GenericSwapFacetV3
 /// @author LI.FI (https://li.fi)
-/// @notice Provides gas-optimized functionality for fee collection and for swapping through any APPROVED DEX
-/// @dev Can only execute calldata for APPROVED function selectors
+/// @notice Provides gas-optimized functionality for fee collection and for swapping through any whitelisted DEX
+/// @dev Can only execute calldata for whitelisted function selectors
 /// @custom:version 1.0.2
 contract GenericSwapFacetV3 is ILiFi {
     using SafeTransferLib for ERC20;

@@ -81,7 +81,7 @@ const main = defineCommand({
     })
 
     // Check if function signatures are approved
-    const { sigs } = await import(`../../config/sigs.json`)
+    const { selectors: sigs } = await import(`../../config/sigs.json`)
     const { blacklistedFunctionSelectors } = await import(
       `../../config/global.json`
     )

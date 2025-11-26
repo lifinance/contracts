@@ -3,24 +3,12 @@ pragma solidity ^0.8.17;
 import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
-contract TestGasZipFacet is GasZipFacet {
+contract TestGasZipFacet is GasZipFacet, TestWhitelistManagerBase {
     constructor(address gasZipRouter) GasZipFacet(gasZipRouter) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function removeDex(address _dex) external {
-        LibAllowList.removeAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract GasZipFacetTest is TestBaseFacet {
@@ -55,35 +43,49 @@ contract GasZipFacetTest is TestBaseFacet {
         gasZipFacet = new TestGasZipFacet(GAS_ZIP_ROUTER_MAINNET);
 
         // add gasZipFacet to diamond
-        bytes4[] memory functionSelectors = new bytes4[](6);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = gasZipFacet.startBridgeTokensViaGasZip.selector;
         functionSelectors[1] = gasZipFacet
             .swapAndStartBridgeTokensViaGasZip
             .selector;
         functionSelectors[2] = gasZipFacet.getDestinationChainsValue.selector;
 
-        functionSelectors[3] = gasZipFacet.addDex.selector;
-        functionSelectors[4] = gasZipFacet.removeDex.selector;
-        functionSelectors[5] = gasZipFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[3] = gasZipFacet.addAllowedContractSelector.selector;
         addFacet(diamond, address(gasZipFacet), functionSelectors);
 
         gasZipFacet = TestGasZipFacet(payable(address(diamond)));
 
         // whitelist uniswap dex with function selectors
-        gasZipFacet.addDex(address(uniswap));
-        gasZipFacet.addDex(address(gasZipFacet));
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForETH.selector
         );
-        gasZipFacet.setFunctionApprovalBySignature(
+        gasZipFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
+            uniswap.swapTokensForExactETH.selector
+        );
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
+            uniswap.swapExactTokensForETH.selector
+        );
+        gasZipFacet.addAllowedContractSelector(
+            address(gasZipFacet),
             uniswap.swapETHForExactTokens.selector
         );
 

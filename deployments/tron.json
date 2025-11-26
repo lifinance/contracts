@@ -17,5 +17,6 @@
   "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2",
   "SymbiosisFacet": "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f",
   "AllBridgeFacet": "TCyAJzpLJjGyUqPoQ9Kvm1Zjw9zDmXLUfU",
-  "EcoFacet": "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM"
+  "EcoFacet": "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM",
+  "FeeForwarder": "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ"
 }

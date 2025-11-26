@@ -5,7 +5,7 @@
   "base": {
     "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
-  "bera": {
+  "berachain": {
     "htlcRegistry": "0x57291A5Cc9e08f63C72e9F6044770C69E62d0366"
   },
   "bsc": {

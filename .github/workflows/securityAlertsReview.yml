@@ -146,42 +146,52 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
-          COMMENT_BODY="### 🤖 GitHub Action: Security Alerts Review 🔍\n\n"
+          # Build the comment body using printf for proper formatting
+          printf -v COMMENT_BODY "### 🤖 GitHub Action: Security Alerts Review 🔍\n\n"
 
           # Add Unresolved Alerts
           if [[ "$UNRESOLVED_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="🚨 **Unresolved Security Alerts Found!** 🚨\n"
-            COMMENT_BODY+="The following security alerts must be **resolved** before merging:\n\n"
+            printf -v temp "🚨 **Unresolved Security Alerts Found!** 🚨\n"
+            COMMENT_BODY+="$temp"
+            printf -v temp "The following security alerts must be **resolved** before merging:\n\n"
+            COMMENT_BODY+="$temp"
 
             while IFS= read -r row; do
               ALERT_URL=$(echo "$row" | jq -r '.html_url')
               ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
               ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
 
-              COMMENT_BODY+="🔴 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
-              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n\n"
+              printf -v temp "🔴 [View Alert](%s) - **File:** \`%s\`\n" "$ALERT_URL" "$ALERT_FILE"
+              COMMENT_BODY+="$temp"
+              printf -v temp "   🔹 %s\n\n" "$ALERT_DESCRIPTION"
+              COMMENT_BODY+="$temp"
             done < <(echo "$UNRESOLVED_ALERTS" | jq -c '.[]')
           fi
 
           # Add Dismissed Alerts Without Comments
           if [[ "$DISMISSED_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="The following alerts were dismissed but require a dismissal comment:\n\n"
+            printf -v temp "The following alerts were dismissed but require a dismissal comment:\n\n"
+            COMMENT_BODY+="$temp"
 
             while IFS= read -r row; do
               ALERT_URL=$(echo "$row" | jq -r '.html_url')
               ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
               ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
 
-              COMMENT_BODY+="🟡 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
-              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n\n"
+              printf -v temp "🟡 [View Alert](%s) - **File:** \`%s\`\n" "$ALERT_URL" "$ALERT_FILE"
+              COMMENT_BODY+="$temp"
+              printf -v temp "   🔹 %s\n\n" "$ALERT_DESCRIPTION"
+              COMMENT_BODY+="$temp"
             done < <(echo "$DISMISSED_ALERTS" | jq -c '.[]')
           fi
 
 
           # Add alerts dismissed with an invalid reason ("Used in tests")
           if [[ "$INVALID_REASON_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="❌ **Invalid Dismissal Reasons Found!** ❌\n"
-            COMMENT_BODY+="The following alerts were dismissed with the reason **Used in tests**, which is not allowed for production code. Please provide a valid dismissal reason.\n\n"
+            printf -v temp "❌ **Invalid Dismissal Reasons Found!** ❌\n"
+            COMMENT_BODY+="$temp"
+            printf -v temp "The following alerts were dismissed with the reason **Used in tests**, which is not allowed for production code. Please provide a valid dismissal reason.\n\n"
+            COMMENT_BODY+="$temp"
 
             while IFS= read -r row; do
               ALERT_URL=$(echo "$row" | jq -r '.html_url')
@@ -190,20 +200,26 @@ jobs:
               DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
               CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
 
-              COMMENT_BODY+="❌ [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
-              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
-              COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON** (invalid for production code)\n\n"
+              printf -v temp "❌ [View Alert](%s) - **File:** \`%s\`\n" "$ALERT_URL" "$ALERT_FILE"
+              COMMENT_BODY+="$temp"
+              printf -v temp "   🔹 %s\n" "$ALERT_DESCRIPTION"
+              COMMENT_BODY+="$temp"
+              printf -v temp "   🔹 Dismiss Reason: **%s** (invalid for production code)\n\n" "$CAPITALIZED_REASON"
+              COMMENT_BODY+="$temp"
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[] | select(.dismissed_reason == "used in tests")')
           fi
 
           if [[ "$UNRESOLVED_COUNT" -gt 0 || "$DISMISSED_COUNT" -gt 0 || "$INVALID_REASON_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="⚠️ **Please resolve the above issues before merging.**\n\n"
+            printf -v temp "⚠️ **Please resolve the above issues before merging.**\n\n"
+            COMMENT_BODY+="$temp"
           fi
 
           # Add Dismissed alerts With valid comments (successful dismissals)
           if [[ "$COMMENTED_COUNT" -gt 0 ]]; then
-            COMMENT_BODY+="🟢 **Dismissed Security Alerts with Comments**\n"
-            COMMENT_BODY+="The following alerts were dismissed with proper comments:\n\n"
+            printf -v temp "🟢 **Dismissed Security Alerts with Comments**\n"
+            COMMENT_BODY+="$temp"
+            printf -v temp "The following alerts were dismissed with proper comments:\n\n"
+            COMMENT_BODY+="$temp"
 
             while IFS= read -r row; do
               # Skip alerts that were dismissed with an invalid reason
@@ -223,28 +239,36 @@ jobs:
               # 2. it keeps the format consistent with how github code scanning alerts display these comments.
               DISMISS_COMMENT_SINGLE_LINE=$(echo "$DISMISS_COMMENT" | tr '\n' ' ' | tr '\r' ' ')
 
-              COMMENT_BODY+="🟢 [View Alert]($ALERT_URL) - **File:** \`$ALERT_FILE\`\n"
-              COMMENT_BODY+="   🔹 $ALERT_DESCRIPTION\n"
-              COMMENT_BODY+="   🔹 Dismiss Reason: **$CAPITALIZED_REASON**\n"
-              COMMENT_BODY+="   🔹 Dismiss Comment: $DISMISS_COMMENT_SINGLE_LINE\n\n"
+              printf -v temp "🟢 [View Alert](%s) - **File:** \`%s\`\n" "$ALERT_URL" "$ALERT_FILE"
+              COMMENT_BODY+="$temp"
+              printf -v temp "   🔹 %s\n" "$ALERT_DESCRIPTION"
+              COMMENT_BODY+="$temp"
+              printf -v temp "   🔹 Dismiss Reason: **%s**\n" "$CAPITALIZED_REASON"
+              COMMENT_BODY+="$temp"
+              printf -v temp "   🔹 Dismiss Comment: %s\n\n" "$DISMISS_COMMENT_SINGLE_LINE"
+              COMMENT_BODY+="$temp"
             done < <(echo "$RESOLVED_ALERTS" | jq -c '.[]')
           fi
 
           # If no unresolved alerts and no dismissed alerts missing comments or with invalid reasons, add overall success message
           if [[ "$UNRESOLVED_COUNT" -eq 0 && "$DISMISSED_COUNT" -eq 0 && "$INVALID_REASON_COUNT" -eq 0 ]]; then
-            COMMENT_BODY+="✅ **No unresolved security alerts!** 🎉\n\n"
+            printf -v temp "✅ **No unresolved security alerts!** 🎉\n\n"
+            COMMENT_BODY+="$temp"
           fi
+
+          # Create JSON payload using jq for proper escaping
+          JSON_PAYLOAD=$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')
 
           # Update existing comment if found; otherwise, post a new one.
           if [[ -n "$EXISTING_COMMENT_ID" ]]; then
             echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
             curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              -d "$JSON_PAYLOAD" \
               "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
           else
             echo "Posting new comment to PR..."
             curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-              -d "{\"body\": \"$COMMENT_BODY\"}" \
+              -d "$JSON_PAYLOAD" \
               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
           fi
 
