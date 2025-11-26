@@ -2217,7 +2217,8 @@
         "GasZipPeriphery": "1.0.1",
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.4"
+        "Permit2Proxy": "1.0.4",
+        "LiFiIntentEscrowFacet": "1.0.0"
       }
     }
   }
