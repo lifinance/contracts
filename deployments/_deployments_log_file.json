@@ -41938,11 +41938,11 @@
         ],
         "1.2.0": [
           {
-            "ADDRESS": "0xB2bFdf1b10b00abEf19cc3e22d91e0eE425b4e73",
+            "ADDRESS": "0x9BacA4D8aB4328D167C4503a6c2951c70175CaA9",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-26 15:13:17",
+            "TIMESTAMP": "2025-11-26 17:11:45",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000005501e28f588b3a246a590a391a7ae7b2ba065dde",
-            "SALT": "",
+            "SALT": "26112025",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": "1.5.15"
           }
@@ -41974,11 +41974,11 @@
         ],
         "1.2.0": [
           {
-            "ADDRESS": "0xaCDD7ce495f6e5685192046A63853E14A9851a33",
+            "ADDRESS": "0x8CE13ddE8bF1a872d0FEF6A34fCc1E38b6EaD94c",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-26 16:50:14",
+            "TIMESTAMP": "2025-11-26 17:09:45",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a0246202ac2537c9978be8940d51dc70b3d38426",
-            "SALT": "",
+            "SALT": "26112025",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": "1.5.15"
           }
@@ -42149,11 +42149,11 @@
         ],
         "1.2.0": [
           {
-            "ADDRESS": "0x197A6684cd268838f41d8aACfb7b949729D91244",
+            "ADDRESS": "0xF94484deAD7dC9C19F1a56a2d6C1C761A4EBd494",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-26 16:46:03",
+            "TIMESTAMP": "2025-11-26 17:12:51",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000051729fd7638111e05ca5f30435e26da53b08816a",
-            "SALT": "",
+            "SALT": "26112025",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": "1.5.15"
           }
