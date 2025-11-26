@@ -44222,6 +44222,66 @@
           }
         ]
       }
+    },
+    "abstract": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-26 12:29:09",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "lens": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-26 12:23:54",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "sophon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-26 12:31:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-26 12:22:50",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": "1.5.15"
+          }
+        ]
+      }
     }
   },
   "Patcher": {
