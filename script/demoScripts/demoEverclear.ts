@@ -20,6 +20,14 @@
  * ✅ Properly decodes FeeAdapter calldata
  * ✅ Calls LiFiDiamond contract functions correctly
  * ✅ Supports both simple bridge and swap+bridge modes
+ *
+ * Example TX (swap + bridge):
+ * - Source (Arbitrum): https://arbiscan.io/tx/0x306a29a5614983ffb5909be28a0123492756573d215b45935ef2537de512b61e
+ * - Destination (Base): https://basescan.org/tx/0x3ef9ca72c835f89713e9bdbaafcfecd094b355b3f7f1fac97154a83c793c4c3a
+ *
+ * Example TX (direct bridge):
+ * - Source (Arbitrum): https://arbiscan.io/tx/0x5c7238a7c544f904c39cf1a81e2c1f263deb71d58cb7ba5db997b23de6a6e3e4
+ * - Destination (Base): https://basescan.org/tx/0x2a8ac851c672c65d395612de9e6f5bcc9015265a993d473c7d4f383a5b29ab3b
  */
 
 import { randomBytes } from 'crypto'
@@ -203,11 +211,13 @@ async function main() {
   // Get intent data from Everclear API
   console.log('\nFetching intent from Everclear API...')
 
+  // Note: 'from' parameter is NOT needed - Everclear's signature validation
+  // no longer uses msg.sender. The sig check uses the intent transaction input
+  // plus fee params only.
   const requestBody = {
     origin: FROM_CHAIN_ID.toString(),
     destinations: [TO_CHAIN_ID.toString()],
     to: signerAddress,
-    from: signerAddress, // User address (transaction sender)
     inputAsset: bridgeAssetId,
     outputAsset: ADDRESS_USDC_BASE,
     amount: bridgeAmount.toString(),
@@ -303,8 +313,9 @@ async function main() {
   )
 
   // Execute transaction
+  let txHash: string | null = null
   if (WITH_SOURCE_SWAP) {
-    await executeTransaction(
+    txHash = await executeTransaction(
       () =>
         (lifiDiamondContract as any).write.swapAndStartBridgeTokensViaEverclear(
           [bridgeData, srcSwapData, everclearData],
@@ -315,7 +326,7 @@ async function main() {
       true
     )
   } else {
-    await executeTransaction(
+    txHash = await executeTransaction(
       () =>
         (lifiDiamondContract as any).write.startBridgeTokensViaEverclear(
           [bridgeData, everclearData],
@@ -332,7 +343,7 @@ async function main() {
   console.log('To:', ADDRESS_USDC_BASE, '(Base)')
   console.log('Amount:', formatUnits(bridgeAmount, 6), 'USDC')
   console.log('Receiver:', signerAddress)
-  console.log('View on Arbiscan:', EXPLORER_BASE_URL)
+  console.log('View on Arbiscan:', `${EXPLORER_BASE_URL}${txHash}`)
   console.log('\n=== Demo Complete ===\n')
 }
 
@@ -346,20 +357,16 @@ main()
     if (error.signature === '0xa85a0869') {
       console.error('\n📝 ERROR: FeeAdapter_InvalidSignature() [0xa85a0869]')
       console.error('\nThis error indicates the signature validation failed.')
-      console.error('The script is passing from=Diamond address to the API.')
+      console.error(
+        'Note: Everclear no longer uses msg.sender in signature validation.'
+      )
+      console.error(
+        'The sig check uses intent transaction input + fee params only.'
+      )
       console.error('\nPossible causes:')
-      console.error(
-        '  1. Everclear backend not yet updated to use "from" parameter for FeeAdapterV2'
-      )
-      console.error(
-        '  2. FeeAdapter contract at',
-        '0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e'
-      )
-      console.error('     may still be using V1 signature validation')
-      console.error('\n✅ Script implementation is correct!')
-      console.error(
-        '⏳ Waiting for Everclear team to deploy FeeAdapterV2 backend changes'
-      )
+      console.error('  1. Signature has expired (check deadline)')
+      console.error('  2. Intent parameters do not match what was signed')
+      console.error('  3. Fee parameters mismatch')
     }
     process.exit(1)
   })

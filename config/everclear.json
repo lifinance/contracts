@@ -1,14 +1,14 @@
 {
   "mainnet": {
-    "feeAdapter": "0x2944F6fEF163365A382E9397b582bfbeB7C4F300"
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
   },
   "base": {
-    "feeAdapter": "0x2944F6fEF163365A382E9397b582bfbeB7C4F300"
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
   },
   "optimism": {
-    "feeAdapter": "0x2944F6fEF163365A382E9397b582bfbeB7C4F300"
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
   },
   "arbitrum": {
-    "feeAdapter": "0x2944F6fEF163365A382E9397b582bfbeB7C4F300"
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
   }
 }

@@ -220,6 +220,10 @@
       "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
         "Name": "",
         "Version": ""
+      },
+      "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
+        "Name": "EverclearFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

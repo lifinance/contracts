@@ -43378,11 +43378,11 @@
         ],
         "2.0.0": [
           {
-            "ADDRESS": "0x28871221E2a1Ca351218797EF33d133d48d710ab",
+            "ADDRESS": "0xed26083ffc27AEcf9e958b81B51340076392Dc10",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-11-21 12:56:58",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002944f6fef163365a382e9397b582bfbeb7c4f300",
-            "SALT": "",
+            "TIMESTAMP": "2025-11-25 17:23:51",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d0185bfb8107c5b2336bc73ce3fdd9bfb504540e",
+            "SALT": "4242424242",
             "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
