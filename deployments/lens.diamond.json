@@ -64,6 +64,10 @@
       "0x3A70F7b641a947412a5e2d9C30E31739a04c23ee": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -43135,7 +43135,7 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -43150,7 +43150,7 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -43165,7 +43165,7 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
@@ -43180,7 +43180,7 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false",
-            "ZK_SOLC_VERSION": ""
+            "ZK_SOLC_VERSION": "1.5.15"
           }
         ]
       }
