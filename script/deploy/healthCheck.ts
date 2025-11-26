@@ -9,16 +9,16 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
+  concat,
   createPublicClient,
   formatEther,
   getAddress,
   getContract,
   http,
-  parseAbi,
   keccak256,
-  toHex,
   pad,
-  concat,
+  parseAbi,
+  toHex,
   type Address,
   type Hex,
   type PublicClient,
@@ -110,9 +110,7 @@ const main = defineCommand({
         environment === 'staging' ? '.staging' : ''
       }.json`
     )
-    const targetStateJson = await import(
-      `../../script/deploy/_targetState.json`
-    )
+    const targetStateJson = await import(`./_targetState.json`)
 
     // Get core facets - use Tron-specific filtering if needed
     let coreFacetsToCheck: string[]
@@ -457,7 +455,7 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     // Check if whitelist configuration exists for this network
     try {
-      const hasWhitelistConfig =
+      const hasDexWhitelistConfig =
         (
           whitelistConfig.DEXS as Array<{
             contracts?: Record<string, unknown[]>
@@ -467,6 +465,12 @@ const main = defineCommand({
             dex.contracts?.[networkLower] &&
             dex.contracts[networkLower].length > 0
         ) ?? false
+
+      const hasPeripheryWhitelistConfig =
+        (whitelistConfig.PERIPHERY?.[networkLower]?.length ?? 0) > 0
+
+      const hasWhitelistConfig =
+        hasDexWhitelistConfig || hasPeripheryWhitelistConfig
 
       if (hasWhitelistConfig) {
         // connect with diamond to get whitelisted addresses
