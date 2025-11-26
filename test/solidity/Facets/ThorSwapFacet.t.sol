@@ -30,7 +30,9 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[1] = thorSwapFacet
             .swapAndStartBridgeTokensViaThorSwap
             .selector;
-        functionSelectors[2] = thorSwapFacet.addAllowedContractSelector.selector;
+        functionSelectors[2] = thorSwapFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = thorSwapFacet
             .removeAllowedContractSelector
             .selector;
@@ -38,10 +40,19 @@ contract ThorSwapFacetTest is TestBaseFacet {
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
-        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        thorSwapFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
-        
+        thorSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        thorSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        thorSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+
         setFacetAddressInTestBase(address(thorSwapFacet), "ThorSwapFacet");
 
         // adjust bridgeData

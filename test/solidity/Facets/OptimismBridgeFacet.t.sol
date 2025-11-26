@@ -54,7 +54,9 @@ contract OptimismBridgeFacetTest is TestBase {
             .swapAndStartBridgeTokensViaOptimismBridge
             .selector;
         functionSelectors[2] = optimismBridgeFacet.initOptimism.selector;
-        functionSelectors[3] = optimismBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] = optimismBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[4] = optimismBridgeFacet
             .removeAllowedContractSelector
             .selector;
@@ -71,9 +73,18 @@ contract OptimismBridgeFacetTest is TestBase {
             IL1StandardBridge(STANDARD_BRIDGE)
         );
 
-        optimismBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        optimismBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
-        optimismBridgeFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
+        optimismBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
 
         validBridgeData = ILiFi.BridgeData({
             transactionId: "",
