@@ -701,7 +701,7 @@
     "explorerApiUrl": "https://megaeth-testnet-v3.blockscout.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeAddress": "0xb160467220BF28e596015EA841eD9b8daC6102Fd",
-    "gasZipChainId": 0,
+    "gasZipChainId": 514,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",

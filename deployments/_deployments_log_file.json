@@ -39562,6 +39562,21 @@
           }
         ]
       }
+    },
+    "megaeth": {
+      "production": {
+        "2.0.5": [
+          {
+            "ADDRESS": "0x2B3CE1Ee07De57C09EC9B8A600C9E4Ffdb5464d0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-26 12:50:58",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GasZipPeriphery": {
@@ -40447,6 +40462,21 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d83900000000000000000000000000acf63fcabe57364a70f0caaac536365adca760700000000000000000000000068fea7dc931b1de6f251cb5f5a9798192e533e53",
             "SALT": "",
             "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "megaeth": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xE34919F5982381368Bd9C640a0F81f3Aa28CE43a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-26 12:53:47",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d839000000000000000000000000085e609b97ac5776acdba5faabbcca64eb7a79185000000000000000000000000b160467220bf28e596015ea841ed9b8dac6102fd",
+            "SALT": "",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]
