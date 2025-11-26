@@ -47,10 +47,11 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Init ///
 
     /// @notice Initialize local variables for the MegaETH Bridge Facet
-    /// @param configs Bridge configuration data
+    /// @param _configs Bridge configuration data
+    /// @param _standardBridge Address of the standard bridge contract
     function initMegaETH(
-        Config[] calldata configs,
-        IL1StandardBridge standardBridge
+        Config[] calldata _configs,
+        IL1StandardBridge _standardBridge
     ) external {
         LibDiamond.enforceIsContractOwner();
 
@@ -60,22 +61,22 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert AlreadyInitialized();
         }
 
-        for (uint256 i = 0; i < configs.length; i++) {
-            if (configs[i].bridge == address(0)) {
+        for (uint256 i = 0; i < _configs.length; i++) {
+            if (_configs[i].bridge == address(0)) {
                 revert InvalidConfig();
             }
-            s.bridges[configs[i].assetId] = IL1StandardBridge(
-                configs[i].bridge
+            s.bridges[_configs[i].assetId] = IL1StandardBridge(
+                _configs[i].bridge
             );
         }
 
-        if (address(standardBridge) == address(0)) {
+        if (address(_standardBridge) == address(0)) {
             revert InvalidConfig();
         }
-        s.standardBridge = standardBridge;
+        s.standardBridge = _standardBridge;
         s.initialized = true;
 
-        emit MegaETHInitialized(configs);
+        emit MegaETHInitialized(_configs);
     }
 
     /// External Methods ///

@@ -4,19 +4,15 @@ pragma solidity ^0.8.17;
 
 import { MegaETHBridgeFacet } from "lifi/Facets/MegaETHBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
-import { LibAllowList, LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
+import { LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub MegaETHBridgeFacet Contract
-contract TestMegaETHBridgeFacet is MegaETHBridgeFacet {
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
-}
+contract TestMegaETHBridgeFacet is
+    MegaETHBridgeFacet,
+    TestWhitelistManagerBase
+{}
 
 contract MegaETHBridgeFacetTest is TestBase {
     // These values are for Mainnet
@@ -51,7 +47,7 @@ contract MegaETHBridgeFacetTest is TestBase {
 
         megaETHBridgeFacet = new TestMegaETHBridgeFacet();
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = megaETHBridgeFacet
             .startBridgeTokensViaMegaETHBridge
             .selector;
@@ -59,9 +55,8 @@ contract MegaETHBridgeFacetTest is TestBase {
             .swapAndStartBridgeTokensViaMegaETHBridge
             .selector;
         functionSelectors[2] = megaETHBridgeFacet.initMegaETH.selector;
-        functionSelectors[3] = megaETHBridgeFacet.addDex.selector;
-        functionSelectors[4] = megaETHBridgeFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[3] = megaETHBridgeFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(megaETHBridgeFacet), functionSelectors);
@@ -76,11 +71,12 @@ contract MegaETHBridgeFacetTest is TestBase {
             IL1StandardBridge(STANDARD_BRIDGE)
         );
 
-        megaETHBridgeFacet.addDex(address(uniswap));
-        megaETHBridgeFacet.setFunctionApprovalBySignature(
+        megaETHBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        megaETHBridgeFacet.setFunctionApprovalBySignature(
+        megaETHBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapETHForExactTokens.selector
         );
 
