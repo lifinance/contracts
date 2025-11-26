@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
@@ -62,14 +62,19 @@ contract DeployScript is DeployScriptBase {
         address[] memory executors = new address[](1);
         executors[0] = address(0);
 
-        // TODO: we need to renounce the admin role from multisig safe,
-        // otherwise it has too much rights and can bypass the timelock
+        // get deployer wallet from global.json
+        path = string.concat(root, "/config/global.json");
+        string memory globalConfigJson = vm.readFile(path);
+        address deployerWallet = globalConfigJson.readAddress(
+            ".deployerWallet"
+        );
 
         return
             abi.encode(
                 minDelay,
                 proposers,
                 executors,
+                deployerWallet,
                 safeAddress,
                 diamondAddress
             );
