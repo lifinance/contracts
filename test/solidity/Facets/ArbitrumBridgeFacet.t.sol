@@ -47,15 +47,26 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = arbitrumBridgeFacet
             .swapAndStartBridgeTokensViaArbitrumBridge
             .selector;
-        functionSelectors[2] = arbitrumBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[2] = arbitrumBridgeFacet
+            .addAllowedContractSelector
+            .selector;
 
         addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
 
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
-        arbitrumBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        arbitrumBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector);
-        arbitrumBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        arbitrumBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        arbitrumBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        arbitrumBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
 
         setFacetAddressInTestBase(
             address(arbitrumBridgeFacet),

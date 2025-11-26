@@ -48,13 +48,34 @@ contract TestHelpers is Test {
             amountInActual
         );
         // whitelist DEX & function selector
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapTokensForExactTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactTokensForTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapETHForExactTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactETHForTokens.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapExactTokensForETH.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.swapTokensForExactETH.selector);
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(address(mockDex), mockDex.mockSwapWillRevertWithReason.selector);
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapTokensForExactTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapExactTokensForTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapETHForExactTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapExactETHForTokens.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapExactTokensForETH.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.swapTokensForExactETH.selector
+        );
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
+            mockDex.mockSwapWillRevertWithReason.selector
+        );
     }
 }
 
