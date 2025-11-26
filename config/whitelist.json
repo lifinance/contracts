@@ -4355,7 +4355,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -4569,7 +4569,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -4723,7 +4723,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -4823,7 +4823,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -4901,7 +4901,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -5237,7 +5237,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -5301,7 +5301,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -5917,7 +5917,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6131,7 +6131,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6263,7 +6263,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6395,7 +6395,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6609,7 +6609,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6687,7 +6687,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6718,6 +6718,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xE34919F5982381368Bd9C640a0F81f3Aa28CE43a",
+        "selectors": [
+          {
+            "selector": "0x1078c579",
+            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+          },
+          {
+            "selector": "0xa7a4a271",
+            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
           }
         ]
       },
@@ -7199,7 +7213,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7345,7 +7359,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7445,7 +7459,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7699,7 +7713,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7845,7 +7859,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7923,7 +7937,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -8331,7 +8345,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -8545,7 +8559,7 @@
         "selectors": [
           {
             "selector": "0x00a32e6c",
-            "signature": "runVM(VMCommand[] calldata commands, VMState memory initialState)"
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
