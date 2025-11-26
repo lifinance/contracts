@@ -24,5 +24,6 @@
   "LiFiTimelockController": "0x1b8160f0955Dd05Fdc3a58C86327e62505a39AfB",
   "SymbiosisFacet": "0x8e25A04d1FcbFb9c2cf9f0c29a2DcD001623bC32",
   "RelayDepositoryFacet": "0x46b4cB1B52cd59F44bD56bDa5Fb7d40cf10d954b",
-  "FeeForwarder": "0x51586Ff93Ded33DbEb6D5fA68d046Fd036251D8A"
+  "FeeForwarder": "0x51586Ff93Ded33DbEb6D5fA68d046Fd036251D8A",
+  "WhitelistManagerFacet": "0x36d7709C1AC38365cBE04374C929DC9173d84A83"
 }

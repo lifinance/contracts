@@ -44,15 +44,26 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         functionSelectors[1] = celerCircleBridgeFacet
             .swapAndStartBridgeTokensViaCelerCircleBridge
             .selector;
-        functionSelectors[2] = celerCircleBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[2] = celerCircleBridgeFacet
+            .addAllowedContractSelector
+            .selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
 
-        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector);
-        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapExactTokensForETH.selector);
-        celerCircleBridgeFacet.addAllowedContractSelector(ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector);
+        celerCircleBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        celerCircleBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForETH.selector
+        );
+        celerCircleBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
 
         setFacetAddressInTestBase(
             address(celerCircleBridgeFacet),
