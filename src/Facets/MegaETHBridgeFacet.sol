@@ -12,7 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title MegaETH Bridge Facet
-/// @author Li.Finance (https://li.finance)
+/// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through MegaETH Bridge
 /// @custom:version 1.0.0
 contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
@@ -69,6 +69,9 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
+        if (address(standardBridge) == address(0)) {
+            revert InvalidConfig();
+        }
         s.standardBridge = standardBridge;
         s.initialized = true;
 
@@ -97,8 +100,8 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Bridges tokens via MegaETH Bridge
-    /// @param _bridgeData Data contaning core information for bridging
-    /// @param _bridgeData Data specific to MegaETH Bridge
+    /// @param _bridgeData Data containing core information for bridging
+    /// @param _megaETHData Data specific to MegaETH Bridge
     function startBridgeTokensViaMegaETHBridge(
         ILiFi.BridgeData memory _bridgeData,
         MegaETHData calldata _megaETHData
@@ -119,9 +122,9 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Performs a swap before bridging via MegaETH Bridge
-    /// @param _bridgeData Data contaning core information for bridging
+    /// @param _bridgeData Data containing core information for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _bridgeData Data specific to MegaETH Bridge
+    /// @param _megaETHData Data specific to MegaETH Bridge
     function swapAndStartBridgeTokensViaMegaETHBridge(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -147,13 +150,14 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via MegaETH Bridge
-    /// @param _bridgeData Data contaning core information for bridging
-    /// @param _bridgeData Data specific to MegaETH Bridge
+    /// @param _bridgeData Data containing core information for bridging
+    /// @param _megaETHData Data specific to MegaETH Bridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         MegaETHData calldata _megaETHData
     ) private {
         Storage storage s = getStorage();
+        if (!s.initialized) revert NotInitialized();
         IL1StandardBridge nonStandardBridge = s.bridges[
             _bridgeData.sendingAssetId
         ];

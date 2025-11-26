@@ -45,8 +45,8 @@ struct MegaETHData {
 }
 ```
 
-**WARNING**: If the l2Gas is underpaid, the `finalizeDeposit` internal function call will fail and the funds will be lost!
-Please make sure to pass enough gas if the MegaETH facet is used directly.
+**WARNING**: If `l2Gas` is under-estimated, `finalizeDeposit` on L2 may not complete and the message can remain unfinalized until retried with sufficient gas.
+Ensure `l2Gas` is provisioned conservatively or implement a retry path when calling the MegaETH facet directly.
 
 ## Swap Data
 
