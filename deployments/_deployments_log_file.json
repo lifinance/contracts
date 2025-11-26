@@ -42980,7 +42980,7 @@
             "TIMESTAMP": "2025-08-01 20:55:01",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "true",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -42993,7 +42993,7 @@
             "TIMESTAMP": "2025-11-12 16:22:05",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -43092,7 +43092,7 @@
             "TIMESTAMP": "2025-10-29 17:32:50",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "32345168",
-            "VERIFIED": "true",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -43133,7 +43133,7 @@
             "TIMESTAMP": "2025-11-20 16:25:33",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -43148,7 +43148,7 @@
             "TIMESTAMP": "2025-11-12 16:26:47",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -43268,7 +43268,7 @@
             "TIMESTAMP": "2025-11-12 16:21:21",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -43414,7 +43414,7 @@
             "TIMESTAMP": "2025-11-05 18:40:03",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "true",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]
@@ -43609,7 +43609,7 @@
             "TIMESTAMP": "2025-11-20 16:02:33",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
