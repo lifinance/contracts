@@ -52,6 +52,14 @@
       "0x759D3cdfFD753F6e057e09CA23FF3a4D07A31469": {
         "Name": "DexManagerFacet",
         "Version": "1.0.2"
+      },
+      "0xc3Cdc747F6145993F3C9897b519a319f402cc6cB": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
+        "Name": "RelayFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

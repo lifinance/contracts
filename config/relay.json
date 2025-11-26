@@ -142,6 +142,10 @@
     "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
+  "stable": {
+    "relayReceiver": "0xac4615ffec9dbf5efe28db0f98f0011e6df0dabd",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "superposition": {
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
