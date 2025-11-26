@@ -45451,6 +45451,21 @@
           }
         ]
       }
+    },
+    "megaeth": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2c01Ffc961b29C9c14C5071f774797A1A4C23CE8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-26 13:06:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000000025c3226c00b2cdc200005a1600509f4e00c0",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GardenFacet": {

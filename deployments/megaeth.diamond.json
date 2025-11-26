@@ -52,6 +52,10 @@
       "0x2B3CE1Ee07De57C09EC9B8A600C9E4Ffdb5464d0": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0x2c01Ffc961b29C9c14C5071f774797A1A4C23CE8": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
