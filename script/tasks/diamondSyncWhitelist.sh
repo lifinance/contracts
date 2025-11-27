@@ -607,7 +607,7 @@ function diamondSyncWhitelist {
         local TX_OUTPUT
         echoSyncDebug "CONTRACTS_ARRAY: $CONTRACTS_ARRAY"
         echoSyncDebug "SELECTORS_ARRAY: $SELECTORS_ARRAY"
-        TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_ARRAY]" "[$SELECTORS_ARRAY]" true --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy 2>&1)
+        TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_ARRAY]" "[$SELECTORS_ARRAY]" true --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
         local TX_EXIT_CODE=$?
 
         # Print transaction output for debugging (single-network runs only)
