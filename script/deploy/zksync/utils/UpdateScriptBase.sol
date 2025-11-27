@@ -5,14 +5,22 @@ import { ScriptBase } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
+import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
 
-    struct FunctionSignature {
+    error InvalidHexDigit(uint8 d);
+
+    struct FunctionSelector {
         string name;
-        bytes sig;
+        bytes selector;
+    }
+
+    struct Approval {
+        address aTokenAddress;
+        address bContractAddress;
     }
 
     address internal diamond;
@@ -26,8 +34,6 @@ contract UpdateScriptBase is ScriptBase {
     string internal json;
     bool internal noBroadcast = false;
     bool internal useDefaultDiamond;
-
-    error FailedToConvert();
 
     constructor() {
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
@@ -57,21 +63,41 @@ contract UpdateScriptBase is ScriptBase {
         returns (address[] memory facets, bytes memory cutData)
     {
         address facet = json.readAddress(string.concat(".", name));
+        return update(name, facet);
+    }
 
+    function update(
+        string memory name,
+        address updater
+    )
+        internal
+        virtual
+        returns (address[] memory facets, bytes memory cutData)
+    {
+        address facet = json.readAddress(string.concat(".", name));
         bytes4[] memory excludes = getExcludes();
         bytes memory callData = getCallData();
 
-        buildDiamondCut(getSelectors(name, excludes), facet);
+        bytes4[] memory newSelectors = getSelectors(name, excludes);
+
+        buildDiamondCut(newSelectors, facet);
+
+        // prepare full diamondCut calldata and log for debugging purposes
+        if (cut.length > 0) {
+            cutData = abi.encodeWithSelector(
+                DiamondCutFacet.diamondCut.selector,
+                cut,
+                callData.length > 0 ? updater : address(0),
+                callData
+            );
+
+            emit log("DiamondCutCalldata: ");
+            emit log_bytes(cutData);
+        }
 
         if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    callData.length > 0 ? facet : address(0),
-                    callData
-                );
-            }
+            // Get current facets for return value even when not broadcasting
+            facets = loupe.facetAddresses();
             return (facets, cutData);
         }
 
@@ -80,7 +106,7 @@ contract UpdateScriptBase is ScriptBase {
         if (cut.length > 0) {
             cutter.diamondCut(
                 cut,
-                callData.length > 0 ? facet : address(0),
+                callData.length > 0 ? updater : address(0),
                 callData
             );
         }
@@ -122,27 +148,32 @@ contract UpdateScriptBase is ScriptBase {
 
         // Get selectors to add or replace
         for (uint256 i; i < newSelectors.length; i++) {
-            if (loupe.facetAddress(newSelectors[i]) == address(0)) {
+            address existingFacet = loupe.facetAddress(newSelectors[i]);
+            if (existingFacet == address(0)) {
                 selectorsToAdd.push(newSelectors[i]);
                 // Don't replace if the new facet address is the same as the old facet address
-            } else if (loupe.facetAddress(newSelectors[i]) != newFacet) {
+            } else if (existingFacet != newFacet) {
                 selectorsToReplace.push(newSelectors[i]);
-                oldFacet = loupe.facetAddress(newSelectors[i]);
+                oldFacet = existingFacet;
             }
         }
 
         // Get selectors to remove
-        bytes4[] memory oldSelectors = loupe.facetFunctionSelectors(oldFacet);
-        for (uint256 i; i < oldSelectors.length; i++) {
-            bool found = false;
-            for (uint256 j; j < newSelectors.length; j++) {
-                if (oldSelectors[i] == newSelectors[j]) {
-                    found = true;
-                    break;
+        if (oldFacet != address(0)) {
+            bytes4[] memory oldSelectors = loupe.facetFunctionSelectors(
+                oldFacet
+            );
+            for (uint256 i; i < oldSelectors.length; i++) {
+                bool found = false;
+                for (uint256 j; j < newSelectors.length; j++) {
+                    if (oldSelectors[i] == newSelectors[j]) {
+                        found = true;
+                        break;
+                    }
                 }
-            }
-            if (!found) {
-                selectorsToRemove.push(oldSelectors[i]);
+                if (!found) {
+                    selectorsToRemove.push(oldSelectors[i]);
+                }
             }
         }
 
@@ -197,7 +228,7 @@ contract UpdateScriptBase is ScriptBase {
         } else if (10 <= uint8(d) && uint8(d) <= 15) {
             return bytes1(uint8(bytes1("a")) + d - 10);
         }
-        revert FailedToConvert();
+        revert InvalidHexDigit(d);
     }
 
     function fromCode(bytes4 code) public pure returns (string memory) {
@@ -209,5 +240,83 @@ contract UpdateScriptBase is ScriptBase {
             result[2 * i + 3] = toHexDigit(uint8(code[i]) % 16);
         }
         return string(result);
+    }
+
+    function approveRefundWallet() internal {
+        // get refund wallet address from global config file
+        path = string.concat(root, "/config/global.json");
+        json = vm.readFile(path);
+        address refundWallet = json.readAddress(".refundWallet");
+
+        // get function selectors that should be approved for refundWallet
+        bytes memory rawConfig = json.parseRaw(
+            ".approvedSelectorsForRefundWallet"
+        );
+
+        // parse raw data from config into FunctionSelector array
+        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSelector[])
+        );
+
+        emit log("funcSelectorsToBeApproved: ");
+        emit log_uint(funcSelectorsToBeApproved.length);
+
+        // go through array with function selectors
+        for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
+            emit log("funcSelectorsToBeApproved: ");
+            emit log(funcSelectorsToBeApproved[i].name);
+            // Register refundWallet as authorized wallet to call these functions
+            AccessManagerFacet(diamond).setCanExecute(
+                bytes4(funcSelectorsToBeApproved[i].selector),
+                refundWallet,
+                true
+            );
+        }
+    }
+
+    function approveDeployerWallet() internal {
+        // get global config file
+        path = string.concat(root, "/config/global.json");
+        json = vm.readFile(path);
+
+        // determine wallet address based on environment
+        // if fileSuffix is empty, we're in production (use deployerWallet)
+        // if fileSuffix is not empty (staging.), we're in staging (use devWallet)
+        address executor;
+        if (bytes(fileSuffix).length == 0) {
+            executor = json.readAddress(".deployerWallet");
+        } else {
+            executor = json.readAddress(".devWallet");
+        }
+
+        // get function selectors that should be approved for executor
+        bytes memory rawConfig = json.parseRaw(
+            ".approvedSelectorsForDeployerWallet"
+        );
+
+        emit log("executor: ");
+        emit log_address(executor);
+
+        // parse raw data from config into FunctionSelector array
+        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSelector[])
+        );
+
+        emit log("funcSelectorsToBeApproved: ");
+        emit log_uint(funcSelectorsToBeApproved.length);
+
+        // go through array with function selectors
+        for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
+            emit log("funcSelectorsToBeApproved: ");
+            emit log(funcSelectorsToBeApproved[i].name);
+            // Register executor as authorized wallet to call these functions
+            AccessManagerFacet(diamond).setCanExecute(
+                bytes4(funcSelectorsToBeApproved[i].selector),
+                executor,
+                true
+            );
+        }
     }
 }
