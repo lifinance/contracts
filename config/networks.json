@@ -735,10 +735,10 @@
     "wrappedNativeAddress": "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "<redacted>",
-    "verificationType": "sourcify",
+    "rpcUrl": "https://rpc.monad.xyz",
+    "verificationType": "custom",
     "explorerUrl": "https://monvision.io",
-    "explorerApiUrl": "https://sourcify-api-monad.blockvision.org",
+    "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=143",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeAddress": "0x94288DB96fBe7EB6847965120BE91eaB81f3A6d0",
     "gasZipChainId": 511,
@@ -746,7 +746,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
-    "devNotes": "Verification not yet working, also UpdateScripts often fail with weird errors while deployments work fine. Workaround is to copy the calldata and send/propose it directly"
+    "devNotes": "UpdateScripts often fail with weird errors while deployments work fine. Workaround is to copy the calldata and send/propose it directly"
   },
   "moonbeam": {
     "name": "moonbeam",
