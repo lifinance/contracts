@@ -180,6 +180,14 @@
       "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
+      },
+      "0x66FD4424bc4E24b6183e95DD74A3f3857725457F": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -188,8 +196,8 @@
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
-      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
