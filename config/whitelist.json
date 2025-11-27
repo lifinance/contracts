@@ -3985,7 +3985,9 @@
         "hyperevm": [
           {
             "address": "0x4212a77e4533eca49643d7b731f5fb1b2782fe94",
-            "functions": {}
+            "functions": {
+              "0x415565b0": "transformERC20(address,address,uint256,uint256,(uint32,bytes)[])"
+            }
           }
         ]
       }
