@@ -32274,6 +32274,21 @@
           }
         ]
       }
+    },
+    "stable": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xd3501fB683AaDe48Cb9AD47353b42d19a3359981",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-27 10:30:03",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d027afcc69ffa2bcb288ba68da6b71ec90d7b1d2",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ReceiverStargateV2": {
@@ -32837,6 +32852,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000650659134dfd3a0f56c69b949e4b9e82f78026790000000000000000000000003a1e3062414165a15d4cae4a6cbff6d83f60be550000000000000000000000006f475642a6e85809b1c36fa62763669b1b48dd5b00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "stable": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x400410ce3632789c0eEDd050b10F61e20dF21970",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-27 10:31:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000005603af276bdcf73a859928ca3fbdae7d4909dd77000000000000000000000000d027afcc69ffa2bcb288ba68da6b71ec90d7b1d20000000000000000000000006f475642a6e85809b1c36fa62763669b1b48dd5b00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "false",
             "ZK_SOLC_VERSION": ""
           }
         ]
