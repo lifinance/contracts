@@ -1,6 +1,6 @@
 {
   "mainnet": {
-    "standardBridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
+    "standardBridge": "0x0CA3A2FBC3D770b578223FBB6b062fa875a2eE75",
     "tokens": [
       {
         "assetId": "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
