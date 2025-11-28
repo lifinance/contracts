@@ -53,9 +53,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0xeaa333cfB9261d600DBDEa82C3c99cB558e9C016": {
+      "0xF94484deAD7dC9C19F1a56a2d6C1C761A4EBd494": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
         "Name": "WhitelistManagerFacet",
