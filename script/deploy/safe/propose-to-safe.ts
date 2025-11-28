@@ -56,7 +56,13 @@ const main = defineCommand({
     calldata: {
       type: 'string',
       description: 'Calldata',
-      required: true,
+      required: false,
+    },
+    calldataFile: {
+      type: 'string',
+      description:
+        'Path to file containing calldata (alternative to --calldata)',
+      required: false,
     },
     ledger: {
       type: 'boolean',
@@ -153,7 +159,19 @@ const main = defineCommand({
 
     // Handle timelock wrapping if requested
     let finalTo = args.to as Address
-    let finalCalldata = args.calldata as Hex
+
+    // Get calldata from file or argument
+    let finalCalldata: Hex
+    if (args.calldataFile) {
+      if (!fs.existsSync(args.calldataFile))
+        throw new Error(`Calldata file not found: ${args.calldataFile}`)
+      finalCalldata = fs.readFileSync(args.calldataFile, 'utf8').trim() as Hex
+      consola.info(`Loaded calldata from file: ${args.calldataFile}`)
+    } else if (args.calldata) {
+      finalCalldata = args.calldata as Hex
+    } else {
+      throw new Error('Either --calldata or --calldataFile must be provided')
+    }
 
     if (args.timelock) {
       // Look for timelock controller address in deployments (always use production)
