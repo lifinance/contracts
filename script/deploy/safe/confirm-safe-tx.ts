@@ -19,6 +19,7 @@ import {
 } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
@@ -396,6 +397,24 @@ const processTxs = async (
         consola.info('Method:', abi)
         if (decoded) {
           consola.info('Function Name:', decoded.functionName)
+
+          // If this is a registerPeripheryContract call, show an explorer link for the periphery address.
+          if (
+            decoded.functionName === 'registerPeripheryContract' &&
+            decoded.args &&
+            decoded.args.length >= 2
+          ) {
+            const peripheryAddress = decoded.args[1] as string
+            let peripheryLine = `Periphery Address: \u001b[34m${peripheryAddress}\u001b[0m`
+            const explorerUrl = buildExplorerContractPageUrl(
+              network,
+              peripheryAddress
+            )
+            if (explorerUrl)
+              peripheryLine += ` \u001b[36m${explorerUrl}\u001b[0m`
+            consola.info(peripheryLine)
+          }
+
           if (decoded.args && decoded.args.length > 0) {
             consola.info('Decoded Arguments:')
             decoded.args.forEach((arg: any, index: number) => {
