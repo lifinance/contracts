@@ -727,6 +727,27 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "monad": {
+    "name": "monad",
+    "chainId": 143,
+    "nativeAddress": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    "nativeCurrency": "MON",
+    "wrappedNativeAddress": "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.monad.xyz",
+    "verificationType": "custom",
+    "explorerUrl": "https://monvision.io",
+    "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=143",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeAddress": "0x94288DB96fBe7EB6847965120BE91eaB81f3A6d0",
+    "gasZipChainId": 511,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "devNotes": "UpdateScripts often fail with weird errors while deployments work fine. Workaround is to copy the calldata and send/propose it directly"
+  },
   "moonbeam": {
     "name": "moonbeam",
     "chainId": 1284,
