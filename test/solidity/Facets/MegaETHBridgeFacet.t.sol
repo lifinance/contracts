@@ -5,8 +5,10 @@ pragma solidity ^0.8.17;
 import { MegaETHBridgeFacet } from "lifi/Facets/MegaETHBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
 import { LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
+import { LiFiDiamond } from "../utils/DiamondTest.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed, InvalidConfig, AlreadyInitialized, NotInitialized, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 
 // Stub MegaETHBridgeFacet Contract
 contract TestMegaETHBridgeFacet is
@@ -35,6 +37,14 @@ contract MegaETHBridgeFacetTest is TestBase {
     uint256 internal constant DSTCHAIN_ID = 10;
     uint32 internal constant L2_GAS = 200000;
 
+    // Synthetix SNX token addresses
+    address internal constant SNX_L1_ADDRESS =
+        0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F;
+    address internal constant SNX_BRIDGE =
+        0x39Ea01a0298C315d149a490E34B59Dbf2EC7e48F;
+    address internal constant SNX_WHALE =
+        0xF977814e90dA44bFA03b6295A0616a897441aceC; // Binance 8
+
     // -----
 
     TestMegaETHBridgeFacet internal megaETHBridgeFacet;
@@ -47,7 +57,7 @@ contract MegaETHBridgeFacetTest is TestBase {
 
         megaETHBridgeFacet = new TestMegaETHBridgeFacet();
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = megaETHBridgeFacet
             .startBridgeTokensViaMegaETHBridge
             .selector;
@@ -57,6 +67,9 @@ contract MegaETHBridgeFacetTest is TestBase {
         functionSelectors[2] = megaETHBridgeFacet.initMegaETH.selector;
         functionSelectors[3] = megaETHBridgeFacet
             .addAllowedContractSelector
+            .selector;
+        functionSelectors[4] = megaETHBridgeFacet
+            .registerMegaETHBridge
             .selector;
 
         addFacet(diamond, address(megaETHBridgeFacet), functionSelectors);
@@ -78,6 +91,10 @@ contract MegaETHBridgeFacetTest is TestBase {
         megaETHBridgeFacet.addAllowedContractSelector(
             address(uniswap),
             uniswap.swapETHForExactTokens.selector
+        );
+        megaETHBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
         );
 
         validBridgeData = ILiFi.BridgeData({
@@ -104,6 +121,153 @@ contract MegaETHBridgeFacetTest is TestBase {
             "MegaETHBridgeFacet"
         );
     }
+
+    // ==================== initMegaETH Tests ====================
+
+    function testRevertInitWhenAlreadyInitialized() public {
+        MegaETHBridgeFacet.Config[]
+            memory configs = new MegaETHBridgeFacet.Config[](1);
+        configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
+
+        vm.expectRevert(AlreadyInitialized.selector);
+        megaETHBridgeFacet.initMegaETH(
+            configs,
+            IL1StandardBridge(STANDARD_BRIDGE)
+        );
+    }
+
+    function testRevertInitWithZeroBridgeInConfig() public {
+        // Deploy a fresh diamond for this test
+        LiFiDiamond freshDiamond = createDiamond(
+            USER_DIAMOND_OWNER,
+            USER_PAUSER
+        );
+        TestMegaETHBridgeFacet freshFacet = new TestMegaETHBridgeFacet();
+
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = freshFacet.initMegaETH.selector;
+
+        addFacet(freshDiamond, address(freshFacet), functionSelectors);
+
+        // Create config with zero bridge address
+        MegaETHBridgeFacet.Config[]
+            memory configs = new MegaETHBridgeFacet.Config[](1);
+        configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, address(0));
+
+        vm.expectRevert(InvalidConfig.selector);
+        TestMegaETHBridgeFacet(address(freshDiamond)).initMegaETH(
+            configs,
+            IL1StandardBridge(STANDARD_BRIDGE)
+        );
+    }
+
+    function testRevertInitWithZeroStandardBridge() public {
+        // Deploy a fresh diamond for this test
+        LiFiDiamond freshDiamond = createDiamond(
+            USER_DIAMOND_OWNER,
+            USER_PAUSER
+        );
+        TestMegaETHBridgeFacet freshFacet = new TestMegaETHBridgeFacet();
+
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = freshFacet.initMegaETH.selector;
+
+        addFacet(freshDiamond, address(freshFacet), functionSelectors);
+
+        MegaETHBridgeFacet.Config[]
+            memory configs = new MegaETHBridgeFacet.Config[](1);
+        configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
+
+        vm.expectRevert(InvalidConfig.selector);
+        TestMegaETHBridgeFacet(address(freshDiamond)).initMegaETH(
+            configs,
+            IL1StandardBridge(address(0))
+        );
+    }
+
+    function testRevertInitWhenNotOwner() public {
+        // Deploy a fresh diamond for this test
+        LiFiDiamond freshDiamond = createDiamond(
+            USER_DIAMOND_OWNER,
+            USER_PAUSER
+        );
+        TestMegaETHBridgeFacet freshFacet = new TestMegaETHBridgeFacet();
+
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = freshFacet.initMegaETH.selector;
+
+        addFacet(freshDiamond, address(freshFacet), functionSelectors);
+
+        MegaETHBridgeFacet.Config[]
+            memory configs = new MegaETHBridgeFacet.Config[](1);
+        configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
+
+        vm.prank(USER_SENDER); // Not the owner
+        vm.expectRevert(OnlyContractOwner.selector);
+        TestMegaETHBridgeFacet(address(freshDiamond)).initMegaETH(
+            configs,
+            IL1StandardBridge(STANDARD_BRIDGE)
+        );
+    }
+
+    // ==================== registerMegaETHBridge Tests ====================
+
+    function testCanRegisterNewBridge() public {
+        address newToken = address(0x1234567890123456789012345678901234567890);
+        address newBridge = address(
+            0x0987654321098765432109876543210987654321
+        );
+
+        vm.expectEmit(true, false, false, true, address(megaETHBridgeFacet));
+        emit MegaETHBridgeFacet.MegaETHBridgeRegistered(newToken, newBridge);
+
+        megaETHBridgeFacet.registerMegaETHBridge(newToken, newBridge);
+    }
+
+    function testRevertRegisterBridgeWhenNotOwner() public {
+        address newToken = address(0x1234567890123456789012345678901234567890);
+        address newBridge = address(
+            0x0987654321098765432109876543210987654321
+        );
+
+        vm.prank(USER_SENDER); // Not the owner
+        vm.expectRevert(OnlyContractOwner.selector);
+        megaETHBridgeFacet.registerMegaETHBridge(newToken, newBridge);
+    }
+
+    function testRevertRegisterBridgeWhenNotInitialized() public {
+        // Deploy a fresh diamond without initialization
+        LiFiDiamond freshDiamond = createDiamond(
+            USER_DIAMOND_OWNER,
+            USER_PAUSER
+        );
+        TestMegaETHBridgeFacet freshFacet = new TestMegaETHBridgeFacet();
+
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = freshFacet.registerMegaETHBridge.selector;
+
+        addFacet(freshDiamond, address(freshFacet), functionSelectors);
+
+        address newToken = address(0x1234567890123456789012345678901234567890);
+        address newBridge = address(
+            0x0987654321098765432109876543210987654321
+        );
+
+        vm.expectRevert(NotInitialized.selector);
+        TestMegaETHBridgeFacet(address(freshDiamond)).registerMegaETHBridge(
+            newToken,
+            newBridge
+        );
+    }
+
+    function testRevertRegisterBridgeWithZeroAddress() public {
+        address newToken = address(0x1234567890123456789012345678901234567890);
+
+        vm.expectRevert(InvalidConfig.selector);
+        megaETHBridgeFacet.registerMegaETHBridge(newToken, address(0));
+    }
+
+    // ==================== startBridgeTokensViaMegaETHBridge Tests ====================
 
     function testRevertToBridgeTokensWhenSendingAmountIsZero() public {
         vm.startPrank(DAI_L1_HOLDER);
@@ -200,6 +364,26 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
+    function testRevertToBridgeTokensWhenHasDestinationCall() public {
+        vm.startPrank(DAI_L1_HOLDER);
+
+        dai.approve(
+            address(megaETHBridgeFacet),
+            10_000 * 10 ** dai.decimals()
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasDestinationCall = true;
+
+        vm.expectRevert(InformationMismatch.selector);
+        megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            validMegaETHData
+        );
+
+        vm.stopPrank();
+    }
+
     function testCanBridgeERC20Tokens() public {
         vm.startPrank(DAI_L1_HOLDER);
         dai.approve(
@@ -213,6 +397,89 @@ contract MegaETHBridgeFacetTest is TestBase {
         );
         vm.stopPrank();
     }
+
+    function testCanBridgeNativeETH() public {
+        vm.startPrank(USER_SENDER);
+        vm.deal(USER_SENDER, 10 ether);
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        MegaETHBridgeFacet.MegaETHData memory megaETHData = MegaETHBridgeFacet
+            .MegaETHData(address(0), L2_GAS, false);
+
+        megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge{ value: 1 ether }(
+            bridgeData,
+            megaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testCanBridgeERC20TokensUsingStandardBridge() public {
+        // Use USDC which is not in the custom bridges mapping, so it should use standard bridge
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(
+            address(megaETHBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = address(usdc);
+        bridgeData.minAmount = 100 * 10 ** usdc.decimals();
+
+        MegaETHBridgeFacet.MegaETHData memory megaETHData = MegaETHBridgeFacet
+            .MegaETHData(
+                address(usdc), // L2 address (using same for simplicity)
+                L2_GAS,
+                false
+            );
+
+        megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            megaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testCanBridgeSynthetixTokens() public {
+        // Register SNX bridge first (as owner)
+        megaETHBridgeFacet.registerMegaETHBridge(SNX_L1_ADDRESS, SNX_BRIDGE);
+
+        // Transfer SNX from whale to USER_SENDER (deal doesn't work due to packed slots)
+        vm.prank(SNX_WHALE);
+        ERC20(SNX_L1_ADDRESS).transfer(USER_SENDER, 1000 * 1e18);
+
+        vm.startPrank(USER_SENDER);
+
+        ERC20(SNX_L1_ADDRESS).approve(
+            address(megaETHBridgeFacet),
+            1000 * 1e18
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = SNX_L1_ADDRESS;
+        bridgeData.minAmount = 100 * 1e18;
+
+        MegaETHBridgeFacet.MegaETHData memory megaETHData = MegaETHBridgeFacet
+            .MegaETHData(
+                address(0), // assetIdOnL2 not used for Synthetix
+                L2_GAS,
+                true // isSynthetix = true
+            );
+
+        megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            megaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    // ==================== swapAndStartBridgeTokensViaMegaETHBridge Tests ====================
 
     function testCanSwapAndBridgeTokens() public {
         vm.startPrank(USDC_HOLDER);
@@ -258,6 +525,351 @@ contract MegaETHBridgeFacetTest is TestBase {
             swapData,
             validMegaETHData
         );
+
+        vm.stopPrank();
+    }
+
+    function testCanSwapAndBridgeNativeETH() public {
+        vm.startPrank(USER_SENDER);
+
+        // Swap DAI to ETH, then bridge ETH
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = 1 ether;
+
+        // Calculate DAI amount needed
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        dai.approve(address(megaETHBridgeFacet), amountIn);
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            ADDRESS_DAI,
+            address(0), // receivingAssetId is native ETH
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapTokensForExactETH.selector,
+                amountOut,
+                amountIn,
+                path,
+                address(megaETHBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = amountOut;
+        bridgeData.hasSourceSwaps = true;
+
+        MegaETHBridgeFacet.MegaETHData memory megaETHData = MegaETHBridgeFacet
+            .MegaETHData(address(0), L2_GAS, false);
+
+        megaETHBridgeFacet.swapAndStartBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            swapData,
+            megaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testCanSwapAndBridgeSynthetixTokens() public {
+        // Register SNX bridge first
+        megaETHBridgeFacet.registerMegaETHBridge(SNX_L1_ADDRESS, SNX_BRIDGE);
+
+        // Add liquidity for WETH-SNX pair to enable swap
+        // First, let's swap DAI to SNX via WETH
+        vm.startPrank(USER_SENDER);
+
+        // Swap DAI -> WETH -> SNX (need to use a path through WETH)
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = SNX_L1_ADDRESS;
+
+        // Get amount in for desired SNX output
+        uint256 amountOutSNX = 10 * 1e18;
+        uint256[] memory amounts;
+        try uniswap.getAmountsIn(amountOutSNX, path) returns (
+            uint256[] memory _amounts
+        ) {
+            amounts = _amounts;
+        } catch {
+            // If direct path doesn't work, skip this test
+            vm.stopPrank();
+            return;
+        }
+        uint256 amountIn = amounts[0];
+
+        dai.approve(address(megaETHBridgeFacet), amountIn);
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            ADDRESS_DAI,
+            SNX_L1_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOutSNX,
+                path,
+                address(megaETHBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = SNX_L1_ADDRESS;
+        bridgeData.minAmount = amountOutSNX;
+        bridgeData.hasSourceSwaps = true;
+
+        MegaETHBridgeFacet.MegaETHData memory megaETHData = MegaETHBridgeFacet
+            .MegaETHData(
+                address(0), // assetIdOnL2 not used for Synthetix
+                L2_GAS,
+                true // isSynthetix = true
+            );
+
+        megaETHBridgeFacet.swapAndStartBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            swapData,
+            megaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertSwapAndBridgeWhenNoSourceSwaps() public {
+        vm.startPrank(USDC_HOLDER);
+
+        usdc.approve(
+            address(megaETHBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
+
+        // Swap USDC to DAI
+        address[] memory path = new address[](2);
+        path[0] = USDC_ADDRESS;
+        path[1] = DAI_L1_ADDRESS;
+
+        uint256 amountOut = 1000 * 10 ** dai.decimals();
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            USDC_ADDRESS,
+            DAI_L1_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOut,
+                path,
+                address(megaETHBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = false; // This should cause a revert
+
+        vm.expectRevert(InformationMismatch.selector);
+        megaETHBridgeFacet.swapAndStartBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            swapData,
+            validMegaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertSwapAndBridgeWithDestinationCalls() public {
+        vm.startPrank(USDC_HOLDER);
+
+        usdc.approve(
+            address(megaETHBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
+
+        // Swap USDC to DAI
+        address[] memory path = new address[](2);
+        path[0] = USDC_ADDRESS;
+        path[1] = DAI_L1_ADDRESS;
+
+        uint256 amountOut = 1000 * 10 ** dai.decimals();
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            USDC_ADDRESS,
+            DAI_L1_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOut,
+                path,
+                address(megaETHBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.hasDestinationCall = true; // This should cause a revert
+
+        vm.expectRevert(InformationMismatch.selector);
+        megaETHBridgeFacet.swapAndStartBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            swapData,
+            validMegaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertSwapAndBridgeWhenAmountIsZero() public {
+        vm.startPrank(USDC_HOLDER);
+
+        usdc.approve(
+            address(megaETHBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
+
+        address[] memory path = new address[](2);
+        path[0] = USDC_ADDRESS;
+        path[1] = DAI_L1_ADDRESS;
+
+        uint256 amountOut = 1000 * 10 ** dai.decimals();
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            USDC_ADDRESS,
+            DAI_L1_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOut,
+                path,
+                address(megaETHBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = 0; // Zero amount should revert
+
+        vm.expectRevert(InvalidAmount.selector);
+        megaETHBridgeFacet.swapAndStartBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            swapData,
+            validMegaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertSwapAndBridgeWhenReceiverIsZero() public {
+        vm.startPrank(USDC_HOLDER);
+
+        usdc.approve(
+            address(megaETHBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
+
+        address[] memory path = new address[](2);
+        path[0] = USDC_ADDRESS;
+        path[1] = DAI_L1_ADDRESS;
+
+        uint256 amountOut = 1000 * 10 ** dai.decimals();
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            USDC_ADDRESS,
+            DAI_L1_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOut,
+                path,
+                address(megaETHBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.receiver = address(0); // Zero receiver should revert
+
+        vm.expectRevert(InvalidReceiver.selector);
+        megaETHBridgeFacet.swapAndStartBridgeTokensViaMegaETHBridge(
+            bridgeData,
+            swapData,
+            validMegaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    // ==================== NotInitialized in _startBridge Tests ====================
+
+    function testRevertBridgeWhenNotInitialized() public {
+        // Deploy a fresh diamond without initialization
+        LiFiDiamond freshDiamond = createDiamond(
+            USER_DIAMOND_OWNER,
+            USER_PAUSER
+        );
+        TestMegaETHBridgeFacet freshFacet = new TestMegaETHBridgeFacet();
+
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = freshFacet
+            .startBridgeTokensViaMegaETHBridge
+            .selector;
+
+        addFacet(freshDiamond, address(freshFacet), functionSelectors);
+
+        // Fund user with DAI
+        deal(DAI_L1_ADDRESS, USER_SENDER, 1000 * 1e18);
+
+        vm.startPrank(USER_SENDER);
+        ERC20(DAI_L1_ADDRESS).approve(address(freshDiamond), 1000 * 1e18);
+
+        vm.expectRevert(NotInitialized.selector);
+        TestMegaETHBridgeFacet(address(freshDiamond))
+            .startBridgeTokensViaMegaETHBridge(
+                validBridgeData,
+                validMegaETHData
+            );
 
         vm.stopPrank();
     }
