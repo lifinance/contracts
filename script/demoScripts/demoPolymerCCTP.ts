@@ -38,10 +38,25 @@ import {
 
 config()
 
+// IMPORTANT: For Solana destinations, ensure the receiver address has an Associated Token Account (ATA) for USDC.
+// Without an ATA, the relayer will revert when trying to mint tokens on Solana, resulting in a poor state where
+// funds are burned on the source chain but cannot be received on Solana.
+// Polymer team offered to do this check and return an error if the address does not have an ATA attached.
+// But a better UX could be that our backend will identify such cases and create an ATA for that account (if possible)
+
+// SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
+// OPT.USDC > ARB.USDC (fast path):
+//  SEND: https://optimistic.etherscan.io/tx/0xf7ebf406f50fe216552cc1bbee1aeec427a380f608d55b5ded3759f54e41d9d0
+//  RECEIVE: https://arbiscan.io/tx/0x59c024637bd850daf78ced41c0d91fd20e0cc08dc21482d4a5c56900b9db575c
+// OPT.USDC > ARB.USDC (standard path):
+//  SEND: https://optimistic.etherscan.io/tx/0xcdb40f5a2960544cba0bca90a6405e0f945b5831af5f867bea63b1cd6fe6514b
+//  RECEIVE: https://arbiscan.io/tx/0xfb6ac6f8dd9369cff32ffc2c6a166a4252f310ab1253d53fa13960dbee530824
+// ---------------------------------------------------------------------------------------------------------------------------------------------------
+
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const BRIDGE_TO_SOLANA = false // Set BRIDGE_TO_SOLANA=true to bridge to Solana
+const BRIDGE_TO_SOLANA = false
 const SEND_TX = false // Set to false to dry-run without sending transaction
-const USE_FAST_MODE = true // Set to true for fast route (1000), false for standard route (2000)
+const USE_FAST_MODE = false // Set to true for fast route (1000), false for standard route (2000)
 
 // Polymer API configuration
 // const POLYMER_API_URL = 'https://lifi.devnet.polymer.zone' // testnet API URL
@@ -49,6 +64,9 @@ const POLYMER_API_URL = 'https://lifi.shadownet.polymer.zone' // mainnet API URL
 
 // Source chain: 'arbitrum' or 'optimism'
 const SRC_CHAIN = 'optimism' as 'arbitrum' | 'optimism'
+
+// in order to test with our staging diamond, the polymer team needs to update their off-chain logic
+// to monitor our addresses. So far we tested with their deployments.
 // const DIAMOND_ADDRESS_SRC =
 //   SRC_CHAIN === 'arbitrum'
 //     ? deploymentsARB.LiFiDiamond
@@ -61,46 +79,34 @@ const DIAMOND_ADDRESS_SRC = getAddress(
   SRC_CHAIN === 'arbitrum' ? LIFI_DIAMOND_ADDRESS_ARB : LIFI_DIAMOND_ADDRESS_OPT
 )
 
-// Destination chain ID
 const LIFI_CHAIN_ID_SOLANA = 1151111081099710
-// Mainnet chain IDs
 const LIFI_CHAIN_ID_ARBITRUM = 42161
 const LIFI_CHAIN_ID_OPTIMISM = 10
 
-// For EVM destinations, use Arbitrum if source is Optimism, and vice versa
+// Polymer API chain IDs (different from LiFi chain IDs)
+// Note: even though SOLANA's custom chain id in LifiData.sol is 1151111081099710,
+// polymer's chain id for solana is 2, so we need to pass in 2 for the polymer endpoint
+const POLYMER_CHAIN_ID_SOLANA = 2
+
 const DST_CHAIN_ID_EVM =
-  SRC_CHAIN === 'arbitrum' ? LIFI_CHAIN_ID_OPTIMISM : LIFI_CHAIN_ID_ARBITRUM // Optimism or Arbitrum
+  SRC_CHAIN === 'arbitrum' ? LIFI_CHAIN_ID_OPTIMISM : LIFI_CHAIN_ID_ARBITRUM
 const DST_CHAIN_ID = BRIDGE_TO_SOLANA ? LIFI_CHAIN_ID_SOLANA : DST_CHAIN_ID_EVM
 
-// Token addresses
 const sendingAssetId = getAddress(
   SRC_CHAIN === 'arbitrum' ? ADDRESS_USDC_ARB : ADDRESS_USDC_OPT
 )
 const fromAmount = parseUnits('1', 6) // 1 USDC (6 decimals)
 
-// Receiver address
 const receiverAddress = getAddress(
-  BRIDGE_TO_SOLANA
-    ? NON_EVM_ADDRESS // Use NON_EVM_ADDRESS for Solana
-    : DEV_WALLET_ADDRESS
-) // Use EVM address for EVM destinations
-
-// Solana receiver (bytes32 format) - only used when BRIDGE_TO_SOLANA is true
+  BRIDGE_TO_SOLANA ? NON_EVM_ADDRESS : DEV_WALLET_ADDRESS
+)
 const solanaReceiverBytes32 = ADDRESS_DEV_WALLET_SOLANA_BYTES32
-
-// Polymer CCTP specific parameters
-// polymerTokenFee will be extracted from API response
-const maxCCTPFee = 0n // Max CCTP fee (0 = no limit)
-const minFinalityThreshold = USE_FAST_MODE ? 1000 : 2000 // 1000 = fast path, 2000 = standard path
 
 const EXPLORER_BASE_URL =
   SRC_CHAIN === 'arbitrum'
     ? 'https://arbiscan.io/tx/'
     : 'https://optimistic.etherscan.io/tx/'
 
-// ############################################################################################################
-
-// Polymer API types
 interface IFeeCost {
   name: string
   description: string
@@ -127,8 +133,19 @@ interface IQuoteResponse {
   executionDuration: number
   gasEstimate: string
   feeCosts: IFeeCost[]
+  callParameters?: {
+    _polymerData?: {
+      polymerTokenFee?: string
+      maxCCTPFee?: string
+      minFinalityThreshold?: string
+      [key: string]: unknown
+    }
+    gasEstimate?: number
+    [key: string]: unknown
+  }
   parameters?: {
     polymerTokenFee?: string
+    maxCCTPFee?: string
     [key: string]: unknown
   }
   steps?: unknown[]
@@ -138,7 +155,7 @@ interface IQuoteResponse {
 /**
  * Get quote from Polymer API
  * Calls v1/quote/fast for fast mode or v1/quote/standard for standard mode
- * Returns the quote response and extracted polymerTokenFee
+ * Returns the quote response and extracted fees
  */
 async function getPolymerQuote(
   fromChainId: number,
@@ -147,11 +164,15 @@ async function getPolymerQuote(
   toToken: string,
   fromAmount: bigint,
   toAddress: string
-): Promise<{ quote: IQuoteResponse; polymerTokenFee: bigint }> {
+): Promise<{
+  polymerQuote: IQuoteResponse
+  polymerTokenFee: bigint
+  maxCCTPFee: bigint
+  minFinalityThreshold: number
+}> {
   const quoteType = USE_FAST_MODE ? 'fast' : 'standard'
   consola.info(`\n📡 Fetching ${quoteType} quote from Polymer API...`)
 
-  // Build query parameters
   const queryParams = new URLSearchParams({
     fromChain: fromChainId.toString(),
     toChain: toChainId.toString(),
@@ -187,31 +208,68 @@ async function getPolymerQuote(
     throw new Error(`Polymer API error: ${JSON.stringify(quoteData.error)}`)
   }
 
-  // Extract polymerTokenFee from feeCosts
-  // Standard path: polymerTokenFee = 0 (no CCTP service fee)
-  // Fast path: polymerTokenFee > 0 (CCTP service fee charged by Circle, included in amount)
-  // The "CCTP service fee" with included: true is the fee deducted from the bridged amount
-  let polymerTokenFee = 0n
-  if (quoteData.feeCosts) {
-    // Look for CCTP service fee (fast path) - this is the fee that's included/deducted
-    const cctpServiceFee = quoteData.feeCosts.find(
-      (fee) =>
-        fee.name.toLowerCase().includes('cctp') &&
-        fee.name.toLowerCase().includes('service') &&
-        fee.included === true
+  consola.success(`✓ ${quoteType} quote received from Polymer API`)
+  consola.info('\n' + '='.repeat(80))
+  consola.info('📊 POLYMER API QUOTE RESPONSE:')
+  consola.info('='.repeat(80))
+  consola.info(JSON.stringify(quoteData, null, 2))
+  consola.info('='.repeat(80))
+
+  // Extract fees from callParameters._polymerData (new API format)
+  if (!quoteData.callParameters?._polymerData) {
+    throw new Error(
+      'Polymer API response missing callParameters._polymerData. API format may have changed.'
     )
-    if (cctpServiceFee && cctpServiceFee.amount) {
-      polymerTokenFee = BigInt(cctpServiceFee.amount)
-    }
   }
 
-  consola.success(`✓ ${quoteType} quote received from Polymer API`)
-  consola.info('\n📊 POLYMER API QUOTE RESPONSE:')
-  consola.info(JSON.stringify(quoteData, null, 2))
-  consola.info(`\n✅ Received ${quoteType} route`)
-  consola.info(`💰 Extracted polymerTokenFee: ${polymerTokenFee}`)
+  const polymerData = quoteData.callParameters._polymerData
 
-  return { quote: quoteData, polymerTokenFee }
+  if (polymerData.polymerTokenFee === undefined) {
+    throw new Error(
+      'Polymer API response missing polymerTokenFee in callParameters._polymerData'
+    )
+  }
+  const polymerTokenFee = BigInt(polymerData.polymerTokenFee)
+
+  if (polymerData.maxCCTPFee === undefined) {
+    throw new Error(
+      'Polymer API response missing maxCCTPFee in callParameters._polymerData'
+    )
+  }
+  const maxCCTPFee = BigInt(polymerData.maxCCTPFee)
+
+  if (polymerData.minFinalityThreshold === undefined) {
+    throw new Error(
+      'Polymer API response missing minFinalityThreshold in callParameters._polymerData'
+    )
+  }
+  const minFinalityThreshold = Number(polymerData.minFinalityThreshold)
+
+  consola.info('\n✅ Extracted parameters from callParameters._polymerData:')
+  consola.info(`  polymerTokenFee: ${polymerTokenFee}`)
+  consola.info(`  maxCCTPFee: ${maxCCTPFee} (0 = no limit)`)
+  consola.info(
+    `  minFinalityThreshold: ${minFinalityThreshold} (${
+      minFinalityThreshold === 1000 ? 'fast path' : 'standard path'
+    })`
+  )
+
+  consola.info('\n📋 EXTRACTED PARAMETERS SUMMARY:')
+  consola.info(`  polymerTokenFee: ${polymerTokenFee.toString()}`)
+  consola.info(`  maxCCTPFee: ${maxCCTPFee.toString()} (0 = no limit)`)
+  consola.info(
+    `  minFinalityThreshold: ${minFinalityThreshold} (${
+      minFinalityThreshold === 1000 ? 'fast path' : 'standard path'
+    })`
+  )
+  consola.info(`  Route Type: ${quoteType}`)
+
+  return {
+    polymerQuote: quoteData,
+    polymerTokenFee,
+    maxCCTPFee,
+    minFinalityThreshold,
+  }
 }
 
 async function main() {
@@ -229,7 +287,6 @@ async function main() {
   })
   consola.info('Diamond/PolymerCCTPFacet connected:', DIAMOND_ADDRESS_SRC)
 
-  // Display route details
   consola.info('\n🌉 BRIDGE ROUTE DETAILS:')
   const sourceChainId =
     SRC_CHAIN === 'arbitrum' ? LIFI_CHAIN_ID_ARBITRUM : LIFI_CHAIN_ID_OPTIMISM
@@ -255,35 +312,42 @@ async function main() {
   consola.info(`⚡ Mode: ${USE_FAST_MODE ? 'Fast' : 'Standard'}`)
   consola.info('')
 
-  // Get quote from Polymer API
-  // For Solana, use LiFi chain ID directly (Polymer API may use LiFi chain IDs for non-EVM chains)
+  // Polymer API uses its own chain ID mapping (Solana = 2, not LiFi's 1151111081099710)
+  // Polymer API uses its own chain ID mapping (Solana = 2, not LiFi's 1151111081099710)
   const destinationChainIdPolymer = BRIDGE_TO_SOLANA
-    ? LIFI_CHAIN_ID_SOLANA
+    ? POLYMER_CHAIN_ID_SOLANA
     : DST_CHAIN_ID
 
-  const { quote: polymerQuote, polymerTokenFee } = await getPolymerQuote(
-    sourceChainId,
-    destinationChainIdPolymer,
-    sendingAssetId,
-    BRIDGE_TO_SOLANA ? ADDRESS_USDC_SOL : sendingAssetId, // Use Solana USDC (base58) for Solana destinations, otherwise same token
-    fromAmount,
-    receiverAddress
-  )
+  // Get quote from Polymer API
+  // For Solana, use Polymer chain ID (2) for API call, but LiFi chain ID for bridge data
+  const { polymerQuote, polymerTokenFee, maxCCTPFee, minFinalityThreshold } =
+    await getPolymerQuote(
+      sourceChainId,
+      destinationChainIdPolymer,
+      sendingAssetId,
+      BRIDGE_TO_SOLANA ? ADDRESS_USDC_SOL : sendingAssetId, // Use Solana USDC (base58) for Solana destinations
+      fromAmount,
+      receiverAddress
+    )
 
-  // Log quote details
-  consola.info(`📊 Quote Details:`)
+  consola.info('\n📊 QUOTE BREAKDOWN:')
   consola.info(`  To Amount: ${polymerQuote.toAmount}`)
   consola.info(`  To Amount Min: ${polymerQuote.toAmountMin}`)
   consola.info(`  Execution Duration: ${polymerQuote.executionDuration}s`)
+  consola.info(`  Gas Estimate: ${polymerQuote.gasEstimate}`)
   if (polymerQuote.feeCosts && polymerQuote.feeCosts.length > 0) {
-    consola.info(`  Fee Costs:`)
+    consola.info(`\n  Fee Costs Breakdown:`)
     polymerQuote.feeCosts.forEach((fee) => {
       const tokenSymbol = fee.token?.symbol || fee.tokenAddress || 'N/A'
+      const included = fee.included ? '(included)' : '(additional)'
       consola.info(
         `    - ${fee.name}: ${fee.amount} ${tokenSymbol} (${
           fee.amountUSD || 'N/A'
-        } USD)`
+        } USD) ${included}`
       )
+      if (fee.description) {
+        consola.info(`      Description: ${fee.description}`)
+      }
     })
   }
 
@@ -307,7 +371,7 @@ async function main() {
   consola.info('')
   logBridgeDataStruct(bridgeData, consola.info)
 
-  // Prepare PolymerCCTP data
+  // Prepare PolymerCCTP data using fees extracted from API response
   const polymerData: PolymerCCTPFacet.PolymerCCTPDataStruct = {
     polymerTokenFee: polymerTokenFee.toString(),
     maxCCTPFee: maxCCTPFee.toString(),
@@ -316,16 +380,21 @@ async function main() {
       : toHex(0, { size: 32 }),
     minFinalityThreshold,
   }
-  consola.info('📋 polymerData prepared:')
-  consola.info(`  polymerTokenFee: ${polymerData.polymerTokenFee}`)
-  consola.info(`  maxCCTPFee: ${polymerData.maxCCTPFee}`)
+  consola.info('\n📋 POLYMER CCTP DATA PREPARED:')
+  consola.info(`  polymerTokenFee: ${polymerData.polymerTokenFee} (from API)`)
+  consola.info(
+    `  maxCCTPFee: ${polymerData.maxCCTPFee} (${
+      maxCCTPFee === 0n ? '0 = no limit' : 'from API'
+    })`
+  )
   consola.info(`  nonEVMReceiver: ${polymerData.nonEVMReceiver}`)
-  consola.info(`  minFinalityThreshold: ${polymerData.minFinalityThreshold}`)
+  consola.info(
+    `  minFinalityThreshold: ${polymerData.minFinalityThreshold} (from API, ${
+      minFinalityThreshold === 1000 ? 'fast path' : 'standard path'
+    })`
+  )
 
-  // Ensure balance and allowance
-  // Contract transfers minAmount, so user must approve minAmount (fromAmount)
   if (SEND_TX) {
-    // Create ERC20 contract for balance/allowance checks
     const tokenContract = createContractObject(
       sendingAssetId,
       ERC20__factory.abi,
@@ -333,6 +402,7 @@ async function main() {
       walletClient
     )
 
+    // Contract transfers minAmount, so user must approve minAmount (fromAmount)
     await ensureBalance(tokenContract, walletAddress, fromAmount, publicClient)
     await ensureAllowance(
       tokenContract,
@@ -341,11 +411,13 @@ async function main() {
       fromAmount,
       publicClient
     )
-    consola.info('✅ Balance and allowance verified')
+    consola.info('\n✅ Balance and allowance verified')
+    const bridgeAmount = fromAmount - polymerTokenFee
+    consola.info(`  Approved amount: ${fromAmount.toString()}`)
+    consola.info(`  Polymer fee: ${polymerTokenFee.toString()}`)
+    consola.info(`  Amount to bridge: ${bridgeAmount.toString()}`)
     consola.info(
-      `  Approved amount: ${fromAmount.toString()} (will bridge: ${(
-        fromAmount - polymerTokenFee
-      ).toString()}, fee: ${polymerTokenFee.toString()})`
+      `  Expected receive amount: ${formatUnits(bridgeAmount, 6)} USDC`
     )
   }
 
@@ -355,10 +427,16 @@ async function main() {
 
     const hash = await executeTransaction(
       () =>
-        (polymerCCTPFacet.write as any).startBridgeTokensViaPolymerCCTP([
-          bridgeData,
-          polymerData,
-        ]),
+        (
+          polymerCCTPFacet.write as {
+            startBridgeTokensViaPolymerCCTP: (
+              args: [
+                ILiFi.BridgeDataStruct,
+                PolymerCCTPFacet.PolymerCCTPDataStruct
+              ]
+            ) => Promise<`0x${string}`>
+          }
+        ).startBridgeTokensViaPolymerCCTP([bridgeData, polymerData]),
       'Starting bridge via PolymerCCTP',
       publicClient,
       true
@@ -387,7 +465,9 @@ async function main() {
     const executeTxData = encodeFunctionData({
       abi: PolymerCCTPFacet__factory.abi,
       functionName: 'startBridgeTokensViaPolymerCCTP',
-      args: [bridgeData, polymerData] as any,
+      args: [bridgeData, polymerData] as unknown as Parameters<
+        typeof polymerCCTPFacet.write.startBridgeTokensViaPolymerCCTP
+      >[0],
     })
     consola.info('Calldata:', executeTxData)
   }
