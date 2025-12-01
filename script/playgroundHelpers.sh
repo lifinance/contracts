@@ -877,3 +877,118 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f syncSigsAndDEXsForNetwork
+
+# =============================================================================
+# CALLDATA SIMULATION FUNCTIONS
+# =============================================================================
+
+function simulateCalldata {
+  # Simulate calldata execution using multiple methods (Viem, Foundry, Tenderly)
+  #
+  # Usage: simulateCalldata <network> <target> <calldata> <from> [value] [methods] [blockNumber]
+  #
+  # Parameters:
+  #   $1 - NETWORK: Network name (e.g., arbitrum, mainnet, base)
+  #   $2 - TARGET: Target contract address
+  #   $3 - CALLDATA: The calldata to simulate (hex string starting with 0x)
+  #   $4 - FROM: From address
+  #   $5 - VALUE: Optional - Value in wei (defaults to 0)
+  #   $6 - METHODS: Optional - Comma-separated methods or "all" (defaults to "all")
+  #   $7 - BLOCK_NUMBER: Optional - Block number to simulate at (defaults to latest)
+  #
+  # Example:
+  #   NETWORK="arbitrum"
+  #   TARGET="0x1234567890123456789012345678901234567890"
+  #   CALLDATA="0x095ea7b3..."
+  #   FROM="0x5678901234567890123456789012345678901234"
+  #   VALUE="1000000000000000"  # Optional
+  #   METHODS="viem,foundry"    # Optional
+  #   BLOCK_NUMBER="12345678"   # Optional
+  #   simulateCalldata "$NETWORK" "$TARGET" "$CALLDATA" "$FROM" "$VALUE" "$METHODS" "$BLOCK_NUMBER"
+
+  # Read positional arguments
+  local NETWORK_PARAM="$1"
+  local TARGET="$2"
+  local CALLDATA="$3"
+  local FROM="$4"
+  local VALUE="${5:-0}"
+  local METHODS="${6:-all}"
+  local BLOCK_NUMBER="$7"
+
+  # Validate required parameters
+  if [[ -z "$NETWORK_PARAM" ]]; then
+    error "simulateCalldata: network parameter is required (argument 1)"
+    error "  Usage: simulateCalldata <network> <target> <calldata> <from> [value] [methods]"
+    return 1
+  fi
+
+  if [[ -z "$TARGET" ]]; then
+    error "simulateCalldata: target parameter is required (argument 2)"
+    error "  Usage: simulateCalldata <network> <target> <calldata> <from> [value] [methods]"
+    return 1
+  fi
+
+  if [[ -z "$CALLDATA" ]]; then
+    error "simulateCalldata: calldata parameter is required (argument 3)"
+    error "  Usage: simulateCalldata <network> <target> <calldata> <from> [value] [methods]"
+    return 1
+  fi
+
+  if [[ -z "$FROM" ]]; then
+    error "simulateCalldata: from parameter is required (argument 4)"
+    error "  Usage: simulateCalldata <network> <target> <calldata> <from> [value] [methods]"
+    return 1
+  fi
+
+  echo ""
+  echo "=========================================="
+  echo "  SIMULATING CALLDATA"
+  echo "=========================================="
+  echo "Calldata: $CALLDATA"
+  echo "Target:   $TARGET"
+  echo "Network:  $NETWORK_PARAM"
+  echo "Value:    $VALUE wei"
+  echo "From:     $FROM"
+  echo "Methods:  $METHODS"
+  if [[ -n "$BLOCK_NUMBER" ]]; then
+    echo "Block:    $BLOCK_NUMBER"
+  fi
+  echo "=========================================="
+  echo ""
+
+  # Build command arguments (using named arguments to match TypeScript script pattern)
+  local CMD_ARGS=(
+    "--calldata" "$CALLDATA"
+    "--target" "$TARGET"
+    "--network" "$NETWORK_PARAM"
+    "--from" "$FROM"
+  )
+
+  # Add optional arguments
+  if [[ "$VALUE" != "0" ]]; then
+    CMD_ARGS+=("--value" "$VALUE")
+  fi
+
+  if [[ "$METHODS" != "all" ]]; then
+    CMD_ARGS+=("--methods" "$METHODS")
+  fi
+
+  if [[ -n "$BLOCK_NUMBER" ]]; then
+    CMD_ARGS+=("--blockNumber" "$BLOCK_NUMBER")
+  fi
+
+  # Execute the simulation script
+  bunx tsx ./script/utils/simulateCalldata.ts "${CMD_ARGS[@]}"
+
+  local EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -eq 0 ]]; then
+    success "Simulation completed successfully"
+  else
+    error "Simulation failed with exit code $EXIT_CODE"
+  fi
+
+  return $EXIT_CODE
+}
+
+export -f simulateCalldata

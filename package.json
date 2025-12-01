@@ -105,7 +105,8 @@
     "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts",
     "balances": "bunx tsx ./script/balances.ts",
-    "update-whitelist-periphery": "bunx tsx ./script/tasks/updateWhitelistPeriphery.ts"
+    "update-whitelist-periphery": "bunx tsx ./script/tasks/updateWhitelistPeriphery.ts",
+    "simulate-calldata": "bunx tsx ./script/utils/simulateCalldata.ts"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
