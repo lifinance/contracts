@@ -124,7 +124,7 @@ contract MegaETHBridgeFacetTest is TestBase {
 
     // ==================== initMegaETH Tests ====================
 
-    function testRevertInitWhenAlreadyInitialized() public {
+    function testRevert_InitWhenAlreadyInitialized() public {
         MegaETHBridgeFacet.Config[]
             memory configs = new MegaETHBridgeFacet.Config[](1);
         configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
@@ -136,7 +136,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         );
     }
 
-    function testRevertInitWithZeroBridgeInConfig() public {
+    function testRevert_InitWithZeroBridgeInConfig() public {
         // Deploy a fresh diamond for this test
         LiFiDiamond freshDiamond = createDiamond(
             USER_DIAMOND_OWNER,
@@ -161,7 +161,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         );
     }
 
-    function testRevertInitWithZeroStandardBridge() public {
+    function testRevert_InitWithZeroStandardBridge() public {
         // Deploy a fresh diamond for this test
         LiFiDiamond freshDiamond = createDiamond(
             USER_DIAMOND_OWNER,
@@ -185,7 +185,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         );
     }
 
-    function testRevertInitWhenNotOwner() public {
+    function testRevert_InitWhenNotOwner() public {
         // Deploy a fresh diamond for this test
         LiFiDiamond freshDiamond = createDiamond(
             USER_DIAMOND_OWNER,
@@ -212,7 +212,7 @@ contract MegaETHBridgeFacetTest is TestBase {
 
     // ==================== registerMegaETHBridge Tests ====================
 
-    function testCanRegisterNewBridge() public {
+    function test_CanRegisterNewBridge() public {
         address newToken = address(0x1234567890123456789012345678901234567890);
         address newBridge = address(
             0x0987654321098765432109876543210987654321
@@ -224,7 +224,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         megaETHBridgeFacet.registerMegaETHBridge(newToken, newBridge);
     }
 
-    function testRevertRegisterBridgeWhenNotOwner() public {
+    function testRevert_RegisterBridgeWhenNotOwner() public {
         address newToken = address(0x1234567890123456789012345678901234567890);
         address newBridge = address(
             0x0987654321098765432109876543210987654321
@@ -235,7 +235,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         megaETHBridgeFacet.registerMegaETHBridge(newToken, newBridge);
     }
 
-    function testRevertRegisterBridgeWhenNotInitialized() public {
+    function testRevert_RegisterBridgeWhenNotInitialized() public {
         // Deploy a fresh diamond without initialization
         LiFiDiamond freshDiamond = createDiamond(
             USER_DIAMOND_OWNER,
@@ -260,7 +260,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         );
     }
 
-    function testRevertRegisterBridgeWithZeroAddress() public {
+    function testRevert_RegisterBridgeWithZeroAddress() public {
         address newToken = address(0x1234567890123456789012345678901234567890);
 
         vm.expectRevert(InvalidConfig.selector);
@@ -269,7 +269,7 @@ contract MegaETHBridgeFacetTest is TestBase {
 
     // ==================== startBridgeTokensViaMegaETHBridge Tests ====================
 
-    function testRevertToBridgeTokensWhenSendingAmountIsZero() public {
+    function testRevert_BridgeTokensWhenSendingAmountIsZero() public {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
@@ -289,7 +289,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertToBridgeTokensWhenReceiverIsZeroAddress() public {
+    function testRevert_BridgeTokensWhenReceiverIsZeroAddress() public {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
@@ -309,7 +309,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertToBridgeTokensWhenSenderHasNoEnoughAmount() public {
+    function testRevert_BridgeTokensWhenSenderHasInsufficientAmount() public {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
@@ -328,7 +328,9 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertToBridgeTokensWhenSendingNoEnoughNativeAsset() public {
+    function testRevert_BridgeTokensWhenSendingInsufficientNativeAsset()
+        public
+    {
         vm.startPrank(DAI_L1_HOLDER);
 
         ILiFi.BridgeData memory bridgeData = validBridgeData;
@@ -344,7 +346,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertToBridgeTokensWhenInformationMismatch() public {
+    function testRevert_BridgeTokensWhenInformationMismatch() public {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
@@ -364,7 +366,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertToBridgeTokensWhenHasDestinationCall() public {
+    function testRevert_BridgeTokensWhenHasDestinationCall() public {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
@@ -384,7 +386,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanBridgeERC20Tokens() public {
+    function test_BridgeERC20Tokens() public {
         vm.startPrank(DAI_L1_HOLDER);
         dai.approve(
             address(megaETHBridgeFacet),
@@ -398,7 +400,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanBridgeNativeETH() public {
+    function test_BridgeNativeETH() public {
         vm.startPrank(USER_SENDER);
         vm.deal(USER_SENDER, 10 ether);
 
@@ -417,7 +419,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanBridgeERC20TokensUsingStandardBridge() public {
+    function test_BridgeERC20TokensUsingStandardBridge() public {
         // Use USDC which is not in the custom bridges mapping, so it should use standard bridge
         vm.startPrank(USER_SENDER);
 
@@ -445,7 +447,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanBridgeSynthetixTokens() public {
+    function test_BridgeSynthetixTokens() public {
         // Register SNX bridge first (as owner)
         megaETHBridgeFacet.registerMegaETHBridge(SNX_L1_ADDRESS, SNX_BRIDGE);
 
@@ -481,7 +483,7 @@ contract MegaETHBridgeFacetTest is TestBase {
 
     // ==================== swapAndStartBridgeTokensViaMegaETHBridge Tests ====================
 
-    function testCanSwapAndBridgeTokens() public {
+    function test_SwapAndBridgeTokens() public {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
@@ -529,7 +531,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanSwapAndBridgeNativeETH() public {
+    function test_SwapAndBridgeNativeETH() public {
         vm.startPrank(USER_SENDER);
 
         // Swap DAI to ETH, then bridge ETH
@@ -580,7 +582,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanSwapAndBridgeSynthetixTokens() public {
+    function test_SwapAndBridgeSynthetixTokens() public {
         // Register SNX bridge first
         megaETHBridgeFacet.registerMegaETHBridge(SNX_L1_ADDRESS, SNX_BRIDGE);
 
@@ -648,7 +650,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertSwapAndBridgeWhenNoSourceSwaps() public {
+    function testRevert_SwapAndBridgeWhenNoSourceSwaps() public {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
@@ -696,7 +698,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertSwapAndBridgeWithDestinationCalls() public {
+    function testRevert_SwapAndBridgeWithDestinationCalls() public {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
@@ -745,7 +747,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertSwapAndBridgeWhenAmountIsZero() public {
+    function testRevert_SwapAndBridgeWhenAmountIsZero() public {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
@@ -793,7 +795,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertSwapAndBridgeWhenReceiverIsZero() public {
+    function testRevert_SwapAndBridgeWhenReceiverIsZero() public {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
@@ -843,7 +845,7 @@ contract MegaETHBridgeFacetTest is TestBase {
 
     // ==================== NotInitialized in _startBridge Tests ====================
 
-    function testRevertBridgeWhenNotInitialized() public {
+    function testRevert_BridgeWhenNotInitialized() public {
         // Deploy a fresh diamond without initialization
         LiFiDiamond freshDiamond = createDiamond(
             USER_DIAMOND_OWNER,
