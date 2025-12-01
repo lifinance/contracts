@@ -294,18 +294,6 @@ contract PolymerCCTPFacet is
         if (chainId == 98866) {
             return 22; // Plume
         }
-
-        // Testnet chain IDs
-        if (chainId == 11155111) {
-            return 0; // Sepolia
-        }
-        if (chainId == 11155420) {
-            return 2; // OP Sepolia
-        }
-        if (chainId == 84532) {
-            return 6; // Base Sepolia
-        }
-
         revert InvalidCallData();
     }
 }
