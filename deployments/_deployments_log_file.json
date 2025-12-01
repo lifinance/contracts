@@ -22127,7 +22127,7 @@
             "TIMESTAMP": "2025-12-01 18:45:42",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3dd9d692a9b4df331e3bb1c8f322ba0b299b907",
             "SALT": "",
-            "VERIFIED": "false",
+            "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
         ]
