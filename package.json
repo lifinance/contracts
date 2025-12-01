@@ -18,6 +18,7 @@
   ],
   "devDependencies": {
     "@mayanfinance/swap-sdk": "^8.5.0",
+    "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.4",
     "@typechain/ethers-v5": "^10.2.0",
     "@types/bun": "^1.2.18",
@@ -56,7 +57,7 @@
     "web3": "4.16.0"
   },
   "scripts": {
-    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && bun tasks/generateDiamondABI.ts",
+    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
     "abi:removeDuplicateEvents": "bunx tsx ./script/removeDuplicateEventsFromABI.ts",
     "add-network-rpc": "bunx tsx ./script/mongoDb/add-network-rpc.ts",
     "add-safe-owners-and-threshold": "bunx tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
@@ -67,6 +68,7 @@
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
     "execute": "node ./_scripts.js run",
+    "execute-timelock": "bun typechain && bunx tsx ./script/deploy/safe/execute-pending-timelock-tx.ts",
     "fetch-rpcs": "bunx tsx ./script/mongoDb/fetch-rpcs.ts",
     "flatten": "forge flatten --output",
     "format": "prettier --check \"**/*.{ts,js,sol}\"",
@@ -102,6 +104,7 @@
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "typechain:incremental": "bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts",
+    "balances": "bunx tsx ./script/balances.ts",
     "update-whitelist-periphery": "bunx tsx ./script/tasks/updateWhitelistPeriphery.ts"
   },
   "dependencies": {

@@ -60,18 +60,24 @@
       "0x136928f3d4251840FbF44ce42ffe9D5928a812AF": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x3485E2f26BBEc71a8Ed64eDDFcC5deFd4E96f1d2": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xEb68ad34Af6150f840Bbc8d32E1cC09719Df9327",
       "Executor": "0x406359505DB288bb884C1B9d068d167B851a0c83",
       "FeeCollector": "0x3e46137a80BB3c14906505d0f78ADbb2deDb9E3f",
+      "FeeForwarder": "0x32ca3c43c2807EbB7d82212BeeC31c1b7BaaD146",
       "GasZipPeriphery": "0x1665f83E6fBd6bd6C550fCbd81B652bcb1b5d9F2",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x9d376fd8077fF2475FD635185723A4B274fcB61C",
       "Patcher": "",
       "Permit2Proxy": "0x9C1D1db1CD3EbE4727c2a4208Ca5D65624cC9b4D",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x120794dae6F4A2aF50ABF83A524DD4Fe5F258Dd9",
       "TokenWrapper": "0x895eA96A8E1940463C40753CB472615fe215760A"

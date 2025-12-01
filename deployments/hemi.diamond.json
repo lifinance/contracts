@@ -52,12 +52,17 @@
       "0xa75C9F0c40936968f4Ee1CB8d9666600EF14ddBe": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
       "Executor": "0x765FAa0FFb5557c6CcE2Ea1097d50ACfD5f5C58c",
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
+      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",

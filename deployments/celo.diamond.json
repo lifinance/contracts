@@ -84,12 +84,21 @@
       "0x9428951809Cc7aB7CeC79295FEFcC96670eAeb9E": {
         "Name": "GlacisFacet",
         "Version": "1.1.0"
+      },
+      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
+      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",

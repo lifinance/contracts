@@ -28,9 +28,9 @@ The methods listed above take a variable labeled `_relayData`. This data is spec
 /// @dev Relay specific parameters
 /// @param requestId Realy API request ID
 /// @param nonEVMReceiver set only if bridging to non-EVM chain
-/// @params receivingAssetId address of receiving asset
-/// @params callData calldata provided by Relay API
-/// @params signature attestation signature provided by the Relay solver
+/// @param receivingAssetId address of receiving asset
+/// @param callData calldata provided by Relay API
+/// @param signature attestation signature provided by the Relay solver
 struct RelayData {
   bytes32 requestId;
   bytes32 nonEVMReceiver;

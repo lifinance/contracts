@@ -80,12 +80,17 @@
       "0xA4C11D296e04a52939a1bAff7E2fD70c95c048E9": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0x34cf9a698734528A1c2f178744DEd7F15b5324D4": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x3E8EDF9CC2591a7dB1A36DBB73A10d8746368D61",
       "Executor": "0x1F050386e23d81fC81C154a8F8616DEa3826b777",
       "FeeCollector": "0x7CaC679Cc2dF9c602590eA4965091F54EC32F2Fc",
+      "FeeForwarder": "0xb85d6B3deDc688C2aC7C71669F20Fdd1eC739e97",
       "GasZipPeriphery": "0x718e4C256271417C0e1237c3586BE6d79449fdD8",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
