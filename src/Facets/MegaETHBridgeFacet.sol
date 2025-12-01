@@ -33,10 +33,13 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address bridge;
     }
 
+    /// @param assetIdOnL2 Address of the token on L2 (MegaETH)
+    /// @param l2Gas Gas limit for L2 execution
+    /// @param requiresDepositTo Whether the token requires depositTo instead of depositERC20To (e.g., Synthetix tokens)
     struct MegaETHData {
         address assetIdOnL2;
         uint32 l2Gas;
-        bool isSynthetix;
+        bool requiresDepositTo;
     }
 
     /// Events ///
@@ -184,7 +187,9 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            if (_megaETHData.isSynthetix) {
+            // Some tokens (e.g., Synthetix) require using depositTo() instead of depositERC20To()
+            // because they use a custom bridge implementation without L2 token mapping
+            if (_megaETHData.requiresDepositTo) {
                 bridge.depositTo(_bridgeData.receiver, _bridgeData.minAmount);
             } else {
                 bridge.depositERC20To(

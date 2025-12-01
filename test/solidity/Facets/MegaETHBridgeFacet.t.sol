@@ -34,7 +34,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         0x10E6593CDda8c58a1d0f14C5164B376352a55f2F;
     address internal constant UNISWAP_V2_ROUTER =
         0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    uint256 internal constant DSTCHAIN_ID = 10;
+    uint256 internal constant DSTCHAIN_ID = 4326;
     uint32 internal constant L2_GAS = 200000;
 
     // Synthetix SNX token addresses
@@ -74,9 +74,11 @@ contract MegaETHBridgeFacetTest is TestBase {
 
         addFacet(diamond, address(megaETHBridgeFacet), functionSelectors);
 
+        // Initialize with multiple bridges to test correct bridge selection
         MegaETHBridgeFacet.Config[]
-            memory configs = new MegaETHBridgeFacet.Config[](1);
+            memory configs = new MegaETHBridgeFacet.Config[](2);
         configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
+        configs[1] = MegaETHBridgeFacet.Config(SNX_L1_ADDRESS, SNX_BRIDGE);
 
         megaETHBridgeFacet = TestMegaETHBridgeFacet(address(diamond));
         megaETHBridgeFacet.initMegaETH(
@@ -434,9 +436,9 @@ contract MegaETHBridgeFacetTest is TestBase {
 
         MegaETHBridgeFacet.MegaETHData memory megaETHData = MegaETHBridgeFacet
             .MegaETHData(
-                address(usdc), // L2 address (using same for simplicity)
+                address(0), // assetIdOnL2 not used for Synthetix
                 L2_GAS,
-                false
+                true // requiresDepositTo = true
             );
 
         megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
@@ -448,9 +450,7 @@ contract MegaETHBridgeFacetTest is TestBase {
     }
 
     function test_BridgeSynthetixTokens() public {
-        // Register SNX bridge first (as owner)
-        megaETHBridgeFacet.registerMegaETHBridge(SNX_L1_ADDRESS, SNX_BRIDGE);
-
+        // SNX bridge is already registered in setUp()
         // Transfer SNX from whale to USER_SENDER (deal doesn't work due to packed slots)
         vm.prank(SNX_WHALE);
         ERC20(SNX_L1_ADDRESS).transfer(USER_SENDER, 1000 * 1e18);
@@ -583,9 +583,7 @@ contract MegaETHBridgeFacetTest is TestBase {
     }
 
     function test_SwapAndBridgeSynthetixTokens() public {
-        // Register SNX bridge first
-        megaETHBridgeFacet.registerMegaETHBridge(SNX_L1_ADDRESS, SNX_BRIDGE);
-
+        // SNX bridge is already registered in setUp()
         // Add liquidity for WETH-SNX pair to enable swap
         // First, let's swap DAI to SNX via WETH
         vm.startPrank(USER_SENDER);
@@ -638,7 +636,7 @@ contract MegaETHBridgeFacetTest is TestBase {
             .MegaETHData(
                 address(0), // assetIdOnL2 not used for Synthetix
                 L2_GAS,
-                true // isSynthetix = true
+                true // requiresDepositTo = true
             );
 
         megaETHBridgeFacet.swapAndStartBridgeTokensViaMegaETHBridge(
