@@ -22117,6 +22117,21 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "2.1.1": [
+          {
+            "ADDRESS": "0x116E362e631b86b775a08A16c9CA2151706a6A2D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-01 18:45:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3dd9d692a9b4df331e3bb1c8f322ba0b299b907",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {
@@ -47449,8 +47464,8 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
-    }
-  },
+      }
+    },
     "monad": {
       "production": {
         "1.0.0": [
@@ -47468,4 +47483,3 @@
     }
   }
 }
-
