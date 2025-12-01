@@ -710,6 +710,9 @@
     "PolygonBridgeFacet": {
       "1.0.0": ["audit20250508"]
     },
+    "PolymerCCTPFacet": {
+      "1.0.0": ["audit20251201"]
+    },
     "Receiver": {
       "2.0.3": ["audit20250109_3"],
       "2.1.0": ["audit20250109_2", "audit20250508"]
