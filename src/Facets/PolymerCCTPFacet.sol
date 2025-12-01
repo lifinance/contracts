@@ -93,7 +93,7 @@ contract PolymerCCTPFacet is
     /// @notice Sets a max approval from lifiDiamond to TokenMessenger
     /// It is safe to set a max approval since the diamond is designed to not hold any funds (that could otherwise be stolen if TokenMessenger turns malicious)
     /// We also don't need to store the initialization status of this facet since it will not break from being initialized multiple times (plus it's an admin-only function)
-    function initPolymerCCTP() external virtual {
+    function initPolymerCCTP() external {
         LibDiamond.enforceIsContractOwner();
 
         // approve max allowance to TokenMessenger
