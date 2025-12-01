@@ -436,9 +436,9 @@ contract MegaETHBridgeFacetTest is TestBase {
 
         MegaETHBridgeFacet.MegaETHData memory megaETHData = MegaETHBridgeFacet
             .MegaETHData(
-                address(0), // assetIdOnL2 not used for Synthetix
+                address(usdc), // L2 address (using same for simplicity in test)
                 L2_GAS,
-                true // requiresDepositTo = true
+                false // Standard bridge uses depositERC20To, not depositTo
             );
 
         megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
@@ -470,7 +470,7 @@ contract MegaETHBridgeFacetTest is TestBase {
             .MegaETHData(
                 address(0), // assetIdOnL2 not used for Synthetix
                 L2_GAS,
-                true // isSynthetix = true
+                true // requiresDepositTo = true
             );
 
         megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
