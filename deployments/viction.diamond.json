@@ -56,6 +56,10 @@
       "0x3f824bd97c74481E6B470601b52aB40123AFE450": {
         "Name": "GlacisFacet",
         "Version": "1.1.0"
+      },
+      "0x1c2a47D0867C618179B12D9e159b92Aa8A1617C5": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -64,8 +68,8 @@
       "FeeCollector": "0xD4B739284A79995D1c2689BF08747b8bF98b57c1",
       "FeeForwarder": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
       "GasZipPeriphery": "0xbd0196bE158d5c5da204839ecc1827C1Ed7e66C3",
-      "LiFiDEXAggregator": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
       "Patcher": "",
       "Permit2Proxy": "0xac08C219Fd4856A33a090503BCbc14733d588588",
       "ReceiverAcrossV3": "",

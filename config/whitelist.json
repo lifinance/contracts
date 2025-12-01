@@ -357,6 +357,14 @@
             }
           }
         ],
+        "plume": [
+          {
+            "address": "0x85efa14c12f5fe42ff9d7da460a71088b26bea31",
+            "functions": {
+              "0xe3665a43": ""
+            }
+          }
+        ],
         "taiko": [
           {
             "address": "0xa091aed5265cadb389100096cbdd363683a867e5",
@@ -1005,6 +1013,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "optimism": [
@@ -1015,6 +1032,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1027,6 +1053,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "polygon": [
@@ -1037,6 +1072,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1049,6 +1093,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "fantom": [
@@ -1059,6 +1112,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1071,6 +1133,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "zksync": [
@@ -1081,6 +1152,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1093,6 +1173,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "base": [
@@ -1103,6 +1192,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1115,6 +1213,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "arbitrum": [
@@ -1125,6 +1232,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ],
@@ -1137,6 +1253,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "linea": [
@@ -1148,6 +1273,15 @@
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
             }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
+            }
           }
         ],
         "scroll": [
@@ -1158,6 +1292,15 @@
               "0x83bd37f9": "swapCompact()",
               "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
               "0x84a7f3dd": "swapMultiCompact()"
+            }
+          },
+          {
+            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+            "functions": {
+              "0x83bd37f9": "swapCompact()",
+              "0x84a7f3dd": "swapMultiCompact()",
+              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
+              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ]
@@ -1536,6 +1679,14 @@
           }
         ],
         "polygon": [
+          {
+            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
+            "functions": {
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+            }
+          }
+        ],
+        "monad": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
@@ -1922,6 +2073,15 @@
             "functions": {
               "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
               "0x59e50fed": "swapGeneric((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+              "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
+            }
+          }
+        ],
+        "monad": [
+          {
+            "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+            "functions": {
+              "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
               "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
             }
           }
@@ -2375,6 +2535,15 @@
               "0xee623204": ""
             }
           },
+          {
+            "address": "0xac4c6e212a361c968f1725b4d055b47e63f80b75",
+            "functions": {
+              "0x5f3bd1c8": "snwap(address,uint256,address,address,uint256,address,bytes)",
+              "0xd33721a5": "snwapMultiple((address,uint256,address)[],(address,address,uint256)[],(address,uint256,bytes)[])"
+            }
+          }
+        ],
+        "monad": [
           {
             "address": "0xac4c6e212a361c968f1725b4d055b47e63f80b75",
             "functions": {
@@ -3842,7 +4011,9 @@
         "hyperevm": [
           {
             "address": "0x4212a77e4533eca49643d7b731f5fb1b2782fe94",
-            "functions": {}
+            "functions": {
+              "0x415565b0": "transformERC20(address,address,uint256,uint256,(uint32,bytes)[])"
+            }
           }
         ]
       }
@@ -3871,6 +4042,14 @@
       "webUrl": "https://oogabooga.io/",
       "contracts": {
         "hyperevm": [
+          {
+            "address": "0x5fbd1b5aa82d09359c05428647871fe9add3f411",
+            "functions": {
+              "0xd46cadbc": ""
+            }
+          }
+        ],
+        "monad": [
           {
             "address": "0x5fbd1b5aa82d09359c05428647871fe9add3f411",
             "functions": {
@@ -3947,6 +4126,15 @@
         "polygon": [
           {
             "address": "0xa6e941eab67569ca4522f70d343714ff51d571c4",
+            "functions": {
+              "0x73fc4457": "swapWithMagpieSignature(bytes)",
+              "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          }
+        ],
+        "monad": [
+          {
+            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
@@ -4100,16 +4288,272 @@
       }
     },
     {
-      "name": "CoreWriter",
-      "key": "corewriter",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/hyperflow_corewriter.svg",
-      "webUrl": "https://hyperflow.fun",
+      "name": "Nordstern Finance",
+      "key": "nordstern",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/nordstern_finance.svg",
+      "webUrl": "https://nordstern.finance",
       "contracts": {
-        "hyperevm": [
+        "mainnet": [
           {
-            "address": "0xb4580138102bda0c7e8c9a05529ba5f70cdf1e93",
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
             "functions": {
-              "0xb4c95169": "targetBridge(uint256,address,address,(uint256,address,bytes),(uint32,bool,bool,uint8),bytes)"
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "optimism": [
+          {
+            "address": "0xa575f37e869e6887564f87c07e2885e08d542c4a",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "cronos": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "rootstock": [
+          {
+            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "bsc": [
+          {
+            "address": "0x1a3304cbef66de00fbe1548cc4c6585ad22fbcff",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "gnosis": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "fuse": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "unichain": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "polygon": [
+          {
+            "address": "0x99ba7d569ea69671b399a7cc488b687515f7ec23",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "sonic": [
+          {
+            "address": "0x0a354845411cc1212cfb33acc6a52fcd4a80e3ae",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "boba": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "sei": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "gravity": [
+          {
+            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "soneium": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "mantle": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "kaia": [
+          {
+            "address": "0xb4fe60cd05a3e68668007cee83ddfd9a50a45b36",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "base": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "immutablezkevm": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "mode": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "arbitrum": [
+          {
+            "address": "0x57f96440f1b1cad53b40a8924bd540b1279a491c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "celo": [
+          {
+            "address": "0x911a744ab8eccb504173fbcabbd7c34648f2a773",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "avalanche": [
+          {
+            "address": "0xa575f37e869e6887564f87c07e2885e08d542c4a",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "ink": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "linea": [
+          {
+            "address": "0x2ff506ed9729580ef8bf04429614beb1bae5f76d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "berachain": [
+          {
+            "address": "0x3ffc2315a992b01dc4b3f79c8eea1921091ee24f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "blast": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "taiko": [
+          {
+            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "scroll": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "aurora": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Monorail",
+      "key": "monorail",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/monorail.svg",
+      "webUrl": "https://monorail.xyz/",
+      "contracts": {
+        "monad": [
+          {
+            "address": "0xa68a7f0601effdc65c64d9c47ca1b18d96b4352c",
+            "functions": {
+              "0xf99cae99": "aggregate(address,address,uint256,uint256,address,uint256,uint64,uint64,(uint256,uint32,uint8,address,address,address,bytes)[])"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Kuru",
+      "key": "kuru",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/kuru.svg",
+      "webUrl": "https://kuru.io/",
+      "contracts": {
+        "monad": [
+          {
+            "address": "0xb3e6778480b2e488385e8205ea05e20060b813cb",
+            "functions": {
+              "0xce1e7030": "executeSwap((address,uint256,address,uint256),(address,uint256,address,uint256,bool),bytes)"
             }
           }
         ]
@@ -4203,6 +4647,16 @@
           {
             "selector": "0xefae576b",
             "signature": "executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -4409,6 +4863,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "aurora": [
@@ -4553,6 +5017,16 @@
             "signature": "executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "base": [
@@ -4643,6 +5117,16 @@
             "signature": "executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "berachain": [
@@ -4709,6 +5193,16 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x37C407e4adeAD6b1E2Fe89673Ecd66e3f371eE9D",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -4903,6 +5397,74 @@
         ]
       }
     ],
+    "botanix": [
+      {
+        "name": "FeeCollector",
+        "address": "0x9391Bdac8F2e23F3510e40B156D1a86269f23EA2",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xE73883FDe24f49A1F7850d090E40D812db299618",
+        "selectors": [
+          {
+            "selector": "0x1078c579",
+            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+          },
+          {
+            "selector": "0xa7a4a271",
+            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x25fcf0C48ca9908c7a279027B669be5ea22c74FA",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x0AcF63fCabe57364a70F0cAAac536365AdcA7607",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
     "bsc": [
       {
         "name": "FeeCollector",
@@ -4969,6 +5531,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "celo": [
@@ -5021,6 +5593,16 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -5629,6 +6211,16 @@
             "signature": "executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "gravity": [
@@ -5833,6 +6425,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xd6FEa938eF552Eb52507cdc1ac2AB5987792F0C2",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "immutablezkevm": [
@@ -5955,6 +6557,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "kaia": [
@@ -6075,6 +6687,16 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x40d037C6AaD6Df87D757195ef841B246B52F5103",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6281,6 +6903,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "mantle": [
@@ -6347,6 +6979,16 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6479,6 +7121,74 @@
       {
         "name": "LiFiDEXAggregator",
         "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
+    "monad": [
+      {
+        "name": "FeeCollector",
+        "address": "0x954d55105CDF5371224268691FAf6178be5f62F5",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
+        "selectors": [
+          {
+            "selector": "0x1078c579",
+            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+          },
+          {
+            "selector": "0xa7a4a271",
+            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
         "selectors": [
           {
             "selector": "0x2646478b",
@@ -6797,6 +7507,16 @@
             "signature": "unwrapWstETHToStETH(uint256)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "plasma": [
@@ -6933,6 +7653,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x125d9e76cDAF61B352548e39567382a2AAa1d378",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "polygon": [
@@ -7021,6 +7751,16 @@
           {
             "selector": "0xefae576b",
             "signature": "executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7267,6 +8007,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "sei": [
@@ -7403,6 +8153,16 @@
             "signature": "unwrapWstETHToStETH(uint256)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "sonic": [
@@ -7469,6 +8229,16 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7869,6 +8639,16 @@
             "signature": "unwrapWstETHToStETH(uint256)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "vana": [
@@ -8071,6 +8851,16 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }

@@ -52,6 +52,10 @@
       "0x5db483Fe3FE9ae091ACfCcA27088529C952B4487": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
+      },
+      "0x05AB10ae838235D68Ba0ae4D4120De94982a1e9e": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -60,8 +64,8 @@
       "FeeCollector": "0xa8633C0F6b63D2092e5bF0cb0205CdE38F69a78E",
       "FeeForwarder": "0x5Bf8351f8C349634911965Bd000fE9c625C1A0d9",
       "GasZipPeriphery": "0xe94523E494Ad8A28BD93a39885645B8760B074E2",
-      "LiFiDEXAggregator": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
       "Patcher": "",
       "Permit2Proxy": "0x767cEE938DF7d88D3e880Cbfc35C9cAfee882f4d",
       "ReceiverAcrossV3": "",

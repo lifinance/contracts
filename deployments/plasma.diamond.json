@@ -76,6 +76,14 @@
       "0x6D2b543c86de1794a363eBf16C3Cd7Ae33CB7e4d": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x9B43Db66881128762B646576941C29059b13cbd6": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
+      },
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -84,8 +92,8 @@
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
-      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
       "ReceiverAcrossV3": "0x2cE98D2879Ec036183Aae242CACC0Dc37554d969",
