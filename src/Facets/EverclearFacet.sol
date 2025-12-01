@@ -33,15 +33,15 @@ contract EverclearFacet is
 
     /// Types ///
 
-    /// @param receiverAddress The address of the receiver
-    /// @param nativeFee The native fee
-    /// @param outputAsset The address of the output asset
-    /// @param amountOutMin The minimum amount out
-    /// @param ttl The time to live
-    /// @param data The data
-    /// @param fee The fee
-    /// @param deadline The deadline
-    /// @param sig The signature
+    /// @param receiverAddress The address of the receiver (bytes32 for EVM and non-EVM chains)
+    /// @param nativeFee The native fee amount (in native tokens, e.g., ETH) for cross-chain messaging costs
+    /// @param outputAsset The address of the output asset on destination chain (bytes32 format)
+    /// @param amountOutMin The minimum amount out on destination chain
+    /// @param ttl The time to live for the intent (in seconds)
+    /// @param data Additional data for the intent (typically empty)
+    /// @param fee The protocol fee amount (in input token units, deducted from bridge amount)
+    /// @param deadline The deadline timestamp for the fee signature
+    /// @param sig The signature from the fee signer authorizing the fee (EIP-191 format)
     struct EverclearData {
         bytes32 receiverAddress;
         uint256 nativeFee;
@@ -64,6 +64,7 @@ contract EverclearFacet is
     /// @notice Constructor for the contract.
     /// @param _feeAdapter Fee adapter address.
     constructor(address _feeAdapter) {
+        // Validate fee adapter address to prevent misconfiguration that would break bridge functionality
         if (address(_feeAdapter) == address(0)) {
             revert InvalidConfig();
         }

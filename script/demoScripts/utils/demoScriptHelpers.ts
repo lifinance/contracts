@@ -94,10 +94,6 @@ export const leftPadAddressToBytes32 = (address: string): string => {
   return '0x000000000000000000000000' + address.slice(2)
 }
 
-export const addressToBytes32LeftPadded = (address: string): string => {
-  return '0x' + address.slice(2).padStart(64, '0')
-}
-
 export const getProvider = (
   networkName: string
 ): providers.FallbackProvider => {
