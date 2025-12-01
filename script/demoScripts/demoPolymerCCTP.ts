@@ -369,7 +369,7 @@ async function main() {
     hasDestinationCall: false,
   }
   consola.info('')
-  logBridgeDataStruct(bridgeData, consola.info)
+  logBridgeDataStruct(bridgeData)
 
   // Prepare PolymerCCTP data using fees extracted from API response
   const polymerData: PolymerCCTPFacet.PolymerCCTPDataStruct = {

@@ -1,6 +1,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import { consola } from 'consola'
 import { config } from 'dotenv'
 import {
   BigNumber,
@@ -1009,12 +1010,8 @@ export const createContractObject = (
 /**
  * Logs a BridgeDataStruct in a formatted, human-readable way
  * @param bridgeData The BridgeDataStruct to log
- * @param logger Optional logger function (defaults to console.info)
  */
-export function logBridgeDataStruct(
-  bridgeData: ILiFi.BridgeDataStruct,
-  logger: (message: string) => void = console.info
-): void {
+export function logBridgeDataStruct(bridgeData: ILiFi.BridgeDataStruct): void {
   // Convert transactionId to hex string if it's bytes
   // Handle both string (hex) and BytesLike (Uint8Array, etc.) types
   let transactionIdHex: string
@@ -1033,15 +1030,15 @@ export function logBridgeDataStruct(
       ? `${bridgeData.referrer} (zero address)`
       : bridgeData.referrer
 
-  logger('📋 BridgeData:')
-  logger(`  transactionId:     ${transactionIdHex}`)
-  logger(`  bridge:           ${bridgeData.bridge}`)
-  logger(`  integrator:       ${bridgeData.integrator}`)
-  logger(`  referrer:         ${referrerDisplay}`)
-  logger(`  sendingAssetId:   ${bridgeData.sendingAssetId}`)
-  logger(`  receiver:         ${bridgeData.receiver}`)
-  logger(`  minAmount:        ${bridgeData.minAmount}`)
-  logger(`  destinationChainId: ${bridgeData.destinationChainId}`)
-  logger(`  hasSourceSwaps:   ${bridgeData.hasSourceSwaps}`)
-  logger(`  hasDestinationCall: ${bridgeData.hasDestinationCall}`)
+  consola.info('📋 BridgeData:')
+  consola.info(`  transactionId:     ${transactionIdHex}`)
+  consola.info(`  bridge:           ${bridgeData.bridge}`)
+  consola.info(`  integrator:       ${bridgeData.integrator}`)
+  consola.info(`  referrer:         ${referrerDisplay}`)
+  consola.info(`  sendingAssetId:   ${bridgeData.sendingAssetId}`)
+  consola.info(`  receiver:         ${bridgeData.receiver}`)
+  consola.info(`  minAmount:        ${bridgeData.minAmount}`)
+  consola.info(`  destinationChainId: ${bridgeData.destinationChainId}`)
+  consola.info(`  hasSourceSwaps:   ${bridgeData.hasSourceSwaps}`)
+  consola.info(`  hasDestinationCall: ${bridgeData.hasDestinationCall}`)
 }
