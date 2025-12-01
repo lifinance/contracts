@@ -697,7 +697,7 @@
     "type": "mainnet",
     "rpcUrl": "https://andromeda.metis.io/?owner=1088",
     "verificationType": "etherscan",
-    "explorerUrl": "https://explorer.metis.io",
+    "explorerUrl": "https://metisscan.info",
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeAddress": "0x1f1b30aD821634FEdCFFf90450faE05663Fd2E07",
