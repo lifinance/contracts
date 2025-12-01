@@ -4,13 +4,16 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { NEARIntentsFacet } from "lifi/Facets/NEARIntentsFacet.sol";
-import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, InformationMismatch, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 /// @title TestNEARIntentsFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Test contract wrapper for NEARIntentsFacet
 /// @custom:version 1.0.0
 contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
+    constructor(address _backendSigner) NEARIntentsFacet(_backendSigner) {}
+
     function setQuoteConsumed(bytes32 _quoteId) external {
         Storage storage s = _getStorage();
         s.consumedQuoteIds[_quoteId] = true;
@@ -38,14 +41,35 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         0x0000000000000000000000000000000000000DeA;
     uint256 internal constant DEFAULT_DEADLINE = 1 hours;
 
+    // Backend signer private key and address
+    uint256 internal backendSignerPrivateKey =
+        0x1234567890123456789012345678901234567890123456789012345678901234;
+    address internal backendSignerAddress = vm.addr(backendSignerPrivateKey);
+
+    // EIP-712 typehash for NEARIntentsPayload
+    bytes32 internal constant NEARINTENTS_PAYLOAD_TYPEHASH =
+        0xdaa7a00335c91a11a32a63ceee132e58bf0b15e750a46ad05ebbb0cf83d25627;
+
+    struct NEARIntentsPayload {
+        bytes32 transactionId;
+        uint256 minAmount;
+        address receiver;
+        address depositAddress;
+        uint256 destinationChainId;
+        address sendingAssetId;
+        uint256 deadline;
+        bytes32 quoteId;
+        uint256 minAmountOut;
+    }
+
     NEARIntentsFacet.NEARIntentsData internal validNearData;
 
     function setUp() public {
         customBlockNumberForForking = 19767662;
         initTestBase();
 
-        // Deploy facet
-        nearIntentsFacet = new TestNEARIntentsFacet();
+        // Deploy facet with backend signer
+        nearIntentsFacet = new TestNEARIntentsFacet(backendSignerAddress);
 
         // Register selectors with diamond
         bytes4[] memory functionSelectors = new bytes4[](5);
@@ -97,12 +121,13 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     }
 
     function _setupValidNearData() internal {
-        validNearData = NEARIntentsFacet.NEARIntentsData({
-            quoteId: TEST_QUOTE_ID,
-            depositAddress: TEST_DEPOSIT_ADDRESS,
-            deadline: block.timestamp + DEFAULT_DEADLINE,
-            minAmountOut: 990 * 10 ** 6 // 990 USDC (1% slippage)
-        });
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -132,6 +157,122 @@ contract NEARIntentsFacetTest is TestBaseFacet {
                 validNearData
             );
         }
+    }
+
+    /// Base Test Overrides (regenerate signatures when bridgeData changes) ///
+
+    function testBase_CanBridgeNativeTokens() public override {
+        // Customize bridgeData first
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        // Regenerate signature with updated bridgeData
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            defaultNativeAmount - (defaultNativeAmount / 100) // 1% slippage
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        vm.assume(amount > 100 && amount < 10000000);
+        bridgeData.minAmount = amount;
+
+        // Regenerate signature with fuzzed amount
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            amount - (amount / 100) // 1% slippage
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), amount);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data - swap USDC to Native
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    address(diamond),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // Regenerate signature with swap output amount
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            bridgeData.minAmount - (bridgeData.minAmount / 100) // 1% slippage
+        );
+
+        // approval
+        usdc.approve(address(diamond), amountIn);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            amountIn,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
     }
 
     /// Happy Path Tests ///
@@ -184,7 +325,13 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
 
-        validNearData.minAmountOut = 0.99 ether;
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            0.99 ether
+        );
 
         vm.startPrank(USER_SENDER);
 
@@ -260,12 +407,34 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     }
 
     function testRevert_QuoteExpired() public {
-        // Setup expired quote
-        validNearData.deadline = block.timestamp - 1;
+        // Setup expired quote - deadline in the past
+        uint256 expiredDeadline = block.timestamp - 1;
+
+        NEARIntentsPayload memory payload = _createNEARIntentsPayload(
+            bridgeData,
+            TEST_DEPOSIT_ADDRESS,
+            expiredDeadline,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        bytes32 domainSeparator = _buildDomainSeparator(block.chainid);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
+
+        validNearData = NEARIntentsFacet.NEARIntentsData({
+            quoteId: TEST_QUOTE_ID,
+            depositAddress: TEST_DEPOSIT_ADDRESS,
+            deadline: expiredDeadline,
+            minAmountOut: 990 * 10 ** 6,
+            signature: signature
+        });
 
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
 
+        // The modifier onlyValidQuote checks deadline first, throwing QuoteExpired
         vm.expectRevert(NEARIntentsFacet.QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
@@ -275,7 +444,13 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     }
 
     function testRevert_InvalidDepositAddress() public {
-        validNearData.depositAddress = address(0);
+        validNearData = _generateValidNearData(
+            address(0),
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
 
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
@@ -353,7 +528,13 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
 
-        validNearData.minAmountOut = 0.99 ether;
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            0.99 ether
+        );
 
         uint256 excessAmount = 0.5 ether;
 
@@ -373,7 +554,13 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     function test_HandlesMinimalAmounts() public {
         bridgeData.minAmount = 1; // 1 wei equivalent
 
-        validNearData.minAmountOut = 1;
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            1
+        );
 
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), 1);
@@ -391,7 +578,13 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         uint256 maxAmount = type(uint128).max;
         bridgeData.minAmount = maxAmount;
 
-        validNearData.minAmountOut = maxAmount - 1;
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            maxAmount - 1
+        );
 
         // Deal tokens for max amount
         deal(ADDRESS_USDC, USER_SENDER, maxAmount);
@@ -420,11 +613,18 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Second bridge with different quoteId
         bytes32 newQuoteId = keccak256("test-quote-2");
-        validNearData.quoteId = newQuoteId;
+        NEARIntentsFacet.NEARIntentsData
+            memory newNearData = _generateValidNearData(
+                TEST_DEPOSIT_ADDRESS,
+                bridgeData,
+                block.chainid,
+                newQuoteId,
+                990 * 10 ** 6
+            );
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
-            validNearData
+            newNearData
         );
         vm.stopPrank();
 
@@ -433,6 +633,212 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     }
 
     function test_CanDeployFacet() public {
-        new NEARIntentsFacet();
+        new NEARIntentsFacet(backendSignerAddress);
+    }
+
+    function testRevert_ConstructorWithZeroBackendSigner() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestNEARIntentsFacet(address(0));
+    }
+
+    function testRevert_InvalidSignature() public {
+        // Generate invalid signature with wrong private key
+        uint256 wrongPrivateKey = 0x9999999999999999999999999999999999999999999999999999999999999999;
+
+        validNearData = _generateValidNearDataWithPrivateKey(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6,
+            wrongPrivateKey
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        vm.expectRevert(NEARIntentsFacet.InvalidSignature.selector);
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_SignatureExpired() public {
+        // Generate signature with expired deadline
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        // Move time forward past deadline
+        vm.warp(validNearData.deadline + 1);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        // The modifier onlyValidQuote checks deadline first with >= comparison, throwing QuoteExpired
+        vm.expectRevert(NEARIntentsFacet.QuoteExpired.selector);
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    /// Helper Functions ///
+
+    /// @dev Builds the EIP-712 domain separator for the given chain
+    /// @param _chainId The chain ID
+    /// @return The domain separator hash
+    function _buildDomainSeparator(
+        uint256 _chainId
+    ) internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI NEAR Intents Facet")),
+                    keccak256(bytes("1")),
+                    _chainId,
+                    address(nearIntentsFacet)
+                )
+            );
+    }
+
+    /// @dev Creates a NEARIntentsPayload struct from bridge data and additional parameters
+    /// @param _bridgeData The bridge data containing transaction details
+    /// @param _depositAddress The deposit address for the transaction
+    /// @param _deadline The deadline for the transaction
+    /// @param _quoteId The quote ID
+    /// @param _minAmountOut The minimum amount out
+    /// @return The constructed NEARIntentsPayload struct
+    function _createNEARIntentsPayload(
+        ILiFi.BridgeData memory _bridgeData,
+        address _depositAddress,
+        uint256 _deadline,
+        bytes32 _quoteId,
+        uint256 _minAmountOut
+    ) internal pure returns (NEARIntentsPayload memory) {
+        return
+            NEARIntentsPayload({
+                transactionId: _bridgeData.transactionId,
+                minAmount: _bridgeData.minAmount,
+                receiver: _bridgeData.receiver,
+                depositAddress: _depositAddress,
+                destinationChainId: _bridgeData.destinationChainId,
+                sendingAssetId: _bridgeData.sendingAssetId,
+                deadline: _deadline,
+                quoteId: _quoteId,
+                minAmountOut: _minAmountOut
+            });
+    }
+
+    /// @dev Builds the struct hash for the NEARIntentsPayload
+    /// @param _payload The NEARIntentsPayload to hash
+    /// @return The computed struct hash
+    function _buildStructHash(
+        NEARIntentsPayload memory _payload
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    NEARINTENTS_PAYLOAD_TYPEHASH,
+                    _payload.transactionId,
+                    _payload.minAmount,
+                    _payload.receiver,
+                    _payload.depositAddress,
+                    _payload.destinationChainId,
+                    _payload.sendingAssetId,
+                    _payload.deadline,
+                    _payload.quoteId,
+                    _payload.minAmountOut
+                )
+            );
+    }
+
+    /// @dev Builds the final EIP-712 digest from domain separator and struct hash
+    /// @param _domainSeparator The domain separator hash
+    /// @param _structHash The struct hash
+    /// @return The computed digest ready for signing
+    function _buildDigest(
+        bytes32 _domainSeparator,
+        bytes32 _structHash
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked("\x19\x01", _domainSeparator, _structHash)
+            );
+    }
+
+    /// @dev Signs a digest with the given private key
+    /// @param _privateKey The private key to sign with
+    /// @param _digest The digest to sign
+    /// @return The signature bytes (r, s, v format)
+    function _signDigest(
+        uint256 _privateKey,
+        bytes32 _digest
+    ) internal pure returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, _digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    /// @dev Helper function to generate valid NEAR Intents data with custom private key
+    function _generateValidNearDataWithPrivateKey(
+        address _depositAddress,
+        ILiFi.BridgeData memory _currentBridgeData,
+        uint256 _chainId,
+        bytes32 _quoteId,
+        uint256 _minAmountOut,
+        uint256 _privateKey
+    ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
+        uint256 deadline = block.timestamp + DEFAULT_DEADLINE;
+
+        NEARIntentsPayload memory payload = _createNEARIntentsPayload(
+            _currentBridgeData,
+            _depositAddress,
+            deadline,
+            _quoteId,
+            _minAmountOut
+        );
+
+        bytes32 domainSeparator = _buildDomainSeparator(_chainId);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory signature = _signDigest(_privateKey, digest);
+
+        return
+            NEARIntentsFacet.NEARIntentsData({
+                quoteId: _quoteId,
+                depositAddress: _depositAddress,
+                deadline: deadline,
+                minAmountOut: _minAmountOut,
+                signature: signature
+            });
+    }
+
+    /// @dev Helper function to generate valid NEAR Intents data
+    function _generateValidNearData(
+        address _depositAddress,
+        ILiFi.BridgeData memory _currentBridgeData,
+        uint256 _chainId,
+        bytes32 _quoteId,
+        uint256 _minAmountOut
+    ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
+        return
+            _generateValidNearDataWithPrivateKey(
+                _depositAddress,
+                _currentBridgeData,
+                _chainId,
+                _quoteId,
+                _minAmountOut,
+                backendSignerPrivateKey
+            );
     }
 }
