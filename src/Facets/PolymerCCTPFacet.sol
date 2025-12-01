@@ -48,6 +48,11 @@ contract PolymerCCTPFacet is
 
     /// Events ///
 
+    /// @notice Emitted when a Polymer CCTP bridge transaction is initiated
+    /// @dev This event is used by Polymer off-chain component to pick up the transaction
+    /// @param bridgeAmount The total amount being bridged (before fee deduction)
+    /// @param polymerFee The fee amount taken by Polymer in USDC
+    /// @param minFinalityThreshold The minimum finality threshold for the bridge (1000 = fast path, 2000 = standard path)
     event PolymerCCTPFeeSent(
         uint256 bridgeAmount,
         uint256 polymerFee,
