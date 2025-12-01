@@ -1,11 +1,13 @@
 /**
  * Everclear Bridge Demo Script
  *
- * Bridges USDC from Arbitrum to Base using EverclearFacet
+ * Bridges USDC from Arbitrum to Arbitrum/Solana using EverclearFacet
  *
  * Usage:
- * - Simple bridge: bun run script/demoScripts/demoEverclear.ts
- * - Swap + bridge: bun run script/demoScripts/demoEverclear.ts --swap
+ * - Simple bridge (Arbitrum -> Arbitrum): bun run script/demoScripts/demoEverclear.ts
+ * - Swap + bridge (Arbitrum -> Arbitrum): bun run script/demoScripts/demoEverclear.ts --swap
+ * - Bridge to Solana: bun run script/demoScripts/demoEverclear.ts --solana
+ * - Swap + bridge to Solana: bun run script/demoScripts/demoEverclear.ts --swap --solana
  *
  * Architecture:
  * 1. User approves USDC to LiFiDiamond (0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782)
@@ -17,9 +19,10 @@
  * Implementation:
  * ✅ Uses TypeChain ABIs from EverclearFacet__factory
  * ✅ Uses viem (not ethers) and bun runtime
- * ✅ Properly decodes FeeAdapter calldata
+ * ✅ Properly decodes FeeAdapter calldata (EVM and non-EVM)
  * ✅ Calls LiFiDiamond contract functions correctly
  * ✅ Supports both simple bridge and swap+bridge modes
+ * ✅ Supports bridging to Solana with address conversion
  *
  * Example TX (swap + bridge):
  * - Source (Arbitrum): https://arbiscan.io/tx/0x306a29a5614983ffb5909be28a0123492756573d215b45935ef2537de512b61e
@@ -32,6 +35,7 @@
 
 import { randomBytes } from 'crypto'
 
+import { Keypair, PublicKey } from '@solana/web3.js'
 import { config } from 'dotenv'
 import {
   getContract,
@@ -54,6 +58,7 @@ import {
   ADDRESS_USDC_ARB,
   ADDRESS_USDT_ARB,
   ADDRESS_UNISWAP_ARB,
+  ADDRESS_USDC_SOL,
   ensureBalance,
   ensureAllowance,
   executeTransaction,
@@ -66,25 +71,78 @@ config()
 
 // ########## CONFIGURE SCRIPT HERE ##########
 const WITH_SOURCE_SWAP = process.argv.includes('--swap')
-const FROM_CHAIN_ID = 42161 // Arbitrum
-const TO_CHAIN_ID = 8453 // Base
+const TO_SOLANA = process.argv.includes('--solana')
 const AMOUNT = parseUnits('3', 6) // 3 USDC
 const SRC_CHAIN: SupportedChain = 'arbitrum'
 const EXPLORER_BASE_URL = 'https://arbiscan.io/tx/'
-const ADDRESS_USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' // USDC on Base
 // ###########################################
+
+// Hyperlane/Everclear Domain IDs (not EVM Chain IDs!)
+// Reference: https://docs.everclear.org/resources/contracts/mainnet
+const ARBITRUM_DOMAIN_ID = 42161 // Hyperlane domain ID for Arbitrum
+const SOLANA_DOMAIN_ID = 1399811149 // Hyperlane domain ID for Solana
+
+// Derive domain IDs based on destination
+const FROM_DOMAIN_ID = ARBITRUM_DOMAIN_ID
+const TO_DOMAIN_ID = TO_SOLANA ? SOLANA_DOMAIN_ID : ARBITRUM_DOMAIN_ID
+
+// LiFi chain IDs (matching LiFiData.sol)
+const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
+const LIFI_CHAIN_ID_ARBITRUM = 42161n // Arbitrum chain ID for LiFi
+
+// NON_EVM_ADDRESS constant from LiFiData.sol
+const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 
 const EVERCLEAR_FACET_ABI = EverclearFacet__factory.abi as Abi
 const ERC20_ABI = ERC20__factory.abi as Abi
 const EVERCLEAR_API_BASE_URL = 'https://api.everclear.org'
 
-// FeeAdapter newIntent ABI for decoding
+// FeeAdapter newIntent ABI for decoding (EVM and non-EVM versions)
 const NEW_INTENT_EVM_ABI = parseAbi([
   'function newIntent(uint32[],address,address,address,uint256,uint256,uint48,bytes,(uint256,uint256,bytes))',
 ])
 
+const NEW_INTENT_NON_EVM_ABI = parseAbi([
+  'function newIntent(uint32[],bytes32,address,bytes32,uint256,uint256,uint48,bytes,(uint256,uint256,bytes))',
+])
+
 /**
- * Decodes FeeAdapter calldata to extract signature and parameters
+ * Derives a Solana address from an Ethereum private key
+ * Uses the Ethereum private key as a seed for Ed25519 keypair generation
+ *
+ * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
+ * @returns Solana address in base58 format
+ */
+function deriveSolanaAddress(ethPrivateKey: string): string {
+  // Remove '0x' prefix if present
+  const seed = ethPrivateKey.replace('0x', '')
+
+  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
+  const seedBytes = new Uint8Array(32)
+  for (let i = 0; i < 32; i++)
+    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
+
+  // Create Solana keypair from seed
+  const keypair = Keypair.fromSeed(seedBytes)
+
+  return keypair.publicKey.toBase58()
+}
+
+/**
+ * Converts a Solana base58 address to bytes32 hex format
+ *
+ * @param solanaAddress - Solana address in base58 format
+ * @returns Address as bytes32 hex string
+ */
+function solanaAddressToBytes32(solanaAddress: string): `0x${string}` {
+  const publicKey = new PublicKey(solanaAddress)
+  const bytes = publicKey.toBytes()
+  const hex = '0x' + Buffer.from(bytes).toString('hex').padStart(64, '0')
+  return hex as `0x${string}`
+}
+
+/**
+ * Decodes FeeAdapter calldata to extract signature and parameters (EVM version)
  */
 function decodeNewIntentCalldata(fullCalldata: string) {
   const data = fullCalldata as Hex
@@ -136,10 +194,67 @@ function decodeNewIntentCalldata(fullCalldata: string) {
   }
 }
 
+/**
+ * Decodes FeeAdapter calldata to extract signature and parameters (non-EVM version for Solana)
+ */
+function decodeNewIntentNonEVMCalldata(fullCalldata: string) {
+  const data = fullCalldata as Hex
+
+  try {
+    const { args } = decodeFunctionData({
+      abi: NEW_INTENT_NON_EVM_ABI,
+      data: data,
+    })
+
+    const [
+      _destinations,
+      _receiverBytes32,
+      _inputAsset,
+      _outputAssetBytes32,
+      _amount,
+      _amountOutMin,
+      _ttl,
+      _data,
+      _feeParamsTuple,
+    ] = args
+
+    // feeParamsTuple is an array: [fee, deadline, sig]
+    const [fee, deadline, sig] = _feeParamsTuple as readonly [
+      bigint,
+      bigint,
+      `0x${string}`
+    ]
+
+    return {
+      _destinations: _destinations as number[],
+      _receiverBytes32: _receiverBytes32 as `0x${string}`,
+      _inputAsset: _inputAsset as Address,
+      _outputAssetBytes32: _outputAssetBytes32 as `0x${string}`,
+      _amount: _amount,
+      _amountOutMin: _amountOutMin,
+      _ttl: _ttl,
+      _data: _data,
+      _feeParams: {
+        fee: fee,
+        deadline: deadline,
+        sig: sig,
+      },
+    }
+  } catch (e) {
+    throw new Error(
+      `Decoding non-EVM calldata failed: The calldata structure does not match the provided signature. Error: ${e}`
+    )
+  }
+}
+
 async function main() {
   console.log('\n=== Everclear Bridge Demo ===')
   console.log(`Mode: ${WITH_SOURCE_SWAP ? 'Swap + Bridge' : 'Simple Bridge'}`)
-  console.log(`From: Arbitrum (${FROM_CHAIN_ID}) -> Base (${TO_CHAIN_ID})`)
+  console.log(
+    `From: Arbitrum (domain ${FROM_DOMAIN_ID}) -> ${
+      TO_SOLANA ? 'Solana' : 'Arbitrum'
+    } (domain ${TO_DOMAIN_ID})`
+  )
   console.log(`Amount: ${formatUnits(AMOUNT, 6)} USDC\n`)
 
   // Setup environment
@@ -159,7 +274,7 @@ async function main() {
   const sendingAssetId = WITH_SOURCE_SWAP ? ADDRESS_USDT_ARB : ADDRESS_USDC_ARB
   const bridgeAssetId = ADDRESS_USDC_ARB // Always bridge USDC
   let bridgeAmount = AMOUNT
-  const srcSwapData: any[] = []
+  const srcSwapData: unknown[] = []
 
   // Handle source swap if needed
   if (WITH_SOURCE_SWAP) {
@@ -183,7 +298,7 @@ async function main() {
     const { BigNumber } = await import('ethers')
     const swapData = await getUniswapDataERC20toExactERC20(
       ADDRESS_UNISWAP_ARB,
-      FROM_CHAIN_ID,
+      ARBITRUM_DOMAIN_ID, // Use domain ID
       ADDRESS_USDT_ARB,
       ADDRESS_USDC_ARB,
       BigNumber.from(AMOUNT.toString()),
@@ -211,23 +326,66 @@ async function main() {
   // Get intent data from Everclear API
   console.log('\nFetching intent from Everclear API...')
 
-  // Note: 'from' parameter is NOT needed - Everclear's signature validation
-  // no longer uses msg.sender. The sig check uses the intent transaction input
-  // plus fee params only.
-  const requestBody = {
-    origin: FROM_CHAIN_ID.toString(),
-    destinations: [TO_CHAIN_ID.toString()],
-    to: signerAddress,
-    inputAsset: bridgeAssetId,
-    outputAsset: ADDRESS_USDC_BASE,
-    amount: bridgeAmount.toString(),
-    callData: '0x',
-    ttl: 86400, // 24 hours TTL for fast path
-    isFastPath: false, // Use standard clearing path
-    order_id: `0x${randomBytes(32).toString('hex')}`,
+  // Determine destination address based on whether we're bridging to Solana
+  let destinationAddress: string = signerAddress
+  let solanaRecipient: string | null = null
+  if (TO_SOLANA) {
+    const privateKey = process.env.PRIVATE_KEY
+    if (!privateKey)
+      throw new Error('PRIVATE_KEY env var required for Solana destination')
+
+    solanaRecipient = deriveSolanaAddress(privateKey)
+    destinationAddress = solanaRecipient
+    console.log('Derived Solana recipient address:', solanaRecipient)
   }
 
-  const createIntentResp = await fetch(`${EVERCLEAR_API_BASE_URL}/intents`, {
+  // Note: 'from' parameter is optional - we include it for tracking
+  // The API endpoint and request body differ for Solana vs EVM chains
+  let requestBody: Record<string, unknown>
+
+  if (TO_SOLANA) {
+    // Solana-specific request body structure
+    // Reference: POST /solana/intents from API spec
+    // Required fields: origin, destinations, to, inputAsset, amount, callData, maxFee, user
+    requestBody = {
+      origin: FROM_DOMAIN_ID.toString(),
+      destinations: [TO_DOMAIN_ID.toString()],
+      to: destinationAddress, // Solana address in base58
+      from: signerAddress, // Origin EVM address (optional but include for tracking)
+      inputAsset: bridgeAssetId,
+      amount: bridgeAmount.toString(),
+      callData: '0x',
+      maxFee: bridgeAmount.toString(), // Max fee in input token units - set to full amount initially
+      user: solanaRecipient, // Solana user address (required)
+      order_id: `0x${randomBytes(32).toString('hex')}`,
+    }
+  } else {
+    // EVM-specific request body structure
+    // Required fields: origin, destinations, to, inputAsset, amount, callData
+    requestBody = {
+      origin: FROM_DOMAIN_ID.toString(),
+      destinations: [TO_DOMAIN_ID.toString()],
+      to: destinationAddress,
+      from: signerAddress,
+      inputAsset: bridgeAssetId,
+      outputAsset: ADDRESS_USDC_ARB,
+      amount: bridgeAmount.toString(),
+      callData: '0x',
+      ttl: 0, // TTL in seconds (0 for standard clearing path)
+      isFastPath: false, // Use standard clearing path
+      order_id: `0x${randomBytes(32).toString('hex')}`,
+    }
+  }
+
+  // Use different API endpoints for Solana vs EVM
+  const apiEndpoint = TO_SOLANA
+    ? `${EVERCLEAR_API_BASE_URL}/solana/intents`
+    : `${EVERCLEAR_API_BASE_URL}/intents`
+
+  console.log('API endpoint:', apiEndpoint)
+  console.log('Request body:', JSON.stringify(requestBody, null, 2))
+
+  const createIntentResp = await fetch(apiEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody),
@@ -245,9 +403,22 @@ async function main() {
   console.log('  FeeAdapter:', createIntentData.to)
 
   // Decode the calldata to extract signature and parameters
-  const decoded = decodeNewIntentCalldata(createIntentData.data)
+  // Use different ABI based on destination chain type
+  let decoded:
+    | ReturnType<typeof decodeNewIntentCalldata>
+    | ReturnType<typeof decodeNewIntentNonEVMCalldata>
+  if (TO_SOLANA) {
+    decoded = decodeNewIntentNonEVMCalldata(createIntentData.data)
+    console.log('\nIntent parameters (Solana):')
+    console.log('  Receiver (bytes32):', decoded._receiverBytes32)
+    console.log('  Output asset (bytes32):', decoded._outputAssetBytes32)
+  } else {
+    decoded = decodeNewIntentCalldata(createIntentData.data)
+    console.log('\nIntent parameters (EVM):')
+    console.log('  Receiver:', decoded._receiver)
+    console.log('  Output asset:', decoded._outputAsset)
+  }
 
-  console.log('\nIntent parameters:')
   console.log('  Fee:', formatUnits(decoded._feeParams.fee, 6), 'USDC')
   console.log(
     '  Min amount out:',
@@ -278,24 +449,46 @@ async function main() {
   )
 
   // Prepare bridge data
+  // For Solana destinations, use NON_EVM_ADDRESS and LIFI_CHAIN_ID_SOLANA
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: `0x${randomBytes(32).toString('hex')}`,
     bridge: 'everclear',
     integrator: 'demoScript',
     referrer: zeroAddress,
     sendingAssetId: bridgeAssetId,
-    receiver: signerAddress,
-    destinationChainId: TO_CHAIN_ID,
+    receiver: TO_SOLANA ? (NON_EVM_ADDRESS as `0x${string}`) : signerAddress,
+    destinationChainId: TO_SOLANA
+      ? LIFI_CHAIN_ID_SOLANA
+      : LIFI_CHAIN_ID_ARBITRUM,
     minAmount: bridgeAmount,
     hasSourceSwaps: WITH_SOURCE_SWAP,
     hasDestinationCall: false,
   }
 
   // Prepare Everclear data
+  let receiverAddressBytes32: `0x${string}`
+  let outputAssetBytes32: `0x${string}`
+
+  if (TO_SOLANA) {
+    // For Solana, convert the base58 address to bytes32
+    if (!solanaRecipient) throw new Error('Solana recipient not computed')
+    receiverAddressBytes32 = solanaAddressToBytes32(solanaRecipient)
+    outputAssetBytes32 = solanaAddressToBytes32(ADDRESS_USDC_SOL)
+
+    console.log('\nSolana address encoding:')
+    console.log('  Recipient (base58):', solanaRecipient)
+    console.log('  Recipient (bytes32):', receiverAddressBytes32)
+    console.log('  USDC mint (base58):', ADDRESS_USDC_SOL)
+    console.log('  USDC mint (bytes32):', outputAssetBytes32)
+  } else {
+    receiverAddressBytes32 = zeroPadAddressToBytes32(signerAddress)
+    outputAssetBytes32 = zeroPadAddressToBytes32(ADDRESS_USDC_ARB)
+  }
+
   const everclearData: EverclearFacet.EverclearDataStruct = {
-    receiverAddress: zeroPadAddressToBytes32(signerAddress),
+    receiverAddress: receiverAddressBytes32,
     nativeFee: BigInt(createIntentData.value || '0'),
-    outputAsset: zeroPadAddressToBytes32(ADDRESS_USDC_BASE),
+    outputAsset: outputAssetBytes32,
     amountOutMin: decoded._amountOutMin,
     ttl: decoded._ttl,
     data: '0x' as `0x${string}`,
@@ -317,6 +510,7 @@ async function main() {
   if (WITH_SOURCE_SWAP) {
     txHash = await executeTransaction(
       () =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (lifiDiamondContract as any).write.swapAndStartBridgeTokensViaEverclear(
           [bridgeData, srcSwapData, everclearData],
           { value: everclearData.nativeFee }
@@ -328,6 +522,7 @@ async function main() {
   } else {
     txHash = await executeTransaction(
       () =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (lifiDiamondContract as any).write.startBridgeTokensViaEverclear(
           [bridgeData, everclearData],
           { value: everclearData.nativeFee }
@@ -340,9 +535,17 @@ async function main() {
 
   console.log('\n✅ Bridge initiated successfully!')
   console.log('From:', sendingAssetId, '(Arbitrum)')
-  console.log('To:', ADDRESS_USDC_BASE, '(Base)')
-  console.log('Amount:', formatUnits(bridgeAmount, 6), 'USDC')
-  console.log('Receiver:', signerAddress)
+  if (TO_SOLANA) {
+    console.log('To:', ADDRESS_USDC_SOL, '(Solana)')
+    console.log('Amount:', formatUnits(bridgeAmount, 6), 'USDC')
+    console.log('Receiver (Solana):', solanaRecipient)
+    console.log('LiFi Chain ID:', LIFI_CHAIN_ID_SOLANA.toString())
+    console.log('Everclear Domain ID:', SOLANA_DOMAIN_ID)
+  } else {
+    console.log('To:', ADDRESS_USDC_ARB, '(Arbitrum)')
+    console.log('Amount:', formatUnits(bridgeAmount, 6), 'USDC')
+    console.log('Receiver:', signerAddress)
+  }
   console.log('View on Arbiscan:', `${EXPLORER_BASE_URL}${txHash}`)
   console.log('\n=== Demo Complete ===\n')
 }
