@@ -24,8 +24,14 @@ contract PolymerCCTPFacet is
     Validatable,
     LiFiData
 {
+    /// @notice bytes32(0) allows any address to complete the CCTP transfer on destination chain
+    bytes32 private constant UNRESTRICTED_DESTINATION_CALLER = bytes32(0);
+
+    /// @notice The address of the TokenMessenger contract on the current chain
     ITokenMessenger public immutable TOKEN_MESSENGER;
+    /// @notice The address of the USDC token on the current chain
     address public immutable USDC;
+    /// @notice The address that receives Polymer fees in USDC
     address payable public immutable POLYMER_FEE_RECEIVER;
 
     struct PolymerCCTPData {
@@ -187,7 +193,7 @@ contract PolymerCCTPFacet is
                 _chainIdToDomainId(_bridgeData.destinationChainId),
                 bytes32(uint256(uint160(_bridgeData.receiver))),
                 USDC,
-                bytes32(0), // Unrestricted caller
+                UNRESTRICTED_DESTINATION_CALLER,
                 _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
                 _polymerData.minFinalityThreshold // minFinalityThreshold - use default
             );
@@ -202,7 +208,7 @@ contract PolymerCCTPFacet is
                 _chainIdToDomainId(_bridgeData.destinationChainId),
                 _polymerData.nonEVMReceiver,
                 USDC,
-                bytes32(0), // Unrestricted caller
+                UNRESTRICTED_DESTINATION_CALLER,
                 _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
                 _polymerData.minFinalityThreshold // minFinalityThreshold - use default
             );
