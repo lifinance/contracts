@@ -9,21 +9,6 @@
  * - Bridge to Solana: bun run script/demoScripts/demoEverclear.ts --solana
  * - Swap + bridge to Solana: bun run script/demoScripts/demoEverclear.ts --swap --solana
  *
- * Architecture:
- * 1. User approves USDC to LiFiDiamond (0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782)
- * 2. Script calls POST /intents API to get FeeAdapter calldata with signature
- * 3. Decodes FeeAdapter calldata to extract signature and fee params
- * 4. Calls startBridgeTokensViaEverclear() on LiFiDiamond with extracted params
- * 5. LiFiDiamond → EverclearFacet → FeeAdapter.newIntent() (validates signature)
- *
- * Implementation:
- * ✅ Uses TypeChain ABIs from EverclearFacet__factory
- * ✅ Uses viem (not ethers) and bun runtime
- * ✅ Properly decodes FeeAdapter calldata (EVM and non-EVM)
- * ✅ Calls LiFiDiamond contract functions correctly
- * ✅ Supports both simple bridge and swap+bridge modes
- * ✅ Supports bridging to Solana with address conversion
- *
  * Example TX (swap + bridge):
  * - Source (Arbitrum): https://arbiscan.io/tx/0x306a29a5614983ffb5909be28a0123492756573d215b45935ef2537de512b61e
  * - Destination (Base): https://basescan.org/tx/0x3ef9ca72c835f89713e9bdbaafcfecd094b355b3f7f1fac97154a83c793c4c3a
@@ -490,6 +475,7 @@ async function main() {
     nativeFee: BigInt(createIntentData.value || '0'),
     outputAsset: outputAssetBytes32,
     amountOutMin: decoded._amountOutMin,
+    amountOutMinMultiplier: BigInt(1e18), // 100% pass-through (1:1 ratio)
     ttl: decoded._ttl,
     data: '0x' as `0x${string}`,
     fee: decoded._feeParams.fee,
