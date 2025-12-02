@@ -81,12 +81,12 @@
     ],
     "GasZipPeriphery": [
       {
-        "selector": "0x1078c579",
-        "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+        "selector": "0x8b71ae6c",
+        "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
       },
       {
-        "selector": "0xa7a4a271",
-        "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+        "selector": "0xc4af5a74",
+        "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
       }
     ],
     "TokenWrapper": [
