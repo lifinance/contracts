@@ -20,7 +20,6 @@
 
 import { randomBytes } from 'crypto'
 
-import { Keypair, PublicKey } from '@solana/web3.js'
 import { config } from 'dotenv'
 import {
   getContract,
@@ -51,6 +50,8 @@ import {
   setupEnvironment,
   getUniswapDataERC20toExactERC20,
   zeroPadAddressToBytes32,
+  deriveSolanaAddress,
+  solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -92,41 +93,6 @@ const NEW_INTENT_EVM_ABI = parseAbi([
 const NEW_INTENT_NON_EVM_ABI = parseAbi([
   'function newIntent(uint32[],bytes32,address,bytes32,uint256,uint256,uint48,bytes,(uint256,uint256,bytes))',
 ])
-
-/**
- * Derives a Solana address from an Ethereum private key
- * Uses the Ethereum private key as a seed for Ed25519 keypair generation
- *
- * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
- * @returns Solana address in base58 format
- */
-function deriveSolanaAddress(ethPrivateKey: string): string {
-  // Remove '0x' prefix if present
-  const seed = ethPrivateKey.replace('0x', '')
-
-  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
-  const seedBytes = new Uint8Array(32)
-  for (let i = 0; i < 32; i++)
-    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
-
-  // Create Solana keypair from seed
-  const keypair = Keypair.fromSeed(seedBytes)
-
-  return keypair.publicKey.toBase58()
-}
-
-/**
- * Converts a Solana base58 address to bytes32 hex format
- *
- * @param solanaAddress - Solana address in base58 format
- * @returns Address as bytes32 hex string
- */
-function solanaAddressToBytes32(solanaAddress: string): `0x${string}` {
-  const publicKey = new PublicKey(solanaAddress)
-  const bytes = publicKey.toBytes()
-  const hex = '0x' + Buffer.from(bytes).toString('hex').padStart(64, '0')
-  return hex as `0x${string}`
-}
 
 /**
  * Decodes FeeAdapter calldata to extract signature and parameters (EVM version)
