@@ -24,7 +24,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     struct Storage {
         mapping(address => IL1StandardBridge) bridges;
-        IL1StandardBridge standardBridge;
+        IL1StandardBridge defaultBridge;
         bool initialized;
     }
 
@@ -51,10 +51,10 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize local variables for the MegaETH Bridge Facet
     /// @param _configs Bridge configuration data
-    /// @param _standardBridge Address of the standard bridge contract
+    /// @param _defaultBridge Address of the default bridge contract
     function initMegaETH(
         Config[] calldata _configs,
-        IL1StandardBridge _standardBridge
+        IL1StandardBridge _defaultBridge
     ) external {
         LibDiamond.enforceIsContractOwner();
 
@@ -73,10 +73,10 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
-        if (address(_standardBridge) == address(0)) {
+        if (address(_defaultBridge) == address(0)) {
             revert InvalidConfig();
         }
-        s.standardBridge = _standardBridge;
+        s.defaultBridge = _defaultBridge;
         s.initialized = true;
 
         emit MegaETHInitialized(_configs);
@@ -171,7 +171,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         IL1StandardBridge bridge = LibUtil.isZeroAddress(
             address(nonStandardBridge)
         )
-            ? s.standardBridge
+            ? s.defaultBridge
             : nonStandardBridge;
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {

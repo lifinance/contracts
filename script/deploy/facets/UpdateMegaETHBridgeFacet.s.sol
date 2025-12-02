@@ -32,9 +32,9 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/megaethBridge.json");
         json = vm.readFile(path);
 
-        address standardBridge = _getConfigContractAddress(
+        address defaultBridge = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".standardBridge")
+            string.concat(".", network, ".defaultBridge")
         );
 
         bytes memory rawConfig = json.parseRaw(
@@ -45,7 +45,7 @@ contract DeployScript is UpdateScriptBase {
         bytes memory callData = abi.encodeWithSelector(
             MegaETHBridgeFacet.initMegaETH.selector,
             configs,
-            standardBridge
+            defaultBridge
         );
 
         return callData;
