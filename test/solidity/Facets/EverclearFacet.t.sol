@@ -232,7 +232,6 @@ contract EverclearFacetTest is TestBaseFacet {
             nativeFee: 0,
             outputAsset: bytes32(uint256(uint160(ADDRESS_USDC_BASE))),
             amountOutMin: 0,
-            amountOutMinMultiplier: 1e18, // 100% pass-through (1:1 ratio)
             ttl: 0,
             data: "",
             fee: fee,

@@ -441,7 +441,6 @@ async function main() {
     nativeFee: BigInt(createIntentData.value || '0'),
     outputAsset: outputAssetBytes32,
     amountOutMin: decoded._amountOutMin,
-    amountOutMinMultiplier: BigInt(1e18), // 100% pass-through (1:1 ratio)
     ttl: decoded._ttl,
     data: '0x' as `0x${string}`,
     fee: decoded._feeParams.fee,

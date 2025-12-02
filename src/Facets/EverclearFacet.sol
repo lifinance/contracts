@@ -31,16 +31,12 @@ contract EverclearFacet is
     /// Constants ///
     uint32 internal constant EVERCLEAR_CHAIN_ID_SOLANA = 1399811149;
 
-    /// @notice The base for the amountOutMinMultiplier (to allow room for adjustments in both directions)
-    uint256 public constant MULTIPLIER_BASE = 1e18;
-
     /// Types ///
 
     /// @param receiverAddress The address of the receiver (bytes32 for EVM and non-EVM chains)
     /// @param nativeFee The native fee amount (in native tokens, e.g., ETH) for cross-chain messaging costs
     /// @param outputAsset The address of the output asset on destination chain (bytes32 format)
     /// @param amountOutMin The minimum amount out on destination chain
-    /// @param amountOutMinMultiplier In case of pre-bridge swaps we need to adjust the amountOutMin
     /// @param ttl The time to live for the intent (in seconds)
     /// @param data Additional data for the intent (typically empty)
     /// @param fee The protocol fee amount (in input token units, deducted from bridge amount)
@@ -51,7 +47,6 @@ contract EverclearFacet is
         uint256 nativeFee;
         bytes32 outputAsset;
         uint256 amountOutMin;
-        uint128 amountOutMinMultiplier;
         uint48 ttl;
         bytes data;
         uint256 fee;
@@ -125,29 +120,7 @@ contract EverclearFacet is
             _swapData,
             payable(msg.sender)
         );
-
-        // Since the minAmount / inputAmount was updated, we also need to adjust the amountOutMin.
-        // In case of different decimals between input and output, we will adjust the amountOutMin
-        // with the amountOutMinMultiplier to account for the difference in decimals. We divide by 1e18
-        // to allow room for adjustment in both directions, i.e. from 6 > 18 decimals and vice versa.
-        // The multiplier should be calculated as: multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)
-        // NOTE: please note that we intentionally do not verify the amountOutMin any further. Only use LI.FI backend-
-        //       generated calldata to avoid potential loss of funds.
-        EverclearData memory modifiedEverclearData = EverclearData({
-            receiverAddress: _everclearData.receiverAddress,
-            nativeFee: _everclearData.nativeFee,
-            outputAsset: _everclearData.outputAsset,
-            amountOutMin: (_bridgeData.minAmount *
-                _everclearData.amountOutMinMultiplier) / MULTIPLIER_BASE,
-            amountOutMinMultiplier: _everclearData.amountOutMinMultiplier,
-            ttl: _everclearData.ttl,
-            data: _everclearData.data,
-            fee: _everclearData.fee,
-            deadline: _everclearData.deadline,
-            sig: _everclearData.sig
-        });
-
-        _startBridge(_bridgeData, modifiedEverclearData);
+        _startBridge(_bridgeData, _everclearData);
     }
 
     /// Internal Methods ///
@@ -157,7 +130,7 @@ contract EverclearFacet is
     /// @param _everclearData Data specific to Everclear
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        EverclearData memory _everclearData
+        EverclearData calldata _everclearData
     ) internal {
         // make sure receiver address has a value to prevent potential loss of funds
         // contract does NOT validate _everclearData.deadline and _everclearData.sig to save gas here. Fee adapter will signature with fee and deadline in message anyway.
