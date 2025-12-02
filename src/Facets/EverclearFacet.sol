@@ -114,12 +114,29 @@ contract EverclearFacet is
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _bridgeData.minAmount = _depositAndSwap(
+        uint256 actualAmountAfterSwap = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
+        // If we got more than expected from the swap (positive slippage),
+        // send the extra back to the user. We cannot adjust amountOutMin
+        // because Everclear's signature validation includes the original value.
+        if (actualAmountAfterSwap > _bridgeData.minAmount) {
+            uint256 positiveSlippage = actualAmountAfterSwap -
+                _bridgeData.minAmount;
+            LibAsset.transferERC20(
+                _bridgeData.sendingAssetId,
+                payable(msg.sender),
+                positiveSlippage
+            );
+            // Bridge only the original expected amount
+            actualAmountAfterSwap = _bridgeData.minAmount;
+        }
+
+        _bridgeData.minAmount = actualAmountAfterSwap;
         _startBridge(_bridgeData, _everclearData);
     }
 
