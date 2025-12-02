@@ -57,9 +57,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x3f824bd97c74481E6B470601b52aB40123AFE450": {
+      "0x73388a39CC5bb0fe45c12231727D33f2B2ef4DF7": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x1c2a47D0867C618179B12D9e159b92Aa8A1617C5": {
         "Name": "WhitelistManagerFacet",

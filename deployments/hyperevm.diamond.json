@@ -69,9 +69,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x6B7E41437f0A0Cf118De22D8dF296719D5adF5a3": {
+      "0xE637Ed03Ec6856D5EeEAE26c494226EB38cBF5Db": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x43DE35AdfB263d551c17c713674524CDd32aeE6b": {
         "Name": "AcrossFacetV4",
