@@ -4,22 +4,14 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { EverclearFacet } from "lifi/Facets/EverclearFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { IEverclearFeeAdapter } from "lifi/Interfaces/IEverclearFeeAdapter.sol";
 import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 
 // Stub EverclearFacet Contract
-contract TestEverclearFacet is EverclearFacet {
+contract TestEverclearFacet is EverclearFacet, TestWhitelistManagerBase {
     constructor(address _feeAdapter) EverclearFacet(_feeAdapter) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract EverclearFacetTest is TestBaseFacet {
@@ -179,21 +171,22 @@ contract EverclearFacetTest is TestBaseFacet {
         functionSelectors[1] = everclearFacet
             .swapAndStartBridgeTokensViaEverclear
             .selector;
-        functionSelectors[2] = everclearFacet.addDex.selector;
-        functionSelectors[3] = everclearFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = everclearFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(everclearFacet), functionSelectors);
         everclearFacet = TestEverclearFacet(address(diamond));
-        everclearFacet.addDex(ADDRESS_UNISWAP);
-        everclearFacet.setFunctionApprovalBySignature(
+        everclearFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        everclearFacet.setFunctionApprovalBySignature(
+        everclearFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        everclearFacet.setFunctionApprovalBySignature(
+        everclearFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 
@@ -239,6 +232,7 @@ contract EverclearFacetTest is TestBaseFacet {
             nativeFee: 0,
             outputAsset: bytes32(uint256(uint160(ADDRESS_USDC_BASE))),
             amountOutMin: 0,
+            amountOutMinMultiplier: 1e18, // 100% pass-through (1:1 ratio)
             ttl: 0,
             data: "",
             fee: fee,
