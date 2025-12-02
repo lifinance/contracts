@@ -125,9 +125,9 @@
         "Name": "MayanFacet",
         "Version": "1.2.0"
       },
-      "0x681a3409c35F12224c436D50Ce14F25f954B6Ea2": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
+      "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
+        "Name": "",
+        "Version": ""
       },
       "0x7C27b0FD92dbC5a1cA268255A649320E8C649e70": {
         "Name": "GasZipFacet",
@@ -149,9 +149,9 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0xa884c21873A671bD010567cf97c937b153F842Cc": {
-        "Name": "ChainflipFacet",
-        "Version": "1.0.0"
+      "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
+        "Name": "",
+        "Version": ""
       },
       "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
         "Name": "PioneerFacet",
@@ -173,9 +173,9 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
-        "Name": "GlacisFacet",
-        "Version": "1.1.0"
+      "0x33EcEb68994E0499a61FAda3b49Ab243e63555F1": {
+        "Name": "",
+        "Version": ""
       },
       "0x004E291b9244C811B0BE00cA2C179d54FAA5073D": {
         "Name": "RelayDepositoryFacet",
@@ -193,13 +193,17 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.1"
       },
-      "0x4582FD200173F1717F6C53fD1531b2F6fE33Fe3D": {
+      "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
         "Name": "EverclearFacet",
         "Version": "1.0.0"
       },
-      "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
-        "Name": "EverclearFacet",
-        "Version": "2.0.0"
+      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
