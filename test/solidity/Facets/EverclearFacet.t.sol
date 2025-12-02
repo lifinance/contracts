@@ -970,7 +970,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // give USER_SENDER some ETH but send insufficient amount
         vm.deal(USER_SENDER, nativeFee + 1 ether);
 
-        vm.expectRevert(); // FeeAdapter will revert due to insufficient native fee value
+        vm.expectRevert(); // EVM OutOfFunds error when trying to forward more native value than sent
 
         // call with insufficient native fee (send less than required)
         everclearFacet.startBridgeTokensViaEverclear{ value: nativeFee - 1 }(
