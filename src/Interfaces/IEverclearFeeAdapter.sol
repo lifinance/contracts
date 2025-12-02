@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 /// @title Interface for Everclear Fee Adapter
 /// @notice Defines the interface for interacting with the Everclear Fee Adapter contract
 /// @author LI.FI (https://li.fi)
-/// @custom:version 2.0.0
+/// @custom:version 1.0.0
 interface IEverclearFeeAdapter {
     struct FeeParams {
         uint256 fee;
