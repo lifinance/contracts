@@ -1,11 +1,11 @@
 /**
  * Everclear Bridge Demo Script
  *
- * Bridges USDC from Arbitrum to Arbitrum/Solana using EverclearFacet
+ * Bridges USDC from Arbitrum to Base/Solana using EverclearFacet
  *
  * Usage:
- * - Simple bridge (Arbitrum -> Arbitrum): bun run script/demoScripts/demoEverclear.ts
- * - Swap + bridge (Arbitrum -> Arbitrum): bun run script/demoScripts/demoEverclear.ts --swap
+ * - Simple bridge (Arbitrum -> Base): bun run script/demoScripts/demoEverclear.ts
+ * - Swap + bridge (Arbitrum -> Base): bun run script/demoScripts/demoEverclear.ts --swap
  * - Bridge to Solana: bun run script/demoScripts/demoEverclear.ts --solana
  * - Swap + bridge to Solana: bun run script/demoScripts/demoEverclear.ts --swap --solana
  *
@@ -59,6 +59,7 @@ import {
   ADDRESS_USDT_ARB,
   ADDRESS_UNISWAP_ARB,
   ADDRESS_USDC_SOL,
+  ADDRESS_USDC_BASE,
   ensureBalance,
   ensureAllowance,
   executeTransaction,
@@ -80,15 +81,16 @@ const EXPLORER_BASE_URL = 'https://arbiscan.io/tx/'
 // Hyperlane/Everclear Domain IDs (not EVM Chain IDs!)
 // Reference: https://docs.everclear.org/resources/contracts/mainnet
 const ARBITRUM_DOMAIN_ID = 42161 // Hyperlane domain ID for Arbitrum
+const BASE_DOMAIN_ID = 8453 // Hyperlane domain ID for Base
 const SOLANA_DOMAIN_ID = 1399811149 // Hyperlane domain ID for Solana
 
 // Derive domain IDs based on destination
 const FROM_DOMAIN_ID = ARBITRUM_DOMAIN_ID
-const TO_DOMAIN_ID = TO_SOLANA ? SOLANA_DOMAIN_ID : ARBITRUM_DOMAIN_ID
+const TO_DOMAIN_ID = TO_SOLANA ? SOLANA_DOMAIN_ID : BASE_DOMAIN_ID
 
 // LiFi chain IDs (matching LiFiData.sol)
 const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
-const LIFI_CHAIN_ID_ARBITRUM = 42161n // Arbitrum chain ID for LiFi
+const LIFI_CHAIN_ID_BASE = 8453n // Base chain ID for LiFi
 
 // NON_EVM_ADDRESS constant from LiFiData.sol
 const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
@@ -252,7 +254,7 @@ async function main() {
   console.log(`Mode: ${WITH_SOURCE_SWAP ? 'Swap + Bridge' : 'Simple Bridge'}`)
   console.log(
     `From: Arbitrum (domain ${FROM_DOMAIN_ID}) -> ${
-      TO_SOLANA ? 'Solana' : 'Arbitrum'
+      TO_SOLANA ? 'Solana' : 'Base'
     } (domain ${TO_DOMAIN_ID})`
   )
   console.log(`Amount: ${formatUnits(AMOUNT, 6)} USDC\n`)
@@ -368,7 +370,7 @@ async function main() {
       to: destinationAddress,
       from: signerAddress,
       inputAsset: bridgeAssetId,
-      outputAsset: ADDRESS_USDC_ARB,
+      outputAsset: ADDRESS_USDC_BASE, // Use Base USDC for destination
       amount: bridgeAmount.toString(),
       callData: '0x',
       ttl: 0, // TTL in seconds (0 for standard clearing path)
@@ -457,9 +459,7 @@ async function main() {
     referrer: zeroAddress,
     sendingAssetId: bridgeAssetId,
     receiver: TO_SOLANA ? (NON_EVM_ADDRESS as `0x${string}`) : signerAddress,
-    destinationChainId: TO_SOLANA
-      ? LIFI_CHAIN_ID_SOLANA
-      : LIFI_CHAIN_ID_ARBITRUM,
+    destinationChainId: TO_SOLANA ? LIFI_CHAIN_ID_SOLANA : LIFI_CHAIN_ID_BASE,
     minAmount: bridgeAmount,
     hasSourceSwaps: WITH_SOURCE_SWAP,
     hasDestinationCall: false,
@@ -482,7 +482,7 @@ async function main() {
     console.log('  USDC mint (bytes32):', outputAssetBytes32)
   } else {
     receiverAddressBytes32 = zeroPadAddressToBytes32(signerAddress)
-    outputAssetBytes32 = zeroPadAddressToBytes32(ADDRESS_USDC_ARB)
+    outputAssetBytes32 = zeroPadAddressToBytes32(ADDRESS_USDC_BASE)
   }
 
   const everclearData: EverclearFacet.EverclearDataStruct = {
@@ -542,9 +542,11 @@ async function main() {
     console.log('LiFi Chain ID:', LIFI_CHAIN_ID_SOLANA.toString())
     console.log('Everclear Domain ID:', SOLANA_DOMAIN_ID)
   } else {
-    console.log('To:', ADDRESS_USDC_ARB, '(Arbitrum)')
+    console.log('To:', ADDRESS_USDC_BASE, '(Base)')
     console.log('Amount:', formatUnits(bridgeAmount, 6), 'USDC')
     console.log('Receiver:', signerAddress)
+    console.log('LiFi Chain ID:', LIFI_CHAIN_ID_BASE.toString())
+    console.log('Everclear Domain ID:', BASE_DOMAIN_ID)
   }
   console.log('View on Arbiscan:', `${EXPLORER_BASE_URL}${txHash}`)
   console.log('\n=== Demo Complete ===\n')
