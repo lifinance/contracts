@@ -110,6 +110,18 @@ contract Permit2ProxyTest is TestBase {
         bytes32 s;
     }
 
+    struct TestDataEIP3009 {
+        address tokenAddress;
+        address userWallet;
+        bytes32 nonce;
+        uint256 validAfter;
+        uint256 validBefore;
+        bytes diamondCalldata;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     /// Errors ///
 
     error InvalidSigner();
@@ -118,7 +130,7 @@ contract Permit2ProxyTest is TestBase {
     error CallToDiamondFailed(bytes);
 
     function setUp() public {
-        customBlockNumberForForking = 20261175;
+        customBlockNumberForForking = 23496255;
         initTestBase();
 
         uniPermit2 = ISignatureTransfer(PERMIT2_ADDRESS);
@@ -147,7 +159,7 @@ contract Permit2ProxyTest is TestBase {
 
     /// EIP2612 (native permit) related test cases ///
 
-    function test_can_execute_calldata_using_eip2612_signature_usdc()
+    function test_CanExecuteCalldataUsingEip2612SignatureUsdc()
         public
         assertBalanceChange(
             ADDRESS_USDC,
@@ -187,7 +199,45 @@ contract Permit2ProxyTest is TestBase {
         return testdata;
     }
 
-    function testRevert_when_called_with_invalid_calldata() public {
+    function test_CanExecuteCalldataUsingEip2612SignatureBytes()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            permit2User,
+            -int256(defaultUSDCAmount)
+        )
+    {
+        vm.startPrank(permit2User);
+
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedBypermit2User(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
+
+        bytes memory signature = abi.encodePacked(
+            testdata.r,
+            testdata.s,
+            testdata.v
+        );
+
+        vm.expectEmit(true, true, true, true, DIAMOND_ADDRESS);
+        emit LiFiTransferStarted(bridgeData);
+
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            signature,
+            testdata.diamondCalldata
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenCalledWithInvalidCalldata() public {
         vm.startPrank(permit2User);
 
         // get token-specific domainSeparator
@@ -219,9 +269,9 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_cannot_use_eip2612_signature_twice() public {
+    function testRevert_CannotUseEip2612SignatureTwice() public {
         TestDataEIP2612
-            memory testdata = test_can_execute_calldata_using_eip2612_signature_usdc();
+            memory testdata = test_CanExecuteCalldataUsingEip2612SignatureUsdc();
 
         vm.startPrank(permit2User);
 
@@ -240,7 +290,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_cannot_use_expired_eip2612_signature() public {
+    function testRevert_CannotUseExpiredEip2612Signature() public {
         vm.startPrank(permit2User);
 
         // get token-specific domainSeparator
@@ -271,7 +321,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_cannot_use_invalid_eip2612_signature() public {
+    function testRevert_CannotUseInvalidEip2612Signature() public {
         vm.startPrank(permit2User);
 
         // get token-specific domainSeparator
@@ -286,7 +336,7 @@ contract Permit2ProxyTest is TestBase {
             );
 
         // expect call to revert since signature is invalid
-        vm.expectRevert("ECRecover: invalid signature 'v' value");
+        vm.expectRevert("EIP2612: invalid signature");
 
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
@@ -302,7 +352,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevert_sign_and_call_using_different_addresses() public {
+    function testRevert_SignAndCallUsingDifferentAddresses() public {
         vm.startPrank(USER_SENDER);
 
         // get token-specific domainSeparator
@@ -332,9 +382,91 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
+    /// EIP3009 related test cases ///
+
+    function test_CanExecuteCalldataUsingEip3009SignatureUsdc()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            permit2User,
+            -int256(defaultUSDCAmount)
+        )
+        returns (TestDataEIP3009 memory)
+    {
+        vm.startPrank(permit2User);
+
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        TestDataEIP3009
+            memory testdata = _getTestDataEIP3009SignedBypermit2User(
+                ADDRESS_USDC,
+                domainSeparator,
+                0,
+                block.timestamp + 1000
+            );
+
+        vm.expectEmit(true, true, true, true, DIAMOND_ADDRESS);
+        emit LiFiTransferStarted(bridgeData);
+
+        permit2Proxy.callDiamondWithEIP3009Signature(
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.validAfter,
+            testdata.validBefore,
+            testdata.nonce,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            testdata.diamondCalldata
+        );
+        vm.stopPrank();
+        return testdata;
+    }
+
+    function test_CanExecuteCalldataUsingEip3009SignatureBytes()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            permit2User,
+            -int256(defaultUSDCAmount)
+        )
+    {
+        vm.startPrank(permit2User);
+
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        TestDataEIP3009
+            memory testdata = _getTestDataEIP3009SignedBypermit2User(
+                ADDRESS_USDC,
+                domainSeparator,
+                0,
+                block.timestamp + 1000
+            );
+
+        bytes memory signature = abi.encodePacked(
+            testdata.r,
+            testdata.s,
+            testdata.v
+        );
+
+        vm.expectEmit(true, true, true, true, DIAMOND_ADDRESS);
+        emit LiFiTransferStarted(bridgeData);
+
+        permit2Proxy.callDiamondWithEIP3009Signature(
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.validAfter,
+            testdata.validBefore,
+            testdata.nonce,
+            signature,
+            testdata.diamondCalldata
+        );
+        vm.stopPrank();
+    }
+
     /// Permit2 specific tests ///
 
-    function test_user_can_call_diamond_with_own_permit2_signature() public {
+    function test_UserCanCallDiamondWithOwnPermit2Signature() public {
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -354,7 +486,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_cannot_call_diamond_with_permit2_using_different_wallet_address()
+    function testRevert_CannotCallDiamondWithPermit2UsingDifferentWalletAddress()
         public
     {
         bytes memory diamondCalldata;
@@ -377,7 +509,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function test_can_call_diamond_with_permit2_plus_witness() public {
+    function test_CanCallDiamondWithPermit2PlusWitness() public {
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -398,7 +530,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function test_can_generate_a_valid_msg_hash_for_signing() public {
+    function test_CanGenerateAValidMsgHashForSigning() public {
         bytes32 msgHash;
         bytes32 generatedMsgHash;
         (
@@ -419,7 +551,7 @@ contract Permit2ProxyTest is TestBase {
         assertEq(msgHash, generatedMsgHash);
     }
 
-    function testRevert_cannot_call_diamond_single_with_same_signature_more_than_once()
+    function testRevert_CannotCallDiamondSingleWithSameSignatureMoreThanOnce()
         public
     {
         deal(ADDRESS_USDC, permit2User, 10000 ether);
@@ -449,7 +581,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_cannot_set_different_calldata_than_intended() public {
+    function testRevert_CannotSetDifferentCalldataThanIntended() public {
         deal(ADDRESS_USDC, permit2User, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
@@ -473,9 +605,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_cannot_use_permit2_signature_from_another_wallet()
-        public
-    {
+    function testRevert_CannotUsePermit2SignatureFromAnotherWallet() public {
         deal(ADDRESS_USDC, permit2User, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
@@ -500,7 +630,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_cannot_transfer_more_tokens_than_intended() public {
+    function testRevert_CannotTransferMoreTokensThanIntended() public {
         deal(ADDRESS_USDC, permit2User, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
@@ -527,7 +657,7 @@ contract Permit2ProxyTest is TestBase {
 
     /// The following test code was adapted from https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/test/Permit2NonceFinder.t.sol
 
-    function test_can_find_nonce() public {
+    function test_CanFindNonce() public {
         // We invalidate the first nonce to make sure it's not returned.
         // We pass a mask of 0...0011 to invalidate nonce 0 and 1.
         uniPermit2.invalidateUnorderedNonces(0, 3);
@@ -539,7 +669,7 @@ contract Permit2ProxyTest is TestBase {
         assertEq(permit2Proxy.nextNonce(address(this)), 255);
     }
 
-    function test_can_find_nonce_after() public {
+    function test_CanFindNonceAfter() public {
         // We want to start from the second word
         uint256 start = 256;
         // We invalidate the whole next word to make sure it's not returned.
@@ -555,7 +685,7 @@ contract Permit2ProxyTest is TestBase {
         assertEq(permit2Proxy.nextNonceAfter(address(this), 1), 2);
     }
 
-    function test_eip2612_flow_is_resistant_to_frontrun_attack()
+    function test_Eip2612FlowIsResistantToFrontrunAttack()
         public
         returns (TestDataEIP2612 memory)
     {
@@ -1003,6 +1133,65 @@ contract Permit2ProxyTest is TestBase {
                         amount,
                         nonce,
                         deadline
+                    )
+                )
+            )
+        );
+    }
+
+    function _getTestDataEIP3009SignedBypermit2User(
+        address tokenAddress,
+        bytes32 domainSeparator,
+        uint256 validAfter,
+        uint256 validBefore
+    ) internal view returns (TestDataEIP3009 memory testdata) {
+        testdata.tokenAddress = tokenAddress;
+        testdata.userWallet = permit2User;
+        testdata.nonce = bytes32(
+            uint256(keccak256(abi.encodePacked(permit2User, block.timestamp)))
+        );
+        testdata.validAfter = validAfter;
+        testdata.validBefore = validBefore;
+
+        bytes32 digest = _generateEIP3009MsgHash(
+            testdata.userWallet,
+            address(permit2Proxy),
+            defaultUSDCAmount,
+            testdata.validAfter,
+            testdata.validBefore,
+            testdata.nonce,
+            domainSeparator
+        );
+
+        (testdata.v, testdata.r, testdata.s) = vm.sign(PRIVATE_KEY, digest);
+
+        testdata.diamondCalldata = _getCalldataForBridging();
+    }
+
+    function _generateEIP3009MsgHash(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes32 domainSeparator
+    ) internal pure returns (bytes32 digest) {
+        digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                domainSeparator,
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+                        ),
+                        from,
+                        to,
+                        value,
+                        validAfter,
+                        validBefore,
+                        nonce
                     )
                 )
             )
