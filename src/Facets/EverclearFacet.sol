@@ -15,7 +15,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 /// @title EverclearFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Everclear
-/// @custom:version 2.0.0
+/// @custom:version 1.0.0
 contract EverclearFacet is
     ILiFi,
     ReentrancyGuard,
