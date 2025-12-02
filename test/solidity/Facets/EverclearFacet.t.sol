@@ -43,8 +43,8 @@ contract EverclearFacetTest is TestBaseFacet {
     //       })
     //     }
     //   )
-    uint256 internal usdCAmountToSend = 99934901; // its defaultUSDCAmount - fee (100000000 - 65099)
     uint256 internal fee = 65099;
+    uint256 internal usdCAmountToSend = 100000000 - fee; // defaultUSDCAmount from quote - fee
 
     /// @dev Returns the keccak256 digest of an ERC-191 signed data with version `0x45` (`personal_sign` messages).
     /// Copied from OpenZeppelin's MessageHashUtils to avoid dependency
@@ -301,7 +301,7 @@ contract EverclearFacetTest is TestBaseFacet {
         assertBalanceChange(
             ADDRESS_USDC,
             USER_SENDER,
-            -int256(99934901 + validEverclearData.fee) // 99934901 is defaultUSDCAmount - fee (100000000 - 65099)
+            -int256(usdCAmountToSend + validEverclearData.fee)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -315,6 +315,10 @@ contract EverclearFacetTest is TestBaseFacet {
             usdCAmountToSend + validEverclearData.fee
         );
 
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
@@ -325,7 +329,7 @@ contract EverclearFacetTest is TestBaseFacet {
         assertBalanceChange(
             ADDRESS_USDC,
             USER_SENDER,
-            -int256(99934901 + validEverclearData.fee) // 99934901 is defaultUSDCAmount - fee (100000000 - 65099)
+            -int256(usdCAmountToSend + validEverclearData.fee)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -366,6 +370,17 @@ contract EverclearFacetTest is TestBaseFacet {
             signerPrivateKey
         );
         validEverclearData.sig = solanaSignature;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(everclearFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            validEverclearData.receiverAddress
+        );
+
+        vm.expectEmit(true, true, true, true, address(everclearFacet));
+        emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -700,7 +715,7 @@ contract EverclearFacetTest is TestBaseFacet {
         return path;
     }
 
-    function skip_test_CanBridgeTokensWithNativeFee()
+    function test_CanBridgeTokensWithNativeFee()
         public
         virtual
         assertBalanceChange(
@@ -956,7 +971,7 @@ contract EverclearFacetTest is TestBaseFacet {
         // give USER_SENDER some ETH but send insufficient amount
         vm.deal(USER_SENDER, nativeFee + 1 ether);
 
-        vm.expectRevert(); // should revert due to insufficient native fee
+        vm.expectRevert(); // FeeAdapter will revert due to insufficient native fee value
 
         // call with insufficient native fee (send less than required)
         everclearFacet.startBridgeTokensViaEverclear{ value: nativeFee - 1 }(
