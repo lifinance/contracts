@@ -4595,12 +4595,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -4695,12 +4695,12 @@
         "address": "0x2A3e04627E554b57163C078fd1d6698A655aeA12",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -4763,12 +4763,12 @@
         "address": "0xECCD021343d25a58596482781323AE50EF936a01",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -4831,12 +4831,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -4963,12 +4963,12 @@
         "address": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5063,12 +5063,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5163,12 +5163,12 @@
         "address": "0xe2Bd045c9C7c765D0920BB4e12D5B584eA682C29",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5241,12 +5241,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5309,12 +5309,12 @@
         "address": "0x28B37A00799F484CDe6Be8ba651EC29d804F8DA5",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5431,12 +5431,12 @@
         "address": "0xE73883FDe24f49A1F7850d090E40D812db299618",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5499,12 +5499,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5641,12 +5641,12 @@
         "address": "0x2072a74F97c12808295636C0FbfF35054B15d832",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5709,12 +5709,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5777,12 +5777,12 @@
         "address": "0xC565aC103BA83bdCaA02571616659991d5EF35a7",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5845,12 +5845,12 @@
         "address": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5913,12 +5913,12 @@
         "address": "0xbd0196bE158d5c5da204839ecc1827C1Ed7e66C3",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5981,12 +5981,12 @@
         "address": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6157,12 +6157,12 @@
         "address": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6257,12 +6257,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6325,12 +6325,12 @@
         "address": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6393,12 +6393,12 @@
         "address": "0x718e4C256271417C0e1237c3586BE6d79449fdD8",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6525,12 +6525,12 @@
         "address": "0x7859570b2196f7c764f400b41C6A0080512219b3",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6657,12 +6657,12 @@
         "address": "0x6BCAF079647788ceC14f10D6601Ecb34d0b79c6E",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6735,12 +6735,12 @@
         "address": "0x4471933c5aB5d913a4C6542CE2DFcB964678b5cc",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6803,12 +6803,12 @@
         "address": "0xd65312fa0DB664C7057AfF91087A4164749C057C",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6871,12 +6871,12 @@
         "address": "0xCBe2f01682BE0a12Fc5e6E8B86a834e4AdbB16c4",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6949,12 +6949,12 @@
         "address": "0x35443002a9D35B66E31024A6b5B787B4c1492dD8",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7027,12 +7027,12 @@
         "address": "0x799525cE72B5cc9eb310dc8c7b9e7A3128a6dA79",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7095,12 +7095,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7163,12 +7163,12 @@
         "address": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7339,12 +7339,12 @@
         "address": "0xe94523E494Ad8A28BD93a39885645B8760B074E2",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7461,12 +7461,12 @@
         "address": "0xe0277e6624138239Cd42963699D539960B94607c",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7553,12 +7553,12 @@
         "address": "0xf244D993B4FbC7FbB632Bb4c331378b53C765265",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7621,12 +7621,12 @@
         "address": "0x1665f83E6fBd6bd6C550fCbd81B652bcb1b5d9F2",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7699,12 +7699,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7853,12 +7853,12 @@
         "address": "0x410793b81623DFbfa6702C31128012560D6f257b",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7975,12 +7975,12 @@
         "address": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8107,12 +8107,12 @@
         "address": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8199,12 +8199,12 @@
         "address": "0x6F703111cc3f898f521d29E1151b3F56aA0a1E5B",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8277,12 +8277,12 @@
         "address": "0xefC86E5D45A1Cca48C57d439159d60a0D78F5738",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8345,12 +8345,12 @@
         "address": "0xbD21dB112F56F2aa0b35b9EA4c3f50aE0146E17A",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8413,12 +8413,12 @@
         "address": "0x157aBA344DEFc17Ee47553FeA42322819D71fd82",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8481,12 +8481,12 @@
         "address": "0xfF3ef447B0f214aB1674e237e97bCFE1Fc095d2A",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8593,12 +8593,12 @@
         "address": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8685,12 +8685,12 @@
         "address": "0xbd0196bE158d5c5da204839ecc1827C1Ed7e66C3",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8753,12 +8753,12 @@
         "address": "0xbd0196bE158d5c5da204839ecc1827C1Ed7e66C3",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8821,12 +8821,12 @@
         "address": "0x76aE215b11797b32397d878e6f3E65081ff58b13",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8899,12 +8899,12 @@
         "address": "0xa8B0c4165c43690e7d0BA3bFff5f3f13aDAD7bCF",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8967,12 +8967,12 @@
         "address": "0xDBd9B2AA2dBDf6d6463598de56749e721460688e",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -9035,12 +9035,12 @@
         "address": "0x333ad6eaa1116329098480A056e32C13412d7F47",
         "selectors": [
           {
-            "selector": "0x1078c579",
-            "signature": "depositToGasZipERC20((address,uint256,bytes,address,address,uint256,uint256,uint256,bytes,bytes),(uint256[],address[],uint256,bytes32))"
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
           },
           {
-            "selector": "0xa7a4a271",
-            "signature": "depositToGasZipNative((uint256[],address[],uint256,bytes32),uint256)"
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
