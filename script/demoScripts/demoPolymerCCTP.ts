@@ -313,7 +313,6 @@ async function main() {
   consola.info('')
 
   // Polymer API uses its own chain ID mapping (Solana = 2, not LiFi's 1151111081099710)
-  // Polymer API uses its own chain ID mapping (Solana = 2, not LiFi's 1151111081099710)
   const destinationChainIdPolymer = BRIDGE_TO_SOLANA
     ? POLYMER_CHAIN_ID_SOLANA
     : DST_CHAIN_ID
