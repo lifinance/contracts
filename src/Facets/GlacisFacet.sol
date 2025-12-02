@@ -14,7 +14,7 @@ import { InvalidConfig, InvalidCallData, InvalidNonEVMReceiver, InvalidReceiver 
 /// @title GlacisFacet
 /// @author LI.FI (https://li.fi/)
 /// @notice Integration of the Glacis airlift (wrapper for native token bridging standards)
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract GlacisFacet is
     ILiFi,
     ReentrancyGuard,
@@ -32,10 +32,12 @@ contract GlacisFacet is
     /// @param receiverAddress The address that would receive the tokens on the destination chain
     /// @param refundAddress The address that would receive potential refunds on source chain
     /// @param nativeFee The fee amount in native token required by the Glacis Airlift
+    /// @param outputToken The address of the token to receive on the destination chain (use bytes32(0) for default routing)
     struct GlacisData {
         bytes32 receiverAddress;
         address refundAddress;
         uint256 nativeFee;
+        bytes32 outputToken;
     }
 
     /// Constructor ///
@@ -150,15 +152,17 @@ contract GlacisFacet is
             _bridgeData.minAmount
         );
 
-        // solhint detects this as an Ether `send` call, but this is a function from GlacisAIRLIFT
-        // that does not return a value, so checking the return value is unnecessary.
+        // Call the 6-parameter send() with outputToken parameter
+        // When outputToken is bytes32(0), Glacis uses default routing (backwards compatible)
+        // When outputToken is specified, enables multibridge routing for tokens like USDT & LBTC
         // solhint-disable-next-line check-send-result
         AIRLIFT.send{ value: _glacisData.nativeFee }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
             _glacisData.receiverAddress,
             _bridgeData.destinationChainId,
-            _glacisData.refundAddress
+            _glacisData.refundAddress,
+            _glacisData.outputToken
         );
 
         emit LiFiTransferStarted(_bridgeData);

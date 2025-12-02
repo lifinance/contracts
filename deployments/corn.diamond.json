@@ -61,9 +61,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x600E01682A00B63149205BC9f5b5d3AED1E649c3": {
+      "0xbdd710294e2c2B7d8734494F402cBB8e3F6dCd69": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x48781133DE32CEA9dA957B89bA36868FF9A7E628": {
         "Name": "GardenFacet",

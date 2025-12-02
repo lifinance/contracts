@@ -85,9 +85,9 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x63C8a9aAD7E8C86B891421D9c53246628640169b": {
+      "0x64d6B0993C4002E671f828BA35F0c53aF9eaA37a": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
