@@ -192,7 +192,7 @@ contract EverclearFacet is
                 _everclearData.receiverAddress,
                 _bridgeData.sendingAssetId,
                 _everclearData.outputAsset,
-                _bridgeData.minAmount - _everclearData.fee, // fee is deducted from the minAmount and it's pulled from the sender separately
+                _bridgeData.minAmount - _everclearData.fee, // bridge amount (fee is deducted and pulled by FeeAdapter from the diamond separately)
                 _everclearData.amountOutMin,
                 _everclearData.ttl,
                 _everclearData.data,
@@ -228,7 +228,7 @@ contract EverclearFacet is
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
                 address(uint160(uint256(_everclearData.outputAsset))),
-                _bridgeData.minAmount - _everclearData.fee, // fee is deducted from the minAmount and it's pulled from the sender separately
+                _bridgeData.minAmount - _everclearData.fee, // bridge amount (fee is deducted and pulled by FeeAdapter from the diamond separately)
                 _everclearData.amountOutMin,
                 _everclearData.ttl,
                 _everclearData.data,
