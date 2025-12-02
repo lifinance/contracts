@@ -163,7 +163,7 @@ contract EverclearFacet is
         // contract does NOT validate _everclearData.deadline and _everclearData.sig to save gas here. Fee adapter will signature with fee and deadline in message anyway.
         if (
             _everclearData.outputAsset == bytes32(0) ||
-            _bridgeData.minAmount < _everclearData.fee
+            _bridgeData.minAmount <= _everclearData.fee
         ) revert InvalidCallData();
 
         LibAsset.maxApproveERC20(
