@@ -47466,6 +47466,38 @@
         ]
       }
     }
+  },
+  "PolymerCCTPFacet": {
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9ae70675f7d99231A6f917CA36F45c03a17F0417",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-10 12:41:26",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d0000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff850000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9ae70675f7d99231A6f917CA36F45c03a17F0417",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-10 12:41:58",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e58310000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
   }
 }
 

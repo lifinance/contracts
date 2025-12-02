@@ -1,0 +1,99 @@
+{
+  "Note: Networks with missing polymerFeeReceiver are not supported by Polymer yet and will be added later": {},
+  "mainnet": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "arbitrum": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "avalanche": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "base": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "hyperevm": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
+    "polymerFeeReceiver": ""
+  },
+  "ink": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x2D270e6886d130D724215A266106e6832161EAEd",
+    "polymerFeeReceiver": ""
+  },
+  "linea": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+    "polymerFeeReceiver": ""
+  },
+  "optimism": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "plume": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x222365EF19F7947e5484218551B56bb3965Aa7aF",
+    "polymerFeeReceiver": ""
+  },
+  "polygon": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "sei": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xe15fC38F6D8c56aF07bbCBe3BAf5708A2Bf42392",
+    "polymerFeeReceiver": ""
+  },
+  "sonic": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x29219dd400f2Bf60E5a23d13Be72B486D4038894",
+    "polymerFeeReceiver": ""
+  },
+  "unichain": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "worldchain": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x79A02482A880bCe3F13E09da970dC34dB4cD24D1",
+    "polymerFeeReceiver": ""
+  },
+  "xdc": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xfA2958CB79b0491CC627c1557F441eF849Ca8eb1",
+    "polymerFeeReceiver": ""
+  },
+  "---------- TEST NETWORKS -----------": {},
+  "arbitrumSepolia": {
+    "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    "usdc": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
+  },
+  "baseSepolia": {
+    "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
+  },
+  "optimismSepolia": {
+    "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    "usdc": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
+  },
+  "sepolia": {
+    "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
+  }
+}

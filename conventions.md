@@ -86,10 +86,12 @@ We use Foundry as our primary development and testing framework. Foundry provide
   - Includes ZKSync-specific deployment scripts
   - Update scripts for adding facets to the Diamond
 - **demoScripts/**: TypeScript files demonstrating contract usage
-  - Uses viem and helper functions
+  - **MUST use viem** for all contract interactions (ethers.js is NOT allowed)
+  - Uses helper functions from `utils/demoScriptHelpers.ts`
   - Shows how to prepare arguments and calculate parameters
   - Helps backend team understand contract usage
   - Provides end-to-end testing capabilities
+  - See `demoLidoWrapper.ts`, `demoUnit.ts`, or `demoEco.ts` for examples of proper viem usage
 - **mongoDb/**: MongoDB integration for:
   - Storing multisig proposals (alternative to Safe Transaction Service)
   - Sharing RPC URLs across developers
@@ -457,15 +459,39 @@ All Solidity files must follow the rules defined in `.solhint.json`. This config
 - Environment variables should be validated using `getEnvVar()` helper
 - Scripts should exit with appropriate exit codes (0 for success, 1 for error)
 
+#### Demo Scripts Requirements
+
+- **MUST use viem for all contract interactions** - ethers.js is NOT allowed
+  - Use `createPublicClient` and `createWalletClient` from viem
+  - Use `getContract` from viem to create contract instances
+  - Use `encodeFunctionData` for encoding function calls
+  - Use `parseUnits` and `formatUnits` from viem instead of BigNumber
+  - Use `zeroAddress` from viem instead of `constants.AddressZero`
+  - Use `randomBytes` from `crypto` instead of `utils.randomBytes`
+  - See `demoLidoWrapper.ts`, `demoUnit.ts`, or `demoEco.ts` for reference implementations
+
+- **Helper functions from `demoScriptHelpers.ts`:**
+  - Use `setupEnvironment()` for setting up viem clients and contracts
+  - Use `ensureBalance()` and `ensureAllowance()` for token checks (viem-based)
+  - Use `executeTransaction()` for executing transactions with receipt validation
+  - Use `createContractObject()` for creating ERC20 contract objects
+  - Use `getEnvVar()` for environment variable access
+
+- **DO NOT use deprecated ethers-based helpers:**
+  - ❌ `getProvider()` - use viem clients instead
+  - ❌ `getWalletFromPrivateKeyInDotEnv()` - use `privateKeyToAccount` from viem
+  - ❌ `sendTransaction()` (ethers version) - use `executeTransaction()` (viem-based)
+  - ❌ `ensureBalanceAndAllowanceToDiamond()` - use `ensureBalance()` and `ensureAllowance()` separately
+
 #### Helper Function Usage
 
 - **Always use existing helper functions** when available instead of reimplementing functionality
 - Common helper functions to check for:
 
   - `getDeployments()` from `script/utils/deploymentHelpers.ts` for loading deployment files
-  - `getProvider()` and `getWalletFromPrivateKeyInDotEnv()` from `script/demoScripts/utils/demoScriptHelpers.ts`
-  - `sendTransaction()` for transaction execution
-  - `ensureBalanceAndAllowanceToDiamond()` for token approvals
+  - `setupEnvironment()` from `script/demoScripts/utils/demoScriptHelpers.ts` for viem client setup
+  - `executeTransaction()` for transaction execution (viem-based)
+  - `ensureBalance()` and `ensureAllowance()` for token approvals (viem-based)
   - `getUniswapData*()` functions for swap data generation
 
 - Before implementing new functionality, search the codebase for existing helper functions
