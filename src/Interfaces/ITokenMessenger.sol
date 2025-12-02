@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.17;
 
 /*
  * Copyright 2024 Circle Internet Group, Inc. All rights reserved.
