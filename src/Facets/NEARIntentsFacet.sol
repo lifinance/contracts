@@ -1,0 +1,333 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
+
+import { ECDSA } from "solady/utils/ECDSA.sol";
+import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibSwap } from "../Libraries/LibSwap.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+import { SwapperV2 } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
+
+/// @title NEARIntentsFacet
+/// @author LI.FI (https://li.fi)
+/// @notice Provides functionality for bridging through NEAR Intents Protocol
+/// @custom:version 1.0.0
+contract NEARIntentsFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
+    /// Constants ///
+
+    /// @notice Namespace for diamond storage
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.nearintents");
+
+    // EIP-712 typehash for NEARIntentsPayload: keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,address receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut)");
+    bytes32 private constant NEARINTENTS_PAYLOAD_TYPEHASH =
+        0xdaa7a00335c91a11a32a63ceee132e58bf0b15e750a46ad05ebbb0cf83d25627;
+
+    /// @notice The address of the backend signer that is authorized to sign the NEARIntentsPayload
+    address internal immutable BACKEND_SIGNER;
+
+    /// Types ///
+
+    /// @notice NEAR Intents specific parameters
+    /// @param quoteId Unique identifier from 1Click API quote response
+    /// @param depositAddress EVM address to send tokens (from Bridge API)
+    /// @param deadline Unix timestamp when quote expires (refunds begin if unfulfilled)
+    /// @param minAmountOut Minimum output amount on destination (slippage protection)
+    /// @param signature The signature of the NEARIntentsPayload signed by the backend signer using EIP-712 standard
+    struct NEARIntentsData {
+        bytes32 quoteId;
+        address depositAddress;
+        uint256 deadline;
+        uint256 minAmountOut;
+        bytes signature;
+    }
+
+    /// Storage ///
+
+    /// @notice Diamond storage structure (minimal - only replay protection)
+    struct Storage {
+        /// @dev Mapping to prevent duplicate quote usage (quoteId => consumed)
+        mapping(bytes32 => bool) consumedQuoteIds;
+    }
+
+    /// Events ///
+
+    /// @notice Emitted when a bridge operation starts via NEAR Intents
+    /// @param transactionId Unique transaction identifier
+    /// @param quoteId NEAR Intents quote identifier
+    /// @param depositAddress Address tokens were sent to
+    /// @param sendingAssetId Token being bridged
+    /// @param amount Amount being bridged
+    /// @param deadline Quote expiration timestamp
+    event NEARIntentsBridgeStarted(
+        bytes32 indexed transactionId,
+        bytes32 indexed quoteId,
+        address indexed depositAddress,
+        address sendingAssetId,
+        uint256 amount,
+        uint256 deadline
+    );
+
+    /// Errors ///
+
+    /// @notice Thrown when trying to use a quote that was already consumed
+    error QuoteAlreadyConsumed();
+
+    /// @notice Thrown when the quote deadline has passed
+    error QuoteExpired();
+
+    /// @notice Thrown when the deposit address is zero
+    error InvalidDepositAddress();
+
+    /// @notice Thrown when native token transfer fails
+    error NativeTransferFailed();
+
+    /// @notice Thrown when the signature is invalid
+    error InvalidSignature();
+
+    /// @notice Thrown when the signature is expired
+    error SignatureExpired();
+
+    /// Constructor ///
+
+    /// @notice Initializes the NEARIntentsFacet contract
+    /// @param _backendSigner The address of the backend signer
+    constructor(address _backendSigner) {
+        if (_backendSigner == address(0)) {
+            revert InvalidConfig();
+        }
+        BACKEND_SIGNER = _backendSigner;
+    }
+
+    /// Modifiers ///
+
+    /// @dev Validates quote parameters
+    /// @param _nearData Data specific to NEAR Intents
+    modifier onlyValidQuote(NEARIntentsData calldata _nearData) {
+        _validateQuote(_nearData);
+        _;
+    }
+
+    /// External Methods ///
+
+    /// @notice Bridges tokens via NEAR Intents
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _nearData Data specific to NEAR Intents
+    function startBridgeTokensViaNEARIntents(
+        ILiFi.BridgeData calldata _bridgeData,
+        NEARIntentsData calldata _nearData
+    )
+        external
+        payable
+        nonReentrant
+        onlyValidQuote(_nearData)
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+    {
+        _verifySignature(_bridgeData, _nearData);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
+        _startBridge(_bridgeData, _nearData);
+    }
+
+    /// @notice Performs a swap before bridging via NEAR Intents
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _swapData An array of swap related data for performing swaps
+    /// @param _nearData Data specific to NEAR Intents
+    function swapAndStartBridgeTokensViaNEARIntents(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        NEARIntentsData calldata _nearData
+    )
+        external
+        payable
+        nonReentrant
+        onlyValidQuote(_nearData)
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
+    {
+        // The signature is intentionally verified with the pre-swap `minAmount`
+        _verifySignature(_bridgeData, _nearData);
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _nearData);
+    }
+
+    /// View Functions ///
+
+    /// @notice Check if a quote has been consumed
+    /// @param _quoteId The quote ID to check
+    /// @return consumed Whether the quote has been used
+    function isQuoteConsumed(
+        bytes32 _quoteId
+    ) external view returns (bool consumed) {
+        return getStorage().consumedQuoteIds[_quoteId];
+    }
+
+    /// Internal Methods ///
+
+    /// @dev Contains the business logic for bridging via NEAR Intents
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _nearData Data specific to NEAR Intents
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        NEARIntentsData calldata _nearData
+    ) internal {
+        Storage storage s = getStorage();
+
+        // Mark quote as consumed BEFORE external interactions (CEI pattern)
+        s.consumedQuoteIds[_nearData.quoteId] = true;
+
+        // Transfer tokens to the deposit address generated by Bridge API
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // Native token transfer
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = _nearData.depositAddress.call{
+                value: _bridgeData.minAmount
+            }("");
+            if (!success) revert NativeTransferFailed();
+        } else {
+            // ERC20 transfer
+            LibAsset.transferAsset(
+                _bridgeData.sendingAssetId,
+                payable(_nearData.depositAddress),
+                _bridgeData.minAmount
+            );
+        }
+
+        // Emit events (reduce stack depth by avoiding complex struct access in emit)
+        _emitEvents(_bridgeData, _nearData);
+    }
+
+    /// @dev Emits bridge events
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _nearData Data specific to NEAR Intents
+    function _emitEvents(
+        ILiFi.BridgeData memory _bridgeData,
+        NEARIntentsData calldata _nearData
+    ) private {
+        emit NEARIntentsBridgeStarted(
+            _bridgeData.transactionId,
+            _nearData.quoteId,
+            _nearData.depositAddress,
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount,
+            _nearData.deadline
+        );
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Verifies the signature of the NEARIntentsPayload
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _nearData Data specific to NEAR Intents
+    function _verifySignature(
+        ILiFi.BridgeData memory _bridgeData,
+        NEARIntentsData calldata _nearData
+    ) internal view {
+        // check for signature expiration
+        if (block.timestamp > _nearData.deadline) {
+            revert SignatureExpired();
+        }
+
+        // compute the struct hash according to the EIP-712 standard: https://eips.ethereum.org/EIPS/eip-712
+        bytes32 structHash = keccak256(
+            abi.encode(
+                NEARINTENTS_PAYLOAD_TYPEHASH,
+                _bridgeData.transactionId, // transactionId from payload
+                _bridgeData.minAmount, // minAmount from payload
+                _bridgeData.receiver, // receiver from payload
+                _nearData.depositAddress, // depositAddress from payload
+                _bridgeData.destinationChainId, // destinationChainId from payload
+                _bridgeData.sendingAssetId, // sendingAssetId from payload
+                _nearData.deadline, // deadline from payload
+                _nearData.quoteId, // quoteId from payload
+                _nearData.minAmountOut // minAmountOut from payload
+            )
+        );
+
+        // compute the final digest to be signed according to EIP-712
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
+        );
+
+        // recover the signer's address from the signature
+        address recoveredSigner = ECDSA.recover(digest, _nearData.signature);
+
+        // verify that the signer is the authorized backend
+        if (recoveredSigner != BACKEND_SIGNER) {
+            revert InvalidSignature();
+        }
+    }
+
+    /// @notice Returns the EIP-712 domain separator.
+    /// @dev The domain separator is calculated on the fly to ensure that `address(this)`
+    /// always refers to the diamond's address when called via delegatecall.
+    /// @return The EIP-712 domain separator.
+    function _domainSeparator() internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI NEAR Intents Facet")),
+                    keccak256(bytes("1")),
+                    block.chainid,
+                    address(this) // This will be the diamond's address at runtime
+                )
+            );
+    }
+
+    /// Private Methods ///
+
+    /// @dev Validates quote parameters
+    /// @param _nearData Data specific to NEAR Intents
+    function _validateQuote(NEARIntentsData calldata _nearData) private view {
+        Storage storage s = getStorage();
+
+        // Prevent replay attacks
+        if (s.consumedQuoteIds[_nearData.quoteId]) {
+            revert QuoteAlreadyConsumed();
+        }
+
+        // Ensure quote hasn't expired
+        if (block.timestamp >= _nearData.deadline) {
+            revert QuoteExpired();
+        }
+
+        // Ensure deposit address is valid
+        if (_nearData.depositAddress == address(0)) {
+            revert InvalidDepositAddress();
+        }
+    }
+
+    /// @dev Gets the diamond storage for this facet
+    /// @return s The storage struct
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
+    }
+}
