@@ -2113,6 +2113,15 @@
             }
           }
         ],
+        "megaeth": [
+          {
+            "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+            "functions": {
+              "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+              "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
+            }
+          }
+        ],
         "mantle": [
           {
             "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
@@ -4196,6 +4205,15 @@
           }
         ],
         "abstract": [
+          {
+            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+            "functions": {
+              "0x73fc4457": "swapWithMagpieSignature(bytes)",
+              "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          }
+        ],
+        "megaeth": [
           {
             "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
             "functions": {
