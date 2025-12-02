@@ -29,7 +29,7 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function getCallData() internal override returns (bytes memory) {
-        path = string.concat(root, "/config/megaeth.json");
+        path = string.concat(root, "/config/megaethBridge.json");
         json = vm.readFile(path);
 
         address standardBridge = _getConfigContractAddress(
