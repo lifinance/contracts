@@ -45,28 +45,36 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
-        "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0x27b913F669bB0492e4A878A7Ce1741C8Df491Ebc": {
-        "Name": "RelayFacet",
-        "Version": "1.0.1"
-      },
-      "0xa75C9F0c40936968f4Ee1CB8d9666600EF14ddBe": {
-        "Name": "StargateFacetV2",
-        "Version": "1.0.1"
-      },
       "0x5AB03562C8990b9f6cBC2f2607523D766D4Bd7a9": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0xdB6010f6255a94E691289f6b7b75A5ebc4b41808": {
-        "Name": "DeBridgeDlnFacet",
-        "Version": "1.0.1"
+      "0x73388a39CC5bb0fe45c12231727D33f2B2ef4DF7": {
+        "Name": "GlacisFacet",
+        "Version": "1.1.0"
       },
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x6e92B66195BfDb19C58be6799ddba755935B79F7": {
+        "Name": "MayanFacet",
+        "Version": "1.2.2"
+      },
+      "0x960B7a177dAaD7D1beA69354d023984Af6b75847": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
+        "Name": "RelayFacet",
+        "Version": "1.0.1"
+      },
+      "0xA8e7e5B35507C873865bd512d0A97E362e6A6e10": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0x3Ab31Bc337C744a9CB54DCf8d6D03854b4e94636": {
+        "Name": "UnitFacet",
         "Version": "1.0.0"
       }
     },
@@ -81,9 +89,9 @@
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
       "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "",
+      "ReceiverAcrossV4": "0xeebc9F9D77b8982CDC48C995995eBB7dd74A3Dcf",
       "ReceiverChainflip": "",
-      "ReceiverStargateV2": "0xA5D46f5FAA47D69947acA00Fd9Ac023392719546",
+      "ReceiverStargateV2": "",
       "TokenWrapper": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee"
     }
   }
