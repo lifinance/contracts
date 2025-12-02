@@ -942,17 +942,25 @@ contract EverclearFacetTest is TestBaseFacet {
         uint256 nativeFee = 0.01 ether;
         uint256 deadline = block.timestamp + 10000;
 
-        // create signature with native fee
-        bytes32 messageHash = keccak256(
-            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
-        );
-        bytes32 ethSignedMessageHash = toEthSignedMessageHash(messageHash);
+        // Create destinations array
+        uint32[] memory destinations = new uint32[](1);
+        destinations[0] = uint32(bridgeData.destinationChainId);
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            signerPrivateKey,
-            ethSignedMessageHash
+        // Generate signature for V2 FeeAdapter with native fee
+        bytes memory signature = createEverclearV2Signature(
+            nativeFee,
+            destinations,
+            USER_RECEIVER,
+            ADDRESS_USDC,
+            ADDRESS_USDC_BASE,
+            usdCAmountToSend,
+            0, // amountOutMin
+            0, // ttl
+            "",
+            fee,
+            deadline,
+            signerPrivateKey
         );
-        bytes memory signature = abi.encodePacked(r, s, v);
 
         // update everclear data with native fee
         EverclearFacet.EverclearData
@@ -1049,20 +1057,31 @@ contract EverclearFacetTest is TestBaseFacet {
         uint256 nativeFee = 0.02 ether;
         uint256 deadline = block.timestamp + 10000;
 
-        // create signature
-        bytes32 hash = keccak256(
-            abi.encode(fee, nativeFee, bridgeData.sendingAssetId, deadline)
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            signerPrivateKey,
-            toEthSignedMessageHash(hash)
+        // Create destinations array
+        uint32[] memory destinations = new uint32[](1);
+        destinations[0] = uint32(bridgeData.destinationChainId);
+
+        // Generate signature for V2 FeeAdapter with native fee
+        bytes memory signature = createEverclearV2Signature(
+            nativeFee,
+            destinations,
+            USER_RECEIVER,
+            ADDRESS_USDC,
+            ADDRESS_USDC_BASE,
+            usdCAmountToSend,
+            0, // amountOutMin
+            0, // ttl
+            "",
+            fee,
+            deadline,
+            signerPrivateKey
         );
 
         // update data
         EverclearFacet.EverclearData memory data = validEverclearData;
         data.nativeFee = nativeFee;
         data.deadline = deadline;
-        data.sig = abi.encodePacked(r, s, v);
+        data.sig = signature;
 
         setDefaultSwapDataSingleDAItoUSDC();
         dai.approve(address(everclearFacet), swapData[0].fromAmount);
