@@ -18,6 +18,9 @@
   "celo": {
     "allBridge": "0x80858f5F8EFD2Ab6485Aba1A0B9557ED46C6ba0e"
   },
+  "linea": {
+    "allBridge": "0xf3Dd9d692A9b4Df331E3bb1C8f322BA0B299B907"
+  },
   "optimism": {
     "allBridge": "0x97E5BF5068eA6a9604Ee25851e6c9780Ff50d5ab"
   },

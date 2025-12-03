@@ -229,5 +229,16 @@
         }
       ]
     }
+  ],
+  "monad": [
+    {
+      "address": "0x873fd892E827B9C3057f5A49A612EeecD6694cd3",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
   ]
 }

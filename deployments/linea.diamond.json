@@ -145,13 +145,17 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0xC1169b5099F9ef5e6d7050ABfb8DC719252C24b9": {
+      "0x9adEa9dCe6c29C8A948D5c047cDa70384F2b81ED": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x116E362e631b86b775a08A16c9CA2151706a6A2D": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.1"
       }
     },
     "Periphery": {
