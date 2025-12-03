@@ -132,11 +132,8 @@ contract EverclearFacet is
                 payable(msg.sender),
                 positiveSlippage
             );
-            // Bridge only the original expected amount
-            actualAmountAfterSwap = _bridgeData.minAmount;
         }
 
-        _bridgeData.minAmount = actualAmountAfterSwap;
         _startBridge(_bridgeData, _everclearData);
     }
 
