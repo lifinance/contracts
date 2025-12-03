@@ -34,7 +34,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         0x10E6593CDda8c58a1d0f14C5164B376352a55f2F;
     address internal constant UNISWAP_V2_ROUTER =
         0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    uint256 internal constant DSTCHAIN_ID = 4326;
+    uint256 internal constant DSTCHAIN_ID = 6342;
     uint32 internal constant L2_GAS = 200000;
 
     // Synthetix SNX token addresses
