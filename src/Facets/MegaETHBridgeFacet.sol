@@ -66,7 +66,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         for (uint256 i = 0; i < _configs.length; i++) {
-            if (_configs[i].bridge == address(0)) {
+            if (LibUtil.isZeroAddress(_configs[i].bridge)) {
                 revert InvalidConfig();
             }
             s.bridges[_configs[i].assetId] = IL1StandardBridge(
@@ -74,7 +74,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
-        if (address(_defaultBridge) == address(0)) {
+        if (LibUtil.isZeroAddress(address(_defaultBridge))) {
             revert InvalidConfig();
         }
         s.defaultBridge = _defaultBridge;
@@ -98,7 +98,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         if (!s.initialized) revert NotInitialized();
 
-        if (_bridge == address(0)) {
+        if (LibUtil.isZeroAddress(_bridge)) {
             revert InvalidConfig();
         }
 
