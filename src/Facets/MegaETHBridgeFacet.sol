@@ -165,14 +165,10 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) private {
         Storage storage s = getStorage();
         if (!s.initialized) revert NotInitialized();
-        IL1StandardBridge nonStandardBridge = s.bridges[
-            _bridgeData.sendingAssetId
-        ];
-        IL1StandardBridge bridge = LibUtil.isZeroAddress(
-            address(nonStandardBridge)
-        )
-            ? s.defaultBridge
-            : nonStandardBridge;
+        IL1StandardBridge bridge = s.bridges[_bridgeData.sendingAssetId];
+        if (LibUtil.isZeroAddress(address(bridge))) {
+            bridge = s.defaultBridge;
+        }
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             bridge.depositETHTo{ value: _bridgeData.minAmount }(
