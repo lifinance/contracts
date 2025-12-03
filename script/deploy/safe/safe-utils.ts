@@ -30,7 +30,10 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import {
+  buildExplorerContractPageUrl,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
 
@@ -1252,6 +1255,20 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
   // Create selector map for efficient lookup
   const selectorMap = await createSelectorMap()
 
+  // Best-effort resolution of the network id from chainId so we can build explorer links.
+  let networkIdForExplorer: string | undefined
+  try {
+    const maybeNetworks = data as Record<string, { chainId?: number }>
+
+    for (const [id, cfg] of Object.entries(maybeNetworks))
+      if (cfg?.chainId === chainId) {
+        networkIdForExplorer = id
+        break
+      }
+  } catch {
+    networkIdForExplorer = undefined
+  }
+
   consola.info('Diamond Cut Details:')
   consola.info('-'.repeat(80))
   // diamondCutData.args[0] contains an array of modifications.
@@ -1260,7 +1277,15 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
     try {
-      consola.info(`Facet Address: \u001b[34m${facetAddress}\u001b[0m`)
+      let facetLine = `Facet Address: \u001b[34m${facetAddress}\u001b[0m`
+      if (networkIdForExplorer) {
+        const explorerUrl = buildExplorerContractPageUrl(
+          networkIdForExplorer,
+          facetAddress
+        )
+        if (explorerUrl) facetLine += ` \u001b[36m${explorerUrl}\u001b[0m`
+      }
+      consola.info(facetLine)
       consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
 
       // Use selector map for efficient lookup

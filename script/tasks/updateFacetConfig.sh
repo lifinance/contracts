@@ -54,10 +54,12 @@ updateFacetConfig() {
   # initialize failure flag
   FAILED=0
 
-    # make sure GAS_ESTIMATE_MULTIPLIER is set
+  # make sure GAS_ESTIMATE_MULTIPLIER is set
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
   fi
+
+  echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
 
   for NETWORK in "${NETWORKS[@]}"; do
     # get deployer wallet balance
