@@ -16,6 +16,10 @@
  * Example TX (direct bridge):
  * - Source (Arbitrum): https://arbiscan.io/tx/0x5c7238a7c544f904c39cf1a81e2c1f263deb71d58cb7ba5db997b23de6a6e3e4
  * - Destination (Base): https://basescan.org/tx/0x2a8ac851c672c65d395612de9e6f5bcc9015265a993d473c7d4f383a5b29ab3b
+ * 
+ * Example TX (direct bridge):
+ * - Source (Arbitrum): https://arbiscan.io/tx/0x8a861ec9465874d1007d8b629b3e2e284977fe10bc6abbaa5f4409a57aed4a5c
+ * - Destination (Solana): https://solscan.io/tx/241Ud2etVMYT6Snvrq9GHD18kUrbheqTZ2UnY5JMddnvE9dxJ9fyWBVdfgpn67yAARVgGomXHZYyTpjJaqkyEs5p
  */
 
 import { randomBytes } from 'crypto'
@@ -309,7 +313,6 @@ async function main() {
       amount: bridgeAmount.toString(),
       callData: '0x',
       maxFee: bridgeAmount.toString(), // Max fee in input token units - set to full amount initially
-      user: solanaRecipient, // Solana user address (required)
       order_id: `0x${randomBytes(32).toString('hex')}`,
     }
   } else {
@@ -330,10 +333,7 @@ async function main() {
     }
   }
 
-  // Use different API endpoints for Solana vs EVM
-  const apiEndpoint = TO_SOLANA
-    ? `${EVERCLEAR_API_BASE_URL}/solana/intents`
-    : `${EVERCLEAR_API_BASE_URL}/intents`
+  const apiEndpoint = `${EVERCLEAR_API_BASE_URL}/intents`
 
   console.log('API endpoint:', apiEndpoint)
   console.log('Request body:', JSON.stringify(requestBody, null, 2))
