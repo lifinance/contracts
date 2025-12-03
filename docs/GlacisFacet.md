@@ -1,10 +1,5 @@
 # Glacis Facet
 
-## Version
-
-Current version: 1.2.0  
-Glacis Airlift Interface version: 1.1.0
-
 ## How it works
 
 The Glacis Facet works by forwarding calls to the [GlacisAirlift](https://github.com/glacislabs/airlift-evm/blob/main/src/facets/GlacisAirliftFacet.sol) core contract on the source chain. Glacis Airlift serves as a unified interface for facilitating token bridging across various native token bridging standards, such as those employed by Axelar, LayerZero, and Wormhole.
