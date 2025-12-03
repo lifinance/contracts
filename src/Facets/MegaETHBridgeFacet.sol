@@ -19,6 +19,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.megaeth");
+    bytes internal constant EMPTY_BYTES = "";
 
     /// Types ///
 
@@ -174,7 +175,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             bridge.depositETHTo{ value: _bridgeData.minAmount }(
                 _bridgeData.receiver,
                 _megaETHData.l2Gas,
-                ""
+                EMPTY_BYTES
             );
         } else {
             LibAsset.maxApproveERC20(
@@ -194,7 +195,7 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
                     _megaETHData.l2Gas,
-                    ""
+                    EMPTY_BYTES
                 );
             }
         }
