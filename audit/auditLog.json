@@ -447,6 +447,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.11.19_LiFiIntentEscrowFacet(v1.0.0).pdf",
       "auditCommitHash": "4e71699761d075f43f5d9cd66c4e1be082fa08ee"
+    },
+    "audit20251201": {
+      "auditCompletedOn": "01.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.01_PolymerCCTPFacet(v1.0.0).pdf",
+      "auditCommitHash": "605f7e14af2dd96fe8f50de253c51c7979245584"
     }
   },
   "auditedContracts": {
@@ -713,6 +720,9 @@
     },
     "PolygonBridgeFacet": {
       "1.0.0": ["audit20250508"]
+    },
+    "PolymerCCTPFacet": {
+      "1.0.0": ["audit20251201"]
     },
     "Receiver": {
       "2.0.3": ["audit20250109_3"],
