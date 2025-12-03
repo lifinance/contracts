@@ -6,7 +6,7 @@ import { IL1StandardBridge } from "../Interfaces/IL1StandardBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, AlreadyInitialized, NotInitialized, InvalidCallData } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -189,6 +189,10 @@ contract MegaETHBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (_megaETHData.requiresDepositTo) {
                 bridge.depositTo(_bridgeData.receiver, _bridgeData.minAmount);
             } else {
+                // Validate L2 token address to prevent bridging to zero address
+                if (LibUtil.isZeroAddress(_megaETHData.assetIdOnL2)) {
+                    revert InvalidCallData();
+                }
                 bridge.depositERC20To(
                     _bridgeData.sendingAssetId,
                     _megaETHData.assetIdOnL2,

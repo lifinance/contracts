@@ -8,7 +8,7 @@ import { LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed, InvalidConfig, AlreadyInitialized, NotInitialized, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed, InvalidConfig, AlreadyInitialized, NotInitialized, OnlyContractOwner, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub MegaETHBridgeFacet Contract
 contract TestMegaETHBridgeFacet is
@@ -383,6 +383,26 @@ contract MegaETHBridgeFacetTest is TestBase {
         megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
             bridgeData,
             validMegaETHData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_BridgeTokensWhenAssetIdOnL2IsZero() public {
+        vm.startPrank(DAI_L1_HOLDER);
+
+        dai.approve(
+            address(megaETHBridgeFacet),
+            10_000 * 10 ** dai.decimals()
+        );
+
+        MegaETHBridgeFacet.MegaETHData memory megaETHData = validMegaETHData;
+        megaETHData.assetIdOnL2 = address(0); // Set to zero address
+
+        vm.expectRevert(InvalidCallData.selector);
+        megaETHBridgeFacet.startBridgeTokensViaMegaETHBridge(
+            validBridgeData,
+            megaETHData
         );
 
         vm.stopPrank();
