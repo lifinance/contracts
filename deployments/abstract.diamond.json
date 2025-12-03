@@ -73,9 +73,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x7b1D2D734487a52409B8B86383Fe56B57DBb3CFa": {
+      "0x9BacA4D8aB4328D167C4503a6c2951c70175CaA9": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
         "Name": "WhitelistManagerFacet",
