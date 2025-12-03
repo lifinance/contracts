@@ -1,0 +1,15 @@
+---
+name: Solidity contracts
+description: Production Solidity contracts/interfaces in src
+globs:
+  - 'src/**/*.sol'
+  - '!src/**/*.s.sol'
+  - '!src/**/*.t.sol'
+---
+
+- SPDX `LGPL-3.0-only` on first line then pragma; follow [CONV:BLANKLINES], [CONV:NAMING], [CONV:NATSPEC] for production code.
+- NatSpec required on contracts/interfaces in `src/`: `@title`, `@author LI.FI (https://li.fi)`, `@notice`, `@custom:version X.Y.Z`; document all public/external functions with params/returns.
+- Interfaces live in `src/Interfaces/` with `I*` prefix; do not mix interface + implementation.
+- Use generic errors from `src/Errors/GenericErrors.sol`; bump `@custom:version` when adding; facet-specific errors stay local.
+- Apply Diamond patterns with existing libs (LibAsset/LibSwap/LibAllowList, Validatable/SwapperV2); prefer parameters over `msg.sender` for refund addresses.
+- Avoid assembly unless necessary and heavily commented; prefer existing helpers over new implementations.

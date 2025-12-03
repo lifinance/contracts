@@ -1,0 +1,10 @@
+---
+name: Bash scripts
+description: Deployment bash structure and safety
+globs:
+  - "**/*.sh"
+---
+- Start with `#!/bin/bash`; organize into functions (Logging, Error handling, Deployment functions); keep DRY via helpers.
+- Load env from `.env`/`config.sh`; validate required vars early; update `.env.example` when adding envs; add system deps to `preinstall.sh` when needed.
+- Use logging helpers (`echoDebug`, `error`, `warning`, `success`) and `checkFailure`; implement retries for RPC-sensitive steps; avoid inline secrets.
+- Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
