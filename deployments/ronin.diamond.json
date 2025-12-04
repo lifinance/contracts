@@ -57,9 +57,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x669dBcd296a538717354C1be8a0907C09022Eb18": {
+      "0x64d6B0993C4002E671f828BA35F0c53aF9eaA37a": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
         "Name": "RelayDepositoryFacet",

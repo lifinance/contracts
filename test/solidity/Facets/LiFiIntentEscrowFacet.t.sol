@@ -62,6 +62,8 @@ contract TestLiFiIntentEscrowFacet is
 contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     error FailedInputSettlerDeployment();
 
+    event Open(bytes32 indexed orderId, StandardOrder order);
+
     LiFiIntentEscrowFacet.LiFiIntentEscrowData internal validLIFIIntentData;
     TestLiFiIntentEscrowFacet internal lifiIntentEscrowFacet;
     TestLiFiIntentEscrowFacet internal baseLiFiIntentEscrowFacet;
@@ -193,7 +195,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             .orderIdentifier(order);
 
         vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
-        emit ILiFiIntentEscrowSettler.Open(orderId, order);
+        emit Open(orderId, order);
 
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
@@ -436,7 +438,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             .orderIdentifier(order);
 
         vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
-        emit ILiFiIntentEscrowSettler.Open(orderId, order);
+        emit Open(orderId, order);
 
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
