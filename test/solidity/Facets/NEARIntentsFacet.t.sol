@@ -48,12 +48,12 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
     // EIP-712 typehash for NEARIntentsPayload
     bytes32 internal constant NEARINTENTS_PAYLOAD_TYPEHASH =
-        0xdaa7a00335c91a11a32a63ceee132e58bf0b15e750a46ad05ebbb0cf83d25627;
+        0x26e3f312476209e792e713eef13bd95c5da5292aba26e299c7d8e7c647d7903e;
 
     struct NEARIntentsPayload {
         bytes32 transactionId;
         uint256 minAmount;
-        address receiver;
+        bytes32 receiver;
         address depositAddress;
         uint256 destinationChainId;
         address sendingAssetId;
@@ -428,6 +428,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             depositAddress: TEST_DEPOSIT_ADDRESS,
             deadline: expiredDeadline,
             minAmountOut: 990 * 10 ** 6,
+            nonEVMReceiver: bytes32(0),
             signature: signature
         });
 
@@ -690,6 +691,156 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    /// Non-EVM Address Tests ///
+
+    function test_CanBridgeToNonEVMChain() public {
+        // Setup bridge to non-EVM chain (NEAR)
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bytes32 nonEVMReceiver = keccak256("alice.near");
+
+        validNearData = _generateValidNearDataWithNonEVM(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6,
+            nonEVMReceiver
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
+
+        // Expect special non-EVM event
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            nonEVMReceiver
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+
+        // Assert balances
+        assertEq(
+            usdc.balanceOf(TEST_DEPOSIT_ADDRESS),
+            depositBalanceBefore + bridgeData.minAmount
+        );
+        assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
+    }
+
+    function test_CanSwapAndBridgeToNonEVMChain() public {
+        // Setup bridge to non-EVM chain
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.hasSourceSwaps = true;
+        bytes32 nonEVMReceiver = keccak256("bob.near");
+
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validNearData = _generateValidNearDataWithNonEVM(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6,
+            nonEVMReceiver
+        );
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(diamond), swapData[0].fromAmount);
+
+        uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
+
+        // Expect special non-EVM event
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            nonEVMReceiver
+        );
+
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            validNearData
+        );
+        vm.stopPrank();
+
+        assertTrue(
+            usdc.balanceOf(TEST_DEPOSIT_ADDRESS) > depositBalanceBefore
+        );
+        assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
+    }
+
+    function testRevert_InvalidNonEVMReceiver() public {
+        // Setup bridge to non-EVM chain but with empty nonEVMReceiver
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        vm.expectRevert(NEARIntentsFacet.InvalidNonEVMReceiver.selector);
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function test_NonEVMBridgeWithNativeTokens() public {
+        // Setup
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bytes32 nonEVMReceiver = keccak256("charlie.near");
+
+        validNearData = _generateValidNearDataWithNonEVM(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            0.99 ether,
+            nonEVMReceiver
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        uint256 depositBalanceBefore = TEST_DEPOSIT_ADDRESS.balance;
+
+        // Expect special non-EVM event
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            nonEVMReceiver
+        );
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents{ value: 1 ether }(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+
+        assertEq(TEST_DEPOSIT_ADDRESS.balance, depositBalanceBefore + 1 ether);
+        assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
+    }
+
     /// Helper Functions ///
 
     /// @dev Builds the EIP-712 domain separator for the given chain
@@ -730,7 +881,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             NEARIntentsPayload({
                 transactionId: _bridgeData.transactionId,
                 minAmount: _bridgeData.minAmount,
-                receiver: _bridgeData.receiver,
+                receiver: bytes32(uint256(uint160(_bridgeData.receiver))),
                 depositAddress: _depositAddress,
                 destinationChainId: _bridgeData.destinationChainId,
                 sendingAssetId: _bridgeData.sendingAssetId,
@@ -746,13 +897,16 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     function _buildStructHash(
         NEARIntentsPayload memory _payload
     ) internal pure returns (bytes32) {
+        // Convert address receiver to bytes32 for compatibility
+        bytes32 receiverHash = _payload.receiver;
+
         return
             keccak256(
                 abi.encode(
                     NEARINTENTS_PAYLOAD_TYPEHASH,
                     _payload.transactionId,
                     _payload.minAmount,
-                    _payload.receiver,
+                    receiverHash,
                     _payload.depositAddress,
                     _payload.destinationChainId,
                     _payload.sendingAssetId,
@@ -819,6 +973,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
                 depositAddress: _depositAddress,
                 deadline: deadline,
                 minAmountOut: _minAmountOut,
+                nonEVMReceiver: bytes32(0),
                 signature: signature
             });
     }
@@ -840,5 +995,45 @@ contract NEARIntentsFacetTest is TestBaseFacet {
                 _minAmountOut,
                 backendSignerPrivateKey
             );
+    }
+
+    /// @dev Helper function to generate valid NEAR Intents data with non-EVM receiver
+    function _generateValidNearDataWithNonEVM(
+        address _depositAddress,
+        ILiFi.BridgeData memory _currentBridgeData,
+        uint256 _chainId,
+        bytes32 _quoteId,
+        uint256 _minAmountOut,
+        bytes32 _nonEVMReceiver
+    ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
+        uint256 deadline = block.timestamp + DEFAULT_DEADLINE;
+
+        // Create payload with nonEVMReceiver
+        NEARIntentsPayload memory payload = NEARIntentsPayload({
+            transactionId: _currentBridgeData.transactionId,
+            minAmount: _currentBridgeData.minAmount,
+            receiver: _nonEVMReceiver,
+            depositAddress: _depositAddress,
+            destinationChainId: _currentBridgeData.destinationChainId,
+            sendingAssetId: _currentBridgeData.sendingAssetId,
+            deadline: deadline,
+            quoteId: _quoteId,
+            minAmountOut: _minAmountOut
+        });
+
+        bytes32 domainSeparator = _buildDomainSeparator(_chainId);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
+
+        return
+            NEARIntentsFacet.NEARIntentsData({
+                quoteId: _quoteId,
+                depositAddress: _depositAddress,
+                deadline: deadline,
+                minAmountOut: _minAmountOut,
+                nonEVMReceiver: _nonEVMReceiver,
+                signature: signature
+            });
     }
 }

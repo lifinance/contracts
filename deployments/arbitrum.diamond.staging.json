@@ -27,7 +27,7 @@
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",
@@ -212,6 +212,26 @@
       "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
         "Name": "",
         "Version": ""
+      },
+      "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF097E847Ab678a29CB50F5B8C6677309BC428C39": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
+      },
+      "0xd5C4891A0F1522F001E300d6758CE49c9420Ee7D": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
+      },
+      "0x00f2a92544347C59c6980ACb53fcF9E5408e9942": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

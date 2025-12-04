@@ -28,9 +28,9 @@ contract NEARIntentsFacet is
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.nearintents");
 
-    // EIP-712 typehash for NEARIntentsPayload: keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,address receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut)");
+    // EIP-712 typehash for NEARIntentsPayload: keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut)");
     bytes32 private constant NEARINTENTS_PAYLOAD_TYPEHASH =
-        0xdaa7a00335c91a11a32a63ceee132e58bf0b15e750a46ad05ebbb0cf83d25627;
+        0x26e3f312476209e792e713eef13bd95c5da5292aba26e299c7d8e7c647d7903e;
 
     /// @notice The address of the backend signer that is authorized to sign the NEARIntentsPayload
     address internal immutable BACKEND_SIGNER;
@@ -42,12 +42,14 @@ contract NEARIntentsFacet is
     /// @param depositAddress EVM address to send tokens (from Bridge API)
     /// @param deadline Unix timestamp when quote expires (refunds begin if unfulfilled)
     /// @param minAmountOut Minimum output amount on destination (slippage protection)
+    /// @param nonEVMReceiver Set only if bridging to non-EVM chain (e.g., NEAR account ID)
     /// @param signature The signature of the NEARIntentsPayload signed by the backend signer using EIP-712 standard
     struct NEARIntentsData {
         bytes32 quoteId;
         address depositAddress;
         uint256 deadline;
         uint256 minAmountOut;
+        bytes32 nonEVMReceiver;
         bytes signature;
     }
 
@@ -97,6 +99,9 @@ contract NEARIntentsFacet is
     /// @notice Thrown when the signature is expired
     error SignatureExpired();
 
+    /// @notice Thrown when bridging to non-EVM chain but nonEVMReceiver is empty
+    error InvalidNonEVMReceiver();
+
     /// Constructor ///
 
     /// @notice Initializes the NEARIntentsFacet contract
@@ -111,9 +116,13 @@ contract NEARIntentsFacet is
     /// Modifiers ///
 
     /// @dev Validates quote parameters
+    /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
-    modifier onlyValidQuote(NEARIntentsData calldata _nearData) {
-        _validateQuote(_nearData);
+    modifier onlyValidQuote(
+        ILiFi.BridgeData memory _bridgeData,
+        NEARIntentsData calldata _nearData
+    ) {
+        _validateQuote(_bridgeData, _nearData);
         _;
     }
 
@@ -129,7 +138,7 @@ contract NEARIntentsFacet is
         external
         payable
         nonReentrant
-        onlyValidQuote(_nearData)
+        onlyValidQuote(_bridgeData, _nearData)
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
@@ -155,7 +164,7 @@ contract NEARIntentsFacet is
         external
         payable
         nonReentrant
-        onlyValidQuote(_nearData)
+        onlyValidQuote(_bridgeData, _nearData)
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -234,6 +243,15 @@ contract NEARIntentsFacet is
             _nearData.deadline
         );
 
+        // Emit special event if bridging to non-EVM chain
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _nearData.nonEVMReceiver
+            );
+        }
+
         emit LiFiTransferStarted(_bridgeData);
     }
 
@@ -250,12 +268,17 @@ contract NEARIntentsFacet is
         }
 
         // compute the struct hash according to the EIP-712 standard: https://eips.ethereum.org/EIPS/eip-712
+        // Use nonEVMReceiver if bridging to non-EVM chain, otherwise use receiver address
+        bytes32 receiverHash = _bridgeData.receiver == NON_EVM_ADDRESS
+            ? _nearData.nonEVMReceiver
+            : bytes32(uint256(uint160(_bridgeData.receiver)));
+
         bytes32 structHash = keccak256(
             abi.encode(
                 NEARINTENTS_PAYLOAD_TYPEHASH,
                 _bridgeData.transactionId, // transactionId from payload
                 _bridgeData.minAmount, // minAmount from payload
-                _bridgeData.receiver, // receiver from payload
+                receiverHash, // receiver or nonEVMReceiver from payload
                 _nearData.depositAddress, // depositAddress from payload
                 _bridgeData.destinationChainId, // destinationChainId from payload
                 _bridgeData.sendingAssetId, // sendingAssetId from payload
@@ -301,8 +324,12 @@ contract NEARIntentsFacet is
     /// Private Methods ///
 
     /// @dev Validates quote parameters
+    /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
-    function _validateQuote(NEARIntentsData calldata _nearData) private view {
+    function _validateQuote(
+        ILiFi.BridgeData memory _bridgeData,
+        NEARIntentsData calldata _nearData
+    ) private view {
         Storage storage s = getStorage();
 
         // Prevent replay attacks
@@ -318,6 +345,14 @@ contract NEARIntentsFacet is
         // Ensure deposit address is valid
         if (_nearData.depositAddress == address(0)) {
             revert InvalidDepositAddress();
+        }
+
+        // Ensure nonEVMReceiver is not empty when bridging to non-EVM chain
+        if (
+            _bridgeData.receiver == NON_EVM_ADDRESS &&
+            _nearData.nonEVMReceiver == bytes32(0)
+        ) {
+            revert InvalidNonEVMReceiver();
         }
     }
 
