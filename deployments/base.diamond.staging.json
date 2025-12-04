@@ -46,8 +46,8 @@
         "Version": "1.0.1"
       },
       "0xd132D79E5bf0365d85DD4e8f819D1f115e67Fa96": {
-        "Name": "",
-        "Version": ""
+        "Name": "Patcher",
+        "Version": "1.0.0"
       },
       "0x225e2aB2b9a51C24BE290E622Fd40B53B535cE9c": {
         "Name": "GasZipFacet",
@@ -72,6 +72,10 @@
       "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
         "Name": "",
         "Version": ""
+      },
+      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
