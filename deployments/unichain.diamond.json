@@ -104,6 +104,10 @@
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x920616F16A55B86Edf39A70217bDB45900cC328f": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -112,8 +116,8 @@
       "FeeCollector": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
-      "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
       "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
+      "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
       "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "0xd62d7C4Bb23f65EF3d312C74Cd77a367285CA8fc",
