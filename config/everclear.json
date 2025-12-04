@@ -1,0 +1,65 @@
+{
+  "mainnet": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "optimism": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "bsc": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "unichain": {
+    "feeAdapter": "0x877Fd0A881B63eBE413124EeE6abbCD7E82cf10b"
+  },
+  "polygon": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "zksync": {
+    "feeAdapter": "0xa537f0d027cBA1661dd1eB46fCd79030CD75A2cd"
+  },
+  "ronin": {
+    "feeAdapter": "0x5443DF583Cc039881Fe30A730310A4f43016df88"
+  },
+  "base": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "apechain": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "mode": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "arbitrum": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "avalanche": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "linea": {
+    "feeAdapter": "0xAa7ee09f745a3c5De329EB0CD67878Ba87B70Ffe"
+  },
+  "blast": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "scroll": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "taiko": {
+    "feeAdapter": "0x986962C73059e06303efaD1F4c61Ed4905Fc5431"
+  },
+  "berachain": {
+    "feeAdapter": "0x3c135048306b412Ad8F4375F6a8CBe94b5D56184"
+  },
+  "gnosis": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "mantle": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "sonic": {
+    "feeAdapter": "0xd0185bfb8107c5b2336bC73cE3fdd9Bfb504540e"
+  },
+  "ink": {
+    "feeAdapter": "0x877Fd0A881B63eBE413124EeE6abbCD7E82cf10b"
+  }
+}

@@ -695,5 +695,14 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "EverclearFacet": {
+    "configData": {
+      "_feeAdapter": {
+        "configFileName": "everclear.json",
+        "keyInConfigFile": ".<NETWORK>.feeAdapter",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }

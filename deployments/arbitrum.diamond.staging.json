@@ -185,17 +185,21 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.1"
       },
+      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0x7Ea86FE59Ab35d76ba2446b09104A52E95d3267e": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.1"
+      },
       "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
-        "Name": "",
-        "Version": ""
+        "Name": "EverclearFacet",
+        "Version": "1.0.0"
       },
       "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
-      },
-      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
-        "Name": "",
-        "Version": ""
       },
       "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
         "Name": "PolymerCCTPFacet",

@@ -46803,6 +46803,34 @@
       }
     }
   },
+  "EverclearFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4582FD200173F1717F6C53fD1531b2F6fE33Fe3D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-10-09 19:15:59",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000015a7ca97d1ed168fb34a4055cefa2e2f9bdb6c75",
+            "SALT": "22345102",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xed26083ffc27AEcf9e958b81B51340076392Dc10",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-25 17:23:51",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d0185bfb8107c5b2336bc73ce3fdd9bfb504540e",
+            "SALT": "4242424242",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
   "UnitFacet": {
     "plasma": {
       "staging": {
