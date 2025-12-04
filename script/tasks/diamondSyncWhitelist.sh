@@ -10,6 +10,13 @@ function diamondSyncWhitelist {
   # Load configuration & helper functions
   source script/helperFunctions.sh
 
+  # Update whitelist periphery and composer entries before syncing
+  echo ""
+  echo "[info] Updating whitelist periphery and composer entries..."
+  bunx tsx ./script/tasks/updateWhitelistPeriphery.ts || checkFailure $? "update whitelist periphery"
+  echo "[info] Whitelist periphery update completed"
+  echo ""
+
   # Configuration flag - set to true to allow token contracts to be whitelisted
   ALLOW_TOKEN_CONTRACTS=${ALLOW_TOKEN_CONTRACTS:-false}
 
