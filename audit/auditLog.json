@@ -440,6 +440,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.11.19_LiFiIntentEscrowFacet(v1.0.0).pdf",
       "auditCommitHash": "4e71699761d075f43f5d9cd66c4e1be082fa08ee"
+    },
+    "audit20251203": {
+      "auditCompletedOn": "03.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.03_MegaETHFacet(v1.0.0).pdf",
+      "auditCommitHash": "721afd2499ce72c2f6abc4a30ba56367d88cac85"
     }
   },
   "auditedContracts": {
@@ -671,6 +678,9 @@
       "1.2.0": ["audit20250327"],
       "1.2.1": ["audit20250718"],
       "1.2.2": ["audit20250825"]
+    },
+    "MegaETHBridgeFacet": {
+      "1.0.0": ["audit20251203"]
     },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
