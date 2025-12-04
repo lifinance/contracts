@@ -1,3 +1,14 @@
+/// ==== SUCCESS TXs ====
+// Bridge USDC: Arbitrum → Solana
+// src: https://arbiscan.io/tx/0x5dc9f72fc5d61d3023755465d1d68d8917410e67c9dcdbd13b1059eb6341ea56
+// dst: https://solscan.io/tx/44EfSioHRApBAAcjQfGM2SNtXEczNocrqZbxjW5CwCcCjb3okhBeVc8635Jy3n1xsqqRfbgz6UoB9y7uXuyEbNup
+// Swap USDT→USDC and bridge: Arbitrum → Solana
+// src: https://arbiscan.io/tx/0x43378460863db76ee5ad96e93727c3e0c6cefd839f1daa8924a1eaef067f410e
+// dst: https://solscan.io/tx/4oUbFCxHByLg7HbeJwfZMkF36ZRokRZYR21qg6WdYMChPNVaQbw22XnWaxKrn7RtHhgvjukXSNwzpdHWTKR5sDHi
+// Bridge USDC: Arbitrum → Base
+// src: https://arbiscan.io/tx/0x865ad42ab96d2e8e5ad742704c134def6f61982a2c42e5248c661a889389e054
+// dst: https://basescan.org/tx/0xdbebd74aea9defd492ed82c67e24b9d0b5e30dac0328ffbfd41e3174b0bd9797
+
 import { randomBytes } from 'crypto'
 
 import { Keypair } from '@solana/web3.js'
@@ -6,6 +17,7 @@ import { Keypair } from '@solana/web3.js'
 import { decode as decodeBase58 } from 'bs58'
 import { runMain, defineCommand } from 'citty'
 import { config } from 'dotenv'
+import { BigNumber } from 'ethers'
 import {
   zeroAddress,
   toHex,
@@ -18,6 +30,7 @@ import {
 
 import nearIntentsFacetArtifact from '../../out/NEARIntentsFacet.sol/NEARIntentsFacet.json'
 import type { ILiFi } from '../../typechain'
+import type { LibSwap } from '../../typechain/AcrossFacetV3'
 import type { SupportedChain } from '../common/types'
 import { networks } from '../utils/viemScriptHelpers'
 
@@ -27,6 +40,9 @@ import {
   executeTransaction,
   setupEnvironment,
   ADDRESS_USDC_ARB,
+  ADDRESS_USDT_ARB,
+  ADDRESS_UNISWAP_ARB,
+  getUniswapDataERC20toExactERC20,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -288,7 +304,7 @@ async function generateBackendSignature(
 /**
  * Bridge USDC from Arbitrum to Solana
  */
-async function bridgeEVMtoSolana(amountStr = '1') {
+async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
   console.log('╔═══════════════════════════════════════════════════════════╗')
   console.log('║         NEAR Intents: Arbitrum → Solana Bridge           ║')
   console.log('╚═══════════════════════════════════════════════════════════╝\n')
@@ -296,7 +312,13 @@ async function bridgeEVMtoSolana(amountStr = '1') {
   // Parse amount with 6 decimals for USDC
   const amount = parseUnits(amountStr, 6)
 
-  console.log(`📊 Bridging ${amountStr} USDC from Arbitrum to Solana`)
+  if (withSwap) {
+    console.log(
+      `📊 Swapping USDT → USDC, then bridging ${amountStr} USDC to Solana`
+    )
+  } else {
+    console.log(`📊 Bridging ${amountStr} USDC from Arbitrum to Solana`)
+  }
 
   // Token addresses - using imported constants
   const USDC_ARBITRUM = ADDRESS_USDC_ARB
@@ -376,28 +398,56 @@ async function bridgeEVMtoSolana(amountStr = '1') {
   const quoteResponse = await fetchNEARIntentsQuote(quoteRequest)
   const quote = quoteResponse.quote
 
+  // Prepare swap data if needed
+  let swapData: LibSwap.SwapDataStruct[] = []
+  let inputAmount = amount
+  let inputTokenAddress = USDC_ARBITRUM
+
+  if (withSwap) {
+    console.log('\n🔄 Preparing swap: USDT → USDC...')
+    const swapDataItem = await getUniswapDataERC20toExactERC20(
+      ADDRESS_UNISWAP_ARB,
+      42161, // Arbitrum chain ID
+      ADDRESS_USDT_ARB, // Input: USDT
+      USDC_ARBITRUM, // Output: USDC
+      BigNumber.from(amount.toString()), // Exact USDC output
+      lifiDiamondAddress,
+      true,
+      Math.floor(Date.now() / 1000) + 60 * 60 // 1 hour deadline
+    )
+
+    swapData = [swapDataItem]
+    inputAmount = BigInt(swapDataItem.fromAmount.toString()) // USDT with slippage
+    inputTokenAddress = ADDRESS_USDT_ARB
+
+    console.log(
+      `  Input: ${formatUnits(inputAmount, 6)} USDT (max, includes slippage)`
+    )
+    console.log(`  Output: ${formatUnits(amount, 6)} USDC (exact)`)
+  }
+
   // Ensure balance and allowance
   console.log('\n💰 Checking balance and allowance...')
 
-  // Create USDC contract instance for balance/allowance checks
+  // Create ERC20 contract instance for the INPUT token
   const ERC20_ABI = parseAbi([
     'function balanceOf(address) view returns (uint256)',
     'function allowance(address,address) view returns (uint256)',
     'function approve(address,uint256) returns (bool)',
   ])
 
-  const usdcContract = getContract({
-    address: USDC_ARBITRUM as `0x${string}`,
+  const inputTokenContract = getContract({
+    address: inputTokenAddress as `0x${string}`,
     abi: ERC20_ABI,
     client,
   })
 
-  await ensureBalance(usdcContract, signerAddress, amount)
+  await ensureBalance(inputTokenContract, signerAddress, inputAmount)
   await ensureAllowance(
-    usdcContract,
+    inputTokenContract,
     signerAddress,
     lifiDiamondAddress,
-    amount,
+    inputAmount,
     publicClient
   )
 
@@ -409,11 +459,11 @@ async function bridgeEVMtoSolana(amountStr = '1') {
     bridge: 'near-intents',
     integrator: 'ACME Devs',
     referrer: zeroAddress,
-    sendingAssetId: USDC_ARBITRUM,
+    sendingAssetId: USDC_ARBITRUM, // Always USDC (output token after swap)
     receiver: NON_EVM_ADDRESS, // Sentinel value for non-EVM
     destinationChainId: Number(LIFI_CHAIN_ID_SOLANA),
-    minAmount: amount,
-    hasSourceSwaps: false,
+    minAmount: amount, // Exact USDC needed (pre-swap amount)
+    hasSourceSwaps: withSwap,
     hasDestinationCall: false,
   }
 
@@ -463,6 +513,10 @@ async function bridgeEVMtoSolana(amountStr = '1') {
   console.log('  Bridge:', bridgeData.bridge)
   console.log('  Source:', SOURCE_CHAIN)
   console.log('  Destination:', DEST_CHAIN_SOLANA)
+  if (withSwap) {
+    console.log('  Swap: USDT → USDC')
+    console.log('  Max Input:', formatUnits(inputAmount, 6), 'USDT')
+  }
   console.log('  Amount In:', formatUnits(amount, 6), 'USDC')
   console.log('  Expected Out:', quote.amountOutFormatted, 'USDC')
   console.log('  Deposit Address:', quote.depositAddress)
@@ -476,11 +530,21 @@ async function bridgeEVMtoSolana(amountStr = '1') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Diamond contract typing
   const txHash = await executeTransaction(
     () =>
-      (lifiDiamondContract as any).write.startBridgeTokensViaNEARIntents([
-        bridgeData,
-        nearData,
-      ]),
-    'Bridge USDC: Arbitrum → Solana via NEAR Intents',
+      withSwap
+        ? (
+            lifiDiamondContract as any
+          ).write.swapAndStartBridgeTokensViaNEARIntents([
+            bridgeData,
+            swapData,
+            nearData,
+          ])
+        : (lifiDiamondContract as any).write.startBridgeTokensViaNEARIntents([
+            bridgeData,
+            nearData,
+          ]),
+    withSwap
+      ? 'Swap USDT→USDC and bridge to Solana via NEAR Intents'
+      : 'Bridge USDC: Arbitrum → Solana via NEAR Intents',
     publicClient,
     true
   )
@@ -500,7 +564,7 @@ async function bridgeEVMtoSolana(amountStr = '1') {
 /**
  * Bridge USDC from Arbitrum to Base
  */
-async function bridgeEVMtoEVM(amountStr = '1') {
+async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
   console.log('╔═══════════════════════════════════════════════════════════╗')
   console.log('║          NEAR Intents: Arbitrum → Base Bridge            ║')
   console.log('╚═══════════════════════════════════════════════════════════╝\n')
@@ -508,7 +572,13 @@ async function bridgeEVMtoEVM(amountStr = '1') {
   // Parse amount with 6 decimals for USDC
   const amount = parseUnits(amountStr, 6)
 
-  console.log(`📊 Bridging ${amountStr} USDC from Arbitrum to Base`)
+  if (withSwap) {
+    console.log(
+      `📊 Swapping USDT → USDC, then bridging ${amountStr} USDC to Base`
+    )
+  } else {
+    console.log(`📊 Bridging ${amountStr} USDC from Arbitrum to Base`)
+  }
 
   // Use constants from demoScriptHelpers
   const USDC_ARBITRUM = ADDRESS_USDC_ARB
@@ -566,25 +636,55 @@ async function bridgeEVMtoEVM(amountStr = '1') {
   const quoteResponse = await fetchNEARIntentsQuote(quoteRequest)
   const quote = quoteResponse.quote
 
+  // Prepare swap data if needed
+  let swapData: LibSwap.SwapDataStruct[] = []
+  let inputAmount = amount
+  let inputTokenAddress = USDC_ARBITRUM
+
+  if (withSwap) {
+    console.log('\n🔄 Preparing swap: USDT → USDC...')
+    const swapDataItem = await getUniswapDataERC20toExactERC20(
+      ADDRESS_UNISWAP_ARB,
+      42161, // Arbitrum chain ID
+      ADDRESS_USDT_ARB, // Input: USDT
+      USDC_ARBITRUM, // Output: USDC
+      BigNumber.from(amount.toString()), // Exact USDC output
+      lifiDiamondAddress,
+      true,
+      Math.floor(Date.now() / 1000) + 60 * 60 // 1 hour deadline
+    )
+
+    swapData = [swapDataItem]
+    inputAmount = BigInt(swapDataItem.fromAmount.toString()) // USDT with slippage
+    inputTokenAddress = ADDRESS_USDT_ARB
+
+    console.log(
+      `  Input: ${formatUnits(inputAmount, 6)} USDT (max, includes slippage)`
+    )
+    console.log(`  Output: ${formatUnits(amount, 6)} USDC (exact)`)
+  }
+
   // Ensure balance and allowance
+  console.log('\n💰 Checking balance and allowance...')
+
   const ERC20_ABI = parseAbi([
     'function balanceOf(address) view returns (uint256)',
     'function allowance(address,address) view returns (uint256)',
     'function approve(address,uint256) returns (bool)',
   ])
 
-  const usdcContract = getContract({
-    address: USDC_ARBITRUM as `0x${string}`,
+  const inputTokenContract = getContract({
+    address: inputTokenAddress as `0x${string}`,
     abi: ERC20_ABI,
     client,
   })
 
-  await ensureBalance(usdcContract, signerAddress, amount)
+  await ensureBalance(inputTokenContract, signerAddress, inputAmount)
   await ensureAllowance(
-    usdcContract,
+    inputTokenContract,
     signerAddress,
     lifiDiamondAddress,
-    amount,
+    inputAmount,
     publicClient
   )
 
@@ -596,11 +696,11 @@ async function bridgeEVMtoEVM(amountStr = '1') {
     bridge: 'near-intents',
     integrator: 'ACME Devs',
     referrer: zeroAddress,
-    sendingAssetId: USDC_ARBITRUM,
+    sendingAssetId: USDC_ARBITRUM, // Always USDC (output token after swap)
     receiver: signerAddress, // Same address on Base
     destinationChainId,
-    minAmount: amount,
-    hasSourceSwaps: false,
+    minAmount: amount, // Exact USDC needed (pre-swap amount)
+    hasSourceSwaps: withSwap,
     hasDestinationCall: false,
   }
 
@@ -649,6 +749,10 @@ async function bridgeEVMtoEVM(amountStr = '1') {
   console.log('  Bridge:', bridgeData.bridge)
   console.log('  Source:', SOURCE_CHAIN)
   console.log('  Destination:', DEST_CHAIN_EVM)
+  if (withSwap) {
+    console.log('  Swap: USDT → USDC')
+    console.log('  Max Input:', formatUnits(inputAmount, 6), 'USDT')
+  }
   console.log('  Amount In:', formatUnits(amount, 6), 'USDC')
   console.log('  Expected Out:', quote.amountOutFormatted, 'USDC')
   console.log('  Deposit Address:', quote.depositAddress)
@@ -659,11 +763,21 @@ async function bridgeEVMtoEVM(amountStr = '1') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Diamond contract typing
   const txHash = await executeTransaction(
     () =>
-      (lifiDiamondContract as any).write.startBridgeTokensViaNEARIntents([
-        bridgeData,
-        nearData,
-      ]),
-    'Bridge USDC: Arbitrum → Base via NEAR Intents',
+      withSwap
+        ? (
+            lifiDiamondContract as any
+          ).write.swapAndStartBridgeTokensViaNEARIntents([
+            bridgeData,
+            swapData,
+            nearData,
+          ])
+        : (lifiDiamondContract as any).write.startBridgeTokensViaNEARIntents([
+            bridgeData,
+            nearData,
+          ]),
+    withSwap
+      ? 'Swap USDT→USDC and bridge to Base via NEAR Intents'
+      : 'Bridge USDC: Arbitrum → Base via NEAR Intents',
     publicClient,
     true
   )
@@ -700,22 +814,36 @@ const command = defineCommand({
       description:
         'Amount of USDC to bridge (e.g., 1 for 1 USDC, 0.5 for 0.5 USDC)',
     },
+    swap: {
+      type: 'boolean',
+      default: false,
+      description: 'Perform a USDT → USDC swap before bridging',
+    },
   },
-  async run({ args }: { args: { mode: string; amount: string } }) {
+  async run({
+    args,
+  }: {
+    args: { mode: string; amount: string; swap: boolean }
+  }) {
     console.log(`\n🎯 NEAR Intents Bridge Demo`)
     console.log(`   Source: Arbitrum (fixed)`)
     console.log(
       `   Destination: ${args.mode === 'evm-to-evm' ? 'Base' : 'Solana'}`
     )
-    console.log(`   Mode: ${args.mode}\n`)
+    console.log(`   Mode: ${args.mode}`)
+    if (args.swap) {
+      console.log(`   Swap: USDT → USDC (enabled)\n`)
+    } else {
+      console.log()
+    }
 
     try {
       switch (args.mode) {
         case 'evm-to-evm':
-          await bridgeEVMtoEVM(args.amount)
+          await bridgeEVMtoEVM(args.amount, args.swap)
           break
         case 'evm-to-solana':
-          await bridgeEVMtoSolana(args.amount)
+          await bridgeEVMtoSolana(args.amount, args.swap)
           break
         default:
           throw new Error(
