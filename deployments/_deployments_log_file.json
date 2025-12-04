@@ -47009,6 +47009,51 @@
           }
         ]
       }
+    },
+    "arbitrum": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB2d2D9e94B8C690aE642c71B3Cc080E5893CE839",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-04 11:25:54",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "hyperevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6496DB316c9aB67C80baF5e2a592e8087d7C8023",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-04 11:36:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "unichain": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x920616F16A55B86Edf39A70217bDB45900cC328f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-04 11:36:57",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000057291a5cc9e08f63c72e9f6044770c69e62d0366",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "FeeForwarder": {
