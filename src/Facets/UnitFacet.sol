@@ -9,12 +9,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidAmount, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title UnitFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Unit
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract UnitFacet is
     ILiFi,
     ReentrancyGuard,
@@ -29,13 +29,6 @@ contract UnitFacet is
     // EIP-712 typehash for UnitPayload: keccak256("UnitPayload(bytes32 transactionId,uint256 minAmount,address receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline)");
     bytes32 private constant UNIT_PAYLOAD_TYPEHASH =
         0xe40c93b75fa097357b7b866c9d28e3dba6e987fba2808befeaafebac93b94cba;
-
-    uint256 private constant CHAIN_ID_ETHEREUM = 1;
-    uint256 private constant CHAIN_ID_PLASMA = 9745;
-
-    // Minimum amounts for Unit bridging per chain
-    uint256 private constant MIN_BRIDGE_AMOUNT_ETHEREUM = 0.05 ether;
-    uint256 private constant MIN_BRIDGE_AMOUNT_PLASMA = 15 ether;
 
     /// @notice The address of the backend signer that is authorized to sign the UnitPayload
     address internal immutable BACKEND_SIGNER;
@@ -80,6 +73,12 @@ contract UnitFacet is
     /// External Methods ///
 
     /// @notice Bridges tokens via Unit
+    /// @dev IMPORTANT: Unit protocol enforces minimum deposit amounts to ensure deposits are sufficiently
+    /// above network fees. Amounts below the minimum threshold may result in irrecoverable fund loss.
+    /// These minimums are validated by the backend in the signed payload, but integrators should
+    /// ensure amounts meet these requirements before calling this function.
+    /// For the most up-to-date minimum amounts, refer to:
+    /// https://docs.hyperunit.xyz/developers/api/generate-address and https://app.hyperunit.xyz/
     /// @param _bridgeData The core information needed for bridging
     /// @param _unitData Data specific to Unit
     function startBridgeTokensViaUnit(
@@ -105,6 +104,12 @@ contract UnitFacet is
     }
 
     /// @notice Performs a swap before bridging via Unit
+    /// @dev IMPORTANT: Unit protocol enforces minimum deposit amounts to ensure deposits are sufficiently
+    /// above network fees. Amounts below the minimum threshold may result in irrecoverable fund loss.
+    /// These minimums are validated by the backend in the signed payload, but integrators should
+    /// ensure amounts meet these requirements before calling this function.
+    /// For the most up-to-date minimum amounts, refer to:
+    /// https://docs.hyperunit.xyz/developers/api/generate-address and https://app.hyperunit.xyz/
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _unitData Data specific to Unit
@@ -148,21 +153,6 @@ contract UnitFacet is
             revert TransactionAlreadyProcessed();
         }
         s.usedTransactionIds[_bridgeData.transactionId] = true;
-
-        if (block.chainid == CHAIN_ID_ETHEREUM) {
-            // ethereum mainnet
-            if (_bridgeData.minAmount < MIN_BRIDGE_AMOUNT_ETHEREUM) {
-                revert InvalidAmount();
-            }
-        } else if (block.chainid == CHAIN_ID_PLASMA) {
-            // plasma chain
-            if (_bridgeData.minAmount < MIN_BRIDGE_AMOUNT_PLASMA) {
-                revert InvalidAmount();
-            }
-        } else {
-            // reject all other chains
-            revert UnsupportedChain();
-        }
 
         // Note: We intentionally do not add an explicit zero address validation for
         // `_unitData.depositAddress` here. The subsequent call to
