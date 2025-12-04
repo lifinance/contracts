@@ -4,6 +4,11 @@ description: Facet-only requirements and validations
 globs:
   - "src/Facets/**/*.sol"
 ---
+
+@15-architecture.mdc
+@16-security.mdc
+@17-gas.mdc
+
 - Required functions: `_startBridge` (internal), `swapAndStartBridgeTokensVia{FacetName}`, `startBridgeTokensVia{FacetName}`; attach `nonReentrant`, `refundExcessNative`, `validateBridgeData`, and appropriate does/don’tContain swap/call modifiers.
 - Events: emit `LiFiTransferStarted` inside `_startBridge` after validations/external calls; never emit `LiFiTransferCompleted` or `LiFiTransferRecovered` in facets; use `GenericSwapCompleted` for same-chain swaps when relevant.
 - Parameter rules: `{facetName}Data.receiverAddress` first and validated against `bridgeData.receiver` (EVM); check `targetChainId` vs `bridgeData.destinationChain`; non-EVM uses `bytes` receiver, non-zero, and `bridgeData.receiver == NON_EVM_ADDRESS`.

@@ -7,6 +7,8 @@ globs:
   - '!src/**/*.t.sol'
 ---
 
+@15-architecture.mdc
+
 - SPDX `LGPL-3.0-only` on first line then pragma; follow [CONV:BLANKLINES], [CONV:NAMING], [CONV:NATSPEC] for production code.
 - NatSpec required on contracts/interfaces in `src/`: `@title`, `@author LI.FI (https://li.fi)`, `@notice`, `@custom:version X.Y.Z`; document all public/external functions with params/returns.
 - Interfaces live in `src/Interfaces/` with `I*` prefix; do not mix interface + implementation.

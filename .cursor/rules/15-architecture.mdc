@@ -1,0 +1,16 @@
+---
+name: Architecture and design
+description: Diamond, periphery, helpers, and governance architecture guardrails
+globs:
+  - 'src/**/*.sol'
+  - 'script/**/*.sol'
+  - 'script/**/*.ts'
+  - 'test/**/*.t.sol'
+---
+
+- Follow the high-level architecture described in `conventions.md` under “Architectural Principles”, “Diamond Standard (EIP-2535)”, and “Facet Contract Requirements” instead of inventing new patterns.
+- Preserve the separation of concerns between `src/Facets/` (Diamond entrypoints), `src/Periphery/` (standalone helper contracts), `src/Helpers/` (inheritable utilities), and `src/Security/` (governance/timelock); do not move logic across layers without a clear architectural reason.
+- Keep Diamond facets thin: delegate complex logic to libraries (`LibAsset`, `LibSwap`, `LibAllowList`, `SwapperV2`, `Validatable`) and helper contracts as described in `conventions.md` “Facet Contract Requirements”.
+- Treat Safe multisigs and timelock controllers as hard security boundaries (see “Security and Governance” in `conventions.md`); never add upgrade or admin shortcuts that bypass existing governance flows.
+- When introducing new facets/periphery contracts, mirror the existing directory and naming patterns and prefer using `plop` templates and documented patterns over bespoke structures.
+- For any change that could affect selector layout, upgrade flows, or storage layout, cross-check `conventions.md` and relevant docs under `docs/` and call out the impact explicitly before editing.
