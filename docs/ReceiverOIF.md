@@ -27,8 +27,8 @@ function outputFilled(
 - `address _owner`: The owner address with withdrawal permissions
 - `address _executor`: The Executor contract address for swap execution
 - `address _outputSettler`: The specified allowed outputSettler
-- `uint256 _minimumGas`: Required gas that solvers have to provide. Needs to be sufficiently larger than `_recoverGas` such that the difference allows swapData to execute. Can be set to 0 to rely on the recovery logic using the 1/64'th gas to block execution.
-- `uint256 _recoverGas`: Gas reserved for recovery. If configured to 0, then the logic relies on the executor leaving gas after reverting for the fallback to trigger. Can be set anywhere between the 0 and the actual amount to adjust how aggressive the contract should enforce attempt to execute provided gas.
+- `uint256 _minimumGas`: Required gas that solvers have to provide. It needs to be sufficiently larger than `_recoverGas` such that the difference allows execution data to execute. It can be set to 0 to rely on the recovery logic using the 1/64'th gas to block execution.
+- `uint256 _recoverGas`: Gas reserved for recovery. If configured to 0, the logic relies on the executor leaving gas after reverting for the fallback to trigger. It can be set anywhere between 0 and the actual amount to adjust how aggressively the contract enforces the attempt to execute with provided gas.
 
 ## Events
 
