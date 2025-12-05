@@ -47,6 +47,7 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
     }
 
     /// Constructor
+    /// @param _recoverGas If set to 0, then no gas is left for intent recovery. This means that the output is unlikely to be fillable and the intent has to be refunded on the origin chain.
     constructor(
         address _owner,
         address _executor,
