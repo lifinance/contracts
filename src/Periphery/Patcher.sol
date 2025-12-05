@@ -13,7 +13,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /// excess of what is needed for execution will remain in the contract and can be stolen by anyone.
 /// This includes: excess tokens when the target doesn't use all approved tokens, excess ETH when
 /// msg.value > value parameter, and any tokens/ETH from failed transactions.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract Patcher {
     using SafeTransferLib for address;
 
