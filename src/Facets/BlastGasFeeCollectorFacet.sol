@@ -5,11 +5,11 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IBlast } from "../Interfaces/IBlast.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
-/// @title BlastGasFeeFacet
+/// @title BlastGasFeeCollectorFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for configuring and claiming gas fees on the Blast network
 /// @custom:version 1.0.0
-contract BlastGasFeeFacet {
+contract BlastGasFeeCollectorFacet {
     /// Storage ///
 
     /// @notice Blast precompile address for gas fee management
@@ -31,7 +31,7 @@ contract BlastGasFeeFacet {
 
     /// Constructor ///
 
-    /// @notice Initializes the BlastGasFeeFacet contract
+    /// @notice Initializes the BlastGasFeeCollectorFacet contract
     /// @param _gasFeeRecipient The address that will receive claimed gas fees
     constructor(address _gasFeeRecipient) {
         if (_gasFeeRecipient == address(0)) {
