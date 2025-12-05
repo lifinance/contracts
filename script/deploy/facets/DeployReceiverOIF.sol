@@ -40,7 +40,7 @@ contract DeployScript is DeployScriptBase {
         );
         address outputSettler = _getConfigContractAddress(
             path,
-            string.concat(".outputSettlerSimple")
+            string.concat(".OIFOutputSettlerSimple")
         );
 
         // get Executor address from deploy log
