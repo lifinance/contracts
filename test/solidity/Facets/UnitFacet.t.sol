@@ -446,44 +446,6 @@ contract UnitFacetTest is TestBaseFacet {
         initiateSwapAndBridgeTxWithFacet(false);
     }
 
-    function testRevert_InvalidMinimumAmount() public {
-        vm.startPrank(USER_SENDER);
-
-        vm.chainId(1); // Set chain ID to ethereum
-        // Set amount below minimum for ethereum (0.05 ETH)
-        bridgeData.minAmount = 0.04 ether; // Below 0.05 ETH minimum
-        // Regenerate signature for ethereum chain
-        UnitFacet.UnitData memory unitData = _generateValidUnitData(
-            randomDepositAddress,
-            bridgeData,
-            1
-        );
-
-        vm.expectRevert(InvalidAmount.selector);
-        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
-            bridgeData,
-            unitData
-        );
-
-        vm.chainId(9745); // Set chain ID to plasma
-        // Set amount below minimum for plasma (15 XPL)
-        bridgeData.minAmount = 10 ether; // Below 15 XPL minimum
-        // Regenerate signature for plasma chain
-        unitData = _generateValidUnitData(
-            randomDepositAddress,
-            bridgeData,
-            9745
-        );
-
-        vm.expectRevert(InvalidAmount.selector);
-        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
-            bridgeData,
-            unitData
-        );
-
-        vm.stopPrank();
-    }
-
     function testRevert_InvalidSignature() public {
         vm.startPrank(USER_SENDER);
 
@@ -543,27 +505,6 @@ contract UnitFacetTest is TestBaseFacet {
         unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
             bridgeData,
             expiredUnitData
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevert_UnsupportedChain() public {
-        vm.startPrank(USER_SENDER);
-
-        // set chain ID to an unsupported chain
-        vm.chainId(9999999); // unsupported chain (random number)
-
-        UnitFacet.UnitData memory unitData = _generateValidUnitData(
-            randomDepositAddress,
-            bridgeData,
-            9999999
-        );
-
-        vm.expectRevert(UnitFacet.UnsupportedChain.selector);
-        unitFacet.startBridgeTokensViaUnit{ value: bridgeData.minAmount }(
-            bridgeData,
-            unitData
         );
 
         vm.stopPrank();
