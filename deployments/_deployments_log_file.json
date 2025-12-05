@@ -43023,6 +43023,21 @@
           }
         ]
       }
+    },
+    "stable": {
+      "production": {
+        "1.2.0": [
+          {
+            "ADDRESS": "0xdE537495607AF1Df4Db997b037252FAcbe03Ec21",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-05 11:42:29",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000051729fd7638111e05ca5f30435e26da53b08816a",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
