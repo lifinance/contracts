@@ -4168,6 +4168,15 @@
             }
           }
         ],
+        "stable": [
+          {
+            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+            "functions": {
+              "0x73fc4457": "swapWithMagpieSignature(bytes)",
+              "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          }
+        ],
         "hyperevm": [
           {
             "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
