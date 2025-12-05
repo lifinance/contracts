@@ -1,0 +1,12 @@
+---
+name: Gas and performance
+description: Gas-efficiency guidance aligned with existing patterns
+globs:
+  - 'src/**/*.sol'
+  - 'test/**/*.t.sol'
+---
+
+- Follow gas-related best practices in `conventions.md` and existing facets before introducing new micro-optimizations.
+- Prefer using existing optimized libraries already in the repo (e.g., Solady/Solmate utilities) where they are in use, rather than hand-rolled low-level code.
+- Do not sacrifice readability or safety for minor gas wins; explain any non-obvious optimization and justify it with expected impact.
+- Avoid introducing inline assembly unless clearly needed and already allowed by `conventions.md`; when used, document assumptions and invariants thoroughly.

@@ -1,0 +1,14 @@
+---
+name: TypeScript scripts
+description: TS scripting, helpers, lint/tests
+globs:
+  - 'script/**/*.ts'
+  - 'tasks/**/*.ts'
+---
+
+- Follow [CONV:SCRIPTS-TS] for TS script conventions; run with `bunx tsx`; obey `.eslintrc.cjs`; avoid `any`; use TypeChain types (e.g., `ILiFi.BridgeDataStruct`).
+- Always reuse helpers (e.g., `getDeployments`, viem-based demo helpers like `setupEnvironment`, `ensureBalance`, `ensureAllowance`, `executeTransaction`, `createContractObject`, `getUniswapData*`, env helpers such as `getEnvVar()`); prefer existing patterns over new ones.
+- Do NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`); use viem-based flows instead.
+- New helpers require colocated `{name}.test.ts` with 100% coverage using Bun (`describe`/`it`/`expect`); cover edge cases, type safety, and error paths.
+- CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
+- After TS changes run lint/tests (or state which remain) to ensure eslint/type checks pass.

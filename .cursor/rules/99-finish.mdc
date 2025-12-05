@@ -1,0 +1,12 @@
+---
+name: Final checks
+description: Completion checklist to keep repo green
+globs:
+  - '**/*'
+alwaysApply: true
+---
+
+- Ensure conventions ([CONV:LICENSE]/[CONV:NATSPEC]/[CONV:BLANKLINES]/[CONV:NAMING]) are satisfied before handing off; avoid interface/storage layout changes unless requested.
+- After Solidity changes run relevant `forge test` (or note exact suites remaining); after TS changes run lint/tests with Bun; after Bash changes sanity-check execution flags and helper sourcing. If anything not run, state it explicitly.
+- Summaries should start with applied rules (by filename/anchor) and include which tests/lints ran; call out any follow-ups or remaining gaps clearly.
+- If context was refreshed mid-task or earlier content may have been dropped, restate the key active requirements/rules so they remain in scope, and warn the user when approaching context limits.

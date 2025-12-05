@@ -1,0 +1,12 @@
+---
+name: Testing discipline
+description: Cross-language testing, coverage, and structure expectations
+globs:
+  - 'test/**/*.t.sol'
+  - 'script/**/*.ts'
+---
+
+- Follow [CONV:TESTS] from `docs/conventions_digest/errors_and_tests.md` for Solidity test naming/structure and TypeScript test setup before adding or updating tests.
+- For Solidity tests, mirror the `src/` layout, use `setUp()`, `initTestBase()`, and whitelist helpers as documented, and structure tests as setup → execute → assert.
+- For TypeScript helpers and scripts, require colocated `{name}.test.ts` files with 100% coverage for new helpers and use Bun’s test runner (`describe` / `it` / `expect`) as in [CONV:TESTS] and [CONV:SCRIPTS-TS].
+- Prefer adding or updating tests alongside logic changes; clearly state which test suites or Bun test commands were (or were not) run after modifications.
