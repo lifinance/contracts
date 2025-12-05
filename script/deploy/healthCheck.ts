@@ -246,12 +246,14 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking facets registered in diamond...')
 
+    const envKey = `ETH_NODE_URI_${networkLower.toUpperCase()}`
+    const rpcUrl = process.env[envKey] || networksConfig[networkLower].rpcUrl // Use .env value if available, otherwise fallback
+
     let registeredFacets: string[] = []
     try {
       if (isTron) {
         // Use troncast for Tron
         // Diamond address in deployments is already in Tron format
-        const rpcUrl = networksConfig[networkLower].rpcUrl
         const rawString = execSync(
           `bun troncast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
           { encoding: 'utf8' }
@@ -275,9 +277,8 @@ const main = defineCommand({
             })
             .filter(Boolean)
         }
-      } else if (networksConfig[networkLower].rpcUrl && publicClient) {
+      } else if (rpcUrl) {
         // Existing EVM logic
-        const rpcUrl: string = publicClient.chain.rpcUrls.default.http[0]
         const rawString = execSync(
           `cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
           { encoding: 'utf8' }
