@@ -46817,6 +46817,19 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x3Ab31Bc337C744a9CB54DCf8d6D03854b4e94636",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-02 13:14:09",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000af4b7a83591a6c4c8b9d1341c3f08bbc3b800fc5",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "monad": {
@@ -46826,6 +46839,32 @@
             "ADDRESS": "0x3Ab31Bc337C744a9CB54DCf8d6D03854b4e94636",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2025-11-24 16:40:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000af4b7a83591a6c4c8b9d1341c3f08bbc3b800fc5",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0xd6e617208E42153806cF2bf05Ab2cb3941d325Ec",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-04 08:58:54",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000af4b7a83591a6c4c8b9d1341c3f08bbc3b800fc5",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7FFE4C78b56060781bcAB27CBffe0513B75F2f2F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-02 13:04:28",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000af4b7a83591a6c4c8b9d1341c3f08bbc3b800fc5",
             "SALT": "",
             "VERIFIED": "true",
