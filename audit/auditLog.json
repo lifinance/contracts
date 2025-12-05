@@ -455,7 +455,14 @@
       "auditReportPath": "./audit/reports/2025.12.01_PolymerCCTPFacet(v1.0.0).pdf",
       "auditCommitHash": "605f7e14af2dd96fe8f50de253c51c7979245584"
     },
-    "audit20251203": {
+    "audit20251203_1": {
+      "auditCompletedOn": "03.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.03_MegaETHBridgeFacet(v1.0.0).pdf",
+      "auditCommitHash": "721afd2499ce72c2f6abc4a30ba56367d88cac85"
+    },
+    "audit20251203_2": {
       "auditCompletedOn": "03.12.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
@@ -697,6 +704,9 @@
       "1.2.1": ["audit20250718"],
       "1.2.2": ["audit20250825"]
     },
+    "MegaETHBridgeFacet": {
+      "1.0.0": ["audit20251203_1"]
+    },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
     },
@@ -799,7 +809,7 @@
     },
     "UnitFacet": {
       "1.0.0": ["audit20251007"],
-      "1.0.1": ["audit20251203"]
+      "1.0.1": ["audit20251203_2"]
     },
     "Validatable": {
       "1.0.0": ["audit20250508"]

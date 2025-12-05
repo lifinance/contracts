@@ -48055,6 +48055,36 @@
       }
     }
   },
+  "MegaETHBridgeFacet": {
+    "mainnet": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x458E14Db5f78a7D1f1A975b17c0F08ffc548e06f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-11-28 12:37:50",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xE46E9a5Ae71f1Fb3Ac59D09469830d6Ecc1D21f2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-04 17:21:26",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
   "PolymerCCTPFacet": {
     "optimism": {
       "staging": {
