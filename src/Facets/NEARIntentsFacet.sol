@@ -171,6 +171,7 @@ contract NEARIntentsFacet is
         validateBridgeData(_bridgeData)
     {
         // The signature is intentionally verified with the pre-swap `minAmount`
+
         _verifySignature(_bridgeData, _nearData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,

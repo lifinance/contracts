@@ -706,8 +706,8 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
 
   // Convert quote ID to bytes32
   // Use a hash of the deposit address as a unique identifier for the quote
-  const crypto2 = await import('crypto')
-  const quoteIdBytes32 = `0x${crypto2
+  const cryptoModule = await import('crypto')
+  const quoteIdBytes32 = `0x${cryptoModule
     .createHash('sha256')
     .update(quote.depositAddress)
     .digest('hex')}` as `0x${string}`
@@ -723,8 +723,8 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
     nonEVMReceiver: `0x${'0'.repeat(64)}` as `0x${string}`, // Empty for EVM
   }
 
-  const sourceChainId2 = networks[SOURCE_CHAIN]?.chainId
-  if (!sourceChainId2) {
+  const evmSourceChainId = networks[SOURCE_CHAIN]?.chainId
+  if (!evmSourceChainId) {
     throw new Error(`Chain ID not found for ${SOURCE_CHAIN}`)
   }
   const signature = await generateBackendSignature(
@@ -732,7 +732,7 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
     lifiDiamondAddress,
     bridgeData,
     nearDataForSigning,
-    sourceChainId2
+    evmSourceChainId
   )
 
   const nearData: NEARIntentsFacet.NEARIntentsDataStruct = {
