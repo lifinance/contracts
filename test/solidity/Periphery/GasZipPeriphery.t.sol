@@ -2,13 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
-import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
-import { InvalidCallData, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, ContractCallNotAllowed } from "lifi/Errors/GenericErrors.sol";
 import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
@@ -63,7 +62,9 @@ contract GasZipPeripheryTest is TestBase {
         );
 
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = WhitelistManagerFacet.setContractSelectorWhitelist.selector;
+        functionSelectors[0] = WhitelistManagerFacet
+            .setContractSelectorWhitelist
+            .selector;
         functionSelectors[1] = WhitelistManagerFacet
             .isContractSelectorWhitelisted
             .selector;
@@ -80,13 +81,41 @@ contract GasZipPeripheryTest is TestBase {
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
         vm.label(address(feeCollector), "FeeCollector");
 
-        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapExactTokensForTokens.selector, true);
-        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapExactTokensForETH.selector, true);
-        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapETHForExactTokens.selector, true);
-        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapExactETHForTokens.selector, true);
-        whitelistManagerFacet.setContractSelectorWhitelist(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipERC20.selector, true);
-        whitelistManagerFacet.setContractSelectorWhitelist(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipNative.selector, true);
-        whitelistManagerFacet.setContractSelectorWhitelist(address(feeCollector), feeCollector.collectTokenFees.selector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector,
+            true
+        );
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(uniswap),
+            uniswap.swapExactTokensForETH.selector,
+            true
+        );
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector,
+            true
+        );
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(uniswap),
+            uniswap.swapExactETHForTokens.selector,
+            true
+        );
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(gasZipPeriphery),
+            gasZipPeriphery.depositToGasZipERC20.selector,
+            true
+        );
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(gasZipPeriphery),
+            gasZipPeriphery.depositToGasZipNative.selector,
+            true
+        );
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(feeCollector),
+            feeCollector.collectTokenFees.selector,
+            true
+        );
 
         defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
 
@@ -501,7 +530,11 @@ contract GasZipPeripheryTest is TestBase {
         bytes4 mockSelector = uniswap.swapExactTokensForETH.selector;
         // whitelist the mock DEX in the WhitelistManager
         vm.startPrank(USER_DIAMOND_OWNER);
-        whitelistManagerFacet.setContractSelectorWhitelist(address(mockDex), mockSelector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(mockDex),
+            mockSelector,
+            true
+        );
         vm.stopPrank();
 
         vm.startPrank(USER_SENDER);
@@ -560,6 +593,76 @@ contract GasZipPeripheryTest is TestBase {
             address(diamond),
             address(0) // zero address for owner
         );
+    }
+
+    function testRevert_WillFailIfContractSelectorIsNotWhitelisted() public {
+        vm.startPrank(USER_SENDER);
+
+        // set DAI approval for GasZipPeriphery
+        dai.approve(address(gasZipPeriphery), type(uint256).max);
+        deal(ADDRESS_DAI, USER_SENDER, 1e18);
+
+        uint256 gasZipERC20Amount = 1e18;
+
+        // Create SwapData with a contract/selector that is NOT whitelisted
+        // Using uniswap but with a non-whitelisted selector
+        bytes4 nonWhitelistedSelector = bytes4(0x12345678); // arbitrary non-whitelisted selector
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(uniswap), // callTo - uniswap is whitelisted but with different selectors
+            address(uniswap),
+            ADDRESS_DAI,
+            address(0), // receivingAssetId - native to pass the initial check
+            gasZipERC20Amount,
+            abi.encodeWithSelector(
+                nonWhitelistedSelector, // non-whitelisted selector
+                1e18,
+                0,
+                new address[](0),
+                address(0),
+                0
+            ),
+            true
+        );
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+        gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
+    }
+
+    function testRevert_WillFailIfContractIsNotWhitelisted() public {
+        vm.startPrank(USER_SENDER);
+
+        // set DAI approval for GasZipPeriphery
+        dai.approve(address(gasZipPeriphery), type(uint256).max);
+        deal(ADDRESS_DAI, USER_SENDER, 1e18);
+
+        uint256 gasZipERC20Amount = 1e18;
+
+        // Create SwapData with a contract that is completely NOT whitelisted
+        // Deploy a mock contract that is not whitelisted
+        address nonWhitelistedContract = address(
+            0x1234567890123456789012345678901234567890
+        );
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            nonWhitelistedContract, // callTo - contract not whitelisted
+            nonWhitelistedContract,
+            ADDRESS_DAI,
+            address(0), // receivingAssetId - native to pass the initial check
+            gasZipERC20Amount,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForETH.selector, // selector doesn't matter if contract isn't whitelisted
+                1e18,
+                0,
+                new address[](0),
+                address(0),
+                0
+            ),
+            true
+        );
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+        gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
     }
 
     function _getGnosisBridgeFacet()
