@@ -16,9 +16,6 @@ contract MockBlastGas is IBlast {
     /// @notice Configures claimable gas mode (no-op in mock)
     function configureClaimableGas() external override {}
 
-    /// @notice Configures governor (no-op in mock)
-    function configureGovernor(address) external override {}
-
     /// @notice Mocks claiming all gas fees by sending ETH to the recipient
     /// @param _recipient The address that will receive the claimed gas fees
     /// @return The amount of gas fees claimed (mocked amount)

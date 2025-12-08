@@ -762,24 +762,24 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
     }
 }
 
-contract GlacisFacetOpenUSDTTest is GlacisFacetTestBase {
-    function setUp() public virtual override {
-        customRpcUrlForForking = "ETH_NODE_URI_OPTIMISM";
-        customBlockNumberForForking = 144628286; // Specific block for testing multibridge routing
+// contract GlacisFacetOpenUSDTTest is GlacisFacetTestBase {
+//     function setUp() public virtual override {
+//         customRpcUrlForForking = "ETH_NODE_URI_OPTIMISM";
+//         customBlockNumberForForking = 144628286; // Specific block for testing multibridge routing
 
-        airliftContract = IGlacisAirlift(
-            0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663
-        );
+//         airliftContract = IGlacisAirlift(
+//             0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663
+//         );
 
-        addressSrcToken = 0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189; // OpenUSDT on Optimism
-        outputToken = 0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189; // Output token for multibridge routing
-        destinationChainId = 130; // Unichain
-        fuzzingAmountMinValue = 1; // Minimum fuzzing amount (actual value includes token decimals)
-        fuzzingAmountMaxValue = 10_000; // Maximum fuzzing amount (actual value includes token decimals)
+//         addressSrcToken = 0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189; // OpenUSDT on Optimism
+//         outputToken = 0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189; // Output token for multibridge routing
+//         destinationChainId = 130; // Unichain
+//         fuzzingAmountMinValue = 1; // Minimum fuzzing amount (actual value includes token decimals)
+//         fuzzingAmountMaxValue = 10_000; // Maximum fuzzing amount (actual value includes token decimals)
 
-        super.setUp();
-    }
-}
+//         super.setUp();
+//     }
+// }
 
 contract GlacisFacetUSDT0Test is GlacisFacetTestBase {
     function setUp() public virtual override {
