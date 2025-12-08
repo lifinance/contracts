@@ -27,7 +27,7 @@
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",
@@ -85,10 +85,7 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
-      "0xB4E02721E552Ef3721f32E1D90BC13cb390b6cB3": {
-        "Name": "",
-        "Version": ""
-      },
+
       "0xa73a8BC8d36472269138c3233e24D0Ee0c344bd8": {
         "Name": "CircleBridgeFacet",
         "Version": "1.0.0"
@@ -157,10 +154,7 @@
         "Name": "PioneerFacet",
         "Version": "1.0.0"
       },
-      "0x80Fa81Ba88C74f6E4fee1A5c6d2aaA4AEF442781": {
-        "Name": "",
-        "Version": ""
-      },
+
       "0xB289F36bAb7d94341E051C0c998f44A23D48D72C": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.0"
@@ -189,38 +183,12 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       },
-      "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x33EcEb68994E0499a61FAda3b49Ab243e63555F1": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x4582FD200173F1717F6C53fD1531b2F6fE33Fe3D": {
-        "Name": "",
-        "Version": ""
-      },
+
       "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       },
-      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
-        "Name": "",
-        "Version": ""
-      },
+
       "0xF097E847Ab678a29CB50F5B8C6677309BC428C39": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
