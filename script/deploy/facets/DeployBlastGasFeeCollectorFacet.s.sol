@@ -10,31 +10,9 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("BlastGasFeeCollectorFacet") {}
 
-    function run()
-        public
-        returns (
-            BlastGasFeeCollectorFacet deployed,
-            bytes memory constructorArgs
-        )
-    {
-        constructorArgs = getConstructorArgs();
-
+    function run() public returns (BlastGasFeeCollectorFacet deployed) {
         deployed = BlastGasFeeCollectorFacet(
             deploy(type(BlastGasFeeCollectorFacet).creationCode)
         );
-    }
-
-    function getConstructorArgs() internal override returns (bytes memory) {
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
-        string memory globalConfigJson = vm.readFile(globalConfigPath);
-
-        address withdrawWallet = globalConfigJson.readAddress(
-            ".withdrawWallet"
-        );
-
-        return abi.encode(withdrawWallet);
     }
 }

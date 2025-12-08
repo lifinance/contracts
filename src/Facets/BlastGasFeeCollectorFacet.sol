@@ -52,12 +52,17 @@ contract BlastGasFeeCollectorFacet {
         emit GasModeConfigured();
     }
 
-    /// @notice Claims all accumulated gas fees and sends them to the configured recipient
-    function claimGasFees() external {
+    /// @notice Claims all accumulated gas fees and sends them to the specified recipient
+    /// @param recipient The address that will receive the claimed gas fees
+    function claimGasFees(address recipient) external {
         LibDiamond.enforceIsContractOwner();
 
-        uint256 amount = BLAST.claimAllGas(address(this), GAS_FEE_RECIPIENT);
+        if (recipient == address(0)) {
+            revert InvalidConfig();
+        }
 
-        emit GasFeesClaimed(GAS_FEE_RECIPIENT, amount);
+        uint256 amount = BLAST.claimAllGas(address(this), recipient);
+
+        emit GasFeesClaimed(recipient, amount);
     }
 }

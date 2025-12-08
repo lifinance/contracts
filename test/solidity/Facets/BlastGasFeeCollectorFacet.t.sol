@@ -128,7 +128,7 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
             MOCKED_CLAIM_AMOUNT
         );
 
-        facet.claimGasFees();
+        facet.claimGasFees(TEST_RECIPIENT);
 
         vm.stopPrank();
 
@@ -177,7 +177,7 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
 
         vm.expectRevert(OnlyContractOwner.selector);
 
-        facet.claimGasFees();
+        facet.claimGasFees(TEST_RECIPIENT);
 
         vm.stopPrank();
     }
@@ -186,6 +186,16 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
         vm.expectRevert(InvalidConfig.selector);
 
         new BlastGasFeeCollectorFacet(address(0));
+    }
+
+    function testRevert_ClaimGasFees_WhenRecipientIsZeroAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        facet.claimGasFees(address(0));
+
+        vm.stopPrank();
     }
 
     function test_CanConfigureGasMode_MultipleTimes() public {
@@ -224,7 +234,7 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
 
         uint256 initialBalance = TEST_RECIPIENT.balance;
 
-        facet.claimGasFees();
+        facet.claimGasFees(TEST_RECIPIENT);
 
         vm.stopPrank();
 
@@ -257,7 +267,7 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
         );
 
         // 2. Execute claim - the mock guarantees a non-zero transfer
-        facet.claimGasFees();
+        facet.claimGasFees(TEST_RECIPIENT);
 
         vm.stopPrank();
 
