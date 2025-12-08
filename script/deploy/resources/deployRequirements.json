@@ -700,7 +700,7 @@
     "configData": {
       "_backendSigner": {
         "configFileName": "nearintents.json",
-        "keyInConfigFile": ".production.backendSigner",
+        "keyInConfigFile": ".<NETWORK>.backendSigner",
         "allowToDeployWithZeroAddress": "false"
       }
     }
