@@ -62,8 +62,8 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
         );
 
         if (
-            !whitelistManager.isAddressWhitelisted(_swapData.callTo) ||
-            !whitelistManager.isFunctionApproved(
+            !whitelistManager.isContractSelectorWhitelisted(
+                _swapData.callTo,
                 bytes4(_swapData.callData[:4])
             )
         ) {
