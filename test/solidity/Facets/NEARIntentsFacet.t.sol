@@ -5,7 +5,7 @@ import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { NEARIntentsFacet } from "lifi/Facets/NEARIntentsFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, InformationMismatch, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, InformationMismatch, InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 
 /// @title TestNEARIntentsFacet
 /// @author LI.FI (https://li.fi)
@@ -456,7 +456,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
 
-        vm.expectRevert(NEARIntentsFacet.InvalidDepositAddress.selector);
+        vm.expectRevert(InvalidReceiver.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
             validNearData
@@ -682,7 +682,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
 
-        // The modifier onlyValidQuote checks deadline first with >= comparison, throwing QuoteExpired
+        // The modifier onlyValidQuote checks deadline with > comparison, throwing QuoteExpired
         vm.expectRevert(NEARIntentsFacet.QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
@@ -795,7 +795,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
 
-        vm.expectRevert(NEARIntentsFacet.InvalidNonEVMReceiver.selector);
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
             validNearData
@@ -969,11 +969,11 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         return
             NEARIntentsFacet.NEARIntentsData({
-                quoteId: _quoteId,
                 depositAddress: _depositAddress,
+                nonEVMReceiver: bytes32(0),
+                quoteId: _quoteId,
                 deadline: deadline,
                 minAmountOut: _minAmountOut,
-                nonEVMReceiver: bytes32(0),
                 signature: signature
             });
     }
@@ -1028,11 +1028,11 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         return
             NEARIntentsFacet.NEARIntentsData({
-                quoteId: _quoteId,
                 depositAddress: _depositAddress,
+                nonEVMReceiver: _nonEVMReceiver,
+                quoteId: _quoteId,
                 deadline: deadline,
                 minAmountOut: _minAmountOut,
-                nonEVMReceiver: _nonEVMReceiver,
                 signature: signature
             });
     }
