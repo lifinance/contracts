@@ -48060,11 +48060,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x00f2a92544347C59c6980ACb53fcF9E5408e9942",
+            "ADDRESS": "0xff1aa825196ceFD6e8e7e0de6C704DC342a27723",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-12-03 18:08:00",
+            "TIMESTAMP": "2025-12-08 13:18:08",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002b2c52b1b63c4bfc7f1a310a1734641d8e34de62",
-            "SALT": "0312202511",
+            "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }

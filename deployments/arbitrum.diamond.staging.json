@@ -85,7 +85,6 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
-
       "0xa73a8BC8d36472269138c3233e24D0Ee0c344bd8": {
         "Name": "CircleBridgeFacet",
         "Version": "1.0.0"
@@ -154,7 +153,6 @@
         "Name": "PioneerFacet",
         "Version": "1.0.0"
       },
-
       "0xB289F36bAb7d94341E051C0c998f44A23D48D72C": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.0"
@@ -212,6 +210,10 @@
         "Version": "1.0.0"
       },
       "0x00f2a92544347C59c6980ACb53fcF9E5408e9942": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
+      },
+      "0xff1aa825196ceFD6e8e7e0de6C704DC342a27723": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       }
