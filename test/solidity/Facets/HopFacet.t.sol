@@ -3,22 +3,14 @@ pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { OnlyContractOwner, InvalidConfig, InvalidAmount } from "src/Errors/GenericErrors.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub HopFacet Contract
-contract TestHopFacet is HopFacet {
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
-}
+contract TestHopFacet is HopFacet, TestWhitelistManagerBase {}
 
 contract HopFacetTest is TestBaseFacet {
     // EVENTS
@@ -49,10 +41,8 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
-        functionSelectors[4] = hopFacet.addToWhitelist.selector;
-        functionSelectors[5] = hopFacet
-            .setFunctionApprovalBySignature
-            .selector;
+        functionSelectors[4] = hopFacet.addAllowedContractSelector.selector;
+        functionSelectors[5] = hopFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
@@ -64,16 +54,23 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet = TestHopFacet(address(diamond));
         hopFacet.initHop(configs);
 
-        hopFacet.addToWhitelist(address(uniswap));
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
-        hopFacet.setFunctionApprovalBySignature(
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapETHForExactTokens.selector
         );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactETHForTokens.selector
+        );
+
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         vm.makePersistent(address(hopFacet));
@@ -242,9 +239,9 @@ contract HopFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
-        functionSelectors[4] = hopFacet2.addToWhitelist.selector;
+        functionSelectors[4] = hopFacet2.addAllowedContractSelector.selector;
         functionSelectors[5] = hopFacet2
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond2, address(hopFacet2), functionSelectors);

@@ -1,10 +1,11 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IGatewayRouter } from "../Interfaces/IGatewayRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+// solhint-disable-next-line no-unused-import
 import { InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -22,9 +23,11 @@ contract ArbitrumBridgeFacet is
     /// Storage ///
 
     /// @notice The contract address of the gateway router on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IGatewayRouter private immutable gatewayRouter;
 
     /// @notice The contract address of the inbox on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IGatewayRouter private immutable inbox;
 
     /// Types ///

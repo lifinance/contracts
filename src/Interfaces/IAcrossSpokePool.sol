@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 /// @title Interface for Across SpokePool
@@ -12,6 +12,7 @@ interface IAcrossSpokePool {
         uint256 destinationChainId, // ⛓ id
         int64 relayerFeePct, // see #Fees Calculation
         uint32 quoteTimestamp, // Timestamp for the quote creation
+        // solhint-disable-next-line max-line-length
         bytes memory message, // Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
         uint256 maxCount // Used to protect the depositor from frontrunning to guarantee their quote remains valid.
     ) external payable;

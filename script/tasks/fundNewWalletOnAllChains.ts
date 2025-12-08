@@ -1,9 +1,9 @@
+import axios from 'axios'
 import { defineCommand, runMain } from 'citty'
+import { BigNumber, type BigNumberish } from 'ethers'
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-import { BigNumber, BigNumberish } from 'ethers'
-import axios from 'axios'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
@@ -13,13 +13,6 @@ const GAS_ZIP_ROUTER_MAINNET = '0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390'
 
 /// TYPES ///
 type HexString = `0x${string}`
-
-type GasZipChainIds = {
-  [key: string]: {
-    networkName: string
-    gasZipChainId: number
-  }
-}
 
 // this script is designed to be executed on mainnet (only)
 // it will get a list of all networks we support (minus testnets) and send an equal USD
@@ -63,9 +56,7 @@ const main = defineCommand({
       doNotFundChains,
       fundAmountUSD,
     } = args
-    const fundingWallet = privateKeyToAccount(
-      `0x${privKeyFundingWallet}` as HexString
-    )
+    const fundingWallet = privateKeyToAccount(`0x${privKeyFundingWallet}`)
 
     console.log(`fundingWalletAddress: ${fundingWallet.address}`)
     console.log(`receivingWallet: ${receivingWallet}`)
@@ -123,7 +114,7 @@ const main = defineCommand({
       )
     else
       console.log(
-        'Funding wallet native balance is sufficient for this action: \nbalance: ${nativeBalance}, \nrequired: ${amountRequiredNative}'
+        `Funding wallet native balance is sufficient for this action: \nbalance: ${nativeBalance}, \nrequired: ${amountRequiredNative}`
       )
 
     // get an array with target chainIds
@@ -136,9 +127,6 @@ const main = defineCommand({
       BigInt(0)
     )
     console.log(`DestinationChainsValue: ${chainsBN}`)
-
-    // Get the latest block information to get the base fee
-    const gasFees = await publicClient.estimateFeesPerGas()
 
     // @DEV: when this script was used the last time this gas estimation was required in order to get the transaction submitted to mainnet
     //       the data parameter was hardcoded, this should be improved if this code is required permanently
@@ -232,7 +220,7 @@ const getGasZipSupportedActiveNetworks = () => {
   )
 
   // print all networks that are not supported by GasZip and need to be funded manually
-  if (gasZipUnsupportedNetworks.length) {
+  if (gasZipUnsupportedNetworks.length)
     console.warn(
       `The following ${
         gasZipUnsupportedNetworks.length
@@ -242,17 +230,12 @@ const getGasZipSupportedActiveNetworks = () => {
         2
       )}\n`
     )
-  }
 
   console.log(
     `${gasZipSupportedNetworks.length} of those networks are supported by GasZip\n`
   )
 
   return gasZipSupportedNetworks
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 runMain(main)

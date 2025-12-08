@@ -53,9 +53,9 @@
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0xBfc367eedaC8Ad5Bc80869760ce7a777cd8FE11C": {
+      "0x29A56dC0fc91A11F9807b7D82d32706BB85aaF4F": {
         "Name": "GasZipFacet",
-        "Version": "2.0.2"
+        "Version": "2.0.4"
       },
       "0x2010a7848E26D3B83038269953305075D65F7141": {
         "Name": "RelayFacet",
@@ -68,19 +68,46 @@
       "0x5789928b75C05aC6E8B8765D6f87dAC396A656a2": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0x390b9A9d7Ad4c62E4F3AD04256f87c977774Fce6": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x6284c8F9592d43963C054D53a56086D4d8460C22": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
+      },
+      "0x73388a39CC5bb0fe45c12231727D33f2B2ef4DF7": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
+      },
+      "0xF1C6e8d52dd124Af918A178e67D3454Aa5859D8A": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
+      },
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xE16150617A4560925ef8e68E8efa3D68Bec3Bb7F",
       "Executor": "0xCA847a739BA26238488cb85A2a28A4ad677716e1",
       "FeeCollector": "0x8295805320853d6B28778fC8f5199327e62e3d87",
+      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x7859570b2196f7c764f400b41C6A0080512219b3",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
-      "Permit2Proxy": "0x4BDB8cb372AeF4047626869dD5580536DBA9b053",
+      "Patcher": "",
+      "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
       "ReceiverAcrossV3": "0x03C0d38939752A266991f887d45c93e5a0181c9A",
+      "ReceiverAcrossV4": "0x4D8fAEdf6BeDEc8Fa68a3256015Ef273Ebf4b787",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0x65B6093ff981113AC6efb5b77B2D74D96edF4593",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x86E5a407385364B86B3e502644EfFee1a43C9a7b"
     }
   }

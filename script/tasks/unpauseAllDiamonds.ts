@@ -1,23 +1,24 @@
 import { defineCommand, runMain } from 'citty'
-import { Address, encodeFunctionData, parseAbi } from 'viem'
-import {
-  getAllActiveNetworks,
-  getContractAddressForNetwork,
-  networks,
-} from '../utils/viemScriptHelpers'
-import consola from 'consola'
+import { consola } from 'consola'
 import 'dotenv/config'
-import { SupportedChain } from '../demoScripts/utils/demoScriptChainConfig'
+import { encodeFunctionData, parseAbi, type Address } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+
+import { type SupportedChain } from '../common/types'
 import {
   getNextNonce,
   getPrivateKey,
   getSafeInfo,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationType,
+  OperationTypeEnum,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import { privateKeyToAccount } from 'viem/accounts'
+import {
+  getAllActiveNetworks,
+  getContractAddressForNetwork,
+  networks,
+} from '../utils/viemScriptHelpers'
 
 // Define ABI
 const unpauseDiamondABI = parseAbi([
@@ -97,7 +98,7 @@ const main = defineCommand({
                 to: diamondAddress as Address,
                 value: 0n,
                 data: calldata,
-                operation: OperationType.Call,
+                operation: OperationTypeEnum.Call,
                 nonce: nextNonce,
               },
             ],
@@ -119,11 +120,10 @@ const main = defineCommand({
               senderAddress
             )
 
-            if (!result.acknowledged) {
+            if (!result.acknowledged)
               throw new Error(
                 `[${network.name}] MongoDB insert was not acknowledged`
               )
-            }
 
             consola.info(
               `[${network.name}] Transaction successfully stored in MongoDB`
@@ -157,9 +157,7 @@ async function getBlacklistedFacetAddresses(
   blacklistFacets: string
 ): Promise<Address[]> {
   // if blacklist is empty we dont need to look for addresses
-  if (!blacklistFacets) {
-    return []
-  }
+  if (!blacklistFacets) return []
 
   // make sure that networkName is a valid supported chain
   if (!isValidSupportedChain(networkName))
@@ -170,7 +168,7 @@ async function getBlacklistedFacetAddresses(
 
   // Retrieve the corresponding addresses for each facet name from the deploy log
   const facetAddresses: Address[] = []
-  for (const facetName of facetNames) {
+  for (const facetName of facetNames)
     try {
       const facetAddress = await getContractAddressForNetwork(
         facetName,
@@ -184,7 +182,6 @@ async function getBlacklistedFacetAddresses(
         error
       )
     }
-  }
 
   return facetAddresses
 }

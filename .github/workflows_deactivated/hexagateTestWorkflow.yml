@@ -1,0 +1,49 @@
+name: Hexagate Test Workflow
+
+# allows manual triggering with a required confirmation input to prevent accidental execution
+# checks if the input confirmation is correctly typed as 'UNDERSTOOD' before proceeding
+# checks out the repository to access the codebase
+# logs test echo
+# sends test slack message
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      warning: # "warning" starts with small letter because Hexagate lower case all keys
+        description: "By clicking the next button you are sending test message to slack. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
+        required: true
+
+jobs:
+  test_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Warning Input
+        if: ${{ inputs.warning != 'UNDERSTOOD' }}
+        run: echo "Warning not confirmed. Aborting further steps."
+  hexagate-test-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.7
+
+      - name: Check input
+        if: ${{ inputs.warning != 'UNDERSTOOD' }}
+        run: |
+          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
+          exit 1
+
+      - name: Debug Log - Test Workflow Triggered
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        run: echo "Hexagate test workflow has been successfully triggered."
+
+      - name: Send Reminder to Slack SC-general Channel
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: 'TEST - hexagate test workflow executed by ${{ github.actor }}'

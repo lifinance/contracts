@@ -41,6 +41,20 @@
       }
     }
   },
+  "AcrossFacetV4": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "AcrossFacetPacked": {
     "configData": {
       "_spokePool": {
@@ -63,6 +77,20 @@
         "allowToDeployWithZeroAddress": "false"
       },
       "_wrappedNativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPackedV4": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
         "configFileName": "networks.json",
         "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
@@ -198,11 +226,20 @@
       }
     }
   },
+  "GenericSwapFacetV3": {
+    "configData": {
+      "_nativeAddress": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.nativeAddress",
+        "allowToDeployWithZeroAddress": "true"
+      }
+    }
+  },
   "GnosisBridgeFacet": {
     "configData": {
       "_xDaiBridge": {
         "configFileName": "gnosis.json",
-        "keyInConfigFile": ".<NETWORK>.xDaiBridge",
+        "keyInConfigFile": ".<NETWORK>.bridgeRouter",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -239,6 +276,35 @@
       "_privilegedUser": {
         "configFileName": "global.json",
         "keyInConfigFile": ".pauserWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "LiFiTimelockController": {
+    "configData": {
+      "_minDelay": {
+        "configFileName": "timelockController.json",
+        "keyInConfigFile": ".minDelay",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_proposers": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.safeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_cancellerWallet": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".deployerWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_admin": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.safeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "LiFiDiamond": {
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -328,6 +394,25 @@
       "_erc20Predicate": {
         "configFileName": "polygon.json",
         "keyInConfigFile": ".<NETWORK>.erc20Predicate",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "PolymerCCTPFacet": {
+    "configData": {
+      "_tokenMessenger": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.tokenMessengerV2",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_usdc": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.usdc",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_polymerFeeReceiver": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.polymerFeeReceiver",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -450,7 +535,35 @@
       }
     }
   },
+  "ReceiverAcrossV4": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_spokepool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "FeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "FeeForwarder": {
     "configData": {
       "_owner": {
         "configFileName": "global.json",
@@ -491,7 +604,16 @@
       },
       "_relaySolver": {
         "configFileName": "relay.json",
-        "keyInConfigFile": ".<NETWORK>.relaySolver",
+        "keyInConfigFile": ".relaySolver",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "PioneerFacet": {
+    "configData": {
+      "_pioneerAddress": {
+        "configFileName": "pioneer.json",
+        "keyInConfigFile": ".pioneerEOAProduction",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -537,6 +659,15 @@
       }
     }
   },
+  "RelayDepositoryFacet": {
+    "configData": {
+      "_relayDepository": {
+        "configFileName": "relay.json",
+        "keyInConfigFile": ".<NETWORK>.relayDepository",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ReceiverChainflip": {
     "configData": {
       "_owner": {
@@ -552,6 +683,15 @@
     },
     "contractAddresses": {
       "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GardenFacet": {
+    "configData": {
+      "_htlcRegistry": {
+        "configFileName": "garden.json",
+        "keyInConfigFile": ".<NETWORK>.htlcRegistry",
         "allowToDeployWithZeroAddress": "false"
       }
     }

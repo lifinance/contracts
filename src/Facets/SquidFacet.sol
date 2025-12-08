@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -10,7 +10,9 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
+// solhint-disable-next-line no-unused-import
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
+// solhint-disable-next-line no-unused-import
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title Squid Facet
@@ -32,7 +34,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param destinationAddress The receiver address in dst chain format
     /// @param bridgedTokenSymbol The symbol of the to-be-bridged token
     /// @param depositAssetId The asset to be deposited on src network (input for optional Squid-internal src swaps)
-    /// @param sourceCalls The calls to be made by Squid on the source chain before bridging the bridgeData.sendingAsssetId token
+    /// @param sourceCalls The calls to be made by Squid on the source chain before bridging
+    ///        the bridgeData.sendingAsssetId token
     /// @param payload The payload for the calls to be made at dest chain
     /// @param fee The fee to be payed in native token on src chain
     /// @param enableExpress enable Squid Router's instant execution service
@@ -60,6 +63,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// State ///
 
+    /// @notice The contract address of the squid router on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     ISquidRouter private immutable squidRouter;
 
     /// Constructor ///

@@ -4,8 +4,8 @@
  * Purpose:
  *   - Remove facet(s) or unregister periphery contract(s) from the LiFiDiamond contract
  *   - Supports both interactive and headless CLI modes
- *   - In production, or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true in .env, it proposes calldata to our Safe (using SAFE_SIGNER_PRIVATE_KEY from .env)
- *   - In staging or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND!=true (or not set), it sends the transaction directly to the diamond (using PRIVATE_KEY from .env)
+ *   - In production, or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND==false in .env, it proposes timelock-wrapped calldata to our Safe (using SAFE_SIGNER_PRIVATE_KEY from .env)
+ *   - In staging or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND==true, it sends the transaction directly to the diamond (using PRIVATE_KEY from .env), no wrapping in timelock calldata
  *
  * Usage without parameters:
  *  bun script/tasks/cleanUpProdDiamond.ts
@@ -17,27 +17,151 @@
  *   bun script/tasks/cleanUpProdDiamond.ts --network mainnet --environment production --periphery '["Executor","FeeCollector"]'
  */
 
-import { defineCommand, runMain } from 'citty'
-import consola from 'consola'
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
 
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
+
+import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { wrapWithTimelockSchedule } from '../deploy/safe/safe-utils'
+import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
-  getDeployLogFile,
-  getFunctionSelectors,
   buildDiamondCutRemoveCalldata,
   buildUnregisterPeripheryCalldata,
+  castEnv,
   getAllActiveNetworks,
-  sendOrPropose,
+  getContractAddressForNetwork,
+  getFunctionSelectors,
   getViemChainForNetworkName,
+  multiselectWithSearch,
+  selectWithSearch,
 } from '../utils/viemScriptHelpers'
-import { Abi, createPublicClient, http, parseAbi, getAddress } from 'viem'
 
-function castEnv(value: string): 'staging' | 'production' {
-  if (value !== 'staging' && value !== 'production') {
-    throw new Error(`Invalid environment: ${value}`)
+/**
+ * Wraps calldata in a timelock schedule call if USE_TIMELOCK_CONTROLLER=true
+ * @param originalCalldata - The original calldata to wrap
+ * @param diamondAddress - The diamond address (target for the scheduled call)
+ * @param network - The network name
+ * @param environment - The environment (staging/production)
+ * @returns Object with target address and final calldata
+ */
+async function prepareTimelockCalldata(
+  originalCalldata: `0x${string}`,
+  diamondAddress: string,
+  network: string,
+  environment: EnvironmentEnum
+): Promise<{ targetAddress: string; calldata: `0x${string}` }> {
+  const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+  const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+
+  // Determine which option will be chosen
+  if (environment === EnvironmentEnum.staging || sendDirectly) {
+    consola.info(
+      '🔧 Option chosen: Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
+    )
+    consola.info('📤 Final calldata (direct to diamond):')
+    consola.info(originalCalldata)
+    return {
+      targetAddress: diamondAddress,
+      calldata: originalCalldata,
+    }
   }
-  return value
+
+  // Production environment - check if timelock should be used
+  if (useTimelock) {
+    consola.info(
+      '🔧 Option chosen: Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+    )
+
+    // Get timelock controller address from deployment logs
+    const timelockAddress = await getContractAddressForNetwork(
+      'LiFiTimelockController',
+      network as SupportedChain,
+      EnvironmentEnum.production // Timelock is always in production deployments
+    )
+
+    if (!timelockAddress || timelockAddress === '0x') {
+      consola.warn(
+        'USE_TIMELOCK_CONTROLLER=true but no LiFiTimelockController found in deployment logs'
+      )
+      consola.info('📤 Final calldata (direct to diamond, no timelock):')
+      consola.info(originalCalldata)
+      return {
+        targetAddress: diamondAddress,
+        calldata: originalCalldata,
+      }
+    }
+
+    consola.info(
+      `⏰ Using timelock controller at ${timelockAddress} for operation`
+    )
+
+    // Use the existing wrapWithTimelockSchedule helper function
+    const wrappedTransaction = await wrapWithTimelockSchedule(
+      network,
+      '', // rpcUrl will be determined by the helper function
+      timelockAddress as `0x${string}`,
+      diamondAddress as `0x${string}`,
+      originalCalldata
+    )
+
+    return {
+      targetAddress: wrappedTransaction.targetAddress,
+      calldata: wrappedTransaction.calldata,
+    }
+  } else {
+    consola.info(
+      '🔧 Option chosen: Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+    )
+    consola.info('📤 Final calldata (direct to diamond via Safe):')
+    consola.info(originalCalldata)
+    return {
+      targetAddress: diamondAddress,
+      calldata: originalCalldata,
+    }
+  }
+}
+
+/**
+ * Displays environment configuration and determines execution mode
+ * @param environment - The environment string
+ * @returns The execution mode string
+ */
+function displayEnvironmentConfiguration(environment: string): string {
+  // Show environment variables and decision logic
+  consola.log('\n🔧 Environment Configuration:')
+  consola.log(`   Environment: ${environment}`)
+  consola.log(
+    `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
+      process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
+    }`
+  )
+  consola.log(
+    `   USE_TIMELOCK_CONTROLLER: ${
+      process.env.USE_TIMELOCK_CONTROLLER || 'false'
+    }`
+  )
+
+  // Determine which option will be chosen
+  const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+  const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
+
+  let executionMode = ''
+  if (environment === 'staging' || sendDirectly)
+    executionMode =
+      'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
+  else if (useTimelock)
+    executionMode =
+      'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+  else
+    executionMode =
+      'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+
+  consola.log(`   Execution Mode: ${executionMode}`)
+
+  return executionMode
 }
 
 const command = defineCommand({
@@ -74,24 +198,27 @@ const command = defineCommand({
     // select network (if not provided via parameter)
     if (!network) {
       const options = getAllActiveNetworks().map((n) => n.id)
-      network = await consola.prompt('Select network', {
-        type: 'select',
-        options,
-      })
+      network = await selectWithSearch('Select network', options)
+      consola.info(`Network selected: ${network}`)
     }
 
     // select environment (if not provided via parameter)
     if (!environment) {
-      environment = await consola.prompt('Select environment', {
-        type: 'select',
-        options: ['production', 'staging'],
-      })
+      environment = await selectWithSearch('Select environment', [
+        'production',
+        'staging',
+      ])
+      consola.info(`Environment selected: ${environment}`)
     }
+
     const typedEnv = castEnv(environment)
 
     // get diamond address from deploy log
-    const deployLog = getDeployLogFile(network, typedEnv)
-    const diamondAddress = deployLog[diamondName]
+    const diamondAddress = await getContractAddressForNetwork(
+      diamondName,
+      network as SupportedChain,
+      typedEnv
+    )
 
     if (!diamondAddress) {
       consola.error(`Could not find ${diamondName} in deploy log`)
@@ -108,9 +235,8 @@ const command = defineCommand({
         if (
           !Array.isArray(facetNames) ||
           facetNames.some((n) => typeof n !== 'string')
-        ) {
+        )
           throw new Error()
-        }
       } catch {
         consola.error(
           '❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\''
@@ -128,11 +254,26 @@ const command = defineCommand({
 
       consola.info(`📦 Built calldata to remove ${facetNames.length} facets`)
 
+      // Show environment variables and decision logic
+      displayEnvironmentConfiguration(environment)
+
+      // Prepare calldata for timelock if needed
+      const { targetAddress, calldata: finalCalldata } =
+        await prepareTimelockCalldata(
+          calldata,
+          diamondAddress,
+          network,
+          typedEnv
+        )
+
+      consola.log('\n📦 Final Calldata:')
+      consola.log(finalCalldata)
+
       await sendOrPropose({
-        calldata,
+        calldata: finalCalldata,
         network,
         environment: typedEnv,
-        diamondAddress,
+        diamondAddress: targetAddress,
       })
       return
     }
@@ -150,12 +291,27 @@ const command = defineCommand({
 
         consola.info(`→ Removing periphery: ${name}`)
 
+        // Show environment variables and decision logic
+        displayEnvironmentConfiguration(environment)
+
+        // Prepare calldata for timelock if needed
+        const { targetAddress, calldata: finalCalldata } =
+          await prepareTimelockCalldata(
+            calldata,
+            diamondAddress,
+            network,
+            typedEnv
+          )
+
+        consola.log('\n📦 Final Calldata:')
+        consola.log(finalCalldata)
+
         // send it
         await sendOrPropose({
-          calldata,
+          calldata: finalCalldata,
           network,
           environment: typedEnv,
-          diamondAddress,
+          diamondAddress: targetAddress,
         })
       }
       return
@@ -181,10 +337,10 @@ const command = defineCommand({
         .sort((a, b) => a.localeCompare(b))
 
       // select one or more facets
-      const selectedFacets = (await consola.prompt('Select facets to remove', {
-        type: 'multiselect',
-        options: facetNames,
-      })) as string[]
+      const selectedFacets = await multiselectWithSearch(
+        'Select facets to remove',
+        facetNames
+      )
 
       if (!selectedFacets?.length) {
         consola.info('No facets selected – aborting.')
@@ -203,7 +359,7 @@ const command = defineCommand({
         diamondAddress,
         facetDefs,
         network,
-        deployLog,
+        environment: typedEnv,
       })
 
       // -------------
@@ -211,8 +367,20 @@ const command = defineCommand({
       // build the (combined) calldata for removal of all selected facets
       calldata = buildDiamondCutRemoveCalldata(facetDefs)
 
-      consola.log('\n📦 Calldata:')
-      consola.log(calldata)
+      // Show environment variables and decision logic before confirmation
+      displayEnvironmentConfiguration(environment)
+
+      // Prepare calldata for timelock if needed
+      const { targetAddress, calldata: finalCalldata } =
+        await prepareTimelockCalldata(
+          calldata,
+          diamondAddress,
+          network,
+          typedEnv
+        )
+
+      consola.log('\n📦 Final Calldata:')
+      consola.log(finalCalldata)
 
       const confirm = await consola.prompt('Send/propose this calldata?', {
         type: 'confirm',
@@ -220,14 +388,14 @@ const command = defineCommand({
       })
 
       // send/propose it if the user selected yes
-      if (confirm) {
+      if (confirm)
         await sendOrPropose({
-          calldata,
+          calldata: finalCalldata,
           network,
           environment: typedEnv,
-          diamondAddress,
+          diamondAddress: targetAddress,
         })
-      } else {
+      else {
         consola.info('Aborted.')
         process.exit(0)
       }
@@ -244,16 +412,24 @@ const command = defineCommand({
         .map((f) => f.replace('.sol', ''))
 
       // select one or more periphery contracts
-      const selected = await consola.prompt('Select periphery contracts', {
-        type: 'multiselect',
-        options: names,
-      })
+      const selected = await multiselectWithSearch(
+        'Select periphery contracts',
+        names
+      )
 
       // go through each contract, build the calldata and send/propose it
       for (const name of selected) {
         const data = buildUnregisterPeripheryCalldata(name)
-        consola.log(`\n📦 Calldata to unregister: ${name}`)
-        consola.log(data)
+
+        // Show environment variables and decision logic before confirmation
+        displayEnvironmentConfiguration(environment)
+
+        // Prepare calldata for timelock if needed
+        const { targetAddress, calldata: finalCalldata } =
+          await prepareTimelockCalldata(data, diamondAddress, network, typedEnv)
+
+        consola.log(`\n📦 Final Calldata to unregister: ${name}`)
+        consola.log(finalCalldata)
 
         const confirm = await consola.prompt(`Propose removal of ${name}?`, {
           type: 'confirm',
@@ -261,14 +437,13 @@ const command = defineCommand({
         })
 
         // send/propose it if the user selected yes
-        if (confirm) {
+        if (confirm)
           await sendOrPropose({
-            calldata: data,
+            calldata: finalCalldata,
             network,
             environment: typedEnv,
-            diamondAddress,
+            diamondAddress: targetAddress,
           })
-        }
       }
       return
     }
@@ -279,12 +454,12 @@ async function verifySelectorsExistInDiamond({
   diamondAddress,
   facetDefs,
   network,
-  deployLog,
+  environment,
 }: {
   diamondAddress: string
   facetDefs: { name: string; selectors: `0x${string}`[] }[]
   network: string
-  deployLog: Record<string, string>
+  environment: EnvironmentEnum
 }): Promise<void> {
   const chain = getViemChainForNetworkName(network)
   const client = createPublicClient({
@@ -293,14 +468,24 @@ async function verifySelectorsExistInDiamond({
   })
 
   // prepare multicalls
-  const calls = facetDefs.map((facet) => ({
-    address: getAddress(diamondAddress),
-    abi: parseAbi([
-      'function facetFunctionSelectors(address _facet) view returns (bytes4[])',
-    ]) satisfies Abi,
-    functionName: 'facetFunctionSelectors',
-    args: [getAddress(facetAddressFromName(deployLog, facet.name))],
-  }))
+  const calls = await Promise.all(
+    facetDefs.map(async (facet) => ({
+      address: getAddress(diamondAddress),
+      abi: parseAbi([
+        'function facetFunctionSelectors(address _facet) view returns (bytes4[])',
+      ]) satisfies Abi,
+      functionName: 'facetFunctionSelectors',
+      args: [
+        getAddress(
+          await getContractAddressForNetwork(
+            facet.name,
+            network as SupportedChain,
+            environment
+          )
+        ),
+      ],
+    }))
+  )
 
   // execute multicalls to obtain all registered facets/function selectors
   const results = await client.multicall({ contracts: calls })
@@ -308,7 +493,9 @@ async function verifySelectorsExistInDiamond({
   // go through all function selectors and check if they are present in the diamond
   for (let i = 0; i < facetDefs.length; i++) {
     const facet = facetDefs[i]
+    if (!facet) throw new Error(`Missing facet at index ${i}`)
     const result = results[i]
+    if (!result) throw new Error(`Missing result for facet ${facet.name}`)
 
     if (result.status !== 'success') {
       consola.error(
@@ -332,17 +519,6 @@ async function verifySelectorsExistInDiamond({
   }
 
   // All selectors present — return silently
-}
-
-function facetAddressFromName(
-  deployLog: Record<string, string>,
-  name: string
-): string {
-  const facetAddress = deployLog[name]
-  if (!facetAddress) {
-    throw new Error(`No address found for facet in deploy log: ${name}`)
-  }
-  return facetAddress
 }
 
 runMain(command)

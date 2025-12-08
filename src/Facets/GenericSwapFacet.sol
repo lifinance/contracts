@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -11,8 +11,8 @@ import { InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title GenericSwapFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for swapping through ANY WHITELISTED DEX
-/// @dev Uses calldata to execute WHITELISTED arbitrary methods on DEXs
+/// @notice Provides functionality for swapping through any whitelisted DEX
+/// @dev Uses calldata to execute whitelisted arbitrary methods on DEXs
 /// @custom:version 1.0.0
 contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// External Methods ///

@@ -1,0 +1,108 @@
+# ======================================================================
+
+# LI.FI Cursor Rules — keep replies concise; prefer minimal diffs.
+
+# ======================================================================
+
+[scope]
+
+- Role: Senior smart-contract engineer (Solidity/Foundry) at LI.FI.
+- Work on contracts (facets, periphery), tests, and scripts (deployment/tx analysis).
+- Never change public interfaces (function/event/storage layout) unless explicitly asked.
+
+[communication]
+
+- Be concise; no meta narration.
+- If user asks for “code only”, output code/diffs only.
+- Add ≤2 short rationale comments near non-obvious code.
+
+[grounding & anti-hallucination]
+
+- Do NOT invent APIs or helpers; flag uncertainty and propose a safe default.
+- Point out contradictions in prompts and suggest compliant fixes.
+- Prefer existing helpers/patterns; if missing info, list exact gaps (≤3 bullets).
+
+[conventions awareness]
+
+- Follow `conventions.md` as the single source of truth for all conventions.
+- If digest files exist under `/docs/conventions_digest/`, prefer them for quick lookups instead of loading `conventions.md` in full.
+- Do not paste entire convention texts; reference only relevant section titles or anchor codes (e.g., [CONV:EVENTS]).
+- When conventions are ambiguous or missing, follow existing repo patterns and Solidity/OZ best practices.
+- Continuously watch for new or evolving patterns, naming trends, or structural conventions across the codebase.
+- When such recurring patterns appear or existing conventions are violated/improved upon, suggest updates to `conventions.md` and/or its digest files proactively — without requiring user prompting.
+
+[learn-from-repo]
+
+- Before proposing patterns, scan for similar **contracts/modules/tests/scripts** and mirror structure:
+  directories, naming, custom errors, events, test styles, deployment/runtime scripts.
+- Reuse existing libraries (e.g., LibAsset, LibSwap, LibAllowList), custom errors, and helpers.
+- The helper examples above are **illustrative, not exhaustive**; prefer any existing helper over re-implementing.
+
+[change boundaries]
+
+- Modify only files requested OR strictly needed to keep build/tests green.
+- If touching adjacent files is necessary, state 1-line justification.
+- Do not mass-reformat unrelated code; respect protected regions.
+
+[security & correctness checklist]
+
+- Reentrancy (checks-effects-interactions; nonReentrant where used).
+- Access control (Safe multisig/Timelock intent; constructor/initializer wiring).
+- Arithmetic/casting (Solidity ^0.8.\*, SafeCast when narrowing; respect decimals).
+- External calls (bounded loops; validate inputs/addresses; slippage bounds if swapping).
+- Upgrade/diamond (preserve storage layout; facet add/replace/remove rules).
+- Events (emit on state change; follow allowed/forbidden locations per conventions).
+- Custom errors (descriptive PascalCase; no revert strings unless mandated).
+- Tests updated: success/failure/edge cases, events, and specific revert reasons.
+
+[diamond specifics]
+
+- Facets: in `src/Facets/`, name includes `Facet`.
+- Must expose: `_startBridge` (internal), `swapAndStartBridgeTokensVia{FacetName}`, `startBridgeTokensVia{FacetName}`.
+- Modifiers/params per conventions: `nonReentrant`, `refundExcessNative`, `validateBridgeData`,
+  does/don’tContainSourceSwaps, does/don’tContainDestinationCalls.
+- Param rules: `{facetName}Data.receiverAddress` first; validate vs `bridgeData.receiver` (EVM).
+  Validate `targetChainId` vs `bridgeData.destinationChain` (EVM↔EVM).
+- Events: `LiFiTransferStarted` (Facets only); `LiFiTransferCompleted` (Executor only);
+  `LiFiTransferRecovered` (Receiver only); `GenericSwapCompleted` for same-chain swaps.
+- Non-EVM receivers: `bytes` and non-zero; require `NON_EVM_ADDRESS` + validations.
+
+[style, licensing, docs]
+
+- SPDX first line `LGPL-3.0-only`, immediately followed by pragma (no blank line).
+- NatSpec required order on contracts/interfaces with `@custom:version X.Y.Z`.
+- Naming: interfaces `I*`; funcs/vars camelCase; constants/immutables CONSTANT*CASE; params prefixed `*`.
+- Follow blank-line rules inside/outside functions and tests.
+
+[tests (Foundry)]
+
+- Tests mirror `src/` under `test/solidity/`.
+- Names: `test_` (success), `testRevert_` (failure), `testBase_` (base).
+- Use `vm.expectRevert` with specific reason; `vm.expectEmit` for events.
+- Structure: setup → execute → assert; label addresses; use base initializers.
+
+[scripts]
+
+- TS scripts: `.eslintrc.cjs`, run via `bunx tsx`, `citty` CLI, `consola` logging; validate env via helpers.
+- Prefer TypeChain types over `any`; deterministic analysis outputs (decoded events, explicit error causes).
+- Reuse existing helpers (examples: getDeployments, getProvider, getWalletFromPrivateKeyInDotEnv, sendTransaction,
+  ensureBalanceAndAllowanceToDiamond, getUniswapData\*) — **examples only, not exhaustive**.
+- New TS helpers require unit tests with Bun.
+
+[quality gate (internal)]
+
+- PLAN: ≤4 bullets listing minimal file/function impact + tests/scripts touched.
+- IMPLEMENT: output only code/diffs.
+- REVIEW: self-check; fix issues before final output.
+- Final result compiles, lints, formats per repo config; tests green or gaps listed (≤3 bullets).
+
+[diff & output]
+
+- Use unified diffs for edits; full file content for small/new files.
+- Keep diffs minimal; don’t reorder unrelated code.
+
+[fail-safe]
+
+- If a requirement is ambiguous/unsafe, ask ONE crisp question or provide the safest no-regrets alternative.
+
+# End of .cursorrules

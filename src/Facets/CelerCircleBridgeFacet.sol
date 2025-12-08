@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -21,9 +21,11 @@ contract CelerCircleBridgeFacet is
     /// Storage ///
 
     /// @notice The address of the CircleBridgeProxy on the current chain.
+    // solhint-disable-next-line immutable-vars-naming
     ICircleBridgeProxy private immutable circleBridgeProxy;
 
     /// @notice The USDC address on the current chain.
+    // solhint-disable-next-line immutable-vars-naming
     address private immutable usdc;
 
     /// Constructor ///
@@ -84,6 +86,7 @@ contract CelerCircleBridgeFacet is
     /// @dev Contains the business logic for the bridge via CelerCircleBridge
     /// @param _bridgeData The core information needed for bridging
     function _startBridge(BridgeData memory _bridgeData) private {
+        // solhint-disable-next-line reason-string, gas-custom-errors
         require(
             _bridgeData.destinationChainId <= type(uint64).max,
             "_bridgeData.destinationChainId passed is too big to fit in uint64"

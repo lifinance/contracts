@@ -6,17 +6,23 @@
  */
 
 import 'dotenv/config'
+
+import * as fs from 'fs'
+import * as path from 'path'
+
 import { defineCommand, runMain } from 'citty'
-import { Address, Hex } from 'viem'
-import consola from 'consola'
+import { consola } from 'consola'
+import { getAddress, type Address, type Hex } from 'viem'
+
 import {
-  getSafeMongoCollection,
+  OperationTypeEnum,
   getNextNonce,
-  initializeSafeClient,
   getPrivateKey,
-  storeTransactionInMongoDB,
-  OperationType,
+  getSafeMongoCollection,
+  initializeSafeClient,
   isAddressASafeOwner,
+  storeTransactionInMongoDB,
+  wrapWithTimelockSchedule,
 } from './safe-utils'
 
 /**
@@ -63,13 +69,18 @@ const main = defineCommand({
       required: false,
     },
     accountIndex: {
-      type: 'number',
+      type: 'string',
       description: 'Ledger account index (default: 0)',
       required: false,
     },
     derivationPath: {
       type: 'string',
       description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
+    },
+    timelock: {
+      type: 'boolean',
+      description: 'Wrap the transaction in a timelock schedule call',
       required: false,
     },
   },
@@ -83,42 +94,37 @@ const main = defineCommand({
       await getSafeMongoCollection()
 
     // Validate that we have either a private key or ledger
-    if (!args.privateKey && !args.ledger) {
+    if (!args.privateKey && !args.ledger)
       throw new Error('Either --privateKey or --ledger must be provided')
-    }
 
     // Set up signing options
     const useLedger = args.ledger || false
     let privateKey: string | undefined
 
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && args.ledgerLive) {
+    if (args.derivationPath && args.ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
-    }
 
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
-      if (args.ledgerLive) {
+      if (args.ledgerLive)
         consola.info(
           `Using Ledger Live derivation path with account index ${
             args.accountIndex || 0
           }`
         )
-      } else if (args.derivationPath) {
+      else if (args.derivationPath)
         consola.info(`Using custom derivation path: ${args.derivationPath}`)
-      } else {
-        consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
-      }
+      else consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+
       privateKey = undefined
-    } else {
-      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
-    }
+    } else privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
 
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
-      accountIndex: args.accountIndex || 0,
+      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
       derivationPath: args.derivationPath,
     }
 
@@ -132,7 +138,7 @@ const main = defineCommand({
     )
 
     // Get the account address
-    const senderAddress = safe.account
+    const senderAddress = safe.account.address
 
     // Check if the current signer is an owner
     const existingOwners = await safe.getOwners()
@@ -143,6 +149,43 @@ const main = defineCommand({
       consola.error('Cannot propose transactions - exiting')
       await mongoClient.close()
       process.exit(1)
+    }
+
+    // Handle timelock wrapping if requested
+    let finalTo = args.to as Address
+    let finalCalldata = args.calldata as Hex
+
+    if (args.timelock) {
+      // Look for timelock controller address in deployments (always use production)
+      const deploymentPath = path.join(
+        process.cwd(),
+        'deployments',
+        `${args.network}.json`
+      )
+
+      if (!fs.existsSync(deploymentPath))
+        throw new Error(`Deployment file not found: ${deploymentPath}`)
+
+      const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
+      const timelockAddress = deployments.LiFiTimelockController
+
+      if (!timelockAddress || timelockAddress === '0x')
+        throw new Error(
+          `LiFiTimelockController not found in deployments for network ${args.network}`
+        )
+
+      consola.info(`Using timelock controller at ${timelockAddress}`)
+
+      const wrappedTransaction = await wrapWithTimelockSchedule(
+        args.network,
+        args.rpcUrl || '',
+        getAddress(timelockAddress),
+        finalTo,
+        finalCalldata
+      )
+
+      finalTo = wrappedTransaction.targetAddress
+      finalCalldata = wrappedTransaction.calldata
     }
 
     // Get the next nonce
@@ -158,10 +201,10 @@ const main = defineCommand({
     const safeTransaction = await safe.createTransaction({
       transactions: [
         {
-          to: args.to as Address,
+          to: finalTo,
           value: 0n,
-          data: args.calldata as Hex,
-          operation: OperationType.Call,
+          data: finalCalldata,
+          operation: OperationTypeEnum.Call,
           nonce: nextNonce,
         },
       ],
@@ -173,7 +216,11 @@ const main = defineCommand({
     consola.info('Signer Address', senderAddress)
     consola.info('Safe Address', safeAddress)
     consola.info('Network', chain.name)
-    consola.info('Proposing transaction to', args.to)
+    consola.info('Proposing transaction to', finalTo)
+    if (args.timelock) {
+      consola.info('Original target was', args.to)
+      consola.info('Transaction wrapped in timelock schedule call')
+    }
 
     // Store transaction in MongoDB using the utility function
     try {
@@ -187,9 +234,8 @@ const main = defineCommand({
         senderAddress
       )
 
-      if (!result.acknowledged) {
+      if (!result.acknowledged)
         throw new Error('MongoDB insert was not acknowledged')
-      }
 
       consola.success('Transaction successfully stored in MongoDB')
     } catch (error) {

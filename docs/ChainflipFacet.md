@@ -32,7 +32,7 @@ struct ChainflipData {
 }
 ```
 
-For non-EVM destinations (i.e. Solana, Bitcoin), set the `receiver` in `BridgeData` to `LibAsset.NON_EVM_ADDRESS` and provide the destination address in `nonEVMReceiver`.
+For non-EVM destinations (i.e. Solana, Bitcoin), set the `receiver` in `BridgeData` to `NON_EVM_ADDRESS` (inherit from src/Helpers/LiFiData.sol) and provide the destination address in `nonEVMReceiver`.
 
 ## Supported Chains
 

@@ -251,537 +251,578 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.05.10_LiFiDexAggregator(v1.9.0).pdf",
       "auditCommitHash": "eb255e62405c477f24c1bd78076c7d3677284681"
+    },
+    "audit20250515": {
+      "auditCompletedOn": "15.05.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.05.15_GasZipFacet(v2.0.4).pdf",
+      "auditCommitHash": "bc3dcebfe2e6e32fab7ec9cd37db423b23139abf"
+    },
+    "audit20250603": {
+      "auditCompletedOn": "03.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.03_GnosisBridgeFacet(v2.0.0).pdf",
+      "auditCommitHash": "7197c0a237f46c83d39f5566f18bbadb5ca156ed"
+    },
+    "audit20250608": {
+      "auditCompletedOn": "08.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.08_LiFiDexAggregator(v1.10.0).pdf",
+      "auditCommitHash": "2de27694cfdd15e73eaf1a395c683da8cbac8d6f"
+    },
+    "audit20250610": {
+      "auditCompletedOn": "10.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.10_LidoWrapper(v1.0.0).pdf",
+      "auditCommitHash": "feab0709941d12efaed8be16fea96f4ff4276544"
+    },
+    "audit20250620": {
+      "auditCompletedOn": "20.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.20_LibAsset(v2.1.0).pdf",
+      "auditCommitHash": "8a3e150513c066311252acc95b72a46ee51776a1"
+    },
+    "audit20250626": {
+      "auditCompletedOn": "26.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.26_PioneerFacet(v1.0.0).pdf",
+      "auditCommitHash": "af8cfaf1bbd80a1c98449f8115fa8f34c9b78ee9"
+    },
+    "audit20250629": {
+      "auditCompletedOn": "29.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.29_CalldataVerificationFacet(v1.3.1).pdf",
+      "auditCommitHash": "8840d8b41a894c46a444c5b2db2ca34babee753f"
+    },
+    "audit20250629_1": {
+      "auditCompletedOn": "29.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.29_SwapperV2(v1.1.0).pdf",
+      "auditCommitHash": "4af7030dd8676d892c0bd63cdb2f43cbb7aae4cd"
+    },
+    "audit20250630": {
+      "auditCompletedOn": "30.06.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.06.30_LiFiDexAggregator(v1.11.0).pdf",
+      "auditCommitHash": "6561ef4cc67f167d6485c412afb738f5b5b0da7f"
+    },
+    "audit20250706": {
+      "auditCompletedOn": "06.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.06_LiFiTimelockController(v1.0.1).pdf",
+      "auditCommitHash": "f4bbda99541c441f90a76515a0624713831c8abb"
+    },
+    "audit20250706_01": {
+      "auditCompletedOn": "06.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.06_Permit2Proxy(v1.0.4).pdf",
+      "auditCommitHash": "a00deeb45dafe3e5124770c41a7a28ba931361d2"
+    },
+    "audit20250718": {
+      "auditCompletedOn": "18.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.18_AllBridgeFacet(v2.1.0).pdf",
+      "auditCommitHash": "30b38a1aaf18852d681a615c95165ec96f92e886"
+    },
+    "audit20250728": {
+      "auditCompletedOn": "28.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.28_LiFiDexAggregator(v1.12.0).pdf",
+      "auditCommitHash": "da57cb55dbbb6103a00ba662c76dd8a03abdc8d1"
+    },
+    "audit20250730": {
+      "auditCompletedOn": "30.07.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.07.30_Patcher(v1.0.0).pdf",
+      "auditCommitHash": "1536e96068d5cb1672e48078d22da27c79f4c2ef"
+    },
+    "audit20250822": {
+      "auditCompletedOn": "22.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.22_GlacisFacet(v1.1.0).pdf",
+      "auditCommitHash": "15f4a1c3fe53e344245f3c1834df81643dde7830"
+    },
+    "audit20250825": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.08.25_MayanFacet(v1.2.2).pdf",
+      "auditCommitHash": "b7e4b66ae83961f2873454f0bf09347e9ac8959d"
+    },
+    "audit20250825_1": {
+      "auditCompletedOn": "25.08.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.08.25_RelayDepositoryFacet(v1.0.0).pdf",
+      "auditCommitHash": "4837b45b3ae705dee625015b1a084b3c69dee2a2"
+    },
+    "audit20250901": {
+      "auditCompletedOn": "01.09.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.09.01_AcrossV4(v1.0.0).pdf",
+      "auditCommitHash": "650d18eb98aff7fe45249147d6db7e352825c1e4"
+    },
+    "audit20250919": {
+      "auditCompletedOn": "19.09.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.09.19_GardenFacet(v1.0.0).pdf",
+      "auditCommitHash": "79ffda31ccf4c48af914ccb209781bc521abeacd"
+    },
+    "audit20250921": {
+      "auditCompletedOn": "21.09.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.09.21_AllBridgeFacet(v2.1.1).pdf",
+      "auditCommitHash": "1d1bee22c3a632f67b775f4cfc033589c4ad3c24"
+    },
+    "audit20251001": {
+      "auditCompletedOn": "01.10.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.10.01_EcoFacet(v1.0.0).pdf",
+      "auditCommitHash": "8d0e66a69c765e83c13339d7a77071ce2f26968a"
+    },
+    "audit20251007": {
+      "auditCompletedOn": "07.10.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.10.07_UnitFacet(v1.0.0).pdf",
+      "auditCommitHash": "626dd4a927ed84c1c8de9e6b22af66669da62356"
+    },
+    "audit20251015": {
+      "auditCompletedOn": "15.10.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.10.15_FeeForwarder(v1.0.0).pdf",
+      "auditCommitHash": "5022c0aca332e2a066f1398e3456632679a836f9"
+    },
+    "audit20251020": {
+      "auditCompletedOn": "20.10.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.10.20_EcoFacet(v1.1.0).pdf",
+      "auditCommitHash": "25a5b880bca3ea51f060787e30ccc2bdcd13d6f9"
+    },
+    "audit20251104": {
+      "auditCompletedOn": "04.11.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.11.04_WhitelistManagerFacet(v1.0.0).pdf",
+      "auditCommitHash": "5665c5f9b4e7e9419201801ae58f9dd1d05c5f8f"
+    },
+    "audit20251104_1": {
+      "auditCompletedOn": "04.11.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.11.04_WhitelistManagerFacet(v1.0.0)_1.pdf",
+      "auditCommitHash": "e87f69019e59b8060f9c53e00acd4ed07ac4084a"
+    },
+    "audit20251113": {
+      "auditCompletedOn": "13.11.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.11.13_GlacisFacet(v1.2.0).pdf",
+      "auditCommitHash": "13c4296cb4783a2c1108a62afe181f3dbf81cbc0"
+    },
+    "audit20251119": {
+      "auditCompletedOn": "19.11.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.11.19_LiFiIntentEscrowFacet(v1.0.0).pdf",
+      "auditCommitHash": "4e71699761d075f43f5d9cd66c4e1be082fa08ee"
+    },
+    "audit20251201": {
+      "auditCompletedOn": "01.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.01_PolymerCCTPFacet(v1.0.0).pdf",
+      "auditCommitHash": "605f7e14af2dd96fe8f50de253c51c7979245584"
+    },
+    "audit20251203_1": {
+      "auditCompletedOn": "03.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.03_MegaETHBridgeFacet(v1.0.0).pdf",
+      "auditCommitHash": "721afd2499ce72c2f6abc4a30ba56367d88cac85"
+    },
+    "audit20251203_2": {
+      "auditCompletedOn": "03.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.03_UnitFacet(v1.0.1).pdf",
+      "auditCommitHash": "bec40d62866c35f635364b69daf4f93b4f54e4e0"
     }
   },
   "auditedContracts": {
-    "GenericErrors": {
-      "1.0.1": [
-        "audit20250506",
-        "audit20250508"
-      ]
-    },
     "AccessManagerFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "AcrossFacetPacked": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "AcrossFacetPackedV3": {
-      "1.0.0": [
-        "audit20241007"
-      ],
-      "1.2.0": [
-        "audit20241206",
-        "audit20250508"
-      ]
+      "1.0.0": ["audit20250508"]
     },
     "AcrossFacet": {
-      "2.0.0": [
-        "audit20250508"
-      ]
+      "2.0.0": ["audit20250508"]
+    },
+    "AcrossFacetPacked": {
+      "1.0.0": ["audit20250508"]
+    },
+    "AcrossFacetPackedV3": {
+      "1.0.0": ["audit20241007"],
+      "1.2.0": ["audit20241206", "audit20250508"]
+    },
+    "AcrossFacetPackedV4": {
+      "1.0.0": ["audit20250901"]
     },
     "AcrossFacetV3": {
-      "1.0.0": [
-        "audit20241007"
-      ],
-      "1.1.0": [
-        "audit20250106",
-        "audit20250508"
-      ]
+      "1.0.0": ["audit20241007"],
+      "1.1.0": ["audit20250106", "audit20250508"]
+    },
+    "AcrossFacetV4": {
+      "1.0.0": ["audit20250901"]
     },
     "AllBridgeFacet": {
-      "2.0.0": [
-        "audit20250508"
-      ]
-    },
-    "AmarokFacetPacked": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+      "2.0.0": ["audit20250508"],
+      "2.1.0": ["audit20250718"],
+      "2.1.1": ["audit20250921"]
     },
     "AmarokFacet": {
-      "3.0.0": [
-        "audit20250508"
-      ]
+      "3.0.0": ["audit20250508"]
+    },
+    "AmarokFacetPacked": {
+      "1.0.0": ["audit20250508"]
     },
     "ArbitrumBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+      "1.0.0": ["audit20250508"]
     },
     "CalldataVerificationFacet": {
-      "1.2.0": [
-        "audit20240902",
-        "audit20250508"
-      ],
-      "1.3.0": [
-        "audit20250220"
-      ]
-    },
-    "CBridgeFacetPacked": {
-      "1.0.3": [
-        "audit20250508"
-      ]
+      "1.2.0": ["audit20240902", "audit20250508"],
+      "1.3.0": ["audit20250220"],
+      "1.3.1": ["audit20250629"]
     },
     "CBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+      "1.0.0": ["audit20250508"]
+    },
+    "CBridgeFacetPacked": {
+      "1.0.3": ["audit20250508"]
     },
     "CelerCircleBridgeFacet": {
-      "1.0.1": [
-        "audit20250508"
-      ]
-    },
-    "CelerIMFacetMutable": {
-      "2.0.0": [
-        "audit20250508"
-      ]
-    },
-    "ChainflipFacet": {
-      "1.0.0": [
-        "audit20250305",
-        "audit20250508"
-      ]
-    },
-    "DeBridgeDlnFacet": {
-      "1.0.0": [
-        "audit20241205",
-        "audit20250508"
-      ]
-    },
-    "DexManagerFacet": {
-      "1.0.2": [
-        "audit20250413",
-        "audit20250508"
-      ]
-    },
-    "DiamondCutFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "DiamondLoupeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "EmergencyPauseFacet": {
-      "1.0.0": [
-        "audit20240913"
-      ],
-      "1.0.1": [
-        "audit20241105",
-        "audit20250508"
-      ]
-    },
-    "GasZipFacet": {
-      "2.0.0": [
-        "audit20241107"
-      ],
-      "2.0.2": [
-        "audit20250110_1"
-      ],
-      "2.0.3": [
-        "audit20250416",
-        "audit20250508"
-      ]
-    },
-    "GenericSwapFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "GenericSwapFacetV3": {
-      "1.0.1": [
-        "audit20250508"
-      ]
-    },
-    "GlacisFacet": {
-      "1.0.0": [
-        "audit20250219"
-      ]
-    },
-    "GnosisBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "HopFacetOptimized": {
-      "2.0.0": [
-        "audit20250508"
-      ]
-    },
-    "HopFacetPacked": {
-      "1.0.6": [
-        "audit20250508"
-      ]
-    },
-    "HopFacet": {
-      "2.0.0": [
-        "audit20250508"
-      ],
-      "2.0.1": [
-        "audit20250506"
-      ]
-    },
-    "IAcrossSpokePool": {
-      "1.0.0": [
-        "audit20250106",
-        "audit20250508"
-      ]
-    },
-    "IChainflip": {
-      "1.0.0": [
-        "audit20250305",
-        "audit20250508"
-      ]
-    },
-    "IGasZip": {
-      "1.0.0": [
-        "audit20241107",
-        "audit20250508"
-      ]
-    },
-    "IGlacisAirlift": {
-      "1.0.0": [
-        "audit20250219",
-        "audit20250508"
-      ]
-    },
-    "LIFuelFacet": {
-      "1.0.1": [
-        "audit20250508"
-      ]
-    },
-    "MayanFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ],
-      "1.1.0": [
-        "audit20250228"
-      ],
-      "1.2.0": [
-        "audit20250327"
-      ]
-    },
-    "OmniBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "OptimismBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "OwnershipFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "PeripheryRegistryFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "PolygonBridgeFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "RelayFacet": {
-      "1.0.0": [
-        "audit20241202",
-        "audit20250508"
-      ]
-    },
-    "SquidFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "StandardizedCallFacet": {
-      "1.1.0": [
-        "audit20250508"
-      ]
-    },
-    "StargateFacet": {
-      "2.2.0": [
-        "audit20250508"
-      ]
-    },
-    "StargateFacetV2": {
-      "1.0.1": [
-        "audit20240814",
-        "audit20250508"
-      ]
-    },
-    "SymbiosisFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "ThorSwapFacet": {
-      "1.2.1": [
-        "audit20250109_1",
-        "audit20250508"
-      ]
-    },
-    "WithdrawFacet": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+      "1.0.1": ["audit20250508"]
     },
     "CelerIMFacetBase": {
-      "1.0.0": [
-        "audit20250508"
-      ],
-      "2.0.0": [
-        "audit20250508"
-      ]
+      "1.0.0": ["audit20250508"],
+      "2.0.0": ["audit20250508"]
     },
-    "ExcessivelySafeCall": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+    "CelerIMFacetMutable": {
+      "2.0.0": ["audit20250508"]
     },
-    "ReentrancyGuard": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+    "ChainflipFacet": {
+      "1.0.0": ["audit20250305", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
-    "SwapperV2": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+    "DeBridgeDlnFacet": {
+      "1.0.0": ["audit20241205", "audit20250508"],
+      "1.0.1": ["audit20250718"]
     },
-    "TransferrableOwnership": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+    "DexManagerFacet": {
+      "1.0.2": ["audit20250413", "audit20250508"]
     },
-    "Validatable": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+    "EcoFacet": {
+      "1.0.0": ["audit20251001"],
+      "1.1.0": ["audit20251020"]
     },
-    "WithdrawablePeriphery": {
-      "1.0.0": [
-        "audit20241014",
-        "audit20250508"
-      ]
+    "DiamondCutFacet": {
+      "1.0.0": ["audit20250508"]
     },
-    "LibAccess": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+    "DiamondLoupeFacet": {
+      "1.0.0": ["audit20250508"]
     },
-    "LibAllowList": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "LibAsset": {
-      "1.0.1": [
-        "audit20241202"
-      ],
-      "1.0.2": [
-        "audit20250110_1",
-        "audit20250508"
-      ],
-      "2.0.0": [
-        "audit20250506"
-      ]
-    },
-    "LibBytes": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "LibDiamondLoupe": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "LibDiamond": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "LibSwap": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "LibUtil": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "OFTComposeMsgCodec": {
-      "1.0.0": [
-        "audit20250508"
-      ]
-    },
-    "LiFiDiamond": {
-      "1.0.0": [
-        "audit20250508"
-      ]
+    "EmergencyPauseFacet": {
+      "1.0.0": ["audit20240913"],
+      "1.0.1": ["audit20241105", "audit20250508"]
     },
     "ERC20Proxy": {
-      "1.1.0": [
-        "audit20250109_2",
-        "audit20250508"
-      ]
+      "1.1.0": ["audit20250109_2", "audit20250508"]
     },
-    "Executor": {
-      "2.1.0": [
-        "audit20250109_2",
-        "audit20250508"
-      ]
+    "ExcessivelySafeCall": {
+      "1.0.0": ["audit20250508"]
     },
     "FeeCollector": {
-      "1.0.1": [
-        "audit20250109_3",
-        "audit20250508"
-      ]
+      "1.0.1": ["audit20250109_3", "audit20250508"]
+    },
+    "FeeForwarder": {
+      "1.0.0": ["audit20251015"]
+    },
+    "GasZipFacet": {
+      "2.0.0": ["audit20241107"],
+      "2.0.2": ["audit20250110_1"],
+      "2.0.3": ["audit20250416", "audit20250508"],
+      "2.0.4": ["audit20250515"],
+      "2.0.5": ["audit20250718"]
     },
     "GasZipPeriphery": {
-      "1.0.0": [
-        "audit20241107"
-      ],
-      "1.0.1": [
-        "audit20250110_1",
-        "audit20250508"
-      ]
+      "1.0.0": ["audit20241107"],
+      "1.0.1": ["audit20250110_1", "audit20250508"]
+    },
+    "GenericErrors": {
+      "1.0.1": ["audit20250506", "audit20250508"],
+      "1.0.2": ["audit20250718"]
+    },
+    "GenericSwapFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "GenericSwapFacetV3": {
+      "1.0.1": ["audit20250508"],
+      "1.0.2": ["audit20250610"]
+    },
+    "GardenFacet": {
+      "1.0.0": ["audit20250919"]
+    },
+    "GlacisFacet": {
+      "1.0.0": ["audit20250219"],
+      "1.1.0": ["audit20250822"],
+      "1.2.0": ["audit20251113"]
+    },
+    "GnosisBridgeFacet": {
+      "1.0.0": ["audit20250508"],
+      "2.0.0": ["audit20250603"]
+    },
+    "HopFacet": {
+      "2.0.0": ["audit20250508"],
+      "2.0.1": ["audit20250506"]
+    },
+    "HopFacetOptimized": {
+      "2.0.0": ["audit20250508"]
+    },
+    "HopFacetPacked": {
+      "1.0.6": ["audit20250508"]
+    },
+    "IEcoPortal": {
+      "1.0.0": ["audit20251001"],
+      "1.1.0": ["audit20251020"]
+    },
+    "IGarden": {
+      "1.0.0": ["audit20250919"]
+    },
+    "IGlacisAirlift": {
+      "1.1.0": ["audit20251113"]
+    },
+    "IOpenIntentFramework": {
+      "1.0.0": ["audit20251119"]
+    },
+    "IOriginSettler": {
+      "1.0.0": ["audit20251119"]
+    },
+    "LibAccess": {
+      "1.0.0": ["audit20250508"]
+    },
+    "LibAllowList": {
+      "1.0.0": ["audit20250508"],
+      "2.0.0": ["audit20251104", "audit20251104_1"]
+    },
+    "LibAsset": {
+      "1.0.1": ["audit20241202"],
+      "1.0.2": ["audit20250110_1", "audit20250508"],
+      "2.0.0": ["audit20250506"],
+      "2.1.0": ["audit20250620"],
+      "2.1.1": ["audit20250718"],
+      "2.1.2": ["audit20250728"],
+      "2.1.3": ["audit20251007"]
+    },
+    "LibBytes": {
+      "1.0.0": ["audit20250508"]
+    },
+    "LibDiamond": {
+      "1.0.0": ["audit20250508"]
+    },
+    "LibDiamondLoupe": {
+      "1.0.0": ["audit20250508"]
+    },
+    "LibSwap": {
+      "1.0.0": ["audit20250508"],
+      "1.1.0": ["audit20250610"]
+    },
+    "LibUtil": {
+      "1.0.0": ["audit20250508"]
+    },
+    "LiFiData": {
+      "1.0.0": ["audit20250718"],
+      "1.0.1": ["audit20251007"]
+    },
+    "LiFiDiamond": {
+      "1.0.0": ["audit20250508"]
     },
     "LiFiDEXAggregator": {
-      "1.0.0": [
-        "audit20240201"
-      ],
-      "1.1.0": [
-        "audit20250117_1"
-      ],
-      "1.2.0": [
-        "audit20250117_2"
-      ],
-      "1.3.0": [
-        "audit20250117_3"
-      ],
-      "1.4.0": [
-        "audit20250117_4"
-      ],
-      "1.5.0": [
-        "audit20241203"
-      ],
-      "1.5.1": [
-        "audit20250109_3"
-      ],
-      "1.6.0": [
-        "audit20250109_2",
-        "audit20250508"
-      ],
-      "1.7.0": [
-        "audit20250411"
-      ],
-      "1.8.0": [
-        "audit20250422"
-      ],
-      "1.9.0": [
-        "audit20250510"
-      ]
+      "1.0.0": ["audit20240201"],
+      "1.1.0": ["audit20250117_1"],
+      "1.2.0": ["audit20250117_2"],
+      "1.3.0": ["audit20250117_3"],
+      "1.4.0": ["audit20250117_4"],
+      "1.5.0": ["audit20241203"],
+      "1.5.1": ["audit20250109_3"],
+      "1.6.0": ["audit20250109_2", "audit20250508"],
+      "1.7.0": ["audit20250411"],
+      "1.8.0": ["audit20250422"],
+      "1.9.0": ["audit20250510"],
+      "1.10.0": ["audit20250608"],
+      "1.11.0": ["audit20250630"],
+      "1.12.0": ["audit20250728"]
     },
-    "LiFuelFeeCollector": {
-      "1.0.2": [
-        "audit20250109_3",
-        "audit20250508"
-      ]
-    },
-    "Permit2Proxy": {
-      "1.0.0": [
-        "audit20241122"
-      ],
-      "1.0.1": [
-        "audit20250110_1"
-      ],
-      "1.0.2": [
-        "audit20250109_3"
-      ],
-      "1.0.3": [
-        "audit20250415",
-        "audit20250508"
-      ]
-    },
-    "ReceiverAcrossV3": {
-      "1.0.0": [
-        "audit20241007"
-      ],
-      "1.0.1": [
-        "audit20241206"
-      ],
-      "1.0.2": [
-        "audit20250110_1"
-      ],
-      "1.1.0": [
-        "audit20250109_2",
-        "audit20250508"
-      ]
-    },
-    "Receiver": {
-      "2.0.3": [
-        "audit20250109_3"
-      ],
-      "2.1.0": [
-        "audit20250109_2",
-        "audit20250508"
-      ]
-    },
-    "ReceiverChainflip": {
-      "1.0.0": [
-        "audit20250305",
-        "audit20250508"
-      ]
-    },
-    "ReceiverStargateV2": {
-      "1.0.1": [
-        "audit20250109_3"
-      ],
-      "1.1.0": [
-        "audit20250109_2",
-        "audit20250508"
-      ]
-    },
-    "RelayerCelerIM": {
-      "1.0.3": [
-        "audit20250109_3"
-      ],
-      "2.1.0": [
-        "audit20250109_2"
-      ],
-      "2.1.1": [
-        "audit20250109_3",
-        "audit20250508"
-      ]
-    },
-    "TokenWrapper": {
-      "1.0.1": [
-        "audit20250109_3"
-      ],
-      "1.1.0": [
-        "audit20250109_2",
-        "audit20250508"
-      ]
+    "LiFiIntentEscrowFacet": {
+      "1.0.0": ["audit20251119"]
     },
     "LiFiTimelockController": {
-      "1.0.0": [
-        "audit20250110_2",
-        "audit20250508"
-      ]
+      "1.0.0": ["audit20250110_2", "audit20250508"],
+      "1.0.1": ["audit20250706"]
+    },
+    "LiFuelFeeCollector": {
+      "1.0.2": ["audit20250109_3", "audit20250508"]
+    },
+    "LIFuelFacet": {
+      "1.0.0": ["audit20251119"]
+    },
+    "LidoWrapper": {
+      "1.0.0": ["audit20250610"]
+    },
+    "MayanFacet": {
+      "1.0.0": ["audit20250508"],
+      "1.1.0": ["audit20250228"],
+      "1.2.0": ["audit20250327"],
+      "1.2.1": ["audit20250718"],
+      "1.2.2": ["audit20250825"]
+    },
+    "MegaETHBridgeFacet": {
+      "1.0.0": ["audit20251203_1"]
+    },
+    "OFTComposeMsgCodec": {
+      "1.0.0": ["audit20250508"]
+    },
+    "OmniBridgeFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "OptimismBridgeFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "OwnershipFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "Patcher": {
+      "1.0.0": ["audit20250730"]
+    },
+    "PeripheryRegistryFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "Permit2Proxy": {
+      "1.0.0": ["audit20241122"],
+      "1.0.1": ["audit20250110_1"],
+      "1.0.2": ["audit20250109_3"],
+      "1.0.3": ["audit20250415", "audit20250508"],
+      "1.0.4": ["audit20250706_01"]
+    },
+    "PioneerFacet": {
+      "1.0.0": ["audit20250626"]
+    },
+    "PolygonBridgeFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "PolymerCCTPFacet": {
+      "1.0.0": ["audit20251201"]
+    },
+    "Receiver": {
+      "2.0.3": ["audit20250109_3"],
+      "2.1.0": ["audit20250109_2", "audit20250508"]
+    },
+    "ReceiverAcrossV3": {
+      "1.0.0": ["audit20241007"],
+      "1.0.1": ["audit20241206"],
+      "1.0.2": ["audit20250110_1"],
+      "1.1.0": ["audit20250109_2", "audit20250508"]
+    },
+    "ReceiverAcrossV4": {
+      "1.0.0": ["audit20250901"]
+    },
+    "ReceiverChainflip": {
+      "1.0.0": ["audit20250305", "audit20250508"],
+      "1.0.1": ["audit20250718"]
+    },
+    "ReceiverStargateV2": {
+      "1.0.1": ["audit20250109_3"],
+      "1.1.0": ["audit20250109_2", "audit20250508"]
+    },
+    "RelayDepositoryFacet": {
+      "1.0.0": ["audit20250825_1"]
+    },
+    "RelayFacet": {
+      "1.0.0": ["audit20241202", "audit20250508"],
+      "1.0.1": ["audit20250718"]
+    },
+    "RelayerCelerIM": {
+      "1.0.3": ["audit20250109_3"],
+      "2.1.0": ["audit20250109_2"],
+      "2.1.1": ["audit20250109_3", "audit20250508"]
+    },
+    "ReentrancyGuard": {
+      "1.0.0": ["audit20250508"]
+    },
+    "SquidFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "StandardizedCallFacet": {
+      "1.1.0": ["audit20250508"]
+    },
+    "StargateFacet": {
+      "2.2.0": ["audit20250508"]
+    },
+    "StargateFacetV2": {
+      "1.0.1": ["audit20240814", "audit20250508"]
+    },
+    "SwapperV2": {
+      "1.0.0": ["audit20250508"],
+      "1.0.1": ["audit20250718"],
+      "1.1.0": ["audit20250629_1"]
+    },
+    "SymbiosisFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "ThorSwapFacet": {
+      "1.2.1": ["audit20250109_1", "audit20250508"]
+    },
+    "TokenWrapper": {
+      "1.0.1": ["audit20250109_3"],
+      "1.1.0": ["audit20250109_2", "audit20250508"]
+    },
+    "TransferrableOwnership": {
+      "1.0.0": ["audit20250508"]
+    },
+    "UnitFacet": {
+      "1.0.0": ["audit20251007"],
+      "1.0.1": ["audit20251203_2"]
+    },
+    "Validatable": {
+      "1.0.0": ["audit20250508"]
+    },
+    "WhitelistManagerFacet": {
+      "1.0.0": ["audit20251104", "audit20251104_1"]
+    },
+    "WithdrawFacet": {
+      "1.0.0": ["audit20250508"]
+    },
+    "WithdrawablePeriphery": {
+      "1.0.0": ["audit20241014", "audit20250508"],
+      "1.0.1": ["audit20250706"]
     }
   }
 }

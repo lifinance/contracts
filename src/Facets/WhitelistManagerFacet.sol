@@ -1,115 +1,49 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { IWhitelistManagerFacet } from "../Interfaces/IWhitelistManagerFacet.sol";
-import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
+import { CannotAuthoriseSelf, InvalidConfig } from "../Errors/GenericErrors.sol";
 
-/// @title Whitelist Manager Facet
+/// @title WhitelistManagerFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing whitelisted addresses for various protocol interactions.
-/// @custom:version 1.0.3
+/// @custom:version 1.0.0
 contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 
     /// @inheritdoc IWhitelistManagerFacet
-    function addToWhitelist(address _address) external {
-        if (msg.sender != LibDiamond.contractOwner()) {
-            LibAccess.enforceAccessControl();
-        }
-
-        LibAllowList.addAllowedContract(_address);
-
-        emit AddressWhitelisted(_address);
-    }
-
-    /// @inheritdoc IWhitelistManagerFacet
-    function batchAddToWhitelist(address[] calldata _addresses) external {
-        if (msg.sender != LibDiamond.contractOwner()) {
-            LibAccess.enforceAccessControl();
-        }
-        uint256 length = _addresses.length;
-
-        for (uint256 i = 0; i < length; ) {
-            address addr = _addresses[i];
-            if (addr == address(this)) {
-                revert CannotAuthoriseSelf();
-            }
-            if (LibAllowList.contractIsAllowed(addr)) {
-                unchecked {
-                    ++i;
-                }
-                continue;
-            }
-            LibAllowList.addAllowedContract(addr);
-            emit AddressWhitelisted(addr);
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @inheritdoc IWhitelistManagerFacet
-    function removeFromWhitelist(address _address) external {
-        if (msg.sender != LibDiamond.contractOwner()) {
-            LibAccess.enforceAccessControl();
-        }
-        LibAllowList.removeAllowedContract(_address);
-        emit AddressRemoved(_address);
-    }
-
-    /// @inheritdoc IWhitelistManagerFacet
-    function batchRemoveFromWhitelist(address[] calldata _addresses) external {
-        if (msg.sender != LibDiamond.contractOwner()) {
-            LibAccess.enforceAccessControl();
-        }
-        uint256 length = _addresses.length;
-        for (uint256 i = 0; i < length; ) {
-            LibAllowList.removeAllowedContract(_addresses[i]);
-            emit AddressRemoved(_addresses[i]);
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @inheritdoc IWhitelistManagerFacet
-    function setFunctionApprovalBySignature(
-        bytes4 _signature,
-        bool _approval
+    function setContractSelectorWhitelist(
+        address _contract,
+        bytes4 _selector,
+        bool _whitelisted
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-
-        if (_approval) {
-            LibAllowList.addAllowedSelector(_signature);
-        } else {
-            LibAllowList.removeAllowedSelector(_signature);
-        }
-
-        emit FunctionSignatureApprovalChanged(_signature, _approval);
+        _setContractSelectorWhitelist(_contract, _selector, _whitelisted);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function batchSetFunctionApprovalBySignature(
-        bytes4[] calldata _signatures,
-        bool _approval
+    function batchSetContractSelectorWhitelist(
+        address[] calldata _contracts,
+        bytes4[] calldata _selectors,
+        bool _whitelisted
     ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        uint256 length = _signatures.length;
-        for (uint256 i = 0; i < length; ) {
-            bytes4 _signature = _signatures[i];
-            if (_approval) {
-                LibAllowList.addAllowedSelector(_signature);
-            } else {
-                LibAllowList.removeAllowedSelector(_signature);
-            }
-            emit FunctionSignatureApprovalChanged(_signature, _approval);
+        if (_contracts.length != _selectors.length) {
+            revert InvalidConfig();
+        }
+        for (uint256 i = 0; i < _contracts.length; ) {
+            _setContractSelectorWhitelist(
+                _contracts[i],
+                _selectors[i],
+                _whitelisted
+            );
             unchecked {
                 ++i;
             }
@@ -117,10 +51,18 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function isFunctionApproved(
-        bytes4 _signature
-    ) public view returns (bool approved) {
-        return LibAllowList.selectorIsAllowed(_signature);
+    function isContractSelectorWhitelisted(
+        address _contract,
+        bytes4 _selector
+    ) external view returns (bool whitelisted) {
+        return LibAllowList.contractSelectorIsAllowed(_contract, _selector);
+    }
+
+    /// @inheritdoc IWhitelistManagerFacet
+    function isFunctionSelectorWhitelisted(
+        bytes4 _selector
+    ) external view returns (bool whitelisted) {
+        return LibAllowList.selectorIsAllowed(_selector);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
@@ -135,16 +77,191 @@ contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// @inheritdoc IWhitelistManagerFacet
     function isAddressWhitelisted(
         address _address
-    ) public view returns (bool approved) {
+    ) external view returns (bool whitelisted) {
         return LibAllowList.contractIsAllowed(_address);
     }
 
     /// @inheritdoc IWhitelistManagerFacet
-    function getApprovedFunctionSignatures()
+    function getWhitelistedFunctionSelectors()
         external
         view
-        returns (bytes4[] memory signatures)
+        returns (bytes4[] memory selectors)
     {
         return LibAllowList.getAllowedSelectors();
+    }
+
+    /// @inheritdoc IWhitelistManagerFacet
+    function getWhitelistedSelectorsForContract(
+        address _contract
+    ) external view returns (bytes4[] memory selectors) {
+        return LibAllowList.getWhitelistedSelectorsForContract(_contract);
+    }
+
+    /// @inheritdoc IWhitelistManagerFacet
+    function getAllContractSelectorPairs()
+        external
+        view
+        returns (address[] memory contracts, bytes4[][] memory selectors)
+    {
+        // Get all whitelisted contracts
+        contracts = LibAllowList.getAllowedContracts();
+
+        // Initialize selectors array with same length as contracts
+        selectors = new bytes4[][](contracts.length);
+
+        // For each contract, get its whitelisted selectors
+        for (uint256 i = 0; i < contracts.length; ) {
+            selectors[i] = LibAllowList.getWhitelistedSelectorsForContract(
+                contracts[i]
+            );
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @dev Remove these methods after migration is complete in next facet upgrade.
+    /// @inheritdoc IWhitelistManagerFacet
+    function migrate(
+        bytes4[] calldata _selectorsToRemove,
+        address[] calldata _contracts,
+        bytes4[][] calldata _selectors
+    ) external {
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
+
+        LibAllowList.AllowListStorage storage als = _getAllowListStorage();
+
+        // return early if already migrated
+        if (als.migrated) return;
+
+        // Validate input arrays have matching lengths
+        if (_contracts.length != _selectors.length) {
+            revert InvalidConfig();
+        }
+
+        // clear old state
+        // reset contractAllowList
+        uint256 i;
+        uint256 length = als.contracts.length;
+        for (; i < length; ) {
+            delete als.contractAllowList[als.contracts[i]];
+            unchecked {
+                ++i;
+            }
+        }
+
+        // reset selectorAllowList with external selectors array because new selectors array does not exist yet
+        i = 0;
+        length = _selectorsToRemove.length;
+        for (; i < length; ) {
+            delete als.selectorAllowList[_selectorsToRemove[i]];
+            unchecked {
+                ++i;
+            }
+        }
+
+        // reset contract array
+        delete als.contracts;
+        // clearing selectors (als.selectors) is not needed as it's a new variable
+
+        // whitelist contract-selector pairs
+        i = 0;
+        length = _contracts.length;
+        for (; i < length; ) {
+            address contractAddr = _contracts[i];
+            bytes4[] calldata contractSelectors = _selectors[i];
+
+            if (contractAddr == address(this)) {
+                revert CannotAuthoriseSelf();
+            }
+
+            // whitelist each selector for this contract
+            for (uint256 j = 0; j < contractSelectors.length; ) {
+                bytes4 selector = contractSelectors[j];
+
+                // check for duplicate contract-selector pairs
+                if (
+                    LibAllowList.contractSelectorIsAllowed(
+                        contractAddr,
+                        selector
+                    )
+                ) {
+                    revert InvalidConfig();
+                }
+
+                LibAllowList.addAllowedContractSelector(
+                    contractAddr,
+                    selector
+                );
+                emit ContractSelectorWhitelistChanged(
+                    contractAddr,
+                    selector,
+                    true
+                );
+                unchecked {
+                    ++j;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        // Mark as migrated
+        als.migrated = true;
+    }
+
+    /// @dev Remove these methods after migration is complete in next facet upgrade.
+    /// @inheritdoc IWhitelistManagerFacet
+    function isMigrated() external view returns (bool) {
+        LibAllowList.AllowListStorage storage als = _getAllowListStorage();
+        return als.migrated;
+    }
+
+    /// Internal Logic ///
+
+    /// @dev Remove these methods after migration is complete in next facet upgrade.
+    /// @dev Fetch allow list storage struct
+    function _getAllowListStorage()
+        internal
+        pure
+        returns (LibAllowList.AllowListStorage storage als)
+    {
+        bytes32 position = LibAllowList.NAMESPACE;
+        assembly {
+            als.slot := position
+        }
+    }
+
+    /// @dev The single internal function that all state changes must flow through.
+    function _setContractSelectorWhitelist(
+        address _contract,
+        bytes4 _selector,
+        bool _whitelisted
+    ) internal {
+        if (_contract == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
+        // Check current status to prevent redundant operations and emitting unnecessary events.
+        bool isCurrentlyWhitelisted = LibAllowList.contractSelectorIsAllowed(
+            _contract,
+            _selector
+        );
+        if (isCurrentlyWhitelisted == _whitelisted) {
+            return;
+        }
+
+        if (_whitelisted) {
+            LibAllowList.addAllowedContractSelector(_contract, _selector);
+        } else {
+            LibAllowList.removeAllowedContractSelector(_contract, _selector);
+        }
+        emit ContractSelectorWhitelistChanged(
+            _contract,
+            _selector,
+            _whitelisted
+        );
     }
 }

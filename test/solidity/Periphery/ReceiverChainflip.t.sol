@@ -208,7 +208,7 @@ contract ReceiverChainflipTest is TestBase {
         swapData[0] = LibSwap.SwapData({
             callTo: address(mockDEX),
             approveTo: address(mockDEX),
-            sendingAssetId: LibAsset.NATIVE_ASSETID,
+            sendingAssetId: LibAsset.NULL_ADDRESS,
             receivingAssetId: ADDRESS_DAI,
             fromAmount: 1 ether,
             callData: abi.encodeWithSelector(
@@ -227,7 +227,7 @@ contract ReceiverChainflipTest is TestBase {
         vm.expectEmit(true, true, true, true, address(receiver));
         emit LiFiTransferRecovered(
             guid,
-            LibAsset.NATIVE_ASSETID,
+            LibAsset.NULL_ADDRESS,
             receiverAddress,
             1 ether,
             block.timestamp
@@ -262,8 +262,8 @@ contract ReceiverChainflipTest is TestBase {
         swapData[0] = LibSwap.SwapData({
             callTo: address(mockDEX),
             approveTo: address(mockDEX),
-            sendingAssetId: LibAsset.NATIVE_ASSETID,
-            receivingAssetId: LibAsset.NATIVE_ASSETID, // Try to get ETH back
+            sendingAssetId: LibAsset.NULL_ADDRESS,
+            receivingAssetId: LibAsset.NULL_ADDRESS, // Try to get ETH back
             fromAmount: 1 ether,
             callData: abi.encodeWithSelector(
                 mockDEX.mockSwapWillRevertWithReason.selector,
@@ -311,7 +311,7 @@ contract ReceiverChainflipTest is TestBase {
         vm.expectEmit();
         emit LiFiTransferCompleted(
             guid,
-            LibAsset.NATIVE_ASSETID,
+            LibAsset.NULL_ADDRESS,
             receiverAddress,
             amountOutMin,
             block.timestamp
@@ -391,7 +391,7 @@ contract ReceiverChainflipTest is TestBase {
         swapData[0] = LibSwap.SwapData({
             callTo: address(uniswap),
             approveTo: address(uniswap),
-            sendingAssetId: LibAsset.NATIVE_ASSETID,
+            sendingAssetId: LibAsset.NULL_ADDRESS,
             receivingAssetId: ADDRESS_DAI,
             fromAmount: amountIn,
             callData: abi.encodeWithSelector(

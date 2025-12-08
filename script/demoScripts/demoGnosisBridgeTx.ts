@@ -1,8 +1,9 @@
-import { providers, Wallet, utils, constants } from 'ethers'
 import chalk from 'chalk'
-import { GnosisBridgeFacet__factory, ERC20__factory } from '../typechain'
+import { providers, Wallet, utils, constants } from 'ethers'
+
+import config from '../../config/gnosis.json'
+import { GnosisBridgeFacet__factory, ERC20__factory } from '../../typechain'
 import { node_url } from '../utils/network'
-import config from '../config/gnosisBridge'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

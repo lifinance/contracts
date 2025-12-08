@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+// solhint-disable-next-line no-unused-import
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
@@ -75,6 +76,7 @@ contract Executor is
         address _erc20Proxy,
         address _owner
     ) WithdrawablePeriphery(_owner) {
+        // TODO: add constructor parameter validation on next contract update
         erc20Proxy = IERC20Proxy(_erc20Proxy);
         emit ERC20ProxySet(_erc20Proxy);
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
+// solhint-disable-next-line no-unused-import
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
@@ -10,6 +11,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 interface IWrapper {
     function deposit() external payable;
 
+    // solhint-disable-next-line explicit-types
     function withdraw(uint wad) external;
 }
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InformationMismatch } from "src/Errors/GenericErrors.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 import { IStargate } from "lifi/Interfaces/IStargate.sol";
@@ -11,18 +11,10 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
 // Stub StargateFacetV2 Contract
-contract TestStargateFacetV2 is StargateFacetV2 {
+contract TestStargateFacetV2 is StargateFacetV2, TestWhitelistManagerBase {
     constructor(
         address _tokenMessagingAddress
     ) StargateFacetV2(_tokenMessagingAddress) {}
-
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract StargateFacetV2Test is TestBaseFacet {
@@ -69,9 +61,11 @@ contract StargateFacetV2Test is TestBaseFacet {
         functionSelectors[1] = stargateFacetV2
             .swapAndStartBridgeTokensViaStargate
             .selector;
-        functionSelectors[2] = stargateFacetV2.addToWhitelist.selector;
+        functionSelectors[2] = stargateFacetV2
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = stargateFacetV2
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
         functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
 
@@ -79,24 +73,28 @@ contract StargateFacetV2Test is TestBaseFacet {
         stargateFacetV2 = TestStargateFacetV2(payable(address(diamond)));
 
         // whitelist DEX and feeCollector addresses and function selectors in diamond
-        stargateFacetV2.addToWhitelist(address(uniswap));
-        stargateFacetV2.addToWhitelist(address(feeCollector));
-        stargateFacetV2.setFunctionApprovalBySignature(
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        stargateFacetV2.setFunctionApprovalBySignature(
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapETHForExactTokens.selector
         );
-        stargateFacetV2.setFunctionApprovalBySignature(
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForETH.selector
         );
-        stargateFacetV2.setFunctionApprovalBySignature(
+        stargateFacetV2.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
-        stargateFacetV2.setFunctionApprovalBySignature(
+        stargateFacetV2.addAllowedContractSelector(
+            address(feeCollector),
             feeCollector.collectNativeFees.selector
         );
-        stargateFacetV2.setFunctionApprovalBySignature(
+        stargateFacetV2.addAllowedContractSelector(
+            address(feeCollector),
             feeCollector.collectTokenFees.selector
         );
 

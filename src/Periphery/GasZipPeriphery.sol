@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -127,7 +127,8 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     }
 
     /// @dev Returns a value that signals to Gas.zip to which chains gas should be sent in equal parts
-    /// @param _chainIds a list of Gas.zip-specific chainIds (not the original chainIds), see https://dev.gas.zip/gas/chain-support/outbound
+    /// @param _chainIds a list of Gas.zip-specific chainIds (not the original chainIds),
+    ///                 see https://dev.gas.zip/gas/chain-support/outbound
     function getDestinationChainsValue(
         uint8[] calldata _chainIds
     ) external pure returns (uint256 destinationChains) {

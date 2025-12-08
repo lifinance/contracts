@@ -1,60 +1,64 @@
-import { MongoClient } from 'mongodb'
 import fs from 'fs'
+
+import { consola } from 'consola'
 import { config } from 'dotenv'
-import consola from 'consola'
+import { MongoClient } from 'mongodb'
+
+import { getRPCEnvVarName } from '../utils/network'
+
 config()
 
-interface RpcEndpoint {
+interface IRpcEndpoint {
   url: string
   priority: number
+  isActive: boolean
+  network: string
 }
 
 async function fetchRpcEndpoints(): Promise<{
-  [network: string]: RpcEndpoint[]
+  [network: string]: IRpcEndpoint[]
 }> {
   const MONGODB_URI = process.env.MONGODB_URI
   if (!MONGODB_URI)
     throw new Error('MONGODB_URI is not defined in the environment')
 
   const client = new MongoClient(MONGODB_URI)
+
   try {
     await client.connect()
     const db = client.db('blockchain-configs')
     const collection = db.collection('RpcEndpoints')
 
     const cursor = collection.find({})
-    const endpoints: { [network: string]: RpcEndpoint[] } = {}
+    const endpoints: { [network: string]: IRpcEndpoint[] } = {}
 
     await cursor.forEach((doc) => {
       if (doc?.chainName && Array.isArray(doc?.rpcs)) {
-        const validEndpoints: RpcEndpoint[] = doc.rpcs.filter(
+        const validEndpoints: IRpcEndpoint[] = doc.rpcs.filter(
           (r: any) => !!r.url
         )
         // Sort endpoints in descending order so that the endpoint with the highest priority comes first
         validEndpoints.sort((a, b) => b.priority - a.priority)
         if (validEndpoints.length > 0) {
-          const envVar = `ETH_NODE_URI_${doc.chainName.toUpperCase()}`
+          const envVar = getRPCEnvVarName(doc.chainName)
           endpoints[envVar] = validEndpoints
         }
       }
     })
 
-    await client.close()
     return endpoints
   } catch (error) {
-    try {
-      await client.close()
-    } catch {
-      /* ignore closure errors */
-    }
     throw new Error(`Failed to fetch RPC endpoints: ${error}`)
+  } finally {
+    // Ensure the client is always closed, even if there's an error
+    await client.close()
   }
 }
 
 async function mergeEndpointsIntoEnv() {
   try {
     // Try to fetch from MongoDB first
-    let newEndpoints: { [network: string]: RpcEndpoint[] } = {}
+    let newEndpoints: { [network: string]: IRpcEndpoint[] } = {}
     try {
       newEndpoints = await fetchRpcEndpoints()
     } catch (error) {
@@ -66,22 +70,27 @@ async function mergeEndpointsIntoEnv() {
       const networks = (await import('../../config/networks.json')).default
       newEndpoints = Object.entries(networks).reduce(
         (acc, [networkName, config]) => {
-          const envVar = `ETH_NODE_URI_${networkName.toUpperCase()}`
+          const envVar = getRPCEnvVarName(networkName)
           acc[envVar] = [
             {
               url: config.rpcUrl,
               priority: 1,
+              isActive: true,
+              network: networkName,
             },
           ]
           return acc
         },
-        {} as { [network: string]: RpcEndpoint[] }
+        {} as { [network: string]: IRpcEndpoint[] }
       )
     }
 
     // Group endpoints by first letter after "ETH_NODE_URI_"
     const groupedEndpoints = Object.entries(newEndpoints).reduce(
-      (acc: { [key: string]: [string, RpcEndpoint[]][] }, [key, endpoints]) => {
+      (
+        acc: { [key: string]: [string, IRpcEndpoint[]][] },
+        [key, endpoints]
+      ) => {
         const networkName = key.replace('ETH_NODE_URI_', '')
         const firstLetter = networkName.charAt(0)
         if (!acc[firstLetter]) acc[firstLetter] = []
@@ -95,6 +104,8 @@ async function mergeEndpointsIntoEnv() {
     const sortedGroups = Object.keys(groupedEndpoints)
       .sort()
       .map((letter) => {
+        if (!groupedEndpoints[letter])
+          throw new Error(`Missing group for letter ${letter}`)
         const group = groupedEndpoints[letter].sort(([keyA], [keyB]) => {
           const nameA = keyA.replace('ETH_NODE_URI_', '')
           const nameB = keyB.replace('ETH_NODE_URI_', '')

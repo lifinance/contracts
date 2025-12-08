@@ -4,12 +4,7 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockUniswapDEX } from "./MockUniswapDEX.sol";
-
-interface IWhitelistManager {
-    function addToWhitelist(address _address) external;
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external;
-}
+import { TestWhitelistManagerBase } from "./TestWhitelistManagerBase.sol";
 
 //common utilities for forge tests
 contract TestHelpers is Test {
@@ -53,26 +48,32 @@ contract TestHelpers is Test {
             amountInActual
         );
         // whitelist DEX & function selector
-        IWhitelistManager(diamond).addToWhitelist(address(mockDex));
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
             mockDex.swapTokensForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
             mockDex.swapExactTokensForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
             mockDex.swapETHForExactTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
             mockDex.swapExactETHForTokens.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
             mockDex.swapExactTokensForETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
             mockDex.swapTokensForExactETH.selector
         );
-        IWhitelistManager(diamond).setFunctionApprovalBySignature(
+        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
+            address(mockDex),
             mockDex.mockSwapWillRevertWithReason.selector
         );
     }

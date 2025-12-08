@@ -7,21 +7,21 @@
  */
 
 import { defineCommand, runMain } from 'citty'
-import { Address, createPublicClient, http, isAddress } from 'viem'
+import { consola } from 'consola'
+import * as dotenv from 'dotenv'
+import { createPublicClient, http, isAddress, type Address } from 'viem'
+
+import globalConfig from '../../../config/global.json'
+
 import {
   getSafeMongoCollection,
   getNextNonce,
   initializeSafeClient,
   getPrivateKey,
-  ViemSafe,
-  SafeTransaction,
   storeTransactionInMongoDB,
   getSafeInfoFromContract,
   isAddressASafeOwner,
 } from './safe-utils'
-import globalConfig from '../../../config/global.json'
-import * as dotenv from 'dotenv'
-import consola from 'consola'
 dotenv.config()
 
 const main = defineCommand({
@@ -74,7 +74,7 @@ const main = defineCommand({
       })
 
       safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
-    } catch (error) {
+    } catch (error: any) {
       consola.error(`Failed to get Safe info: ${error.message}`)
       throw new Error(
         `Could not get Safe info for ${safeAddress} on ${network}`
@@ -89,7 +89,7 @@ const main = defineCommand({
       const cmdLineOwners = args.owners.split(',').map((addr) => addr.trim())
 
       // Validate each address using viem's isAddress function
-      for (const addr of cmdLineOwners) {
+      for (const addr of cmdLineOwners)
         if (!isAddress(addr)) {
           consola.error(`Invalid Ethereum address: ${addr}`)
           consola.error(
@@ -98,7 +98,6 @@ const main = defineCommand({
           await mongoClient.close()
           process.exit(1)
         }
-      }
 
       consola.info('Adding owners from command line:', cmdLineOwners)
 
@@ -120,7 +119,7 @@ const main = defineCommand({
     const currentThreshold = Number(safeInfo.threshold)
 
     // Get signer address
-    const senderAddress = safe.account
+    const senderAddress = safe.account.address
 
     consola.info('Safe Address', safeAddress)
     consola.info('Signer Address', senderAddress)
@@ -181,7 +180,7 @@ const main = defineCommand({
       try {
         const result = await storeTransactionInMongoDB(
           pendingTransactions,
-          await safe.getAddress(),
+          safe.getAddress(),
           network,
           chain.id,
           signedTx,
@@ -189,9 +188,8 @@ const main = defineCommand({
           senderAddress
         )
 
-        if (!result.acknowledged) {
+        if (!result.acknowledged)
           throw new Error('MongoDB insert was not acknowledged')
-        }
 
         consola.success('Transaction successfully stored in MongoDB')
       } catch (error) {
@@ -203,7 +201,7 @@ const main = defineCommand({
 
     consola.info('-'.repeat(80))
 
-    if (currentThreshold != 3) {
+    if (currentThreshold !== 3) {
       // Get the updated count of owners after all additions
       const updatedOwnerCount = (await safe.getOwners()).length
 
@@ -236,7 +234,7 @@ const main = defineCommand({
       try {
         const result = await storeTransactionInMongoDB(
           pendingTransactions,
-          await safe.getAddress(),
+          safe.getAddress(),
           network,
           chain.id,
           signedThresholdTx,
@@ -244,9 +242,8 @@ const main = defineCommand({
           senderAddress
         )
 
-        if (!result.acknowledged) {
+        if (!result.acknowledged)
           throw new Error('MongoDB insert was not acknowledged')
-        }
 
         consola.success('Transaction successfully stored in MongoDB')
       } catch (error) {

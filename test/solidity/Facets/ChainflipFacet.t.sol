@@ -1,27 +1,19 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InformationMismatch, CannotBridgeToSameNetwork, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ChainflipFacet Contract
-contract TestChainflipFacet is ChainflipFacet {
+contract TestChainflipFacet is ChainflipFacet, TestWhitelistManagerBase {
     constructor(
         address _chainflipVault
     ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
-
-    function addToWhitelist(address _address) external {
-        LibAllowList.addAllowedContract(_address);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract ChainflipFacetTest is TestBaseFacet {
@@ -47,28 +39,29 @@ contract ChainflipFacetTest is TestBaseFacet {
         vm.label(chainflipVault, "Chainflip Vault");
 
         chainflipFacet = new TestChainflipFacet(chainflipVault);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = chainflipFacet
             .startBridgeTokensViaChainflip
             .selector;
         functionSelectors[1] = chainflipFacet
             .swapAndStartBridgeTokensViaChainflip
             .selector;
-        functionSelectors[2] = chainflipFacet.addToWhitelist.selector;
-        functionSelectors[3] = chainflipFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = chainflipFacet
+            .addAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
-        chainflipFacet.addToWhitelist(ADDRESS_UNISWAP);
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        chainflipFacet.setFunctionApprovalBySignature(
+        chainflipFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 
@@ -124,7 +117,7 @@ contract ChainflipFacetTest is TestBaseFacet {
             -int256(defaultUSDCAmount)
         )
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData.dstToken = 6;
         validChainflipData.nonEVMReceiver = bytes(
@@ -153,7 +146,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         )
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
         validChainflipData.dstToken = 6;
         validChainflipData.nonEVMReceiver = bytes(
@@ -406,7 +399,7 @@ contract ChainflipFacetTest is TestBaseFacet {
         // Test Solana mapping
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         validChainflipData.nonEVMReceiver = bytes(
             "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
         );
@@ -430,7 +423,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     }
 
     function testRevert_WhenUsingEmptyNonEVMAddress() public {
-        bridgeData.receiver = LibAsset.NON_EVM_ADDRESS;
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData.dstToken = 6;
         validChainflipData.nonEVMReceiver = bytes(""); // Empty address should fail

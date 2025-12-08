@@ -1,16 +1,17 @@
-import { providers, Wallet, utils, constants, Contract } from 'ethers'
-import { HopFacet__factory, ERC20__factory } from '../typechain'
-import { node_url } from '../../utils/network'
-import * as deployment from '../export/deployments-staging.json'
 import { Chain, Hop } from '@hop-protocol/sdk'
-import { parseUnits } from 'ethers/lib/utils'
 import chalk from 'chalk'
+import { providers, Wallet, utils, constants, Contract } from 'ethers'
+import { parseUnits } from 'ethers/lib/utils'
+
+import * as deployment from '../../deployments/mainnet.staging.json'
+import { HopFacet__factory, ERC20__factory } from '../../typechain'
+import { node_url } from '../utils/network'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))
 }
 
-const LIFI_ADDRESS = deployment[100].xdai.contracts.LiFiDiamond.address
+const LIFI_ADDRESS = deployment.LiFiDiamond
 const POLYGON_USDT_ADDRESS = '0xc2132d05d31c914a87c6611c10748aeb04b58e8f'
 const POLYGON_USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
 const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'

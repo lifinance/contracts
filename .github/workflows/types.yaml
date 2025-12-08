@@ -85,7 +85,7 @@ jobs:
             if [[ "$LATEST_TAG" != *"beta"* ]]; then
               while read ITEM; do
                 TAG_NAME=$(jq -r '.name' <<< "$ITEM")
-                if [[ "$TAG_NAME" == "$LATEST_TAG-$beta"* ]]; then
+                if [[ "$TAG_NAME" == "$LATEST_TAG-beta"* ]]; then
                   LATEST_TAG=$TAG_NAME
                   break
                 fi

@@ -37,13 +37,24 @@ deployAndStoreCREATE3Factory() {
   echo ""
 
   # deploy CREATE3Factory
+  echo "Trying to deploy CREATE3Factory now"
+  echo ""
   local PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
-	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f $NETWORK -vvvv --verify --json --legacy --broadcast --skip-simulation --gas-limit 2000000)
+
+  # Set gas estimate multiplier (default to 200 if not set in .env)
+  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
+    GAS_ESTIMATE_MULTIPLIER=200
+  fi
+
+  # Add skip simulation flag based on environment variable
+  SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
+
+	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" -vvv --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" 2>&1)
+  echo ""
+  echo "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+  echo ""
 	RETURN_CODE=$?
   unset PRIVATE_KEY
-	CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
-  echo "CLEAN_RETURN_DATA: "$CLEAN_RETURN_DATA""
-	RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)
 
   # check if deployment was successful
 	if [[ $RETURN_CODE -ne 0 ]]; then
@@ -51,20 +62,19 @@ deployAndStoreCREATE3Factory() {
 		return 1
 	fi
 
-  # check if return data is available
-  if [[ -z "$RETURN_DATA" || "$RETURN_DATA" == "null" ]]; then
-    error "Deployment (apparently) succeeded but no return data found"
-    return 1
-  fi
-
-  # obtain deployed-to address from return data
-	FACTORY_ADDRESS=$(echo "$RETURN_DATA" | jq -r '.deployed.value')
-	echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
+  # extract deployed-to address from return data
+  FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+	if [[ $? -ne 0 ]]; then
+		error "❌ Could not extract deployed address from raw return data"
+		return 1
+	fi
 
   if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null"  ]]; then
     error "Failed to obtain deployed contract address for CREATE3Factory on $NETWORK ($ENVIRONMENT)"
     return 1
   fi
+
+	echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
 
   # check if network exists in networks.json
   if ! jq -e --arg net "$NETWORK" '.[$net]' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
@@ -83,6 +93,9 @@ deployAndStoreCREATE3Factory() {
 
   mv "$tmpfile" "$NETWORKS_JSON_FILE_PATH"
   echo "Stored CREATE3Factory address ($FACTORY_ADDRESS) in networks.json for network \"$NETWORK\""
+
+  # verify CREATE3Factory
+  # verifyContract "$NETWORK" "CREATE3Factory" "$FACTORY_ADDRESS" "0x"
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< CREATE3Factory deployed (please check for warnings)"
   echo ""

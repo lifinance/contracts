@@ -21,7 +21,7 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function getCallData() internal override returns (bytes memory) {
-        path = string.concat(root, "/config/dln.json");
+        path = string.concat(root, "/config/debridgedln.json");
         json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");
         ChainIdConfig[] memory cidCfg = abi.decode(

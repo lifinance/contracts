@@ -1,35 +1,37 @@
-import MerkleTree from 'merkletreejs'
-import claimsFile from '../resources/gasRebates.json'
 import fs from 'fs'
+
 import { keccak256, defaultAbiCoder } from 'ethers/lib/utils'
+import { MerkleTree } from 'merkletreejs'
+
+import claimsFile from '../resources/gasRebates.json'
 
 const OUTPUT_PATH = './script/output/outputMerkleProofs.json'
 
 // input types
-interface Rebate {
+interface IRebate {
   [account: string]: string
 }
-interface GasRebates {
-  [network: string]: Rebate
+interface IGasRebates {
+  [network: string]: IRebate
 }
 
 // output types
-interface Claim {
+interface IClaim {
   account: string
   amount: string
 }
-interface ClaimWithProof extends Claim {
+interface IClaimWithProof extends IClaim {
   merkleProof: string[]
 }
 
-interface ClaimsPerNetwork {
+interface IClaimsPerNetwork {
   [network: string]: {
     merkleRoot: string
-    accounts: ClaimWithProof[]
+    accounts: IClaimWithProof[]
   }
 }
 
-const createMerkleTree = (claims: Claim[]) => {
+const createMerkleTree = (claims: IClaim[]) => {
   // For each element : concatenate the two hex buffers
   // to a single one as this keccak256 implementation only
   // expects one input
@@ -49,10 +51,10 @@ const createMerkleTree = (claims: Claim[]) => {
 }
 
 function getProof(
-  claim: Claim,
+  claim: IClaim,
   leafNodes: string[],
   tree: MerkleTree,
-  allClaims: Claim[]
+  allClaims: IClaim[]
 ) {
   // find index of the claim
   const index = allClaims.findIndex(
@@ -67,7 +69,7 @@ function getProof(
   return tree.getHexProof(leafNodes[index])
 }
 
-const parseAccounts = (accounts: Rebate): Claim[] => {
+const parseAccounts = (accounts: IRebate): IClaim[] => {
   return Object.entries(accounts).map(([account, amount]) => {
     return {
       account,
@@ -77,10 +79,10 @@ const parseAccounts = (accounts: Rebate): Claim[] => {
 }
 
 const processClaims = (
-  claims: Claim[],
+  claims: IClaim[],
   leafNodes: string[],
   tree: MerkleTree
-): ClaimWithProof[] => {
+): IClaimWithProof[] => {
   return claims.map((claim) => {
     const merkleProof = getProof(claim, leafNodes, tree, claims)
     return {
@@ -93,8 +95,8 @@ const processClaims = (
 
 const processNetwork = (
   network: string,
-  claims: Rebate,
-  output: ClaimsPerNetwork
+  claims: IRebate,
+  output: IClaimsPerNetwork
 ) => {
   // parse accounts into array
   const claimsArray = parseAccounts(claims)
@@ -113,10 +115,10 @@ const processNetwork = (
 }
 
 const main = async () => {
-  const output: ClaimsPerNetwork = {}
+  const output: IClaimsPerNetwork = {}
 
   // parse input file
-  const claimsJson: GasRebates = claimsFile
+  const claimsJson: IGasRebates = claimsFile
   if (!claimsJson) throw Error('Input file invalid')
 
   // iterate over all networks

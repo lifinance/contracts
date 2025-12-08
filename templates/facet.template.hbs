@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -15,9 +15,9 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @custom:version 1.0.0
 contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-    
+
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.{{lowerCase name}}"); // Optional. Only use if you need to store data in the diamond storage.
-   
+
     /// @dev Local storage for the contract (optional)
     struct Storage {
         address[] exampleAllowedTokens;
@@ -34,7 +34,7 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
     }
 
     /// Events ///
-    
+
     event {{titleCase name}}Initialized();
 
     /// Constructor ///

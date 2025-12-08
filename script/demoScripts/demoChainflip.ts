@@ -1,19 +1,21 @@
 // Import required libraries and artifacts
+import { randomBytes } from 'crypto'
+
+import { config } from 'dotenv'
 import {
+  type Narrow,
   getContract,
   parseUnits,
-  Narrow,
   zeroAddress,
-  encodeAbiParameters,
   formatEther,
   formatUnits,
 } from 'viem'
-import { randomBytes } from 'crypto'
-import dotenv from 'dotenv'
-import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+
+import deployments from '../../deployments/mainnet.staging.json'
 import chainflipFacetArtifact from '../../out/ChainflipFacet.sol/ChainflipFacet.json'
-import { ChainflipFacet, ILiFi } from '../../typechain'
-import { SupportedChain } from './utils/demoScriptChainConfig'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+import type { ChainflipFacet, ILiFi } from '../../typechain'
+
 import {
   ensureBalance,
   ensureAllowance,
@@ -26,10 +28,10 @@ import {
   getUniswapDataExactETHToERC20,
   ADDRESS_UNISWAP_ARB,
   setupEnvironment,
+  type SupportedChain,
 } from './utils/demoScriptHelpers'
-import deployments from '../../deployments/mainnet.staging.json'
 
-dotenv.config()
+config()
 
 // Contract addresses and ABIs
 const RECEIVER_CHAINFLIP = deployments.ReceiverChainflip
@@ -214,7 +216,7 @@ async function main() {
   }
 
   // === Execute the appropriate transaction type ===
-  if (withDestinationCall) {
+  if (withDestinationCall)
     await executeWithDestinationCall(
       lifiDiamondContract,
       bridgeData,
@@ -222,7 +224,7 @@ async function main() {
       amount,
       publicClient
     )
-  } else if (withSwap) {
+  else if (withSwap)
     await executeWithSourceSwap(
       lifiDiamondContract,
       bridgeData,
@@ -230,14 +232,13 @@ async function main() {
       amount,
       publicClient
     )
-  } else {
+  else
     await executeDirect(
       lifiDiamondContract,
       bridgeData,
       chainflipData,
       publicClient
     )
-  }
 }
 
 main()

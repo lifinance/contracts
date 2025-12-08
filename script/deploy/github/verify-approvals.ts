@@ -30,16 +30,14 @@ const main = defineCommand({
     const facets = args.facets.split('\n')
 
     // Fetch PR information
-    const pr = await getOpenPRsForBranch(octokit, args.branch, args.token)
+    const pr = await getOpenPRsForBranch(octokit, args.branch)
 
     // Fetch files related to this PR
     const files = await getFilesInPR(octokit, pr[0].number)
 
-    for (const facet of facets) {
-      if (!files?.includes(`src/Facets/${facet}.sol`)) {
+    for (const facet of facets)
+      if (!files?.includes(`src/Facets/${facet}.sol`))
         console.error(`${facet} is not included in this PR`)
-      }
-    }
 
     // Get smartcontracts team members
     const scTeam = await getTeamMembers(octokit, 'smartcontract')
@@ -47,35 +45,31 @@ const main = defineCommand({
     // Get auditors team members
     const auditors = await getTeamMembers(octokit, 'auditors')
 
-    if (!scTeam?.length || !auditors?.length) {
+    if (!scTeam?.length || !auditors?.length)
       console.error('Team members not configured correctly')
-    }
 
     // Get approvals
-    const approvals = await getPRApprovers(octokit, pr[0].number, args.token)
+    const approvals = await getPRApprovers(octokit, pr[0].number)
 
-    if (!approvals?.length) {
-      console.error('No approvals')
-    }
+    if (!approvals?.length) console.error('No approvals')
 
     // Check that 1 of each team sc and auditors has approved the PR
     let scApproved,
       auditorApproved = false
-    for (const dev of scTeam) {
+    for (const dev of scTeam)
       if (approvals?.includes(dev)) {
         scApproved = true
         break
       }
-    }
-    for (const auditor of auditors) {
+
+    for (const auditor of auditors)
       if (approvals?.includes(auditor)) {
         auditorApproved = true
         break
       }
-    }
-    if (!scApproved || !auditorApproved) {
+
+    if (!scApproved || !auditorApproved)
       console.error('Missing required approvals')
-    }
 
     process.stdout.write('OK')
   },
@@ -83,11 +77,7 @@ const main = defineCommand({
 
 runMain(main)
 
-const getOpenPRsForBranch = async (
-  octokit: Octokit,
-  branch: string,
-  token: string
-) => {
+const getOpenPRsForBranch = async (octokit: Octokit, branch: string) => {
   let pullRequests: any[] = []
   let page = 1
 
@@ -114,11 +104,7 @@ const getOpenPRsForBranch = async (
   return openPrsForBranch
 }
 
-const getPRApprovers = async (
-  octokit: Octokit,
-  pull_number: number,
-  token: string
-) => {
+const getPRApprovers = async (octokit: Octokit, pull_number: number) => {
   try {
     const { data: reviews } = await octokit.pulls.listReviews({
       owner: OWNER,
@@ -162,5 +148,6 @@ const getTeamMembers = async (octokit: Octokit, team: string) => {
     return response.data.map((t) => t.login) || []
   } catch (error) {
     console.error(error)
+    throw Error('Failed to get team members')
   }
 }

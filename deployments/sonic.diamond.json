@@ -53,9 +53,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xe5CDC4f90B30dA151f7257A02988102c339Db1cA": {
+      "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
         "Name": "GasZipFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.4"
       },
       "0xC8C286F373c5b4a4c6a2D6369003477D76584D7F": {
         "Name": "SymbiosisFacet",
@@ -72,19 +72,42 @@
       "0xf34B594fDBC0dD8477756Cb7C6e77CF9A71691d6": {
         "Name": "GlacisFacet",
         "Version": "1.0.0"
+      },
+      "0x4640AaaaB3E6f5bB9b4A16fb00EA0DBD6D98B397": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.1"
+      },
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
+      },
+      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x55A5cE71307Ec425F0E533400A0bcEb136e6E800",
       "Executor": "0x1B874Aae59d738079Fe3E4F7D90B5793D3a51481",
       "FeeCollector": "0xaFb8cC8fCd71cd768Ce117C11eB723119FCDb1f8",
+      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x6F703111cc3f898f521d29E1151b3F56aA0a1E5B",
+      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xA03513f40409D1316c4958dbCef86e7Ab5Cd2009",
-      "Permit2Proxy": "",
+      "Patcher": "",
+      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverStargateV2": "0xB05796e54CfADA2C4F7771A0553D6538DD66Ba9a",
-      "RelayerCelerIM": "",
       "TokenWrapper": "0x51f5A9675A0663C3EC2b46121eB1504687922911"
     }
   }

@@ -8,18 +8,8 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("StandardizedCallFacetFacet") {}
 
     function run() public returns (StandardizedCallFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (StandardizedCallFacet(payable(predicted)));
-        }
-
         deployed = StandardizedCallFacet(
-            payable(
-                factory.deploy(salt, type(StandardizedCallFacet).creationCode)
-            )
+            deploy(type(StandardizedCallFacet).creationCode)
         );
-
-        vm.stopBroadcast();
     }
 }

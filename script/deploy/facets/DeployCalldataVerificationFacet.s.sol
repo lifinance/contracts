@@ -8,21 +8,8 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("CalldataVerificationFacetFacet") {}
 
     function run() public returns (CalldataVerificationFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (CalldataVerificationFacet(payable(predicted)));
-        }
-
         deployed = CalldataVerificationFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    type(CalldataVerificationFacet).creationCode
-                )
-            )
+            deploy(type(CalldataVerificationFacet).creationCode)
         );
-
-        vm.stopBroadcast();
     }
 }

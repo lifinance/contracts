@@ -1,0 +1,18 @@
+{
+  "mainnet": {
+    "stETH": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+    "wstETH": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+  },
+  "optimism": {
+    "stETH": "0x76A50b8c7349cCDDb7578c6627e79b5d99D24138",
+    "wstETH": "0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb"
+  },
+  "soneium": {
+    "stETH": "0x0Ce031AEd457C870D74914eCAA7971dd3176cDAF",
+    "wstETH": "0xaA9BD8c957D803466FA92504BDd728cC140f8941"
+  },
+  "unichain": {
+    "stETH": "0x81f2508AAC59757EF7425DDc9717AB5c2AA0A84F",
+    "wstETH": "0xc02fE7317D4eb8753a02c35fe019786854A92001"
+  }
+}

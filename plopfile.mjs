@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-default-export
 export default function (
   /** @type {import('plop').NodePlopAPI} */
   plop

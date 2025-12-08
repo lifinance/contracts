@@ -51,6 +51,16 @@ updateFacetConfig() {
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
+  # initialize failure flag
+  FAILED=0
+
+  # make sure GAS_ESTIMATE_MULTIPLIER is set
+  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
+    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
+  fi
+
+  echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
+
   for NETWORK in "${NETWORKS[@]}"; do
     # get deployer wallet balance
     echo "[info] loading deployer wallet balance for network $NETWORK..."
@@ -59,7 +69,7 @@ updateFacetConfig() {
     echo ""
 
     # ensure all required .env values are set
-    checkRequiredVariablesInDotEnv $NETWORK
+    checkRequiredVariablesInDotEnv "$NETWORK"
 
 
     # repeatedly call selected script until it's succeeded or out of attempts
@@ -67,13 +77,16 @@ updateFacetConfig() {
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
       echo "[info] now executing $SCRIPT on $DIAMOND_CONTRACT_NAME in $ENVIRONMENT environment on $NETWORK (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
 
+      # Add skip simulation flag based on environment variable
+      SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
+
       if [[ "$DEBUG" == *"true"* ]]; then
         # print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy)
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
         RETURN_CODE=$?
       else
         # do not print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy) 2>/dev/null
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER") 2>/dev/null
         RETURN_CODE=$?
       fi
 
@@ -90,12 +103,18 @@ updateFacetConfig() {
     # check if call was executed successfully or used all attempts
     if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
       error "failed to execute $SCRIPT on $DIAMOND_CONTRACT_NAME in $ENVIRONMENT environment on $NETWORK"
-      return 1
+      FAILED=1
+      continue
     else
       echo "[info] script executed successfully"
-      return 0
     fi
   done
+
+  # check if any network failed and exit with appropriate status
+  if [ $FAILED -eq 1 ]; then
+    error "one or more networks failed during execution"
+    exit 1
+  fi
 }
 
 

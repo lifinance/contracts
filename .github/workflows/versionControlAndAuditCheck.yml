@@ -1,14 +1,14 @@
 # This git action combines version control and audit checks
-# Version Control:
+# Version Control (runs on all branches):
 # - will check all modified or new contracts in src/*
 # - makes sure that all contracts that have changes in audit-relevant code require a contract version update
 # - relevant changes => anything except for single (//) or multi-line (/*) comments and changes in solidity pragma
 # - fails if contract version was not updated despite relevant changes
 # - fails if a new contract was added without a ///custom:version tag
 # - will update the PR title to contain contract names with version changes (incl. their new version)
-# Audit Checker:
+# Audit Checker (runs only on PRs targeting main branch):
 # - will check all modified or new contracts in src/*, except for interfaces (src/Interfaces/**) as these do not require an audit
-# - will only run if version-control job passed successfully
+# - will only run if version-control job passed successfully AND PR targets main branch
 # - will remove the (protected) "AuditCompleted" label in the beginning to prevent erroneous states
 # - reuses the list of relevant contracts identified by the version-control job
 # - will assign "AuditRequired" label if relevant contracts were identified, otherwise it wil assign "AuditNotRequired"
@@ -17,11 +17,9 @@
 # - checks include:
 #   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
 #   - ensuring that an audit report has been added at the logged path
-#   - ensuring that the commit hash that was audited is actually part of this PR
 # - assigns label "AuditCompleted" if the audit for each relevant modified contract passed all checks
 # - KNOWN LIMITATIONS
-#   - will only check the last 100 commits for any matches with audit commit hashes
-#   - only one audit can be registered per contract (in a specific version)
+#   - multiple audits can be registered per contract (in a specific version)
 
 name: VersionControlAndAuditVerification
 
@@ -38,7 +36,7 @@ permissions:
 
 jobs:
   version-control:
-    if: ${{ github.event.pull_request.draft == false }}
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     runs-on: ubuntu-latest
     concurrency:
       group: sc-core-dev-approval-${{ github.event.pull_request.number }}
@@ -61,12 +59,17 @@ jobs:
           echo "" > contracts_for_audit.txt
 
           ##### get all files modified by this PR
-          FILES="$(git diff --name-only "origin/${BASE_REF}" HEAD)"
+          # --diff-filter=AM argument to only include files that were added or modified not deleted
+          FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}" HEAD)"
 
-          ##### make sure that there are modified files
+          ##### if no files were modified, this is valid (e.g., just moving files around)
           if [[ -z "$FILES" ]]; then
-            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action\033[0m"
-            exit 1
+            echo -e "\033[32mNo files were modified in this PR.\033[0m"
+            echo -e "\033[32mThis is valid (e.g., just moving files around without changes).\033[0m"
+            echo -e "\033[32mNo version control or audit checks are required.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
           fi
 
           ##### Initialize empty variables
@@ -79,7 +82,7 @@ jobs:
             fi
           done <<< "${FILES}"
 
-          ##### if none found, exit here as there is nothing to do
+          ##### if nothing found, exit here as there is nothing to do
           if [[ -z "${CONTRACTS}" ]]; then
             echo -e "\033[32mNo version-controlled contracts found in files modified/added by this PR.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
@@ -115,8 +118,8 @@ jobs:
             echo "Now checking contract: $FILE_PATH"
 
             ##### Extract version tag from file
-            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
-            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" | head -1 || true)
+            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' | tr -d '\n\r' || true)
 
             ##### Extract the filename without extension
             FILENAME=$(basename "$FILE_PATH" .sol)
@@ -128,10 +131,8 @@ jobs:
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
-              ##### Get all changes of the current file/contract
-              DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
-
               ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
+              DIFF_OUTPUT=$(git diff "origin/${{ github.event.pull_request.base.ref }}" HEAD -- "$FILE_PATH")
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
                 | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
                 | grep -vE '^(\+\+\+|---)' \
@@ -139,79 +140,55 @@ jobs:
 
               ##### Decide if audit/version update is needed
               if [[ -n "$RELEVANT_CHANGES" ]]; then
-                ##### Log what is considered relevant (if anything)
-                echo "--------------------"
-                echo "The following lines were identified as audit-relevant code changes:"
-                echo "$RELEVANT_CHANGES"
-                echo "--------------------"
-                echo "Checking if version was updated..."
+                  ##### Log what is considered relevant (if anything)
+                  echo "--------------------"
+                  echo "The following lines were identified as audit-relevant code changes:"
+                  echo "$RELEVANT_CHANGES"
+                  echo "--------------------"
+                  echo "Checking if version was updated..."
 
-                ##### Check if version was updated in this PR
-                if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
-                  echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
-                  NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                  CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
+                  OLD_FILE_CONTENT=$(git show "origin/${{ github.event.pull_request.base.ref }}:${FILE_PATH}" 2>/dev/null || echo "")
+                  OLD_VERSION=$(echo "$OLD_FILE_CONTENT" | grep -E '^/// @custom:version' | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
 
-                  ###### interfaces do not required to be audited, so check if this is an interface first
-                  if [[ "$FILE_PATH" != src/Interfaces/* ]]; then
-                    ###### we only need to add the contract to these arrays if version was updated cause otherwise the action will fail anyway
-                    CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
-                    echo -e "$FILE_PATH marked for audit.\033[0m"
-                  else
-                    echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
+                  # If there was no old version line in the diff, it's a new file.
+                  # We set a default old version to ensure the comparison works correctly.
+                  if [[ -z "$OLD_VERSION" ]]; then
+                    # This handles new files. A check for a missing tag on new files
+                    # has already run earlier in the script.
+                    OLD_VERSION="0.0.0"
                   fi
 
-                else
-                  ##### Relevant changes but no version update — needs fixing
-                  echo -e "\033[31mThe file has relevant changes but the file version was not updated\033[0m"
-                  MISSING_VERSION_UPDATE+=("$FILE_PATH")
-                fi
+                  # Compare the current version from the file with the old version from the diff.
+                  if [[ "$VERSION" != "$OLD_VERSION" ]]; then
+                    # This is a valid version bump.
+                    # Use a different message for new files.
+                    if [[ "$OLD_VERSION" == "0.0.0" ]]; then
+                      echo -e "\033[32m New contract added with version v${VERSION}.\033[0m"
+                    else
+                      echo -e "\033[32m Version changed from v${OLD_VERSION} to v${VERSION}.\033[0m"
+                    fi
+
+                    CONTRACTS_FOR_TITLE+=("${FILENAME} v${VERSION}")
+
+                    # Mark for audit, unless it's an interface.
+                    if [[ "$FILE_PATH" != src/Interfaces/* ]]; then
+                        CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
+                        echo -e "$FILE_PATH marked for audit.\033[0m"
+                    else
+                        echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
+                    fi
+                  else
+                    ##### Relevant changes but no version update — needs fixing
+                    echo -e "\033[31mThe file has relevant changes but the version (v${VERSION}) was not updated.\033[0m"
+                    MISSING_VERSION_UPDATE+=("$FILE_PATH")
+                  fi
               else
-                ##### No relevant changes — only comments or pragma touched
-                echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
+                  ##### No relevant changes — only comments or pragma touched
+                  echo -e "\033[32mChange is non-relevant (only comments or pragma). No version update required.\033[0m"
               fi
             fi
             echo "===================================================================================="
           done <<< "$CONTRACTS"
-
-          # while IFS= read -r FILE_PATH; do
-          #   echo "Now checking contract: $FILE_PATH"
-          #   VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" || true)
-          #   VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
-
-          #   ##### Extract the filename without extension
-          #   FILENAME=$(basename "$FILE_PATH" .sol)
-
-          #   ##### Check if a version tag exists in the contract file
-          #   if [[ -z "$VERSION_TAG" ]]; then
-          #     echo -e "\033[31mFile does not contain a version tag\033[0m"
-          #     MISSING_VERSION_TAG+=("$FILE_PATH")
-          #   else
-          #     echo -e "\033[32mFile contains a custom:version tag\033[0m"
-          #     ##### get all changes of the current file/contract
-          #     DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE_PATH")
-          #     echo "DIFF_OUTPUT: $DIFF_OUTPUT"
-
-          #     ##### Check if the version was updated in this PR
-          #     if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
-          #       echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
-          #       NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-          #       CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
-          #       CONTRACTS_FOR_TITLE+=("${FILENAME} v${NEW_VERSION}")
-          #     else
-          #       ##### Check if changes are relevant (ignore comments, formatting, pragma, license changes)
-          #       if echo "$DIFF_OUTPUT" | grep -qE '^\+//|^\+pragma'; then
-          #         echo -e "\033[32mChange is non-relevant (comments/formatting/pragma/license). No version update required.\033[0m"
-          #       else
-          #         ##### add to files with missing version updates
-          #         echo -e "\033[31mThe file changed but the file version was not updated\033[0m"
-          #         MISSING_VERSION_UPDATE+=("$FILE_PATH")
-          #       fi
-          #     fi
-          #   fi
-          #   echo "--------------------"
-          # done <<< "$CONTRACTS"
-
 
           ##### If any contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
@@ -240,8 +217,16 @@ jobs:
           if [[ ${#CONTRACTS_FOR_AUDIT[@]} -ne 0 ]]; then
             ##### create a string from the array with all contracts
             CONTRACTS_FOR_AUDIT_STR=$(IFS=,; echo "${CONTRACTS_FOR_AUDIT[*]}")
-            CONTRACTS_FOR_TITLE_STR=$(IFS=,; echo "${CONTRACTS_FOR_TITLE[*]}")
-            echo -e "${CONTRACTS_FOR_TITLE_STR[*]}" > contracts_for_title.txt
+            # Join array elements with comma and space
+            CONTRACTS_FOR_TITLE_STR=""
+            for i in "${!CONTRACTS_FOR_TITLE[@]}"; do
+              if [ $i -eq 0 ]; then
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE[$i]}"
+              else
+                CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE_STR}, ${CONTRACTS_FOR_TITLE[$i]}"
+              fi
+            done
+            echo "${CONTRACTS_FOR_TITLE_STR}" > contracts_for_title.txt
           else
             echo -e "\033[32mDid not find any contracts that require an audit.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
@@ -252,8 +237,8 @@ jobs:
           ##### Upload this file in any case to prevent error in following job when trying to download this file
           echo -e ""
           echo -e ""
-          echo -e "${CONTRACTS_FOR_AUDIT_STR[*]}" > contracts_for_audit.txt
-          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR[*]}"
+          echo "${CONTRACTS_FOR_AUDIT_STR}" > contracts_for_audit.txt
+          echo "CONTRACTS MARKED FOR AUDIT: ${CONTRACTS_FOR_AUDIT_STR}"
 
       - name: Compose updated PR title
         env:
@@ -268,14 +253,14 @@ jobs:
 
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
-          ##### Step 1: Remove everything in and including brackets from the current title
-          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[.*$//')
+          ##### Step 1: Remove all bracketed content from the current title
+          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[[^]]*\]//g')
           echo "BASE_TITLE: $BASE_TITLE"
 
-          ##### Step 2: Trim whitespace from the base title
-          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/[[:space:]]*$//')"
+          ##### Step 2: Trim leading and trailing whitespace from the base title
+          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
-          ##### Step 3: Construct the new title if there are updated contracts
+          ##### Step 3: Construct the new title only if there are updated contracts
           if [[ -n "$UPDATED_CONTRACTS" ]]; then
             # Create new title with updated contracts
             PR_TITLE_UPDATED="${BASE_TITLE} [${UPDATED_CONTRACTS}]"
@@ -331,7 +316,7 @@ jobs:
         # ------------------------ end of version control checker ------------------------
 
   audit-verification:
-    if: ${{ github.event.pull_request.draft == false }}
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     needs: version-control
     runs-on: ubuntu-latest
     env:
@@ -479,7 +464,7 @@ jobs:
             echo "-----------"
             echo "now checking file $FILE"
             ##### load contract version
-            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE" | head -1)
 
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then
@@ -501,109 +486,117 @@ jobs:
             if [[ -z "$AUDIT_IDS" ]]; then
               AUDIT_COUNT=0
             else
-              AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+              # Use sort and uniq to remove duplicates, then count
+              AUDIT_COUNT=$(echo "$AUDIT_IDS" | sort | uniq | wc -l)
+
+              # Check for duplicates by comparing original and deduplicated counts
+              ORIGINAL_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+              if [[ $ORIGINAL_COUNT -ne $AUDIT_COUNT ]]; then
+                echo -e "\033[31mError: Found duplicate audit IDs for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mPlease remove duplicate entries from the audit log.\033[0m"
+                exit 1
+              fi
             fi
 
-            ##### Ensure exactly one audit is logged; handle errors if not
-            if [[ $AUDIT_COUNT -ne 1 ]]; then
-              if [[ $AUDIT_COUNT -gt 1 ]]; then
-                echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
-                echo -e "\033[31mPlease fix the audit log and try again.\033[0m"
-              else
-                echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
+            ##### Ensure at least one audit is logged; handle errors if not
+            if [[ $AUDIT_COUNT -lt 1 ]]; then
+              echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+              echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
+              exit 1
+            fi
+
+            ##### Extract audit entry details for each audit ID
+            while IFS= read -r AUDIT_ID; do
+              echo "Now checking audit ID: $AUDIT_ID"
+
+              ##### Extract audit entry details for the current audit ID
+              AUDIT_ENTRY=$(jq -r --arg audit_id "$AUDIT_ID" '.audits[$audit_id]' "$AUDIT_LOG_PATH")
+
+              ##### Check if AUDIT_ENTRY is valid JSON
+              if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
+                echo -e "\033[31mError: The logged audit ID ($AUDIT_ID) for contract $FILE seems to be invalid.\033[0m"
+                exit 1
               fi
 
-              exit 1
-            fi
+              echo "Validating audit $AUDIT_ID for file $FILE"
+              echo "Now checking if all required information is logged for this audit..."
 
+              ##### Extract log entry values into variables
+              AUDIT_COMPLETED_ON=$(echo "$AUDIT_ENTRY" | jq -r '.auditCompletedOn')
+              AUDITED_BY=$(echo "$AUDIT_ENTRY" | jq -r '.auditedBy')
+              AUDITOR_GIT_HANDLE=$(echo "$AUDIT_ENTRY" | jq -r '.auditorGitHandle')
+              AUDIT_REPORT_PATH=$(echo "$AUDIT_ENTRY" | jq -r '.auditReportPath')
+              AUDIT_COMMIT_HASH=$(echo "$AUDIT_ENTRY" | jq -r '.auditCommitHash')
 
-            ##### Extract the single audit ID
-            AUDIT_ID=$(echo "$AUDIT_IDS" | head -n 1)
-
-            ##### Extract audit entry details for the single audit ID
-            AUDIT_ENTRY=$(jq -r --arg audit_id "$AUDIT_ID" '.audits[$audit_id]' "$AUDIT_LOG_PATH")
-
-            ##### Check if AUDIT_ENTRY is valid JSON
-            if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
-              echo -e "\033[31mError: The logged audit ID ($AUDIT_ID) for contract $FILE seems to be invalid.\033[0m"
-              exit 1
-            fi
-
-            echo "File $FILE was audited in $AUDIT_ID"
-            echo "Now checking if all required information is logged for this audit..."
-
-            ##### Extract log entry values into variables
-            AUDIT_COMPLETED_ON=$(echo "$AUDIT_ENTRY" | jq -r '.auditCompletedOn')
-            AUDITED_BY=$(echo "$AUDIT_ENTRY" | jq -r '.auditedBy')
-            AUDITOR_GIT_HANDLE=$(echo "$AUDIT_ENTRY" | jq -r '.auditorGitHandle')
-            AUDIT_REPORT_PATH=$(echo "$AUDIT_ENTRY" | jq -r '.auditReportPath')
-            AUDIT_COMMIT_HASH=$(echo "$AUDIT_ENTRY" | jq -r '.auditCommitHash')
-
-            ##### make sure that audit log entry contains date
-            if [ -z "$AUDIT_COMPLETED_ON" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains date
+              if [ -z "$AUDIT_COMPLETED_ON" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains a date for $AUDIT_ID: $AUDIT_COMPLETED_ON"
-            fi
 
-            ##### make sure that audit log entry contains auditor's (company) name
-            if [ -z "$AUDITED_BY" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains auditor's (company) name
+              if [ -z "$AUDITED_BY" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains the auditor's name for $AUDIT_ID: $AUDITED_BY"
-            fi
 
-            ##### make sure that audit log entry contains auditor's git handle
-            if [ -z "$AUDITOR_GIT_HANDLE" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains auditor's git handle
+              if [ -z "$AUDITOR_GIT_HANDLE" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains the auditor's github handle for $AUDIT_ID: $AUDITOR_GIT_HANDLE"
-            fi
 
-            ##### make sure that a file exists at the audit report path
-            if [ ! -f "$AUDIT_REPORT_PATH" ]; then
-              echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that a file exists at the audit report path
+              if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+                echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract $FILENAME.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit report for $AUDIT_ID was found in path $AUDIT_REPORT_PATH"
-            fi
 
-            ##### make sure that audit log entry contains audit commit hash
-            if [ -z "$AUDIT_COMMIT_HASH" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              exit 1
-            else
+              ##### make sure that audit log entry contains audit commit hash
+              if [ -z "$AUDIT_COMMIT_HASH" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                exit 1
+              fi
               echo "The audit log contains the commit hash that was audited in $AUDIT_ID: $AUDIT_COMMIT_HASH"
-            fi
-            echo -e "\033[32mThe audit log contains all required information for contract $FILE\033[0m"
 
-            echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
-            ##### Fetch the list of commits associated with the PR
-            COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
+              ##### Check if the auditor git handle exists on github
+              echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
+              if ! gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
+                echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
+                echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
+                exit 1
+              fi
+              echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
 
-            ##### Check if the target commit is in the list
-            if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
-              echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
-            else
-              echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
-              exit 1
-            fi
+            # NOTE: This check is disabled because it can cause issues when reverting PRs.
+            # For example, if a PR is mistakenly merged and needs to be reverted,
+            # the revert PR would fail this check since the audit commit hash would not be
+            # part of the revert PR's commit history. This would make it impossible to
+            # revert changes through the normal PR process. - WAS USED FOR SINGLE AUDIT CHECK
+            # echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
+            # ##### Fetch the list of commits associated with the PR
+            # COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
 
+            # ##### Check if the target commit is in the list
+            # if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
+            #   echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
+            # else
+            #   echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
+            #   exit 1
+            # fi
 
             ##### Check if the auditor git handle exists on github
             echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
@@ -617,7 +610,7 @@ jobs:
             fi
 
             # ##### -----------------------------------------------------------------------------
-            # ##### DISABLED FOR NOW (NEED TO CHECK IF THIS IS COMPATIBLE WITH OUR FLOW)
+            # ##### DISABLED FOR NOW (NEED TO CHECK IF THIS IS COMPATIBLE WITH OUR FLOW) - WAS USED FOR SINGLE AUDIT CHECK
             # ##### Fetch PR reviews using the GitHub API via gh cli
             # echo "now checking if the auditor ($AUDITOR_GIT_HANDLE) approved this PR ($PR_NUMBER)"
             # REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | select(.state == "APPROVED") | @json')
@@ -645,8 +638,7 @@ jobs:
             #     exit 0
             #   fi
             # done
-
-            # ##### If no matching review was found, exit with an error
+            # ##### If no matching review was found, exit with an error - WAS USED FOR SINGLE AUDIT CHECK
             # if [ "$FOUND_REVIEW" == true ]; then
             #   echo -e "\033[32mPR $PR_NUMBER has an approving review by $AUDITOR_GIT_HANDLE\033[0m"
             #   echo -e "\033[32mCheck passed\033[0m"
@@ -658,6 +650,9 @@ jobs:
             # fi
             # ##### -----------------------------------------------------------------------------
 
+            done <<< "$AUDIT_IDS"
+
+            echo -e "\033[32mSuccessfully verified all audits for contract $FILE.\033[0m"
 
           done <<< "$PROTECTED_CONTRACTS"
 

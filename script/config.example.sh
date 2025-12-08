@@ -16,6 +16,9 @@ MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
 MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
 
+# number of max jobs that scripts will do in parallel (e.g. when interacting with multiple networks)
+MAX_CONCURRENT_JOBS=100
+
 # the root directory of all contract src files
 CONTRACT_DIRECTORY="src/"
 
@@ -98,11 +101,14 @@ PRIVATE_KEY_ANVIL=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2
 START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=false
 END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
 
-# all the periphery contracts listed here will automatically be whitelisted as DEX when deploying "all contracts"
-WHITELIST_PERIPHERY="FeeCollector,TokenWrapper,LiFiDEXAggregator"
-
 # if this flag is set to false, the scriptMaster will not compile on start (helpful for zksync/abstract to avoid constant recompilations)
 COMPILE_ON_STARTUP=false
 
 # webhook URL for sending messages to Slack 'dev-sc-general' channel
 SLACK_WEBHOOK_SC_GENERAL=
+
+# Flag to enable/disable timelock controller
+USE_TIMELOCK_CONTROLLER=true
+
+# the path to the foundry.toml file
+FOUNDRY_TOML_FILE_PATH="foundry.toml"

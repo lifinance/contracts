@@ -1,13 +1,14 @@
+import { config } from 'dotenv'
+import { ethers, utils } from 'ethers'
+
 import deployments from '../../deployments/arbitrum.staging.json'
 import {
   DeBridgeDlnFacet__factory,
-  ILiFi,
-  type DeBridgeDlnFacet,
   ERC20__factory,
+  type ILiFi,
+  type DeBridgeDlnFacet,
 } from '../../typechain'
-import { ethers, utils } from 'ethers'
-import dotenv from 'dotenv'
-dotenv.config()
+config()
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM

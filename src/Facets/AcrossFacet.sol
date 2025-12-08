@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+// solhint-disable-next-line no-global-import
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAcrossSpokePool } from "../Interfaces/IAcrossSpokePool.sol";
@@ -18,9 +19,11 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the spoke pool on the source chain.
+    // solhint-disable-next-line immutable-vars-naming
     IAcrossSpokePool private immutable spokePool;
 
     /// @notice The WETH address on the current chain.
+    // solhint-disable-next-line immutable-vars-naming
     address private immutable wrappedNative;
 
     /// Types ///

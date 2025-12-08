@@ -2,22 +2,31 @@
 pragma solidity ^0.8.17;
 
 import { GasZipPeriphery } from "lifi/Periphery/GasZipPeriphery.sol";
+import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
+import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.sol";
-import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { InvalidCallData, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+
+// Stub GenericSwapFacet Contract
+contract TestGasZipPeriphery is GasZipPeriphery, TestWhitelistManagerBase {
+    constructor(
+        address gasZipRouter,
+        address liFiDEXAggregator,
+        address owner
+    ) GasZipPeriphery(gasZipRouter, liFiDEXAggregator, owner) {}
+}
 
 contract GasZipPeripheryTest is TestBase {
     address public constant GAS_ZIP_ROUTER_MAINNET =
         0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762;
-    address public constant LIFI_DEX_AGGREGATOR_MAINNET =
-        0xe43ca1Dee3F0fc1e2df73A0745674545F11A59F5;
-    address internal constant XDAI_BRIDGE =
-        0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
+    address internal constant GNOSIS_BRIDGE_ROUTER =
+        0x9a873656c19Efecbfb4f9FAb5B7acdeAb466a0B0;
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
     GasZipPeriphery internal gasZipPeriphery;
@@ -37,7 +46,7 @@ contract GasZipPeripheryTest is TestBase {
     error SwapFailed();
 
     function setUp() public {
-        customBlockNumberForForking = 20931877;
+        customBlockNumberForForking = 22566858;
         initTestBase();
 
         // Deploy contracts and set up the Diamond with the facets
@@ -53,63 +62,31 @@ contract GasZipPeripheryTest is TestBase {
             USER_DIAMOND_OWNER
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = WhitelistManagerFacet.addToWhitelist.selector;
+        bytes4[] memory functionSelectors = new bytes4[](3);
+        functionSelectors[0] = WhitelistManagerFacet.setContractSelectorWhitelist.selector;
         functionSelectors[1] = WhitelistManagerFacet
-            .setFunctionApprovalBySignature
+            .isContractSelectorWhitelisted
             .selector;
         functionSelectors[2] = WhitelistManagerFacet
-            .isAddressWhitelisted
-            .selector;
-        functionSelectors[3] = WhitelistManagerFacet
-            .isFunctionApproved
+            .batchSetContractSelectorWhitelist
             .selector;
 
         addFacet(diamond, address(whitelistManagerFacet), functionSelectors);
         whitelistManagerFacet = WhitelistManagerFacet(address(diamond));
 
         // whitelist DEXs / Periphery contracts
-        whitelistManagerFacet.addToWhitelist(address(uniswap));
-        whitelistManagerFacet.addToWhitelist(address(gasZipPeriphery));
-        whitelistManagerFacet.addToWhitelist(address(feeCollector));
 
         vm.label(address(uniswap), "Uniswap");
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
         vm.label(address(feeCollector), "FeeCollector");
 
-        // add function selectors for GasZipPeriphery
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            gasZipPeriphery.depositToGasZipERC20.selector,
-            true
-        );
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            gasZipPeriphery.depositToGasZipNative.selector,
-            true
-        );
-
-        // add function selectors for FeeCollector
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            feeCollector.collectTokenFees.selector,
-            true
-        );
-
-        // add function selectors for Uniswap
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector,
-            true
-        );
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForETH.selector,
-            true
-        );
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector,
-            true
-        );
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactETHForTokens.selector,
-            true
-        );
+        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapExactTokensForTokens.selector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapExactTokensForETH.selector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapETHForExactTokens.selector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(address(uniswap), uniswap.swapExactETHForTokens.selector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipERC20.selector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(address(gasZipPeriphery), gasZipPeriphery.depositToGasZipNative.selector, true);
+        whitelistManagerFacet.setContractSelectorWhitelist(address(feeCollector), feeCollector.collectTokenFees.selector, true);
 
         defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
 
@@ -124,7 +101,6 @@ contract GasZipPeripheryTest is TestBase {
         bridgeData.destinationChainId = 100;
 
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
-        vm.label(LIFI_DEX_AGGREGATOR_MAINNET, "LiFiDEXAggregator");
     }
 
     function test_WillStoreConstructorParametersCorrectly() public {
@@ -295,7 +271,7 @@ contract GasZipPeripheryTest is TestBase {
         // set approval for bridging
         usdc.approve(address(gnosisBridgeFacet), defaultUSDCAmount);
 
-        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge(
             bridgeData,
             swapData
         );
@@ -374,7 +350,7 @@ contract GasZipPeripheryTest is TestBase {
             hasDestinationCall: false
         });
 
-        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge{
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge{
             value: nativeFromAmount
         }(bridgeData, swapData);
     }
@@ -522,15 +498,10 @@ contract GasZipPeripheryTest is TestBase {
         // deploy a simple mock contract that can be called and will revert with our custom error
         MockFailingDexWithCustomError mockDex = new MockFailingDexWithCustomError();
 
+        bytes4 mockSelector = uniswap.swapExactTokensForETH.selector;
         // whitelist the mock DEX in the WhitelistManager
         vm.startPrank(USER_DIAMOND_OWNER);
-        whitelistManagerFacet.addToWhitelist(address(mockDex));
-
-        bytes4 mockSelector = uniswap.swapExactTokensForETH.selector;
-        whitelistManagerFacet.setFunctionApprovalBySignature(
-            mockSelector,
-            true
-        );
+        whitelistManagerFacet.setContractSelectorWhitelist(address(mockDex), mockSelector, true);
         vm.stopPrank();
 
         vm.startPrank(USER_SENDER);
@@ -596,15 +567,15 @@ contract GasZipPeripheryTest is TestBase {
         returns (TestGnosisBridgeFacet _gnosisBridgeFacet)
     {
         _gnosisBridgeFacet = new TestGnosisBridgeFacet(
-            IXDaiBridge(XDAI_BRIDGE)
+            IGnosisBridgeRouter(GNOSIS_BRIDGE_ROUTER)
         );
 
         bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = _gnosisBridgeFacet
-            .startBridgeTokensViaXDaiBridge
+            .startBridgeTokensViaGnosisBridge
             .selector;
         functionSelectors[1] = _gnosisBridgeFacet
-            .swapAndStartBridgeTokensViaXDaiBridge
+            .swapAndStartBridgeTokensViaGnosisBridge
             .selector;
 
         addFacet(diamond, address(_gnosisBridgeFacet), functionSelectors);

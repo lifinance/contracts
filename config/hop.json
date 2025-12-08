@@ -4,11 +4,6 @@
     "chainId": 1,
     "tokens": [
       {
-        "name": "USDC",
-        "token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      {
         "name": "USDC.e",
         "bridge": "0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a",
         "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -129,10 +124,6 @@
   "arbitrum": {
     "chainId": 42161,
     "tokens": [
-      {
-        "name": "USDC",
-        "token": "0xaf88d065e77c8cc2239327c5edb3a432268e5831"
-      },
       {
         "name": "USDC.e",
         "bridge": "0x0e0E3d2C5c292161999474247956EF542caBF8dd",
@@ -266,10 +257,6 @@
   "optimism": {
     "chainId": 10,
     "tokens": [
-      {
-        "name": "USDC",
-        "token": "0x0b2c639c533813f4aa9d7837caf62653d097ff85"
-      },
       {
         "name": "USDC.e",
         "bridge": "0xa81D244A1814468C734E5b4101F7b9c0c577a8fC",
@@ -537,10 +524,6 @@
     "chainId": 137,
     "tokens": [
       {
-        "name": "USDC",
-        "token": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"
-      },
-      {
         "name": "USDC.e",
         "bridge": "0x25D8039bB044dC227f741a9e381CA4cEAE2E6aE8",
         "token": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
@@ -710,10 +693,6 @@
   "base": {
     "chainId": 8453,
     "tokens": [
-      {
-        "name": "USDC",
-        "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-      },
       {
         "name": "USDC.e",
         "bridge": "0x46ae9BaB8CEA96610807a275EBD36f8e916b5C61",
