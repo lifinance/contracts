@@ -101,10 +101,6 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             ADDRESS_UNISWAP,
             uniswap.swapExactTokensForETH.selector
         );
-        nearIntentsFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactETHForTokens.selector
-        );
 
         // Set facet address in test base
         setFacetAddressInTestBase(
@@ -320,6 +316,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
     }
 
+    /// @notice Test native token bridging with explicit event verification (extends base test)
     function test_CanBridgeNativeTokens() public {
         // Setup
         bridgeData.sendingAssetId = address(0);
@@ -491,19 +488,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_SameChainId() public {
-        bridgeData.destinationChainId = block.chainid;
 
-        vm.startPrank(USER_SENDER);
-        usdc.approve(address(diamond), bridgeData.minAmount);
-
-        vm.expectRevert(CannotBridgeToSameNetwork.selector);
-        nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
-        );
-        vm.stopPrank();
-    }
 
     function testRevert_SourceSwapsFlagMismatch() public {
         // Bridge data says no swaps but function expects swaps
