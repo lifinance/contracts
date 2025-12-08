@@ -11,16 +11,11 @@
 
 import { randomBytes } from 'crypto'
 
-import { Keypair } from '@solana/web3.js'
-// @ts-expect-error - bs58 types not available
-// eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
-import { decode as decodeBase58 } from 'bs58'
 import { runMain, defineCommand } from 'citty'
 import { config } from 'dotenv'
 import { BigNumber } from 'ethers'
 import {
   zeroAddress,
-  toHex,
   parseUnits,
   formatUnits,
   parseAbi,
@@ -43,6 +38,11 @@ import {
   ADDRESS_USDT_ARB,
   ADDRESS_UNISWAP_ARB,
   getUniswapDataERC20toExactERC20,
+  NON_EVM_ADDRESS,
+  LIFI_CHAIN_ID_SOLANA,
+  deriveSolanaAddress,
+  solanaAddressToBytes32,
+  receiverToBytes32,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -52,18 +52,14 @@ config()
 declare namespace NEARIntentsFacet {
   // eslint-disable-next-line @typescript-eslint/naming-convention -- Matches Solidity struct name
   interface NEARIntentsDataStruct {
-    quoteId: `0x${string}`
     depositAddress: string
+    nonEVMReceiver: `0x${string}`
+    quoteId: `0x${string}`
     deadline: bigint
     minAmountOut: bigint
-    nonEVMReceiver: `0x${string}`
     signature: `0x${string}`
   }
 }
-
-// Constants
-const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
-const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
 
 // Fixed chains for demo
 const SOURCE_CHAIN: SupportedChain = 'arbitrum' // Always Arbitrum
@@ -115,67 +111,6 @@ interface INEARIntentsQuoteResponse {
 }
 
 /// ========== HELPER FUNCTIONS ========== ///
-
-/**
- * Derives a Solana address from an Ethereum private key
- * Uses the Ethereum private key as a seed for Ed25519 keypair generation
- * This allows the same private key to control funds on both EVM and Solana chains
- *
- * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
- * @returns Solana address in base58 format
- */
-function deriveSolanaAddress(ethPrivateKey: string): string {
-  console.log('\n🔑 Deriving Solana address from EVM private key...')
-
-  // Remove '0x' prefix if present
-  const seed = ethPrivateKey.replace('0x', '')
-
-  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
-  const seedBytes = new Uint8Array(32)
-  for (let i = 0; i < 32; i++) {
-    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
-  }
-
-  // Create Solana keypair from seed
-  const keypair = Keypair.fromSeed(seedBytes)
-  const solanaAddress = keypair.publicKey.toBase58()
-
-  console.log('  ✅ Derived Solana address:', solanaAddress)
-
-  return solanaAddress
-}
-
-/**
- * Converts a Solana base58 address to bytes32 for non-EVM address field
- * Solana addresses are 32-byte Ed25519 public keys encoded in base58
- */
-function solanaAddressToBytes32(solanaAddress: string): `0x${string}` {
-  console.log(`\n📝 Converting Solana address to bytes32...`)
-  console.log('  Solana address (base58):', solanaAddress)
-
-  try {
-    // Decode base58 to get raw 32 bytes
-    const addressBytes = decodeBase58(solanaAddress)
-
-    if (addressBytes.length !== 32) {
-      throw new Error(
-        `Invalid Solana address length: ${addressBytes.length} bytes (expected 32)`
-      )
-    }
-
-    // Convert to hex string
-    const hexAddress = toHex(addressBytes)
-    console.log('  Encoded as bytes32:', hexAddress)
-
-    return hexAddress
-  } catch (error) {
-    throw new Error(
-      `Failed to convert Solana address: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`
-    )
-  }
-}
 
 /**
  * Fetches a quote from the NEAR Intents 1-Click API
@@ -265,13 +200,10 @@ async function generateBackendSignature(
   } as const
 
   // Determine receiver hash based on destination type
-  const receiver = bridgeData.receiver as string
-  const receiverHash =
-    receiver === '0x11f111f111f111F111f111f111F111f111f111F1'
-      ? nearData.nonEVMReceiver // Use nonEVMReceiver for Solana
-      : (`0x${BigInt(receiver)
-          .toString(16)
-          .padStart(64, '0')}` as `0x${string}`) // Convert address to bytes32
+  const receiverHash = receiverToBytes32(
+    bridgeData.receiver as string,
+    nearData.nonEVMReceiver
+  )
 
   const message = {
     transactionId: bridgeData.transactionId as `0x${string}`,
