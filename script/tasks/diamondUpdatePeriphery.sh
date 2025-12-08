@@ -96,6 +96,34 @@ function diamondUpdatePeriphery() {
 
       # check if address available, otherwise throw error and skip iteration
       if [ "$CONTRACT_ADDRESS" != "0x" ]; then
+        # verify function selectors match their signatures in global.json
+        local GLOBAL_JSON="config/global.json"
+        if [ -f "$GLOBAL_JSON" ]; then
+          local SELECTOR_DATA=$(jq -r --arg CONTRACT "$CONTRACT" '.whitelistPeripheryFunctions[$CONTRACT] // [] | .[] | "\(.signature)|\(.selector)"' "$GLOBAL_JSON" 2>/dev/null)
+
+          if [ -n "$SELECTOR_DATA" ]; then
+            local VERIFICATION_FAILED=false
+            while IFS='|' read -r SIGNATURE EXPECTED_SELECTOR; do
+              if [ -n "$SIGNATURE" ] && [ -n "$EXPECTED_SELECTOR" ]; then
+                if ! verifySelectorMatchesSignature "$SIGNATURE" "$EXPECTED_SELECTOR"; then
+                  local CALCULATED=$(cast sig "$SIGNATURE" 2>/dev/null)
+                  error "Selector mismatch for $CONTRACT:"
+                  error "  Signature: $SIGNATURE"
+                  error "  Expected selector: $EXPECTED_SELECTOR"
+                  error "  Calculated selector: $CALCULATED"
+                  VERIFICATION_FAILED=true
+                fi
+              fi
+            done <<< "$SELECTOR_DATA"
+
+            if [ "$VERIFICATION_FAILED" = true ]; then
+              error "Function selector verification failed for $CONTRACT. Please fix global.json before proceeding."
+              LAST_CALL=1
+              continue
+            fi
+          fi
+        fi
+
         # check if has already been added to diamond
         KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
 

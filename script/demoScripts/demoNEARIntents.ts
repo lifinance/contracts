@@ -500,11 +500,11 @@ async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
   )
 
   const nearData: NEARIntentsFacet.NEARIntentsDataStruct = {
-    quoteId: quoteIdBytes32,
     depositAddress: quote.depositAddress,
+    nonEVMReceiver: solanaReceiverBytes32,
+    quoteId: quoteIdBytes32,
     deadline,
     minAmountOut,
-    nonEVMReceiver: solanaReceiverBytes32,
     signature,
   }
 
@@ -736,11 +736,11 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
   )
 
   const nearData: NEARIntentsFacet.NEARIntentsDataStruct = {
-    quoteId: quoteIdBytes32,
     depositAddress: quote.depositAddress,
+    nonEVMReceiver: `0x${'0'.repeat(64)}`,
+    quoteId: quoteIdBytes32,
     deadline,
     minAmountOut,
-    nonEVMReceiver: `0x${'0'.repeat(64)}`,
     signature,
   }
 

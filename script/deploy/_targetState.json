@@ -954,6 +954,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "ReceiverAcrossV3": "1.1.0",
+        "AllBridgeFacet": "2.1.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "DeBridgeDlnFacet": "1.0.1",
