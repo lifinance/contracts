@@ -43,8 +43,8 @@ function getContractVerified() {
   ARGS=$(getConstructorArgsFromMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT")
   ARGS_RETURN_CODE=$?
 
-  if [[ $ARGS_RETURN_CODE -ne 0 || -z "$ARGS" ]]; then
-    error "[$NETWORK] No constructor args found for $CONTRACT"
+  if [[ $ARGS_RETURN_CODE -ne 0 || -z "$ARGS" || "$ARGS" == "null" ]]; then
+    error "[$NETWORK] No constructor args found for $CONTRACT - this indicates a problem with the deployment log entry"
     return 1
   fi
 
@@ -64,6 +64,26 @@ function getContractVerified() {
   CURRENT_SALT=$(echo "$LOG_ENTRY" | jq -r ".SALT")
   CURRENT_VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
 
+  # Extract compiler versions from log entry, or get from network config if not present
+  CURRENT_SOLC_VERSION=$(echo "$LOG_ENTRY" | jq -r ".SOLC_VERSION // empty")
+  CURRENT_EVM_VERSION=$(echo "$LOG_ENTRY" | jq -r ".EVM_VERSION // empty")
+  CURRENT_ZK_SOLC_VERSION=$(echo "$LOG_ENTRY" | jq -r ".ZK_SOLC_VERSION // empty")
+
+  # If not in log entry, get from network config
+  if [[ -z "$CURRENT_SOLC_VERSION" || "$CURRENT_SOLC_VERSION" == "null" ]]; then
+    CURRENT_SOLC_VERSION=$(getSolcVersion "$NETWORK" 2>/dev/null || echo "")
+  fi
+  if [[ -z "$CURRENT_EVM_VERSION" || "$CURRENT_EVM_VERSION" == "null" ]]; then
+    CURRENT_EVM_VERSION=$(getEvmVersion "$NETWORK" 2>/dev/null || echo "")
+  fi
+  if [[ -z "$CURRENT_ZK_SOLC_VERSION" || "$CURRENT_ZK_SOLC_VERSION" == "null" ]]; then
+    if isZkEvmNetwork "$NETWORK"; then
+      CURRENT_ZK_SOLC_VERSION=$(getZkSolcVersion "$NETWORK" 2>/dev/null || echo "")
+    else
+      CURRENT_ZK_SOLC_VERSION=""
+    fi
+  fi
+
   if [[ "$CURRENT_ADDRESS" != "$CONTRACT_ADDRESS" ]]; then
     error "[$NETWORK] Address mismatch: $CURRENT_ADDRESS != $CONTRACT_ADDRESS"
     return 1
@@ -80,12 +100,651 @@ function getContractVerified() {
   if [[ $? -eq 0 ]]; then
     success "[$NETWORK] Successfully verified $CONTRACT with address $CONTRACT_ADDRESS. Updating VERIFIED flag in log entry now."
 
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$CURRENT_TIMESTAMP" "$VERSION" "$CURRENT_OPTIMIZER" "$CURRENT_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$CONTRACT_ADDRESS" "true" "$CURRENT_SALT"
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$CURRENT_TIMESTAMP" "$VERSION" "$CURRENT_OPTIMIZER" "$CURRENT_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$CONTRACT_ADDRESS" "true" "$CURRENT_SALT" "$CURRENT_SOLC_VERSION" "$CURRENT_EVM_VERSION" "$CURRENT_ZK_SOLC_VERSION"
     return 0
   else
     error "[$NETWORK] Failed to verify $CONTRACT with address $CONTRACT_ADDRESS"
     return 1
   fi
+}
+
+function verifyAllContractsForNetwork() {
+  # Function: verifyAllContractsForNetwork
+  # Description: Iterates through all contracts deployed on a given network and verifies them
+  # Arguments:
+  #   $1 - NETWORK: The network name (e.g., "monad", "mainnet")
+  #   $2 - ENVIRONMENT: The environment (e.g., "production", "staging")
+  # Returns:
+  #   Exit code 0 if all contracts processed (regardless of verification status)
+  #   Exit code 1 if critical error occurred
+  # Example:
+  #   verifyAllContractsForNetwork "monad" "production"             # verify only unverified (default mode)
+  #   verifyAllContractsForNetwork "monad" "production" --verify-all # retry verification for all contracts
+
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local MODE="${3:-}"
+
+  local VERIFY_ALL=false
+  if [[ "$MODE" == "--verify-all" ]]; then
+    VERIFY_ALL=true
+  fi
+
+  # Validate required parameters
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" ]]; then
+    error "Usage: verifyAllContractsForNetwork <network> <environment>"
+    error "Example: verifyAllContractsForNetwork monad production"
+    return 1
+  fi
+
+  echo "=========================================="
+  echo "  CONTRACT VERIFICATION FOR NETWORK"
+  echo "=========================================="
+  echo "Network: $NETWORK"
+  echo "Environment: $ENVIRONMENT"
+  echo ""
+
+  # Get deployment log file path
+  local LOG_FILE_PATH="${LOG_FILE_PATH:-./deployments/_deployments_log_file.json}"
+
+  if [ ! -f "$LOG_FILE_PATH" ]; then
+    error "Deployment log file not found: $LOG_FILE_PATH"
+    return 1
+  fi
+
+  # Extract all contract names that have deployments on the specified network
+  echo "[$NETWORK] Extracting contracts deployed on $NETWORK ($ENVIRONMENT)..."
+  local CONTRACTS
+  CONTRACTS=$(jq -r --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" '
+    to_entries[] |
+    select(.value[$NETWORK][$ENVIRONMENT] != null) |
+    .key
+  ' "$LOG_FILE_PATH" 2>/dev/null)
+
+  if [ -z "$CONTRACTS" ]; then
+    warning "[$NETWORK] No contracts found for $NETWORK ($ENVIRONMENT) in deployment log"
+    return 0
+  fi
+
+  # Convert to array
+  local CONTRACT_ARRAY=()
+  while IFS= read -r contract; do
+    if [ -n "$contract" ] && [ "$contract" != "null" ]; then
+      CONTRACT_ARRAY+=("$contract")
+    fi
+  done <<< "$CONTRACTS"
+
+  local TOTAL_CONTRACTS=${#CONTRACT_ARRAY[@]}
+  echo "[$NETWORK] Found $TOTAL_CONTRACTS contracts with deployments"
+  if [[ "$VERIFY_ALL" == true ]]; then
+    echo "[$NETWORK] Mode: verify ALL contracts (including those already marked as verified)"
+  else
+    echo "[$NETWORK] Mode: verify ONLY unverified contracts (skip already verified)"
+  fi
+  echo ""
+
+  # Determine concurrency (fallback to 10 if not configured)
+  local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
+  if [[ -z "$CONCURRENCY" || "$CONCURRENCY" -le 0 ]]; then
+    CONCURRENCY=10
+  fi
+
+  echo "[$NETWORK] Using parallel verification with max $CONCURRENCY concurrent jobs"
+  echo ""
+
+  # Temporary directory to collect per-contract metadata and results
+  local TEMP_DIR
+  TEMP_DIR=$(mktemp -d)
+
+  # Pre-check: determine current verification status for each contract and decide which to verify
+  local ALREADY_VERIFIED_COUNT=0
+  local PRECHECK_ERROR_COUNT=0
+  local TO_VERIFY_CONTRACTS=()
+  local PRECHECK_ERROR_CONTRACTS=()
+
+  for CONTRACT in "${CONTRACT_ARRAY[@]}"; do
+    # Determine current verification status from master log
+    local VERSION
+    VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+
+    local LOG_ENTRY
+    LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
+
+    if [[ -z "$LOG_ENTRY" || "$LOG_ENTRY" == "null" ]]; then
+      warning "[$NETWORK] Pre-check: no master log entry found for $CONTRACT - skipping from verification set"
+      PRECHECK_ERROR_COUNT=$((PRECHECK_ERROR_COUNT + 1))
+      PRECHECK_ERROR_CONTRACTS+=("$CONTRACT")
+      # Mark initial status as unknown
+      echo "unknown" >"$TEMP_DIR/${CONTRACT}.initial_verified"
+      continue
+    fi
+
+    local CURRENT_VERIFIED
+    CURRENT_VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED // empty" 2>/dev/null)
+    if [[ "$CURRENT_VERIFIED" == "true" ]]; then
+      ALREADY_VERIFIED_COUNT=$((ALREADY_VERIFIED_COUNT + 1))
+      echo "true" >"$TEMP_DIR/${CONTRACT}.initial_verified"
+
+      if [[ "$VERIFY_ALL" == true ]]; then
+        TO_VERIFY_CONTRACTS+=("$CONTRACT")
+      else
+        echo "[$NETWORK] $CONTRACT is already marked as verified - skipping in default mode"
+      fi
+    else
+      echo "false" >"$TEMP_DIR/${CONTRACT}.initial_verified"
+      TO_VERIFY_CONTRACTS+=("$CONTRACT")
+    fi
+  done
+
+  local TOTAL_TO_VERIFY=${#TO_VERIFY_CONTRACTS[@]}
+  echo "[$NETWORK] Contracts that will be actively verified in this run: $TOTAL_TO_VERIFY"
+  echo "[$NETWORK] Contracts already marked as verified before this run: $ALREADY_VERIFIED_COUNT"
+  if [[ $PRECHECK_ERROR_COUNT -gt 0 ]]; then
+    echo "[$NETWORK] Contracts with pre-check errors (no usable master log entry): $PRECHECK_ERROR_COUNT"
+  fi
+  echo ""
+
+  # If there is nothing to verify, print summary and exit early
+  if [[ $TOTAL_TO_VERIFY -eq 0 ]]; then
+    echo "[$NETWORK] Nothing to verify in this run."
+    echo ""
+    echo "=========================================="
+    echo "  SUMMARY - $NETWORK ($ENVIRONMENT)"
+    echo "=========================================="
+    echo "Total contracts (with deployments): $TOTAL_CONTRACTS"
+    echo "✅ Already verified before run: $ALREADY_VERIFIED_COUNT"
+    echo "⚠️  Pre-check errors (no master log entry): $PRECHECK_ERROR_COUNT"
+    echo "=========================================="
+    echo ""
+    rm -rf "$TEMP_DIR"
+    return 0
+  fi
+
+  # Iterate through each contract that should be verified and run in parallel with concurrency control
+  for CONTRACT in "${TO_VERIFY_CONTRACTS[@]}"; do
+    echo "----------------------------------------"
+    echo "[$NETWORK] Checking: $CONTRACT"
+    echo "----------------------------------------"
+
+    # Throttle background jobs
+    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+      sleep 0.1
+    done
+
+    (
+      local CONTRACT_NAME="$CONTRACT"
+      local RESULT_FILE="$TEMP_DIR/${CONTRACT_NAME}.result"
+
+      getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME"
+      local EXIT_CODE=$?
+
+      case $EXIT_CODE in
+        0)
+          echo "VERIFIED" >"$RESULT_FILE"
+          ;;
+        *)
+          echo "ERROR" >"$RESULT_FILE"
+          ;;
+      esac
+    ) &
+  done
+
+  # Wait for all background jobs to finish (do not fail early if some verifications fail)
+  wait || true
+
+  # Track results
+  local NEWLY_VERIFIED_COUNT=0
+  local FAILED_UNVERIFIED_COUNT=0
+  local FAILED_MARKED_VERIFIED_COUNT=0
+  local UNKNOWN_RESULT_COUNT=0
+
+  local FAILED_UNVERIFIED_CONTRACTS=()
+  local FAILED_MARKED_VERIFIED_CONTRACTS=()
+  local UNKNOWN_RESULT_CONTRACTS=()
+
+  # Aggregate results using initial verification status and per-contract results
+  for CONTRACT in "${CONTRACT_ARRAY[@]}"; do
+    local INITIAL_FILE="$TEMP_DIR/${CONTRACT}.initial_verified"
+    local RESULT_FILE="$TEMP_DIR/${CONTRACT}.result"
+
+    local INITIAL_STATUS="unknown"
+    if [[ -f "$INITIAL_FILE" ]]; then
+      INITIAL_STATUS=$(<"$INITIAL_FILE")
+    fi
+
+    local RESULT_STATUS="none"
+    if [[ -f "$RESULT_FILE" ]]; then
+      RESULT_STATUS=$(<"$RESULT_FILE")
+    fi
+
+    if [[ "$VERIFY_ALL" == true ]]; then
+      # In verify-all mode, highlight verified-but-failing separately
+      if [[ "$RESULT_STATUS" == "VERIFIED" ]]; then
+        if [[ "$INITIAL_STATUS" == "false" || "$INITIAL_STATUS" == "unknown" ]]; then
+          NEWLY_VERIFIED_COUNT=$((NEWLY_VERIFIED_COUNT + 1))
+        fi
+      elif [[ "$RESULT_STATUS" == "ERROR" ]]; then
+        if [[ "$INITIAL_STATUS" == "true" ]]; then
+          FAILED_MARKED_VERIFIED_COUNT=$((FAILED_MARKED_VERIFIED_COUNT + 1))
+          FAILED_MARKED_VERIFIED_CONTRACTS+=("$CONTRACT")
+        else
+          FAILED_UNVERIFIED_COUNT=$((FAILED_UNVERIFIED_COUNT + 1))
+          FAILED_UNVERIFIED_CONTRACTS+=("$CONTRACT")
+        fi
+      fi
+    else
+      # Default mode: verify only previously unverified contracts
+      if [[ "$INITIAL_STATUS" == "false" || "$INITIAL_STATUS" == "unknown" ]]; then
+        if [[ "$RESULT_STATUS" == "VERIFIED" ]]; then
+          NEWLY_VERIFIED_COUNT=$((NEWLY_VERIFIED_COUNT + 1))
+        elif [[ "$RESULT_STATUS" == "ERROR" ]]; then
+          FAILED_UNVERIFIED_COUNT=$((FAILED_UNVERIFIED_COUNT + 1))
+          FAILED_UNVERIFIED_CONTRACTS+=("$CONTRACT")
+        else
+          UNKNOWN_RESULT_COUNT=$((UNKNOWN_RESULT_COUNT + 1))
+          UNKNOWN_RESULT_CONTRACTS+=("$CONTRACT")
+        fi
+      fi
+    fi
+  done
+
+  # Clean up temporary directory
+  rm -rf "$TEMP_DIR"
+
+  # Print summary (even if some verifications failed)
+  echo ""
+  echo "=========================================="
+  echo "  SUMMARY - $NETWORK ($ENVIRONMENT)"
+  echo "=========================================="
+  echo "Total contracts (with deployments): $TOTAL_CONTRACTS"
+  echo "✅ Already verified before run: $ALREADY_VERIFIED_COUNT"
+  echo "✅ Newly verified in this run: $NEWLY_VERIFIED_COUNT"
+  echo "❌ Still unverified / failed verifications: $FAILED_UNVERIFIED_COUNT"
+  if [[ "$VERIFY_ALL" == true ]]; then
+    echo "⚠️  Marked verified in log BUT verification failed in this run: $FAILED_MARKED_VERIFIED_COUNT"
+  fi
+  if [[ "$VERIFY_ALL" == false && $PRECHECK_ERROR_COUNT -gt 0 ]]; then
+    echo "⚠️  Pre-check errors (no usable master log entry): $PRECHECK_ERROR_COUNT"
+  fi
+  if [[ "$VERIFY_ALL" == false && $UNKNOWN_RESULT_COUNT -gt 0 ]]; then
+    echo "⚠️  Contracts with unknown verification result (no status recorded): $UNKNOWN_RESULT_COUNT"
+  fi
+  echo "=========================================="
+  echo ""
+
+  # Detailed lists for easier follow-up
+  if [[ $FAILED_UNVERIFIED_COUNT -gt 0 ]]; then
+    echo "❌ Contracts still unverified / failed verifications:"
+    for CONTRACT in "${FAILED_UNVERIFIED_CONTRACTS[@]}"; do
+      echo "  - $CONTRACT"
+    done
+    echo ""
+  fi
+
+  if [[ "$VERIFY_ALL" == true && $FAILED_MARKED_VERIFIED_COUNT -gt 0 ]]; then
+    echo "⚠️  Contracts marked verified in log BUT failed verification in this run:"
+    for CONTRACT in "${FAILED_MARKED_VERIFIED_CONTRACTS[@]}"; do
+      echo "  - $CONTRACT"
+    done
+    echo ""
+  fi
+
+  if [[ $UNKNOWN_RESULT_COUNT -gt 0 ]]; then
+    echo "⚠️  Contracts with unknown verification result (no status recorded):"
+    for CONTRACT in "${UNKNOWN_RESULT_CONTRACTS[@]}"; do
+      echo "  - $CONTRACT"
+    done
+    echo ""
+  fi
+
+  if [[ $PRECHECK_ERROR_COUNT -gt 0 ]]; then
+    echo "⚠️  Contracts with pre-check errors (no usable master log entry, not sent for verification):"
+    for CONTRACT in "${PRECHECK_ERROR_CONTRACTS[@]}"; do
+      echo "  - $CONTRACT"
+    done
+    echo ""
+  fi
+
+
+  return 0
+}
+
+# -----------------------------------------------------------------------------
+# verifyContractAcrossAllNetworks
+# -----------------------------------------------------------------------------
+
+function verifyContractAcrossAllNetworks() {
+  # Function: verifyContractAcrossAllNetworks
+  # Description: Verifies a specific contract across all included networks.
+  #              Skips contracts that are already verified by default and
+  #              provides a detailed summary at the end.
+  # Arguments:
+  #   $1 - ENVIRONMENT: The environment (e.g., "production", "staging")
+  #   $2 - CONTRACT: The contract name (e.g., "LiFiDiamond", "Permit2Proxy")
+  #   $3 - MODE (optional):
+  #        --verify-all  Retry verification even if already marked as verified
+  # Returns:
+  #   Exit code 0 if all networks processed (regardless of verification status)
+  #   Exit code 1 if a critical error occurred
+  # Example:
+  #   verifyContractAcrossAllNetworks "production" "Permit2Proxy"
+  #   verifyContractAcrossAllNetworks "production" "Permit2Proxy" --verify-all
+
+  local ENVIRONMENT="$1"
+  local CONTRACT="$2"
+  local MODE="${3:-}"
+
+  local VERIFY_ALL=false
+  if [[ "$MODE" == "--verify-all" ]]; then
+    VERIFY_ALL=true
+  fi
+
+  # Validate required parameters
+  if [[ -z "$ENVIRONMENT" || -z "$CONTRACT" ]]; then
+    error "Usage: verifyContractAcrossAllNetworks <environment> <contract> [--verify-all]"
+    error "Example: verifyContractAcrossAllNetworks production Permit2Proxy"
+    return 1
+  fi
+
+  echo "=========================================="
+  echo "  CONTRACT VERIFICATION ACROSS NETWORKS"
+  echo "=========================================="
+  echo "Contract: $CONTRACT"
+  echo "Environment: $ENVIRONMENT"
+  echo ""
+
+  # Get list of all included networks
+  local NETWORKS=($(getIncludedNetworksArray))
+  local TOTAL_NETWORKS=${#NETWORKS[@]}
+
+  if [[ $TOTAL_NETWORKS -eq 0 ]]; then
+    warning "No networks found to process"
+    return 0
+  fi
+
+  if [[ "$VERIFY_ALL" == true ]]; then
+    echo "Mode: verify ALL deployments (including those already marked as verified)"
+  else
+    echo "Mode: verify ONLY unverified deployments (skip already verified)"
+  fi
+  echo ""
+
+  # Temporary directory to collect per-network metadata and results
+  local TEMP_DIR
+  TEMP_DIR=$(mktemp -d)
+
+  # Pre-check: determine deployment and verification status for each network
+  local DEPLOYED_NETWORK_COUNT=0
+  local NOT_DEPLOYED_COUNT=0
+  local ALREADY_VERIFIED_COUNT=0
+  local PRECHECK_ERROR_COUNT=0
+
+  local TO_VERIFY_NETWORKS=()
+  local NOT_DEPLOYED_NETWORKS=()
+  local PRECHECK_ERROR_NETWORKS=()
+
+  for NETWORK in "${NETWORKS[@]}"; do
+    # Determine highest deployed version for this network
+    local VERSION=""
+    if ! VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT" 2>/dev/null); then
+      VERSION=""
+    fi
+
+    if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+      # Treat as not deployed on this network
+      NOT_DEPLOYED_COUNT=$((NOT_DEPLOYED_COUNT + 1))
+      NOT_DEPLOYED_NETWORKS+=("$NETWORK")
+      echo "not_deployed" >"$TEMP_DIR/${NETWORK}.initial_status"
+      continue
+    fi
+
+    # Try to get log entry for this deployment
+    local LOG_ENTRY=""
+    if ! LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" 2>/dev/null); then
+      LOG_ENTRY=""
+    fi
+
+    if [[ -z "$LOG_ENTRY" || "$LOG_ENTRY" == "null" || "$LOG_ENTRY" == *"No matching entry found"* ]]; then
+      PRECHECK_ERROR_COUNT=$((PRECHECK_ERROR_COUNT + 1))
+      PRECHECK_ERROR_NETWORKS+=("$NETWORK")
+      echo "precheck_error" >"$TEMP_DIR/${NETWORK}.initial_status"
+      continue
+    fi
+
+    DEPLOYED_NETWORK_COUNT=$((DEPLOYED_NETWORK_COUNT + 1))
+
+    local CURRENT_VERIFIED
+    CURRENT_VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED // empty" 2>/dev/null)
+
+    if [[ "$CURRENT_VERIFIED" == "true" ]]; then
+      ALREADY_VERIFIED_COUNT=$((ALREADY_VERIFIED_COUNT + 1))
+      echo "true" >"$TEMP_DIR/${NETWORK}.initial_status"
+
+      if [[ "$VERIFY_ALL" == true ]]; then
+        TO_VERIFY_NETWORKS+=("$NETWORK")
+      else
+        echo "[$NETWORK] $CONTRACT is already marked as verified - skipping in default mode"
+      fi
+    else
+      echo "false" >"$TEMP_DIR/${NETWORK}.initial_status"
+      TO_VERIFY_NETWORKS+=("$NETWORK")
+    fi
+  done
+
+  local TOTAL_TO_VERIFY=${#TO_VERIFY_NETWORKS[@]}
+
+  echo ""
+  echo "Networks to process: $TOTAL_NETWORKS"
+  echo "Networks where contract is deployed: $DEPLOYED_NETWORK_COUNT"
+  echo "Networks where contract is not deployed: $NOT_DEPLOYED_COUNT"
+  if [[ $PRECHECK_ERROR_COUNT -gt 0 ]]; then
+    echo "Networks with pre-check errors (no usable master log entry): $PRECHECK_ERROR_COUNT"
+  fi
+  echo "Deployments that will be actively verified in this run: $TOTAL_TO_VERIFY"
+  echo "Deployments already marked as verified before this run: $ALREADY_VERIFIED_COUNT"
+  echo ""
+
+  # If there is nothing to verify, print summary and exit early
+  if [[ $TOTAL_TO_VERIFY -eq 0 ]]; then
+    echo "Nothing to verify in this run."
+    echo ""
+    echo "=========================================="
+    echo "  SUMMARY - $CONTRACT ($ENVIRONMENT)"
+    echo "=========================================="
+    echo "Total networks checked: $TOTAL_NETWORKS"
+    echo "Networks where contract is deployed: $DEPLOYED_NETWORK_COUNT"
+    echo "Networks where contract is not deployed: $NOT_DEPLOYED_COUNT"
+    echo "✅ Already verified before run: $ALREADY_VERIFIED_COUNT"
+    echo "⚠️  Pre-check errors (no usable master log entry): $PRECHECK_ERROR_COUNT"
+    echo "=========================================="
+    echo ""
+    rm -rf "$TEMP_DIR"
+    return 0
+  fi
+
+  # Determine concurrency (fallback to 10 if not configured)
+  local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
+  if [[ -z "$CONCURRENCY" || "$CONCURRENCY" -le 0 ]]; then
+    CONCURRENCY=10
+  fi
+
+  echo "Using parallel verification with max $CONCURRENCY concurrent jobs"
+  echo ""
+
+  # Iterate through each network that should be verified and run in parallel with concurrency control
+  for NETWORK in "${TO_VERIFY_NETWORKS[@]}"; do
+    echo "----------------------------------------"
+    echo "Checking: $CONTRACT on $NETWORK"
+    echo "----------------------------------------"
+
+    # Throttle background jobs
+    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+      sleep 0.1
+    done
+
+    (
+      # Disable 'set -e' inside this subshell so we always record a result,
+      # even if underlying verification commands fail.
+      set +e
+
+      local NETWORK_NAME="$NETWORK"
+      local RESULT_FILE="$TEMP_DIR/${NETWORK_NAME}.result"
+
+      getContractVerified "$NETWORK_NAME" "$ENVIRONMENT" "$CONTRACT"
+      local EXIT_CODE=$?
+
+      case $EXIT_CODE in
+        0)
+          echo "VERIFIED" >"$RESULT_FILE"
+          ;;
+        *)
+          echo "ERROR" >"$RESULT_FILE"
+          ;;
+      esac
+    ) &
+  done
+
+  # Wait for all background jobs to finish (do not fail early if some verifications fail)
+  wait || true
+
+  # Track results
+  local NEWLY_VERIFIED_COUNT=0
+  local FAILED_UNVERIFIED_COUNT=0
+  local FAILED_MARKED_VERIFIED_COUNT=0
+  local UNKNOWN_RESULT_COUNT=0
+
+  local FAILED_UNVERIFIED_NETWORKS=()
+  local FAILED_MARKED_VERIFIED_NETWORKS=()
+  local UNKNOWN_RESULT_NETWORKS=()
+
+  # Aggregate results using initial verification status and per-network results
+  for NETWORK in "${NETWORKS[@]}"; do
+    local INITIAL_FILE="$TEMP_DIR/${NETWORK}.initial_status"
+    local RESULT_FILE="$TEMP_DIR/${NETWORK}.result"
+
+    local INITIAL_STATUS="unknown"
+    if [[ -f "$INITIAL_FILE" ]]; then
+      INITIAL_STATUS=$(<"$INITIAL_FILE")
+    fi
+
+    # Skip networks where contract is not deployed or had pre-check errors
+    if [[ "$INITIAL_STATUS" == "not_deployed" || "$INITIAL_STATUS" == "precheck_error" ]]; then
+      continue
+    fi
+
+    local RESULT_STATUS="none"
+    if [[ -f "$RESULT_FILE" ]]; then
+      RESULT_STATUS=$(<"$RESULT_FILE")
+    fi
+
+    if [[ "$VERIFY_ALL" == true ]]; then
+      # In verify-all mode, highlight verified-but-failing separately
+      if [[ "$RESULT_STATUS" == "VERIFIED" ]]; then
+        if [[ "$INITIAL_STATUS" == "false" || "$INITIAL_STATUS" == "unknown" ]]; then
+          NEWLY_VERIFIED_COUNT=$((NEWLY_VERIFIED_COUNT + 1))
+        fi
+      elif [[ "$RESULT_STATUS" == "ERROR" ]]; then
+        if [[ "$INITIAL_STATUS" == "true" ]]; then
+          FAILED_MARKED_VERIFIED_COUNT=$((FAILED_MARKED_VERIFIED_COUNT + 1))
+          FAILED_MARKED_VERIFIED_NETWORKS+=("$NETWORK")
+        else
+          FAILED_UNVERIFIED_COUNT=$((FAILED_UNVERIFIED_COUNT + 1))
+          FAILED_UNVERIFIED_NETWORKS+=("$NETWORK")
+        fi
+      else
+        # No clear result recorded (e.g. job crashed) – treat conservatively as failed/unverified
+        FAILED_UNVERIFIED_COUNT=$((FAILED_UNVERIFIED_COUNT + 1))
+        FAILED_UNVERIFIED_NETWORKS+=("$NETWORK")
+        UNKNOWN_RESULT_COUNT=$((UNKNOWN_RESULT_COUNT + 1))
+        UNKNOWN_RESULT_NETWORKS+=("$NETWORK")
+      fi
+    else
+      # Default mode: verify only previously unverified deployments
+      if [[ "$INITIAL_STATUS" == "false" || "$INITIAL_STATUS" == "unknown" ]]; then
+        if [[ "$RESULT_STATUS" == "VERIFIED" ]]; then
+          NEWLY_VERIFIED_COUNT=$((NEWLY_VERIFIED_COUNT + 1))
+        elif [[ "$RESULT_STATUS" == "ERROR" ]]; then
+          FAILED_UNVERIFIED_COUNT=$((FAILED_UNVERIFIED_COUNT + 1))
+          FAILED_UNVERIFIED_NETWORKS+=("$NETWORK")
+        else
+          # No clear result recorded – treat conservatively as failed/unverified
+          FAILED_UNVERIFIED_COUNT=$((FAILED_UNVERIFIED_COUNT + 1))
+          FAILED_UNVERIFIED_NETWORKS+=("$NETWORK")
+          UNKNOWN_RESULT_COUNT=$((UNKNOWN_RESULT_COUNT + 1))
+          UNKNOWN_RESULT_NETWORKS+=("$NETWORK")
+        fi
+      fi
+    fi
+  done
+
+  # Clean up temporary directory
+  rm -rf "$TEMP_DIR"
+
+  # Print summary (even if some verifications failed)
+  echo ""
+  echo "=========================================="
+  echo "  SUMMARY - $CONTRACT ($ENVIRONMENT)"
+  echo "=========================================="
+  echo "Total networks checked: $TOTAL_NETWORKS"
+  echo "Networks where contract is deployed: $DEPLOYED_NETWORK_COUNT"
+  echo "Networks where contract is not deployed: $NOT_DEPLOYED_COUNT"
+  echo "✅ Already verified before run: $ALREADY_VERIFIED_COUNT"
+  echo "✅ Newly verified in this run: $NEWLY_VERIFIED_COUNT"
+  echo "❌ Still unverified / failed verifications: $FAILED_UNVERIFIED_COUNT"
+  if [[ "$VERIFY_ALL" == true ]]; then
+    echo "⚠️  Marked verified in log BUT verification failed in this run: $FAILED_MARKED_VERIFIED_COUNT"
+  fi
+  if [[ $PRECHECK_ERROR_COUNT -gt 0 ]]; then
+    echo "⚠️  Pre-check errors (no usable master log entry): $PRECHECK_ERROR_COUNT"
+  fi
+  if [[ "$VERIFY_ALL" == false && $UNKNOWN_RESULT_COUNT -gt 0 ]]; then
+    echo "⚠️  Networks with unknown verification result (no status recorded): $UNKNOWN_RESULT_COUNT"
+  fi
+  echo "=========================================="
+  echo ""
+
+  # Detailed lists for easier follow-up
+  if [[ $FAILED_UNVERIFIED_COUNT -gt 0 ]]; then
+    echo "❌ Networks where verification failed or deployment remains unverified:"
+    for NETWORK in "${FAILED_UNVERIFIED_NETWORKS[@]}"; do
+      echo "  - $NETWORK"
+    done
+    echo ""
+  fi
+
+  if [[ "$VERIFY_ALL" == true && $FAILED_MARKED_VERIFIED_COUNT -gt 0 ]]; then
+    echo "⚠️  Networks marked verified in log BUT failed verification in this run:"
+    for NETWORK in "${FAILED_MARKED_VERIFIED_NETWORKS[@]}"; do
+      echo "  - $NETWORK"
+    done
+    echo ""
+  fi
+
+  if [[ $UNKNOWN_RESULT_COUNT -gt 0 ]]; then
+    echo "⚠️  Networks with unknown verification result (no status recorded):"
+    for NETWORK in "${UNKNOWN_RESULT_NETWORKS[@]}"; do
+      echo "  - $NETWORK"
+    done
+    echo ""
+  fi
+
+  if [[ $NOT_DEPLOYED_COUNT -gt 0 ]]; then
+    echo "❌ Networks where contract is not deployed:"
+    for NETWORK in "${NOT_DEPLOYED_NETWORKS[@]}"; do
+      echo "  - $NETWORK"
+    done
+    echo ""
+  fi
+
+  if [[ $PRECHECK_ERROR_COUNT -gt 0 ]]; then
+    echo "⚠️  Networks with pre-check errors (no usable master log entry, not sent for verification):"
+    for NETWORK in "${PRECHECK_ERROR_NETWORKS[@]}"; do
+      echo "  - $NETWORK"
+    done
+    echo ""
+  fi
+
+  return 0
 }
 
 # =============================================================================
@@ -859,6 +1518,8 @@ function syncSigsAndDEXsForNetwork() {
 
 # Make functions available to other scripts
 export -f getContractVerified
+export -f verifyAllContractsForNetwork
+export -f verifyContractAcrossAllNetworks
 export -f getNetworksByEvmVersionAndContractDeployment
 export -f createMultisigProposalForContract
 export -f proposeDiamondCutForContract

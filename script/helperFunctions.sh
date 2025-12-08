@@ -132,8 +132,8 @@ function logContractDeploymentInfo {
   # Create lock file
   echo "$$" >"$LOCK_FILE"
 
-  # Ensure lock is released on exit
-  trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
+  # Ensure lock is released on exit (handle set -u / nounset safely)
+  trap 'rm -f "${LOCK_FILE:-}" 2>/dev/null' EXIT
 
   # Check if log FILE exists, if not create it
   if [ ! -f "$LOG_FILE_PATH" ]; then
@@ -1259,8 +1259,8 @@ function saveContract() {
   # Create lock file
   echo "$$" >"$LOCK_FILE"
 
-  # Ensure lock is released on exit
-  trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
+  # Ensure lock is released on exit (handle set -u / nounset safely)
+  trap 'rm -f "${LOCK_FILE:-}" 2>/dev/null' EXIT
 
   # create an empty json if it does not exist
   if [[ ! -e $ADDRESSES_FILE ]]; then
@@ -2057,6 +2057,11 @@ function verifyContract() {
   # Build verification command as array for safe execution
   local VERIFY_CMD=()
 
+  # Check if we'll have a custom verifier URL (for chains forge doesn't recognize)
+  local VERIFIER_URL
+  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
+  local HAS_CUSTOM_VERIFIER_URL=$([ $? -eq 0 ] && [ -n "$VERIFIER_URL" ] && echo "1" || echo "0")
+
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
     # Set environment variable for zkEVM
@@ -2077,10 +2082,17 @@ function verifyContract() {
       "verify-contract"
       # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "--watch"
-      "--chain" "$CHAIN_ID"
-      "$ADDRESS"
-      "$FULL_PATH"
     )
+
+    # Use --chain-id for custom chains (when we have a custom verifier URL)
+    # Use --chain for known chains (forge recognizes them by name)
+    if [ "$HAS_CUSTOM_VERIFIER_URL" = "1" ]; then
+      VERIFY_CMD+=("--chain-id" "$CHAIN_ID")
+    else
+      VERIFY_CMD+=("--chain" "$CHAIN_ID")
+    fi
+
+    VERIFY_CMD+=("$ADDRESS" "$FULL_PATH")
   fi
 
   echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
@@ -2090,6 +2102,10 @@ function verifyContract() {
     VERIFY_CMD+=("--constructor-args" "$ARGS")
   fi
 
+  # Get verifier type from foundry.toml (if specified)
+  local VERIFIER_TYPE
+  VERIFIER_TYPE=$(getVerifierTypeFromFoundryToml "$NETWORK" 2>/dev/null)
+
   # Get API key and determine verification method
   API_KEY=$(getEtherscanApiKeyName "$NETWORK")
   if [ $? -eq 1 ]; then
@@ -2097,12 +2113,19 @@ function verifyContract() {
     return 1
   fi
 
-  # Add verification method based on API key
-  if [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
-    VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
-  fi
+  # Add verification method - prioritize verifier type from foundry.toml if specified
+  if [ -n "$VERIFIER_TYPE" ]; then
+    # Use verifier type from foundry.toml
+    VERIFY_CMD+=("--verifier" "$VERIFIER_TYPE")
 
-  if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
+    # Add API key for etherscan verifier
+    if [ "$VERIFIER_TYPE" = "etherscan" ] && [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+      VERIFY_CMD+=("--etherscan-api-key" "${!API_KEY}")
+    fi
+  elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
+    # Fall back to API key inference for backward compatibility
+    VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+  elif [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD+=("--verifier" "blockscout")
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
     # make sure API key is not empty
@@ -2118,10 +2141,9 @@ function verifyContract() {
     fi
   fi
 
-  # Add verifier URL if available (for custom verifiers like oklink)
-  local VERIFIER_URL
-  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
-  if [ $? -eq 0 ] && [ -n "$VERIFIER_URL" ]; then
+  # Add verifier URL if available (for custom verifiers like oklink, sourcify, etc.)
+  # Note: VERIFIER_URL was already fetched above, reuse it
+  if [ "$HAS_CUSTOM_VERIFIER_URL" = "1" ]; then
     VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
   fi
 
@@ -2132,11 +2154,33 @@ function verifyContract() {
     echo "[info] Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Submitting verification for [$FULL_PATH] $ADDRESS..."
     echo "[info] ...using the following command: "
     echo "[info] ${VERIFY_CMD[*]}"
+    echo ""
 
     # Execute verification command with --watch flag (will wait for completion)
-    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1)
+    # Use a temp file to capture output while still showing it in real-time
+    local TEMP_OUTPUT_FILE=$(mktemp)
+    FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1 | tee "$TEMP_OUTPUT_FILE"
+    local VERIFY_EXIT_CODE=${PIPESTATUS[0]}
+    VERIFY_OUTPUT=$(cat "$TEMP_OUTPUT_FILE")
+    rm -f "$TEMP_OUTPUT_FILE"
 
-    echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+    echo ""
+    echoDebug "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+    echoDebug "VERIFY_EXIT_CODE: $VERIFY_EXIT_CODE"
+
+    # Check if command failed immediately
+    if [ $VERIFY_EXIT_CODE -ne 0 ]; then
+      error "Verification command failed with exit code $VERIFY_EXIT_CODE"
+      if [ -n "$VERIFY_OUTPUT" ]; then
+        echo "$VERIFY_OUTPUT"
+      fi
+      RETRY_COUNT=$((RETRY_COUNT + 1))
+      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+        echo "[info] Waiting 15 seconds before retry..."
+        sleep 15
+      fi
+      continue
+    fi
 
     # Check if contract is already verified
     if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
@@ -2162,7 +2206,15 @@ function verifyContract() {
       if isZkEvmNetwork "$NETWORK"; then
         CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--chain" "$CHAIN_ID" "$ADDRESS")
       else
-        CHECK_CMD=("forge" "verify-check" "--chain" "$CHAIN_ID" "$ADDRESS")
+        # Use --chain-id if we have a custom verifier URL, otherwise use --chain
+        if [ "$HAS_CUSTOM_VERIFIER_URL" = "1" ]; then
+          CHECK_CMD=("forge" "verify-check" "--chain-id" "$CHAIN_ID" "$ADDRESS")
+          if [ -n "$VERIFIER_URL" ]; then
+            CHECK_CMD+=("--verifier-url" "$VERIFIER_URL")
+          fi
+        else
+          CHECK_CMD=("forge" "verify-check" "--chain" "$CHAIN_ID" "$ADDRESS")
+        fi
       fi
 
       local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1)
@@ -2279,6 +2331,44 @@ function getEtherscanApiKeyName() {
   fi
 
   echo "$ENV_VAR"
+}
+
+function getVerifierTypeFromFoundryToml() {
+  local NETWORK="$1"
+
+  if [[ -z "$NETWORK" ]]; then
+    echo "Usage: getVerifierTypeFromFoundryToml <network>" >&2
+    return 1
+  fi
+
+  if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
+    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    return 1
+  fi
+
+  # Extract the line with the verifier type for the given network
+  local VERIFIER_LINE
+  VERIFIER_LINE=$(awk -v net="$NETWORK" '
+    $0 ~ "\\[etherscan\\]" { in_etherscan=1; next }
+    in_etherscan && /^\[/ { in_etherscan=0 }
+    in_etherscan && $0 ~ "^[[:space:]]*"net"[[:space:]]*=" { print; exit }
+  ' "$FOUNDRY_TOML_FILE_PATH")
+
+  if [[ -z "$VERIFIER_LINE" ]]; then
+    echo "Error: Could not find [etherscan].$NETWORK section in foundry.toml" >&2
+    return 1
+  fi
+
+  # extract the verifier type
+  local VERIFIER_TYPE
+  VERIFIER_TYPE=$(echo "$VERIFIER_LINE" | sed -n 's/.*verifier *= *"\([^"]*\)".*/\1/p')
+
+  # If no verifier type found, return empty (will fall back to API key inference)
+  if [[ -z "$VERIFIER_TYPE" ]]; then
+    return 0
+  fi
+
+  echo "$VERIFIER_TYPE"
 }
 
 function getVerifierUrlFromFoundryToml() {
