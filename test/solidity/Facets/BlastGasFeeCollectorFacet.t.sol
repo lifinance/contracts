@@ -71,9 +71,9 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
         // Deploy diamond (manually since we don't need full initTestBase setup)
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 
-        // Deploy facet with recipient in constructor
+        // Deploy facet
         // Note: The facet uses IBlast(BLAST_PRECOMPILE), which now points to our mock code
-        facet = new BlastGasFeeCollectorFacet(TEST_RECIPIENT);
+        facet = new BlastGasFeeCollectorFacet();
 
         // Add facet to diamond
         bytes4[] memory allowedFunctionSelectors = new bytes4[](3);
@@ -140,18 +140,6 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
         );
     }
 
-    function test_Constructor_SetsGasFeeRecipient() public {
-        BlastGasFeeCollectorFacet newFacet = new BlastGasFeeCollectorFacet(
-            TEST_RECIPIENT
-        );
-
-        assertEq(
-            newFacet.GAS_FEE_RECIPIENT(),
-            TEST_RECIPIENT,
-            "Gas fee recipient should be set correctly"
-        );
-    }
-
     function test_BLAST_Constant_IsCorrect() public {
         address blastAddress = address(facet.BLAST());
 
@@ -180,12 +168,6 @@ contract BlastGasFeeCollectorFacetTest is TestBase {
         facet.claimGasFees(TEST_RECIPIENT);
 
         vm.stopPrank();
-    }
-
-    function testRevert_Constructor_WhenRecipientIsZeroAddress() public {
-        vm.expectRevert(InvalidConfig.selector);
-
-        new BlastGasFeeCollectorFacet(address(0));
     }
 
     function testRevert_ClaimGasFees_WhenRecipientIsZeroAddress() public {

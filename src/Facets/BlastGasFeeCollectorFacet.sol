@@ -16,9 +16,6 @@ contract BlastGasFeeCollectorFacet {
     IBlast public constant BLAST =
         IBlast(0x4300000000000000000000000000000000000002);
 
-    /// @notice The address that will receive claimed gas fees
-    address public immutable GAS_FEE_RECIPIENT;
-
     /// Events ///
 
     /// @notice Emitted when gas mode is configured
@@ -28,17 +25,6 @@ contract BlastGasFeeCollectorFacet {
     /// @param recipient The address that received the gas fees
     /// @param amount The amount of gas fees claimed
     event GasFeesClaimed(address indexed recipient, uint256 amount);
-
-    /// Constructor ///
-
-    /// @notice Initializes the BlastGasFeeCollectorFacet contract
-    /// @param _gasFeeRecipient The address that will receive claimed gas fees
-    constructor(address _gasFeeRecipient) {
-        if (_gasFeeRecipient == address(0)) {
-            revert InvalidConfig();
-        }
-        GAS_FEE_RECIPIENT = _gasFeeRecipient;
-    }
 
     /// External Methods ///
 
