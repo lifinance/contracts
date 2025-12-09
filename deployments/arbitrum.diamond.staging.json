@@ -27,7 +27,7 @@
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",
@@ -121,10 +121,6 @@
         "Name": "MayanFacet",
         "Version": "1.2.0"
       },
-      "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
-        "Name": "",
-        "Version": ""
-      },
       "0x7C27b0FD92dbC5a1cA268255A649320E8C649e70": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
@@ -145,10 +141,6 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
-        "Name": "",
-        "Version": ""
-      },
       "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
         "Name": "PioneerFacet",
         "Version": "1.0.0"
@@ -165,10 +157,6 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x33EcEb68994E0499a61FAda3b49Ab243e63555F1": {
-        "Name": "",
-        "Version": ""
-      },
       "0x004E291b9244C811B0BE00cA2C179d54FAA5073D": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
@@ -181,25 +169,9 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       },
-      "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
-        "Name": "",
-        "Version": ""
-      },
       "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
-      },
-      "0xF097E847Ab678a29CB50F5B8C6677309BC428C39": {
-        "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
-      },
-      "0xd5C4891A0F1522F001E300d6758CE49c9420Ee7D": {
-        "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
-      },
-      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
-        "Name": "",
-        "Version": ""
       },
       "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
         "Name": "PolymerCCTPFacet",
@@ -209,11 +181,7 @@
         "Name": "PolymerCCTPFacet",
         "Version": "1.0.0"
       },
-      "0x00f2a92544347C59c6980ACb53fcF9E5408e9942": {
-        "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
-      },
-      "0xff1aa825196ceFD6e8e7e0de6C704DC342a27723": {
+      "0x18b2cA4070b45fbf2272fe3520473572067A4863": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       }

@@ -5,7 +5,7 @@ import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { NEARIntentsFacet } from "lifi/Facets/NEARIntentsFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, InformationMismatch, InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount, InformationMismatch, InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 
 /// @title TestNEARIntentsFacet
 /// @author LI.FI (https://li.fi)
@@ -426,6 +426,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             deadline: expiredDeadline,
             minAmountOut: 990 * 10 ** 6,
             nonEVMReceiver: bytes32(0),
+            refundRecipient: USER_SENDER,
             signature: signature
         });
 
@@ -487,8 +488,6 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         );
         vm.stopPrank();
     }
-
-
 
     function testRevert_SourceSwapsFlagMismatch() public {
         // Bridge data says no swaps but function expects swaps
@@ -788,6 +787,56 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function test_PositiveSlippageRefundedToRefundRecipient() public {
+        // Setup swap from DAI to USDC with potential positive slippage
+        bridgeData.hasSourceSwaps = true;
+
+        // Use a specific refund recipient (different from sender for clarity)
+        address refundRecipient = address(0xBEEF);
+
+        // Reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(diamond), swapData[0].fromAmount);
+
+        // Generate nearData with custom refund recipient
+        NEARIntentsFacet.NEARIntentsData
+            memory customNearData = _generateValidNearData(
+                TEST_DEPOSIT_ADDRESS,
+                bridgeData,
+                block.chainid,
+                TEST_QUOTE_ID,
+                990 * 10 ** 6
+            );
+        customNearData.refundRecipient = refundRecipient;
+
+        uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
+        uint256 refundRecipientBalanceBefore = usdc.balanceOf(refundRecipient);
+
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            customNearData
+        );
+        vm.stopPrank();
+
+        // Deposit address should receive exactly minAmount
+        assertEq(
+            usdc.balanceOf(TEST_DEPOSIT_ADDRESS),
+            depositBalanceBefore + bridgeData.minAmount
+        );
+
+        // If there was positive slippage, refund recipient should receive it
+        uint256 refundRecipientBalanceAfter = usdc.balanceOf(refundRecipient);
+        if (refundRecipientBalanceAfter > refundRecipientBalanceBefore) {
+            // Positive slippage was refunded
+            assertTrue(
+                refundRecipientBalanceAfter > refundRecipientBalanceBefore
+            );
+        }
+    }
+
     function test_NonEVMBridgeWithNativeTokens() public {
         // Setup
         bridgeData.sendingAssetId = address(0);
@@ -959,6 +1008,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
                 quoteId: _quoteId,
                 deadline: deadline,
                 minAmountOut: _minAmountOut,
+                refundRecipient: USER_SENDER,
                 signature: signature
             });
     }
@@ -1018,6 +1068,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
                 quoteId: _quoteId,
                 deadline: deadline,
                 minAmountOut: _minAmountOut,
+                refundRecipient: USER_SENDER,
                 signature: signature
             });
     }

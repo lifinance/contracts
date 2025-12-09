@@ -57,6 +57,7 @@ declare namespace NEARIntentsFacet {
     quoteId: `0x${string}`
     deadline: bigint
     minAmountOut: bigint
+    refundRecipient: string
     signature: `0x${string}`
   }
 }
@@ -437,6 +438,7 @@ async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
     quoteId: quoteIdBytes32,
     deadline,
     minAmountOut,
+    refundRecipient: signerAddress,
     signature,
   }
 
@@ -673,6 +675,7 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
     quoteId: quoteIdBytes32,
     deadline,
     minAmountOut,
+    refundRecipient: signerAddress,
     signature,
   }
 

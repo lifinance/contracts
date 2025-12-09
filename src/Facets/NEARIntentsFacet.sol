@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig, InvalidReceiver, NativeAssetTransferFailed, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title NEARIntentsFacet
 /// @author LI.FI (https://li.fi)
@@ -43,6 +43,7 @@ contract NEARIntentsFacet is
     /// @param quoteId Unique identifier from 1Click API quote response
     /// @param deadline Unix timestamp when quote expires (refunds begin if unfulfilled)
     /// @param minAmountOut Minimum output amount on destination (slippage protection)
+    /// @param refundRecipient Address that will receive positive slippage from swaps
     /// @param signature The signature of the NEARIntentsPayload signed by the backend signer using EIP-712 standard
     struct NEARIntentsData {
         address depositAddress;
@@ -50,6 +51,7 @@ contract NEARIntentsFacet is
         bytes32 quoteId;
         uint256 deadline;
         uint256 minAmountOut;
+        address refundRecipient;
         bytes signature;
     }
 
@@ -118,14 +120,9 @@ contract NEARIntentsFacet is
             revert QuoteAlreadyConsumed();
         }
 
-        // Ensure quote hasn't expired (single check, removed duplicate from signature verification)
+        // Ensure quote hasn't expired
         if (block.timestamp > _nearData.deadline) {
             revert QuoteExpired();
-        }
-
-        // Ensure deposit address is valid
-        if (_nearData.depositAddress == address(0)) {
-            revert InvalidReceiver();
         }
 
         // Ensure nonEVMReceiver is not empty when bridging to non-EVM chain
@@ -183,17 +180,25 @@ contract NEARIntentsFacet is
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        // Positive slippage handling: The signature is verified with pre-swap minAmount.
-        // If swaps yield more tokens than expected, all extra tokens are sent to the deposit address.
-        // The minAmountOut parameter remains unchanged as it represents destination-side slippage protection.
-        // See: New Facet Contract Checklist - Positive Slippage Handling
         _verifySignature(_bridgeData, _nearData);
-        _bridgeData.minAmount = _depositAndSwap(
+
+        uint256 actualAmountAfterSwap = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
+        if (actualAmountAfterSwap > _bridgeData.minAmount) {
+            uint256 positiveSlippage = actualAmountAfterSwap -
+                _bridgeData.minAmount;
+            LibAsset.transferAsset(
+                _bridgeData.sendingAssetId,
+                payable(_nearData.refundRecipient),
+                positiveSlippage
+            );
+        }
+
         _startBridge(_bridgeData, _nearData);
     }
 
