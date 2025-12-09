@@ -91,7 +91,7 @@ contract ReceiverOIFTest is TestBase {
         );
     }
 
-    function test_revert_WithdrawTokenNonOwner() public {
+    function testRevert_WithdrawTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
         receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
@@ -149,7 +149,7 @@ contract ReceiverOIFTest is TestBase {
 
         bytes memory payload = abi.encode(transferId, swapData, USER_RECEIVER);
 
-        // call from deployer of ReceiverStargateV2
+        // call from the deployer of the receiver
         vm.startPrank(address(this));
         vm.expectRevert(UnAuthorized.selector);
 
@@ -158,7 +158,7 @@ contract ReceiverOIFTest is TestBase {
             defaultUSDCAmount,
             payload
         );
-        // call from owner of ReceiverStargateV2
+        // call from the owner of the receiver
         vm.startPrank(address(this));
         vm.expectRevert(UnAuthorized.selector);
 
