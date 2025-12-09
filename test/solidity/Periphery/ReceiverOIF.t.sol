@@ -26,9 +26,6 @@ contract NonETHReceiver {
 }
 
 contract ReceiverOIFTest is TestBase {
-    uint256 internal constant MINIMUM_GAS = 400_000;
-    uint256 internal constant RECOVER_GAS = 100_000;
-
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     ReceiverOIF internal receiver;
@@ -45,9 +42,7 @@ contract ReceiverOIFTest is TestBase {
         receiver = new ReceiverOIF(
             address(this),
             address(executor),
-            OUTPUT_SETTLER_COIN,
-            MINIMUM_GAS,
-            RECOVER_GAS
+            OUTPUT_SETTLER_COIN
         );
     }
 
@@ -104,8 +99,6 @@ contract ReceiverOIFTest is TestBase {
 
     function test_contractIsSetUpCorrectly() public {
         assertEq(address(receiver.EXECUTOR()) == address(executor), true);
-        assertEq(receiver.MINIMUM_GAS() == MINIMUM_GAS, true);
-        assertEq(receiver.RECOVER_GAS() == RECOVER_GAS, true);
         assertEq(receiver.OUTPUT_SETTLER() == OUTPUT_SETTLER_COIN, true);
     }
 
@@ -160,7 +153,7 @@ contract ReceiverOIFTest is TestBase {
         vm.startPrank(address(this));
         vm.expectRevert(UnAuthorized.selector);
 
-        receiver.outputFilled{ gas: 400000 }(
+        receiver.outputFilled(
             bytes32(uint256(uint160(ADDRESS_USDC))),
             defaultUSDCAmount,
             payload
@@ -169,7 +162,7 @@ contract ReceiverOIFTest is TestBase {
         vm.startPrank(address(this));
         vm.expectRevert(UnAuthorized.selector);
 
-        receiver.outputFilled{ gas: 400000 }(
+        receiver.outputFilled(
             bytes32(uint256(uint160(ADDRESS_USDC))),
             defaultUSDCAmount,
             payload
@@ -178,14 +171,14 @@ contract ReceiverOIFTest is TestBase {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
 
-        receiver.outputFilled{ gas: 400000 }(
+        receiver.outputFilled(
             bytes32(uint256(uint160(ADDRESS_USDC))),
             defaultUSDCAmount,
             payload
         );
     }
 
-    function test_revert_lessThanMinimumGasProvided() public {
+    function testRevert_tooLittleGas() public {
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
             ADDRESS_USDC,
             ADDRESS_DAI
@@ -194,9 +187,9 @@ contract ReceiverOIFTest is TestBase {
         bytes memory payload = abi.encode(transferId, swapData, USER_RECEIVER);
 
         vm.startPrank(OUTPUT_SETTLER_COIN);
-        vm.expectRevert(ReceiverOIF.NotEnoughGas.selector);
+        vm.expectRevert();
 
-        receiver.outputFilled{ gas: MINIMUM_GAS - 1 }(
+        receiver.outputFilled{ gas: 10000 }(
             bytes32(uint256(uint160(ADDRESS_USDC))),
             defaultUSDCAmount,
             payload
@@ -239,7 +232,7 @@ contract ReceiverOIFTest is TestBase {
             amountOutMin,
             block.timestamp
         );
-        OutputSettler(OUTPUT_SETTLER_COIN).fill{ gas: 600000 }(
+        OutputSettler(OUTPUT_SETTLER_COIN).fill(
             keccak256("orderId"),
             output,
             type(uint48).max,
@@ -249,7 +242,7 @@ contract ReceiverOIFTest is TestBase {
         assertTrue(dai.balanceOf(USER_RECEIVER) == amountOutMin);
     }
 
-    function test_canRecoverRevertsERC20() public {
+    function testRevert_cannotFillERC20WithInvalidCalldata() public {
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
             ADDRESS_USDC,
             ADDRESS_DAI
@@ -278,27 +271,16 @@ contract ReceiverOIFTest is TestBase {
         deal(ADDRESS_USDC, address(randomFillerAccount), defaultUSDCAmount);
         IERC20(ADDRESS_USDC).approve(OUTPUT_SETTLER_COIN, defaultUSDCAmount);
 
-        vm.expectEmit();
-        emit LiFiTransferRecovered(
-            transferId,
-            ADDRESS_USDC,
-            USER_RECEIVER,
-            defaultUSDCAmount,
-            block.timestamp
-        );
-        OutputSettler(OUTPUT_SETTLER_COIN).fill{ gas: 600000 }(
+        vm.expectRevert();
+        OutputSettler(OUTPUT_SETTLER_COIN).fill(
             keccak256("orderId"),
             output,
             type(uint48).max,
             abi.encode(randomFillerAccount)
         );
-
-        assertTrue(
-            IERC20(ADDRESS_USDC).balanceOf(USER_RECEIVER) == defaultUSDCAmount
-        );
     }
 
-    function test_canRecoverRevertsNative() public {
+    function testRevert_cannotFillNativeWithInvalidCalldata() public {
         uint256 amount = defaultUSDCAmount;
         // While this is a native swap, we don't need to fix the swapData since we very strictly wants this to fail.
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
@@ -328,21 +310,12 @@ contract ReceiverOIFTest is TestBase {
         // Give filler funds to fill output
         deal(address(randomFillerAccount), amount);
 
-        vm.expectEmit();
-        emit LiFiTransferRecovered(
-            transferId,
-            address(0),
-            USER_RECEIVER,
-            amount,
-            block.timestamp
-        );
-        OutputSettler(OUTPUT_SETTLER_COIN).fill{ gas: 600000, value: amount }(
+        vm.expectRevert();
+        OutputSettler(OUTPUT_SETTLER_COIN).fill{ value: amount }(
             keccak256("orderId"),
             output,
             type(uint48).max,
             abi.encode(randomFillerAccount)
         );
-
-        assertTrue(USER_RECEIVER.balance == amount);
     }
 }

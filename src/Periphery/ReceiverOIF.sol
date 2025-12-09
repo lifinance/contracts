@@ -29,13 +29,8 @@ interface IOutputCallback {
 /// Anyone can call this contract with fradulently filled intents, incoming outputFilled calls cannot be trusted.
 /// @custom:version 1.0.0
 contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
-    /// Errors ///
-    error NotEnoughGas();
-
     /// Storage ///
     IExecutor public immutable EXECUTOR;
-    uint256 public immutable MINIMUM_GAS;
-    uint256 public immutable RECOVER_GAS;
     address public immutable OUTPUT_SETTLER;
 
     /// Modifiers ///
@@ -47,17 +42,12 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
     }
 
     /// Constructor
-    /// @param _recoverGas If set to 0, then no gas is left for intent recovery. This means that the output is unlikely to be fillable and the intent has to be refunded on the origin chain.
     constructor(
         address _owner,
         address _executor,
-        address _outputSettler,
-        uint256 _minimumGas,
-        uint256 _recoverGas
+        address _outputSettler
     ) WithdrawablePeriphery(_owner) {
         EXECUTOR = IExecutor(_executor);
-        MINIMUM_GAS = _minimumGas;
-        RECOVER_GAS = _recoverGas;
         OUTPUT_SETTLER = _outputSettler;
     }
 
@@ -106,9 +96,6 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
         address payable receiver,
         uint256 amount
     ) private {
-        // If the solver has not provided enough gas, we revert. This makes the intent unfillable (until they try with more gas.)
-        if (gasleft() < MINIMUM_GAS) revert NotEnoughGas();
-
         bool isNative = LibAsset.isNativeAsset(assetId);
         if (!isNative) {
             SafeTransferLib.safeApproveWithRetry(
@@ -117,27 +104,12 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
                 amount
             );
         }
-        // We will catch OOG so we need to ensure that there is enough gas left that we will run the recover loop.
-        try
-            EXECUTOR.swapAndCompleteBridgeTokens{
-                value: isNative ? amount : 0,
-                gas: gasleft() - RECOVER_GAS
-            }(_transactionId, _swapData, assetId, receiver)
-        {} catch {
-            if (isNative) {
-                SafeTransferLib.safeTransferETH(receiver, amount);
-            } else {
-                SafeTransferLib.safeTransfer(assetId, receiver, amount);
-            }
-
-            emit LiFiTransferRecovered(
-                _transactionId,
-                assetId,
-                receiver,
-                amount,
-                block.timestamp
-            );
-        }
+        EXECUTOR.swapAndCompleteBridgeTokens{ value: isNative ? amount : 0 }(
+            _transactionId,
+            _swapData,
+            assetId,
+            receiver
+        );
     }
 
     /// @notice Native assets are sent alone before the callback is called.

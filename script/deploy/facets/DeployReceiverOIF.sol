@@ -54,13 +54,6 @@ contract DeployScript is DeployScriptBase {
         );
         address executor = _getConfigContractAddress(path, ".Executor");
 
-        return
-            abi.encode(
-                refundWalletAddress,
-                executor,
-                outputSettler,
-                35000, // This is not enough for the recovery logic, but it means that there is a higher likelihood that complicated swap logic goes through (see docs).
-                400000
-            );
+        return abi.encode(refundWalletAddress, executor, outputSettler);
     }
 }
