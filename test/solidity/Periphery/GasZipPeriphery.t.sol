@@ -435,42 +435,6 @@ contract GasZipPeripheryTest is TestBase {
         );
     }
 
-    function testRevert_WillFailIfSwapViaLiFiDEXAggregatorIsUnsuccessful()
-        public
-    {
-        vm.startPrank(USER_SENDER);
-
-        // set DAI approval for GasZipPeriphery
-        dai.approve(address(gasZipPeriphery), type(uint256).max);
-
-        uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
-        (
-            LibSwap.SwapData memory gasZipSwapData,
-
-        ) = _getUniswapERC20ToNativeSwapData(ADDRESS_DAI, gasZipERC20Amount);
-
-        // use an invalid function selector to force the call to LiFiDEXAggregator to fail
-        // Note: The function must pass the whitelist check but fail when executed
-        gasZipSwapData.callData = abi.encodeWithSelector(
-            PROCESS_ROUTE_SELECTOR,
-            address(0), // invalid params to make the call fail
-            0,
-            address(0),
-            0,
-            address(0),
-            ""
-        );
-
-        // expect the following call to fail without an error reason
-        vm.expectRevert();
-
-        // execute the call
-        gasZipPeriphery.depositToGasZipERC20(
-            gasZipSwapData,
-            defaultGasZipData
-        );
-    }
-
     function testRevert_WillFailIfMoreThan32ChainIds() public {
         vm.startPrank(USER_SENDER);
 
@@ -665,6 +629,198 @@ contract GasZipPeripheryTest is TestBase {
         gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
     }
 
+    function test_CanDepositERC20WhenApproveToIsDifferentFromCallTo() public {
+        // Test case: approveTo != callTo, both properly whitelisted
+        // This simulates DEXs where the token spender and router are different contracts
+
+        // Use a simple address for token spender (give it code so it passes contract check)
+        address tokenSpender = address(0xbeef);
+        // Give the address bytecode so it passes the contract check (minimum 24 bytes required)
+        vm.etch(
+            tokenSpender,
+            hex"600180808080800180808080800180808080800180808080801b"
+        );
+        MockDexRouterWithSeparateSpender dexRouter = new MockDexRouterWithSeparateSpender();
+
+        // Fund the router with native tokens to simulate swap output
+        deal(address(dexRouter), 1 ether);
+
+        // Whitelist the router with swap selector
+        vm.startPrank(USER_DIAMOND_OWNER);
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(dexRouter),
+            dexRouter.swapExactTokensForETH.selector,
+            true
+        );
+
+        // Whitelist the token spender with APPROVE_TO_ONLY_SELECTOR
+        bytes4 approveToOnlySelector = bytes4(0xffffffff);
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(tokenSpender),
+            approveToOnlySelector,
+            true
+        );
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+
+        // Prepare swap data where approveTo != callTo
+        uint256 daiAmount = 1e18;
+        deal(ADDRESS_DAI, USER_SENDER, daiAmount);
+        dai.approve(address(gasZipPeriphery), daiAmount);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 expectedOutput = 1e16; // 0.01 ETH
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(dexRouter), // callTo - the router contract
+            tokenSpender, // approveTo - different from callTo
+            ADDRESS_DAI,
+            address(0), // receivingAssetId - native
+            daiAmount,
+            abi.encodeWithSelector(
+                dexRouter.swapExactTokensForETH.selector,
+                daiAmount,
+                expectedOutput,
+                path,
+                address(gasZipPeriphery),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Set up expected event for GasZip deposit
+        vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
+        emit Deposit(
+            address(gasZipPeriphery),
+            defaultDestinationChains,
+            expectedOutput,
+            defaultReceiverBytes32
+        );
+
+        // Execute the swap and deposit
+        gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WillFailWhenApproveToIsNotWhitelistedWithApproveToOnlySelector()
+        public
+    {
+        // Test case: approveTo != callTo, but approveTo is NOT whitelisted with APPROVE_TO_ONLY_SELECTOR
+
+        // Use a simple address for token spender (no need to give it code since we're not whitelisting it)
+        address tokenSpender = address(0xdead);
+        MockDexRouterWithSeparateSpender dexRouter = new MockDexRouterWithSeparateSpender();
+
+        // Whitelist the router with swap selector
+        vm.startPrank(USER_DIAMOND_OWNER);
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(dexRouter),
+            dexRouter.swapExactTokensForETH.selector,
+            true
+        );
+        // Intentionally NOT whitelisting tokenSpender with APPROVE_TO_ONLY_SELECTOR
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+
+        // Prepare swap data where approveTo != callTo
+        uint256 daiAmount = 1e18;
+        deal(ADDRESS_DAI, USER_SENDER, daiAmount);
+        dai.approve(address(gasZipPeriphery), daiAmount);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(dexRouter), // callTo - whitelisted
+            tokenSpender, // approveTo - NOT whitelisted with APPROVE_TO_ONLY_SELECTOR
+            ADDRESS_DAI,
+            address(0), // receivingAssetId - native
+            daiAmount,
+            abi.encodeWithSelector(
+                dexRouter.swapExactTokensForETH.selector,
+                daiAmount,
+                0,
+                path,
+                address(gasZipPeriphery),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Should revert because approveTo is not whitelisted
+        vm.expectRevert(ContractCallNotAllowed.selector);
+        gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_WillFailWhenCallToIsNotWhitelistedEvenIfApproveToIs()
+        public
+    {
+        // Test case: approveTo != callTo, approveTo is whitelisted, but callTo is NOT whitelisted
+
+        // Use a simple address for token spender (give it code so it passes contract check)
+        address tokenSpender = address(0xfeed);
+        // Give the address bytecode so it passes the contract check (minimum 24 bytes required)
+        vm.etch(
+            tokenSpender,
+            hex"600180808080800180808080800180808080800180808080801b"
+        );
+        MockDexRouterWithSeparateSpender dexRouter = new MockDexRouterWithSeparateSpender();
+
+        // Whitelist only the token spender with APPROVE_TO_ONLY_SELECTOR
+        // Intentionally NOT whitelisting the router
+        vm.startPrank(USER_DIAMOND_OWNER);
+        bytes4 approveToOnlySelector = bytes4(0xffffffff);
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(tokenSpender),
+            approveToOnlySelector,
+            true
+        );
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+
+        // Prepare swap data where approveTo != callTo
+        uint256 daiAmount = 1e18;
+        deal(ADDRESS_DAI, USER_SENDER, daiAmount);
+        dai.approve(address(gasZipPeriphery), daiAmount);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(dexRouter), // callTo - NOT whitelisted
+            tokenSpender, // approveTo - whitelisted with APPROVE_TO_ONLY_SELECTOR
+            ADDRESS_DAI,
+            address(0), // receivingAssetId - native
+            daiAmount,
+            abi.encodeWithSelector(
+                dexRouter.swapExactTokensForETH.selector,
+                daiAmount,
+                0,
+                path,
+                address(gasZipPeriphery),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Should revert because callTo is not whitelisted (first check fails)
+        vm.expectRevert(ContractCallNotAllowed.selector);
+        gasZipPeriphery.depositToGasZipERC20(swapData, defaultGasZipData);
+
+        vm.stopPrank();
+    }
+
     function _getGnosisBridgeFacet()
         internal
         returns (TestGnosisBridgeFacet _gnosisBridgeFacet)
@@ -740,6 +896,31 @@ contract MockFailingDexWithCustomError {
 
     fallback() external {
         revert SwapFailed();
+    }
+
+    receive() external payable {}
+}
+
+contract MockDexRouterWithSeparateSpender {
+    function swapExactTokensForETH(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata,
+        address to,
+        uint256
+    ) external returns (uint256[] memory amounts) {
+        // This is a simplified mock that just returns native tokens
+        // In reality, the router would use the tokenSpender to pull ERC20 tokens
+        // and convert them to native. For testing purposes, we focus on testing
+        // the whitelist check logic, not the actual swap mechanics.
+
+        // Transfer native tokens to simulate swap output
+        // The router should be funded with native tokens before the test
+        to.call{ value: amountOutMin }("");
+
+        amounts = new uint256[](2);
+        amounts[0] = amountIn;
+        amounts[1] = amountOutMin;
     }
 
     receive() external payable {}

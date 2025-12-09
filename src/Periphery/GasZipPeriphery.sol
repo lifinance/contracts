@@ -23,6 +23,8 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
     address public immutable LIFI_DIAMOND;
     uint256 internal constant MAX_CHAINID_LENGTH_ALLOWED = 16;
 
+    bytes4 internal constant APPROVE_TO_ONLY_SELECTOR = 0xffffffff;
+
     /// Errors ///
     error TooManyChainIds();
     error SwapOutputMustBeNative();
@@ -61,11 +63,21 @@ contract GasZipPeriphery is ILiFi, WithdrawablePeriphery {
             LIFI_DIAMOND
         );
 
+        /// This check ensures that either the swap execution contract (_swapData.callTo)
+        /// is whitelisted for the specific call or the token spender (_swapData.approveTo)
+        /// is whitelisted using the APPROVE_TO_ONLY_SELECTOR (0xffffffff).
+        /// This prevents allowance leaks while supporting DEXs where the spender and
+        /// the caller addresses are different.
         if (
             !whitelistManager.isContractSelectorWhitelisted(
                 _swapData.callTo,
                 bytes4(_swapData.callData[:4])
-            )
+            ) ||
+            (_swapData.approveTo != _swapData.callTo &&
+                !whitelistManager.isContractSelectorWhitelisted(
+                    _swapData.approveTo,
+                    APPROVE_TO_ONLY_SELECTOR
+                ))
         ) {
             revert ContractCallNotAllowed();
         }
