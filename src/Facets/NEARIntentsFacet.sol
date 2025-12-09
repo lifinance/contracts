@@ -234,16 +234,21 @@ contract NEARIntentsFacet is
             _bridgeData.minAmount
         );
 
+        // Cache the non-EVM check to avoid duplicate checks
+        bool isNonEVM = _bridgeData.receiver == NON_EVM_ADDRESS;
+
         // Emit events (reduce stack depth by avoiding complex struct access in emit)
-        _emitEvents(_bridgeData, _nearData);
+        _emitEvents(_bridgeData, _nearData, isNonEVM);
     }
 
     /// @dev Emits bridge events
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
+    /// @param _isNonEVM Whether bridging to a non-EVM chain
     function _emitEvents(
         ILiFi.BridgeData memory _bridgeData,
-        NEARIntentsData calldata _nearData
+        NEARIntentsData calldata _nearData,
+        bool _isNonEVM
     ) private {
         emit NEARIntentsBridgeStarted(
             _bridgeData.transactionId,
@@ -255,7 +260,7 @@ contract NEARIntentsFacet is
         );
 
         // Emit special event if bridging to non-EVM chain
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+        if (_isNonEVM) {
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
@@ -273,7 +278,10 @@ contract NEARIntentsFacet is
         ILiFi.BridgeData memory _bridgeData,
         NEARIntentsData calldata _nearData
     ) internal view {
-        bytes32 receiverHash = _bridgeData.receiver == NON_EVM_ADDRESS
+        // Cache the non-EVM check
+        bool isNonEVM = _bridgeData.receiver == NON_EVM_ADDRESS;
+
+        bytes32 receiverHash = isNonEVM
             ? _nearData.nonEVMReceiver
             : bytes32(uint256(uint160(_bridgeData.receiver)));
 
