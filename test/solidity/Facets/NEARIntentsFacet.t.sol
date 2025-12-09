@@ -316,6 +316,58 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
     }
 
+    function test_CanBridgeNativeTokens() public {
+        // Customize bridgeData for native tokens
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        // Regenerate signature with updated bridgeData
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            keccak256("test-quote-native"),
+            defaultNativeAmount - (defaultNativeAmount / 100) // 1% slippage
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        // Record balances
+        uint256 userBalanceBefore = USER_SENDER.balance;
+        uint256 depositBalanceBefore = TEST_DEPOSIT_ADDRESS.balance;
+
+        // Expect events
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
+
+        // Execute
+        nearIntentsFacet.startBridgeTokensViaNEARIntents{
+            value: bridgeData.minAmount
+        }(bridgeData, validNearData);
+        vm.stopPrank();
+
+        // Assert balances
+        assertEq(
+            USER_SENDER.balance,
+            userBalanceBefore - bridgeData.minAmount
+        );
+        assertEq(
+            TEST_DEPOSIT_ADDRESS.balance,
+            depositBalanceBefore + bridgeData.minAmount
+        );
+        assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
+    }
+
     /// Validation Revert Tests ///
 
     function testRevert_QuoteAlreadyConsumed() public {
@@ -457,6 +509,20 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         uint256 balanceBefore = USER_SENDER.balance;
 
+        // Expect events
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
+
         nearIntentsFacet.startBridgeTokensViaNEARIntents{
             value: 1 ether + excessAmount
         }(bridgeData, validNearData);
@@ -479,6 +545,20 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), 1);
+
+        // Expect events
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
@@ -507,6 +587,20 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), maxAmount);
 
+        // Expect events
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
+
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
             validNearData
@@ -519,6 +613,20 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     function test_DifferentQuoteIdsCanBeUsed() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount * 2);
+
+        // Expect events for first bridge
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
 
         // First bridge
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
@@ -536,6 +644,20 @@ contract NEARIntentsFacetTest is TestBaseFacet {
                 newQuoteId,
                 990 * 10 ** 6
             );
+
+        // Expect events for second bridge
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            newNearData.quoteId,
+            newNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            newNearData.deadline
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
@@ -626,6 +748,17 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
 
+        // Expect NEARIntentsBridgeStarted event
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
+
         // Expect special non-EVM event
         vm.expectEmit(true, true, true, true, address(diamond));
         emit BridgeToNonEVMChainBytes32(
@@ -672,6 +805,17 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         dai.approve(address(diamond), swapData[0].fromAmount);
 
         uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
+
+        // Expect NEARIntentsBridgeStarted event
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
 
         // Expect special non-EVM event
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -744,6 +888,17 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
         uint256 refundRecipientBalanceBefore = usdc.balanceOf(refundRecipient);
 
+        // Expect events
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            customNearData.quoteId,
+            customNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            customNearData.deadline
+        );
+
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
             bridgeData,
             swapData,
@@ -787,6 +942,17 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         uint256 depositBalanceBefore = TEST_DEPOSIT_ADDRESS.balance;
 
+        // Expect NEARIntentsBridgeStarted event
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline
+        );
+
         // Expect special non-EVM event
         vm.expectEmit(true, true, true, true, address(diamond));
         emit BridgeToNonEVMChainBytes32(
@@ -794,6 +960,9 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             bridgeData.destinationChainId,
             nonEVMReceiver
         );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents{ value: 1 ether }(
             bridgeData,
