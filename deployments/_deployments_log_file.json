@@ -48060,9 +48060,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x18b2cA4070b45fbf2272fe3520473572067A4863",
+            "ADDRESS": "0x8EFcbD11864c37CE82446FFC3846610Fda3269E0",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-12-09 11:21:05",
+            "TIMESTAMP": "2025-12-09 13:36:09",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000981ccf8c09633f6f2af3fe661c285ca1db09cae1",
             "SALT": "",
             "VERIFIED": "true",

@@ -52,8 +52,8 @@ config()
 declare namespace NEARIntentsFacet {
   // eslint-disable-next-line @typescript-eslint/naming-convention -- Matches Solidity struct name
   interface NEARIntentsDataStruct {
-    depositAddress: string
     nonEVMReceiver: `0x${string}`
+    depositAddress: string
     quoteId: `0x${string}`
     deadline: bigint
     minAmountOut: bigint
@@ -433,8 +433,8 @@ async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
   )
 
   const nearData: NEARIntentsFacet.NEARIntentsDataStruct = {
-    depositAddress: quote.depositAddress,
     nonEVMReceiver: solanaReceiverBytes32,
+    depositAddress: quote.depositAddress,
     quoteId: quoteIdBytes32,
     deadline,
     minAmountOut,
@@ -670,8 +670,8 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
   )
 
   const nearData: NEARIntentsFacet.NEARIntentsDataStruct = {
-    depositAddress: quote.depositAddress,
     nonEVMReceiver: `0x${'0'.repeat(64)}`,
+    depositAddress: quote.depositAddress,
     quoteId: quoteIdBytes32,
     deadline,
     minAmountOut,

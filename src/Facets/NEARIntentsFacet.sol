@@ -38,16 +38,16 @@ contract NEARIntentsFacet is
     /// Types ///
 
     /// @notice NEAR Intents specific parameters
-    /// @param depositAddress EVM address to send tokens (from Bridge API) - receiver field per convention
     /// @param nonEVMReceiver Set only if bridging to non-EVM chain (e.g., NEAR account ID) - receiver field per convention
+    /// @param depositAddress EVM address to send tokens (from Bridge API) - receiver field per convention
     /// @param quoteId Unique identifier from 1Click API quote response
     /// @param deadline Unix timestamp when quote expires (refunds begin if unfulfilled)
     /// @param minAmountOut Minimum output amount on destination (slippage protection)
     /// @param refundRecipient Address that will receive positive slippage from swaps
     /// @param signature The signature of the NEARIntentsPayload signed by the backend signer using EIP-712 standard
     struct NEARIntentsData {
-        address depositAddress;
         bytes32 nonEVMReceiver;
+        address depositAddress;
         bytes32 quoteId;
         uint256 deadline;
         uint256 minAmountOut;

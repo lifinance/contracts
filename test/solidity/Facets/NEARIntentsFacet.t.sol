@@ -403,11 +403,11 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
 
         validNearData = NEARIntentsFacet.NEARIntentsData({
-            quoteId: TEST_QUOTE_ID,
+            nonEVMReceiver: bytes32(0),
             depositAddress: TEST_DEPOSIT_ADDRESS,
+            quoteId: TEST_QUOTE_ID,
             deadline: expiredDeadline,
             minAmountOut: 990 * 10 ** 6,
-            nonEVMReceiver: bytes32(0),
             refundRecipient: USER_SENDER,
             signature: signature
         });
@@ -1102,8 +1102,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         return
             NEARIntentsFacet.NEARIntentsData({
-                depositAddress: _depositAddress,
                 nonEVMReceiver: bytes32(0),
+                depositAddress: _depositAddress,
                 quoteId: _quoteId,
                 deadline: deadline,
                 minAmountOut: _minAmountOut,
@@ -1162,8 +1162,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         return
             NEARIntentsFacet.NEARIntentsData({
-                depositAddress: _depositAddress,
                 nonEVMReceiver: _nonEVMReceiver,
+                depositAddress: _depositAddress,
                 quoteId: _quoteId,
                 deadline: deadline,
                 minAmountOut: _minAmountOut,
