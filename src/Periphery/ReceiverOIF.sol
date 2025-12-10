@@ -47,7 +47,7 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
         address _executor,
         address _outputSettler
     ) WithdrawablePeriphery(_owner) {
-        if (owner == address(0)) revert InvalidConfig();
+        if (_owner == address(0)) revert InvalidConfig();
         if (_executor == address(0)) revert InvalidConfig();
         if (_outputSettler == address(0)) revert InvalidConfig();
         EXECUTOR = IExecutor(_executor);
