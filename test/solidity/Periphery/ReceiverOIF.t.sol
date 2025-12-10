@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReceiverOIF } from "lifi/Periphery/ReceiverOIF.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
-import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { MandateOutput } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
@@ -44,6 +44,34 @@ contract ReceiverOIFTest is TestBase {
             address(this),
             address(executor),
             OUTPUT_SETTLER_COIN
+        );
+    }
+
+    function testRevert_InvalidConfigConstructor() public {
+        new ReceiverOIF(address(this), address(executor), OUTPUT_SETTLER_COIN);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        receiver = new ReceiverOIF(
+            address(0),
+            address(executor),
+            OUTPUT_SETTLER_COIN
+        );
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        receiver = new ReceiverOIF(
+            address(this),
+            address(0),
+            OUTPUT_SETTLER_COIN
+        );
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        receiver = new ReceiverOIF(
+            address(this),
+            address(executor),
+            address(0)
         );
     }
 

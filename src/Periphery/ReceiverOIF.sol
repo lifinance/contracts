@@ -7,7 +7,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
-import { UnAuthorized } from "../Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /**
  * @notice Callback handling for OIF output processing.
@@ -47,6 +47,9 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
         address _executor,
         address _outputSettler
     ) WithdrawablePeriphery(_owner) {
+        if (owner == address(0)) revert InvalidConfig();
+        if (_executor == address(0)) revert InvalidConfig();
+        if (_outputSettler == address(0)) revert InvalidConfig();
         EXECUTOR = IExecutor(_executor);
         OUTPUT_SETTLER = _outputSettler;
     }
