@@ -81,7 +81,6 @@ contract ReceiverOIFTest is TestBase {
         NonETHReceiver nonETHReceiver = new NonETHReceiver();
 
         vm.startPrank(USER_DIAMOND_OWNER);
-
         vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
 
         receiver.withdrawToken(
@@ -94,6 +93,7 @@ contract ReceiverOIFTest is TestBase {
     function testRevert_WithdrawTokenNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
+
         receiver.withdrawToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
@@ -221,7 +221,6 @@ contract ReceiverOIFTest is TestBase {
 
         // Give filler funds to fill output
         deal(ADDRESS_USDC, address(randomFillerAccount), defaultUSDCAmount);
-
         IERC20(ADDRESS_USDC).approve(OUTPUT_SETTLER_COIN, defaultUSDCAmount);
 
         vm.expectEmit();
@@ -270,8 +269,8 @@ contract ReceiverOIFTest is TestBase {
         // Give filler funds to fill output
         deal(ADDRESS_USDC, address(randomFillerAccount), defaultUSDCAmount);
         IERC20(ADDRESS_USDC).approve(OUTPUT_SETTLER_COIN, defaultUSDCAmount);
-
         vm.expectRevert();
+
         OutputSettler(OUTPUT_SETTLER_COIN).fill(
             keccak256("orderId"),
             output,
@@ -309,8 +308,8 @@ contract ReceiverOIFTest is TestBase {
 
         // Give filler funds to fill output
         deal(address(randomFillerAccount), amount);
-
         vm.expectRevert();
+
         OutputSettler(OUTPUT_SETTLER_COIN).fill{ value: amount }(
             keccak256("orderId"),
             output,
