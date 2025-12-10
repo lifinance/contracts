@@ -16,7 +16,7 @@
  * Example TX (direct bridge):
  * - Source (Arbitrum): https://arbiscan.io/tx/0x5c7238a7c544f904c39cf1a81e2c1f263deb71d58cb7ba5db997b23de6a6e3e4
  * - Destination (Base): https://basescan.org/tx/0x2a8ac851c672c65d395612de9e6f5bcc9015265a993d473c7d4f383a5b29ab3b
- * 
+ *
  * Example TX (direct bridge):
  * - Source (Arbitrum): https://arbiscan.io/tx/0x8a861ec9465874d1007d8b629b3e2e284977fe10bc6abbaa5f4409a57aed4a5c
  * - Destination (Solana): https://solscan.io/tx/241Ud2etVMYT6Snvrq9GHD18kUrbheqTZ2UnY5JMddnvE9dxJ9fyWBVdfgpn67yAARVgGomXHZYyTpjJaqkyEs5p
@@ -446,6 +446,7 @@ async function main() {
     fee: decoded._feeParams.fee,
     deadline: decoded._feeParams.deadline,
     sig: decoded._feeParams.sig as `0x${string}`,
+    refundReceiver: signerAddress,
   }
 
   console.log('\n=== Executing Transaction ===')

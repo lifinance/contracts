@@ -34,6 +34,7 @@ The methods listed above take a variable labeled `_everclearData`. This data is 
 /// @param fee The protocol fee amount (in input token units)
 /// @param deadline The deadline timestamp for the fee signature
 /// @param sig The signature from the fee signer authorizing the fee
+/// @param refundReceiver Address that will receive refunds from positive slippage
 struct EverclearData {
   bytes32 receiverAddress;
   uint256 nativeFee;
@@ -44,6 +45,7 @@ struct EverclearData {
   uint256 fee;
   uint256 deadline;
   bytes sig;
+  address refundReceiver;
 }
 ```
 
@@ -67,12 +69,16 @@ The Everclear protocol uses a signed fee mechanism where:
 - **EVM Chains**: For EVM destination chains, `receiverAddress` must match `bridgeData.receiver` when converted to bytes32
 - **Non-EVM Chains**: Set `bridgeData.receiver` to `NON_EVM_ADDRESS` and provide the actual receiver in `receiverAddress`
 
+### Refund Receiver
+
+The `refundReceiver` parameter specifies the address that will receive any positive slippage from source swaps. When using `swapAndStartBridgeTokensViaEverclear`, if the swap results in more tokens than expected, the excess amount is sent to the `refundReceiver` instead of being included in the bridge. This is necessary because Everclear's signature validation includes the original bridge amount, preventing adjustment of the amount sent to the protocol.
+
 ## Error Conditions
 
 The facet will revert with specific errors in the following cases:
 
 - `InvalidConfig()`: Constructor called with zero address for fee adapter
-- `InvalidCallData()`: `outputAsset` is bytes32(0)
+- `InvalidCallData()`: `outputAsset` is bytes32(0), `refundReceiver` is address(0), or bridge amount is less than or equal to fee
 - `InvalidNonEVMReceiver()`: Non-EVM bridging with `receiverAddress` as bytes32(0)
 - `InvalidReceiver()`: EVM bridging where `bridgeData.receiver` doesn't match `everclearData.receiverAddress`
 - Standard LiFi validation errors for invalid bridge data

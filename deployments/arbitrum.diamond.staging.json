@@ -189,10 +189,6 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       },
-      "0x7Ea86FE59Ab35d76ba2446b09104A52E95d3267e": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
-      },
       "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
         "Name": "EverclearFacet",
         "Version": "1.0.0"
@@ -203,6 +199,10 @@
       },
       "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
         "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
+      },
+      "0x508DEA1EdbE8F9D019d36B7Ba67f0EF8d8FBf35f": {
+        "Name": "EverclearFacet",
         "Version": "1.0.0"
       }
     },

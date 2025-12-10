@@ -236,7 +236,8 @@ contract EverclearFacetTest is TestBaseFacet {
             data: "",
             fee: fee,
             deadline: deadline,
-            sig: signature
+            sig: signature,
+            refundReceiver: USER_SENDER
         });
 
         vm.label(address(FEE_ADAPTER), "FEE ADAPTER");
@@ -1122,6 +1123,58 @@ contract EverclearFacetTest is TestBaseFacet {
             bridgeData,
             swapData,
             everclearDataWithUnsupportedChain
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidRefundReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        // create invalid everclear data with refundReceiver as address(0)
+        EverclearFacet.EverclearData
+            memory invalidEverclearData = validEverclearData;
+        invalidEverclearData.refundReceiver = address(0);
+
+        // approval
+        usdc.approve(
+            address(everclearFacet),
+            usdCAmountToSend + validEverclearData.fee
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        everclearFacet.startBridgeTokensViaEverclear(
+            bridgeData,
+            invalidEverclearData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeInvalidRefundReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // create invalid everclear data with refundReceiver as address(0)
+        EverclearFacet.EverclearData
+            memory invalidEverclearData = validEverclearData;
+        invalidEverclearData.refundReceiver = address(0);
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        everclearFacet.swapAndStartBridgeTokensViaEverclear(
+            bridgeData,
+            swapData,
+            invalidEverclearData
         );
 
         vm.stopPrank();

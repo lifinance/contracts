@@ -42,6 +42,7 @@ contract EverclearFacet is
     /// @param fee The protocol fee amount (in input token units, deducted from bridge amount)
     /// @param deadline The deadline timestamp for the fee signature
     /// @param sig The signature from the fee signer authorizing the fee (EIP-191 format)
+    /// @param refundReceiver Address that will receive refunds from positive slippage
     struct EverclearData {
         bytes32 receiverAddress;
         uint256 nativeFee;
@@ -52,6 +53,7 @@ contract EverclearFacet is
         uint256 fee;
         uint256 deadline;
         bytes sig;
+        address refundReceiver;
     }
 
     /// Errors ///
@@ -122,14 +124,14 @@ contract EverclearFacet is
         );
 
         // If we got more than expected from the swap (positive slippage),
-        // send the extra back to the user. We cannot adjust amountOutMin
+        // send the extra back to the refund receiver. We cannot adjust amountOutMin
         // because Everclear's signature validation includes the original value.
         if (actualAmountAfterSwap > _bridgeData.minAmount) {
             uint256 positiveSlippage = actualAmountAfterSwap -
                 _bridgeData.minAmount;
             LibAsset.transferERC20(
                 _bridgeData.sendingAssetId,
-                payable(msg.sender),
+                payable(_everclearData.refundReceiver),
                 positiveSlippage
             );
         }
@@ -150,7 +152,8 @@ contract EverclearFacet is
         // contract does NOT validate _everclearData.deadline and _everclearData.sig to save gas here. Fee adapter will signature with fee and deadline in message anyway.
         if (
             _everclearData.outputAsset == bytes32(0) ||
-            _bridgeData.minAmount <= _everclearData.fee
+            _bridgeData.minAmount <= _everclearData.fee ||
+            _everclearData.refundReceiver == address(0)
         ) revert InvalidCallData();
 
         LibAsset.maxApproveERC20(
