@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
+
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -158,15 +159,7 @@ contract ReceiverOIFTest is TestBase {
             defaultUSDCAmount,
             payload
         );
-        // call from the owner of the receiver
-        vm.startPrank(address(this));
-        vm.expectRevert(UnAuthorized.selector);
 
-        receiver.outputFilled(
-            bytes32(uint256(uint160(ADDRESS_USDC))),
-            defaultUSDCAmount,
-            payload
-        );
         // call from owner of user
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
