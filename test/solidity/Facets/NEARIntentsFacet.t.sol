@@ -7,6 +7,10 @@ import { NEARIntentsFacet } from "lifi/Facets/NEARIntentsFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { InvalidReceiver, InvalidAmount, InformationMismatch, InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 
+error QuoteAlreadyConsumed();
+error QuoteExpired();
+error InvalidSignature();
+
 /// @title TestNEARIntentsFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Test contract wrapper for NEARIntentsFacet
@@ -377,7 +381,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
 
-        vm.expectRevert(NEARIntentsFacet.QuoteAlreadyConsumed.selector);
+        vm.expectRevert(QuoteAlreadyConsumed.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
             validNearData
@@ -416,7 +420,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         usdc.approve(address(diamond), bridgeData.minAmount);
 
         // The modifier onlyValidQuote checks deadline first, throwing QuoteExpired
-        vm.expectRevert(NEARIntentsFacet.QuoteExpired.selector);
+        vm.expectRevert(QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
             validNearData
@@ -694,7 +698,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
 
-        vm.expectRevert(NEARIntentsFacet.InvalidSignature.selector);
+        vm.expectRevert(InvalidSignature.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
             validNearData
@@ -719,7 +723,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         usdc.approve(address(diamond), bridgeData.minAmount);
 
         // The modifier onlyValidQuote checks deadline with > comparison, throwing QuoteExpired
-        vm.expectRevert(NEARIntentsFacet.QuoteExpired.selector);
+        vm.expectRevert(QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
             validNearData
