@@ -26,7 +26,7 @@ import path from 'path'
 
 import { consola } from 'consola'
 
-import type { DeploymentCache} from './deployment-cache';
+import type { DeploymentCache } from './deployment-cache'
 import { createDefaultCache } from './deployment-cache'
 import {
   DatabaseConnectionManager,
@@ -203,6 +203,9 @@ export class DeploymentLogger {
           contractVersionKey: `${deployment.contractName}-${deployment.version}`,
         }
 
+        // Exclude createdAt from $set to preserve original creation time on updates
+        const { createdAt: _createdAt, ...recordWithoutCreatedAt } = record
+
         return {
           updateOne: {
             filter: {
@@ -213,7 +216,7 @@ export class DeploymentLogger {
             },
             update: {
               $set: {
-                ...record,
+                ...recordWithoutCreatedAt,
                 updatedAt: now,
               },
               $setOnInsert: {
