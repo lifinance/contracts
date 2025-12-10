@@ -10,35 +10,15 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { MongoClient, type Db, type Collection, type ObjectId } from 'mongodb'
+import { MongoClient, type Db, type Collection } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
 
-import { ValidationUtils } from './shared/mongo-log-utils'
-
-// Reuse the same DeploymentRecord interface
-interface IDeploymentRecord {
-  _id?: ObjectId
-  contractName: string
-  network: string
-  version: string
-  address: string
-  optimizerRuns: string
-  timestamp: Date
-  constructorArgs: string
-  salt?: string
-  verified: boolean
-  createdAt: Date
-  updatedAt: Date
-  contractNetworkKey: string
-  contractVersionKey: string
-}
-
-interface IConfig {
-  mongoUri: string
-  batchSize: number
-  databaseName: string
-}
+import {
+  type IDeploymentRecord,
+  type IConfig,
+  ValidationUtils,
+} from './shared/mongo-log-utils'
 
 const config: IConfig = {
   mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
