@@ -442,41 +442,6 @@ class DeploymentValidator {
       if (nonVersionInconsistencies.length > 20)
         consola.warn(`  ... and ${nonVersionInconsistencies.length - 20} more`)
     }
-
-    // Overall status
-    consola.info('\n=== Overall Status ===')
-    if (results.passed) {
-      consola.success('✓ Validation PASSED - Data is consistent')
-    } else {
-      consola.error('✗ Validation FAILED - Data inconsistencies detected')
-      consola.info('\nRecommended actions:')
-
-      if (results.versionMismatches.length > 0) {
-        consola.error('  - CRITICAL: Fix version mismatches immediately!')
-        consola.error(
-          '    Version numbers must match between MongoDB and JSON for the same deployment'
-        )
-      }
-
-      if (results.missingInMongo.length > 0)
-        consola.info(
-          '  - Run sync in merge mode to add missing entries to MongoDB'
-        )
-
-      if (results.missingInJson.length > 0)
-        consola.info(
-          '  - This is expected if other developers have made deployments'
-        )
-
-      if (
-        results.duplicatesInMongo.length > 0 ||
-        results.duplicatesInJson.length > 0
-      )
-        consola.info('  - Investigate and remove duplicate entries')
-
-      if (results.inconsistencies.length > 0)
-        consola.info('  - Review inconsistencies and update records as needed')
-    }
   }
 }
 
