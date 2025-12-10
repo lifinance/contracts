@@ -1526,6 +1526,31 @@ function getFunctionSelectorsFromContractABI() {
   # return the selectors array
   echo "${BYTES4_SELECTORS[@]}"
 }
+
+function verifySelectorMatchesSignature() {
+  local SIGNATURE="$1"
+  local EXPECTED_SELECTOR="$2"
+
+  # Calculate selector from signature using cast sig (which uses keccak256)
+  local CALCULATED_SELECTOR=$(cast sig "$SIGNATURE" 2>/dev/null)
+  local CALC_EXIT_CODE=$?
+
+  if [ $CALC_EXIT_CODE -ne 0 ] || [ -z "$CALCULATED_SELECTOR" ]; then
+    return 1
+  fi
+
+  # Normalize both selectors for comparison (lowercase, ensure 0x prefix)
+  local NORMALIZED_EXPECTED=$(echo "$EXPECTED_SELECTOR" | tr '[:upper:]' '[:lower:]' | sed 's/^0x//')
+  local NORMALIZED_CALCULATED=$(echo "$CALCULATED_SELECTOR" | tr '[:upper:]' '[:lower:]' | sed 's/^0x//')
+
+  # Compare selectors
+  if [ "$NORMALIZED_EXPECTED" == "$NORMALIZED_CALCULATED" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 function getOptimizerRuns() {
   # define FILE path for foundry config FILE
   FILEPATH="foundry.toml"

@@ -468,6 +468,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.12.03_UnitFacet(v1.0.1).pdf",
       "auditCommitHash": "bec40d62866c35f635364b69daf4f93b4f54e4e0"
+    },
+    "audit20251208": {
+      "auditCompletedOn": "08.12.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.12.08_Patcher(v1.0.1).pdf",
+      "auditCommitHash": "195ec984f74a59f9d6c156387f652d438c39ab74"
     }
   },
   "auditedContracts": {
@@ -720,7 +727,8 @@
       "1.0.0": ["audit20250508"]
     },
     "Patcher": {
-      "1.0.0": ["audit20250730"]
+      "1.0.0": ["audit20250730"],
+      "1.0.1": ["audit20251208"]
     },
     "PeripheryRegistryFacet": {
       "1.0.0": ["audit20250508"]
