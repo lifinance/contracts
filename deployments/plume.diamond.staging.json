@@ -60,7 +60,7 @@
     },
     "Periphery": {
       "ERC20Proxy": "0x85e386a6e34970CBb1275F95F881c31CA0779b7e",
-      "Executor": "",
+      "Executor": "0xE22a2B99640dE9846078c8fbF0CD7FF39aD63E60",
       "FeeCollector": "0x55E1649ADfbd12CC318e5F0Ffaf5BA69D5d009b4",
       "FeeForwarder": "0x2088A145eC110f78b5b11Cb732F9De0552DD427b",
       "GasZipPeriphery": "",

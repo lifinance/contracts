@@ -17379,6 +17379,19 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "2.1.0": [
+          {
+            "ADDRESS": "0xE22a2B99640dE9846078c8fbF0CD7FF39aD63E60",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-11 14:11:57",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000085e386a6e34970cbb1275f95f881c31ca0779b7e000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
       }
     },
     "vana": {
@@ -48476,11 +48489,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x9Df20534758937c816383386e88f207D2d941A50",
+            "ADDRESS": "0xa415026Bc7Cc379879356581eA87948eeCc55ce9",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-12-11 13:30:34",
+            "TIMESTAMP": "2025-12-11 15:34:31",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009b36f165bab9ebe611d491180418d8de4b8f3a1f000000000000000000000000222365ef19f7947e5484218551b56bb3965aa7af",
-            "SALT": "12345678",
+            "SALT": "12345677",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }

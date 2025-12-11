@@ -50,7 +50,7 @@ contract CelerCircleBridgeV2Facet is
     /// @notice Bridges tokens via CelerCircleBridge
     /// @param _bridgeData Data containing core information for bridging
     /// @param _celerCircleBridgeData Data specific to CelerCircleBridge
-    function startBridgeTokensViaCelerCircleBridge(
+    function startBridgeTokensViaCelerCircleBridgeV2(
         BridgeData calldata _bridgeData,
         CelerCircleBridgeData calldata _celerCircleBridgeData
     )
@@ -69,7 +69,7 @@ contract CelerCircleBridgeV2Facet is
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _celerCircleBridgeData Data specific to CelerCircleBridge
-    function swapAndStartBridgeTokensViaCelerCircleBridge(
+    function swapAndStartBridgeTokensViaCelerCircleBridgeV2(
         BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         CelerCircleBridgeData calldata _celerCircleBridgeData
