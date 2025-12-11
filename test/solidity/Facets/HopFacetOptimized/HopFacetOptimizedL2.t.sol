@@ -48,19 +48,32 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
             .selector;
         functionSelectors[4] = hopFacet.setApprovalForBridges.selector;
         functionSelectors[5] = hopFacet.addAllowedContractSelector.selector;
-        functionSelectors[6] = hopFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[6] = hopFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
         hopFacet = TestHopFacet(address(diamond));
 
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactTokensForTokens.selector);
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapTokensForExactETH.selector);
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapETHForExactTokens.selector);
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactETHForTokens.selector);
-        hopFacet.addAllowedContractSelector(address(uniswap), uniswap.swapExactETHForTokens.selector);
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactTokensForTokens.selector
+        );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapETHForExactTokens.selector
+        );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactETHForTokens.selector
+        );
+        hopFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapExactETHForTokens.selector
+        );
 
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 

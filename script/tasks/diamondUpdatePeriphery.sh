@@ -96,6 +96,34 @@ function diamondUpdatePeriphery() {
 
       # check if address available, otherwise throw error and skip iteration
       if [ "$CONTRACT_ADDRESS" != "0x" ]; then
+        # verify function selectors match their signatures in global.json
+        local GLOBAL_JSON="config/global.json"
+        if [ -f "$GLOBAL_JSON" ]; then
+          local SELECTOR_DATA=$(jq -r --arg CONTRACT "$CONTRACT" '.whitelistPeripheryFunctions[$CONTRACT] // [] | .[] | "\(.signature)|\(.selector)"' "$GLOBAL_JSON" 2>/dev/null)
+
+          if [ -n "$SELECTOR_DATA" ]; then
+            local VERIFICATION_FAILED=false
+            while IFS='|' read -r SIGNATURE EXPECTED_SELECTOR; do
+              if [ -n "$SIGNATURE" ] && [ -n "$EXPECTED_SELECTOR" ]; then
+                if ! verifySelectorMatchesSignature "$SIGNATURE" "$EXPECTED_SELECTOR"; then
+                  local CALCULATED=$(cast sig "$SIGNATURE" 2>/dev/null)
+                  error "Selector mismatch for $CONTRACT:"
+                  error "  Signature: $SIGNATURE"
+                  error "  Expected selector: $EXPECTED_SELECTOR"
+                  error "  Calculated selector: $CALCULATED"
+                  VERIFICATION_FAILED=true
+                fi
+              fi
+            done <<< "$SELECTOR_DATA"
+
+            if [ "$VERIFICATION_FAILED" = true ]; then
+              error "Function selector verification failed for $CONTRACT. Please fix global.json before proceeding."
+              LAST_CALL=1
+              continue
+            fi
+          fi
+        fi
+
         # check if has already been added to diamond
         KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
 
@@ -147,6 +175,11 @@ register() {
   local RPC_URL=$(getRPCUrl $NETWORK) || checkFailure $? "get rpc url"
   local ENVIRONMENT=$5
 
+  # make sure GAS_ESTIMATE_MULTIPLIER is set
+  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
+    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
+  fi
+
   # register periphery contract
   local ATTEMPTS=1
 
@@ -158,6 +191,7 @@ register() {
   echoDebug "ADDR=$ADDR"
   echoDebug "RPC_URL=$RPC_URL"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
   echo ""
 
   # check that the contract is actually deployed
@@ -167,7 +201,29 @@ register() {
     return 1
   fi
 
+  # helper function to get gas limit with multiplier applied
+  getGasLimitWithMultiplier() {
+    local ESTIMATED_GAS=$(cast estimate "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$ESTIMATED_GAS" ]; then
+      # Multiply by multiplier (130 = 1.3x, 200 = 2x, etc.)
+      echo $((ESTIMATED_GAS * GAS_ESTIMATE_MULTIPLIER / 100))
+    else
+      # If estimation fails, return empty (cast send will estimate automatically)
+      echo ""
+    fi
+  }
+
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    # calculate gas limit with multiplier
+    local GAS_LIMIT=$(getGasLimitWithMultiplier)
+    local GAS_LIMIT_ARGS=()
+    if [ -n "$GAS_LIMIT" ] && [ "$GAS_LIMIT" -gt 0 ] 2>/dev/null; then
+      GAS_LIMIT_ARGS=("--gas-limit" "$GAS_LIMIT")
+      echoDebug "Using gas limit: $GAS_LIMIT (estimated gas * $GAS_ESTIMATE_MULTIPLIER / 100)"
+    else
+      echoDebug "Gas estimation failed or returned invalid value, cast send will estimate automatically"
+    fi
+
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
@@ -180,7 +236,7 @@ register() {
         # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
+          cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}"
         else
           # propose registerPeripheryContract transaction to multisig safe
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
@@ -204,7 +260,7 @@ register() {
         fi
       else
         # just register the diamond (no multisig required)
-        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
+        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}"
       fi
 
       #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url $RPC_URL" --legacy
@@ -214,7 +270,7 @@ register() {
         # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
+          cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}"
         else
           # propose registerPeripheryContract transaction to multisig safe
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
@@ -241,7 +297,7 @@ register() {
         fi
       else
         # just register the diamond (no multisig required)
-        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1
+        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}" >/dev/null 2>&1
       fi
     fi
 

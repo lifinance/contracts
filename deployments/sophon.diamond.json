@@ -53,9 +53,13 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0xeaa333cfB9261d600DBDEa82C3c99cB558e9C016": {
+      "0xF94484deAD7dC9C19F1a56a2d6C1C761A4EBd494": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
+      },
+      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -64,8 +68,8 @@
       "FeeCollector": "0xa1C8d86cEF721e9D16b8067E8525EEf2Bb5a17C5",
       "FeeForwarder": "0x92870bEd7554532ddE5213aC0f304573D79AaB24",
       "GasZipPeriphery": "0xefC86E5D45A1Cca48C57d439159d60a0D78F5738",
-      "LiFiDEXAggregator": "0xa1f3bCb776Aca31Ce6EE8684B2F3184304F0a2F7",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xa1f3bCb776Aca31Ce6EE8684B2F3184304F0a2F7",
       "Patcher": "",
       "Permit2Proxy": "0xF2A4a6d34289Dd1eb7919E4354bB1a29720aa4FE",
       "ReceiverAcrossV3": "",

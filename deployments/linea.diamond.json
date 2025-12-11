@@ -145,9 +145,17 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0xC1169b5099F9ef5e6d7050ABfb8DC719252C24b9": {
+      "0x9adEa9dCe6c29C8A948D5c047cDa70384F2b81ED": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
+      },
+      "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x116E362e631b86b775a08A16c9CA2151706a6A2D": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.1"
       }
     },
     "Periphery": {
@@ -156,8 +164,8 @@
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
       "FeeForwarder": "0xD8b700cEd3e486c3c4FC31Fc0c3b3590e1a52D7e",
       "GasZipPeriphery": "0xd65312fa0DB664C7057AfF91087A4164749C057C",
-      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
       "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",

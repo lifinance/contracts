@@ -64,6 +64,10 @@
       "0xdB6010f6255a94E691289f6b7b75A5ebc4b41808": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.1"
+      },
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

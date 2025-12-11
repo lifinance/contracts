@@ -434,12 +434,47 @@
       "auditReportPath": "./audit/reports/2025.11.04_WhitelistManagerFacet(v1.0.0)_1.pdf",
       "auditCommitHash": "e87f69019e59b8060f9c53e00acd4ed07ac4084a"
     },
+    "audit20251113": {
+      "auditCompletedOn": "13.11.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.11.13_GlacisFacet(v1.2.0).pdf",
+      "auditCommitHash": "13c4296cb4783a2c1108a62afe181f3dbf81cbc0"
+    },
     "audit20251119": {
       "auditCompletedOn": "19.11.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.11.19_LiFiIntentEscrowFacet(v1.0.0).pdf",
       "auditCommitHash": "4e71699761d075f43f5d9cd66c4e1be082fa08ee"
+    },
+    "audit20251201": {
+      "auditCompletedOn": "01.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.01_PolymerCCTPFacet(v1.0.0).pdf",
+      "auditCommitHash": "605f7e14af2dd96fe8f50de253c51c7979245584"
+    },
+    "audit20251203_1": {
+      "auditCompletedOn": "03.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.03_MegaETHBridgeFacet(v1.0.0).pdf",
+      "auditCommitHash": "721afd2499ce72c2f6abc4a30ba56367d88cac85"
+    },
+    "audit20251203_2": {
+      "auditCompletedOn": "03.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.03_UnitFacet(v1.0.1).pdf",
+      "auditCommitHash": "bec40d62866c35f635364b69daf4f93b4f54e4e0"
+    },
+    "audit20251208": {
+      "auditCompletedOn": "08.12.2025",
+      "auditedBy": "Burra Security",
+      "auditorGitHandle": "burrasec",
+      "auditReportPath": "./audit/reports/2025.12.08_Patcher(v1.0.1).pdf",
+      "auditCommitHash": "195ec984f74a59f9d6c156387f652d438c39ab74"
     }
   },
   "auditedContracts": {
@@ -565,7 +600,8 @@
     },
     "GlacisFacet": {
       "1.0.0": ["audit20250219"],
-      "1.1.0": ["audit20250822"]
+      "1.1.0": ["audit20250822"],
+      "1.2.0": ["audit20251113"]
     },
     "GnosisBridgeFacet": {
       "1.0.0": ["audit20250508"],
@@ -587,6 +623,9 @@
     },
     "IGarden": {
       "1.0.0": ["audit20250919"]
+    },
+    "IGlacisAirlift": {
+      "1.1.0": ["audit20251113"]
     },
     "IOpenIntentFramework": {
       "1.0.0": ["audit20251119"]
@@ -672,6 +711,9 @@
       "1.2.1": ["audit20250718"],
       "1.2.2": ["audit20250825"]
     },
+    "MegaETHBridgeFacet": {
+      "1.0.0": ["audit20251203_1"]
+    },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
     },
@@ -685,7 +727,8 @@
       "1.0.0": ["audit20250508"]
     },
     "Patcher": {
-      "1.0.0": ["audit20250730"]
+      "1.0.0": ["audit20250730"],
+      "1.0.1": ["audit20251208"]
     },
     "PeripheryRegistryFacet": {
       "1.0.0": ["audit20250508"]
@@ -702,6 +745,9 @@
     },
     "PolygonBridgeFacet": {
       "1.0.0": ["audit20250508"]
+    },
+    "PolymerCCTPFacet": {
+      "1.0.0": ["audit20251201"]
     },
     "Receiver": {
       "2.0.3": ["audit20250109_3"],
@@ -770,7 +816,8 @@
       "1.0.0": ["audit20250508"]
     },
     "UnitFacet": {
-      "1.0.0": ["audit20251007"]
+      "1.0.0": ["audit20251007"],
+      "1.0.1": ["audit20251203_2"]
     },
     "Validatable": {
       "1.0.0": ["audit20250508"]
