@@ -30,7 +30,7 @@ contract CelerCircleBridgeV2Facet is
 
     /// @param maxFee Maximum fee to pay on the destination domain, specified in units of burnToken. 0 means no fee limit.
     /// @param minFinalityThreshold The minimum finality at which a burn message will be attested to. 1000 = fast path, 2000 = standard path.
-    struct CelerCircleBridgeData {
+    struct CelerCircleData {
         uint256 maxFee;
         uint32 minFinalityThreshold;
     }
@@ -52,7 +52,7 @@ contract CelerCircleBridgeV2Facet is
     /// @param _celerCircleBridgeData Data specific to CelerCircleBridge
     function startBridgeTokensViaCelerCircleBridgeV2(
         BridgeData calldata _bridgeData,
-        CelerCircleBridgeData calldata _celerCircleBridgeData
+        CelerCircleData calldata _celerCircleBridgeData
     )
         external
         nonReentrant
@@ -72,7 +72,7 @@ contract CelerCircleBridgeV2Facet is
     function swapAndStartBridgeTokensViaCelerCircleBridgeV2(
         BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        CelerCircleBridgeData calldata _celerCircleBridgeData
+        CelerCircleData calldata _celerCircleBridgeData
     )
         external
         payable
@@ -99,7 +99,7 @@ contract CelerCircleBridgeV2Facet is
     /// @param _celerCircleBridgeData Data specific to CelerCircleBridge
     function _startBridge(
         BridgeData memory _bridgeData,
-        CelerCircleBridgeData calldata _celerCircleBridgeData
+        CelerCircleData calldata _celerCircleBridgeData
     ) private {
         if (_bridgeData.destinationChainId > type(uint64).max) {
             revert InvalidCallData();
