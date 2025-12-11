@@ -8,4 +8,6 @@ globs:
 - First line SPDX `LGPL-3.0-only` for our code (keep originals for third-party copies) immediately followed by `pragma solidity ^0.8.17;`.
 - Follow [CONV:BLANKLINES] and [CONV:NAMING]; keep solhint config in mind.
 - Use custom errors instead of revert strings; prefer existing errors/helpers before adding new ones.
+- Use generic errors from `src/Errors/GenericErrors.sol`; bump `@custom:version` when adding; facet-specific errors stay local.
+- Avoid assembly unless necessary and heavily commented with justification (why assembly is needed here); prefer existing helpers over new implementations.
 - If defining contracts/interfaces, apply NatSpec per [CONV:NATSPEC]; for pure test/script scaffolding keep headers minimal but retain SPDX/pragma.

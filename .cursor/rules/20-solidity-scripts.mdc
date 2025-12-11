@@ -2,10 +2,10 @@
 name: Solidity deploy/update scripts
 description: Foundry deployment/update script patterns
 globs:
-  - "script/**/*.s.sol"
-  - "script/**/*.sol"
+  - 'script/**/*.s.sol'
+  - 'script/**/*.sol'
 ---
-- Apply SPDX from [CONV:LICENSE] and blank-line style; NatSpec only when defining contracts/interfaces (not required for simple Script wrappers).
+
 - Use `DeployScriptBase`/`UpdateScriptBase` patterns: `Deploy*.s.sol` uses `deploy(type(Contract).creationCode)`; only add `getConstructorArgs()` when needed and read from JSON via `stdJson`.
 - Update scripts call `update(\"{ContractName}\")` and override `getExcludes()` for selector skips.
 - Keep naming/location under `script/deploy/` (and `zksync/` when relevant); reuse helpers/config files (`deployRequirements.json`, `targetState.json`) instead of new patterns.

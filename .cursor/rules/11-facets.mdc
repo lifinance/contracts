@@ -2,14 +2,15 @@
 name: Diamond facets
 description: Facet-only requirements and validations
 globs:
-  - "src/Facets/**/*.sol"
+  - 'src/Facets/**/*.sol'
 ---
 
 @15-architecture.mdc
 @16-security.mdc
 @17-gas.mdc
 
-- Required functions: `_startBridge` (internal), `swapAndStartBridgeTokensVia{FacetName}`, `startBridgeTokensVia{FacetName}`; attach `nonReentrant`, `refundExcessNative`, `validateBridgeData`, and appropriate does/don’tContain swap/call modifiers.
+- Required functions: `_startBridge` (internal), `swapAndStartBridgeTokensVia{FacetName}`, `startBridgeTokensVia{FacetName}`; attach `nonReentrant`, `refundExcessNative`, `validateBridgeData`, and appropriate does/don'tContain swap/call modifiers.
 - Events: emit `LiFiTransferStarted` inside `_startBridge` after validations/external calls; never emit `LiFiTransferCompleted` or `LiFiTransferRecovered` in facets; use `GenericSwapCompleted` for same-chain swaps when relevant.
 - Parameter rules: `{facetName}Data.receiverAddress` first and validated against `bridgeData.receiver` (EVM); check `targetChainId` vs `bridgeData.destinationChain`; non-EVM uses `bytes` receiver, non-zero, and `bridgeData.receiver == NON_EVM_ADDRESS`.
 - Use LibAsset/LibSwap/LibAllowList + Validatable/SwapperV2; reserve native fees via `_depositAndSwap` variants when needed.
+- Positive slippage handling: When a bridge has a `minAmountOut` (or similar) parameter (e.g., `outputAmount` in AcrossV4), it must be updated in `swapAndStartBridgeTokensVia{FacetName}` to account for positive slippage from swaps. After `_depositAndSwap` updates `_bridgeData.minAmount`, adjust the bridge's minAmountOut parameter proportionally (accounting for decimal differences if applicable). See `AcrossFacetV4.sol` lines 137-147 for reference implementation.
