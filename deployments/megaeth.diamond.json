@@ -56,6 +56,10 @@
       "0x2c01Ffc961b29C9c14C5071f774797A1A4C23CE8": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
+      },
+      "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
+        "Name": "RelayFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

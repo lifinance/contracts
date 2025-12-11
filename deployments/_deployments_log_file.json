@@ -41451,6 +41451,21 @@
           }
         ]
       }
+    },
+    "megaeth": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-11 09:56:31",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ac4615ffec9dbf5efe28db0f98f0011e6df0dabd000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef",
+            "SALT": "",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "GetGasFacet": {
@@ -47300,7 +47315,6 @@
         ]
       }
     },
-
     "megaeth": {
       "production": {
         "1.0.0": [
@@ -48407,7 +48421,7 @@
             "ZK_SOLC_VERSION": ""
           }
         ]
-    }
+      }
     },
     "megaeth": {
       "production": {
@@ -48423,7 +48437,7 @@
           }
         ]
       }
-  },
+    },
     "monad": {
       "production": {
         "1.0.0": [
