@@ -27,6 +27,12 @@ contract TestPolymerCCTPFacet is PolymerCCTPFacet, TestWhitelistManagerBase {
 }
 
 contract PolymerCCTPFacetTest is TestBaseFacet {
+    event PolymerCCTPFeeSent(
+        uint256 bridgeAmount,
+        uint256 polymerFee,
+        uint32 minFinalityThreshold
+    );
+
     TestPolymerCCTPFacet internal polymerCCTPFacet;
     address internal constant TOKEN_MESSENGER_V2_MAINNET =
         0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
@@ -322,7 +328,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit PolymerCCTPFacet.PolymerCCTPFeeSent(
+        emit PolymerCCTPFeeSent(
             bridgeData.minAmount,
             validPolymerData.polymerTokenFee,
             validPolymerData.minFinalityThreshold
@@ -361,7 +367,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         validPolymerData.minFinalityThreshold = 1000; // Fast route (1000)
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit PolymerCCTPFacet.PolymerCCTPFeeSent(
+        emit PolymerCCTPFeeSent(
             bridgeData.minAmount,
             validPolymerData.polymerTokenFee,
             validPolymerData.minFinalityThreshold
@@ -385,7 +391,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         validPolymerData.minFinalityThreshold = 2000; // Standard route (2000)
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit PolymerCCTPFacet.PolymerCCTPFeeSent(
+        emit PolymerCCTPFeeSent(
             bridgeData.minAmount,
             validPolymerData.polymerTokenFee,
             validPolymerData.minFinalityThreshold

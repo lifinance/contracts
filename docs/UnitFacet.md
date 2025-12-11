@@ -2,11 +2,7 @@
 
 ## How it works
 
-The Unit Facet enables bridging of native tokens from ethereum mainnet and plasma chain to hyperliquid through the Unit bridge. It uses EIP-712 signatures for secure transaction backend authorization and supports both direct bridging and swap-then-bridge operations.
-
-The facet only accepts native tokens (ETH on Ethereum, XPL on Plasma) and has minimum amount requirements:
-- Ethereum mainnet: 0.05 ETH minimum
-- Plasma chain: 15 XPL minimum
+The Unit Facet enables bridging of native tokens from various chains to hyperliquid through the Unit bridge. It uses EIP-712 signatures for secure transaction backend authorization and supports both direct bridging and swap-then-bridge operations.
 
 ```mermaid
 graph LR;
@@ -48,14 +44,6 @@ The EIP-712 domain separator uses:
 - Version: "1"
 - ChainId: Current blockchain chain ID
 - VerifyingContract: Diamond contract address
-
-## Minimum Amounts
-
-### Ethereum Mainnet (Chain ID: 1)
-- Minimum amount: 0.05 ETH
-
-### Plasma Chain (Chain ID: 9745)
-- Minimum amount: 15 XPL
 
 ## Error Conditions
 
