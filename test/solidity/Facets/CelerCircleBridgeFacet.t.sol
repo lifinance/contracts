@@ -39,10 +39,10 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = celerCircleBridgeFacet
-            .startBridgeTokensViaCelerCircleBridge
+            .startBridgeTokensViaCelerCircleBridgeV2
             .selector;
         functionSelectors[1] = celerCircleBridgeFacet
-            .swapAndStartBridgeTokensViaCelerCircleBridge
+            .swapAndStartBridgeTokensViaCelerCircleBridgeV2
             .selector;
         functionSelectors[2] = celerCircleBridgeFacet
             .addAllowedContractSelector
@@ -77,7 +77,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {
-        celerCircleBridgeFacet.startBridgeTokensViaCelerCircleBridge(
+        celerCircleBridgeFacet.startBridgeTokensViaCelerCircleBridgeV2(
             bridgeData
         );
     }
@@ -87,12 +87,12 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             celerCircleBridgeFacet
-                .swapAndStartBridgeTokensViaCelerCircleBridge{
+                .swapAndStartBridgeTokensViaCelerCircleBridgeV2{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData);
         } else {
             celerCircleBridgeFacet
-                .swapAndStartBridgeTokensViaCelerCircleBridge(
+                .swapAndStartBridgeTokensViaCelerCircleBridgeV2(
                     bridgeData,
                     swapData
                 );
