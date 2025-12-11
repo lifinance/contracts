@@ -73,11 +73,25 @@ If the user only partially matches this (e.g. hash but no network), **ask for th
   - When analyzing transactions, always enrich addresses using:
     - `deployments/<network>.json`
     - The relevant facet config file from `config/*.json`
-    - `config/whitelist.json` for DEX/router/function names
+    - `config/whitelist.json` for DEX/router/periphery/function names (see Contract Name Enrichment below)
     - `config/networks.json` for non-secret metadata only (e.g. wrapped native token, chain ID), not for RPC URLs by default.
+  - **Contract Name Enrichment from whitelist.json (MANDATORY for swap/periphery addresses):**
+    - For every address that appears as `callTo` or `approveTo` in SwapData, or any contract address in the transaction, you MUST search `config/whitelist.json`:
+      - **Check DEXS section:**
+        - Navigate to `DEXS[]` array
+        - For each DEX, check `contracts[<network>]` where `<network>` matches the transaction network
+        - Find contract object where `address` matches (case-insensitive comparison)
+        - If found, use the DEX's `name` field (e.g., "OKX Dex Aggregator", not "DexRouter")
+      - **Check PERIPHERY section (if not found in DEXS):**
+        - Navigate to `PERIPHERY[<network>]` array where `<network>` matches the transaction network
+        - Find object where `address` matches (case-insensitive comparison)
+        - If found, use the `name` field (e.g., "FeeCollector", "LiFiDEXAggregator", "TokenWrapper")
+    - **Never use generic terms** like "DexRouter", "Router", or "DEX" when a specific name is available in whitelist.json
+    - Match addresses case-insensitively (convert both to lowercase)
+    - Priority: Check DEXS first, then PERIPHERY, then deployments/<network>.json
   - For addresses that appear to be **token contracts** (e.g. used as `sendingAssetId` / `receivingAssetId` or as ERC20-like transfer/approve targets), you MAY call the ERC20-standard `name()` view function on-chain via the same premium RPC to further enrich token names, as long as:
     - The call is read-only and uses the same premium RPC source already approved for this analysis.
-    - You treat failures (e.g. non-ERC20 contracts, reverts, or missing `name()`) as non-fatal and fall back to other metadata.
+    - You treat failures (e.g. non-ERC20 contracts, reverts, or missing `name()`) as non-fatal and fall back to existing metadata.
 - **Safety and clarity**
   - Prefer deterministic, fully explained analyses over guesses.
   - Keep explanations concise but structured, following the output template in `transaction_analysis.md`.

@@ -284,8 +284,8 @@ Extract and display:
 
 For each swap in the array, extract:
 
-- `callTo` - **ENRICH**: Check `config/whitelist.json` to identify DEX name
-- `approveTo` - Address receiving approval
+- `callTo` - **ENRICH**: Check `config/whitelist.json` to identify DEX name (see DEX Enrichment Algorithm below)
+- `approveTo` - Address receiving approval (also enrich if it's a known DEX/router)
 - `sendingAssetId` - Token being swapped from
 - `receivingAssetId` - Token being swapped to
 - `fromAmount` - Amount being swapped
@@ -293,9 +293,55 @@ For each swap in the array, extract:
   - **ENRICH**: Match function selector in `config/whitelist.json` to get function name
 - `requiresDeposit` - Whether tokens need to be pulled first
 
+**Contract Name Enrichment Algorithm from whitelist.json (MANDATORY):**
+
+For every address that appears as `callTo` or `approveTo` in SwapData, or any contract address in the transaction, you MUST:
+
+1. **Search `config/whitelist.json` structure (check both DEXS and PERIPHERY):**
+
+   **Step 1a: Check DEXS section:**
+
+   - Navigate to `DEXS[]` array (top-level)
+   - For each DEX entry in the array:
+     - Check `contracts[<network>]` where `<network>` is the transaction network (e.g., "base", "mainnet", "arbitrum")
+     - In that network's contract array, search for a contract object where `address` matches (case-insensitive)
+     - If found, use the DEX's `name` field (e.g., "OKX Dex Aggregator", "Uniswap V3", "1inch")
+
+   **Step 1b: Check PERIPHERY section (if not found in DEXS):**
+
+   - Navigate to `PERIPHERY[<network>]` array where `<network>` matches the transaction network
+   - Search for an object where `address` matches (case-insensitive)
+   - If found, use the `name` field (e.g., "FeeCollector", "LiFiDEXAggregator", "TokenWrapper", "GasZipPeriphery")
+
+2. **Case-insensitive address matching:**
+
+   - Convert both the address from the transaction and addresses in whitelist.json to lowercase before comparison
+   - Example: `0x2bD541Ab3b704F7d4c9DFf79EfaDeaa85EC034f1` should match `0x2bd541ab3b704f7d4c9dff79efadeaa85ec034f1`
+
+3. **Function selector enrichment:**
+
+   - Once the contract is found (in either DEXS or PERIPHERY), check the `functions` or `selectors` object in that entry
+   - Match the function selector from `callData` to get the function signature
+   - Example: `0x840c307f` → `"dagSwapTo(...)"` or `0xeedd56e1` → `"collectTokenFees(...)"`
+
+4. **Fallback priority:**
+   - If address is not found in whitelist.json (neither DEXS nor PERIPHERY), check `deployments/<network>.json` (might be a LiFi contract)
+   - If still not found, use the address as-is but note it's an unknown external contract
+
+**Examples:**
+
+- Address: `0x2bD541Ab3b704F7d4c9DFf79EfaDeaa85EC034f1` on Base
+
+  - Search: `whitelist.json` → `DEXS[]` → Find "OKX Dex Aggregator" → `contracts.base[]` → Match address
+  - Result: **"OKX Dex Aggregator"** (NOT "DexRouter" or just the address)
+
+- Address: `0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf` on Base
+  - Search: `whitelist.json` → `DEXS[]` → Not found → `PERIPHERY.base[]` → Match address
+  - Result: **"FeeCollector"** (NOT "FeeCollectorContract" or just the address)
+
 **SwapData Interpretation:**
 
-- Identify which DEX/router is being called
+- Identify which DEX/router is being called (use enriched DEX name, not generic terms)
 - Understand what the swap is doing (token A → token B)
 - Check if multiple swaps are chained
 - Verify swap amounts and slippage parameters
@@ -497,7 +543,7 @@ Provide analysis in this exact structure:
 3. **ALWAYS verify root transaction `msg.value` from transaction receipt, NOT from trace**
 4. **ALWAYS enrich ALL addresses with contract names from available sources (deployments, configs, whitelist, network metadata)**
 5. **ALWAYS check facet deploy script to find correct config file name - don't assume it matches facet name**
-6. **ALWAYS identify DEX names from `config/whitelist.json` for swap calls**
+6. **ALWAYS identify contract names from `config/whitelist.json` for swap/periphery calls** - Use the Contract Name Enrichment Algorithm: check `DEXS[]` → `contracts[<network>]` first, then `PERIPHERY[<network>]` if not found, match address (case-insensitive) → use `name` field. Never use generic terms like "DexRouter" when a specific name is available. Example: `0x2bD541Ab3b704F7d4c9DFf79EfaDeaa85EC034f1` on Base → "OKX Dex Aggregator" (NOT "DexRouter").
 7. **ALWAYS trace execution step-by-step, don't assume nested calls succeeded**
 8. **ALWAYS verify native value flow - if root had 0 value, contract can't send value**
 9. **ALWAYS check facet code to understand what parameters are expected**
@@ -505,6 +551,7 @@ Provide analysis in this exact structure:
 11. **NEVER assume a call succeeded just because it appears in trace**
 12. **NEVER assume value in nested calls came from original transaction**
 13. **NEVER skip parameter decoding - show all relevant data**
+14. **NEVER use generic terms for contracts** - Always use the specific name from whitelist.json (e.g., "OKX Dex Aggregator", "FeeCollector", "Uniswap V3", "1inch") instead of generic terms like "DexRouter", "Router", "DEX", or "Contract"
 
 ## QUALITY CHECKS
 
@@ -516,7 +563,7 @@ Before finalizing analysis, verify:
 - [ ] Root transaction value verified from transaction receipt
 - [ ] All addresses enriched with contract names from all available sources
 - [ ] Correct config file identified from facet deploy script
-- [ ] All DEX/router names identified from whitelist
+- [ ] All contract names identified from whitelist using Contract Name Enrichment Algorithm (check DEXS[] → contracts[network], then PERIPHERY[network] → address match, case-insensitive)
 - [ ] All parameters decoded and displayed in human-readable format
 - [ ] Execution flow traced completely from start to end
 - [ ] ALL failure points identified (may be multiple)
