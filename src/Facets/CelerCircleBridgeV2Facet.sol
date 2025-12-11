@@ -49,10 +49,10 @@ contract CelerCircleBridgeV2Facet is
 
     /// @notice Bridges tokens via CelerCircleBridge
     /// @param _bridgeData Data containing core information for bridging
-    /// @param _celerCircleBridgeData Data specific to CelerCircleBridge
+    /// @param _celerCircleData Data specific to CelerCircleBridge
     function startBridgeTokensViaCelerCircleBridgeV2(
         BridgeData calldata _bridgeData,
-        CelerCircleData calldata _celerCircleBridgeData
+        CelerCircleData calldata _celerCircleData
     )
         external
         nonReentrant
@@ -62,17 +62,17 @@ contract CelerCircleBridgeV2Facet is
         onlyAllowSourceToken(_bridgeData, USDC)
     {
         LibAsset.depositAsset(USDC, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _celerCircleBridgeData);
+        _startBridge(_bridgeData, _celerCircleData);
     }
 
     /// @notice Performs a swap before bridging via CelerCircleBridge
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _celerCircleBridgeData Data specific to CelerCircleBridge
+    /// @param _celerCircleData Data specific to CelerCircleBridge
     function swapAndStartBridgeTokensViaCelerCircleBridgeV2(
         BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        CelerCircleData calldata _celerCircleBridgeData
+        CelerCircleData calldata _celerCircleData
     )
         external
         payable
@@ -89,17 +89,17 @@ contract CelerCircleBridgeV2Facet is
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _celerCircleBridgeData);
+        _startBridge(_bridgeData, _celerCircleData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CelerCircleBridge
     /// @param _bridgeData The core information needed for bridging
-    /// @param _celerCircleBridgeData Data specific to CelerCircleBridge
+    /// @param _celerCircleData Data specific to CelerCircleBridge
     function _startBridge(
         BridgeData memory _bridgeData,
-        CelerCircleData calldata _celerCircleBridgeData
+        CelerCircleData calldata _celerCircleData
     ) private {
         if (_bridgeData.destinationChainId > type(uint64).max) {
             revert InvalidCallData();
@@ -118,8 +118,8 @@ contract CelerCircleBridgeV2Facet is
             uint64(_bridgeData.destinationChainId),
             bytes32(uint256(uint160(_bridgeData.receiver))),
             USDC,
-            _celerCircleBridgeData.maxFee,
-            _celerCircleBridgeData.minFinalityThreshold
+            _celerCircleData.maxFee,
+            _celerCircleData.minFinalityThreshold
         );
 
         emit LiFiTransferStarted(_bridgeData);
