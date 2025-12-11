@@ -48499,6 +48499,21 @@
           }
         ]
       }
+    },
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xfeac1be55bCccc46D88743F9dBCCF60f66562357",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-11 17:19:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000090811d8ea6499d3e5cbfba3b279fb4387ebdfce9000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831",
+            "SALT": "12345675",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   }
 }

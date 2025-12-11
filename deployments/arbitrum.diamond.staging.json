@@ -27,7 +27,7 @@
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",
@@ -208,6 +208,18 @@
       "0x00f2a92544347C59c6980ACb53fcF9E5408e9942": {
         "Name": "",
         "Version": ""
+      },
+      "0x508DEA1EdbE8F9D019d36B7Ba67f0EF8d8FBf35f": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xfeac1be55bCccc46D88743F9dBCCF60f66562357": {
+        "Name": "CelerCircleBridgeV2Facet",
+        "Version": "1.0.0"
+      },
+      "0x8EFcbD11864c37CE82446FFC3846610Fda3269E0": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -216,8 +228,8 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "LidoWrapper": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x104BD390Fed41089650Ac14aC6D9a8F3513A04cf",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
