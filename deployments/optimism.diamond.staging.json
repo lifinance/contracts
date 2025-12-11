@@ -56,6 +56,14 @@
       "0x2A6DB28EEe8d006d4F0781b57af3B24603b65A70": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
+      },
+      "0xE2Bf645a908A5515C2FEC03d3edDb59c6eF606Fe": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       }
     },
     "Periphery": {
