@@ -16,7 +16,11 @@ contract TokenWrapperTest is DSTest {
 
     function setUp() public {
         wrappedToken = new ERC20("TestWrappedToken", "WTST", 18);
-        tokenWrapper = new TokenWrapper(address(wrappedToken), address(this));
+        tokenWrapper = new TokenWrapper(
+            address(wrappedToken),
+            address(0),
+            address(this)
+        );
         vm.deal(address(this), 100 ether);
     }
 

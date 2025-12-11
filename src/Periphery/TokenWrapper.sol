@@ -18,10 +18,11 @@ interface IWrapper {
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract TokenWrapper is WithdrawablePeriphery {
     uint256 private constant MAX_INT = 2 ** 256 - 1;
     address public wrappedToken;
+    address public converter;
 
     /// Errors ///
     error WithdrawFailure();
@@ -30,17 +31,21 @@ contract TokenWrapper is WithdrawablePeriphery {
     // solhint-disable-next-line no-empty-blocks
     constructor(
         address _wrappedToken,
+        address _converter,
         address _owner
     ) WithdrawablePeriphery(_owner) {
         wrappedToken = _wrappedToken;
-        IERC20(wrappedToken).approve(address(this), MAX_INT);
+        converter = _converter;
     }
 
     /// External Methods ///
 
     /// @notice Wraps the native token
     function deposit() external payable {
-        IWrapper(wrappedToken).deposit{ value: msg.value }();
+        address wrapperAddress = converter != address(0)
+            ? converter
+            : wrappedToken;
+        IWrapper(wrapperAddress).deposit{ value: msg.value }();
         IERC20(wrappedToken).transfer(msg.sender, msg.value);
     }
 
@@ -52,7 +57,16 @@ contract TokenWrapper is WithdrawablePeriphery {
         // nearly MAX_UINT256. Using the balance only is a gas optimisation.
         uint256 wad = IERC20(wrappedToken).balanceOf(msg.sender);
         IERC20(wrappedToken).transferFrom(msg.sender, address(this), wad);
-        IWrapper(wrappedToken).withdraw(wad);
+        address wrapperAddress = converter != address(0)
+            ? converter
+            : wrappedToken;
+
+        // If converter is set, approve it to spend wrappedToken
+        if (converter != address(0)) {
+            LibAsset.maxApproveERC20(IERC20(wrappedToken), converter, wad);
+        }
+
+        IWrapper(wrapperAddress).withdraw(wad);
         SafeTransferLib.safeTransferETH(msg.sender, wad);
     }
 

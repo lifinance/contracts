@@ -29,6 +29,19 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wrappedNativeAddress")
         );
 
+        // try to get converter address, default to address(0) if not found
+        address converterAddress;
+        try
+            vm.parseJsonAddress(
+                vm.readFile(path),
+                string.concat(".", network, ".converterAddress")
+            )
+        returns (address addr) {
+            converterAddress = addr;
+        } catch {
+            converterAddress = address(0);
+        }
+
         // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
@@ -43,6 +56,11 @@ contract DeployScript is DeployScriptBase {
             ".refundWallet"
         );
 
-        return abi.encode(wrappedNativeAddress, refundWalletAddress);
+        return
+            abi.encode(
+                wrappedNativeAddress,
+                converterAddress,
+                refundWalletAddress
+            );
     }
 }
