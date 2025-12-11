@@ -232,7 +232,7 @@
   ],
   "monad": [
     {
-      "address": "0x873fd892E827B9C3057f5A49A612EeecD6694cd3",
+      "address": "0x875Bd979B56605aE2c5Ea8CAb53e064F832b6C34",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",

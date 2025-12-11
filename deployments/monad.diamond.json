@@ -49,9 +49,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x73388a39CC5bb0fe45c12231727D33f2B2ef4DF7": {
+      "0x5A3D8df582bEF3CDBA8da2Ca7A1b71931a700afd": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
@@ -73,8 +73,12 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x3Ab31Bc337C744a9CB54DCf8d6D03854b4e94636": {
+      "0xd6e617208E42153806cF2bf05Ab2cb3941d325Ec": {
         "Name": "UnitFacet",
+        "Version": "1.0.1"
+      },
+      "0x9B43Db66881128762B646576941C29059b13cbd6": {
+        "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       }
     },
