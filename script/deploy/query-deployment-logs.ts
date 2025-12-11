@@ -105,9 +105,10 @@ class DeploymentLogQuerier {
   }
 
   public async findByAddress(
-    address: string
+    address: string,
+    network: string
   ): Promise<IDeploymentRecord | null> {
-    return this.collection.findOne({ address })
+    return this.collection.findOne({ address, network })
   }
 
   public async filterDeployments(filters: {
@@ -356,6 +357,11 @@ const findCommand = defineCommand({
       description: 'Contract address',
       required: true,
     },
+    network: {
+      type: 'string',
+      description: 'Network name',
+      required: true,
+    },
     format: {
       type: 'string',
       description: 'Output format (json or table)',
@@ -382,7 +388,7 @@ const findCommand = defineCommand({
 
     try {
       await querier.connect()
-      const deployment = await querier.findByAddress(args.address)
+      const deployment = await querier.findByAddress(args.address, args.network)
 
       if (deployment)
         if (args.format === 'table') console.log(formatDeployment(deployment))
