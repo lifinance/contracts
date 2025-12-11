@@ -13,7 +13,7 @@ function diamondSyncWhitelist {
   # Update whitelist periphery and composer entries before syncing
   echo ""
   echo "[info] Updating whitelist periphery and composer entries..."
-  bunx tsx ./script/tasks/updateWhitelistPeriphery.ts || checkFailure $? "update whitelist periphery"
+  bunx tsx script/tasks/updateWhitelistPeriphery.ts || checkFailure $? "update whitelist periphery"
   echo "[info] Whitelist periphery update completed"
   echo ""
 
