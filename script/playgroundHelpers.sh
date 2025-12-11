@@ -712,32 +712,34 @@ function compareContractBytecode() {
 function analyzeFailingTx() {
   # Function: analyzeFailingTx
   # Description: Analyzes a failing transaction hash using cast run, receipt fetch, and trace attempts
+  #             Uses our premium RPC URL resolved from environment via getRPCUrl.
   # Arguments:
-  #   $1 - TX_HASH: Transaction hash to analyze
-  #   $2 - RPC_URL: RPC URL for the transaction (required)
+  #   $1 - NETWORK: Network name (must match our ENV var naming, e.g. mainnet, arbitrum, polygon)
+  #   $2 - TX_HASH: Transaction hash to analyze
   # Returns:
   #   0 on success, 1 on failure
   # Example:
-  #   analyzeFailingTx "0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9" "<RPC_URL>"
+  #   analyzeFailingTx "arbitrum" "0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9"
 
-  local TX_HASH="$1"
-  local RPC_URL="$2"
+  local NETWORK="$1"
+  local TX_HASH="$2"
 
   # Validate required parameters
-  if [[ -z "$TX_HASH" ]]; then
-    error "Usage: analyzeFailingTx TX_HASH RPC_URL"
-    error "Example: analyzeFailingTx 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9 <RPC_URL>"
+  if [[ -z "$NETWORK" || -z "$TX_HASH" ]]; then
+    error "Usage: analyzeFailingTx NETWORK TX_HASH"
+    error "Example: analyzeFailingTx arbitrum 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9"
     return 1
   fi
 
-  if [[ -z "$RPC_URL" ]]; then
-    error "RPC_URL is required"
-    error "Usage: analyzeFailingTx TX_HASH RPC_URL"
-    error "Example: analyzeFailingTx 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9 <RPC_URL>"
+  # Resolve premium RPC URL from environment (.env / CI secrets) via helper
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK")
+  if [[ $? -ne 0 || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] Failed to resolve RPC URL via getRPCUrl"
     return 1
   fi
 
-  echo "Analyzing transaction: $TX_HASH with RPC URL: $RPC_URL"
+  echo "Analyzing transaction: $TX_HASH on network: $NETWORK with RPC URL: $RPC_URL"
   echo ""
 
   # Step 1: Run cast run

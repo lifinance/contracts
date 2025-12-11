@@ -1,0 +1,83 @@
+---
+schema: 1
+scope: workspace
+description: Transaction analysis rules for LiFi/contracts, including RPC usage and data-enrichment behavior when analyzing transactions.
+---
+
+## LiFi/contracts – Transaction Analysis Rules
+
+### When to apply these rules
+
+- **Apply these rules only when all of the following are true:**
+  - The user provides (or clearly refers to) a **transaction hash** and a **network name**, and
+  - They ask to **understand, debug, or analyze what happened in that specific transaction**, e.g.:
+    - “analyze this transaction”
+    - “analyse this tx”
+    - “debug this failing tx”
+    - “why did this bridge/swap revert?”
+    - “this LiFi tx failed, what happened?”
+- **Do not apply these rules for:**
+  - General Solidity / Foundry / scripting questions
+  - Deployment questions not tied to a single transaction
+  - High-level protocol / architecture questions
+  - Requests that **don’t include a concrete tx hash** (unless the user is clearly about to provide one)
+
+If the user only partially matches this (e.g. hash but no network), **ask for the missing information first** before entering transaction-analysis mode.
+
+### How to use this rules file with the prompt
+
+- When the above conditions are met, you are in **transaction-analysis mode**:
+  - **Load and follow** `.cursor/prompts/transaction_analysis.md` as the **primary playbook**.
+  - Treat its **“Critical Rules”** and **“QUALITY CHECKS”** sections as **mandatory**.
+  - Use this `.cursorrules` file as:
+    - The **router / gate** for when to run that playbook.
+    - The **global policy** for RPC usage, data sources, and safety constraints.
+
+### RPC usage policy
+
+- **Premium RPCs only for traces and analysis**
+  - **NEVER** default to public RPC endpoints (including those from `config/networks.json`) for transaction analysis or traces.
+  - **ALWAYS** prefer premium/private RPC URLs resolved via:
+    - The local helper `getRPCUrl "<NETWORK>"` (environment-based, from `.env` / CI / secrets), typically used through `analyzeFailingTx` in `script/playgroundHelpers.sh`, or
+    - A premium RPC URL explicitly provided by the user in the conversation.
+  - Do **not** print or expose actual RPC URLs or secret environment variable names in responses. Treat them as opaque values used only inside commands.
+
+### Transaction analysis behavior
+
+- **When the user asks to analyze a transaction** (e.g. “analyze this transaction”, “debug this failing tx”, “why did this bridge/swap revert?”, or they provide a tx hash plus network):
+
+  - **Prompt usage**
+    - Load and follow `.cursor/prompts/transaction_analysis.md` as the primary playbook (see “How to use this rules file with the prompt” above).
+    - Treat its “Critical Rules” and “QUALITY CHECKS” sections as mandatory for any transaction analysis response.
+  - **Data fetching (preferred path, with shell access)**
+
+    - Prefer to obtain transaction data by proposing a command like:
+
+      ```bash
+      bash -lc 'source script/helperFunctions.sh && source script/playgroundHelpers.sh && analyzeFailingTx "<NETWORK>" "<TX_HASH>"'
+      ```
+
+    - This uses `getRPCUrl "<NETWORK>"` to resolve the **premium RPC URL** from environment/CI secrets.
+    - Use the resulting `cast run`, receipt (`eth_getTransactionReceipt`), and trace (`debug_traceTransaction` with `callTracer`) output as the canonical source of on-chain data.
+
+  - **Data fetching (fallback path, no shell or user declines commands)**
+    - Ask the user to provide the **premium RPC URL** for the given network (the same one used in `.env` / MongoDB / CI).
+    - Use that URL only for read-only JSON-RPC calls (`eth_getTransactionReceipt`, `debug_traceTransaction`, optional `cast run`), following the steps in `transaction_analysis.md`.
+    - Do **not** silently fall back to any public RPC URL or to `config/networks.json.rpcUrl` unless the user has explicitly approved using a public endpoint for this specific analysis.
+  - **Scope detection**
+    - First confirm whether LiFiDiamond was involved directly or indirectly as described in the prompt; if not, clearly state that this is not one of our transactions.
+
+### General assistant behavior
+
+- **Address enrichment**
+  - When analyzing transactions, always enrich addresses using:
+    - `deployments/<network>.json`
+    - The relevant facet config file from `config/*.json`
+    - `config/whitelist.json` for DEX/router/function names
+    - `config/networks.json` for non-secret metadata only (e.g. wrapped native token, chain ID), not for RPC URLs by default.
+  - For addresses that appear to be **token contracts** (e.g. used as `sendingAssetId` / `receivingAssetId` or as ERC20-like transfer/approve targets), you MAY call the ERC20-standard `name()` view function on-chain via the same premium RPC to further enrich token names, as long as:
+    - The call is read-only and uses the same premium RPC source already approved for this analysis.
+    - You treat failures (e.g. non-ERC20 contracts, reverts, or missing `name()`) as non-fatal and fall back to other metadata.
+- **Safety and clarity**
+  - Prefer deterministic, fully explained analyses over guesses.
+  - Keep explanations concise but structured, following the output template in `transaction_analysis.md`.
