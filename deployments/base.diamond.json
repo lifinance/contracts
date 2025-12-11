@@ -173,12 +173,12 @@
         "Name": "GardenFacet",
         "Version": "1.0.0"
       },
-      "0x66FD4424bc4E24b6183e95DD74A3f3857725457F": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.0"
-      },
       "0xb28Dd740D27853A91639795223AB409088A73E23": {
         "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x66FD4424bc4E24b6183e95DD74A3f3857725457F": {
+        "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       }
     },
@@ -188,9 +188,9 @@
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-      "Patcher": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+      "LidoWrapper": "",
+      "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",

@@ -4826,7 +4826,7 @@
       },
       {
         "name": "Patcher",
-        "address": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+        "address": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
         "selectors": [
           {
             "selector": "0x4d914979",
@@ -5194,7 +5194,7 @@
       },
       {
         "name": "Patcher",
-        "address": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+        "address": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
         "selectors": [
           {
             "selector": "0x4d914979",
@@ -5294,7 +5294,7 @@
       },
       {
         "name": "Patcher",
-        "address": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+        "address": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
         "selectors": [
           {
             "selector": "0x4d914979",
@@ -6388,7 +6388,7 @@
       },
       {
         "name": "Patcher",
-        "address": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+        "address": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
         "selectors": [
           {
             "selector": "0x4d914979",
@@ -7940,7 +7940,7 @@
       },
       {
         "name": "Patcher",
-        "address": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+        "address": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
         "selectors": [
           {
             "selector": "0x4d914979",

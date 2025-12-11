@@ -44859,6 +44859,17 @@
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-08 15:14:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       }
     },
@@ -44871,6 +44882,17 @@
             "TIMESTAMP": "2025-08-01 16:39:04",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-08 15:09:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
@@ -44889,6 +44911,17 @@
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-08 15:28:42",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       }
     },
@@ -44904,6 +44937,17 @@
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-08 15:12:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       }
     },
@@ -44916,6 +44960,17 @@
             "TIMESTAMP": "2025-08-01 16:45:23",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "12345678",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-08 15:17:37",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
