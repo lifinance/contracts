@@ -174,8 +174,8 @@
         "Version": "1.0.0"
       },
       "0x989a7eFaBb9bE76ac3424B940862d9cf55334873": {
-        "Name": "",
-        "Version": ""
+        "Name": "UnitFacet",
+        "Version": "1.0.1"
       },
       "0xE46E9a5Ae71f1Fb3Ac59D09469830d6Ecc1D21f2": {
         "Name": "MegaETHBridgeFacet",
