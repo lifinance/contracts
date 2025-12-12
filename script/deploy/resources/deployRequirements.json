@@ -695,5 +695,24 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "TokenWrapper": {
+    "configData": {
+      "_wrappedToken": {
+        "configFileName": "tokenwrapper.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedToken",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_converter": {
+        "configFileName": "tokenwrapper.json",
+        "keyInConfigFile": ".<NETWORK>.converter",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "true"
+      }
+    }
   }
 }

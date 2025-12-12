@@ -55,10 +55,14 @@ contract TokenWrapper is WithdrawablePeriphery {
                 address(this)
             );
             uint256 amountReceived = balanceAfter - balanceBefore;
-            IERC20(WRAPPED_TOKEN).transfer(msg.sender, amountReceived);
+            SafeTransferLib.safeTransfer(
+                WRAPPED_TOKEN,
+                msg.sender,
+                amountReceived
+            );
         } else {
             IWrapper(WRAPPER_ADDRESS).deposit{ value: msg.value }();
-            IERC20(WRAPPED_TOKEN).transfer(msg.sender, msg.value);
+            SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, msg.value);
         }
     }
 
