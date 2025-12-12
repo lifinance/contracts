@@ -718,22 +718,20 @@ function analyzeFailingTx() {
   # Returns:
   #   0 on success, 1 on failure
   # Example:
-  #   analyzeFailingTx "0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9" "<RPC_URL>"
+  #   analyzeFailingTx "<TX_HASH>" "<RPC_URL>"
 
   local TX_HASH="$1"
   local RPC_URL="$2"
 
   # Validate required parameters
   if [[ -z "$TX_HASH" ]]; then
-    error "Usage: analyzeFailingTx TX_HASH RPC_URL"
-    error "Example: analyzeFailingTx 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9 <RPC_URL>"
+    error "Example: analyzeFailingTx <TX_HASH> <RPC_URL>"
     return 1
   fi
 
   if [[ -z "$RPC_URL" ]]; then
     error "RPC_URL is required"
-    error "Usage: analyzeFailingTx TX_HASH RPC_URL"
-    error "Example: analyzeFailingTx 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9 <RPC_URL>"
+    error "Example: analyzeFailingTx <TX_HASH> <RPC_URL>"
     return 1
   fi
 

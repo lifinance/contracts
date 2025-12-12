@@ -1087,7 +1087,7 @@ const checkWhitelistIntegrity = async (
     // cast keccak "com.lifi.library.allow.list"
     // 0x7a8ac5d3b7183f220a0602439da45ea337311d699902d1ed11a3725a714e7f1e
     const ALLOW_LIST_NAMESPACE =
-      '0x7a8ac5d3b7183f220a0602439da45ea337311d699902d1ed11a3725a714e7f1e'
+      '0x7a8ac5d3b7183f220a0602439da45ea337311d699902d1ed11a3725a714e7f1e' //[pre-commit-checker: not a secret]
     const baseSlot = BigInt(ALLOW_LIST_NAMESPACE)
     const contractAllowListSlot = baseSlot + 0n
     const selectorAllowListSlot = baseSlot + 1n
