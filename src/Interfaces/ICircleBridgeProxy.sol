@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 /// @title Interface for CircleBridgeProxy
+/// @notice Interface for CircleBridgeProxy contract that handles token deposits and burns for cross-chain transfers
 /// @author LI.FI (https://li.fi)
 /// @custom:version 2.0.0
 interface ICircleBridgeProxy {
