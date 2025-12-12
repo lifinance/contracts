@@ -7,11 +7,13 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
-/// @title CelerCircleBridge Facet
+/// @title CelerCircleBridgeFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CelerCircleBridge
-/// @custom:version 1.0.1
+/// @custom:version 2.0.0
 contract CelerCircleBridgeFacet is
     ILiFi,
     ReentrancyGuard,
@@ -21,12 +23,18 @@ contract CelerCircleBridgeFacet is
     /// Storage ///
 
     /// @notice The address of the CircleBridgeProxy on the current chain.
-    // solhint-disable-next-line immutable-vars-naming
-    ICircleBridgeProxy private immutable circleBridgeProxy;
-
+    ICircleBridgeProxy public immutable CIRCLE_BRIDGE_PROXY;
     /// @notice The USDC address on the current chain.
-    // solhint-disable-next-line immutable-vars-naming
-    address private immutable usdc;
+    address public immutable USDC;
+
+    /// Types ///
+
+    /// @param maxFee Maximum fee to pay on the destination domain, specified in units of burnToken. 0 means no fee limit.
+    /// @param minFinalityThreshold The minimum finality at which a burn message will be attested to. 1000 = fast path, 2000 = standard path.
+    struct CelerCircleData {
+        uint256 maxFee;
+        uint32 minFinalityThreshold;
+    }
 
     /// Constructor ///
 
@@ -34,34 +42,41 @@ contract CelerCircleBridgeFacet is
     /// @param _circleBridgeProxy The address of the CircleBridgeProxy on the current chain.
     /// @param _usdc The address of USDC on the current chain.
     constructor(ICircleBridgeProxy _circleBridgeProxy, address _usdc) {
-        circleBridgeProxy = _circleBridgeProxy;
-        usdc = _usdc;
+        if (address(_circleBridgeProxy) == address(0) || _usdc == address(0)) {
+            revert InvalidConfig();
+        }
+        CIRCLE_BRIDGE_PROXY = _circleBridgeProxy;
+        USDC = _usdc;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via CelerCircleBridge
     /// @param _bridgeData Data containing core information for bridging
-    function startBridgeTokensViaCelerCircleBridgeV2(
-        BridgeData calldata _bridgeData
+    /// @param _celerCircleData Data specific to CelerCircleBridge
+    function startBridgeTokensViaCelerCircleBridge(
+        BridgeData calldata _bridgeData,
+        CelerCircleData calldata _celerCircleData
     )
         external
         nonReentrant
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        onlyAllowSourceToken(_bridgeData, usdc)
+        onlyAllowSourceToken(_bridgeData, USDC)
     {
-        LibAsset.depositAsset(usdc, _bridgeData.minAmount);
-        _startBridge(_bridgeData);
+        LibAsset.depositAsset(USDC, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _celerCircleData);
     }
 
     /// @notice Performs a swap before bridging via CelerCircleBridge
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    function swapAndStartBridgeTokensViaCelerCircleBridgeV2(
+    /// @param _celerCircleData Data specific to CelerCircleBridge
+    function swapAndStartBridgeTokensViaCelerCircleBridge(
         BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData
+        LibSwap.SwapData[] calldata _swapData,
+        CelerCircleData calldata _celerCircleData
     )
         external
         payable
@@ -70,7 +85,7 @@ contract CelerCircleBridgeFacet is
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        onlyAllowSourceToken(_bridgeData, usdc)
+        onlyAllowSourceToken(_bridgeData, USDC)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -78,33 +93,37 @@ contract CelerCircleBridgeFacet is
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData);
+        _startBridge(_bridgeData, _celerCircleData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CelerCircleBridge
     /// @param _bridgeData The core information needed for bridging
-    function _startBridge(BridgeData memory _bridgeData) private {
-        // solhint-disable-next-line reason-string, gas-custom-errors
-        require(
-            _bridgeData.destinationChainId <= type(uint64).max,
-            "_bridgeData.destinationChainId passed is too big to fit in uint64"
-        );
+    /// @param _celerCircleData Data specific to CelerCircleBridge
+    function _startBridge(
+        BridgeData memory _bridgeData,
+        CelerCircleData calldata _celerCircleData
+    ) private {
+        if (_bridgeData.destinationChainId > type(uint64).max) {
+            revert InvalidCallData();
+        }
 
         // give max approval for token to CelerCircleBridge bridge, if not already
         LibAsset.maxApproveERC20(
-            IERC20(usdc),
-            address(circleBridgeProxy),
+            IERC20(USDC),
+            address(CIRCLE_BRIDGE_PROXY),
             _bridgeData.minAmount
         );
 
         // initiate bridge transaction
-        circleBridgeProxy.depositForBurn(
+        CIRCLE_BRIDGE_PROXY.depositForBurn(
             _bridgeData.minAmount,
             uint64(_bridgeData.destinationChainId),
             bytes32(uint256(uint160(_bridgeData.receiver))),
-            usdc
+            USDC,
+            _celerCircleData.maxFee,
+            _celerCircleData.minFinalityThreshold
         );
 
         emit LiFiTransferStarted(_bridgeData);

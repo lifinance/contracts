@@ -21629,6 +21629,17 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0x8d02904CCFEd82AFc87201AC991924B83a65557E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-12 11:15:09",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000090811d8ea6499d3e5cbfba3b279fb4387ebdfce9000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831",
+            "SALT": "12345675",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       }
     },
@@ -21694,6 +21705,21 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000243b40e96c6bf21511e53d85c86f6ec982f9a879000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "plume": {
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xb9b4682d9363d36636f8bD7b527B2F7B57c58477",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-12 11:16:06",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009b36f165bab9ebe611d491180418d8de4b8f3a1f000000000000000000000000222365ef19f7947e5484218551b56bb3965aa7af",
+            "SALT": "12345675",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       }

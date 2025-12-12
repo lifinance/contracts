@@ -53,9 +53,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xBbeD37C037c0AbDCF0a19Cb8717C934C6B71e26b": {
-        "Name": "CelerCircleBridgeV2Facet",
-        "Version": "1.0.0"
+      "0xb9b4682d9363d36636f8bD7b527B2F7B57c58477": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
