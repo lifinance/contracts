@@ -207,6 +207,11 @@ diamondUpdateFacet() {
             echo "[info] Using diamond directly for facet update"
             bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
           fi
+          rc=$?
+
+          if [ $rc -ne 0 ]; then
+            return $rc
+          fi
         fi
       else
         error "FacetCut is empty"
