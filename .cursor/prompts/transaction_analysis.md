@@ -1,0 +1,191 @@
+# Transaction Trace Analysis Prompt
+
+> **Activation**: Only use in "transaction-analysis mode" (gated by `.cursor/rules/transaction_analysis.cursorrules.mdc`). User must provide tx hash + network and ask to analyze/debug that specific transaction.
+
+## Quick Checklist
+
+1. ✅ **Fetch Data** - Use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>` or user-provided RPC)
+2. ✅ **Identify** - Was LiFiDiamond called? If not, state: "Not one of our transactions"
+3. ✅ **Decode** - Extract calldata, `msg.value` (from receipt, NOT trace), map addresses to names
+4. ✅ **Facet** - Identify facet, load code, find config file (check deploy script for correct filename)
+5. ✅ **Params** - Extract BridgeData, SwapData, FacetData
+6. ✅ **Trace** - Analyze step-by-step, find ALL revert points
+7. ✅ **Root Cause** - Expected vs. provided, why failed, what's needed
+
+## Critical Rules
+
+1. ⚠️ **Premium RPC only** - Use `analyzeFailingTx` or user-provided premium RPC; NEVER silently fall back to public RPCs
+2. ⚠️ **LiFiDiamond check first** - Confirm involvement (direct/indirect) or state it's not our transaction
+3. ⚠️ **msg.value from receipt** - NOT from trace
+4. ⚠️ **Enrich all addresses** - Use whitelist.json (DEXS/PERIPHERY), deployments, configs
+5. ⚠️ **Config file from deploy script** - Don't assume filename matches facet name
+6. ⚠️ **DEX names from whitelist.json** - Never use generic terms when specific name available
+7. ⚠️ **Check native fees** - Verify FacetData requirements
+8. ⚠️ **Find ALL reverts** - There may be multiple failure points
+9. ⚠️ **Never assume** - Nested calls may have failed; value may not have come from root tx
+
+## Key Files
+
+- `deployments/<network>.json` - Contract addresses
+- `script/deploy/facets/Deploy<FacetName>.s.sol` - Find config filename
+- `config/<configFileName>.json` - Facet external contracts
+- `config/whitelist.json` - DEX/router names (DEXS[] and PERIPHERY[] sections)
+- `config/networks.json` - Network metadata (wrappedNative, etc.)
+- `src/Facets/<FacetName>.sol` - Facet code
+- `src/Libraries/LibSwap.sol` - SwapData structure
+- `src/Facets/CalldataVerificationFacet.sol` - Decoding logic
+- `script/playgroundHelpers.sh` - Analysis utilities
+
+## Data Fetching
+
+**Preferred:**
+```bash
+bash -lc 'source script/helperFunctions.sh && source script/playgroundHelpers.sh && analyzeFailingTx "<NETWORK>" "<TX_HASH>"'
+```
+
+**Fallback:** Ask user for premium RPC URL, use for:
+- `eth_getTransactionReceipt`
+- `debug_traceTransaction` (callTracer)
+- Optional: `cast run`
+
+## Calldata Decoding
+
+Use `CalldataVerificationFacet` patterns:
+
+**BridgeData:**
+```solidity
+bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
+```
+
+**SwapData (if hasSourceSwaps):**
+```solidity
+(, swapData) = abi.decode(data[4:], (ILiFi.BridgeData, LibSwap.SwapData[]));
+```
+
+**Key functions:**
+- `extractBridgeData(bytes calldata data)` → `ILiFi.BridgeData`
+- `extractSwapData(bytes calldata data)` → `LibSwap.SwapData[]`
+- `extractMainParameters(bytes calldata data)` → Quick overview
+
+## Address Enrichment Algorithm
+
+**For every address in transaction:**
+
+1. **Check `config/whitelist.json`:**
+   - **DEXS section**: `DEXS[]` → `contracts[<network>]` → match address (case-insensitive) → use `name`
+   - **PERIPHERY section**: `PERIPHERY[<network>]` → match address → use `name`
+2. **Fallback**: `deployments/<network>.json`
+3. **Tokens**: MAY call ERC20 `name()` via premium RPC (read-only, non-fatal)
+
+**Never use generic terms** ("DexRouter", "Router", "DEX") when specific name available.
+
+## Analysis Steps
+
+### 1. Fetch Transaction Data
+- Receipt: status, gas, logs, `to`/`from`, `value`
+- Trace: Complete execution flow, nested calls, value flow, ALL revert points
+- Cast run (if available): Revert reasons, call stack
+
+### 2. Transaction Identification
+- Extract: hash, network, `to` address, `from`, calldata, `msg.value` (from receipt)
+- Check: Does `to` match LiFiDiamond? If indirect, trace to find LiFiDiamond call
+- Enrich: Map addresses from `deployments/<network>.json`
+
+### 3. Facet & Protocol Identification
+- From function selector → facet name
+- Load facet code: `src/Facets/<FacetName>.sol`
+- Find config: Check `script/deploy/facets/Deploy<FacetName>.s.sol` for config filename
+- Load config: `config/<configFileName>.json` for external contracts
+
+### 4. Parameter Decoding
+- **BridgeData**: transactionId, bridge, integrator, sendingAssetId, receivingAssetId, receiver, destinationChainId, minAmount, hasSourceSwaps, hasDestinationCall
+- **SwapData** (if applicable): For each swap - callTo (enrich DEX name), approveTo, sendingAssetId, receivingAssetId, fromAmount, callData (decode selector), requiresDeposit
+- **FacetData**: Extract facet-specific params, check native fee requirements
+
+### 5. Execution Trace Analysis
+- **Entry point**: Function called, input params
+- **Call stack**: Trace each nested call - caller, target, function, value, params, success/fail
+- **Value flow**: Track native value through execution, verify sufficiency at each step
+- **Token flow**: Track deposits, approvals, transfers, balances
+- **Failure points**: Identify ALL reverts, extract error messages, contract state at failure
+
+### 6. Root Cause Analysis
+- What was expected vs. provided
+- Why it failed (specific validation/requirement that wasn't met)
+- What's needed to succeed
+
+## Output Format
+
+```markdown
+# Transaction Analysis: [TX_HASH]
+
+## Transaction Intent
+[One-sentence description]
+
+## Root Transaction Details
+- **Network:** [name]
+- **From:** [address]
+- **To:** [contract name] ([address])
+- **Function:** [name] ([selector])
+- **Value:** [amount] [symbol] - **CRITICAL: From receipt**
+- **Status:** [Success/Fail]
+
+## Parameters Decoded
+### BridgeData
+[transactionId, bridge, integrator, sendingAssetId, amount, receiver, destinationChainId, hasSourceSwaps, hasDestinationCall]
+
+### SwapData (if applicable)
+**Swap 1:**
+- DEX: [name from whitelist]
+- From: [token] ([amount])
+- To: [token]
+- Router: [contract name] ([address])
+- Function: [name] ([selector])
+
+### Facet-Specific Data
+[Native Fee Required: [amount] - **CRITICAL**, other params]
+
+## Execution Flow
+1. **[Step]:** [Description]
+   - Caller: [name]
+   - Target: [name]
+   - Action: [what happened]
+   - Result: [success/fail]
+
+[N] **[FAILURE POINT]:** [Description]
+- Error: [message]
+- Reason: [why failed]
+
+## Root Cause Analysis
+**Primary Issue:** [One-sentence summary]
+
+**Detailed Explanation:**
+1. [What was expected]
+2. [What was provided]
+3. [Why it failed]
+4. [What's needed to succeed]
+
+## Contract Addresses Reference
+[LiFiDiamond, FacetName, External Contracts, Tokens]
+
+## Summary for Stakeholders
+**Transaction Purpose:** [What user was trying to do]
+**Failure Reason:** [Clear, non-technical explanation]
+**Required Fix:** [What needs to change]
+**Impact:** [Who/what is affected]
+```
+
+## Quality Checks
+
+Before finalizing:
+- [ ] Premium RPC used (via `analyzeFailingTx` or user-provided)
+- [ ] LiFiDiamond involvement confirmed
+- [ ] Root tx value verified from receipt
+- [ ] All addresses enriched (whitelist.json → deployments)
+- [ ] Correct config file identified from deploy script
+- [ ] All DEX names from whitelist.json (no generic terms)
+- [ ] All parameters decoded and displayed
+- [ ] Execution flow traced completely
+- [ ] ALL failure points identified
+- [ ] Root cause clearly explained
+- [ ] Summary clear for non-technical readers

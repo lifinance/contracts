@@ -1,849 +1,258 @@
-# LI.FI Smart Contract Conventions
-
-# Repository Overview
-
-- **Project name:** LI.FI
-- **Purpose:** LI.FI is a cross-chain bridge aggregation protocol that ensures secure and efficient interoperability through robust smart contracts and automated processes.
-- **Core components:**
-  - **Smart contracts:** Primarily built using the Diamond Standard (EIP-2535) with modular facets for core functionality, along with supporting periphery contracts for extended features and integrations.
-  - **Deployment Framework:** Shell/bash scripts that provide a robust deployment framework with automated retry mechanisms for handling RPC issues and other deployment challenges. These scripts wrap Foundry's deployment functionality to add reliability and automation.
-  - **Automation scripts:** Deployment, updating, and operational tasks.
-  - **Tests:** Tests ensuring contract reliability and safety.
-  - **Documentation:** Detailed guides, API specifications, and deployment instructions.
-
-# Architectural Principles
-
-## Diamond Standard (EIP-2535)
-
-The Diamond Standard is the core architectural pattern used in this project. It provides:
-
-- Modular contract architecture through facets
-- Upgradeable contracts without proxy storage collision issues
-- Ability to add, replace, and remove functionality
-- Efficient contract size management
-- Clear separation of concerns
-
-## Development Framework
-
-We use Foundry as our primary development and testing framework. Foundry provides:
-
-- Fast and efficient testing
-- Built-in fuzzing capabilities
-- Gas optimization tools
-- Deployment scripts
-- Contract verification
-
-## Security and Governance
-
-- Production contracts are owned by Safe multisig contracts
-- Changes require multiple signatures
-- Moving towards Timelock-based governance:
-  1. Propose change to multisig
-  2. Collect required signatures
-  3. Execute call to Timelock
-  4. After minDelay period, anyone can execute the change
-
-# Codebase Structure
-
-    /lifi
-     ├── .github/           # Github workflows
-     ├── audit/             # Audit reports and log
-     ├── config/            # Configuration files
-     │   └── networks.json  # Key file containing information about supported networks
-     ├── deployments/       # Deployment logs and addresses
-     ├── docs/              # Project documentation, API specs, and guides
-     ├── script/           # Deployment, updating, and automation scripts
-     │   ├── deploy/       # Solidity deploy and update scripts
-     │   │   └── zksync/   # ZKSync-specific deployment scripts
-     │   ├── demoScripts/  # TypeScript demo scripts using viem
-     │   ├── mongoDb/      # MongoDB integration for multisig proposals and RPC URLs
-     │   ├── resources/    # Resource files like deployRequirements.json
-     │   ├── tasks/        # Utility tasks and scripts
-     │   └── utils/        # Helper utilities
-     ├── src/              # All Solidity smart contracts
-     │   ├── Facets/       # Diamond facets
-     │   ├── Periphery/    # Standalone contracts called by the diamond
-     │   ├── Helpers/      # Contracts meant to be inherited
-     │   ├── Security/     # Security-related contracts (e.g., Timelock)
-     │   └── Errors/       # Central collection of custom errors
-     ├── test/             # Test files
-     │   └── solidity/     # Solidity tests (using Foundry)
-     └── README.md         # High-level project overview
-
-## Directory Details
-
-### Source Code (`src/`)
-
-- **Facets/**: Contains all Diamond facets that are added to the Diamond contract
-- **Periphery/**: Contains standalone contracts that are called by the Diamond but not added as facets
-- **Helpers/**: Contains contracts meant to be inherited by other contracts
-- **Security/**: Contains security-related contracts like Timelock for multisig proposals
-- **Errors/**: Central collection of custom errors used across contracts
-
-### Scripts (`script/`)
-
-- **deploy/**: Contains Solidity deployment and update scripts
-  - Includes ZKSync-specific deployment scripts
-  - Update scripts for adding facets to the Diamond
-- **demoScripts/**: TypeScript files demonstrating contract usage
-  - **MUST use viem** for all contract interactions (ethers.js is NOT allowed)
-  - Uses helper functions from `utils/demoScriptHelpers.ts`
-  - Shows how to prepare arguments and calculate parameters
-  - Helps backend team understand contract usage
-  - Provides end-to-end testing capabilities
-  - See `demoLidoWrapper.ts`, `demoUnit.ts`, or `demoEco.ts` for examples of proper viem usage
-- **mongoDb/**: MongoDB integration for:
-  - Storing multisig proposals (alternative to Safe Transaction Service)
-  - Sharing RPC URLs across developers
-  - Future storage for deploy logs, API keys, and timelock proposals
-- **resources/**: Contains configuration files like `deployRequirements.json`
-- **tasks/**: Utility tasks and scripts
-- **utils/**: Helper utilities
+## LI.FI Smart Contract Conventions
 
-### Tests (`test/`)
+This document is a **high-level architectural and process guide**.  
+All **mechanical, enforceable rules** (style, NatSpec, testing, scripts, facets, etc.) live in:
 
-- **solidity/**: Contains all Solidity tests using Foundry
-  - Tests are organized mirroring the `src/` structure
-  - Each contract should have its own test file
-  - Currently only using Solidity tests (no TypeScript tests)
+- `.cursor/rules/*.mdc` (per-file-type guardrails), and
+- `docs/conventions_digest/*` (short machine-oriented digests with `[CONV:*]` anchors).
 
-## Smart Contract Conventions
+When in doubt:
 
-### Solidity Standards
+- **Humans** should read this file for the “why”.
+- **Agents** should prefer `.cursor/rules` + `docs/conventions_digest/*` and only fall back to this file for architecture/rationale.
 
-- **Version Management:**
+---
 
-  - All Solidity files must start with license identifier, followed by a blank line, then pragma statement
-  - The EVM and Solidity version used for deployments (unless networks require lower versions) is defined in `foundry.toml`
+## 1. Repository Overview
 
-- **License requirements:**
-  All our own Solidity files must use the LGPL-3.0 license identifier. This applies to:
+- **Project**: LI.FI – cross-chain bridge aggregation protocol.
+- **Goal**: Secure, observable cross-chain execution via a Diamond-based core, audited integrations, and strict governance.
+- **Main pieces**:
+  - **Smart contracts**: Diamond (EIP-2535) with facets, periphery contracts, helpers, and security components.
+  - **Scripts**: Solidity deploy/update scripts plus TypeScript/Bash tooling for demos, operations, and CI.
+  - **Tests**: Primarily Solidity (Foundry) with some TypeScript helper tests where appropriate.
+  - **Docs**: This file + `docs/*` reference docs and `docs/conventions_digest/*` digests.
 
-  - All contracts in `src/` directory (except external dependencies)
-  - All test files in `test/solidity/` directory
-  - All deployment and task scripts in `script/` directory
+Conceptual layout:
 
-  License identifier format:
+- `src/Facets/` – Diamond entrypoints (thin, integration-specific logic).
+- `src/Periphery/` – Standalone helper contracts called by the Diamond.
+- `src/Helpers/` – Inheritable libraries and shared helpers.
+- `src/Security/` – Governance/timelock and security-related contracts.
+- `src/Errors/` – Central generic error collection.
+- `script/` – Deploy/update scripts, demo scripts, utilities, tasks.
+- `test/solidity/` – Foundry tests mirroring `src/`.
 
-  ```solidity
-  // SPDX-License-Identifier: LGPL-3.0-only
-  ```
+For exact, enforceable rules on structure and naming, see:
 
-  Exceptions:
+- `.cursor/rules/10-solidity-contracts.mdc`
+- `.cursor/rules/11-facets.mdc`
+- `.cursor/rules/12-solidity-tests.mdc`
+- `.cursor/rules/13-solidity-interfaces.mdc`
+- `docs/conventions_digest/solidity_style.md`
 
-  - External dependencies (libraries, etc.)
-  - External contracts copied from other projects: here we must retain the original license and add information from where we copied this contract
+---
 
-  Example for how to mark a contract that
+## 2. Architectural Principles
 
-  ```solidity
-  // SPDX-License-Identifier: MIT
-  // Modified from: https://github.com/nomad-xyz/ExcessivelySafeCall
-  // Original license: MIT OR Apache-2.0
-  // Modifications © 2025 LI.FI
-  pragma solidity ^0.8.17;
-  ```
+### 2.1 Diamond Standard (EIP-2535)
 
-- **Design Patterns:**
+We use a **single Diamond** as the main entrypoint:
 
-  - Use established patterns (e.g., Ownable for access control, EIP-2535 Diamond Standard)
-  - Favor modular design for reusability and security
-  - Follow security best practices:
-    - Validate constructor inputs rigorously
-    - Use reentrancy guards
-    - Optimize for gas efficiency
+- **Facets** provide modular functionality grouped by concern (bridges, swaps, receivers, admin, etc.).
+- **Libraries** (e.g., `LibAsset`, `LibSwap`, `LibAllowList`, `LibStorage`) centralize cross-cutting logic, storage, and validation.
+- **Periphery contracts** handle specialized flows that don’t belong directly in the Diamond.
 
-- **Error Handling:**
+Design intent:
 
-  - **Generic errors** must be defined in `src/Errors/GenericErrors.sol`
-    - Use for common validation errors that apply across multiple contracts
-    - When adding new generic errors, increment the version in `@custom:version` comment
-    - Examples: `InvalidAmount()`, `InvalidCallData()`, `UnAuthorized()`
-  - **Facet-specific errors** should be defined within the facet itself
-    - Use for business logic errors specific to that protocol integration
-    - Examples: `InvalidQuote()`, `BridgeNotSupported()`, `ProtocolSpecificError()`
-  - Error names should be descriptive and follow PascalCase
-  - Errors should not include error messages (gas optimization)
-  - Use custom error types rather than generic `revert()` statements
-
-- **Interface Design Standards:**
-
-  - All interfaces must start with `I` prefix (e.g., `ILiFi`, `IStargate`)
-  - Use consistent parameter naming across similar interfaces
-  - All interfaces must be placed in separate files in the `src/Interfaces` directory
-  - Do not define interfaces in the same file as their implementation
-
-- **Variable Naming Conventions:**
-  - **State variables**: Use camelCase (e.g., `userBalance`, `tokenAddress`)
-  - **Function parameters**: Use camelCase with underscore prefix (e.g., `_amount`, `_recipient`)
-  - **Constants**: Use CONSTANT_CASE with underscores (e.g., `MAX_FEE`, `DEFAULT_TIMEOUT`)
-  - **Immutable variables**: Use CONSTANT_CASE with underscores (e.g., `RELAY_DEPOSITORY`, `CHAIN_ID`)
-  - **Private/internal variables**: Use camelCase (e.g., `internalState`, `helperValue`)
-  - **Function names**: Use camelCase (e.g., `startBridge`, `validateInput`)
-
-## Code Style and Documentation
+- Keep facets **thin** and focused; heavy lifting goes into libraries and helpers.
+- Maintain a clear mapping from **external actions** (bridge, swap, recover, etc.) to specific facets and events.
+- Treat selector layout and storage as **critical invariants** for upgrades.
 
-### General Rules
-
-1. **Extensive Documentation**
+Key enforcement rules live in:
 
-   - All code should be thoroughly documented
-   - Comments should explain the "why" not just the "what"
-   - Complex logic must be documented with clear explanations
-   - Usage of Assembly must be justified and Assembly blocks must be extensively commented
-
-2. **Blank Line Rules**
-
-   - **Between Sections:**
-
-     - Single blank line between logical sections (state variables, events, constructor, functions)
-     - Single blank line between function declarations
-     - No blank lines between function signature and body
-
-   - **Inside Functions:**
-
-     - Single blank line before new logical blocks (loops, conditions, function calls)
-     - Single blank line after setting up state variables
-     - Single blank line before emitting events
-     - No blank lines between `if` statements and their `revert()` calls
-     - Single blank line before `return` statements
-
-   - **Between Declarations:**
-
-     - Single blank line between structs and enums
-     - Single blank line between mappings and other declarations
-     - No blank line between related consecutive mappings
-     - Single blank line between modifiers
-     - No blank line between events and errors
-
-   - **Test Files (.t.sol):**
-     - Blank line between `vm.expectRevert()` and function call
-     - Blank line before `vm.stopPrank()` if separate logical block
-     - Blank line before assertions
-     - Single blank line between test cases
-     - Single blank line after `vm.startPrank(address)`
-     - For `vm.expectEmit` blocks: no blank line between `vm.expectEmit` and its event definition, but blank lines before and after the entire block
-     - Group related test assertions together without blank lines between them
+- `.cursor/rules/15-architecture.mdc`
+- `.cursor/rules/11-facets.mdc`
+- `docs/conventions_digest/facets.md` (`[CONV:FACET-REQS]`, `[CONV:EVENTS]`, `[CONV:NON-EVM]`)
 
-### Documentation Requirements
+### 2.2 Development Framework
 
-1. **Contract NatSpec Documentation**
+We use **Foundry** as the main development and testing framework:
 
-   - Every contract MUST have the following NatSpec tags in this order:
-     ```solidity
-     /// @title ContractName
-     /// @author LI.FI (https://li.fi)
-     /// @notice Brief description of the contract's purpose
-     /// @custom:version X.Y.Z
-     ```
-   - The @author tag MUST always be "LI.FI (https://li.fi)"
-   - The @custom:version MUST follow semantic versioning (X.Y.Z format)
-   - Additional NatSpec tags (like @dev, @custom:security, etc.) may be added after these required tags
+- Fast compile/test/fuzz loops.
+- Native Solidity deployment/update scripts.
+- Good integration with JSON config, templates, and CI.
 
-2. **Interface NatSpec Documentation**
+Deployment/update patterns are captured in:
 
-   - Every interface MUST have the following NatSpec tags in this order:
-     ```solidity
-     /// @title InterfaceName
-     /// @notice Brief description of the interface
-     /// @author LI.FI (https://li.fi)
-     /// @custom:version X.Y.Z
-     ```
-   - The @custom:version MUST follow semantic versioning (X.Y.Z format)
-   - For external interfaces that we're wrapping, original authorship should be preserved if applicable
+- `.cursor/rules/20-solidity-scripts.mdc`
+- `docs/conventions_digest/scripts_and_ci.md` (`[CONV:DEPLOY]`)
+- `docs/Deploy.md` for procedural “how to deploy/update” flows.
 
-3. **Function Documentation**
+### 2.3 Security and Governance
 
-   - Every public/external function must have NatSpec comments
-   - Include description of what the function does
-   - Document parameters and return values
-   - Note if function is restricted to admin or specific addresses
-   - Example:
-     ```solidity
-     /// @notice Brief description of function purpose
-     /// @param parameterName Description of parameter
-     /// @return Description of return value
-     /// @dev Additional details about implementation (optional)
-     ```
-
-4. **Complex Logic Documentation**
-   - Add inline comments for complex algorithms
-   - Explain non-obvious optimizations
-   - Document gas-saving techniques
-   - Clarify mathematical operations
-
-### Facet Contract Requirements
-
-### Location and Naming
-
-- Must reside in `src/Facets/`
-- Names must include "Facet"
+Core principles:
 
-### Required Functions
+- **Safe multisigs** and/or **timelock controllers** own production contracts.
+- **No shortcuts**: facets and periphery contracts should not introduce backdoors that bypass Safe/timelock flows.
+- **Upgrades** must respect:
+  - Selector layout and storage layout.
+  - Timelock delay and quorum/approval rules.
 
-1. `_startBridge` (internal)
-2. `swapAndStartBridgeTokensVia{FacetName}`
-3. `startBridgeTokensVia{FacetName}`
-
-### Inheritance Structure
+Process (simplified):
 
-- **Interfaces:**
-  - `ILiFi` - Standard interface for bridging operations
-- **Libraries:**
-  - `LibAsset` - Asset handling
-  - `LibSwap` - Swap utilities
-  - `LibAllowList` - Contract call approval
-- **Security:**
-  - `ReentrancyGuard` - Reentrancy protection
-  - `SwapperV2` - Swap functionality
-  - `Validatable` - Bridge data validation
-- **External:**
-  - `ECDSA` - Signature verification (optional)
-
-### Parameter Handling
-
-- **Sender/Refund Address:**
-
-  - Avoid using `msg.sender` for as refundAddress, use a dedicated parameter instead
-
-- **Parameter Ordering:**
-  - `receiverAddress` should be first in `{facetName}Data` struct
-  - Must validate against `bridgeData.receiver`
-  - Verify `targetChainId` against `bridgeData.destinationChain` for EVM-to-EVM
-
-### Required Modifiers
-
-- `nonReentrant` - Prevents reentrancy
-- `refundExcessNative` - Handles excess native tokens
-- `validateBridgeData` - Validates bridge parameters
-- `doesNotContainSourceSwaps` / `doesContainSourceSwaps`
-- `doesNotContainDestinationCalls` / `doesContainDestinationCalls`
-
-### Events
-
-1. **Transaction Start:**
-
-   - Event: `LiFiTransferStarted`
-   - Emit: At transaction start, before external calls
-   - Purpose: Track bridge transactions
-   - Usage: ONLY to be used in Facet contracts
-
-2. **Transaction Completion:**
-
-   - Event: `LiFiTransferCompleted`
-   - Emit: After successful execution
-   - Purpose: Signal transaction finalization
-   - Usage: ONLY to be used in the Executor contract, NOT in Facet contracts
-
-3. **Transaction Recovery:**
-
-   - Event: `LiFiTransferRecovered`
-   - Emit: When transaction is recovered
-   - Purpose: Track recovery attempts
-   - Usage: ONLY to be used in Receiver contracts (e.g., ReceiverAcrossV3, ReceiverChainflip, ReceiverStargateV2), NOT in Facet contracts
-
-4. **Same-chain Swap:**
-   - Event: `GenericSwapCompleted`
-   - Emit: After successful execution of same-chain swap
-   - Purpose: Track completion of same-chain swap operations
-
-### Fee Handling
-
-- For native fees, use the `_depositAndSwap` variant
-- Reserve required fee before execution
-
-### Non-EVM Chain Support
-
-- Use `bytes` (not `bytes32`) for `receiverAddress`
-- Validate non-EVM address is not zero:
-  ```solidity
-  if ({facetName}Data.receiverAddress == bytes(0)) {
-      revert InvalidNonEVMReceiver(
-          {facetName}Data.receiverAddress,
-          bytes(0)
-      );
-  }
-  ```
-- Use `NON_EVM_ADDRESS` (src/Helpers/LiFiData.sol) for `bridgeData.receiver`:
-  ```solidity
-  if (bridgeData.receiver != NON_EVM_ADDRESS) {
-      revert InvalidCallData();
-  }
-  ```
-
-## Solidity Test Conventions (.t.sol files)
-
-### File Naming and Structure
-
-- Test files must have a `.t.sol` extension
-- Group and order imports with system libraries first and project files next
-
-### Test Function Naming
-
-- All tests that verify a successful execution must be prefixed with: `test_`
-- All tests that verify a failure case must be prefixed with: `testRevert_`
-- All negative tests must check for a specific revert reason
-- For base or inherited tests, prefix with `testBase_`
-
-### Test Structure and Setup
-
-- Every test contract must include a `setUp()` function
-- The `setUp()` function must:
-  - Configure custom block numbers
-  - Initialize base contracts
-  - Set up facets
-  - Assign labels using `vm.label`
-- Any contract inheriting from `TestBase.sol` must call `initTestBase()` in `setUp()`
-- Use `vm.startPrank(address)` and `vm.stopPrank()` for user simulation
-
-### Test Inheritance and Whitelist Management
-
-- For facets that require whitelist functionality:
-  - Test contracts should inherit from `TestWhitelistManagerBase`
-  - This provides standard whitelist management functions:
-    - `addToWhitelist(address)`
-    - `removeFromWhitelist(address)`
-    - `setFunctionWhitelistBySelector(bytes4)`
-    - `removeFunctionApprovalBySelector(bytes4)`
-  - Example pattern:
-    ```solidity
-    contract TestFacet is TestWhitelistManagerBase {
-        constructor() {}
-    }
-
-    contract FacetTest is TestBase {
-        TestFacet internal facet;
-
-        function setUp() public {
-            initTestBase();
-            facet = new TestFacet();
-            // Add required whitelist approvals
-            facet.addToWhitelist(ADDRESS_UNISWAP);
-            facet.setFunctionWhitelistBySelector(
-                uniswap.swapExactTokensForTokens.selector
-            );
-        }
-    }
-    ```
-
-### Assertions and Event Testing
-
-- Use `assertEq()` for checking equality of values
-- Use custom assertion modifiers for balance changes
-- Use `vm.expectRevert()` to verify specific revert reasons in failure test cases. Simply checking the success/failure status of a call() is not sufficient.
-- Use `vm.expectEmit(true, true, true, true, <contractAddress>)` for event testing
-- Verify expected events are emitted with correct parameters
-
-### Test Best Practices
-
-- Include comments to explain test purpose
-- Maintain consistent order in function calls and assertions
-- Structure tests: setup → execute → assert
-
-## Solidity Linter (solhint) Configuration
-
-All Solidity files must follow the rules defined in `.solhint.json`. This configuration enforces our coding standards for gas optimization, security, and code style.
-
-## Script Conventions
-
-### TypeScript Scripts
-
-- All scripts must follow the rules defined in `.eslintrc.cjs`
-- Use async/await for asynchronous operations
-- Handle errors appropriately with try/catch blocks
-- Include proper logging for debugging and monitoring
-- Use environment variables for configuration
-- Include proper type definitions
-- All scripts must use `citty` for CLI argument parsing
-- Use `consola` for consistent logging across scripts
-- Environment variables should be validated using `getEnvVar()` helper
-- Scripts should exit with appropriate exit codes (0 for success, 1 for error)
-
-#### Demo Scripts Requirements
-
-- **MUST use viem for all contract interactions** - ethers.js is NOT allowed
-  - Use `createPublicClient` and `createWalletClient` from viem
-  - Use `getContract` from viem to create contract instances
-  - Use `encodeFunctionData` for encoding function calls
-  - Use `parseUnits` and `formatUnits` from viem instead of BigNumber
-  - Use `zeroAddress` from viem instead of `constants.AddressZero`
-  - Use `randomBytes` from `crypto` instead of `utils.randomBytes`
-  - See `demoLidoWrapper.ts`, `demoUnit.ts`, or `demoEco.ts` for reference implementations
-
-- **Helper functions from `demoScriptHelpers.ts`:**
-  - Use `setupEnvironment()` for setting up viem clients and contracts
-  - Use `ensureBalance()` and `ensureAllowance()` for token checks (viem-based)
-  - Use `executeTransaction()` for executing transactions with receipt validation
-  - Use `createContractObject()` for creating ERC20 contract objects
-  - Use `getEnvVar()` for environment variable access
-
-- **DO NOT use deprecated ethers-based helpers:**
-  - ❌ `getProvider()` - use viem clients instead
-  - ❌ `getWalletFromPrivateKeyInDotEnv()` - use `privateKeyToAccount` from viem
-  - ❌ `sendTransaction()` (ethers version) - use `executeTransaction()` (viem-based)
-  - ❌ `ensureBalanceAndAllowanceToDiamond()` - use `ensureBalance()` and `ensureAllowance()` separately
-
-#### Helper Function Usage
-
-- **Always use existing helper functions** when available instead of reimplementing functionality
-- Common helper functions to check for:
-
-  - `getDeployments()` from `script/utils/deploymentHelpers.ts` for loading deployment files
-  - `setupEnvironment()` from `script/demoScripts/utils/demoScriptHelpers.ts` for viem client setup
-  - `executeTransaction()` for transaction execution (viem-based)
-  - `ensureBalance()` and `ensureAllowance()` for token approvals (viem-based)
-  - `getUniswapData*()` functions for swap data generation
-
-- Before implementing new functionality, search the codebase for existing helper functions
-- Helper functions provide consistent error handling, logging, and type safety across the project
-
-#### Type Safety for Bridge Data
-
-- **Always use proper typechain types** instead of `any` or custom types
-- Use `ILiFi.BridgeDataStruct` from typechain for bridge data
-
-- Never use `any` types for bridge data or other contract-related structures
-
-#### Testing Requirements for Helper Functions
-
-- **100% unit test coverage required** for all new TypeScript helper functions
-- Test files should be named `{helperName}.test.ts` and placed in the same directory as the helper
-- **Use Bun's built-in test runner** with Jest-like syntax (`describe`, `it`, `expect`)
-- Tests should cover:
-  - All function parameters and return values
-  - Edge cases and error conditions
-  - Type safety verification
-  - Default parameter behavior
-  - All possible input combinations
-- Include both positive and negative test cases
-- Test files should be comprehensive and well-documented
-
-#### TypeScript Test Setup
-
-We use Bun's built-in test runner for TypeScript helper functions. Bun provides Jest-like syntax with `describe`, `it`, and `expect`.
-
-**File Structure:**
-
-```
-script/
-├── runTypescriptTests.ts    # Main test runner script
-├── utils/
-│   └── someHelper.ts
-├── demoScripts/
-│   └── utils/
-```
-
-**Test File Template:**
-
-```typescript
-import { functionToTest } from './helperFile'
-
-describe('functionToTest', () => {
-  it('should do something', () => {
-    const result = functionToTest()
-    expect(result).toBe(expectedValue)
-  })
-})
-```
-
-**Available Assertions:**
-
-Bun's test runner provides Jest-compatible assertions:
-
-- `expect(value).toBe(expected)` - Strict equality
-- `expect(value).toBeInstanceOf(constructor)` - Type checking
-- `expect(value).toBeDefined()` - Existence check
-- `expect(value).toEqual(expected)` - Deep equality
-- `expect(value).toHaveLength(length)` - Array/string length
-- `expect(value).toMatchObject(object)` - Partial object matching
-- `expect(fn).toThrow()` - Function throws error
-- `expect(value).not.toEqual(expected)` - Negation
+1. Propose changes (facet updates, periphery deployments) and review them (internally + auditors where applicable).
+2. Collect approvals via Safe (or similar) and schedule via timelock where configured.
+3. Execute upgrades through the intended governance path only.
 
-**Running Tests:**
-
-- Single test file: `bun test path/to/test.test.ts`
-- All TypeScript tests: `bun run test:ts` (automatically finds and runs all `.test.ts` files in `script/` directory)
-- Specific test: `bun test path/to/specific.test.ts`
-
-**Best Practices:**
-
-- Test files should be self-contained and executable
-- Use descriptive test names that explain the expected behavior
-- Group related tests logically using `describe` blocks
-- Test both success and failure scenarios
-- Verify type safety where applicable
-- Keep tests simple and focused on one aspect at a time
+Enforced by:
 
-#### Code Quality and Linting Standards
-
-- **Pre-Change Verification:**
+- `.cursor/rules/15-architecture.mdc`
+- `.cursor/rules/16-security.mdc`
+- Security sections and audit docs under `docs/`.
 
-  - Verify all imports and types exist before making changes
-  - Check if typechain has been generated for new contracts
-  - Ensure all referenced variables and functions are available
-
-- **Comprehensive Changes:**
-
-  - Make all related changes in a single update, not incrementally
-  - Update all variable references consistently throughout the file
-  - Ensure import statements match the actual available exports
+---
 
-- **Post-Change Validation:**
+## 3. Smart Contract Conventions (high level)
 
-  - Run TypeScript compilation to catch type errors
-  - Verify no unused imports remain
-  - Check that all variable names are consistently updated
-  - Ensure function signatures match their usage
+All **mechanical conventions** for Solidity live in:
 
-- **Type Safety:**
-
-  - Always use proper TypeScript types instead of `any`
-  - Verify interface compatibility before using imported types
-  - Use type guards when dealing with dynamic data
+- `docs/conventions_digest/solidity_style.md`  
+  (`[CONV:LICENSE]`, `[CONV:NAMING]`, `[CONV:NATSPEC]`, `[CONV:BLANKLINES]`)
+- `docs/conventions_digest/errors_and_tests.md`  
+  (`[CONV:ERR-GENERIC]`, `[CONV:ERR-FACET]`, `[CONV:TESTS]`)
+- `.cursor/rules/05-solidity-basics.mdc`
+- `.cursor/rules/10-solidity-contracts.mdc`
+- `.cursor/rules/12-solidity-tests.mdc`
+- `.cursor/rules/13-solidity-interfaces.mdc`
 
-- **Execution Environment:**
-  - All scripts should use `bunx tsx` for TypeScript execution
+Conceptually:
 
-### Bash Scripts
+- **Licensing & versions**: All LI.FI-owned Solidity code follows a consistent SPDX and pragma policy ([CONV:LICENSE]).
+- **Naming & style**: Interfaces, contracts, variables, and params follow consistent naming and layout rules ([CONV:NAMING], [CONV:BLANKLINES]).
+- **Errors**:
+  - Generic, reusable errors live in `src/Errors/GenericErrors.sol` ([CONV:ERR-GENERIC]).
+  - Protocol/facet-specific errors live next to their facet ([CONV:ERR-FACET]).
+- **Interfaces**: Reside in `src/Interfaces`, prefixed with `I*`, containing only what we actually use.
 
-Bash scripts provide the robust deployment framework with automated retry mechanisms for handling RPC issues and other deployment challenges. These scripts wrap Foundry's deployment functionality to add reliability and automation.
+Rule of thumb:
 
-#### General Structure
+- If you’re deciding **how** to format or structure something → see the digest + `.cursorrules`.
+- If you’re deciding **why** we chose a particular pattern → this file and the longer docs under `docs/` are the place to look.
 
-- **Shebang and Organization:**
+---
 
-  - Begin with `#!/bin/bash`
-  - Organize into modular functions with clear sections:
-    - "Logging"
-    - "Error handling and logging"
-    - "Deployment functions"
-  - Follow DRY principle using helper files
-  - Extract common logic to helper files
-  - Separate core operations into functions
+## 4. Facets and Events
 
-- **Code Style:**
-  - Use consistent indentation and naming
-  - Include proper comments and documentation
-  - Provide usage instructions
-  - Document TODOs and limitations
+Facet contracts are the **primary integration points** on the Diamond:
 
-#### Environment Configuration
+- One facet per major integration or protocol family.
+- Shared behavior (asset handling, swaps, allowlists, validation) lives in libraries.
+- Events must be emitted **consistently** so off-chain systems can reason about transfers and recoveries.
 
-- **Environment Loading:**
+Key ideas:
 
-  - Load from `.env` or `config.sh`
-  - Declare global variables in config files
-  - Update `.env.example` accordingly
-  - Validate environment variables early
+- All facets are in `src/Facets/` and suffixed with `Facet`.
+- Facets expose standard entrypoints and use shared modifiers to enforce validation and invariants.
+- The **same core events** (`LiFiTransferStarted`, `LiFiTransferCompleted`, `LiFiTransferRecovered`, `GenericSwapCompleted`) are used across integrations with strict rules about where they may be emitted.
+- Non-EVM flows follow a special pattern (e.g., `NON_EVM_ADDRESS` and `bytes` receivers).
 
-- **Dependencies:**
-  - Add system packages to `preinstall.sh`
+The exact required functions, modifiers, parameter rules, and event usage are specified in:
 
-#### Error Handling and Logging
+- `.cursor/rules/11-facets.mdc`
+- `docs/conventions_digest/facets.md` (`[CONV:FACET-REQS]`, `[CONV:EVENTS]`, `[CONV:NON-EVM]`)
 
-- **Error Handling:**
+---
 
-  - Use helper functions for logging (e.g., `echoDebug`, `error`, `warning`, `success`)
-  - Validate inputs and environment early
-  - Check function exit status with `checkFailure`
-  - Use `set -e` for error handling where appropriate
+## 5. Testing Philosophy
 
-- **Logging:**
-  - Include proper logging for debugging and monitoring
-  - Use helper functions for consistent logging across scripts
-  - Provide clear error messages and debugging information
-
-#### Deployment and Utility Functions
+**Solidity tests (Foundry)**:
 
-- **Deployment Framework:**
-
-  - Provide automated retry mechanisms for RPC issues
-  - Wrap Foundry's deployment functionality
-  - Handle deployment challenges with robust error recovery
-  - Validate deployment requirements and dependencies
+- Mirror the structure of `src/` so each contract has an obvious corresponding test.
+- Follow consistent naming for success vs failure cases.
+- Use explicit setup (`setUp()`, `initTestBase()`, labels, pranks) and structure tests as **setup → execute → assert**.
+- Reuse shared base contracts for cross-cutting behavior (e.g., whitelists).
 
-- **Function Organization:**
-  - Group related functionality into logical modules
-  - Use clear function names that describe their purpose
-  - Implement proper parameter validation
+**TypeScript tests**:
 
-#### User Interaction
-
-- **Interface Design:**
-
-  - Use clear prompts with descriptive instructions
-  - Use tools like `gum choose` for enhanced usability
-  - Provide helpful feedback and status updates
-  - Include progress indicators for long-running operations
-
-- **Documentation:**
-  - Document TODOs and limitations
-  - Provide usage instructions
-  - Include examples of common use cases
-  - Maintain clear help text and error messages
-
-#### Conventions and Best Practices
-
-- **Integration:**
-
-  - Scripts should integrate seamlessly with the overall deployment pipeline
-  - Use consistent patterns across all bash scripts
-  - Follow project-wide naming conventions
-  - Maintain compatibility with existing tooling
-
-- **Maintenance:**
-  - Keep scripts modular for easy maintenance
-  - Use version control best practices
-  - Test scripts thoroughly before deployment
-  - Update documentation when making changes
-
-## Deployment and Configuration
-
-### Deployment Scripts
-
-- **Location and Organization:**
-
-  - Base location: `script/deploy/facets/`
-  - ZKSync-specific scripts: `script/deploy/zksync/`
-  - Deployment: `Deploy{ContractName}.s.sol`
-  - Update: `Update{ContractName}.s.sol`
-
-- **Script Structure:**
-
-  - **Deployment Scripts:**
-
-    - Inherit `DeployScriptBase`
-    - Use JSON config with `stdJson` (if constructor args needed)
-    - Call `deploy()` with `type({ContractName}).creationCode`
-
-    **Constructor Arguments Pattern:**
-
-    - **Facets WITHOUT constructor arguments:**
-
-      ```solidity
-      function run() public returns (FacetName deployed) {
-        deployed = FacetName(deploy(type(FacetName).creationCode));
-      }
-      // NO getConstructorArgs() function needed
-      ```
+- Focus on **helper functions** and script logic.
+- Use Bun’s test runner (`describe` / `it` / `expect`) with colocated `{name}.test.ts` files.
+- Aim for complete coverage of parameters, edge cases, and error paths.
 
-    - **Facets WITH constructor arguments:**
+For concrete rules and examples, see:
 
-      ```solidity
-      function run()
-        public
-        returns (FacetName deployed, bytes memory constructorArgs)
-      {
-        constructorArgs = getConstructorArgs();
-        deployed = FacetName(deploy(type(FacetName).creationCode));
-      }
+- `docs/conventions_digest/errors_and_tests.md` (`[CONV:TESTS]`)
+- `.cursor/rules/12-solidity-tests.mdc`
+- `.cursor/rules/18-testing.mdc`
+- `.cursor/rules/30-typescript.mdc`
 
-      function getConstructorArgs() internal override returns (bytes memory) {
-        // Read from config, encode arguments
-        return abi.encode(arg1, arg2);
-      }
-      ```
-
-    - Example JSON handling for constructor args:
-      ```solidity
-      string memory path = string.concat(root, "/config/{facetName}.json");
-      address configValue = _getConfigContractAddress(
-        path,
-        string.concat(".{key}.", network, ".{subkey}")
-      );
-      ```
-
-  - **Update Scripts:**
-    - Inherit `UpdateScriptBase`
-    - Call `update("{ContractName}")`
-    - Use `getExcludes()` for special cases
-    - Return array of excluded function selectors
-
-### Configuration Files
-
-- **deployRequirements.json:**
-
-  - Location: `script/deploy/resources/deployRequirements.json`
-  - Purpose: Dictates deployment rules and dependencies
-  - Features:
-    - Controls deployment rules and dependencies
-    - Manages contract dependencies
-    - Handles network-specific parameters
-    - Specifies zero address restrictions
-    - Defines required external config files
-  - Usage: Used in `helperFunctions.sh` for deployment validation
-
-- **targetState.json:**
-  - Location: `script/deploy/`
-  - Purpose: Version control and deployment tracking
-  - Features:
-    - Defines expected contract versions
-    - Tracks deployments across networks
-    - Manages environment-specific versions
-  - Structure:
-    - Network keys (e.g., `mainnet`, `arbitrum`)
-    - Environment keys (e.g., `production`, `staging`)
-    - Contract versions for facets, periphery, and core contracts
-  - Source: Auto-created from a Google Sheet
-  - Usage: Ensures version consistency across deployments
-
-### Template-based Code Generation
-
-- **Overview:**
-
-  - Use `plop facet` to generate new facets
-  - Templates stored in `templates/` folder
-
-- **Template Files:**
-  - All template files are stored in the `templates/` folder. These templates are used by the `plop facet` command to generate new facets and their associated files.
-
-### Audit and Documentation
-
-#### Audit Logs and Reports
-
-**Audit Log Structure (`auditLog.json`):**
-
-- **audits:** Entries with unique ID (`auditYYYYMMDD_X`)
-  - `auditCompletedOn`: Date (DD.MM.YYYY or YYYY-MM-DD)
-  - `auditedBy`: Name/firm
-  - `auditorGitHandle`: (if applicable)
-  - `auditReportPath`: PDF location
-  - `auditCommitHash`: Audited commit
-- **auditedContracts:** Maps contracts to audit IDs
-
-**Report Storage:**
-
-- Store PDFs in `audit/reports/`
-- Individual contract format: `YYYY.MM.DD_ContractName(version).pdf`
-- Multiple contracts format: `YYYY.MM.DD_CustomFileName.pdf`
-
-#### Documentation
-
-- **Primary Sources:**
-  - `README.md`: Overview and setup
-  - `/docs`: Technical documentation
-  - `Deploy.md`: Deployment instructions
-
-### GitHub Workflows
-
-- **Sensitive Data:**
-
-  - Use GitHub Secrets for sensitive data
-  - Reference with `${{ secrets.SECRET_NAME }}`
-
-- **File Structure and Comments:**
-
-  - Begin with clear description (YAML comments)
-  - Include descriptive comments throughout
-  - Define triggers explicitly
-  - Use conditional checks with `if:`
-  - Name jobs and steps clearly
-  - Include notification steps
-  - Set explicit permissions with comments
-  - Clear file headers
-  - Descriptive comments for each step
-
-- **Security:**
-  - Set explicit permissions
-  - Include notifications
-  - Document permission requirements
+---
+
+## 6. Scripts, Tooling, and CI
+
+### 6.1 Solidity deploy/update scripts
+
+Foundry scripts encapsulate **deploy and update** flows:
+
+- **Deploy scripts** handle creation of new contracts/facets using a standard base (`DeployScriptBase`).
+- **Update scripts** apply Diamond cuts and other upgrades via `UpdateScriptBase`.
+- Config data (constructor args, addresses, etc.) is read from JSON files and central configs.
+
+Authoritative patterns:
+
+- `.cursor/rules/20-solidity-scripts.mdc`
+- `docs/conventions_digest/scripts_and_ci.md` (`[CONV:DEPLOY]`)
+- `docs/Deploy.md` (step-by-step deployment guidance).
+
+### 6.2 TypeScript scripts
+
+TypeScript scripts are used for:
+
+- Demoing contract usage (e.g., bridge flows, swaps).
+- Operational tooling (e.g., deployment helpers, migration checks).
+- CI/maintenance tasks where TS is a better fit than Solidity or Bash.
+
+Conventions (details in `[CONV:SCRIPTS-TS]` and `.cursor/rules/30-typescript.mdc`):
+
+- Use **viem**, not ethers.js, for all contract interactions.
+- Run with `bunx tsx`, follow `.eslintrc.cjs`, avoid `any`, and use TypeChain types (e.g., `ILiFi.BridgeDataStruct`).
+- Reuse existing helpers for deployments, viem client setup, env handling, and swaps.
+- New helpers require colocated tests with **100% coverage** using Bun’s test runner.
+
+### 6.3 Bash deployment framework
+
+Bash scripts wrap Foundry to provide:
+
+- Robust retries around flaky RPCs.
+- Centralized environment loading and validation.
+- Consistent logging and error handling.
+
+Detailed structure and rules:
+
+- `.cursor/rules/40-bash.mdc`
+- `docs/conventions_digest/scripts_and_ci.md` (`[CONV:BASH]`)
+- `docs/Deploy.md` and other deployment docs in `docs/`.
+
+### 6.4 Audits and GitHub Actions
+
+We keep an explicit trail of audits and CI behavior:
+
+- Audit metadata lives in `audit/auditLog.json`, with reports under `audit/reports/`.
+- GitHub Actions workflows:
+  - Use secrets for sensitive data.
+  - Have clear triggers, step names, and explicit permissions.
+  - Are documented with comments for maintainability and security review.
+
+See:
+
+- `docs/conventions_digest/scripts_and_ci.md` (`[CONV:AUDIT-DOCS]`, `[CONV:GHA]`)
+- `audit/` and `.github/workflows/*` in the repo.
+
+---
+
+## 7. How to extend conventions safely
+
+When you introduce new patterns (contracts, scripts, tests):
+
+- **Add the enforceable bits** to `.cursor/rules/*.mdc` and/or `docs/conventions_digest/*` with new `[CONV:*]` anchors.
+- Keep this file focused on:
+  - Architectural shape (where things live, how they interact).
+  - Governance/security guarantees.
+  - High-level rationale and tradeoffs between options.
+
+If a new pattern becomes common:
+
+- Add a **short digest entry** (`docs/conventions_digest/*`) for agents.
+- Update `.cursor/rules` to reference that digest instead of copying long explanations.
+
+
