@@ -7,7 +7,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
-import { UnAuthorized, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /**
  * @notice Callback handling for OIF output processing.
@@ -73,6 +73,8 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
             LibSwap.SwapData[] memory swapData,
             address receiver
         ) = abi.decode(executionData, (bytes32, LibSwap.SwapData[], address));
+        // If receiver is bad, revert early to not lose money. This blocks the fill and the user will be refunded on source
+        if (receiver == address(0)) revert InvalidReceiver();
 
         // execute swap(s)
         _swapAndCompleteBridgeTokens(

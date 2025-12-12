@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReceiverOIF } from "lifi/Periphery/ReceiverOIF.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
-import { UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { MandateOutput } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
@@ -191,6 +191,33 @@ contract ReceiverOIFTest is TestBase {
         // call from owner of user
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
+
+        receiver.outputFilled(
+            bytes32(uint256(uint160(ADDRESS_USDC))),
+            defaultUSDCAmount,
+            payload
+        );
+    }
+
+    function testRevert_InvalidDestinationReceiver() public {
+        // mock-send bridged funds to receiver contract
+        deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
+
+        (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            ADDRESS_USDC,
+            ADDRESS_WRAPPED_NATIVE
+        );
+
+        address invalidReceiverAddress = address(0);
+        bytes memory payload = abi.encode(
+            transferId,
+            swapData,
+            invalidReceiverAddress
+        );
+
+        // Bypass outputSettler coin by "calling" directly from it.
+        vm.startPrank(OUTPUT_SETTLER_COIN);
+        vm.expectRevert(InvalidReceiver.selector);
 
         receiver.outputFilled(
             bytes32(uint256(uint160(ADDRESS_USDC))),
