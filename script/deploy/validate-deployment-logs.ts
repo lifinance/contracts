@@ -21,6 +21,8 @@ import path from 'path'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+
 import {
   DatabaseConnectionManager,
   type IConfig,
@@ -30,10 +32,24 @@ import {
 } from './shared/mongo-log-utils'
 
 /**
+ * Helper to get environment variable with optional default
+ */
+const getEnvVarWithDefault = (
+  varName: string,
+  defaultValue: string
+): string => {
+  try {
+    return getEnvVar(varName)
+  } catch {
+    return defaultValue
+  }
+}
+
+/**
  * Configuration for validation
  */
 const config: IConfig = {
-  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+  mongoUri: getEnvVarWithDefault('MONGODB_URI', 'mongodb://localhost:27017'),
   batchSize: 100,
   databaseName: 'contract-deployments',
 }
@@ -482,7 +498,9 @@ const validateCommand = defineCommand({
       await validator.connect()
 
       const environments: Array<'staging' | 'production'> =
-        args.env === 'all' ? ['staging', 'production'] : [args.env]
+        args.env === 'all'
+          ? ['staging', 'production']
+          : [args.env as 'staging' | 'production']
 
       const allResults: IValidationResults[] = []
 
