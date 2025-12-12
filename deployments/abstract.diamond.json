@@ -73,9 +73,13 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x7b1D2D734487a52409B8B86383Fe56B57DBb3CFa": {
+      "0x9BacA4D8aB4328D167C4503a6c2951c70175CaA9": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
+      },
+      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -84,8 +88,8 @@
       "FeeCollector": "0xde6A2171959d7b82aAD8e8B14cc84684C3a186AC",
       "FeeForwarder": "0x973Be760B2992D7F01f0d66bEb48A172d10FB79a",
       "GasZipPeriphery": "0x2A3e04627E554b57163C078fd1d6698A655aeA12",
-      "LiFiDEXAggregator": "0xFC863E1418C0C5935e7Bd9C8f3129Aa0442153DF",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xe1E182Bf4AA042514368b264CD96544B3f0895cE",
       "Patcher": "",
       "Permit2Proxy": "0xbb7c30Dc5AcE1A51940b202182c07D45e3e2Cba4",
       "ReceiverAcrossV3": "",

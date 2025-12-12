@@ -69,9 +69,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x6B7E41437f0A0Cf118De22D8dF296719D5adF5a3": {
+      "0xE637Ed03Ec6856D5EeEAE26c494226EB38cBF5Db": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0x43DE35AdfB263d551c17c713674524CDd32aeE6b": {
         "Name": "AcrossFacetV4",
@@ -79,6 +79,14 @@
       },
       "0xA4C11D296e04a52939a1bAff7E2fD70c95c048E9": {
         "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
+      },
+      "0x34cf9a698734528A1c2f178744DEd7F15b5324D4": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x6496DB316c9aB67C80baF5e2a592e8087d7C8023": {
+        "Name": "GardenFacet",
         "Version": "1.0.0"
       }
     },

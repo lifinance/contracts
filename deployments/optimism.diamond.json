@@ -133,13 +133,17 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x9428951809Cc7aB7CeC79295FEFcC96670eAeb9E": {
+      "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
       },
       "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -148,8 +152,8 @@
       "FeeCollector": "0x271970eE66c03c9D62d8e8c718b9841f2Ea7D817",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0xe0277e6624138239Cd42963699D539960B94607c",
-      "LiFiDEXAggregator": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",
       "LidoWrapper": "0x071e340577Ad1123cF72fe098BF0b5E62a7ae07E",
+      "LiFiDEXAggregator": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x28C7ef3789cF91C918cf86e5eF4b40FEBE24dAD3",
