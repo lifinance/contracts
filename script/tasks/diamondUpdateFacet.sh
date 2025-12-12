@@ -137,22 +137,9 @@ diamondUpdateFacet() {
         RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json "$SKIP_SIMULATION_FLAG" --legacy)
       fi
 
-      echo ""
-      echo ""
-      echo ""
-      echo ""
-      echo "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-      echo ""
-      echo ""
-      echo ""
-      echo ""
 
-      # Extract JSON starting with {"logs": from mixed output
-      # sometimes there are leading or trailing characters such as error messages, etc.
-      # we dont want/need those
-      # IMPORTANT: Use sed to extract JSON between {"logs": and closing brace, handling multi-line output
-      # This is critical for large hex strings that may cause forge to output multi-line JSON
-      # The pattern matches from {"logs": to the last } on a line, handling multi-line JSON
+      # Extract JSON from mixed output (may have leading/trailing characters). Use sed to handle multi-line JSON
+      # (critical for large hex strings that cause forge to output multi-line JSON)
       JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
 
       # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
@@ -192,6 +179,8 @@ diamondUpdateFacet() {
           echoDebug "Calldata is large ($CALLDATA_BYTES bytes), using temporary file to avoid truncation"
           TEMP_CALLDATA_FILE=$(mktemp)
           echo "$FACET_CUT" > "$TEMP_CALLDATA_FILE"
+          # Register trap to ensure cleanup on script exit (including errors)
+          trap '[[ -n "$TEMP_CALLDATA_FILE" ]] && rm -f "$TEMP_CALLDATA_FILE"' EXIT
 
           if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
             echo "[info] Using timelock controller for facet update"
@@ -202,6 +191,8 @@ diamondUpdateFacet() {
           fi
 
           rm -f "$TEMP_CALLDATA_FILE"
+          # Unset the trap after successful cleanup to avoid removing unrelated files later
+          trap - EXIT
         else
           if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
             echo "[info] Using timelock controller for facet update"

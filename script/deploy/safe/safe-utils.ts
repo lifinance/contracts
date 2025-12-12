@@ -30,6 +30,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
@@ -470,7 +471,7 @@ export class ViemSafe {
     // Optional feature flag to switch between EIP-712 signing and hash signing.
     // If ENABLE_SAFE_TX_HASH_SIGNING === 'true', we sign the Safe tx hash
     // using eth_sign instead of constructing a large EIP-712 payload.
-    if (process.env.ENABLE_SAFE_TX_HASH_SIGNING === 'true') {
+    if (getEnvVar('ENABLE_SAFE_TX_HASH_SIGNING') === 'true') {
       return this.signTransactionWithHash(safeTx)
     }
 
