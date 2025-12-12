@@ -148,6 +148,16 @@ diamondUpdateFacet() {
         JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
       fi
 
+      # Validate that extracted JSON_DATA is valid JSON
+      if ! echo "$JSON_DATA" | jq empty >/dev/null 2>&1; then
+        {
+          echo "Error: Failed to extract valid JSON from forge script output" >&2
+          echo "JSON_DATA snippet (first 500 chars): ${JSON_DATA:0:500}" >&2
+          echo "RAW_RETURN_DATA snippet (first 500 chars): ${RAW_RETURN_DATA:0:500}" >&2
+        }
+        return 1
+      fi
+
       # Extract cutData from the cleaned JSON output
       FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
 
@@ -179,7 +189,9 @@ diamondUpdateFacet() {
         if [[ $CALLDATA_BYTES -gt 10000 ]]; then
           echoDebug "Calldata is large ($CALLDATA_BYTES bytes), using temporary file to avoid truncation"
           TEMP_CALLDATA_FILE=$(mktemp)
-          echo "$FACET_CUT" > "$TEMP_CALLDATA_FILE"
+          printf '%s' "$FACET_CUT" > "$TEMP_CALLDATA_FILE"
+          # Save existing EXIT trap before setting our own
+          OLD_TRAP="$(trap -p EXIT)"
           # Register trap to ensure cleanup on script exit (including errors)
           trap '[[ -n "$TEMP_CALLDATA_FILE" ]] && rm -f "$TEMP_CALLDATA_FILE"' EXIT
 
@@ -193,8 +205,12 @@ diamondUpdateFacet() {
           rc=$?
 
           rm -f "$TEMP_CALLDATA_FILE"
-          # Unset the trap after successful cleanup to avoid removing unrelated files later
-          trap - EXIT
+          # Restore the previous EXIT trap if one existed
+          if [[ -n "$OLD_TRAP" ]]; then
+            eval "$OLD_TRAP"
+          else
+            trap - EXIT
+          fi
 
           if [ $rc -ne 0 ]; then
             return $rc
