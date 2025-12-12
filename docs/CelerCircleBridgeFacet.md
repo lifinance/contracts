@@ -1,8 +1,8 @@
-# Celer Circle Bridge V2 Facet
+# Celer Circle Bridge Facet
 
 ## How it works
 
-The Celer Circle Bridge V2 Facet works by forwarding transfers to Celer's V2 Proxy [contract](https://cbridge-docs.celer.network/developer/circle-cross-chain-usdc-transfer-protocol-v2-cctp-v2.html#proxy-contract) of the official Circle Bridge Token Messenger [contract](https://github.com/circlefin/evm-cctp-contracts/blob/master/src/v2/TokenMessengerV2.sol). Cross-Chain Transfer Protocol (CCTP) is a permissionless on-chain utility that can burn native USDC on a source chain, and mint native USDC of the same amount on a destination chain. The Celer Proxy takes a small fee which will be used to claim the transfer on the destination chain for the user automatically.
+The Celer Circle Bridge Facet works by forwarding transfers to Celer's V2 Proxy [contract](https://cbridge-docs.celer.network/developer/circle-cross-chain-usdc-transfer-protocol-v2-cctp-v2.html#proxy-contract) of the official Circle Bridge Token Messenger [contract](https://github.com/circlefin/evm-cctp-contracts/blob/master/src/v2/TokenMessengerV2.sol). Cross-Chain Transfer Protocol (CCTP) is a permissionless on-chain utility that can burn native USDC on a source chain, and mint native USDC of the same amount on a destination chain. The Celer Proxy takes a small fee which will be used to claim the transfer on the destination chain for the user automatically.
 
 ```mermaid
 graph LR;

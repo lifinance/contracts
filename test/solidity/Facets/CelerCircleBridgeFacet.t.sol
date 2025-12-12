@@ -46,7 +46,7 @@ contract TestCelerCircleBridgeFacet is
 }
 
 contract CelerCircleBridgeFacetTest is TestBaseFacet {
-    address internal constant TOKEN_MESSENGER =
+    address internal constant CELER_CIRCLE_BRIDGE =
         0x9B36f165baB9ebe611d491180418d8De4b8f3a1f;
 
     TestCelerCircleBridgeFacet internal celerCircleBridgeFacet;
@@ -68,7 +68,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         defaultUSDCAmount = 100001; // base amount to bridge
 
         celerCircleBridgeFacet = new TestCelerCircleBridgeFacet(
-            ICircleBridgeProxy(TOKEN_MESSENGER),
+            ICircleBridgeProxy(CELER_CIRCLE_BRIDGE),
             ADDRESS_USDC
         );
 
@@ -114,7 +114,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         // In production, the facet should query the bridge's totalFee function
         uint256 bridgeAmount = defaultUSDCAmount;
         ICircleBridgeProxyWithFee bridgeWithFee = ICircleBridgeProxyWithFee(
-            TOKEN_MESSENGER
+            CELER_CIRCLE_BRIDGE
         );
 
         // Estimate total amount needed by querying fee with a reasonable estimate
@@ -242,7 +242,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         // Calculate total amount needed (bridge amount + fees)
         uint256 bridgeAmount = amount;
         ICircleBridgeProxyWithFee bridgeWithFee = ICircleBridgeProxyWithFee(
-            TOKEN_MESSENGER
+            CELER_CIRCLE_BRIDGE
         );
 
         // Estimate total amount needed by querying fee
@@ -381,7 +381,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
     function testRevert_ConstructorWithZeroUSDC() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestCelerCircleBridgeFacet(
-            ICircleBridgeProxy(TOKEN_MESSENGER),
+            ICircleBridgeProxy(CELER_CIRCLE_BRIDGE),
             address(0)
         );
     }
