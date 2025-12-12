@@ -44023,12 +44023,13 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xa574407A8bA37E83841eCa2084b1DAC51d0f0b8A",
+            "ADDRESS": "0xb5a9740923C412185Bd7Da45C2AD2e256555dDe9",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2025-07-30 16:57:04",
+            "TIMESTAMP": "2025-12-12 08:46:17",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "",
-            "VERIFIED": "false"
+            "SALT": "12345675",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
           }
         ]
       },

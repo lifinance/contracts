@@ -21,7 +21,7 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xa574407A8bA37E83841eCa2084b1DAC51d0f0b8A": {
+      "0xb5a9740923C412185Bd7Da45C2AD2e256555dDe9": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
@@ -185,7 +185,7 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.1"
       },
-      "0xed26083ffc27AEcf9e958b81B51340076392Dc10": {
+      "0x508DEA1EdbE8F9D019d36B7Ba67f0EF8d8FBf35f": {
         "Name": "",
         "Version": ""
       },
@@ -194,22 +194,6 @@
         "Version": "1.0.0"
       },
       "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
-      },
-      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
-      },
-      "0x00f2a92544347C59c6980ACb53fcF9E5408e9942": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x508DEA1EdbE8F9D019d36B7Ba67f0EF8d8FBf35f": {
         "Name": "",
         "Version": ""
       },
