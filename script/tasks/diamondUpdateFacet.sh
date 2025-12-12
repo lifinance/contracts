@@ -190,10 +190,15 @@ diamondUpdateFacet() {
             echo "[info] Using diamond directly for facet update"
             bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
           fi
+          rc=$?
 
           rm -f "$TEMP_CALLDATA_FILE"
           # Unset the trap after successful cleanup to avoid removing unrelated files later
           trap - EXIT
+
+          if [ $rc -ne 0 ]; then
+            return $rc
+          fi
         else
           if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
             echo "[info] Using timelock controller for facet update"
