@@ -5,7 +5,7 @@ pragma solidity ^0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReceiverOIF } from "lifi/Periphery/ReceiverOIF.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
-import { UnAuthorized, InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidConfig, InvalidReceiver, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { MandateOutput } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
@@ -132,6 +132,7 @@ contract ReceiverOIFTest is TestBase {
     }
 
     function _getSwapData(
+        uint256 amountIn,
         address _sendingAssetId,
         address _receivingAssetId
     )
@@ -139,15 +140,36 @@ contract ReceiverOIFTest is TestBase {
         view
         returns (LibSwap.SwapData[] memory swapData, uint256 amountOutMin)
     {
+        bool isNative = _sendingAssetId == address(0);
         address[] memory path = new address[](2);
-        path[0] = _sendingAssetId;
+        // Correct path if native is used.
+        path[0] = isNative ? ADDRESS_WRAPPED_NATIVE : _sendingAssetId;
         path[1] = _receivingAssetId;
 
-        uint256 amountIn = defaultUSDCAmount;
-
-        // Calculate USDC input amount
+        // Calculate input amount
         uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
         amountOutMin = amounts[1];
+
+        bytes memory cd;
+        if (isNative) {
+            cd = abi.encodeWithSelector(
+                uniswap.swapExactETHForTokens.selector,
+                amountOutMin,
+                path,
+                address(executor),
+                block.timestamp + 20 minutes
+            );
+        } else {
+            cd = abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOutMin,
+                path,
+                address(executor),
+                block.timestamp + 20 minutes
+            );
+        }
+
         swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData({
             callTo: address(uniswap),
@@ -155,14 +177,7 @@ contract ReceiverOIFTest is TestBase {
             sendingAssetId: _sendingAssetId,
             receivingAssetId: _receivingAssetId,
             fromAmount: amountIn,
-            callData: abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                amountOutMin,
-                path,
-                address(executor),
-                block.timestamp + 20 minutes
-            ),
+            callData: cd,
             requiresDeposit: true
         });
     }
@@ -172,6 +187,7 @@ contract ReceiverOIFTest is TestBase {
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
 
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            defaultUSDCAmount,
             ADDRESS_USDC,
             ADDRESS_WRAPPED_NATIVE
         );
@@ -204,6 +220,7 @@ contract ReceiverOIFTest is TestBase {
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
 
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            defaultUSDCAmount,
             ADDRESS_USDC,
             ADDRESS_WRAPPED_NATIVE
         );
@@ -228,6 +245,7 @@ contract ReceiverOIFTest is TestBase {
 
     function testRevert_tooLittleGas() public {
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            defaultUSDCAmount,
             ADDRESS_USDC,
             ADDRESS_DAI
         );
@@ -235,6 +253,7 @@ contract ReceiverOIFTest is TestBase {
         bytes memory payload = abi.encode(transferId, swapData, USER_RECEIVER);
 
         vm.startPrank(OUTPUT_SETTLER_COIN);
+
         vm.expectRevert();
 
         receiver.outputFilled{ gas: 10000 }(
@@ -244,11 +263,126 @@ contract ReceiverOIFTest is TestBase {
         );
     }
 
+    function testRevert_noSwapData() public {
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](0);
+
+        bytes memory payload = abi.encode(transferId, swapData, USER_RECEIVER);
+
+        MandateOutput memory output = MandateOutput({
+            oracle: bytes32(0), // not relevant
+            settler: bytes32(uint256(uint160(OUTPUT_SETTLER_COIN))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(ADDRESS_USDC))),
+            amount: defaultUSDCAmount,
+            recipient: bytes32(uint256(uint160(address(receiver)))),
+            callbackData: payload,
+            context: hex""
+        });
+
+        // demonstrates that fill(...) call is not permissioned or have to be connected to an actual contract.
+        address randomFillerAccount = makeAddr("randomFillerAccount");
+        vm.startPrank(randomFillerAccount);
+
+        // Give filler funds to fill output
+        deal(ADDRESS_USDC, address(randomFillerAccount), defaultUSDCAmount);
+        IERC20(ADDRESS_USDC).approve(OUTPUT_SETTLER_COIN, defaultUSDCAmount);
+
+        // panic: arithmetic underflow or overflow (0x11)
+        // address finalAssetId = _swapData[_swapData.length - 1]
+        //  .receivingAssetId;
+        vm.expectRevert();
+
+        OutputSettler(OUTPUT_SETTLER_COIN).fill(
+            keccak256("orderId"),
+            output,
+            type(uint48).max,
+            abi.encode(randomFillerAccount)
+        );
+    }
+
+    function testRevert_invalidSwapData() public {
+        (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            defaultUSDCAmount,
+            ADDRESS_USDC,
+            ADDRESS_DAI
+        );
+
+        // This encoding scheme should not work.
+        bytes memory payload = abi.encodePacked(
+            transferId,
+            abi.encode(swapData),
+            USER_RECEIVER
+        );
+
+        MandateOutput memory output = MandateOutput({
+            oracle: bytes32(0), // not relevant
+            settler: bytes32(uint256(uint160(OUTPUT_SETTLER_COIN))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(ADDRESS_USDC))),
+            amount: defaultUSDCAmount,
+            recipient: bytes32(uint256(uint160(address(receiver)))),
+            callbackData: payload,
+            context: hex""
+        });
+
+        address randomFillerAccount = makeAddr("randomFillerAccount");
+        vm.startPrank(randomFillerAccount);
+
+        deal(ADDRESS_USDC, address(randomFillerAccount), defaultUSDCAmount);
+        IERC20(ADDRESS_USDC).approve(OUTPUT_SETTLER_COIN, defaultUSDCAmount);
+
+        vm.expectRevert();
+
+        OutputSettler(OUTPUT_SETTLER_COIN).fill(
+            keccak256("orderId"),
+            output,
+            type(uint48).max,
+            abi.encode(randomFillerAccount)
+        );
+    }
+
+    function testRevert_swapWith0Amount() public {
+        (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            1,
+            ADDRESS_USDC,
+            ADDRESS_DAI
+        );
+
+        bytes memory payload = abi.encode(transferId, swapData, USER_RECEIVER);
+
+        MandateOutput memory output = MandateOutput({
+            oracle: bytes32(0), // not relevant
+            settler: bytes32(uint256(uint160(OUTPUT_SETTLER_COIN))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(ADDRESS_USDC))),
+            amount: 0,
+            recipient: bytes32(uint256(uint160(address(receiver)))),
+            callbackData: payload,
+            context: hex""
+        });
+
+        // demonstrates that fill(...) call is not permissioned or have to be connected to an actual contract.
+        address randomFillerAccount = makeAddr("randomFillerAccount");
+        vm.startPrank(randomFillerAccount);
+
+        // Give filler funds to fill output
+        deal(ADDRESS_USDC, address(randomFillerAccount), 0);
+        IERC20(ADDRESS_USDC).approve(OUTPUT_SETTLER_COIN, 0);
+
+        vm.expectRevert(InvalidAmount.selector);
+        OutputSettler(OUTPUT_SETTLER_COIN).fill(
+            keccak256("orderId"),
+            output,
+            type(uint48).max,
+            abi.encode(randomFillerAccount)
+        );
+    }
+
     function test_canExecuteSwap() public {
         (
             LibSwap.SwapData[] memory swapData,
             uint256 amountOutMin
-        ) = _getSwapData(ADDRESS_USDC, ADDRESS_DAI);
+        ) = _getSwapData(defaultUSDCAmount, ADDRESS_USDC, ADDRESS_DAI);
 
         bytes memory payload = abi.encode(transferId, swapData, USER_RECEIVER);
 
@@ -289,8 +423,53 @@ contract ReceiverOIFTest is TestBase {
         assertTrue(dai.balanceOf(USER_RECEIVER) == amountOutMin);
     }
 
+    function test_canExecuteSwapNative() public {
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountOutMin
+        ) = _getSwapData(defaultNativeAmount, address(0), ADDRESS_DAI);
+
+        bytes memory payload = abi.encode(transferId, swapData, USER_RECEIVER);
+
+        MandateOutput memory output = MandateOutput({
+            oracle: bytes32(0), // not relevant
+            settler: bytes32(uint256(uint160(OUTPUT_SETTLER_COIN))),
+            chainId: block.chainid,
+            token: bytes32(0),
+            amount: defaultNativeAmount,
+            recipient: bytes32(uint256(uint160(address(receiver)))),
+            callbackData: payload,
+            context: hex""
+        });
+
+        // demonstrates that fill(...) call is not permissioned or have to be connected to an actual contract.
+        address randomFillerAccount = makeAddr("randomFillerAccount");
+        vm.startPrank(randomFillerAccount);
+
+        // Give filler funds to fill output
+        deal(address(randomFillerAccount), defaultNativeAmount);
+
+        vm.expectEmit();
+        emit LiFiTransferCompleted(
+            transferId,
+            address(0),
+            USER_RECEIVER,
+            amountOutMin,
+            block.timestamp
+        );
+        OutputSettler(OUTPUT_SETTLER_COIN).fill{ value: defaultNativeAmount }(
+            keccak256("orderId"),
+            output,
+            type(uint48).max,
+            abi.encode(randomFillerAccount)
+        );
+
+        assertTrue(dai.balanceOf(USER_RECEIVER) == amountOutMin);
+    }
+
     function testRevert_cannotFillERC20WithInvalidCalldata() public {
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            defaultUSDCAmount,
             ADDRESS_USDC,
             ADDRESS_DAI
         );
@@ -317,6 +496,7 @@ contract ReceiverOIFTest is TestBase {
         // Give filler funds to fill output
         deal(ADDRESS_USDC, address(randomFillerAccount), defaultUSDCAmount);
         IERC20(ADDRESS_USDC).approve(OUTPUT_SETTLER_COIN, defaultUSDCAmount);
+
         vm.expectRevert();
 
         OutputSettler(OUTPUT_SETTLER_COIN).fill(
@@ -331,6 +511,7 @@ contract ReceiverOIFTest is TestBase {
         uint256 amount = defaultUSDCAmount;
         // While this is a native swap, we don't need to fix the swapData since we very strictly wants this to fail.
         (LibSwap.SwapData[] memory swapData, ) = _getSwapData(
+            defaultUSDCAmount,
             ADDRESS_USDC,
             ADDRESS_DAI
         );
@@ -356,6 +537,7 @@ contract ReceiverOIFTest is TestBase {
 
         // Give filler funds to fill output
         deal(address(randomFillerAccount), amount);
+
         vm.expectRevert();
 
         OutputSettler(OUTPUT_SETTLER_COIN).fill{ value: amount }(
