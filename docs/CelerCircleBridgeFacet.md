@@ -13,9 +13,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaCelerCircleBridge(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaCelerCircleBridge(BridgeData calldata _bridgeData, CelerCircleData calldata _celerCircleData)`
   - Simply bridges tokens using Celer Circle Bridge
-- `function swapAndStartBridgeTokensViaCelerCircleBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaCelerCircleBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, CelerCircleData calldata _celerCircleData)`
   - Performs swap(s) before bridging tokens using Celer Circle Bridge
 
 ## Swap Data
