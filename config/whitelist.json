@@ -4916,7 +4916,7 @@
       },
       {
         "name": "LiFiDEXAggregator",
-        "address": "0xFC863E1418C0C5935e7Bd9C8f3129Aa0442153DF",
+        "address": "0xe1E182Bf4AA042514368b264CD96544B3f0895cE",
         "selectors": [
           {
             "selector": "0x2646478b",

@@ -85,9 +85,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x3Ab31Bc337C744a9CB54DCf8d6D03854b4e94636": {
+      "0xd6e617208E42153806cF2bf05Ab2cb3941d325Ec": {
         "Name": "UnitFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
