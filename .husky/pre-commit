@@ -1,273 +1,392 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-echo ""
-echo "Running 'forge build' and 'typechain generation'..."
-
-# Run forge build first (required for typechain)
-echo "Building contracts with forge..."
-forge build --skip test
-
-if [ $? -ne 0 ]; then
-  printf '\n%s\n\n' "Forge build failed. Aborting commit."
-  exit 1
+# Early exit: Check if there are any staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+if [ -z "$STAGED_FILES" ]; then
+  echo "No files staged for commit. Skipping pre-commit checks."
+  exit 0
 fi
 
-echo "Forge build completed successfully!"
-echo ""
+# Determine what types of files changed for conditional execution (optimized single pass)
+HAS_SOL_FILES="no"
+HAS_TS_JS_FILES="no"
+HAS_TYPE_FILES="no"
 
-# Run typechain generation (now that artifacts are available)
-echo "Generating TypeChain types..."
-bun typechain:incremental
+echo "$STAGED_FILES" | grep -qE '\.sol$' && HAS_SOL_FILES="yes" && HAS_TYPE_FILES="yes"
+echo "$STAGED_FILES" | grep -qE '\.(ts|js|tsx)$' && HAS_TS_JS_FILES="yes" && HAS_TYPE_FILES="yes"
 
-if [ $? -ne 0 ]; then
-  printf '\n%s\n\n' "TypeChain generation failed. Aborting commit."
-  exit 1
-fi
+# Create temp directory for parallel execution
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf '$TEMP_DIR' 2>/dev/null" EXIT INT TERM
 
-echo "TypeChain generation completed successfully!"
-echo ""
+FORGE_OUTPUT="$TEMP_DIR/forge.out"
+FORGE_EXIT="$TEMP_DIR/forge.exit"
+TYPECHAIN_OUTPUT="$TEMP_DIR/typechain.out"
+TYPECHAIN_EXIT="$TEMP_DIR/typechain.exit"
+TSC_OUTPUT="$TEMP_DIR/tsc.out"
+TSC_EXIT="$TEMP_DIR/tsc.exit"
+LINT_STAGED_OUTPUT="$TEMP_DIR/lint-staged.out"
+LINT_STAGED_EXIT="$TEMP_DIR/lint-staged.exit"
+SECRET_CHECK_OUTPUT="$TEMP_DIR/secret-check.out"
+SECRET_CHECK_EXIT="$TEMP_DIR/secret-check.exit"
 
-# Run TypeScript compilation to catch any type errors from outdated typings
-echo "Running TypeScript compilation to check for type errors..."
-bunx tsc-files --noEmit
-
-if [ $? -ne 0 ]; then
-  printf '\n%s\n' "TypeScript compilation failed. This may indicate outdated TypeChain types."
-  printf '%s\n\n' "Please run 'bun typechain' manually and fix any type errors before committing."
-  exit 1
-fi
-
-echo ""
-echo "TypeScript compilation passed - all types are up to date!"
-echo ""
-
-echo ""
-echo "Running 'bun lint-staged' now:"
-bun lint-staged
-
-echo ""
-echo ""
-echo "now checking for .env secrets and private keys accidentally being committed to Github"
-echo " > any 64-byte hex string will be identified as potential private key"
-echo " > disable false positive matches by commenting '[pre-commit-checker: not a secret]' in same line or line above"
-echo " > execution might take a while depending on the size of your git diff "
-echo " > logs will only be shown once task is completed"
-echo ""
-
-DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
-# Regex pattern to identify potential Ethereum private keys (64 hexadecimal characters)
-ETH_PRIVATE_KEY_PATTERN="\b[a-fA-F0-9]{64}\b"
-
-# List of known false positive values that should not be flagged as secrets
-KNOWN_FALSE_POSITIVES=(
-  "true"
-  "false"
-  "none"
-  ""
-  "verifyContract"
-)
-
-# List of paths to exclude from secret checks
-EXCLUDED_PATHS=(
-  "deployments/_deployments_log_file.json"
-  "config/networks.json"
-  "lib/"
-  "safe/cancun/out/"
-  "safe/london/out/"
-  "bun.lock"
-  ".bun/"
-)
-
-# Load secrets from .env file
-if [ -f ".env" ]; then
-  ENV_SECRETS=$(grep -v '^#' .env | sed 's/#.*//' | grep -v '^\s*$' | sed 's/ *$//')
-else
-  echo ".env file not found"
-  ENV_SECRETS=""
-fi
-
-printRed() {
-  local MESSAGE="$1"
-  printf '\033[31m%s\033[0m\n' "$MESSAGE"
-}
-printYellow() {
-  local MESSAGE="$1"
-  printf '\033[33m%s\033[0m\n' "$MESSAGE"
+# Helper function to print section header
+print_section() {
+  printf '\n\033[1m━━━ %s ━━━\033[0m\n' "$1"
 }
 
-printAdvise() {
-  local ACTION="$1"
-
-  echo ""
-  printf '\033[91m%s\033[0m\n' "NEXT STEPS"
-  if [ "$ACTION" = "abort" ]; then
-    printf '\033[91m%s\033[0m\n' "Remove the secrets and try to commit again"
+# Helper function to print status
+print_status() {
+  local status=$1
+  local message=$2
+  if [ "$status" = "success" ]; then
+    printf '\033[32m✓\033[0m %s\n' "$message"
+  elif [ "$status" = "skip" ]; then
+    printf '\033[33m⊘\033[0m %s\n' "$message"
+  elif [ "$status" = "error" ]; then
+    printf '\033[31m✗\033[0m %s\n' "$message"
   else
-    printf '\033[91m%s\033[0m\n' "Check each match carefully and make sure that no sensitive information is being committed"
-    printf '\033[91m%s\033[0m\n' "If it did happen, undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again."
-    printf '\033[91m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    printf '  %s\n' "$message"
   fi
 }
 
-# checks if the given line number or the line above contain a comment to disable the check
-isKnownFalsePositiveMatch() {
-  local FILE="$1"
-  local LINE_NUMBER="$2"
+# Helper function to filter verbose output
+filter_output() {
+  local tool=$1
+  local content=$2
 
-  if [ "$LINE_NUMBER" -gt 1 ]; then
-    local PREV_LINE=$(sed "$((LINE_NUMBER - 1))q;d" "$FILE")
-    local CURR_LINE=$(sed "${LINE_NUMBER}q;d" "$FILE")
+  case "$tool" in
+    forge)
+      # Only show errors, suppress compilation details
+      echo "$content" | grep -E "(Error|Failed|error|failed)" || true
+      ;;
+    typechain)
+      # Show only errors and summary, suppress verbose output
+      echo "$content" | grep -vE "^\$ |^Resolving|^Resolved|^Saved|^Cleaned|^Cleaned duplicate" | grep -E "(Successfully|Error|error|Failed|failed)" || true
+      ;;
+    lint-staged)
+      # Suppress verbose lint-staged output, keep only errors and important messages
+      echo "$content" | grep -vE "^\[(STARTED|COMPLETED)\]" | grep -vE "^Preparing lint-staged" | grep -vE "^Running tasks" | grep -vE "^Applying modifications" | grep -vE "^Cleaning up" | grep -E "(error|Error|failed|Failed|warning|Warning)" || true
+      ;;
+    tsc)
+      # Show only errors
+      echo "$content" | grep -vE "^$" | head -20 || true
+      ;;
+    *)
+      echo "$content"
+      ;;
+  esac
+}
 
-    # check if comment is present in line above
-    if echo "$PREV_LINE" | grep -q "$DISABLE_WITH_COMMENT"; then
-      return 0
-    # check if comment is present in current line
-    elif echo "$CURR_LINE" | grep -q "$DISABLE_WITH_COMMENT"; then
-      return 0
-    fi
-  # special handlng if line number is first line (then only check this line)
-  elif [ "$LINE_NUMBER" -eq 1 ]; then
-    local CURR_LINE=$(sed "${LINE_NUMBER}q;d" "$FILE")
+# Helper function to wait for PIDs and exit on failure
+wait_and_check() {
+  local pid=$1
+  local exit_file=$2
+  local output_file=$3
+  local error_msg=$4
+  local tool_name=$5
 
-    if echo "$CURR_LINE" | grep -q "$DISABLE_WITH_COMMENT"; then
-      return 0
+  if [ -z "$pid" ]; then
+    return 0
+  fi
+
+  wait "$pid" 2>/dev/null
+  local exit_code=$(cat "$exit_file" 2>/dev/null || echo "1")
+
+  if [ "$exit_code" -ne 0 ] && [ -f "$output_file" ]; then
+    # Show filtered output only on errors
+    if [ -n "$tool_name" ]; then
+      filter_output "$tool_name" "$(cat "$output_file")"
+    else
+      cat "$output_file"
     fi
   fi
 
-  return 1
+  if [ "$exit_code" -ne 0 ]; then
+    [ -n "$error_msg" ] && printf '\n\033[31m%s\033[0m\n\n' "$error_msg"
+    return 1
+  fi
+  return 0
 }
 
-# checks if a file contains any of the secrets in .env
-doesFileContainDotEnvSecret() {
-  local FILE="$1"
-  # iterate through all secrets
-  for SECRET in $ENV_SECRETS; do
-    # extract key and value
-    local VALUE=$(echo "$SECRET" | cut -d '=' -f 2- | sed -e 's/^["'\''"]*//' -e 's/["'\''"]*$//')
-    local KEY=$(echo "$SECRET" | cut -d '=' -f 1)
+# Start secret checking immediately (no dependencies, runs on staged file content to avoid race conditions)
+(
+  # Suppress echo in background process - we'll show it when we wait
+  :
 
-    # skip empty values and known false positives
-    local IS_FALSE_POSITIVE=false
-    for FALSE_POSITIVE in "${KNOWN_FALSE_POSITIVES[@]}"; do
-      if [ "$VALUE" = "$FALSE_POSITIVE" ]; then
-        IS_FALSE_POSITIVE=true
-        break
-      fi
-    done
+  DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
+  ETH_PRIVATE_KEY_PATTERN="[a-fA-F0-9]{64}"
+  EXCLUDED_PATHS="deployments/_deployments_log_file.json config/networks.json lib/ safe/cancun/out/ safe/london/out/ bun.lock .bun/"
 
-    if [ -z "$VALUE" ] || [ "$IS_FALSE_POSITIVE" = true ]; then
-      continue
-    fi
-
-    # go through file line by line
-    grep -nH "$VALUE" "$FILE" | while IFS= read -r LINE; do
-      LINE_CONTENT=$(echo "$LINE" | cut -d: -f2-)
-
-      # check if the FILE contains the SECRET value
-      if [ "$LINE_CONTENT" != "" ] && echo "$LINE_CONTENT" | grep -q "$VALUE"; then
-        # match found
-        LINE_NUMBER=$(echo "$LINE" | cut -d: -f2)
-        # check if this is a known false positive marked by a comment in the code
-        if ! isKnownFalsePositiveMatch "$FILE" "$LINE_NUMBER"; then
-          # print match
-          echo "[$FILE:$LINE_NUMBER] Secret from .env file found (key: $KEY)"
-        fi
-      fi
-    done
-  done
-}
-
-# checks if a file contains a potential private key (=> a 64 hex string)
-doesFileContainPotentialPrivateKey() {
-  local FILE="$1"
-
-  # check file content for matches with private key regEx
-  local MATCHES=$(grep -E -nH "$ETH_PRIVATE_KEY_PATTERN" "$FILE")
-
-  # go through each (potential) match
-  while read -r LINE
-  do
-    # skip empty MATCHES
-    if [[ -z "$LINE" ]]; then
-      continue
-    fi
-
-    LINENUMBER=$(echo "$LINE" | cut -d: -f2)
-
-    # check if this is a known false positive marked by a comment in the code
-    if ! isKnownFalsePositiveMatch "$FILE" "$LINENUMBER"; then
-      echo "Potential private key found:"
-      echo "$LINE"
-      echo ""
-
-    fi
-
-  done <<< "$(echo "$MATCHES")"
-
-}
-
-processGitDiff() {
-  echo "-------------------------------------- RESULTS: ---------------------------------------------––"
-  echo ""
-
-  # Check for private keys and secrets in all added or modified FILES
-  git diff --cached --name-only --diff-filter=ACM | while IFS= read -r FILE; do
-    # Skip excluded paths
-    for EXCLUDED_PATH in "${EXCLUDED_PATHS[@]}"; do
-      if [[ "$FILE" == "$EXCLUDED_PATH"* ]]; then
-        continue 2
-      fi
-    done
-
-    # Check for secrets from .env file
-    RESULT_SECRET=$(doesFileContainDotEnvSecret "$FILE")
-    if [[ -n $RESULT_SECRET ]]; then
-      printRed "$RESULT_SECRET"
-      echo ""
-    fi
-
-    # Check for potential private keys
-    RESULT_PRIVKEY=$(doesFileContainPotentialPrivateKey "$FILE")
-    if [[ -n $RESULT_PRIVKEY ]]; then
-      printYellow "$RESULT_PRIVKEY"
-      echo ""
-    fi
-  done
-  echo "---------------------------------------------------------------------------------------------––"
-}
-
-checkGitDiffForSecretsAndPrivateKeys() {
-
-  # process all files in git diff and search for secrets
-  local RESULT=$(processGitDiff)
-
-  # print the search results to console
-  if [[ -n $RESULT ]]; then
-    echo "$RESULT"
+  # Parse .env file once (optimized)
+  ENV_SECRETS=""
+  if [ -f ".env" ]; then
+    ENV_SECRETS=$(awk -F= '/^[^#]/ && NF >= 2 {
+      gsub(/^[ \t]*["'\''"]*|["'\''"]*[ \t]*$/, "", $2)
+      if ($2 != "" && $2 != "true" && $2 != "false" && $2 != "none" && $2 != "verifyContract") {
+        print $1 "=" $2
+      }
+    }' .env)
   fi
 
-  echo ""
+  # Optimized secret checking script - single pass for all checks
+  TEMP_SCRIPT=$(mktemp)
+  cat > "$TEMP_SCRIPT" << EOFFUNC
+#!/bin/sh
+FILE="\$1"
+DISABLE_COMMENT="$DISABLE_WITH_COMMENT"
+PRIVKEY_PATTERN="$ETH_PRIVATE_KEY_PATTERN"
+ENV_SECRETS="$ENV_SECRETS"
+EXCLUDED_PATHS="$EXCLUDED_PATHS"
 
-  # log a warning and prevent the commit if a secret was found
-  if [[ "$RESULT" == *"Secret from .env file found"* ]]; then
+# Fast exclusion check
+for EXCLUDED in \$EXCLUDED_PATHS; do
+  case "\$FILE" in
+    \$EXCLUDED*) exit 0 ;;
+  esac
+done
 
-    echo ""
-    WARNING="Warning: Secret value(s) from .env found. This code cannot be committed."
-    printf '\033[36m%s\033[0m\n' "$WARNING"
-    printAdvise "abort"
-    echo ""
+# Get staged file content (avoids race conditions with lint-staged modifications)
+FILE_CONTENT=\$(git show ":\$FILE" 2>/dev/null)
+[ -z "\$FILE_CONTENT" ] && exit 0
+
+# Combined single-pass check for both private keys and secrets (maximum efficiency)
+echo "\$FILE_CONTENT" | awk -v file="\$FILE" -v comment="\$DISABLE_COMMENT" -v env_secrets="\$ENV_SECRETS" '
+BEGIN {
+  found_privkey = 0
+  prev_line = ""
+
+  # Build secret lookup array
+  if (env_secrets != "") {
+    n = split(env_secrets, secrets, "\n")
+    for (i = 1; i <= n; i++) {
+      if (secrets[i] != "") {
+        eq_pos = index(secrets[i], "=")
+        if (eq_pos > 0) {
+          key = substr(secrets[i], 1, eq_pos - 1)
+          value = substr(secrets[i], eq_pos + 1)
+          gsub(/^[ \t]*["'\''"]+|["'\''"]*[ \t]*$/, "", value)
+          if (value != "" && length(value) > 3) {
+            secret_values[++num_secrets] = value
+            secret_keys[value] = key
+          }
+        }
+      }
+    }
+  }
+}
+{
+  line_num = NR
+  curr_line = \$0
+
+  # Check for private keys (64 hex chars as standalone token)
+  if (match(curr_line, /(^|[^0-9a-fA-F])[0-9a-fA-F]{64}([^0-9a-fA-F]|$)/)) {
+    match_pos = RSTART
+    if (substr(curr_line, match_pos, 1) !~ /[0-9a-fA-F]/) {
+      match_pos = match_pos + 1
+    }
+    # Verify it's exactly 64, not part of longer hex
+    if (substr(curr_line, match_pos + 64, 1) !~ /[0-9a-fA-F]/) {
+      disabled = (prev_line ~ comment || curr_line ~ comment)
+      if (!disabled) {
+        if (!found_privkey) {
+          print "Potential private key found:"
+          found_privkey = 1
+        }
+        print file ":" line_num ":" curr_line
+        print ""
+      }
+    }
+  }
+
+  # Check for .env secrets (only if we have secrets to check)
+  if (num_secrets > 0) {
+    for (i = 1; i <= num_secrets; i++) {
+      value = secret_values[i]
+      pos = index(curr_line, value)
+      if (pos > 0) {
+        # Verify boundaries (not part of larger word)
+        before_ok = (pos == 1 || substr(curr_line, pos - 1, 1) !~ /[a-zA-Z0-9]/)
+        after_ok = (pos + length(value) - 1 == length(curr_line) || substr(curr_line, pos + length(value), 1) !~ /[a-zA-Z0-9]/)
+        if (before_ok && after_ok) {
+          disabled = (prev_line ~ comment || curr_line ~ comment)
+          if (!disabled) {
+            print "[" file ":" line_num "] Secret from .env file found (key: " secret_keys[value] ")"
+          }
+        }
+      }
+    }
+  }
+
+  prev_line = curr_line
+}'
+EOFFUNC
+
+  chmod +x "$TEMP_SCRIPT"
+
+  # Get files to check (null-delimited for safety with spaces)
+  FILES_TO_CHECK=$(git diff --cached --name-only --diff-filter=ACM -z)
+  FILES_COUNT=$(echo "$FILES_TO_CHECK" | tr '\0' '\n' | wc -l | tr -d ' ')
+
+  if [ "$FILES_COUNT" -eq 0 ]; then
+    echo 0 > "$SECRET_CHECK_EXIT"
+    rm -f "$TEMP_SCRIPT"
+    exit 0
+  fi
+
+  # Calculate optimal parallel jobs (I/O-bound operations)
+  if command -v sysctl >/dev/null 2>&1; then
+    NUM_CORES=$(sysctl -n hw.ncpu 2>/dev/null || echo "4")
+  elif command -v nproc >/dev/null 2>&1; then
+    NUM_CORES=$(nproc 2>/dev/null || echo "4")
+  else
+    NUM_CORES=4
+  fi
+
+  PARALLEL_JOBS=$((NUM_CORES * 4))
+  [ "$PARALLEL_JOBS" -gt 32 ] && PARALLEL_JOBS=32
+  [ "$PARALLEL_JOBS" -gt "$FILES_COUNT" ] && PARALLEL_JOBS="$FILES_COUNT"
+  [ "$PARALLEL_JOBS" -lt 1 ] && PARALLEL_JOBS=1
+
+  # Process files in parallel
+  SECRET_RESULT=""
+  echo "$FILES_TO_CHECK" | xargs -0 -n 1 -P "$PARALLEL_JOBS" sh "$TEMP_SCRIPT" > "${SECRET_CHECK_OUTPUT}.results" 2>&1
+  XARGS_EXIT=$?
+
+  SECRET_RESULT=$(cat "${SECRET_CHECK_OUTPUT}.results" 2>/dev/null || true)
+  rm -f "${SECRET_CHECK_OUTPUT}.results" "$TEMP_SCRIPT"
+
+  # Store result for later display (don't echo here to avoid interleaving)
+  if [ -n "$SECRET_RESULT" ]; then
+    echo "$SECRET_RESULT"
+  fi
+
+  # Determine exit code
+  EXIT_CODE=0
+  if [ "$XARGS_EXIT" -ne 0 ]; then
+    EXIT_CODE=1
+  elif echo "$SECRET_RESULT" | grep -q "Secret from .env file found"; then
+    printf '\033[36m%s\033[0m\n' "Warning: Secret value(s) from .env found. This code cannot be committed."
+    printf '\033[91m%s\033[0m\n' "Remove the secrets and try to commit again"
+    EXIT_CODE=1
+  elif echo "$SECRET_RESULT" | grep -q "Potential private key found"; then
+    printf '\033[36m%s\033[0m\n' "Warning: Potential Ethereum private keys found"
+    printf '\033[91m%s\033[0m\n' "Check each match carefully before pushing to GitHub"
+    EXIT_CODE=0  # Warning only
+  fi
+
+  echo "$EXIT_CODE" > "$SECRET_CHECK_EXIT"
+) > "$SECRET_CHECK_OUTPUT" 2>&1 &
+SECRET_CHECK_PID=$!
+
+# Start forge build and lint-staged in parallel (they're independent initially)
+FORGE_PID=""
+LINT_STAGED_PID=""
+
+print_section "Pre-commit Checks"
+
+# Start parallel tasks
+if [ "$HAS_SOL_FILES" = "yes" ]; then
+  print_status "info" "Building contracts with forge..."
+  (forge build --skip test > "$FORGE_OUTPUT" 2>&1; echo $? > "$FORGE_EXIT") &
+  FORGE_PID=$!
+else
+  print_status "skip" "Skipping forge build (no Solidity files changed)"
+  echo 0 > "$FORGE_EXIT"
+fi
+
+if [ "$HAS_TYPE_FILES" = "yes" ]; then
+  print_status "info" "Running lint-staged (formatting & linting)..."
+  (bun lint-staged > "$LINT_STAGED_OUTPUT" 2>&1; echo $? > "$LINT_STAGED_EXIT") &
+  LINT_STAGED_PID=$!
+else
+  print_status "skip" "Skipping lint-staged (no lintable files changed)"
+  echo 0 > "$LINT_STAGED_EXIT"
+fi
+
+# Wait for forge build if it was started
+if [ -n "$FORGE_PID" ]; then
+  if ! wait_and_check "$FORGE_PID" "$FORGE_EXIT" "$FORGE_OUTPUT" "Forge build failed. Aborting commit." "forge"; then
+    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
+    wait "$SECRET_CHECK_PID" 2>/dev/null
     exit 1
   fi
+  print_status "success" "Forge build completed"
+fi
 
-  # log a warning and next steps if a potential private key was found (the commit will still be accepted)
-  if [[ "$RESULT" == *"Potential private key found"* ]]; then
-    printf '\033[36m%s\033[0m\n' "Warning: Potential Ethereum private keys found"
-    printAdvise "warning"
-    echo ""
+# Run typechain generation (only if forge succeeded and we have Solidity files)
+if [ "$HAS_SOL_FILES" = "yes" ]; then
+  print_status "info" "Generating TypeChain types..."
+  (bun typechain:incremental > "$TYPECHAIN_OUTPUT" 2>&1; echo $? > "$TYPECHAIN_EXIT") &
+  TYPECHAIN_PID=$!
+
+  if ! wait_and_check "$TYPECHAIN_PID" "$TYPECHAIN_EXIT" "$TYPECHAIN_OUTPUT" "TypeChain generation failed. Aborting commit." "typechain"; then
+    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
+    wait "$SECRET_CHECK_PID" 2>/dev/null
+    exit 1
   fi
+  # Extract and show summary from typechain output (filter verbose lines)
+  TYPECHAIN_SUMMARY=$(grep -E "(Successfully|typings)" "$TYPECHAIN_OUTPUT" 2>/dev/null | grep -vE "^\$ " | head -1 || echo "TypeChain types generated")
+  print_status "success" "$TYPECHAIN_SUMMARY"
+fi
 
-  exit 0
-}
+# TypeScript compilation check (only if both TS/JS files changed AND typechain was regenerated)
+if [ "$HAS_TS_JS_FILES" = "yes" ] && [ "$HAS_SOL_FILES" = "yes" ]; then
+  print_status "info" "Checking TypeScript compilation..."
+  (bunx tsc-files --noEmit > "$TSC_OUTPUT" 2>&1; echo $? > "$TSC_EXIT") &
+  TSC_PID=$!
 
-checkGitDiffForSecretsAndPrivateKeys
+  if ! wait_and_check "$TSC_PID" "$TSC_EXIT" "$TSC_OUTPUT" "" "tsc"; then
+    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
+    wait "$SECRET_CHECK_PID" 2>/dev/null
+    printf '\n\033[31mTypeScript compilation failed.\033[0m\n'
+    printf 'This may indicate outdated TypeChain types.\n'
+    printf 'Please run \033[1mbun typechain\033[0m manually and fix any type errors before committing.\n\n'
+    exit 1
+  fi
+  print_status "success" "TypeScript compilation passed"
+fi
+
+# Wait for lint-staged if it was started
+if [ -n "$LINT_STAGED_PID" ]; then
+  if ! wait_and_check "$LINT_STAGED_PID" "$LINT_STAGED_EXIT" "$LINT_STAGED_OUTPUT" "Lint-staged failed. Aborting commit." "lint-staged"; then
+    wait "$SECRET_CHECK_PID" 2>/dev/null
+    exit 1
+  fi
+  print_status "success" "Lint-staged completed"
+fi
+
+# Wait for secret checking and get results
+print_status "info" "Checking for secrets and private keys..."
+wait "$SECRET_CHECK_PID" 2>/dev/null
+SECRET_CHECK_EXIT_CODE=$(cat "$SECRET_CHECK_EXIT" 2>/dev/null || echo "1")
+SECRET_RESULT=$(cat "$SECRET_CHECK_OUTPUT" 2>/dev/null || true)
+
+if [ "$SECRET_CHECK_EXIT_CODE" -ne 0 ]; then
+  # Show errors if any
+  if [ -n "$SECRET_RESULT" ]; then
+    echo "$SECRET_RESULT"
+  fi
+  exit 1
+fi
+
+# Show secret check results if any issues found
+if echo "$SECRET_RESULT" | grep -q "Secret from .env file found"; then
+  printf '\n\033[36m⚠ Warning: Secret value(s) from .env found. This code cannot be committed.\033[0m\n'
+  printf '\033[91mRemove the secrets and try to commit again\033[0m\n\n'
+  # Show the specific matches
+  echo "$SECRET_RESULT" | grep "Secret from .env file found" || true
+  exit 1
+elif echo "$SECRET_RESULT" | grep -q "Potential private key found"; then
+  printf '\n\033[33m⚠ Warning: Potential Ethereum private keys found\033[0m\n'
+  printf 'Check each match carefully before pushing to GitHub\n\n'
+  # Show the matches (limit to first few to avoid spam)
+  echo "$SECRET_RESULT" | grep -A 1 "Potential private key found" | head -10 || true
+  print_status "success" "Secret check completed (warnings only)"
+else
+  print_status "success" "Secret check passed"
+fi
+
+printf '\n\033[1m━━━ All pre-commit checks passed! ━━━\033[0m\n'
+exit 0
