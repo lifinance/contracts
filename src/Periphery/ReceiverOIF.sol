@@ -26,7 +26,7 @@ interface IOutputCallback {
 /// @title ReceiverOIF
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps via OIF.
-/// Anyone can call this contract with fradulently filled intents, incoming outputFilled calls cannot be trusted.
+/// Anyone can call this contract with fraudulently filled intents, incoming outputFilled calls cannot be trusted.
 /// @custom:version 1.0.0
 contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
     /// Storage ///
@@ -57,8 +57,18 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
     /// External Methods ///
 
     /// @notice Completes an OIF Intent via outputFilled.
-    /// @dev The endpoint is configured to only accept calldata coming from a specfic output settler. This does not prevent people from calling this function with malicious or fradulent data but we can assure that the tokens and amounts have been correctly delivered.
-    // If token is bytes32(0) then the native amount has been delivered before this call and no call value is provided.
+    /// @dev The endpoint is configured to only accept calldata coming from a specific output settler. This does not
+    ///      prevent people from calling this function with malicious or fraudulent data but we can assure that the
+    ///      token and amount have been correctly delivered.
+    /// This contract does not validate exterior calldata or execution. Provided LibSwap.SwapData needs to be self
+    ///      contained including slippage and fallback logic OR revert. Common mistakes can involve:
+    ///      - Not pulling approved token. This contract does not validate the input token has left this contract.
+    ///      - Not reverting if a swap fails. This contract does not monitor the executed data, the token will be
+    ///        abandoned at it current position, likely vulnerable to be collected by someone else.
+    ///      - Not execution parameters. If a swap or other balance variable actions are executed, the executor should
+    ///        ensure the output is within expected params. For swaps, embed slippage protection.
+    /// Failure to validate execution correctness WILL lead to a loss of funds ranging from complete loss to high slippage.
+    /// If token is bytes32(0) then the native amount has been delivered before this call and no call value is provided.
     /// @param token Token identifier for the filled output. If normal ERC20, the 20 least significant bytes contains the address.
     /// @param amount Token amount
     /// @param executionData Attached arbitrary callbackData for the output.
