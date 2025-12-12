@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibSwap } from "../utils/TestBase.sol";
@@ -6,7 +6,7 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { CelerCircleBridgeV2Facet } from "lifi/Facets/CelerCircleBridgeV2Facet.sol";
 import { ICircleBridgeProxyV2 } from "lifi/Interfaces/ICircleBridgeProxyV2.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Extended interface to query fees from CircleBridgeProxy
@@ -362,14 +362,41 @@ contract CelerCircleBridgeV2FacetTest is TestBaseFacet {
         // The facet doesn't support native bridging directly anyway
     }
 
-    function test_Revert_DestinationChainIdTooLarge() public virtual {
+    function testRevert_DestinationChainIdTooLarge() public virtual {
         vm.startPrank(USER_SENDER);
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         bridgeData.destinationChainId = uint256(type(uint64).max) + 1;
+
         vm.expectRevert(InvalidCallData.selector);
+
         initiateBridgeTxWithFacet(false);
+
         vm.stopPrank();
+    }
+
+    function testRevert_ConstructorWithZeroCircleBridgeProxy() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestCelerCircleBridgeV2Facet(
+            ICircleBridgeProxyV2(address(0)),
+            ADDRESS_USDC
+        );
+    }
+
+    function testRevert_ConstructorWithZeroUSDC() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestCelerCircleBridgeV2Facet(
+            ICircleBridgeProxyV2(TOKEN_MESSENGER),
+            address(0)
+        );
+    }
+
+    function testRevert_ConstructorWithBothZeroAddresses() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new TestCelerCircleBridgeV2Facet(
+            ICircleBridgeProxyV2(address(0)),
+            address(0)
+        );
     }
 }

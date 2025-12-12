@@ -8,6 +8,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title CelerCircleBridgeV2Facet
 /// @author LI.FI (https://li.fi)
@@ -41,6 +42,11 @@ contract CelerCircleBridgeV2Facet is
     /// @param _circleBridgeProxyV2 The address of the CircleBridgeProxy on the current chain.
     /// @param _usdc The address of USDC on the current chain.
     constructor(ICircleBridgeProxyV2 _circleBridgeProxyV2, address _usdc) {
+        if (
+            address(_circleBridgeProxyV2) == address(0) || _usdc == address(0)
+        ) {
+            revert InvalidConfig();
+        }
         CIRCLE_BRIDGE_PROXY_V2 = _circleBridgeProxyV2;
         USDC = _usdc;
     }

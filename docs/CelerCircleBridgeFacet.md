@@ -6,16 +6,16 @@ The Celer Circle Bridge Facet works by forwarding transfers to Celer's Proxy [co
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->CelerCircleBridgeFacet;
-    CelerCircleBridgeFacet -- CALL --> CircleBridgeProxy
+    D{LiFiDiamond}-- DELEGATECALL -->CelerCircleBridgeV2Facet;
+    CelerCircleBridgeV2Facet -- CALL --> CircleBridgeProxy
     CircleBridgeProxy -- CALL --> M(Token Messenger)
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensViaCelerCircleBridge(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaCelerCircleBridgeV2(BridgeData calldata _bridgeData, CelerCircleData calldata _celerCircleData)`
   - Simply bridges tokens using Celer Circle Bridge
-- `function swapAndStartBridgeTokensViaCelerCircleBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaCelerCircleBridgeV2(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging tokens using Celer Circle Bridge
 
 ## Swap Data
