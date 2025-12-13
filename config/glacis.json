@@ -101,6 +101,9 @@
   "sophon": {
     "airlift": "0x51729fd7638111E05Ca5f30435e26da53b08816a"
   },
+  "stable": {
+    "airlift": "0x51729fd7638111E05Ca5f30435e26da53b08816a"
+  },
   "swellchain": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
