@@ -94,6 +94,10 @@
     "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e",
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
+  "megaeth": {
+    "relayReceiver": "0xac4615ffec9dbf5efe28db0f98f0011e6df0dabd",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "metis": {
     "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5",
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
