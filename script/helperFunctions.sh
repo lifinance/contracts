@@ -4275,6 +4275,8 @@ function checkDeployRequirements() {
       KEY_IN_FILE=$(jq -r --arg CONTRACT "$CONTRACT" --arg REQUIREMENT "$REQUIREMENT" '.[$CONTRACT].configData[$REQUIREMENT].keyInConfigFile' "$DEPLOY_REQUIREMENTS_PATH")
       # replace '<NETWORK>' with actual network, if needed
       KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
+      # replace '<ENVIRONMENT>' with actual environment, if needed
+      KEY_IN_FILE=${KEY_IN_FILE//<ENVIRONMENT>/$ENVIRONMENT}
 
       # get full config file path
       CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"
