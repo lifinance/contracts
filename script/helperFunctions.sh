@@ -382,10 +382,11 @@ function findContractInMasterLogByAddress() {
 
   # Try MongoDB first if enabled
   if isMongoLoggingEnabled; then
-    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS"
+    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
     local MONGO_RESULT
     MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
       --env "$ENVIRONMENT" \
+      --network "$NETWORK" \
       --address "$TARGET_ADDRESS" 2>/dev/null)
     local MONGO_EXIT=$?
 
