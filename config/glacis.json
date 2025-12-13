@@ -38,6 +38,9 @@
   "flare": {
     "airlift": "0x0905E21AEf470adEf9Cf9dCf7922431610c875b5"
   },
+  "flow": {
+    "airlift": "0x51729fd7638111E05Ca5f30435e26da53b08816a"
+  },
   "fraxtal": {
     "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
   },
