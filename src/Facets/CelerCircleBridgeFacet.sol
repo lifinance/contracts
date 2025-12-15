@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICircleBridgeProxy } from "../Interfaces/ICircleBridgeProxy.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -47,6 +48,17 @@ contract CelerCircleBridgeFacet is
         }
         CIRCLE_BRIDGE_PROXY = _circleBridgeProxy;
         USDC = _usdc;
+    }
+
+    /// @notice Sets a max approval from lifiDiamond to CircleBridgeProxy
+    /// It is safe to set a max approval since the diamond is designed to not hold any funds (that could otherwise be stolen if CircleBridgeProxy turns malicious)
+    /// We also don't need to store the initialization status of this facet since it will not break from being initialized multiple times (plus it's an admin-only function)
+    function initCelerCircleBridge() external {
+        LibDiamond.enforceIsContractOwner();
+
+        // approve max allowance to CircleBridgeProxy
+        // since this facet only supports one token: USDC which follows the IERC20 standard, we can safely use approve instead of safeApprove.
+        IERC20(USDC).approve(address(CIRCLE_BRIDGE_PROXY), type(uint256).max);
     }
 
     /// External Methods ///
@@ -108,13 +120,6 @@ contract CelerCircleBridgeFacet is
         if (_bridgeData.destinationChainId > type(uint64).max) {
             revert InvalidCallData();
         }
-
-        // give max approval for token to CelerCircleBridge bridge, if not already
-        LibAsset.maxApproveERC20(
-            IERC20(USDC),
-            address(CIRCLE_BRIDGE_PROXY),
-            _bridgeData.minAmount
-        );
 
         // initiate bridge transaction
         CIRCLE_BRIDGE_PROXY.depositForBurn(

@@ -72,7 +72,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             ADDRESS_USDC
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](3);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = celerCircleBridgeFacet
             .startBridgeTokensViaCelerCircleBridge
             .selector;
@@ -82,10 +82,27 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         functionSelectors[2] = celerCircleBridgeFacet
             .addAllowedContractSelector
             .selector;
+        functionSelectors[3] = celerCircleBridgeFacet
+            .initCelerCircleBridge
+            .selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
         celerCircleBridgeFacet = TestCelerCircleBridgeFacet(address(diamond));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+        celerCircleBridgeFacet.initCelerCircleBridge();
+        vm.stopPrank();
+
+        // Check if diamond now has max allowance in USDC to CIRCLE_BRIDGE_PROXY
+        assertEq(
+            IERC20(ADDRESS_USDC).allowance(
+                address(diamond),
+                CELER_CIRCLE_BRIDGE
+            ),
+            type(uint256).max,
+            "diamond USDC allowance to CIRCLE_BRIDGE_PROXY should be max"
+        );
 
         // deploy mock DEX to simulate swaps
         mockDEX = new MockOpenOcean();
