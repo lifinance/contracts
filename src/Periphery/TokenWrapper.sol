@@ -73,7 +73,7 @@ contract TokenWrapper is WithdrawablePeriphery {
         // given allowance, in our specific usecase allowance is always
         // nearly MAX_UINT256. Using the balance only is a gas optimisation.
         uint256 wad = IERC20(WRAPPED_TOKEN).balanceOf(msg.sender);
-        IERC20(WRAPPED_TOKEN).transferFrom(msg.sender, address(this), wad);
+        SafeTransferLib.safeTransferFrom(WRAPPED_TOKEN, msg.sender, address(this), wad);
 
         if (USE_CONVERTER) {
             // Approve converter to spend wrappedToken
