@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
+
 pragma solidity ^0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
@@ -68,13 +69,13 @@ contract TokenWrapperTest is DSTest {
     // Needed to receive ETH
     receive() external payable {}
 
-    function testCanDeposit() public {
+    function test_CanDeposit() public {
         assert(wrappedToken.balanceOf(address(this)) == 0);
         tokenWrapper.deposit{ value: 1 ether }();
         assert(wrappedToken.balanceOf(address(this)) == 1 ether);
     }
 
-    function testCanWithdrawToken() public {
+    function test_CanWithdrawToken() public {
         // Send some ETH to the contract
         (bool success, ) = address(tokenWrapper).call{ value: 1 ether }("");
         if (!success) revert ETHTransferFailed();
@@ -88,7 +89,7 @@ contract TokenWrapperTest is DSTest {
         assertEq(address(this).balance - initialBalance, 1 ether);
     }
 
-    function testCanWithdraw() public {
+    function test_CanWithdraw() public {
         uint256 initialBalance = address(this).balance;
         vm.deal(address(wrappedToken), 100 ether);
         wrappedToken.mint(address(this), 1 ether);
@@ -99,7 +100,7 @@ contract TokenWrapperTest is DSTest {
 
     // ========== CONVERTER TESTS ==========
 
-    function testCanDepositWithConverter() public {
+    function test_CanDepositWithConverter() public {
         // Initial state: user has no basic tokens
         assertEq(basicToken.balanceOf(address(this)), 0);
 
@@ -110,7 +111,7 @@ contract TokenWrapperTest is DSTest {
         assertEq(basicToken.balanceOf(address(this)), 1 ether);
     }
 
-    function testCanWithdrawWithConverter() public {
+    function test_CanWithdrawWithConverter() public {
         uint256 initialBalance = address(this).balance;
 
         // Give user some basic tokens
@@ -129,7 +130,7 @@ contract TokenWrapperTest is DSTest {
         assertEq(basicToken.balanceOf(address(this)), 0);
     }
 
-    function testConverterReceivesApproval() public {
+    function test_ConverterReceivesApproval() public {
         // Give user some basic tokens
         basicToken.mint(address(this), 1 ether);
 
@@ -159,7 +160,7 @@ contract TokenWrapperTest is DSTest {
         );
     }
 
-    function testCanDepositWithDecimalConverter() public {
+    function test_CanDepositWithDecimalConverter() public {
         // Initial state: user has no 6-decimal tokens
         assertEq(token6Decimals.balanceOf(address(this)), 0);
 
@@ -171,7 +172,7 @@ contract TokenWrapperTest is DSTest {
         assertEq(token6Decimals.balanceOf(address(this)), 1_000_000);
     }
 
-    function testCanWithdrawWithDecimalConverter() public {
+    function test_CanWithdrawWithDecimalConverter() public {
         uint256 initialBalance = address(this).balance;
 
         // Give user 1 USDT (6 decimals)
@@ -193,7 +194,7 @@ contract TokenWrapperTest is DSTest {
         assertEq(token6Decimals.balanceOf(address(this)), 0);
     }
 
-    function testDecimalConverterRoundTrip() public {
+    function test_DecimalConverterRoundTrip() public {
         // Start with 5 ETH
         uint256 depositAmount = 5 ether;
 
