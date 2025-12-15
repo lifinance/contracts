@@ -21575,6 +21575,17 @@
             "VERIFIED": "true",
             "ZK_SOLC_VERSION": ""
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xB815B47ad429436892Fc3C6ed1D401F515C7F763",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-15 18:20:05",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c75fdd24820ddcdadee9bb653ae6cd73ba8f0e80000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "SALT": "12345675",
+            "VERIFIED": "false",
+            "ZK_SOLC_VERSION": ""
+          }
         ]
       },
       "staging": {
