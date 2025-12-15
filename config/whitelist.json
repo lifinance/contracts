@@ -261,6 +261,14 @@
             }
           }
         ],
+        "monad": [
+          {
+            "address": "0xece5e77f9a9846c4d69555eb44e0cff8b5f03f1e",
+            "functions": {
+              "0xe3665a43": ""
+            }
+          }
+        ],
         "flow": [
           {
             "address": "0x85efa14c12f5fe42ff9d7da460a71088b26bea31",
