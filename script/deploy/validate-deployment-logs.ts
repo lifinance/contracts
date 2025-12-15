@@ -27,29 +27,16 @@ import {
   DatabaseConnectionManager,
   type IConfig,
   type IDeploymentRecord,
+  type DeploymentEnvironment,
   RecordTransformer,
   createDeploymentKey,
 } from './shared/mongo-log-utils'
 
 /**
- * Helper to get environment variable with optional default
- */
-const getEnvVarWithDefault = (
-  varName: string,
-  defaultValue: string
-): string => {
-  try {
-    return getEnvVar(varName)
-  } catch {
-    return defaultValue
-  }
-}
-
-/**
  * Configuration for validation
  */
 const config: IConfig = {
-  mongoUri: getEnvVarWithDefault('MONGODB_URI', 'mongodb://localhost:27017'),
+  mongoUri: getEnvVar('MONGODB_URI'), // Required - no default value
   batchSize: 100,
   databaseName: 'contract-deployments',
 }
@@ -113,7 +100,7 @@ class DeploymentValidator {
    * Loads records from MongoDB
    */
   private async loadFromMongo(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): Promise<IDeploymentRecord[]> {
     const collection =
       this.dbManager.getCollection<IDeploymentRecord>(environment)
@@ -124,7 +111,7 @@ class DeploymentValidator {
    * Loads records from JSON file
    */
   private loadFromJson(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): IDeploymentRecord[] {
     try {
       const jsonData = JSON.parse(readFileSync(logFilePath, 'utf8'))
@@ -204,7 +191,7 @@ class DeploymentValidator {
    * Validates deployment logs for a given environment
    */
   public async validate(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): Promise<IValidationResults> {
     consola.info(`Validating ${environment} deployment logs...`)
 
@@ -497,10 +484,10 @@ const validateCommand = defineCommand({
     try {
       await validator.connect()
 
-      const environments: Array<'staging' | 'production'> =
+      const environments: DeploymentEnvironment[] =
         args.env === 'all'
           ? ['staging', 'production']
-          : [args.env as 'staging' | 'production']
+          : [args.env as DeploymentEnvironment]
 
       const allResults: IValidationResults[] = []
 

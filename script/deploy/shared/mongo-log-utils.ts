@@ -138,7 +138,7 @@ export class DatabaseConnectionManager {
    * @throws {Error} When database is not connected
    */
   public getCollection<T extends Document = IDeploymentRecord>(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): Collection<T> {
     if (!this.db)
       throw new Error('Database not connected. Call connect() first.')
@@ -200,9 +200,7 @@ export class ValidationUtils {
    * @param env - The environment string to validate
    * @returns True if env is 'staging' or 'production'
    */
-  public static isValidEnvironment(
-    env: string
-  ): env is 'staging' | 'production' {
+  public static isValidEnvironment(env: string): env is DeploymentEnvironment {
     return env === 'staging' || env === 'production'
   }
 
@@ -221,6 +219,8 @@ export class ValidationUtils {
   /**
    * Validates raw deployment data from JSON files
    * Checks for required fields and proper data types
+   * ALL fields must be strings - NO null or undefined allowed
+   * Empty strings "" are acceptable for optional data
    * @param data - Unknown data to validate
    * @returns True if data matches expected raw deployment structure
    */
@@ -229,20 +229,29 @@ export class ValidationUtils {
 
     const deployment = data as Record<string, unknown>
 
+    // ALL fields are required and must be strings (can be empty string "")
     const requiredStringFields = [
       'ADDRESS',
       'OPTIMIZER_RUNS',
       'TIMESTAMP',
       'CONSTRUCTOR_ARGS',
+      'SALT',
       'VERIFIED',
+      'SOLC_VERSION',
+      'EVM_VERSION',
+      'ZK_SOLC_VERSION',
     ]
 
-    for (const field of requiredStringFields)
-      if (typeof deployment[field] !== 'string' || !deployment[field])
-        return false
+    // Check that all fields exist and are strings (NOT null or undefined)
+    for (const field of requiredStringFields) {
+      const value = deployment[field]
+      // Explicitly reject null and undefined - only strings allowed
+      if (value === null || value === undefined) return false
+      if (typeof value !== 'string') return false
+    }
 
-    if (deployment.SALT !== undefined && typeof deployment.SALT !== 'string')
-      return false
+    // ADDRESS must not be empty
+    if (!deployment.ADDRESS) return false
 
     if (!ValidationUtils.isValidTimestamp(deployment.TIMESTAMP as string))
       return false
@@ -251,6 +260,54 @@ export class ValidationUtils {
     if (verified !== 'true' && verified !== 'false') return false
 
     return true
+  }
+
+  /**
+   * Validates that compiler version fields are present based on network type
+   * @param record - The deployment record to validate
+   * @param networkConfig - Optional network configuration (from networks.json)
+   * @returns Array of warning messages for missing compiler versions (empty if all good)
+   */
+  public static validateCompilerVersions(
+    record: IDeploymentRecord,
+    networkConfig?: { isZkEVM?: boolean }
+  ): string[] {
+    const warnings: string[] = []
+
+    // For zkEVM networks, we need zkSolcVersion
+    if (networkConfig?.isZkEVM) {
+      if (!record.zkSolcVersion || record.zkSolcVersion === '') {
+        warnings.push(
+          `zkEVM network '${record.network}' should have ZK_SOLC_VERSION but it's empty`
+        )
+      }
+      // zkEVM networks may also have solcVersion and evmVersion
+      if (!record.solcVersion || record.solcVersion === '') {
+        warnings.push(
+          `zkEVM network '${record.network}' should have SOLC_VERSION but it's empty`
+        )
+      }
+    } else {
+      // For regular EVM networks, we need solcVersion and evmVersion
+      if (!record.solcVersion || record.solcVersion === '') {
+        warnings.push(
+          `EVM network '${record.network}' should have SOLC_VERSION but it's empty`
+        )
+      }
+      if (!record.evmVersion || record.evmVersion === '') {
+        warnings.push(
+          `EVM network '${record.network}' should have EVM_VERSION but it's empty`
+        )
+      }
+      // zkSolcVersion should be empty for non-zkEVM networks
+      if (record.zkSolcVersion && record.zkSolcVersion !== '') {
+        warnings.push(
+          `Non-zkEVM network '${record.network}' has ZK_SOLC_VERSION but shouldn't`
+        )
+      }
+    }
+
+    return warnings
   }
 
   /**
@@ -379,18 +436,25 @@ export function createDeploymentKey(record: IDeploymentRecord): string {
 }
 
 /**
+ * Deployment environment type - used throughout the codebase
+ */
+export type DeploymentEnvironment = 'staging' | 'production'
+
+/**
  * Raw deployment data structure from JSON files
+ * All fields are required - use empty string "" for not applicable fields
+ * NO null or undefined values allowed
  */
 export interface IRawDeploymentData {
   ADDRESS: string
   OPTIMIZER_RUNS: string
   TIMESTAMP: string
   CONSTRUCTOR_ARGS: string
-  SALT?: string
+  SALT: string
   VERIFIED: string
-  SOLC_VERSION?: string
-  EVM_VERSION?: string
-  ZK_SOLC_VERSION?: string
+  SOLC_VERSION: string
+  EVM_VERSION: string
+  ZK_SOLC_VERSION: string
 }
 
 /**

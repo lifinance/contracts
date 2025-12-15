@@ -32,6 +32,7 @@ import {
   DatabaseConnectionManager,
   type IDeploymentRecord,
   type IConfig,
+  type DeploymentEnvironment,
 } from './mongo-log-utils'
 
 /**
@@ -93,7 +94,7 @@ export class DeploymentLogger {
    */
   public async log(
     deployment: Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>,
-    environment: 'staging' | 'production',
+    environment: DeploymentEnvironment,
     options: ILogOptions = {}
   ): Promise<void> {
     const {
@@ -169,7 +170,7 @@ export class DeploymentLogger {
     deployments: Array<
       Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>
     >,
-    environment: 'staging' | 'production',
+    environment: DeploymentEnvironment,
     options: ILogOptions = {}
   ): Promise<void> {
     const {
@@ -267,7 +268,7 @@ export class DeploymentLogger {
    */
   private async updateLocalJsonFile(
     record: IDeploymentRecord,
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): Promise<void> {
     if (!this.localJsonPath) return
 

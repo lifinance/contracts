@@ -24,6 +24,7 @@ import {
 import {
   type IDeploymentRecord,
   type IUpdateConfig,
+  type DeploymentEnvironment,
   RecordTransformer,
 } from './shared/mongo-log-utils'
 
@@ -67,7 +68,7 @@ class DeploymentLogManager {
 
   public constructor(
     private config: IUpdateConfig,
-    private environment: 'staging' | 'production'
+    private environment: DeploymentEnvironment
   ) {
     this.client = new MongoClient(config.mongoUri)
   }
@@ -565,7 +566,7 @@ const syncCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
@@ -713,7 +714,7 @@ const addCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
@@ -861,7 +862,7 @@ const updateCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
@@ -905,7 +906,7 @@ const createIndexesCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {

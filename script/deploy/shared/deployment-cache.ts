@@ -7,6 +7,7 @@ import {
   type IDeploymentRecord,
   DatabaseConnectionManager,
   type IConfig,
+  type DeploymentEnvironment,
 } from './mongo-log-utils'
 
 /**
@@ -15,7 +16,7 @@ import {
  */
 interface ICacheMetadata {
   lastRefresh: string // ISO timestamp
-  environment: 'staging' | 'production'
+  environment: DeploymentEnvironment
   recordCount: number
   version: string
 }
@@ -76,7 +77,7 @@ export class DeploymentCache {
    * @returns Full path to the cache data file
    * @private
    */
-  private getCacheFilePath(environment: 'staging' | 'production'): string {
+  private getCacheFilePath(environment: DeploymentEnvironment): string {
     return path.join(this.cacheDir, `deployments_${environment}.json`)
   }
 
@@ -86,7 +87,7 @@ export class DeploymentCache {
    * @returns Full path to the metadata file
    * @private
    */
-  private getMetadataFilePath(environment: 'staging' | 'production'): string {
+  private getMetadataFilePath(environment: DeploymentEnvironment): string {
     return path.join(this.cacheDir, `deployments_${environment}.metadata.json`)
   }
 
@@ -109,7 +110,7 @@ export class DeploymentCache {
    * @private
    */
   private readMetadata(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): ICacheMetadata | null {
     const metadataPath = this.getMetadataFilePath(environment)
     if (!existsSync(metadataPath)) return null
@@ -130,7 +131,7 @@ export class DeploymentCache {
    * @private
    */
   private writeMetadata(
-    environment: 'staging' | 'production',
+    environment: DeploymentEnvironment,
     metadata: ICacheMetadata
   ): void {
     const metadataPath = this.getMetadataFilePath(environment)
@@ -148,7 +149,7 @@ export class DeploymentCache {
    * @private
    */
   private readCache(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): IDeploymentRecord[] | null {
     const cachePath = this.getCacheFilePath(environment)
     if (!existsSync(cachePath)) return null
@@ -177,7 +178,7 @@ export class DeploymentCache {
    * @private
    */
   private writeCache(
-    environment: 'staging' | 'production',
+    environment: DeploymentEnvironment,
     records: IDeploymentRecord[]
   ): void {
     const cachePath = this.getCacheFilePath(environment)
@@ -216,7 +217,7 @@ export class DeploymentCache {
    * ```
    */
   public async get(
-    environment: 'staging' | 'production',
+    environment: DeploymentEnvironment,
     options: { forceRefresh?: boolean } = {}
   ): Promise<IDeploymentRecord[]> {
     // Check if force refresh is requested
@@ -277,7 +278,7 @@ export class DeploymentCache {
    * ```
    */
   public async refresh(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): Promise<IDeploymentRecord[]> {
     consola.info(`Refreshing ${environment} cache from MongoDB...`)
 
@@ -323,9 +324,7 @@ export class DeploymentCache {
    * await cache.invalidate()              // Invalidate all
    * ```
    */
-  public async invalidate(
-    environment?: 'staging' | 'production'
-  ): Promise<void> {
+  public async invalidate(environment?: DeploymentEnvironment): Promise<void> {
     if (environment) {
       // Update metadata to mark as stale (set lastRefresh to epoch)
       const metadata: ICacheMetadata = {
@@ -369,7 +368,7 @@ export class DeploymentCache {
    * @param environment - The deployment environment
    * @returns Cache statistics object
    */
-  public async getStats(environment: 'staging' | 'production'): Promise<{
+  public async getStats(environment: DeploymentEnvironment): Promise<{
     exists: boolean
     recordCount: number
     lastRefresh: string | null
