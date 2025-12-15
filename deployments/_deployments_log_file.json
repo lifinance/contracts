@@ -42986,6 +42986,21 @@
           }
         ]
       }
+    },
+    "flow": {
+      "production": {
+        "1.2.0": [
+          {
+            "ADDRESS": "0x5A3D8df582bEF3CDBA8da2Ca7A1b71931a700afd",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-12-12 08:45:31",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000051729fd7638111e05ca5f30435e26da53b08816a",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
     }
   },
   "LidoWrapper": {
