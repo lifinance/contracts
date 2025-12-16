@@ -21,7 +21,7 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xa574407A8bA37E83841eCa2084b1DAC51d0f0b8A": {
+      "0xb5a9740923C412185Bd7Da45C2AD2e256555dDe9": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
@@ -169,6 +169,10 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       },
+      "0x508DEA1EdbE8F9D019d36B7Ba67f0EF8d8FBf35f": {
+        "Name": "",
+        "Version": ""
+      },
       "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
@@ -181,9 +185,21 @@
         "Name": "PolymerCCTPFacet",
         "Version": "1.0.0"
       },
+      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xfeac1be55bCccc46D88743F9dBCCF60f66562357": {
+        "Name": "CelerCircleBridgeV2Facet",
+        "Version": "1.0.0"
+      },
       "0x8EFcbD11864c37CE82446FFC3846610Fda3269E0": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
+      },
+      "0x8d02904CCFEd82AFc87201AC991924B83a65557E": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -192,8 +208,8 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "LidoWrapper": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x104BD390Fed41089650Ac14aC6D9a8F3513A04cf",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
