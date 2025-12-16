@@ -475,6 +475,20 @@
       "auditorGitHandle": "burrasec",
       "auditReportPath": "./audit/reports/2025.12.08_Patcher(v1.0.1).pdf",
       "auditCommitHash": "195ec984f74a59f9d6c156387f652d438c39ab74"
+    },
+    "audit20251215": {
+      "auditCompletedOn": "15.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.15_ReceiverOIF(v1.0.0).pdf",
+      "auditCommitHash": "2f49105451af8067fbf20b875d24e8be1487175d"
+    },
+    "audit20251215_1": {
+      "auditCompletedOn": "15.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.15_CelerCircleBridgeFacet(v2.0.0).pdf",
+      "auditCommitHash": "e37798634a8e4ac460aaa6f6f158d7aa6fdf5b24"
     }
   },
   "auditedContracts": {
@@ -527,7 +541,8 @@
       "1.0.3": ["audit20250508"]
     },
     "CelerCircleBridgeFacet": {
-      "1.0.1": ["audit20250508"]
+      "1.0.1": ["audit20250508"],
+      "2.0.0": ["audit20251215_1"]
     },
     "CelerIMFacetBase": {
       "1.0.0": ["audit20250508"],
@@ -765,6 +780,9 @@
     "ReceiverChainflip": {
       "1.0.0": ["audit20250305", "audit20250508"],
       "1.0.1": ["audit20250718"]
+    },
+    "ReceiverOIF": {
+      "1.0.0": ["audit20251215"]
     },
     "ReceiverStargateV2": {
       "1.0.1": ["audit20250109_3"],
