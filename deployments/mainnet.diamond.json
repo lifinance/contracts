@@ -173,9 +173,9 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       },
-      "0x7FFE4C78b56060781bcAB27CBffe0513B75F2f2F": {
+      "0x989a7eFaBb9bE76ac3424B940862d9cf55334873": {
         "Name": "UnitFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xE46E9a5Ae71f1Fb3Ac59D09469830d6Ecc1D21f2": {
         "Name": "MegaETHBridgeFacet",
@@ -188,9 +188,9 @@
       "FeeCollector": "0x3Ef238c36035880EfbDfa239d218186b79Ad1d6F",
       "FeeForwarder": "0x685527c551Cc40ce1f1C9818cD8683307076E4eD",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-      "Patcher": "0xD0D1222a437e73F845e94a37098619B72be1540b",
+      "LidoWrapper": "",
+      "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x81F35E762B6792Eea8781fC52F72e62235A5C416",
       "ReceiverAcrossV4": "0x07Cc0a0b41641D349240e1988169Fa11b31FC24E",
