@@ -8,6 +8,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IWrapper } from "../Interfaces/IWrapper.sol";
+import { InvalidContract, NoTransferToNullAddress } from "../Errors/GenericErrors.sol";
 
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
@@ -20,9 +21,6 @@ contract TokenWrapper is WithdrawablePeriphery {
 
     /// Errors ///
     error WithdrawFailure();
-    error InvalidWrappedToken();
-    error InvalidOwner();
-    error InvalidConverter();
 
     /// @notice Creates a new TokenWrapper contract
     /// @param _wrappedToken Address of the wrapped token (e.g., WETH, or token returned by converter)
@@ -35,14 +33,14 @@ contract TokenWrapper is WithdrawablePeriphery {
         address _converter,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        if (_wrappedToken == address(0)) revert InvalidWrappedToken();
-        if (_owner == address(0)) revert InvalidOwner();
+        if (_wrappedToken == address(0)) revert NoTransferToNullAddress();
+        if (_owner == address(0)) revert NoTransferToNullAddress();
 
         WRAPPED_TOKEN = _wrappedToken;
         USE_CONVERTER = _converter != address(0);
 
         if (USE_CONVERTER) {
-            if (!_isContract(_converter)) revert InvalidConverter();
+            if (!_isContract(_converter)) revert InvalidContract();
             CONVERTER = _converter;
             // Approve converter once for all future withdrawals (gas optimization)
             LibAsset.maxApproveERC20(

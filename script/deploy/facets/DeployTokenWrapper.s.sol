@@ -5,11 +5,10 @@ pragma solidity ^0.8.17;
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { stdJson } from "forge-std/Script.sol";
+import { InvalidContract } from "lifi/Errors/GenericErrors.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
-
-    error InvalidConverter();
 
     constructor() DeployScriptBase("TokenWrapper") {}
 
@@ -47,7 +46,7 @@ contract DeployScript is DeployScriptBase {
 
         // Verify converter is a contract if address is non-zero
         if (converterAddress != address(0)) {
-            if (converterAddress.code.length == 0) revert InvalidConverter();
+            if (converterAddress.code.length == 0) revert InvalidContract();
         }
 
         // get path of global config file
