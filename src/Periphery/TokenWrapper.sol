@@ -40,7 +40,7 @@ contract TokenWrapper is WithdrawablePeriphery {
         USE_CONVERTER = _converter != address(0);
 
         if (USE_CONVERTER) {
-            if (!_isContract(_converter)) revert InvalidContract();
+            if (!LibAsset.isContract(_converter)) revert InvalidContract();
             CONVERTER = _converter;
             // Approve converter once for all future withdrawals (gas optimization)
             LibAsset.maxApproveERC20(
@@ -51,15 +51,6 @@ contract TokenWrapper is WithdrawablePeriphery {
         } else {
             CONVERTER = _wrappedToken;
         }
-    }
-
-    /// @dev Check if an address is a contract
-    function _isContract(address _addr) private view returns (bool) {
-        uint256 size;
-        assembly {
-            size := extcodesize(_addr)
-        }
-        return size > 0;
     }
 
     /// External Methods ///
