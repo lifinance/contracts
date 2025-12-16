@@ -1069,6 +1069,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "devNotes": "Contract verification is not working. In contact with the team to find a resolution. "
   },
+  "stable": {
+    "name": "stable",
+    "chainId": 101010,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "gUSDT",
+    "wrappedNativeAddress": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+    "converterAddress": "0xded1660192d4d82e7c0b628ba556861edbb5cada",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.stable.xyz",
+    "verificationType": "etherscan",
+    "explorerUrl": "https://stablescan.xyz",
+    "explorerApiUrl": "https://stablescan.xyz/api",
+    "multicallAddress": "0x0000000000000000000000000000000000000000",
+    "safeAddress": "0x0000000000000000000000000000000000000000",
+    "gasZipChainId": 0,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "london",
+    "deployedWithSolcVersion": "0.8.17"
+  },
   "superposition": {
     "name": "superposition",
     "chainId": 55244,

@@ -9,6 +9,8 @@ import { stdJson } from "forge-std/Script.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
+    error InvalidConverter();
+
     constructor() DeployScriptBase("TokenWrapper") {}
 
     function run()
@@ -30,7 +32,7 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wrappedNativeAddress")
         );
 
-        // try to get converter address, default to address(0) if not found
+        // Try to get converter address, default to address(0) if not found
         address converterAddress;
         try
             vm.parseJsonAddress(
@@ -41,6 +43,11 @@ contract DeployScript is DeployScriptBase {
             converterAddress = addr;
         } catch {
             converterAddress = address(0);
+        }
+
+        // Verify converter is a contract if address is non-zero
+        if (converterAddress != address(0)) {
+            if (converterAddress.code.length == 0) revert InvalidConverter();
         }
 
         // get path of global config file

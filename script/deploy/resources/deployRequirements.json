@@ -699,19 +699,14 @@
   "TokenWrapper": {
     "configData": {
       "_wrappedToken": {
-        "configFileName": "tokenwrapper.json",
-        "keyInConfigFile": ".<NETWORK>.wrappedToken",
-        "allowToDeployWithZeroAddress": "true"
-      },
-      "_converter": {
-        "configFileName": "tokenwrapper.json",
-        "keyInConfigFile": ".<NETWORK>.converter",
-        "allowToDeployWithZeroAddress": "true"
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
       },
       "_owner": {
         "configFileName": "global.json",
-        "keyInConfigFile": ".withdrawWallet",
-        "allowToDeployWithZeroAddress": "true"
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   }

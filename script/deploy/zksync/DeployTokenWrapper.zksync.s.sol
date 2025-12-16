@@ -30,7 +30,7 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wrappedNativeAddress")
         );
 
-        // try to get converter address, default to address(0) if not found
+        // Try to get converter address, default to address(0) if not found
         address converterAddress;
         try
             vm.parseJsonAddress(
@@ -42,6 +42,9 @@ contract DeployScript is DeployScriptBase {
         } catch {
             converterAddress = address(0);
         }
+
+        // Note: On zkEVM, we cannot verify if the converter is a contract address
+        // using extcodesize during deployment, as contract code may not be available yet
 
         // get path of global config file
         string memory globalConfigPath = string.concat(

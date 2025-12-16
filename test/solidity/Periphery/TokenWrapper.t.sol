@@ -26,6 +26,8 @@ contract TokenWrapperTest is DSTest {
     TestBasicToken private token6Decimals;
     TestConverterWithDecimals private decimalConverter;
 
+    uint256 private constant ONE_USDT = 1_000_000;
+
     error ETHTransferFailed();
 
     function setUp() public {
@@ -131,26 +133,8 @@ contract TokenWrapperTest is DSTest {
     }
 
     function test_ConverterReceivesApproval() public {
-        // Give user some basic tokens
-        basicToken.mint(address(this), 1 ether);
-
-        // Approve TokenWrapper
-        basicToken.approve(address(tokenWrapperWithConverter), 1 ether);
-
-        // Check that converter has no allowance before withdraw
-        assertEq(
-            basicToken.allowance(
-                address(tokenWrapperWithConverter),
-                address(converter)
-            ),
-            0
-        );
-
-        // Withdraw
-        tokenWrapperWithConverter.withdraw();
-
-        // After withdraw, the approval should have been set
-        // (TokenWrapper approves converter to pull tokens)
+        // Check that converter was approved in constructor
+        // (TokenWrapper approves converter once during deployment for gas efficiency)
         assertEq(
             basicToken.allowance(
                 address(tokenWrapperWithConverter),
@@ -169,19 +153,19 @@ contract TokenWrapperTest is DSTest {
         tokenWrapperWithDecimalConverter.deposit{ value: 1 ether }();
 
         // User should now have 1 USDT (1e6, not 1e18)
-        assertEq(token6Decimals.balanceOf(address(this)), 1_000_000);
+        assertEq(token6Decimals.balanceOf(address(this)), ONE_USDT);
     }
 
     function test_CanWithdrawWithDecimalConverter() public {
         uint256 initialBalance = address(this).balance;
 
         // Give user 1 USDT (6 decimals)
-        token6Decimals.mint(address(this), 1_000_000);
+        token6Decimals.mint(address(this), ONE_USDT);
 
         // Approve TokenWrapper to spend tokens
         token6Decimals.approve(
             address(tokenWrapperWithDecimalConverter),
-            1_000_000
+            ONE_USDT
         );
 
         // User withdraws 1 USDT (6 decimals)
@@ -200,12 +184,12 @@ contract TokenWrapperTest is DSTest {
 
         // Deposit 5 ETH, should receive 5 USDT (6 decimals)
         tokenWrapperWithDecimalConverter.deposit{ value: depositAmount }();
-        assertEq(token6Decimals.balanceOf(address(this)), 5_000_000);
+        assertEq(token6Decimals.balanceOf(address(this)), 5 * ONE_USDT);
 
         // Approve and withdraw all USDT
         token6Decimals.approve(
             address(tokenWrapperWithDecimalConverter),
-            5_000_000
+            5 * ONE_USDT
         );
 
         uint256 balanceBefore = address(this).balance;
