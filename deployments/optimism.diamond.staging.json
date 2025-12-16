@@ -64,6 +64,10 @@
       "0xE2Bf645a908A5515C2FEC03d3edDb59c6eF606Fe": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
+      },
+      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
