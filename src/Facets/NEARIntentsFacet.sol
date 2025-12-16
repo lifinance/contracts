@@ -14,6 +14,9 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @title NEARIntentsFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through NEAR Intents Protocol
+/// @notice WARNING: This facet does NOT support fee-on-transfer tokens (e.g., SafeMoon, PAXG).
+///         Using such tokens will result in the quote ID being consumed without proper bridging,
+///         as the contract does not validate destination balances after transfer.
 /// @custom:version 1.0.0
 contract NEARIntentsFacet is
     ILiFi,
@@ -73,13 +76,15 @@ contract NEARIntentsFacet is
     /// @param sendingAssetId Token being bridged
     /// @param amount Amount being bridged
     /// @param deadline Quote expiration timestamp
+    /// @param minAmountOut Minimum amount expected on destination chain (slippage protection from NEAR Intents)
     event NEARIntentsBridgeStarted(
         bytes32 indexed transactionId,
         bytes32 indexed quoteId,
         address indexed depositAddress,
         address sendingAssetId,
         uint256 amount,
-        uint256 deadline
+        uint256 deadline,
+        uint256 minAmountOut
     );
 
     /// Errors ///
@@ -234,33 +239,19 @@ contract NEARIntentsFacet is
             _bridgeData.minAmount
         );
 
-        // Cache the non-EVM check to avoid duplicate checks
-        bool isNonEVM = _bridgeData.receiver == NON_EVM_ADDRESS;
-
-        // Emit events (reduce stack depth by avoiding complex struct access in emit)
-        _emitEvents(_bridgeData, _nearData, isNonEVM);
-    }
-
-    /// @dev Emits bridge events
-    /// @param _bridgeData The core information needed for bridging
-    /// @param _nearData Data specific to NEAR Intents
-    /// @param _isNonEVM Whether bridging to a non-EVM chain
-    function _emitEvents(
-        ILiFi.BridgeData memory _bridgeData,
-        NEARIntentsData calldata _nearData,
-        bool _isNonEVM
-    ) private {
+        // Emit bridge started event
         emit NEARIntentsBridgeStarted(
             _bridgeData.transactionId,
             _nearData.quoteId,
             _nearData.depositAddress,
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
-            _nearData.deadline
+            _nearData.deadline,
+            _nearData.minAmountOut
         );
 
         // Emit special event if bridging to non-EVM chain
-        if (_isNonEVM) {
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
@@ -278,10 +269,7 @@ contract NEARIntentsFacet is
         ILiFi.BridgeData memory _bridgeData,
         NEARIntentsData calldata _nearData
     ) internal view {
-        // Cache the non-EVM check
-        bool isNonEVM = _bridgeData.receiver == NON_EVM_ADDRESS;
-
-        bytes32 receiverHash = isNonEVM
+        bytes32 receiverBytes32 = _bridgeData.receiver == NON_EVM_ADDRESS
             ? _nearData.nonEVMReceiver
             : bytes32(uint256(uint160(_bridgeData.receiver)));
 
@@ -290,7 +278,7 @@ contract NEARIntentsFacet is
                 NEARINTENTS_PAYLOAD_TYPEHASH,
                 _bridgeData.transactionId,
                 _bridgeData.minAmount,
-                receiverHash,
+                receiverBytes32,
                 _nearData.depositAddress,
                 _bridgeData.destinationChainId,
                 _bridgeData.sendingAssetId,

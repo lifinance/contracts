@@ -295,7 +295,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -348,7 +349,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -521,7 +523,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -558,7 +561,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -599,7 +603,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -626,7 +631,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -657,7 +663,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             newNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            newNearData.deadline
+            newNearData.deadline,
+            newNearData.minAmountOut
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -760,7 +767,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         // Expect special non-EVM event
@@ -818,7 +826,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         // Expect special non-EVM event
@@ -896,11 +905,12 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, address(diamond));
         emit NEARIntentsFacet.NEARIntentsBridgeStarted(
             bridgeData.transactionId,
-            customNearData.quoteId,
-            customNearData.depositAddress,
+            validNearData.quoteId,
+            validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            customNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
@@ -954,7 +964,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             validNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline
+            validNearData.deadline,
+            validNearData.minAmountOut
         );
 
         // Expect special non-EVM event
