@@ -496,6 +496,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.12.16_NearIntentsFacet(v1.0.0).pdf",
       "auditCommitHash": "4696d22e0522180707e9a63d8b53a60d7ac693ad"
+    },
+    "audit20251215_2": {
+      "auditCompletedOn": "15.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.15_GasZipPeriphery(v1.0.2).pdf",
+      "auditCommitHash": "cc25140f5874701315b410a1c9e951694dd94e33"
     }
   },
   "auditedContracts": {
@@ -604,7 +611,8 @@
     },
     "GasZipPeriphery": {
       "1.0.0": ["audit20241107"],
-      "1.0.1": ["audit20250110_1", "audit20250508"]
+      "1.0.1": ["audit20250110_1", "audit20250508"],
+      "1.0.2": ["audit20251215_2"]
     },
     "GenericErrors": {
       "1.0.1": ["audit20250506", "audit20250508"],

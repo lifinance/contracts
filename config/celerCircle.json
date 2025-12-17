@@ -1,5 +1,9 @@
 {
   "devNotes": "config for circle usdc can be found here: https://cbridge-prod2.celer.app/v1/circleUsdcConfig",
+  "mainnet": {
+    "circleBridgeProxy": "0xC75fdd24820ddCdADeE9BB653aE6cD73BA8f0e80",
+    "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+  },
   "arbitrum": {
     "circleBridgeProxy": "0x90811d8Ea6499D3e5CbfBa3B279FB4387EbDfce9",
     "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
