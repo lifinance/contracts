@@ -433,11 +433,22 @@ function diamondSyncWhitelist {
       return
     fi
 
-    # Determine missing pairs
-    echoSyncStage "----- [$NETWORK] Stage 3: Determining missing contract-selector pairs -----"
+    # Determine missing pairs and pairs to remove
+    echoSyncStage "----- [$NETWORK] Stage 3: Determining missing and obsolete contract-selector pairs -----"
     NEW_PAIRS=()
     NEW_ADDRESSES=()
+    REMOVED_PAIRS=()
 
+    # Normalize CURRENT_PAIRS to lowercase for consistent comparison
+    # getCurrentWhitelistedPairs already returns lowercase, but we normalize again to be safe
+    NORMALIZED_CURRENT_PAIRS=()
+    for CURRENT_PAIR in "${CURRENT_PAIRS[@]}"; do
+      NORMALIZED_CURRENT_PAIRS+=("$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')")
+    done
+
+    # First, normalize REQUIRED_PAIRS to lowercase addresses for comparison
+    # This creates a normalized list that we'll use for comparison
+    NORMALIZED_REQUIRED_PAIRS=()
     for REQUIRED_PAIR in "${REQUIRED_PAIRS[@]}"; do
       # Split the pair by '|' character using parameter expansion
       ADDRESS="${REQUIRED_PAIR%%|*}"
@@ -475,9 +486,24 @@ function diamondSyncWhitelist {
 
         for SELECTOR in "${SELECTORS[@]}"; do
           if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
-            PAIR_KEY="$ADDRESS_LOWER|$SELECTOR"
+            # Normalize selector to lowercase for comparison
+            SELECTOR_LOWER=$(echo "$SELECTOR" | tr '[:upper:]' '[:lower:]')
+            PAIR_KEY="$ADDRESS_LOWER|$SELECTOR_LOWER"
+            NORMALIZED_REQUIRED_PAIRS+=("$PAIR_KEY")
+            
             # Check if this pair is already whitelisted
-            if [[ ${#CURRENT_PAIRS[@]} -eq 0 ]] || [[ ! " ${CURRENT_PAIRS[@]} " == *" $PAIR_KEY "* ]]; then
+            # Use a more robust comparison by checking each normalized current pair
+            FOUND_IN_CURRENT=false
+            for NORMALIZED_CURRENT in "${NORMALIZED_CURRENT_PAIRS[@]}"; do
+              if [[ "$PAIR_KEY" == "$NORMALIZED_CURRENT" ]]; then
+                FOUND_IN_CURRENT=true
+                echoSyncDebug "Pair already whitelisted: $PAIR_KEY"
+                break
+              fi
+            done
+            
+            if [[ "$FOUND_IN_CURRENT" == "false" ]]; then
+              echoSyncDebug "New pair to add: $PAIR_KEY (checksummed: $CHECKSUMMED|$SELECTOR)"
               NEW_PAIRS+=("$CHECKSUMMED|$SELECTOR")
               NEW_ADDRESSES+=("$CHECKSUMMED")
             fi
@@ -493,15 +519,57 @@ function diamondSyncWhitelist {
         # This selector makes isAddressWhitelisted(_contract) return true for backward
         # compatibility with legacy address-only checks, but does not allow any granular calls.
         APPROVE_TO_SELECTOR="0xffffffff"
-        PAIR_KEY="$ADDRESS_LOWER|$APPROVE_TO_SELECTOR"
+        SELECTOR_LOWER=$(echo "$APPROVE_TO_SELECTOR" | tr '[:upper:]' '[:lower:]')
+        PAIR_KEY="$ADDRESS_LOWER|$SELECTOR_LOWER"
+        NORMALIZED_REQUIRED_PAIRS+=("$PAIR_KEY")
 
         # Check if this ApproveTo-Only Selector pair is already whitelisted
-        if [[ ${#CURRENT_PAIRS[@]} -eq 0 ]] || [[ ! " ${CURRENT_PAIRS[@]} " == *" $PAIR_KEY "* ]]; then
+        # Use a more robust comparison by checking each normalized current pair
+        FOUND_IN_CURRENT=false
+        for NORMALIZED_CURRENT in "${NORMALIZED_CURRENT_PAIRS[@]}"; do
+          if [[ "$PAIR_KEY" == "$NORMALIZED_CURRENT" ]]; then
+            FOUND_IN_CURRENT=true
+            break
+          fi
+        done
+        
+        if [[ "$FOUND_IN_CURRENT" == "false" ]]; then
           NEW_PAIRS+=("$CHECKSUMMED|$APPROVE_TO_SELECTOR")
           NEW_ADDRESSES+=("$CHECKSUMMED")
         fi
       fi
     done
+
+    echoSyncDebug "Determined ${#NEW_PAIRS[@]} new pairs to add and ${#NORMALIZED_REQUIRED_PAIRS[@]} required pairs"
+
+    # Now determine pairs that need to be removed (in CURRENT_PAIRS but not in REQUIRED_PAIRS)
+    if [[ ${#CURRENT_PAIRS[@]} -gt 0 ]]; then
+      echoSyncDebug "Comparing ${#CURRENT_PAIRS[@]} current pairs against ${#NORMALIZED_REQUIRED_PAIRS[@]} required pairs"
+      
+      for CURRENT_PAIR in "${CURRENT_PAIRS[@]}"; do
+        # Normalize current pair to lowercase for comparison
+        CURRENT_PAIR_LOWER=$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')
+        
+        # Check if this pair is in the required pairs
+        FOUND_IN_REQUIRED=false
+        for REQUIRED_PAIR_NORM in "${NORMALIZED_REQUIRED_PAIRS[@]}"; do
+          if [[ "$CURRENT_PAIR_LOWER" == "$REQUIRED_PAIR_NORM" ]]; then
+            FOUND_IN_REQUIRED=true
+            break
+          fi
+        done
+        
+        # If not found in required pairs, mark for removal
+        if [[ "$FOUND_IN_REQUIRED" == "false" ]]; then
+          # Convert back to checksummed address format for removal
+          # CURRENT_PAIR format is "address|selector" (already lowercase from getCurrentWhitelistedPairs)
+          ADDRESS_PART="${CURRENT_PAIR_LOWER%%|*}"
+          SELECTOR_PART="${CURRENT_PAIR_LOWER#*|}"
+          CHECKSUMMED_ADDR=$(cast --to-checksum-address "$ADDRESS_PART")
+          REMOVED_PAIRS+=("$CHECKSUMMED_ADDR|$SELECTOR_PART")
+        fi
+      done
+    fi
 
     # Check for token contracts in the new addresses that will be added
     if [[ ! ${#NEW_ADDRESSES[@]} -eq 0 ]]; then
@@ -529,9 +597,107 @@ function diamondSyncWhitelist {
       fi
     fi
 
+    # Remove obsolete contract-selector pairs (process removals first)
+    if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
+      echoSyncStage "----- [$NETWORK] Stage 4a: Removing obsolete contract-selector pairs -----"
+      printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#REMOVED_PAIRS[@]} pairs to remove (no longer in whitelist files)"
+      echoSyncStep "🔍 [$NETWORK] Preparing removal transaction with ${#REMOVED_PAIRS[@]} pairs"
+      
+      # Prepare arrays for batch removal operation
+      local REMOVE_CONTRACT_ADDRESSES=()
+      local REMOVE_SELECTORS=()
+
+      echoSyncStep "🔄 [$NETWORK] Processing pairs for removal..."
+      for PAIR in "${REMOVED_PAIRS[@]}"; do
+        # Split pair by '|' to get address and selector
+        CHECKSUMMED_ADDRESS="${PAIR%%|*}"
+        SELECTOR="${PAIR#*|}"
+
+        if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
+          REMOVE_CONTRACT_ADDRESSES+=("$CHECKSUMMED_ADDRESS")
+          REMOVE_SELECTORS+=("$SELECTOR")
+        fi
+      done
+      echoSyncStep "✔️  [$NETWORK] Processed ${#REMOVE_CONTRACT_ADDRESSES[@]} addresses and ${#REMOVE_SELECTORS[@]} selectors for removal"
+
+      # Convert arrays to cast format
+      local REMOVE_CONTRACTS_ARRAY=""
+      local REMOVE_SELECTORS_ARRAY=""
+
+      local first=true
+      for addr in "${REMOVE_CONTRACT_ADDRESSES[@]}"; do
+        if [[ "$first" == "true" ]]; then
+          first=false
+        else
+          REMOVE_CONTRACTS_ARRAY+=","
+        fi
+        REMOVE_CONTRACTS_ARRAY+="$addr"
+      done
+
+      first=true
+      for sel in "${REMOVE_SELECTORS[@]}"; do
+        if [[ "$first" == "true" ]]; then
+          first=false
+        else
+          REMOVE_SELECTORS_ARRAY+=","
+        fi
+        REMOVE_SELECTORS_ARRAY+="$sel"
+      done
+
+      echoSyncDebug "Removal batch call parameters:"
+      echoSyncDebug "Contracts: $REMOVE_CONTRACTS_ARRAY"
+      echoSyncDebug "Selectors: $REMOVE_SELECTORS_ARRAY"
+
+      echoSyncStep ""
+      echoSyncStep "🚀 [$NETWORK] Starting removal transaction attempts..."
+      local REMOVE_ATTEMPTS=1
+      local REMOVE_SUCCESS=false
+      
+      while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing ${#REMOVE_CONTRACT_ADDRESSES[@]} pairs"
+
+        local REMOVE_TX_OUTPUT
+        REMOVE_TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" false --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
+        local REMOVE_TX_EXIT_CODE=$?
+
+        # Print transaction output for debugging (single-network runs only)
+        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
+          echo "$REMOVE_TX_OUTPUT"
+        fi
+
+        # Check if transaction succeeded
+        if [[ $REMOVE_TX_EXIT_CODE -eq 0 ]] && ([[ "$REMOVE_TX_OUTPUT" == *"blockHash"* ]] || [[ "$REMOVE_TX_OUTPUT" == *"transactionHash"* ]]); then
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal transaction successful!"
+          REMOVE_SUCCESS=true
+          break
+        else
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal transaction failed (attempt $REMOVE_ATTEMPTS)"
+        fi
+
+        REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
+      done
+
+      if [[ "$REMOVE_SUCCESS" == "false" ]]; then
+        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not remove ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+        {
+          echo "[$NETWORK] Error: Could not remove obsolete pairs"
+          echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[@]}"
+          echo ""
+        } >> "$FAILED_LOG_FILE"
+        # Continue with additions even if removals failed
+      else
+        # Brief wait for state to propagate after removal
+        sleep 2
+      fi
+    fi
+
     # Add missing contract-selector pairs
     if [[ ${#NEW_PAIRS[@]} -gt 0 ]]; then
-      echoSyncStage "----- [$NETWORK] Stage 4: Preparing and sending whitelist transactions -----"
+      if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
+        echoSyncStage "----- [$NETWORK] Stage 4b: Adding missing contract-selector pairs -----"
+      else
+        echoSyncStage "----- [$NETWORK] Stage 4: Preparing and sending whitelist transactions -----"
+      fi
       printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#NEW_PAIRS[@]} new pairs to add (out of ${#REQUIRED_PAIRS[@]} required)"
       echoSyncStep "🔍 [$NETWORK] Entering batch send section with ${#NEW_PAIRS[@]} pairs"
       # Prepare arrays for batch operation
@@ -772,7 +938,11 @@ function diamondSyncWhitelist {
         } >> "$FAILED_LOG_FILE"
       fi
     else
-      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Skipped - all contract-selector pairs are already whitelisted"
+      if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were removed"
+      else
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Skipped - all contract-selector pairs are already whitelisted and no obsolete pairs found"
+      fi
     fi
   }
 
