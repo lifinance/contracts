@@ -1,10 +1,25 @@
-# Transaction Trace Analysis Prompt
+---
+name: analyze-tx
+description: Analyze a failing transaction by hash and network
+usage: /analyze-tx <network> <tx_hash>
+---
 
-> **Activation**: Only use in "transaction-analysis mode" (gated by `.cursor/rules/transaction_analysis.cursorrules.mdc`). User must provide tx hash + network and ask to analyze/debug that specific transaction.
+# Transaction Trace Analysis Command
+
+> **Usage**: `/analyze-tx <network> <tx_hash>`
+>
+> Example: `/analyze-tx ethereum 0x1234...abcd`
+
+## Activation
+
+This command activates transaction-analysis mode. It requires:
+
+- Network name (e.g., `ethereum`, `polygon`, `arbitrum`)
+- Transaction hash (0x-prefixed hex string)
 
 ## Quick Checklist
 
-1. ✅ **Fetch Data** - Use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>` or user-provided RPC)
+1. ✅ **Fetch Data** - Use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>`` or user-provided RPC)
 2. ✅ **Identify** - Was LiFiDiamond called? If not, state: "Not one of our transactions"
 3. ✅ **Decode** - Extract calldata, `msg.value` (from receipt, NOT trace), map addresses to names
 4. ✅ **Facet** - Identify facet, load code, find config file (check deploy script for correct filename)
@@ -34,16 +49,19 @@
 - `src/Facets/<FacetName>.sol` - Facet code
 - `src/Libraries/LibSwap.sol` - SwapData structure
 - `src/Facets/CalldataVerificationFacet.sol` - Decoding logic
+- `out/<ContractName>.sol/<ContractName>.json` - Compiled contract ABIs with methodIdentifiers (for function selector identification)
 - `script/playgroundHelpers.sh` - Analysis utilities
 
 ## Data Fetching
 
 **Preferred:**
+
 ```bash
 bash -lc 'source script/helperFunctions.sh && source script/playgroundHelpers.sh && analyzeFailingTx "<NETWORK>" "<TX_HASH>"'
 ```
 
 **Fallback:** Ask user for premium RPC URL, use for:
+
 - `eth_getTransactionReceipt`
 - `debug_traceTransaction` (callTracer)
 - Optional: `cast run`
@@ -53,16 +71,19 @@ bash -lc 'source script/helperFunctions.sh && source script/playgroundHelpers.sh
 Use `CalldataVerificationFacet` patterns:
 
 **BridgeData:**
+
 ```solidity
 bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 ```
 
 **SwapData (if hasSourceSwaps):**
+
 ```solidity
 (, swapData) = abi.decode(data[4:], (ILiFi.BridgeData, LibSwap.SwapData[]));
 ```
 
 **Key functions:**
+
 - `extractBridgeData(bytes calldata data)` → `ILiFi.BridgeData`
 - `extractSwapData(bytes calldata data)` → `LibSwap.SwapData[]`
 - `extractMainParameters(bytes calldata data)` → Quick overview
@@ -82,27 +103,32 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 ## Analysis Steps
 
 ### 1. Fetch Transaction Data
+
 - Receipt: status, gas, logs, `to`/`from`, `value`
 - Trace: Complete execution flow, nested calls, value flow, ALL revert points
 - Cast run (if available): Revert reasons, call stack
 
 ### 2. Transaction Identification
+
 - Extract: hash, network, `to` address, `from`, calldata, `msg.value` (from receipt)
 - Check: Does `to` match LiFiDiamond? If indirect, trace to find LiFiDiamond call
 - Enrich: Map addresses from `deployments/<network>.json`
 
 ### 3. Facet & Protocol Identification
-- From function selector → facet name
+
+- From function selector → facet name (use `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers to map selectors to function signatures)
 - Load facet code: `src/Facets/<FacetName>.sol`
 - Find config: Check `script/deploy/facets/Deploy<FacetName>.s.sol` for config filename
 - Load config: `config/<configFileName>.json` for external contracts
 
 ### 4. Parameter Decoding
+
 - **BridgeData**: transactionId, bridge, integrator, sendingAssetId, receivingAssetId, receiver, destinationChainId, minAmount, hasSourceSwaps, hasDestinationCall
 - **SwapData** (if applicable): For each swap - callTo (enrich DEX name), approveTo, sendingAssetId, receivingAssetId, fromAmount, callData (decode selector), requiresDeposit
 - **FacetData**: Extract facet-specific params, check native fee requirements
 
 ### 5. Execution Trace Analysis
+
 - **Entry point**: Function called, input params
 - **Call stack**: Trace each nested call - caller, target, function, value, params, success/fail
 - **Value flow**: Track native value through execution, verify sufficiency at each step
@@ -110,6 +136,7 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 - **Failure points**: Identify ALL reverts, extract error messages, contract state at failure
 
 ### 6. Root Cause Analysis
+
 - What was expected vs. provided
 - Why it failed (specific validation/requirement that wasn't met)
 - What's needed to succeed
@@ -120,9 +147,11 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 # Transaction Analysis: [TX_HASH]
 
 ## Transaction Intent
+
 [One-sentence description]
 
 ## Root Transaction Details
+
 - **Network:** [name]
 - **From:** [address]
 - **To:** [contract name] ([address])
@@ -131,11 +160,15 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 - **Status:** [Success/Fail]
 
 ## Parameters Decoded
+
 ### BridgeData
+
 [transactionId, bridge, integrator, sendingAssetId, amount, receiver, destinationChainId, hasSourceSwaps, hasDestinationCall]
 
 ### SwapData (if applicable)
+
 **Swap 1:**
+
 - DEX: [name from whitelist]
 - From: [token] ([amount])
 - To: [token]
@@ -143,9 +176,11 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 - Function: [name] ([selector])
 
 ### Facet-Specific Data
+
 [Native Fee Required: [amount] - **CRITICAL**, other params]
 
 ## Execution Flow
+
 1. **[Step]:** [Description]
    - Caller: [name]
    - Target: [name]
@@ -153,22 +188,27 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
    - Result: [success/fail]
 
 [N] **[FAILURE POINT]:** [Description]
+
 - Error: [message]
 - Reason: [why failed]
 
 ## Root Cause Analysis
+
 **Primary Issue:** [One-sentence summary]
 
 **Detailed Explanation:**
+
 1. [What was expected]
 2. [What was provided]
 3. [Why it failed]
 4. [What's needed to succeed]
 
 ## Contract Addresses Reference
+
 [LiFiDiamond, FacetName, External Contracts, Tokens]
 
 ## Summary for Stakeholders
+
 **Transaction Purpose:** [What user was trying to do]
 **Failure Reason:** [Clear, non-technical explanation]
 **Required Fix:** [What needs to change]
@@ -178,6 +218,7 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 ## Quality Checks
 
 Before finalizing:
+
 - [ ] Premium RPC used (via `analyzeFailingTx` or user-provided)
 - [ ] LiFiDiamond involvement confirmed
 - [ ] Root tx value verified from receipt
@@ -189,3 +230,14 @@ Before finalizing:
 - [ ] ALL failure points identified
 - [ ] Root cause clearly explained
 - [ ] Summary clear for non-technical readers
+
+## Command Execution Flow
+
+When user invokes `/analyze-tx <network> <tx_hash>`:
+
+1. **Parse arguments**: Extract network and tx_hash from command
+2. **Validate inputs**: Ensure network is valid, tx_hash is hex format
+3. **Fetch transaction data**: Use premium RPC via `analyzeFailingTx` or prompt for RPC URL
+4. **Follow analysis steps**: Execute all steps from "Analysis Steps" section
+5. **Generate output**: Format results according to "Output Format" section
+6. **Quality check**: Verify all items in "Quality Checks" are complete

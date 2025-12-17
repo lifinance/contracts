@@ -1,0 +1,179 @@
+---
+name: GitHub Actions and CI/CD workflows
+description: Structure, conventions, and best practices for GitHub Actions workflows
+globs:
+  - '.github/workflows/**/*.yml'
+  - '.github/workflows/**/*.yaml'
+  - '.github/**/*.yml'
+  - '.github/**/*.yaml'
+alwaysApply: false
+---
+
+## GitHub Actions Conventions
+
+- Workflows: explicit permissions, comments, secrets via `${{ secrets.* }}`; clear step names & triggers.
+
+## GitHub Actions Workflow Structure
+
+### File Organization
+
+- **Location**: All workflow files must be in `.github/workflows/`
+- **Naming**: Use descriptive names ending in `.yml` (e.g., `versionControlAndAuditCheck.yml`, `protectAuditLabels.yml`)
+- **Deactivated workflows**: Move to `.github/workflows_deactivated/` instead of deleting
+
+### File Header and Documentation
+
+Every workflow file MUST start with a clear header comment block describing:
+
+1. **Purpose**: What the workflow does
+2. **Triggers**: When it runs (events, branches, paths)
+3. **Key behaviors**: Important actions it performs
+4. **Known limitations**: Any edge cases or disabled features
+
+Example header format:
+
+```yaml
+# Workflow Name
+# - Brief description of purpose
+# - Key behavior 1
+# - Key behavior 2
+# - Known limitations or special cases
+```
+
+### Workflow Structure
+
+#### Required Sections (in order)
+
+1. **Name**: Descriptive workflow name
+2. **On triggers**: Explicit event types and conditions
+3. **Permissions**: Minimal required permissions with comments explaining each
+4. **Jobs**: Organized by logical function
+
+#### Permissions
+
+- **Always document why each permission is needed** with inline comments
+- Use minimal permissions (principle of least privilege)
+- Common patterns:
+  - `contents: read` - Fetch repository contents
+  - `pull-requests: write` - Edit PR title, assign/remove labels, post comments
+  - `actions: write` - Upload/download artifacts between jobs
+  - `security-events: write` - Upload SARIF results to GitHub Code Scanning
+  - `issues: write` - Post comments via GitHub Issues API
+
+Example:
+
+```yaml
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: write # required to edit PR title and assign/remove labels
+  actions: write # required to upload/download artifacts between jobs
+```
+
+#### Job Organization
+
+- **Job names**: Use kebab-case (e.g., `version-control`, `audit-verification`)
+- **Conditional execution**: Use `if:` conditions to skip jobs when appropriate
+- **Job dependencies**: Use `needs:` to ensure proper execution order
+- **Concurrency**: Use `concurrency:` groups to prevent duplicate runs
+
+#### Step Documentation
+
+- **Step names**: Use clear, action-oriented names (e.g., "Checkout repository", "Verify version updates")
+- **Comments**: Add inline comments for complex logic, especially in shell scripts
+- **Error handling**: Include proper error messages with ANSI color codes for visibility
+- **Environment variables**: Document all custom environment variables
+
+### Shell Script Patterns
+
+When using shell scripts in workflow steps:
+
+1. **Error handling**: Use `set -e` where appropriate, or explicit error checks
+2. **Logging**: Use ANSI color codes for visibility:
+   - `\033[32m` - Green (success)
+   - `\033[31m` - Red (error)
+   - `\033[0m` - Reset
+3. **Variable initialization**: Initialize variables before use
+4. **Exit codes**: Use appropriate exit codes (0 for success, 1 for failure)
+5. **Comments**: Add descriptive comments for complex logic blocks
+
+Example:
+
+```bash
+##### Initialize empty variables
+CONTRACTS=""
+
+##### go through all file paths and identify all files in src/ folder
+while IFS= read -r FILE; do
+  if echo "${FILE}" | grep -E '^src/.*\.sol$'; then
+    CONTRACTS="${CONTRACTS}${FILE}"$'\n'
+  fi
+done <<< "${FILES}"
+```
+
+### Secrets Management
+
+- **Use GitHub Secrets**: Never hardcode sensitive data
+- **Naming convention**: Use descriptive names (e.g., `GIT_ACTIONS_BOT_PAT_CLASSIC`, `MONGODB_URI`)
+- **Access control**: Use service account tokens (e.g., `lifi-action-bot`) for automated actions
+- **Token usage**: Unset default `GITHUB_TOKEN` when using custom PATs:
+  ```bash
+  unset GITHUB_TOKEN
+  echo $GH_PAT | gh auth login --with-token
+  ```
+
+### Conditional Execution
+
+- **Draft PRs**: Skip workflows on draft PRs: `if: ${{ github.event.pull_request.draft == false }}`
+- **Branch targeting**: Check base branch: `if: ${{ github.event.pull_request.base.ref == 'main' }}`
+- **Path filters**: Use `paths:` to trigger only on relevant file changes
+- **Event types**: Specify exact event types needed (e.g., `types: [opened, synchronize, ready_for_review]`)
+
+### Artifact Management
+
+- **Upload artifacts**: Use `actions/upload-artifact@v4` for sharing data between jobs
+- **Download artifacts**: Use `actions/download-artifact@v4` in dependent jobs
+- **Artifact names**: Use descriptive names (e.g., `contracts_for_audit`)
+- **Cleanup**: Initialize empty files to prevent upload failures
+
+### Label Management
+
+- **Label assignment**: Use `actions-ecosystem/action-add-labels@v1` and `action-remove-labels@v1`
+- **Authorization**: Only allow specific bots (e.g., `lifi-action-bot`) to modify protected labels
+- **Verification**: Always verify label state after modification
+
+### PR Comments
+
+- **Comment identification**: Use unique markers (e.g., "🤖 GitHub Action: Security Alerts Review 🔍")
+- **Update vs. create**: Check for existing comments before creating new ones
+- **Formatting**: Use Markdown for readability (headers, lists, code blocks)
+- **Status indicators**: Use emojis for visual status (✅ success, ❌ error, ⚠️ warning)
+
+### Error Messages
+
+- **Clear messaging**: Provide actionable error messages
+- **Context**: Include relevant file paths, contract names, or identifiers
+- **Color coding**: Use ANSI colors for visibility in logs
+- **Exit behavior**: Fail fast with `exit 1` when critical checks fail
+
+### Testing and Validation
+
+- **Input validation**: Validate environment variables and inputs early
+- **State verification**: Verify expected state after operations (e.g., label assignment)
+- **Graceful degradation**: Handle missing data gracefully (e.g., empty file lists)
+- **Known limitations**: Document disabled checks or edge cases in comments
+
+### Integration Patterns
+
+- **Workflow dependencies**: Ensure prerequisite workflows complete before dependent workflows
+- **Status checks**: Verify upstream workflow success when needed
+- **Concurrency groups**: Use concurrency groups to prevent duplicate runs on same PR
+- **Manual triggers**: Include `workflow_dispatch` for manual execution when appropriate
+
+### Best Practices
+
+1. **Idempotency**: Design workflows to be safely re-runnable
+2. **Transparency**: Log all important decisions and state changes
+3. **Failure handling**: Provide clear error messages and recovery guidance
+4. **Performance**: Use path filters and conditional execution to minimize unnecessary runs
+5. **Maintainability**: Keep workflows focused on single responsibilities
+6. **Documentation**: Comment complex logic and document known limitations

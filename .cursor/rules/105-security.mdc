@@ -8,7 +8,6 @@ globs:
   - 'test/**/*.t.sol'
 ---
 
-- Treat security guidance in `conventions.md` ("Security and Governance", "Facet Contract Requirements", and "Solidity Standards → Error Handling") as authoritative before changing validation, access control, or error patterns.
 - Validate all external inputs and configuration (including script/env values) explicitly; prefer existing validation helpers (e.g., `Validatable`, config readers) over ad-hoc checks.
 - Do not weaken existing access controls, timelock flows, or Safe multisig protections; any change that touches admin-only functionality must call out its governance impact.
-- Avoid introducing new external call patterns in facets or scripts without checking existing libraries (`LibAsset`, `LibSwap`, `LibAllowList`) and related docs under `docs/` for prior art.
+- Avoid introducing new external call patterns in facets or scripts without checking existing libraries (`LibAsset`, `LibSwap`, `LibAllowList`) for prior art.
