@@ -1,0 +1,15 @@
+---
+name: Solidity contracts
+description: Production Solidity contracts/interfaces in src
+globs:
+  - 'src/**/*.sol'
+  - '!src/**/*.s.sol'
+  - '!src/**/*.t.sol'
+---
+
+- Do not modify production contracts in `src/` unless explicitly requested; changes to production logic could introduce bugs and may be overlooked.
+- NatSpec required on contracts/interfaces in `src/`: `@title`, `@author LI.FI (https://li.fi)`, `@notice`, `@custom:version X.Y.Z`; document all public/external functions with params/returns.
+- Bug bounty clarity: In contract NatSpec, explicitly document whether the contract is intended to hold/custody funds. If it is **not** designed to hold funds, state that clearly (e.g., “This contract is not intended to custody user funds / hold balances; any funds held are incidental (e.g., transient during execution) and should not persist.”). If it _is_ designed to hold funds (e.g., `FeeCollector`), describe what funds it holds and under what conditions.
+- Apply Diamond patterns with existing libs (LibAsset/LibSwap/LibAllowList, Validatable/SwapperV2); prefer parameters over `msg.sender` for refund addresses.
+- When adding a new deployable contract that has constructor arguments, add/update its entry in `script/deploy/resources/deployRequirements.json` so deploy scripts validate the presence of required constructor args.
+- When adding a new deployable contract, create a corresponding documentation page in `docs/` (mirroring existing docs conventions for new integrations/contracts).
