@@ -101,10 +101,6 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        nearIntentsFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForETH.selector
-        );
 
         // Set facet address in test base
         setFacetAddressInTestBase(
