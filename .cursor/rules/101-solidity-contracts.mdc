@@ -10,3 +10,5 @@ globs:
 - Do not modify production contracts in `src/` unless explicitly requested; changes to production logic could introduce bugs and may be overlooked.
 - NatSpec required on contracts/interfaces in `src/`: `@title`, `@author LI.FI (https://li.fi)`, `@notice`, `@custom:version X.Y.Z`; document all public/external functions with params/returns.
 - Apply Diamond patterns with existing libs (LibAsset/LibSwap/LibAllowList, Validatable/SwapperV2); prefer parameters over `msg.sender` for refund addresses.
+- When adding a new deployable contract that has constructor arguments, add/update its entry in `script/deploy/resources/deployRequirements.json` so deploy scripts validate the presence of required constructor args.
+- When adding a new deployable contract, create a corresponding documentation page in `docs/` (mirroring existing docs conventions for new integrations/contracts).
