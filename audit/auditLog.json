@@ -494,7 +494,7 @@
       "auditCompletedOn": "16.12.2025",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
-      "auditReportPath": "./audit/reports/2025.12.16_NearIntentsFacet(v1.0.0).pdf",
+      "auditReportPath": "./audit/reports/2025.12.16_NEARIntentsFacet(v1.0.0).pdf",
       "auditCommitHash": "4696d22e0522180707e9a63d8b53a60d7ac693ad"
     },
     "audit20251215_2": {
