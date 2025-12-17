@@ -8,7 +8,8 @@ usage: /add-new-rule
 
 > **Usage**: `/add-new-rule`
 
-This command is the single workflow for adding/updating Cursor **rules** (`.cursor/rules/*.mdc`) and **commands** (`.cursor/commands/*.mdc`) in this repo.
+This command is the single workflow for adding/updating Cursor **rules** (`.cursor/rules/*.mdc`) and **commands** (`.cursor/commands/*.md`) in this repo.
+This repo’s project commands should be stored as `.md` files in `.cursor/commands/` so Cursor can discover them for `/...` suggestions.
 
 ## Scoping & Activation (globs-first)
 

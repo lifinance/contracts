@@ -68,11 +68,11 @@ If you’re making changes manually:
 
 Custom commands live in `.cursor/commands/` and are invoked via `/...` in Cursor chat.
 
-| Command File       | Usage                             | Purpose                                                                                      |
-| ------------------ | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `add-new-rule.mdc` | `/add-new-rule`                   | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation) |
-| `add-audit.mdc`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
-| `analyze-tx.mdc`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
+| Command File      | Usage                             | Purpose                                                                                      |
+| ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `add-new-rule.md` | `/add-new-rule`                   | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation) |
+| `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
+| `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
 
 ## Transaction Analysis
 
