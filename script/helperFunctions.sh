@@ -16,62 +16,6 @@ BLUE='\033[1;34m'  # Light blue color
 NC='\033[0m' # No color
 
 # >>>>> logging
-function logContractDeploymentInfo_BACKUP {
-  # read function arguments into variables
-  local CONTRACT="$1"
-  local NETWORK="$2"
-  local TIMESTAMP="$3"
-  local VERSION="$4"
-  local OPTIMIZER_RUNS="$5"
-  local CONSTRUCTOR_ARGS="$6"
-  local ENVIRONMENT="$7"
-  local ADDRESS="$8"
-  local VERIFIED=$9
-
-  if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
-    error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
-  fi
-
-  # logging for debug purposes
-  echo ""
-  echoDebug "in function logContractDeploymentInfo"
-  echoDebug "CONTRACT=$CONTRACT"
-  echoDebug "NETWORK=$NETWORK"
-  echoDebug "TIMESTAMP=$TIMESTAMP"
-  echoDebug "VERSION=$VERSION"
-  echoDebug "OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
-  echoDebug "CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
-  echoDebug "ENVIRONMENT=$ENVIRONMENT"
-  echoDebug "ADDRESS=$ADDRESS"
-  echoDebug "VERIFIED=$VERIFIED"
-  echo ""
-
-  # Check if log FILE exists, if not create it
-  if [ ! -f "$LOG_FILE_PATH" ]; then
-    echo "{}" >"$LOG_FILE_PATH"
-  fi
-
-  # Check if log FILE already contains entry with same CONTRACT, NETWORK, ENVIRONMENT and VERSION
-  checkIfJSONContainsEntry "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" "$LOG_FILE_PATH"
-  if [ $? -eq 1 ]; then
-    echo "[warning]: deployment log file contained already an entry for (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION). This is unexpected behaviour since an existing CONTRACT should not have been re-deployed. A new entry was added to the log file. "
-  fi
-
-  # Append new JSON object to log FILE
-  jq -r --arg CONTRACT "$CONTRACT" \
-    --arg NETWORK "$NETWORK" \
-    --arg ENVIRONMENT "$ENVIRONMENT" \
-    --arg VERSION "$VERSION" \
-    --arg ADDRESS "$ADDRESS" \
-    --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
-    --arg TIMESTAMP "$TIMESTAMP" \
-    --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-    --arg VERIFIED "$VERIFIED" \
-    '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED  }]' \
-    "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
-
-  echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
-} # will add, if entry exists already
 function logContractDeploymentInfo {
   # read function arguments into variables
   local CONTRACT="$1"
@@ -111,125 +55,56 @@ function logContractDeploymentInfo {
   echoDebug "ZK_SOLC_VERSION=$ZK_SOLC_VERSION"
   echo ""
 
-  # Create lock file path
-  local LOCK_FILE="${LOG_FILE_PATH}.lock"
-  local LOCK_TIMEOUT=30 # 30 seconds timeout
-  local LOCK_ATTEMPTS=0
-  local MAX_LOCK_ATTEMPTS=60 # 60 attempts = 30 seconds total
-
-  # Wait for lock to be available
-  while [[ -f "$LOCK_FILE" && $LOCK_ATTEMPTS -lt $MAX_LOCK_ATTEMPTS ]]; do
-    sleep 0.5
-    LOCK_ATTEMPTS=$((LOCK_ATTEMPTS + 1))
-  done
-
-  # If we couldn't get the lock, fail
-  if [[ -f "$LOCK_FILE" ]]; then
-    error "Could not acquire lock for $LOG_FILE_PATH after $LOCK_TIMEOUT seconds. Another process may be stuck."
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment logging."
     return 1
   fi
 
-  # Create lock file
-  echo "$$" >"$LOCK_FILE"
+  echoDebug "logging deployment to MongoDB"
 
-  # Ensure lock is released on exit
-  trap 'rm -f "$LOCK_FILE" 2>/dev/null' EXIT
+  # Build MongoDB command as array for safe execution
+  local MONGO_CMD=(
+    bun script/deploy/update-deployment-logs.ts add
+    --env "$ENVIRONMENT"
+    --contract "$CONTRACT"
+    --network "$NETWORK"
+    --version "$VERSION"
+    --address "$ADDRESS"
+    --optimizer-runs "$OPTIMIZER_RUNS"
+    --timestamp "$TIMESTAMP"
+    --constructor-args "$CONSTRUCTOR_ARGS"
+    --verified "$VERIFIED"
+  )
 
-  # Check if log FILE exists, if not create it
-  if [ ! -f "$LOG_FILE_PATH" ]; then
-    echo "{}" >"$LOG_FILE_PATH"
+  # Add optional salt parameter if provided
+  if [[ -n "$SALT" ]]; then
+    MONGO_CMD+=(--salt "$SALT")
   fi
 
-  # Check if entry already exists in log FILE
-  local existing_entry=$(jq --arg CONTRACT "$CONTRACT" \
-    --arg NETWORK "$NETWORK" \
-    --arg ENVIRONMENT "$ENVIRONMENT" \
-    --arg VERSION "$VERSION" \
-    '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
-    "$LOG_FILE_PATH")
+  # Add version parameters if provided
+  if [[ -n "$SOLC_VERSION" ]]; then
+    MONGO_CMD+=(--solc-version "$SOLC_VERSION")
+  fi
+  if [[ -n "$EVM_VERSION" ]]; then
+    MONGO_CMD+=(--evm-version "$EVM_VERSION")
+  fi
+  if [[ -n "$ZK_SOLC_VERSION" ]]; then
+    MONGO_CMD+=(--zk-solc-version "$ZK_SOLC_VERSION")
+  fi
 
-  # Update existing entry or add new entry to log FILE
-  if [[ "$existing_entry" == "null" ]]; then
-    jq --arg CONTRACT "$CONTRACT" \
-      --arg NETWORK "$NETWORK" \
-      --arg ENVIRONMENT "$ENVIRONMENT" \
-      --arg VERSION "$VERSION" \
-      --arg ADDRESS "$ADDRESS" \
-      --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
-      --arg TIMESTAMP "$TIMESTAMP" \
-      --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg VERIFIED "$VERIFIED" \
-      --arg SALT "$SALT" \
-      --arg ZK_SOLC_VERSION "$ZK_SOLC_VERSION" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED, ZK_SOLC_VERSION: $ZK_SOLC_VERSION }]' \
-      "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
+  # Execute MongoDB logging command – keep stderr in debug mode
+  if [[ "$DEBUG" == "true" ]]; then
+    "${MONGO_CMD[@]}"
   else
-    jq --arg CONTRACT "$CONTRACT" \
-      --arg NETWORK "$NETWORK" \
-      --arg ENVIRONMENT "$ENVIRONMENT" \
-      --arg VERSION "$VERSION" \
-      --arg ADDRESS "$ADDRESS" \
-      --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
-      --arg TIMESTAMP "$TIMESTAMP" \
-      --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      --arg SALT "$SALT" \
-      --arg VERIFIED "$VERIFIED" \
-      --arg ZK_SOLC_VERSION "$ZK_SOLC_VERSION" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED, ZK_SOLC_VERSION: $ZK_SOLC_VERSION }' \
-      "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
+    "${MONGO_CMD[@]}" 2>/dev/null
   fi
 
-  # Remove lock file
-  rm -f "$LOCK_FILE"
-
-  echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
-
-  # Also log to MongoDB if enabled
-  if isMongoLoggingEnabled; then
-    echoDebug "logging to MongoDB as well"
-
-    # Build MongoDB command as array for safe execution
-    local MONGO_CMD=(
-      bun script/deploy/update-deployment-logs.ts add
-      --env "$ENVIRONMENT"
-      --contract "$CONTRACT"
-      --network "$NETWORK"
-      --version "$VERSION"
-      --address "$ADDRESS"
-      --optimizer-runs "$OPTIMIZER_RUNS"
-      --timestamp "$TIMESTAMP"
-      --constructor-args "$CONSTRUCTOR_ARGS"
-      --verified "$VERIFIED"
-    )
-
-    # Add optional salt parameter if provided
-    if [[ -n "$SALT" ]]; then
-      MONGO_CMD+=(--salt "$SALT")
-    fi
-
-    # Add version parameters if provided
-    if [[ -n "$SOLC_VERSION" ]]; then
-      MONGO_CMD+=(--solc-version "$SOLC_VERSION")
-    fi
-    if [[ -n "$EVM_VERSION" ]]; then
-      MONGO_CMD+=(--evm-version "$EVM_VERSION")
-    fi
-    if [[ -n "$ZK_SOLC_VERSION" ]]; then
-      MONGO_CMD+=(--zk-solc-version "$ZK_SOLC_VERSION")
-    fi
-
-    # Execute MongoDB logging command – keep stderr in debug mode
-    if [[ "$DEBUG" == "true" ]]; then
-      "${MONGO_CMD[@]}"
-    else
-      "${MONGO_CMD[@]}" 2>/dev/null
-    fi
-
-    if [[ $? -eq 0 ]]; then
-      echoDebug "contract deployment info added to MongoDB (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
-    else
-      echoDebug "MongoDB logging failed but continuing deployment (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
-    fi
+  if [[ $? -eq 0 ]]; then
+    echoDebug "contract deployment info added to MongoDB (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+  else
+    error "MongoDB logging failed for $CONTRACT on $NETWORK. Deployment cannot continue without logging."
+    return 1
   fi
 } # will replace, if entry exists already
 function getBytecodeFromLog() {
@@ -320,132 +195,70 @@ function findContractInMasterLog() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  # Try MongoDB first if enabled
-  if isMongoLoggingEnabled; then
-    MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
-    local MONGO_EXIT_CODE=$?
-    if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-      # Validate that the result is valid JSON before returning it
-      if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
-        echo "$MONGO_RESULT"
-        return 0
-      else
-        echoDebug "MongoDB result is not valid JSON, falling back to JSON file"
-      fi
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment queries."
+    exit 1
+  fi
+
+  # Query MongoDB
+  echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
+  MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+  local MONGO_EXIT_CODE=$?
+
+  if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Validate that the result is valid JSON before returning it
+    if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
+      echo "$MONGO_RESULT"
+      return 0
     else
-      echoDebug "MongoDB query failed, falling back to JSON file"
+      error "MongoDB returned invalid JSON for $CONTRACT on $NETWORK"
+      exit 1
     fi
   fi
 
-  # Fallback to original JSON file method
-  local FOUND=false
-
-  # Check if log file exists
-  if [ ! -f "$LOG_FILE_PATH" ]; then
-    echo "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run the script again."
-    exit 1
-  fi
-
-  # Process JSON data incrementally using jq
-  entries=$(jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '
-    . as $data |
-    keys[] as $contract |
-    $data[$contract] |
-    keys[] as $network |
-    $data[$contract][$network] |
-    keys[] as $environment |
-    $data[$contract][$network][$environment] |
-    keys[] as $version |
-    select($contract == $CONTRACT and $network == $NETWORK and $environment == $ENVIRONMENT and $version == $VERSION) |
-    $data[$contract][$network][$environment][$version][0]
-  ' "$LOG_FILE_PATH")
-
-  # Loop through the entries
-  while IFS= read -r entry; do
-    if [[ -n "$entry" ]]; then # If entry is not empty
-      FOUND=true
-      echo "$entry"
-    fi
-  done <<<"$entries"
-
-  if ! $FOUND; then
-    echo "[info] No matching entry found in deployments log file for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
-    exit 1
-  fi
-
-  exit 0
+  echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
+  exit 1
 }
 function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET_ADDRESS="$3"
 
-  # Try MongoDB first if enabled
-  if isMongoLoggingEnabled; then
-    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
-    local MONGO_RESULT
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-      --env "$ENVIRONMENT" \
-      --network "$NETWORK" \
-      --address "$TARGET_ADDRESS" 2>/dev/null)
-    local MONGO_EXIT=$?
-
-    if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
-      # Validate that MONGO_RESULT is valid JSON
-      if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
-        echoDebug "MongoDB returned invalid JSON, skipping: $MONGO_RESULT"
-        echoDebug "MongoDB query failed, falling back to JSON file"
-      else
-        # Convert MongoDB result to expected format
-        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
-
-        if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
-          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
-          echo "$JSON_ENTRY"
-          return 0
-        fi
-      fi
-    fi
-    echoDebug "MongoDB query failed, falling back to JSON file"
-  fi
-
-  # Fallback to original JSON file method
-  # Check if log file exists
-  if [ ! -f "$LOG_FILE_PATH" ]; then
-    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment queries."
     exit 1
   fi
 
-  # Read top-level keys into an array
-  CONTRACTS=($(jq -r 'keys[]' "$LOG_FILE_PATH"))
+  echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
+  local MONGO_RESULT
+  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+    --env "$ENVIRONMENT" \
+    --network "$NETWORK" \
+    --address "$TARGET_ADDRESS" 2>/dev/null)
+  local MONGO_EXIT=$?
 
-  # Loop through the array of top-level keys
-  for CONTRACT in "${CONTRACTS[@]}"; do
+  if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Validate that MONGO_RESULT is valid JSON
+    if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+      error "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK"
+      exit 1
+    fi
 
-    # Read VERSION keys for the network
-    VERSIONS=($(jq -r "if .${CONTRACT}.${NETWORK}.${ENVIRONMENT} | type == \"object\" then .${CONTRACT}.${NETWORK}.${ENVIRONMENT} | keys[] else empty end" "$LOG_FILE_PATH"))
+    # Convert MongoDB result to expected format
+    local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+    local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+    local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
 
-    # go through all versions
-    for VERSION in "${VERSIONS[@]}"; do
+    if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
+      local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+      echo "$JSON_ENTRY"
+      return 0
+    fi
+  fi
 
-      # get values of current entry
-      ENTRY=$(cat "$LOG_FILE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
-
-      # extract necessary information from log
-      ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
-
-      # check if address matches with target address
-      if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
-        JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT\", \"Version\": \"$VERSION\"}}"
-        echo "$JSON_ENTRY"
-        exit 0
-      fi
-    done
-  done
-
-  echo "[info] address not found"
+  echo "[info] address not found in MongoDB"
   exit 1
 }
 function getContractVersionFromMasterLog() {
@@ -454,60 +267,35 @@ function getContractVersionFromMasterLog() {
   local CONTRACT="$3"
   local TARGET_ADDRESS="$4"
 
-  # Try MongoDB first if enabled
-  if isMongoLoggingEnabled; then
-    echoDebug "Trying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS"
-    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-      --env="$ENVIRONMENT" \
-      --network="$NETWORK" \
-      --address="$TARGET_ADDRESS" 2>/dev/null)
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment queries."
+    return 1
+  fi
 
-    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
-      local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-      local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+  echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS"
+  local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+    --env="$ENVIRONMENT" \
+    --network="$NETWORK" \
+    --address="$TARGET_ADDRESS" 2>/dev/null)
 
-      if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" ]]; then
-        echo "$VERSION"
-        return 0
-      fi
+  if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+    local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+    local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+
+    # Handle CelerIMFacet variants
+    local EXPECTED_CONTRACT="$CONTRACT"
+    if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
+      EXPECTED_CONTRACT="CelerIMFacet"
     fi
-    echoDebug "MongoDB query failed, falling back to JSON file"
+
+    if [[ "$CONTRACT_NAME" == "$EXPECTED_CONTRACT" && "$VERSION" != "null" ]]; then
+      echo "$VERSION"
+      return 0
+    fi
   fi
 
-  # Fallback to original JSON file method
-  # special handling for CelerIMFacet
-  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-    CONTRACT="CelerIMFacet"
-  fi
-
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # check if the CONTRACT, NETWORK, and ENVIRONMENT keys exist in the JSON file
-  EXISTS=$(cat "$LOG_FILE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" '(.[$CONTRACT][$NETWORK][$ENVIRONMENT] // empty) != null')
-
-  if [[ "$EXISTS" == "true" ]]; then
-    # get all versions
-    VERSIONS=($(jq -r ".${CONTRACT}.${NETWORK}.${ENVIRONMENT} | keys[]" "$LOG_FILE_PATH"))
-
-    # loop through all versions
-    for VERSION in "${VERSIONS[@]}"; do
-      # read current entry
-      ENTRY=$(cat "$LOG_FILE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
-
-      # extract address
-      ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
-
-      # check if address matches
-      if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
-        # return version
-        echo "$VERSION"
-        return 0
-      fi
-    done
-  fi
-
-  # no matching entry found
+  # No matching entry found
   return 1
 }
 function getHighestDeployedContractVersionFromMasterLog() {
@@ -515,62 +303,35 @@ function getHighestDeployedContractVersionFromMasterLog() {
   local ENVIRONMENT="$2"
   local CONTRACT="$3"
 
-  # Try MongoDB first if enabled
-  if isMongoLoggingEnabled; then
-    echoDebug "Trying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT"
-    local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
-      --env="$ENVIRONMENT" \
-      --contract="$CONTRACT" \
-      --network="$NETWORK" \
-      --limit=50 2>/dev/null)
-
-    if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
-      # Extract all versions and find the highest one
-      local VERSIONS=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
-      if [[ -n "$VERSIONS" && "$VERSIONS" != "null" ]]; then
-        echo "$VERSIONS"
-        return 0
-      fi
-    fi
-    echoDebug "MongoDB query failed, falling back to JSON file"
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment queries."
+    return 1
   fi
 
-  # Fallback to original JSON file method
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT"
+  local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+    --env="$ENVIRONMENT" \
+    --contract="$CONTRACT" \
+    --network="$NETWORK" \
+    --limit=50 2>/dev/null)
 
-  # check if the CONTRACT, NETWORK, and ENVIRONMENT keys exist in the JSON file
-  EXISTS=$(cat "$LOG_FILE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" '(.[$CONTRACT][$NETWORK][$ENVIRONMENT] // empty) != null')
-
-  if [[ "$EXISTS" == "true" ]]; then
-    # get all versions
-    VERSIONS=($(jq -r ".${CONTRACT}.\"${NETWORK}\".${ENVIRONMENT} | keys[]" "$LOG_FILE_PATH"))
-
-    # Initialize the highest version variable
-    HIGHEST_VERSION="0.0.0"
-
-    # Iterate over each version in the array
-    for VERSION in "${VERSIONS[@]}"; do
-      # Compare the current version with the highest version found so far
-      if [[ "$VERSION" > "$HIGHEST_VERSION" ]]; then
-        HIGHEST_VERSION="$VERSION"
-      fi
-    done
-
-    # return the highest version
-    if [[ "$HIGHEST_VERSION" != "0.0.0" ]]; then
+  if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Extract all versions and find the highest one using version sort
+    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
+    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" ]]; then
       echo "$HIGHEST_VERSION"
       return 0
     fi
   fi
 
-  # no matching entry found
+  # No matching entry found
   return 1
 }
 # >>>>> MongoDB logging integration
 function isMongoLoggingEnabled() {
-  # Check if MongoDB logging is enabled via environment variable
-  if [[ "$ENABLE_MONGODB_LOGGING" == "true" && -n "$MONGODB_URI" ]]; then
+  # Check if MongoDB URI is configured
+  if [[ -n "$MONGODB_URI" ]]; then
     return 0
   else
     return 1
@@ -838,6 +599,13 @@ function getConstructorArgsFromMasterLog() {
   local ENVIRONMENT="$3"
   local VERSION=${4:-} # Optional version parameter
 
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment queries."
+    echo ""
+    return 1
+  fi
+
   # If version is not provided, get the highest deployed version
   if [ -z "$VERSION" ]; then
     VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
@@ -847,28 +615,26 @@ function getConstructorArgsFromMasterLog() {
     fi
   fi
 
-  # Check if log file exists
-  if [ ! -f "$LOG_FILE_PATH" ]; then
-    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
-    echo ""
-    return 1
+  echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION"
+
+  # Query MongoDB for the specific deployment
+  local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
+    --env "$ENVIRONMENT" \
+    --contract "$CONTRACT" \
+    --network "$NETWORK" \
+    --version "$VERSION" 2>/dev/null)
+
+  if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs')
+
+    if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
+      echo "$CONSTRUCTOR_ARGS"
+      return 0
+    fi
   fi
 
-  # Extract constructor arguments using jq
-  local CONSTRUCTOR_ARGS=$(jq -r --arg CONTRACT "$CONTRACT" \
-    --arg NETWORK "$NETWORK" \
-    --arg ENVIRONMENT "$ENVIRONMENT" \
-    --arg VERSION "$VERSION" \
-    '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0].CONSTRUCTOR_ARGS' \
-    "$LOG_FILE_PATH")
-
-  if [[ "$CONSTRUCTOR_ARGS" == "null" || -z "$CONSTRUCTOR_ARGS" ]]; then
-    echo ""
-    return 1
-  fi
-
-  echo "$CONSTRUCTOR_ARGS"
-  return 0
+  echo ""
+  return 1
 }
 
 function saveDiamond_DEPRECATED() {
@@ -1284,8 +1050,8 @@ function saveContract() {
 # >>>>> lock file management
 function cleanupStaleLocks() {
   # Clean up any stale lock files that might be left behind
+  # Note: Master log file no longer uses locks (MongoDB handles concurrency)
   local LOCK_FILES=(
-    "${LOG_FILE_PATH}.lock"
     "./deployments/"*.lock
   )
 
