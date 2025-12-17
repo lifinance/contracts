@@ -913,23 +913,41 @@ const checkWhitelistIntegrity = async (
         onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
       }
     }
-    let missingPairs = 0
-    let stalePairs = 0
+    const missingPairsList: string[] = []
+    const stalePairsList: string[] = []
     for (const expected of expectedPairSet) {
-      if (!onChainPairSet.has(expected)) missingPairs++
+      if (!onChainPairSet.has(expected)) missingPairsList.push(expected)
     }
     for (const onChain of onChainPairSet) {
-      if (!expectedPairSet.has(onChain)) stalePairs++
+      if (!expectedPairSet.has(onChain)) stalePairsList.push(onChain)
     }
-    if (missingPairs === 0 && stalePairs === 0) {
+    if (missingPairsList.length === 0 && stalePairsList.length === 0) {
       consola.success(
         `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
       )
     } else {
-      if (missingPairs > 0)
-        logError(`Pair Array is missing ${missingPairs} pairs from config.`)
-      if (stalePairs > 0)
-        logError(`Pair Array has ${stalePairs} stale pairs not in config.`)
+      if (missingPairsList.length > 0) {
+        logError(
+          `Pair Array is missing ${missingPairsList.length} pairs from config:`
+        )
+        missingPairsList.forEach((pair) => {
+          const [contract, selector] = pair.split(':')
+          consola.error(`  Missing: ${contract} / ${selector}`)
+        })
+        consola.info(`\n💡 To fix run diamondSyncWhitelist script`)
+      }
+      if (stalePairsList.length > 0) {
+        logError(
+          `Pair Array has ${stalePairsList.length} stale pairs not in config:`
+        )
+        stalePairsList.forEach((pair) => {
+          const [contract, selector] = pair.split(':')
+          consola.error(`  Stale: ${contract} / ${selector}`)
+        })
+        consola.info(
+          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist <network> <environment>`
+        )
+      }
     }
   } catch (error) {
     logError(`Failed during getter array checks: ${error.message}`)
