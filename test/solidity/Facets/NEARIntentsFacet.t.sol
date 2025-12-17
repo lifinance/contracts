@@ -905,12 +905,12 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, address(diamond));
         emit NEARIntentsFacet.NEARIntentsBridgeStarted(
             bridgeData.transactionId,
-            validNearData.quoteId,
-            validNearData.depositAddress,
+            customNearData.quoteId,
+            customNearData.depositAddress,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
-            validNearData.deadline,
-            validNearData.minAmountOut
+            customNearData.deadline,
+            customNearData.minAmountOut
         );
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
