@@ -19,7 +19,7 @@ This command activates transaction-analysis mode. It requires:
 
 ## Quick Checklist
 
-1. ✅ **Fetch Data** - Use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>`` or user-provided RPC)
+1. ✅ **Fetch Data** - Use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>` or user-provided RPC)
 2. ✅ **Identify** - Was LiFiDiamond called? If not, state: "Not one of our transactions"
 3. ✅ **Decode** - Extract calldata, `msg.value` (from receipt, NOT trace), map addresses to names
 4. ✅ **Facet** - Identify facet, load code, find config file (check deploy script for correct filename)
