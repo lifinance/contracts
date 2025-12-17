@@ -411,7 +411,7 @@ function diamondSyncWhitelist {
 
     echoSyncDebug "Found ${#REQUIRED_PAIRS[@]} required pairs from whitelist files"
     if [[ ${#REQUIRED_PAIRS[@]} -gt 0 ]]; then
-      echoSyncDebug "Required pairs: ${REQUIRED_PAIRS[@]}"
+      echoSyncDebug "Required pairs: ${REQUIRED_PAIRS[*]}"
     fi
 
     if [[ ${#REQUIRED_PAIRS[@]} -eq 0 ]]; then
@@ -581,16 +581,16 @@ function diamondSyncWhitelist {
       if [[ ${#TOKEN_CONTRACTS[@]} -gt 0 ]]; then
         if [[ "$ALLOW_TOKEN_CONTRACTS" == "true" ]]; then
           printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Token contracts detected but proceeding (ALLOW_TOKEN_CONTRACTS=true)"
-          printf '\033[0;33m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[@]}"
+          printf '\033[0;33m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[*]}"
         else
           printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Token contracts detected in new addresses - aborting whitelist sync"
-          printf '\033[0;31m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[@]}"
+          printf '\033[0;31m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[*]}"
           echo ""
           printf '\033[0;33m%s\033[0m\n' "💡 To bypass this check, set ALLOW_TOKEN_CONTRACTS=true and run again:"
           echo ""
           {
             echo "[$NETWORK] Error: Token contracts detected in new addresses"
-            echo "[$NETWORK] Token addresses: ${TOKEN_CONTRACTS[@]}"
+            echo "[$NETWORK] Token addresses: ${TOKEN_CONTRACTS[*]}"
           } >> "$FAILED_LOG_FILE"
           return
         fi
@@ -681,7 +681,7 @@ function diamondSyncWhitelist {
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not remove ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
         {
           echo "[$NETWORK] Error: Could not remove obsolete pairs"
-          echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[@]}"
+          echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[*]}"
           echo ""
         } >> "$FAILED_LOG_FILE"
         # Continue with additions even if removals failed
@@ -933,7 +933,7 @@ function diamondSyncWhitelist {
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] - Could not whitelist all ${#NEW_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
         {
           echo "[$NETWORK] Error: Could not whitelist all pairs"
-          echo "[$NETWORK] Missing pairs: ${MISSING_PAIRS[@]}"
+          echo "[$NETWORK] Missing pairs: ${MISSING_PAIRS[*]}"
           echo ""
         } >> "$FAILED_LOG_FILE"
       fi
