@@ -1,0 +1,38 @@
+---
+name: Git workflow and pull request conventions
+description: Branching strategy, PR targeting, and git command guidance
+globs:
+  - '.git/**'
+  - '.github/pull_request_template.md'
+  - '.github/**/*.md'
+  - '**/*.md'
+alwaysApply: false
+---
+
+## Git Workflow and Branching Strategy
+
+### Branching Model
+
+- **Base branch**: All feature branches must be created directly from `main`
+- **Branch naming**: Use descriptive names (e.g., `feature/add-new-bridge`, `fix/hop-integration`, `chore/update-deps`)
+
+### Pull Request Targeting
+
+- **Default target**: Pull Requests should target `main` directly
+- **Splitting large topics**: For large topics, it is acceptable to split into multiple smaller, focused PRs. In such cases:
+  - Create a feature branch from `main` (e.g., `feature/large-topic`)
+  - Create multiple PRs targeting this feature branch (not `main`)
+  - This allows reviewing cumulative changes together in the GitHub changes tab
+  - Once all component PRs are merged into the feature branch, create a final PR from the feature branch to `main`
+- **Rationale**: Default to `main` simplifies review and reduces merge conflicts. Feature branch targeting for large topics enables better cumulative change review
+
+### Special Cases: Always Target Main
+
+Certain file types **must always** target `main`, regardless of whether related work is fully merged:
+
+- **`config/whitelist.json`**: Any PR that updates `whitelist.json` must target `main`, even if:
+  - The new network isn't fully merged yet with `main`
+  - The network is still not in `networks.json`
+  - This is totally fine and expected
+
+- **`config/composerWhitelist.json`**: Any PR that updates `composerWhitelist.json` must target `main`, following the same guidelines as `whitelist.json` (even if related network work isn't fully merged)
