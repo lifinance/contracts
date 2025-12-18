@@ -10,35 +10,16 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { MongoClient, type Db, type Collection, type ObjectId } from 'mongodb'
+import { MongoClient, type Db, type Collection } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
 
-import { ValidationUtils } from './shared/mongo-log-utils'
-
-// Reuse the same DeploymentRecord interface
-interface IDeploymentRecord {
-  _id?: ObjectId
-  contractName: string
-  network: string
-  version: string
-  address: string
-  optimizerRuns: string
-  timestamp: Date
-  constructorArgs: string
-  salt?: string
-  verified: boolean
-  createdAt: Date
-  updatedAt: Date
-  contractNetworkKey: string
-  contractVersionKey: string
-}
-
-interface IConfig {
-  mongoUri: string
-  batchSize: number
-  databaseName: string
-}
+import {
+  type IDeploymentRecord,
+  type IConfig,
+  type DeploymentEnvironment,
+  ValidationUtils,
+} from './shared/mongo-log-utils'
 
 const config: IConfig = {
   mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
@@ -125,9 +106,10 @@ class DeploymentLogQuerier {
   }
 
   public async findByAddress(
-    address: string
+    address: string,
+    network: string
   ): Promise<IDeploymentRecord | null> {
-    return this.collection.findOne({ address })
+    return this.collection.findOne({ address, network })
   }
 
   public async filterDeployments(filters: {
@@ -230,7 +212,7 @@ const latestCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
@@ -310,7 +292,7 @@ const listCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
     const limit = ValidationUtils.safeParseInt(args.limit, 50, 1, 1000)
     const page = ValidationUtils.safeParseInt(args.page, 1, 1)
@@ -376,6 +358,11 @@ const findCommand = defineCommand({
       description: 'Contract address',
       required: true,
     },
+    network: {
+      type: 'string',
+      description: 'Network name',
+      required: true,
+    },
     format: {
       type: 'string',
       description: 'Output format (json or table)',
@@ -397,12 +384,12 @@ const findCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
       await querier.connect()
-      const deployment = await querier.findByAddress(args.address)
+      const deployment = await querier.findByAddress(args.address, args.network)
 
       if (deployment)
         if (args.format === 'table') console.log(formatDeployment(deployment))
@@ -480,7 +467,7 @@ const filterCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     const filters: Record<string, unknown> = {}
@@ -558,7 +545,7 @@ const historyCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
@@ -627,7 +614,7 @@ const existsCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
@@ -699,7 +686,7 @@ const getCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as 'staging' | 'production'
+      args.env as DeploymentEnvironment
     )
 
     try {
