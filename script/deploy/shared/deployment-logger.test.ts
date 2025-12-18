@@ -10,6 +10,9 @@
  * - Error handling and edge cases
  */
 
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import path from 'path'
+
 import {
   describe,
   it,
@@ -18,14 +21,12 @@ import {
   afterEach,
   mock,
   spyOn,
+  // eslint-disable-next-line import/no-unresolved, import/order
 } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import path from 'path'
-
 import type { UpdateResult } from 'mongodb'
 
-import { DeploymentLogger, logDeployment } from './deployment-logger'
 import type { DeploymentCache } from './deployment-cache'
+import { DeploymentLogger, logDeployment } from './deployment-logger'
 import {
   DatabaseConnectionManager,
   type IConfig,
@@ -194,7 +195,7 @@ describe('deployment-logger', () => {
     it('should throw error when MONGODB_URI is not set', async () => {
       delete process.env.MONGODB_URI
 
-      await expect(async () => {
+      expect(async () => {
         await logDeployment(createMockDeployment(), 'staging')
       }).toThrow('MONGODB_URI is required but not set')
     })
@@ -202,7 +203,7 @@ describe('deployment-logger', () => {
     it('should throw error with empty MONGODB_URI', async () => {
       process.env.MONGODB_URI = ''
 
-      await expect(async () => {
+      expect(async () => {
         await logDeployment(createMockDeployment(), 'staging')
       }).toThrow('MONGODB_URI is required but not set')
     })
@@ -290,6 +291,7 @@ describe('deployment-logger', () => {
       expect(mockCollection.updateOne).toHaveBeenCalled()
 
       const calls = mockCollection.updateOne.mock.calls
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [filter, update, options] = calls[0] as any[]
 
       // Verify filter
@@ -329,6 +331,7 @@ describe('deployment-logger', () => {
 
       // Verify createdAt is in $setOnInsert
       const calls = mockCollection.updateOne.mock.calls
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [, update] = calls[0] as any[]
 
       expect(update.$setOnInsert.createdAt).toBeInstanceOf(Date)
@@ -403,7 +406,7 @@ describe('deployment-logger', () => {
         cache: mockCache,
       })
 
-      await expect(
+      expect(
         logger.log(createMockDeployment(), 'staging', { silent: true })
       ).rejects.toThrow('MongoDB connection failed')
     })
@@ -424,7 +427,7 @@ describe('deployment-logger', () => {
         cache: mockCache,
       })
 
-      await expect(
+      expect(
         logger.log(createMockDeployment(), 'staging', { silent: true })
       ).rejects.toThrow('MongoDB write failed')
 
@@ -534,12 +537,14 @@ describe('deployment-logger', () => {
       expect(mockCollection.bulkWrite).toHaveBeenCalled()
 
       const calls = mockCollection.bulkWrite.mock.calls
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [operations, options] = calls[0] as any[]
 
       // Verify operations
       expect(operations).toHaveLength(2)
 
       // Verify each operation has correct structure
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       operations.forEach((op: any) => {
         expect(op.updateOne).toBeDefined()
         expect(op.updateOne.filter).toBeDefined()
@@ -573,7 +578,7 @@ describe('deployment-logger', () => {
 
       const deployments = [createMockDeployment()]
 
-      await expect(
+      expect(
         logger.logBatch(deployments, 'staging', { silent: true })
       ).rejects.toThrow('MongoDB bulk write failed')
 
@@ -794,7 +799,7 @@ describe('deployment-logger', () => {
       })
 
       // Should not throw, just warn
-      await expect(
+      expect(
         logger.log(createMockDeployment(), 'staging', {
           updateLocalJson: true,
           silent: true,
@@ -821,7 +826,7 @@ describe('deployment-logger', () => {
       })
 
       // Should not throw, just warn
-      await expect(
+      expect(
         logger.log(createMockDeployment(), 'staging', {
           updateLocalJson: true,
           silent: true,
@@ -967,7 +972,7 @@ describe('deployment-logger', () => {
           batchSize: 100,
           databaseName: 'contract-deployments',
         },
-        localJsonPath: expect.stringContaining('_deployments_log_file.json'),
+        localJsonPath: path.join(TEST_TEMP_DIR, '_deployments_log_file.json'),
       })
 
       await logger.log(createMockDeployment(), 'staging', { silent: true })
@@ -1014,6 +1019,7 @@ describe('deployment-logger', () => {
 
       // Verify all fields were included in update
       const calls = mockCollection.updateOne.mock.calls
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [, update] = calls[0] as any[]
       const setClause = update.$set
 
@@ -1096,12 +1102,12 @@ describe('deployment-logger', () => {
       })
 
       // First call should fail
-      await expect(
+      expect(
         logger.log(createMockDeployment(), 'staging', { silent: true })
       ).rejects.toThrow('Temporary connection failure')
 
       // Second call should succeed
-      await expect(
+      expect(
         logger.log(createMockDeployment(), 'staging', { silent: true })
       ).resolves.toBeUndefined()
 

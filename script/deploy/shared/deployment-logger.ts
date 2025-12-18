@@ -123,7 +123,7 @@ export class DeploymentLogger {
       }
 
       // Remove createdAt before using in $set to prevent overwriting original timestamp
-      const { createdAt, ...recordForSet } = record
+      const { createdAt: _createdAt, ...recordForSet } = record
 
       // Write to MongoDB (primary source)
       await collection.updateOne(
