@@ -416,7 +416,7 @@ function getDefaultLogger(): DeploymentLogger {
  */
 export async function logDeployment(
   deployment: Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>,
-  environment: 'staging' | 'production',
+  environment: keyof typeof EnvironmentEnum,
   options?: ILogOptions
 ): Promise<void> {
   const logger = getDefaultLogger()
@@ -434,7 +434,7 @@ export async function logDeploymentBatch(
   deployments: Array<
     Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>
   >,
-  environment: 'staging' | 'production',
+  environment: keyof typeof EnvironmentEnum,
   options?: ILogOptions
 ): Promise<void> {
   const logger = getDefaultLogger()
