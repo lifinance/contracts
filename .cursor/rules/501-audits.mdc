@@ -1,0 +1,73 @@
+---
+name: Audit log and audit report management
+description: Rules for maintaining audit logs, audit reports, and audit-related workflows
+globs:
+  - 'audit/**/*.json'
+  - 'audit/**/*.pdf'
+  - '.github/workflows/**/*audit*.yml'
+  - '.github/workflows/**/*version*.yml'
+alwaysApply: false
+---
+
+## File Structure
+
+- **Audit log**: `audit/auditLog.json`
+- **Audit reports**: `audit/reports/` (PDF files only)
+
+## Audit Log JSON Structure
+
+`auditLog.json` contains two sections:
+
+1. **`audits`**: Audit entries keyed by unique audit ID (`auditYYYYMMDD` or `auditYYYYMMDD_N` for multiple same-day audits)
+2. **`auditedContracts`**: Maps contract name → version → array of audit IDs
+
+### Required Fields
+
+Each audit entry must contain:
+
+- `auditCompletedOn`: Date (`DD.MM.YYYY` or `YYYY-MM-DD`)
+- `auditedBy`: Auditor name/firm (format: "Name (individual security researcher)" or "Firm Name")
+- `auditorGitHandle`: GitHub username
+- `auditReportPath`: Relative path to PDF (e.g., `"./audit/reports/2025.01.06_ContractName(v1.0.0).pdf"`)
+- `auditCommitHash`: Commit hash that was audited (or "n/a" with explanation)
+
+### Contract Mapping
+
+- Contract name must match Solidity contract name (filename without `.sol`)
+- Version must match `@custom:version` tag in contract
+- Multiple audits per version supported (array of audit IDs)
+
+## Report File Naming
+
+- **Single contract**: `YYYY.MM.DD_ContractName(version).pdf` (e.g., `2025.01.06_AcrossFacetV3(v1.1.0).pdf`)
+- **Multiple contracts**: `YYYY.MM.DD_CustomFileName.pdf` (e.g., `2025.01.10_Cantina_PreComp.pdf`)
+- Date format: `YYYY.MM.DD` (must match `auditCompletedOn` date, even if JSON uses different format)
+
+## Audit Requirements
+
+- **All contracts in `src/`** require audits except:
+  - Interfaces (`src/Interfaces/**`) - type definitions only, no audits needed
+  - External dependencies in `lib/` - not audited by us
+- **Version changes**: Any contract version change requires new audit entry
+- **Exemptions**: Comment-only or pragma-only changes don't require version bumps or audits
+
+## Adding Audit Entries
+
+1. Generate unique audit ID (`auditYYYYMMDD` or `auditYYYYMMDD_N`)
+2. Add entry to `audits` with all required fields
+3. Update `auditedContracts` mapping (contract name → version → audit ID array)
+4. Upload PDF to `audit/reports/` with correct naming
+5. Verify `auditReportPath` matches actual file location
+6. Validate JSON syntax (no trailing commas, proper escaping)
+
+## Validation
+
+- All required fields present
+- Valid date format, paths point to existing PDFs, valid commit hash or "n/a" with explanation
+- Valid GitHub username, no duplicate audit IDs
+- All audit IDs in `auditedContracts` exist in `audits`
+- Contract versions match `@custom:version` tags
+
+## Automated Verification
+
+- CI enforces audit-log/report expectations (see `.github/workflows/versionControlAndAuditCheck.yml`).
