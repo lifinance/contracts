@@ -122,6 +122,9 @@ export class DeploymentLogger {
         contractVersionKey: `${deployment.contractName}-${deployment.version}`,
       }
 
+      // Remove createdAt before using in $set to prevent overwriting original timestamp
+      const { createdAt, ...recordForSet } = record
+
       // Write to MongoDB (primary source)
       await collection.updateOne(
         {
@@ -132,7 +135,7 @@ export class DeploymentLogger {
         },
         {
           $set: {
-            ...record,
+            ...recordForSet,
             updatedAt: now,
           },
           $setOnInsert: {
