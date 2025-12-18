@@ -274,12 +274,15 @@ function getContractVersionFromMasterLog() {
   fi
 
   echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS"
-  local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+  local MONGO_RESULT
+  local EXIT_CODE
+  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
     --env="$ENVIRONMENT" \
     --network="$NETWORK" \
     --address="$TARGET_ADDRESS" 2>/dev/null)
+  EXIT_CODE=$?
 
-  if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+  if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
     local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
 
@@ -310,13 +313,16 @@ function getHighestDeployedContractVersionFromMasterLog() {
   fi
 
   echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT"
-  local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+  local MONGO_RESULT
+  local EXIT_CODE
+  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" \
     --limit=50 2>/dev/null)
+  EXIT_CODE=$?
 
-  if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+  if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     # Extract all versions and find the highest one using version sort
     local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
     if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" ]]; then
@@ -618,13 +624,16 @@ function getConstructorArgsFromMasterLog() {
   echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION"
 
   # Query MongoDB for the specific deployment
-  local MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
+  local MONGO_RESULT
+  local EXIT_CODE
+  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
     --network "$NETWORK" \
     --version "$VERSION" 2>/dev/null)
+  EXIT_CODE=$?
 
-  if [[ $? -eq 0 && -n "$MONGO_RESULT" ]]; then
+  if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs')
 
     if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
