@@ -357,11 +357,23 @@ let defaultLogger: DeploymentLogger | null = null
 /**
  * Gets or creates the default logger instance
  * @returns Default DeploymentLogger instance
+ * @throws Error if MONGODB_URI environment variable is not set
  */
 function getDefaultLogger(): DeploymentLogger {
   if (!defaultLogger) {
+    // Validate that MONGODB_URI is set - fail fast if not configured
+    if (!process.env.MONGODB_URI) {
+      consola.error('MONGODB_URI environment variable is not set.')
+      consola.error(
+        'MongoDB is required for deployment logging. Please set MONGODB_URI in your environment.'
+      )
+      throw new Error(
+        'MONGODB_URI is required but not set. Cannot proceed with deployment logging.'
+      )
+    }
+
     const mongoConfig: IConfig = {
-      mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+      mongoUri: process.env.MONGODB_URI,
       batchSize: 100,
       databaseName: 'contract-deployments',
     }
