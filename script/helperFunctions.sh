@@ -198,7 +198,7 @@ function findContractInMasterLog() {
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
     error "MONGODB_URI is not set. MongoDB is required for deployment queries."
-    exit 1
+    return 1
   fi
 
   # Query MongoDB
@@ -213,12 +213,12 @@ function findContractInMasterLog() {
       return 0
     else
       error "MongoDB returned invalid JSON for $CONTRACT on $NETWORK"
-      exit 1
+      return 1
     fi
   fi
 
   echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
-  exit 1
+  return 1
 }
 function findContractInMasterLogByAddress() {
   local NETWORK="$1"
@@ -228,7 +228,7 @@ function findContractInMasterLogByAddress() {
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
     error "MONGODB_URI is not set. MongoDB is required for deployment queries."
-    exit 1
+    return 1
   fi
 
   echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
@@ -243,7 +243,7 @@ function findContractInMasterLogByAddress() {
     # Validate that MONGO_RESULT is valid JSON
     if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
       error "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK"
-      exit 1
+      return 1
     fi
 
     # Convert MongoDB result to expected format
@@ -259,7 +259,7 @@ function findContractInMasterLogByAddress() {
   fi
 
   echo "[info] address not found in MongoDB"
-  exit 1
+  return 1
 }
 function getContractVersionFromMasterLog() {
   local NETWORK="$1"
