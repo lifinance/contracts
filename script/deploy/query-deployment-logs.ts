@@ -13,6 +13,7 @@ import { consola } from 'consola'
 import { MongoClient, type Db, type Collection } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
 import {
   type IDeploymentRecord,
@@ -21,7 +22,7 @@ import {
 } from './shared/mongo-log-utils'
 
 const config: IConfig = {
-  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+  mongoUri: getEnvVar('MONGODB_URI'),
   batchSize: 100,
   databaseName: 'contract-deployments',
 }

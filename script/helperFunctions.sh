@@ -286,13 +286,7 @@ function getContractVersionFromMasterLog() {
     local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
     local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
 
-    # Handle CelerIMFacet variants
-    local EXPECTED_CONTRACT="$CONTRACT"
-    if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-      EXPECTED_CONTRACT="CelerIMFacet"
-    fi
-
-    if [[ "$CONTRACT_NAME" == "$EXPECTED_CONTRACT" && "$VERSION" != "null" ]]; then
+    if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" ]]; then
       echo "$VERSION"
       return 0
     fi
