@@ -431,19 +431,6 @@ class DeploymentValidator {
 
       if (results.inconsistencies.length > 0)
         consola.info('  - Review inconsistencies and update records as needed')
-      // Filter out version mismatches as they're shown above
-      const nonVersionInconsistencies = results.inconsistencies.filter(
-        (inc) => inc.field !== 'version'
-      )
-      for (const inc of nonVersionInconsistencies.slice(0, 20)) {
-        // Show first 20
-        consola.warn(`  ${inc.key}`)
-        consola.warn(`    Field: ${inc.field}`)
-        consola.warn(`    MongoDB: ${JSON.stringify(inc.mongoValue)}`)
-        consola.warn(`    JSON: ${JSON.stringify(inc.jsonValue)}`)
-      }
-      if (nonVersionInconsistencies.length > 20)
-        consola.warn(`  ... and ${nonVersionInconsistencies.length - 20} more`)
     }
   }
 }
