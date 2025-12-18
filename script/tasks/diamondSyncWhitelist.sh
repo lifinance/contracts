@@ -519,7 +519,7 @@ function diamondSyncWhitelist {
         # This selector makes isAddressWhitelisted(_contract) return true for backward
         # compatibility with legacy address-only checks, but does not allow any granular calls.
         APPROVE_TO_SELECTOR="0xffffffff"
-        SELECTOR_LOWER=$(echo "$APPROVE_TO_SELECTOR" | tr '[:upper:]' '[:lower:]')
+        SELECTOR_LOWER="$APPROVE_TO_SELECTOR"
         PAIR_KEY="$ADDRESS_LOWER|$SELECTOR_LOWER"
         NORMALIZED_REQUIRED_PAIRS+=("$PAIR_KEY")
 
@@ -603,46 +603,31 @@ function diamondSyncWhitelist {
       printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#REMOVED_PAIRS[@]} pairs to remove (no longer in whitelist files)"
       echoSyncStep "🔍 [$NETWORK] Preparing removal transaction with ${#REMOVED_PAIRS[@]} pairs"
       
-      # Prepare arrays for batch removal operation
-      local REMOVE_CONTRACT_ADDRESSES=()
-      local REMOVE_SELECTORS=()
+      # Build comma-separated strings directly in cast format
+      local REMOVE_CONTRACTS_ARRAY=""
+      local REMOVE_SELECTORS_ARRAY=""
+      local REMOVE_COUNT=0
 
       echoSyncStep "🔄 [$NETWORK] Processing pairs for removal..."
+      local first=true
       for PAIR in "${REMOVED_PAIRS[@]}"; do
         # Split pair by '|' to get address and selector
         CHECKSUMMED_ADDRESS="${PAIR%%|*}"
         SELECTOR="${PAIR#*|}"
 
         if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
-          REMOVE_CONTRACT_ADDRESSES+=("$CHECKSUMMED_ADDRESS")
-          REMOVE_SELECTORS+=("$SELECTOR")
+          if [[ "$first" == "true" ]]; then
+            first=false
+          else
+            REMOVE_CONTRACTS_ARRAY+=","
+            REMOVE_SELECTORS_ARRAY+=","
+          fi
+          REMOVE_CONTRACTS_ARRAY+="$CHECKSUMMED_ADDRESS"
+          REMOVE_SELECTORS_ARRAY+="$SELECTOR"
+          ((REMOVE_COUNT++))
         fi
       done
-      echoSyncStep "✔️  [$NETWORK] Processed ${#REMOVE_CONTRACT_ADDRESSES[@]} addresses and ${#REMOVE_SELECTORS[@]} selectors for removal"
-
-      # Convert arrays to cast format
-      local REMOVE_CONTRACTS_ARRAY=""
-      local REMOVE_SELECTORS_ARRAY=""
-
-      local first=true
-      for addr in "${REMOVE_CONTRACT_ADDRESSES[@]}"; do
-        if [[ "$first" == "true" ]]; then
-          first=false
-        else
-          REMOVE_CONTRACTS_ARRAY+=","
-        fi
-        REMOVE_CONTRACTS_ARRAY+="$addr"
-      done
-
-      first=true
-      for sel in "${REMOVE_SELECTORS[@]}"; do
-        if [[ "$first" == "true" ]]; then
-          first=false
-        else
-          REMOVE_SELECTORS_ARRAY+=","
-        fi
-        REMOVE_SELECTORS_ARRAY+="$sel"
-      done
+      echoSyncStep "✔️  [$NETWORK] Processed $REMOVE_COUNT pairs for removal"
 
       echoSyncDebug "Removal batch call parameters:"
       echoSyncDebug "Contracts: $REMOVE_CONTRACTS_ARRAY"
@@ -654,7 +639,7 @@ function diamondSyncWhitelist {
       local REMOVE_SUCCESS=false
       
       while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing ${#REMOVE_CONTRACT_ADDRESSES[@]} pairs"
+        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
 
         local REMOVE_TX_OUTPUT
         REMOVE_TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" false --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
@@ -700,13 +685,15 @@ function diamondSyncWhitelist {
       fi
       printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#NEW_PAIRS[@]} new pairs to add (out of ${#REQUIRED_PAIRS[@]} required)"
       echoSyncStep "🔍 [$NETWORK] Entering batch send section with ${#NEW_PAIRS[@]} pairs"
-      # Prepare arrays for batch operation
+      # Build comma-separated strings directly in cast format
       # batchSetContractSelectorWhitelist expects: address[], bytes4[], bool
       # where each address corresponds to one selector
-      local CONTRACT_ADDRESSES=()
-      local SELECTORS=()
+      local CONTRACTS_ARRAY=""
+      local SELECTORS_ARRAY=""
+      local PAIR_COUNT=0
 
       echoSyncStep "🔄 [$NETWORK] Processing pairs..."
+      local first=true
       for PAIR in "${NEW_PAIRS[@]}"; do
         # Split pair by '|' to get address and selector(s)
         CHECKSUMMED_ADDRESS="${PAIR%%|*}"
@@ -719,42 +706,20 @@ function diamondSyncWhitelist {
           local SELECTOR_ARRAY=($(echo "$SELECTORS_STR" | tr ',' ' '))
           for SEL in "${SELECTOR_ARRAY[@]}"; do
             if [[ -n "$SEL" && "$SEL" != "" ]]; then
-              CONTRACT_ADDRESSES+=("$CHECKSUMMED_ADDRESS")
-              SELECTORS+=("$SEL")
+              if [[ "$first" == "true" ]]; then
+                first=false
+              else
+                CONTRACTS_ARRAY+=","
+                SELECTORS_ARRAY+=","
+              fi
+              CONTRACTS_ARRAY+="$CHECKSUMMED_ADDRESS"
+              SELECTORS_ARRAY+="$SEL"
+              ((PAIR_COUNT++))
             fi
           done
         fi
       done
-      echoSyncStep "✔️  [$NETWORK] Processed ${#CONTRACT_ADDRESSES[@]} addresses and ${#SELECTORS[@]} selectors"
-
-      # Convert arrays to cast format (each address/selector as separate arg)
-      echoSyncStep ""
-      echoSyncStep "🔧 [$NETWORK] Converting arrays to cast format..."
-      local CONTRACTS_ARRAY=""
-      local SELECTORS_ARRAY=""
-
-      echoSyncStep "🔧 [$NETWORK] Starting array conversion loop..."
-      # Build comma-separated lists for cast (format: addr1,addr2,addr3)
-      local first=true
-      for addr in "${CONTRACT_ADDRESSES[@]}"; do
-        if [[ "$first" == "true" ]]; then
-          first=false
-        else
-          CONTRACTS_ARRAY+=","
-        fi
-        CONTRACTS_ARRAY+="$addr"
-      done
-
-      first=true
-      for sel in "${SELECTORS[@]}"; do
-        if [[ "$first" == "true" ]]; then
-          first=false
-        else
-          SELECTORS_ARRAY+=","
-        fi
-        SELECTORS_ARRAY+="$sel"
-      done
-      echoSyncStep "🔧 [$NETWORK] Array conversion loop completed"
+      echoSyncStep "✔️  [$NETWORK] Processed $PAIR_COUNT pairs"
       echoSyncStep "📝 [$NETWORK] Prepared batch call arrays"
       echoSyncDebug "Batch call parameters:"
       echoSyncDebug "Contracts: $CONTRACTS_ARRAY"
@@ -767,7 +732,7 @@ function diamondSyncWhitelist {
         # Use batchSetContractSelectorWhitelist for efficiency
         # This function is idempotent - calling it multiple times with same pairs is safe
         # but inefficient. We call it once with ALL pairs.
-        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $ATTEMPTS: Calling batchSetContractSelectorWhitelist with ${#CONTRACT_ADDRESSES[@]} pairs"
+        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $ATTEMPTS: Calling batchSetContractSelectorWhitelist with $PAIR_COUNT pairs"
 
         # Capture transaction output to check if it succeeded
         local TX_OUTPUT
@@ -933,7 +898,7 @@ function diamondSyncWhitelist {
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] - Could not whitelist all ${#NEW_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
         {
           echo "[$NETWORK] Error: Could not whitelist all pairs"
-          echo "[$NETWORK] Missing pairs: ${MISSING_PAIRS[*]}"
+          echo "[$NETWORK] Missing pairs: ${NEW_PAIRS[*]}"
           echo ""
         } >> "$FAILED_LOG_FILE"
       fi
