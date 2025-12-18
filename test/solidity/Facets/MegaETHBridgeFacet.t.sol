@@ -17,6 +17,8 @@ contract TestMegaETHBridgeFacet is
 {}
 
 contract MegaETHBridgeFacetTest is TestBase {
+    event MegaETHBridgeRegistered(address indexed assetId, address bridge);
+
     // These values are for Mainnet
     address internal constant USDC_ADDRESS =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -221,7 +223,7 @@ contract MegaETHBridgeFacetTest is TestBase {
         );
 
         vm.expectEmit(true, false, false, true, address(megaETHBridgeFacet));
-        emit MegaETHBridgeFacet.MegaETHBridgeRegistered(newToken, newBridge);
+        emit MegaETHBridgeRegistered(newToken, newBridge);
 
         megaETHBridgeFacet.registerMegaETHBridge(newToken, newBridge);
     }
