@@ -21,13 +21,13 @@ import path from 'path'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
 import {
   DatabaseConnectionManager,
   type IConfig,
   type IDeploymentRecord,
-  type DeploymentEnvironment,
   RecordTransformer,
   createDeploymentKey,
 } from './shared/mongo-log-utils'
@@ -100,7 +100,7 @@ class DeploymentValidator {
    * Loads records from MongoDB
    */
   private async loadFromMongo(
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): Promise<IDeploymentRecord[]> {
     const collection =
       this.dbManager.getCollection<IDeploymentRecord>(environment)
@@ -111,7 +111,7 @@ class DeploymentValidator {
    * Loads records from JSON file
    */
   private loadFromJson(
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): IDeploymentRecord[] {
     try {
       const jsonData = JSON.parse(readFileSync(logFilePath, 'utf8'))
@@ -191,7 +191,7 @@ class DeploymentValidator {
    * Validates deployment logs for a given environment
    */
   public async validate(
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): Promise<IValidationResults> {
     consola.info(`Validating ${environment} deployment logs...`)
 
@@ -484,10 +484,10 @@ const validateCommand = defineCommand({
     try {
       await validator.connect()
 
-      const environments: DeploymentEnvironment[] =
+      const environments: (keyof typeof EnvironmentEnum)[] =
         args.env === 'all'
           ? ['staging', 'production']
-          : [args.env as DeploymentEnvironment]
+          : [args.env as keyof typeof EnvironmentEnum]
 
       const allResults: IValidationResults[] = []
 

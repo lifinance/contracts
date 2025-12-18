@@ -21,10 +21,11 @@ import {
   MongoClient,
 } from 'mongodb'
 
+import type { EnvironmentEnum } from '../common/types'
+
 import {
   type IDeploymentRecord,
   type IUpdateConfig,
-  type DeploymentEnvironment,
   RecordTransformer,
 } from './shared/mongo-log-utils'
 
@@ -68,7 +69,7 @@ class DeploymentLogManager {
 
   public constructor(
     private config: IUpdateConfig,
-    private environment: DeploymentEnvironment
+    private environment: keyof typeof EnvironmentEnum
   ) {
     this.client = new MongoClient(config.mongoUri)
   }
@@ -566,7 +567,7 @@ const syncCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -714,7 +715,7 @@ const addCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -862,7 +863,7 @@ const updateCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -906,7 +907,7 @@ const createIndexesCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {

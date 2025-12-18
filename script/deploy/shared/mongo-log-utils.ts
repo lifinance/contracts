@@ -7,6 +7,8 @@ import {
   type Document,
 } from 'mongodb'
 
+import type { EnvironmentEnum } from '../../common/types'
+
 /**
  * Represents a deployment record stored in MongoDB
  * @interface IDeploymentRecord
@@ -138,7 +140,7 @@ export class DatabaseConnectionManager {
    * @throws {Error} When database is not connected
    */
   public getCollection<T extends Document = IDeploymentRecord>(
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): Collection<T> {
     if (!this.db)
       throw new Error('Database not connected. Call connect() first.')
@@ -200,7 +202,9 @@ export class ValidationUtils {
    * @param env - The environment string to validate
    * @returns True if env is 'staging' or 'production'
    */
-  public static isValidEnvironment(env: string): env is DeploymentEnvironment {
+  public static isValidEnvironment(
+    env: string
+  ): env is keyof typeof EnvironmentEnum {
     return env === 'staging' || env === 'production'
   }
 
@@ -434,11 +438,6 @@ ${deployment.salt ? `Salt: ${deployment.salt}` : ''}
 export function createDeploymentKey(record: IDeploymentRecord): string {
   return `${record.contractName}-${record.network}-${record.version}-${record.address}`
 }
-
-/**
- * Deployment environment type - used throughout the codebase
- */
-export type DeploymentEnvironment = 'staging' | 'production'
 
 /**
  * Raw deployment data structure from JSON files

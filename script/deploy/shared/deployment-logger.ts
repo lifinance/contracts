@@ -26,13 +26,14 @@ import path from 'path'
 
 import { consola } from 'consola'
 
+import type { EnvironmentEnum } from '../../common/types'
+
 import type { DeploymentCache } from './deployment-cache'
 import { createDefaultCache } from './deployment-cache'
 import {
   DatabaseConnectionManager,
   type IDeploymentRecord,
   type IConfig,
-  type DeploymentEnvironment,
 } from './mongo-log-utils'
 
 /**
@@ -94,7 +95,7 @@ export class DeploymentLogger {
    */
   public async log(
     deployment: Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>,
-    environment: DeploymentEnvironment,
+    environment: keyof typeof EnvironmentEnum,
     options: ILogOptions = {}
   ): Promise<void> {
     const {
@@ -170,7 +171,7 @@ export class DeploymentLogger {
     deployments: Array<
       Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>
     >,
-    environment: DeploymentEnvironment,
+    environment: keyof typeof EnvironmentEnum,
     options: ILogOptions = {}
   ): Promise<void> {
     const {
@@ -268,7 +269,7 @@ export class DeploymentLogger {
    */
   private async updateLocalJsonFile(
     record: IDeploymentRecord,
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): Promise<void> {
     if (!this.localJsonPath) return
 

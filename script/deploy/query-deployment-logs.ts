@@ -17,7 +17,6 @@ import type { EnvironmentEnum } from '../common/types'
 import {
   type IDeploymentRecord,
   type IConfig,
-  type DeploymentEnvironment,
   ValidationUtils,
 } from './shared/mongo-log-utils'
 
@@ -212,7 +211,7 @@ const latestCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -292,7 +291,7 @@ const listCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
     const limit = ValidationUtils.safeParseInt(args.limit, 50, 1, 1000)
     const page = ValidationUtils.safeParseInt(args.page, 1, 1)
@@ -384,7 +383,7 @@ const findCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -467,7 +466,7 @@ const filterCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     const filters: Record<string, unknown> = {}
@@ -545,7 +544,7 @@ const historyCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -614,7 +613,7 @@ const existsCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -686,7 +685,7 @@ const getCommand = defineCommand({
 
     const querier = new DeploymentLogQuerier(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
