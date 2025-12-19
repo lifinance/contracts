@@ -696,6 +696,7 @@ const existsCommand = defineCommand({
       process.exit(deployments.length > 0 ? 0 : 1)
     } catch (error) {
       // Exit with error code on failure
+      consola.error('Error checking deployment existence:', error)
       await querier.disconnect()
       process.exit(1)
     } finally {
@@ -783,6 +784,7 @@ const getCommand = defineCommand({
         if (args.format === 'table') console.log(formatDeployment(deployment))
         else console.log(JSON.stringify(deployment, null, 2))
       } catch (error) {
+        consola.error('Error querying cached deployment logs:', error)
         process.exit(1)
       }
     } else {
@@ -815,6 +817,7 @@ const getCommand = defineCommand({
         if (args.format === 'table') console.log(formatDeployment(deployment))
         else console.log(JSON.stringify(deployment, null, 2))
       } catch (error) {
+        consola.error('Error querying deployment logs:', error)
         await querier.disconnect()
         process.exit(1)
       } finally {
