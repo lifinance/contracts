@@ -15,6 +15,7 @@ import { MongoClient, type Db, type Collection } from 'mongodb'
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
+import { CachedDeploymentQuerier } from './shared/cached-deployment-querier'
 import {
   type IDeploymentRecord,
   type IConfig,
@@ -196,6 +197,12 @@ const latestCommand = defineCommand({
       description: 'Output format (json or table)',
       default: 'json',
     },
+    useCache: {
+      type: 'boolean',
+      description:
+        'Use local cache (default: true, use --no-use-cache to disable)',
+      default: true,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -210,31 +217,57 @@ const latestCommand = defineCommand({
       process.exit(1)
     }
 
-    const querier = new DeploymentLogQuerier(
-      config,
-      args.env as keyof typeof EnvironmentEnum
-    )
-
-    try {
-      await querier.connect()
-      const deployment = await querier.getLatestDeployment(
-        args.contract,
-        args.network
+    // Use cached querier by default
+    if (args.useCache) {
+      const cachedQuerier = new CachedDeploymentQuerier(
+        config,
+        args.env as keyof typeof EnvironmentEnum
       )
 
-      if (deployment)
-        if (args.format === 'table') console.log(formatDeployment(deployment))
-        else outputJSON(deployment)
-      else {
-        await querier.disconnect()
+      try {
+        const deployment = await cachedQuerier.getLatestDeployment(
+          args.contract,
+          args.network
+        )
+
+        if (deployment) {
+          if (args.format === 'table') console.log(formatDeployment(deployment))
+          else outputJSON(deployment)
+        } else {
+          process.exit(1)
+        }
+      } catch (error) {
+        consola.error('Query failed:', error)
         process.exit(1)
       }
-    } catch (error) {
-      consola.error('Query failed:', error)
-      await querier.disconnect()
-      process.exit(1)
-    } finally {
-      await querier.disconnect()
+    } else {
+      // Fallback to direct MongoDB query (when --no-use-cache is specified)
+      const querier = new DeploymentLogQuerier(
+        config,
+        args.env as keyof typeof EnvironmentEnum
+      )
+
+      try {
+        await querier.connect()
+        const deployment = await querier.getLatestDeployment(
+          args.contract,
+          args.network
+        )
+
+        if (deployment) {
+          if (args.format === 'table') console.log(formatDeployment(deployment))
+          else outputJSON(deployment)
+        } else {
+          await querier.disconnect()
+          process.exit(1)
+        }
+      } catch (error) {
+        consola.error('Query failed:', error)
+        await querier.disconnect()
+        process.exit(1)
+      } finally {
+        await querier.disconnect()
+      }
     }
   },
 })
@@ -451,6 +484,12 @@ const filterCommand = defineCommand({
       description: 'Output format (json or table)',
       default: 'json',
     },
+    useCache: {
+      type: 'boolean',
+      description:
+        'Use local cache (default: true, use --no-use-cache to disable)',
+      default: true,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -465,11 +504,6 @@ const filterCommand = defineCommand({
       process.exit(1)
     }
 
-    const querier = new DeploymentLogQuerier(
-      config,
-      args.env as keyof typeof EnvironmentEnum
-    )
-
     const filters: Record<string, unknown> = {}
     if (args.contract) filters.contractName = args.contract
     if (args.network) filters.network = args.network
@@ -478,26 +512,58 @@ const filterCommand = defineCommand({
     if (args.limit)
       filters.limit = ValidationUtils.safeParseInt(args.limit, 50, 1, 1000)
 
-    try {
-      await querier.connect()
-      const deployments = await querier.filterDeployments(filters)
+    // Use cached querier by default
+    if (args.useCache) {
+      const cachedQuerier = new CachedDeploymentQuerier(
+        config,
+        args.env as keyof typeof EnvironmentEnum
+      )
 
-      if (deployments.length > 0)
-        if (args.format === 'table') {
-          consola.success(`Found ${deployments.length} deployment(s):`)
-          deployments.forEach((deployment) => {
-            console.log(formatDeployment(deployment))
-          })
-        } else outputJSON(deployments)
-      else if (args.format === 'table')
-        consola.warn('No deployments found matching criteria')
-      else outputJSON([])
-    } catch (error) {
-      consola.error('Query failed:', error)
-      await querier.disconnect()
-      process.exit(1)
-    } finally {
-      await querier.disconnect()
+      try {
+        const deployments = await cachedQuerier.filterDeployments(filters)
+
+        if (deployments.length > 0) {
+          if (args.format === 'table') {
+            consola.success(`Found ${deployments.length} deployment(s):`)
+            deployments.forEach((deployment) => {
+              console.log(formatDeployment(deployment))
+            })
+          } else outputJSON(deployments)
+        } else if (args.format === 'table')
+          consola.warn('No deployments found matching criteria')
+        else outputJSON([])
+      } catch (error) {
+        consola.error('Query failed:', error)
+        process.exit(1)
+      }
+    } else {
+      // Fallback to direct MongoDB query (when --no-use-cache is specified)
+      const querier = new DeploymentLogQuerier(
+        config,
+        args.env as keyof typeof EnvironmentEnum
+      )
+
+      try {
+        await querier.connect()
+        const deployments = await querier.filterDeployments(filters)
+
+        if (deployments.length > 0) {
+          if (args.format === 'table') {
+            consola.success(`Found ${deployments.length} deployment(s):`)
+            deployments.forEach((deployment) => {
+              console.log(formatDeployment(deployment))
+            })
+          } else outputJSON(deployments)
+        } else if (args.format === 'table')
+          consola.warn('No deployments found matching criteria')
+        else outputJSON([])
+      } catch (error) {
+        consola.error('Query failed:', error)
+        await querier.disconnect()
+        process.exit(1)
+      } finally {
+        await querier.disconnect()
+      }
     }
   },
 })
@@ -670,6 +736,12 @@ const getCommand = defineCommand({
       description: 'Output format (json or table)',
       default: 'json',
     },
+    useCache: {
+      type: 'boolean',
+      description:
+        'Use local cache (default: true, use --no-use-cache to disable)',
+      default: true,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -684,38 +756,70 @@ const getCommand = defineCommand({
       process.exit(1)
     }
 
-    const querier = new DeploymentLogQuerier(
-      config,
-      args.env as keyof typeof EnvironmentEnum
-    )
+    // Use cached querier by default
+    if (args.useCache) {
+      const cachedQuerier = new CachedDeploymentQuerier(
+        config,
+        args.env as keyof typeof EnvironmentEnum
+      )
 
-    try {
-      await querier.connect()
-      const deployments = await querier.filterDeployments({
-        contractName: args.contract,
-        network: args.network,
-        version: args.version,
-        limit: 1,
-      })
+      try {
+        const deployments = await cachedQuerier.filterDeployments({
+          contractName: args.contract,
+          network: args.network,
+          version: args.version,
+          limit: 1,
+        })
 
-      if (deployments.length === 0) {
-        await querier.disconnect()
+        if (deployments.length === 0) {
+          process.exit(1)
+        }
+
+        const deployment = deployments[0]
+        if (!deployment) {
+          process.exit(1)
+        }
+
+        if (args.format === 'table') console.log(formatDeployment(deployment))
+        else console.log(JSON.stringify(deployment, null, 2))
+      } catch (error) {
         process.exit(1)
       }
+    } else {
+      // Fallback to direct MongoDB query (when --no-use-cache is specified)
+      const querier = new DeploymentLogQuerier(
+        config,
+        args.env as keyof typeof EnvironmentEnum
+      )
 
-      const deployment = deployments[0]
-      if (!deployment) {
+      try {
+        await querier.connect()
+        const deployments = await querier.filterDeployments({
+          contractName: args.contract,
+          network: args.network,
+          version: args.version,
+          limit: 1,
+        })
+
+        if (deployments.length === 0) {
+          await querier.disconnect()
+          process.exit(1)
+        }
+
+        const deployment = deployments[0]
+        if (!deployment) {
+          await querier.disconnect()
+          process.exit(1)
+        }
+
+        if (args.format === 'table') console.log(formatDeployment(deployment))
+        else console.log(JSON.stringify(deployment, null, 2))
+      } catch (error) {
         await querier.disconnect()
         process.exit(1)
+      } finally {
+        await querier.disconnect()
       }
-
-      if (args.format === 'table') console.log(formatDeployment(deployment))
-      else console.log(JSON.stringify(deployment, null, 2))
-    } catch (error) {
-      await querier.disconnect()
-      process.exit(1)
-    } finally {
-      await querier.disconnect()
     }
   },
 })

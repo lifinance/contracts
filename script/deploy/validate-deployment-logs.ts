@@ -24,6 +24,8 @@ import { consola } from 'consola'
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
+import type { DeploymentCache } from './shared/deployment-cache'
+import { createDefaultCache } from './shared/deployment-cache'
 import {
   DatabaseConnectionManager,
   type IConfig,
@@ -77,9 +79,11 @@ interface IValidationResults {
  */
 class DeploymentValidator {
   private dbManager: DatabaseConnectionManager
+  private cache: DeploymentCache
 
-  public constructor(config: IConfig) {
+  public constructor(config: IConfig, cache?: DeploymentCache) {
     this.dbManager = DatabaseConnectionManager.getInstance(config)
+    this.cache = cache || createDefaultCache(config)
   }
 
   /**
@@ -97,14 +101,14 @@ class DeploymentValidator {
   }
 
   /**
-   * Loads records from MongoDB
+   * Loads records from MongoDB using cache
+   * Cache automatically refreshes if stale (TTL expired)
    */
   private async loadFromMongo(
     environment: keyof typeof EnvironmentEnum
   ): Promise<IDeploymentRecord[]> {
-    const collection =
-      this.dbManager.getCollection<IDeploymentRecord>(environment)
-    return collection.find({}).toArray()
+    // Use cache instead of direct MongoDB query for better performance
+    return this.cache.get(environment)
   }
 
   /**
