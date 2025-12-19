@@ -57,13 +57,13 @@
     "web3": "4.16.0"
   },
   "scripts": {
-    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
+    "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
     "abi:removeDuplicateEvents": "bunx tsx ./script/removeDuplicateEventsFromABI.ts",
     "add-network-rpc": "bunx tsx ./script/mongoDb/add-network-rpc.ts",
     "add-safe-owners-and-threshold": "bunx tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "codegen": "plop",
     "compile": "forge build",
-    "confirm-safe-tx": "bun abi:generate && bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",
+    "confirm-safe-tx": "bun typechain && bun abi:generate && bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",
     "deploy-safe": "bunx tsx ./script/deploy/safe/deploy-safe.ts",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
