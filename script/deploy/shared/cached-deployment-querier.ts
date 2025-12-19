@@ -128,9 +128,10 @@ export class CachedDeploymentQuerier {
     network: string
   ): Promise<IDeploymentRecord | null> {
     const records = await this.getAllRecords()
+    const normalizedAddress = address.toLowerCase()
 
     return (
-      records.find((r) => r.address === address && r.network === network) ||
+      records.find((r) => r.address.toLowerCase() === normalizedAddress && r.network === network) ||
       null
     )
   }
