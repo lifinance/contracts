@@ -253,17 +253,14 @@ const latestCommand = defineCommand({
           args.contract,
           args.network
         )
-
         if (deployment) {
           if (args.format === 'table') console.log(formatDeployment(deployment))
           else outputJSON(deployment)
         } else {
-          await querier.disconnect()
           process.exit(1)
         }
       } catch (error) {
         consola.error('Query failed:', error)
-        await querier.disconnect()
         process.exit(1)
       } finally {
         await querier.disconnect()
