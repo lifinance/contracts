@@ -382,10 +382,11 @@ function findContractInMasterLogByAddress() {
 
   # Try MongoDB first if enabled
   if isMongoLoggingEnabled; then
-    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS"
+    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
     local MONGO_RESULT
     MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
       --env "$ENVIRONMENT" \
+      --network "$NETWORK" \
       --address "$TARGET_ADDRESS" 2>/dev/null)
     local MONGO_EXIT=$?
 
@@ -1526,6 +1527,31 @@ function getFunctionSelectorsFromContractABI() {
   # return the selectors array
   echo "${BYTES4_SELECTORS[@]}"
 }
+
+function verifySelectorMatchesSignature() {
+  local SIGNATURE="$1"
+  local EXPECTED_SELECTOR="$2"
+
+  # Calculate selector from signature using cast sig (which uses keccak256)
+  local CALCULATED_SELECTOR=$(cast sig "$SIGNATURE" 2>/dev/null)
+  local CALC_EXIT_CODE=$?
+
+  if [ $CALC_EXIT_CODE -ne 0 ] || [ -z "$CALCULATED_SELECTOR" ]; then
+    return 1
+  fi
+
+  # Normalize both selectors for comparison (lowercase, ensure 0x prefix)
+  local NORMALIZED_EXPECTED=$(echo "$EXPECTED_SELECTOR" | tr '[:upper:]' '[:lower:]' | sed 's/^0x//')
+  local NORMALIZED_CALCULATED=$(echo "$CALCULATED_SELECTOR" | tr '[:upper:]' '[:lower:]' | sed 's/^0x//')
+
+  # Compare selectors
+  if [ "$NORMALIZED_EXPECTED" == "$NORMALIZED_CALCULATED" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 function getOptimizerRuns() {
   # define FILE path for foundry config FILE
   FILEPATH="foundry.toml"
@@ -4250,6 +4276,8 @@ function checkDeployRequirements() {
       KEY_IN_FILE=$(jq -r --arg CONTRACT "$CONTRACT" --arg REQUIREMENT "$REQUIREMENT" '.[$CONTRACT].configData[$REQUIREMENT].keyInConfigFile' "$DEPLOY_REQUIREMENTS_PATH")
       # replace '<NETWORK>' with actual network, if needed
       KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
+      # replace '<ENVIRONMENT>' with actual environment, if needed
+      KEY_IN_FILE=${KEY_IN_FILE//<ENVIRONMENT>/$ENVIRONMENT}
 
       # get full config file path
       CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"

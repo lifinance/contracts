@@ -76,6 +76,10 @@
       "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
         "Name": "PolymerCCTPFacet",
         "Version": "1.0.0"
+      },
+      "0xd39ad783e336d42410b916A87d852967F4C18082": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -84,13 +88,14 @@
       "FeeCollector": "",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
+      "LidoWrapper": "",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
     }

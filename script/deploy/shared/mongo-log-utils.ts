@@ -28,14 +28,16 @@ export interface IDeploymentRecord {
   timestamp: Date
   /** Constructor arguments used during deployment */
   constructorArgs: string
-  /** Optional salt value used for CREATE3 deployments */
-  salt?: string
+  /** Salt value used for CREATE3 deployments (empty string if not used) */
+  salt: string
   /** Whether the contract has been verified on block explorer */
   verified: boolean
-  /** Solidity compiler version used during deployment */
-  solcVersion?: string
-  /** EVM version used during deployment */
-  evmVersion?: string
+  /** Solidity compiler version used during deployment (empty string if not specified) */
+  solcVersion: string
+  /** EVM version used during deployment (empty string if not specified) */
+  evmVersion: string
+  /** ZK Solidity compiler version for zkSync deployments (empty string if not specified) */
+  zkSolcVersion: string
   /** When this record was created in the database */
   createdAt: Date
   /** When this record was last updated in the database */
@@ -60,41 +62,11 @@ export interface IConfig {
 }
 
 /**
- * Options for paginating query results
- * @interface IPaginationOptions
+ * Extended configuration for update operations that need file paths
  */
-export interface IPaginationOptions {
-  /** Page number (1-based) */
-  page?: number
-  /** Maximum number of records per page */
-  limit?: number
-  /** Number of records to skip from the beginning */
-  offset?: number
-}
-
-/**
- * Paginated result wrapper containing data and pagination metadata
- * @interface IPaginatedResult
- * @template T The type of data being paginated
- */
-export interface IPaginatedResult<T> {
-  /** Array of data items for the current page */
-  data: T[]
-  /** Pagination metadata */
-  pagination: {
-    /** Current page number */
-    page: number
-    /** Number of items per page */
-    limit: number
-    /** Total number of items across all pages */
-    total: number
-    /** Total number of pages */
-    totalPages: number
-    /** Whether there is a next page */
-    hasNext: boolean
-    /** Whether there is a previous page */
-    hasPrev: boolean
-  }
+export interface IUpdateConfig extends IConfig {
+  /** Path to local JSON deployment log file */
+  logFilePath: string
 }
 
 /**
@@ -166,7 +138,7 @@ export class DatabaseConnectionManager {
    * @throws {Error} When database is not connected
    */
   public getCollection<T extends Document = IDeploymentRecord>(
-    environment: 'staging' | 'production'
+    environment: DeploymentEnvironment
   ): Collection<T> {
     if (!this.db)
       throw new Error('Database not connected. Call connect() first.')
@@ -228,9 +200,7 @@ export class ValidationUtils {
    * @param env - The environment string to validate
    * @returns True if env is 'staging' or 'production'
    */
-  public static isValidEnvironment(
-    env: string
-  ): env is 'staging' | 'production' {
+  public static isValidEnvironment(env: string): env is DeploymentEnvironment {
     return env === 'staging' || env === 'production'
   }
 
@@ -249,6 +219,8 @@ export class ValidationUtils {
   /**
    * Validates raw deployment data from JSON files
    * Checks for required fields and proper data types
+   * ALL fields must be strings - NO null or undefined allowed
+   * Empty strings "" are acceptable for optional data
    * @param data - Unknown data to validate
    * @returns True if data matches expected raw deployment structure
    */
@@ -257,20 +229,29 @@ export class ValidationUtils {
 
     const deployment = data as Record<string, unknown>
 
+    // ALL fields are required and must be strings (can be empty string "")
     const requiredStringFields = [
       'ADDRESS',
       'OPTIMIZER_RUNS',
       'TIMESTAMP',
       'CONSTRUCTOR_ARGS',
+      'SALT',
       'VERIFIED',
+      'SOLC_VERSION',
+      'EVM_VERSION',
+      'ZK_SOLC_VERSION',
     ]
 
-    for (const field of requiredStringFields)
-      if (typeof deployment[field] !== 'string' || !deployment[field])
-        return false
+    // Check that all fields exist and are strings (NOT null or undefined)
+    for (const field of requiredStringFields) {
+      const value = deployment[field]
+      // Explicitly reject null and undefined - only strings allowed
+      if (value === null || value === undefined) return false
+      if (typeof value !== 'string') return false
+    }
 
-    if (deployment.SALT !== undefined && typeof deployment.SALT !== 'string')
-      return false
+    // ADDRESS must not be empty
+    if (!deployment.ADDRESS) return false
 
     if (!ValidationUtils.isValidTimestamp(deployment.TIMESTAMP as string))
       return false
@@ -279,6 +260,54 @@ export class ValidationUtils {
     if (verified !== 'true' && verified !== 'false') return false
 
     return true
+  }
+
+  /**
+   * Validates that compiler version fields are present based on network type
+   * @param record - The deployment record to validate
+   * @param networkConfig - Optional network configuration (from networks.json)
+   * @returns Array of warning messages for missing compiler versions (empty if all good)
+   */
+  public static validateCompilerVersions(
+    record: IDeploymentRecord,
+    networkConfig?: { isZkEVM?: boolean }
+  ): string[] {
+    const warnings: string[] = []
+
+    // For zkEVM networks, we need zkSolcVersion
+    if (networkConfig?.isZkEVM) {
+      if (!record.zkSolcVersion || record.zkSolcVersion === '') {
+        warnings.push(
+          `zkEVM network '${record.network}' should have ZK_SOLC_VERSION but it's empty`
+        )
+      }
+      // zkEVM networks may also have solcVersion and evmVersion
+      if (!record.solcVersion || record.solcVersion === '') {
+        warnings.push(
+          `zkEVM network '${record.network}' should have SOLC_VERSION but it's empty`
+        )
+      }
+    } else {
+      // For regular EVM networks, we need solcVersion and evmVersion
+      if (!record.solcVersion || record.solcVersion === '') {
+        warnings.push(
+          `EVM network '${record.network}' should have SOLC_VERSION but it's empty`
+        )
+      }
+      if (!record.evmVersion || record.evmVersion === '') {
+        warnings.push(
+          `EVM network '${record.network}' should have EVM_VERSION but it's empty`
+        )
+      }
+      // zkSolcVersion should be empty for non-zkEVM networks
+      if (record.zkSolcVersion && record.zkSolcVersion !== '') {
+        warnings.push(
+          `Non-zkEVM network '${record.network}' has ZK_SOLC_VERSION but shouldn't`
+        )
+      }
+    }
+
+    return warnings
   }
 
   /**
@@ -379,60 +408,6 @@ export class IndexManager {
 }
 
 /**
- * Utility class for handling pagination calculations and result formatting
- * @class PaginationUtils
- */
-export class PaginationUtils {
-  /**
-   * Calculates pagination parameters for database queries
-   * Enforces reasonable limits and handles edge cases
-   * @param options - Pagination options from user input
-   * @param _total - Total number of records (currently unused but kept for future use)
-   * @returns Calculated skip, limit, and page values for database queries
-   */
-  public static calculatePagination(
-    options: IPaginationOptions,
-    _total: number
-  ): { skip: number; limit: number; page: number } {
-    const limit = Math.min(options.limit || 50, 1000)
-    const page = Math.max(options.page || 1, 1)
-    const skip = options.offset || (page - 1) * limit
-
-    return { skip, limit, page }
-  }
-
-  /**
-   * Creates a paginated result object with metadata
-   * @template T - The type of data being paginated
-   * @param data - Array of data items for the current page
-   * @param totalCount - Total number of items across all pages
-   * @param page - Current page number
-   * @param limit - Number of items per page
-   * @returns Formatted paginated result with metadata
-   */
-  public static createPaginatedResult<T>(
-    data: T[],
-    totalCount: number,
-    page: number,
-    limit: number
-  ): IPaginatedResult<T> {
-    const totalPages = Math.ceil(totalCount / limit)
-
-    return {
-      data,
-      pagination: {
-        page,
-        limit,
-        total: totalCount,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-    }
-  }
-}
-
-/**
  * Formats a deployment record for human-readable display
  * @param deployment - The deployment record to format
  * @returns Formatted string representation of the deployment
@@ -458,6 +433,36 @@ ${deployment.salt ? `Salt: ${deployment.salt}` : ''}
  */
 export function createDeploymentKey(record: IDeploymentRecord): string {
   return `${record.contractName}-${record.network}-${record.version}-${record.address}`
+}
+
+/**
+ * Deployment environment type - used throughout the codebase
+ */
+export type DeploymentEnvironment = 'staging' | 'production'
+
+/**
+ * Raw deployment data structure from JSON files
+ * All fields are required - use empty string "" for not applicable fields
+ * NO null or undefined values allowed
+ */
+export interface IRawDeploymentData {
+  ADDRESS: string
+  OPTIMIZER_RUNS: string
+  TIMESTAMP: string
+  CONSTRUCTOR_ARGS: string
+  SALT: string
+  VERIFIED: string
+  SOLC_VERSION: string
+  EVM_VERSION: string
+  ZK_SOLC_VERSION: string
+}
+
+/**
+ * Options for processing JSON data
+ */
+export interface IProcessJsonOptions {
+  /** Callback for logging warnings about skipped records */
+  onSkip?: (message: string) => void
 }
 
 /**
@@ -487,6 +492,9 @@ export class RecordTransformer {
         CONSTRUCTOR_ARGS: string
         VERIFIED: string
         SALT?: string
+        SOLC_VERSION?: string
+        EVM_VERSION?: string
+        ZK_SOLC_VERSION?: string
       }
 
       try {
@@ -498,8 +506,12 @@ export class RecordTransformer {
           optimizerRuns: validData.OPTIMIZER_RUNS,
           timestamp: new Date(validData.TIMESTAMP),
           constructorArgs: validData.CONSTRUCTOR_ARGS,
-          salt: validData.SALT || undefined,
+          // JSON is source of truth - all optional fields default to empty string
+          salt: validData.SALT || '',
           verified: validData.VERIFIED === 'true',
+          solcVersion: validData.SOLC_VERSION || '',
+          evmVersion: validData.EVM_VERSION || '',
+          zkSolcVersion: validData.ZK_SOLC_VERSION || '',
           createdAt: new Date(),
           updatedAt: new Date(),
           contractNetworkKey: `${contractName}-${network}`,
@@ -516,40 +528,79 @@ export class RecordTransformer {
    * Filters by environment and validates each deployment record
    * @param jsonData - Raw JSON data from deployment log files
    * @param environment - Target environment to filter by ('staging' or 'production')
+   * @param options - Optional configuration for logging and callbacks
    * @returns Array of valid deployment records
    */
   public static processJsonData(
     jsonData: unknown,
-    environment: string
+    environment: string,
+    options: IProcessJsonOptions = {}
   ): IDeploymentRecord[] {
+    const { onSkip = () => {} } = options
+
     if (!jsonData || typeof jsonData !== 'object') return []
 
     return Object.entries(jsonData).flatMap(
-      ([contractName, contractData]: [string, unknown]) =>
-        Object.entries(contractData || {}).flatMap(
-          ([network, networkData]: [string, unknown]) =>
-            Object.entries(networkData || {})
-              .filter(([env]) => env === environment)
-              .flatMap(([, envData]: [string, unknown]) =>
-                Object.entries(envData || {}).flatMap(
-                  ([version, deployments]: [string, unknown]) =>
-                    Array.isArray(deployments)
-                      ? deployments
-                          .map(
-                            RecordTransformer.transformRawToDeployment(
-                              contractName,
-                              network,
-                              version
-                            )
-                          )
-                          .filter(
-                            (record): record is IDeploymentRecord =>
-                              record !== null
-                          )
-                      : []
-                )
+      ([contractName, contractData]: [string, unknown]) => {
+        if (typeof contractData !== 'object' || contractData === null) {
+          onSkip(`Skipping invalid contract data for: ${contractName}`)
+          return []
+        }
+
+        return Object.entries(contractData).flatMap(
+          ([network, networkData]: [string, unknown]) => {
+            if (typeof networkData !== 'object' || networkData === null) {
+              onSkip(
+                `Skipping invalid network data for: ${contractName}.${network}`
               )
+              return []
+            }
+
+            return Object.entries(networkData)
+              .filter(([env]) => env === environment)
+              .flatMap(([envName, envData]: [string, unknown]) => {
+                if (typeof envData !== 'object' || envData === null) {
+                  onSkip(
+                    `Skipping invalid environment data for: ${contractName}.${network}.${envName}`
+                  )
+                  return []
+                }
+
+                return Object.entries(envData).flatMap(
+                  ([version, deployments]: [string, unknown]) => {
+                    if (!Array.isArray(deployments)) {
+                      onSkip(
+                        `Skipping invalid deployments array for: ${contractName}.${network}.${envName}.${version}`
+                      )
+                      return []
+                    }
+
+                    return deployments
+                      .map((deployment) => {
+                        const record =
+                          RecordTransformer.transformRawToDeployment(
+                            contractName,
+                            network,
+                            version
+                          )(deployment)
+
+                        if (record === null) {
+                          onSkip(
+                            `Skipping invalid deployment data: ${contractName} on ${network} (${envName}) v${version}`
+                          )
+                        }
+
+                        return record
+                      })
+                      .filter(
+                        (record): record is IDeploymentRecord => record !== null
+                      )
+                  }
+                )
+              })
+          }
         )
+      }
     )
   }
 }
