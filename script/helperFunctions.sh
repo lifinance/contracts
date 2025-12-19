@@ -382,10 +382,11 @@ function findContractInMasterLogByAddress() {
 
   # Try MongoDB first if enabled
   if isMongoLoggingEnabled; then
-    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS"
+    echoDebug "Trying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
     local MONGO_RESULT
     MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
       --env "$ENVIRONMENT" \
+      --network "$NETWORK" \
       --address "$TARGET_ADDRESS" 2>/dev/null)
     local MONGO_EXIT=$?
 
@@ -4275,6 +4276,8 @@ function checkDeployRequirements() {
       KEY_IN_FILE=$(jq -r --arg CONTRACT "$CONTRACT" --arg REQUIREMENT "$REQUIREMENT" '.[$CONTRACT].configData[$REQUIREMENT].keyInConfigFile' "$DEPLOY_REQUIREMENTS_PATH")
       # replace '<NETWORK>' with actual network, if needed
       KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
+      # replace '<ENVIRONMENT>' with actual environment, if needed
+      KEY_IN_FILE=${KEY_IN_FILE//<ENVIRONMENT>/$ENVIRONMENT}
 
       # get full config file path
       CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"
