@@ -27,6 +27,7 @@ import path from 'path'
 import { consola } from 'consola'
 
 import type { EnvironmentEnum } from '../../common/types'
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 
 import type { DeploymentCache } from './deployment-cache'
 import { createDefaultCache } from './deployment-cache'
@@ -364,19 +365,8 @@ let defaultLogger: DeploymentLogger | null = null
  */
 function getDefaultLogger(): DeploymentLogger {
   if (!defaultLogger) {
-    // Validate that MONGODB_URI is set - fail fast if not configured
-    if (!process.env.MONGODB_URI) {
-      consola.error('MONGODB_URI environment variable is not set.')
-      consola.error(
-        'MongoDB is required for deployment logging. Please set MONGODB_URI in your environment.'
-      )
-      throw new Error(
-        'MONGODB_URI is required but not set. Cannot proceed with deployment logging.'
-      )
-    }
-
     const mongoConfig: IConfig = {
-      mongoUri: process.env.MONGODB_URI,
+      mongoUri: getEnvVar('MONGODB_URI'),
       batchSize: 100,
       databaseName: 'contract-deployments',
     }

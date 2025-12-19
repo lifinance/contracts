@@ -22,6 +22,7 @@ import {
 } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
 import {
   type IDeploymentRecord,
@@ -38,7 +39,7 @@ interface IIndexSpec {
 
 // Configuration setup
 const config: IUpdateConfig = {
-  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+  mongoUri: getEnvVar('MONGODB_URI'),
   logFilePath: path.join(
     process.cwd(),
     'deployments/_deployments_log_file.json'
