@@ -503,6 +503,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.12.15_GasZipPeriphery(v1.0.2).pdf",
       "auditCommitHash": "cc25140f5874701315b410a1c9e951694dd94e33"
+    },
+    "audit20251219": {
+      "auditCompletedOn": "19.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.19_AllBridgeFacet(v2.1.2).pdf",
+      "auditCommitHash": "8bbf470b470523eb582843deca6dbba755497e84"
     }
   },
   "auditedContracts": {
@@ -532,7 +539,8 @@
     "AllBridgeFacet": {
       "2.0.0": ["audit20250508"],
       "2.1.0": ["audit20250718"],
-      "2.1.1": ["audit20250921"]
+      "2.1.1": ["audit20250921"],
+      "2.1.2": ["audit20251219"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]

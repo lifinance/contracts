@@ -21,13 +21,15 @@ import path from 'path'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
+import type { DeploymentCache } from './shared/deployment-cache'
+import { createDefaultCache } from './shared/deployment-cache'
 import {
   DatabaseConnectionManager,
   type IConfig,
   type IDeploymentRecord,
-  type DeploymentEnvironment,
   RecordTransformer,
   createDeploymentKey,
 } from './shared/mongo-log-utils'
@@ -77,9 +79,11 @@ interface IValidationResults {
  */
 class DeploymentValidator {
   private dbManager: DatabaseConnectionManager
+  private cache: DeploymentCache
 
-  public constructor(config: IConfig) {
+  public constructor(config: IConfig, cache?: DeploymentCache) {
     this.dbManager = DatabaseConnectionManager.getInstance(config)
+    this.cache = cache || createDefaultCache(config)
   }
 
   /**
@@ -97,21 +101,21 @@ class DeploymentValidator {
   }
 
   /**
-   * Loads records from MongoDB
+   * Loads records from MongoDB using cache
+   * Cache automatically refreshes if stale (TTL expired)
    */
   private async loadFromMongo(
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): Promise<IDeploymentRecord[]> {
-    const collection =
-      this.dbManager.getCollection<IDeploymentRecord>(environment)
-    return collection.find({}).toArray()
+    // Use cache instead of direct MongoDB query for better performance
+    return this.cache.get(environment)
   }
 
   /**
    * Loads records from JSON file
    */
   private loadFromJson(
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): IDeploymentRecord[] {
     try {
       const jsonData = JSON.parse(readFileSync(logFilePath, 'utf8'))
@@ -191,7 +195,7 @@ class DeploymentValidator {
    * Validates deployment logs for a given environment
    */
   public async validate(
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): Promise<IValidationResults> {
     consola.info(`Validating ${environment} deployment logs...`)
 
@@ -431,19 +435,6 @@ class DeploymentValidator {
 
       if (results.inconsistencies.length > 0)
         consola.info('  - Review inconsistencies and update records as needed')
-      // Filter out version mismatches as they're shown above
-      const nonVersionInconsistencies = results.inconsistencies.filter(
-        (inc) => inc.field !== 'version'
-      )
-      for (const inc of nonVersionInconsistencies.slice(0, 20)) {
-        // Show first 20
-        consola.warn(`  ${inc.key}`)
-        consola.warn(`    Field: ${inc.field}`)
-        consola.warn(`    MongoDB: ${JSON.stringify(inc.mongoValue)}`)
-        consola.warn(`    JSON: ${JSON.stringify(inc.jsonValue)}`)
-      }
-      if (nonVersionInconsistencies.length > 20)
-        consola.warn(`  ... and ${nonVersionInconsistencies.length - 20} more`)
     }
   }
 }
@@ -484,10 +475,10 @@ const validateCommand = defineCommand({
     try {
       await validator.connect()
 
-      const environments: DeploymentEnvironment[] =
+      const environments: (keyof typeof EnvironmentEnum)[] =
         args.env === 'all'
           ? ['staging', 'production']
-          : [args.env as DeploymentEnvironment]
+          : [args.env as keyof typeof EnvironmentEnum]
 
       const allResults: IValidationResults[] = []
 
