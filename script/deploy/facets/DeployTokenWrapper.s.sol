@@ -32,11 +32,15 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wrappedNativeAddress")
         );
 
-        // Try to get converter address, default to address(0) if not found
+        // Try to get converter address from tokenconverters.json, default to address(0) if not found
         address converterAddress;
+        string memory convertersConfigPath = string.concat(
+            root,
+            "/config/tokenconverters.json"
+        );
         try
             vm.parseJsonAddress(
-                vm.readFile(path),
+                vm.readFile(convertersConfigPath),
                 string.concat(".", network, ".converterAddress")
             )
         returns (address addr) {

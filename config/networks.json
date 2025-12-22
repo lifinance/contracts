@@ -1075,7 +1075,6 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "gUSDT",
     "wrappedNativeAddress": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
-    "converterAddress": "0xded1660192d4d82e7c0b628ba556861edbb5cada",
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://rpc.stable.xyz",
