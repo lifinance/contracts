@@ -1,0 +1,49 @@
+---
+name: Solidity baseline
+description: Baseline rules for all Solidity files (contracts, scripts, tests)
+globs:
+  - '**/*.sol'
+---
+
+## Licensing ([CONV:LICENSE])
+
+- Our own files: `// SPDX-License-Identifier: LGPL-3.0-only` immediately followed by the pragma statement with no blank line in between.
+- External copies retain original license + source note.
+- All contracts must use `pragma solidity ^0.8.17;`.
+
+## Naming Conventions ([CONV:NAMING])
+
+- Functions/vars camelCase; constants & immutables are CONSTANT_CASE.
+- Function params use leading underscore (e.g., `_amount`).
+
+## NatSpec Requirements ([CONV:NATSPEC])
+
+- Contracts & interfaces must include:
+  - `@title` - must match the contract/interface name (same as filename without `.sol`)
+  - `@author LI.FI (https://li.fi)`
+  - `@notice` - must describe what the contract/interface contains and its purpose
+  - `@custom:version X.Y.Z`
+- Public/external functions require NatSpec including params/returns.
+- For pure test/script scaffolding keep headers minimal but retain SPDX/pragma.
+
+## Blank Lines ([CONV:BLANKLINES])
+
+- Single blank line between logical sections and between function declarations.
+- Follow in-function blank-line rules (before emits/returns; no stray gaps).
+- Blank line between `vm.expectRevert()` and function call in tests.
+- Blank line before `vm.stopPrank()` if separate logical block.
+- Blank line before assertions.
+- Single blank line between test cases.
+- Single blank line after `vm.startPrank(address)`.
+- For `vm.expectEmit` blocks: no blank line between `vm.expectEmit` and its event definition, but blank lines before and after the entire block.
+- Group related test assertions together without blank lines between them.
+
+## Error Handling
+
+- Use custom errors instead of revert strings; prefer existing errors/helpers before adding new ones.
+- Use generic errors from `src/Errors/GenericErrors.sol`; bump `@custom:version` when adding; facet-specific errors stay local.
+
+## Code Quality
+
+- Adhere to rules in `.solhint.json`.
+- Avoid assembly unless necessary and heavily commented with justification (why assembly is needed here); prefer existing helpers over new implementations.

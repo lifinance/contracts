@@ -489,6 +489,27 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2025.12.15_CelerCircleBridgeFacet(v2.0.0).pdf",
       "auditCommitHash": "e37798634a8e4ac460aaa6f6f158d7aa6fdf5b24"
+    },
+    "audit20251216": {
+      "auditCompletedOn": "16.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.16_NEARIntentsFacet(v1.0.0).pdf",
+      "auditCommitHash": "4696d22e0522180707e9a63d8b53a60d7ac693ad"
+    },
+    "audit20251215_2": {
+      "auditCompletedOn": "15.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.15_GasZipPeriphery(v1.0.2).pdf",
+      "auditCommitHash": "cc25140f5874701315b410a1c9e951694dd94e33"
+    },
+    "audit20251219": {
+      "auditCompletedOn": "19.12.2025",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2025.12.19_AllBridgeFacet(v2.1.2).pdf",
+      "auditCommitHash": "8bbf470b470523eb582843deca6dbba755497e84"
     }
   },
   "auditedContracts": {
@@ -518,7 +539,8 @@
     "AllBridgeFacet": {
       "2.0.0": ["audit20250508"],
       "2.1.0": ["audit20250718"],
-      "2.1.1": ["audit20250921"]
+      "2.1.1": ["audit20250921"],
+      "2.1.2": ["audit20251219"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]
@@ -597,7 +619,8 @@
     },
     "GasZipPeriphery": {
       "1.0.0": ["audit20241107"],
-      "1.0.1": ["audit20250110_1", "audit20250508"]
+      "1.0.1": ["audit20250110_1", "audit20250508"],
+      "1.0.2": ["audit20251215_2"]
     },
     "GenericErrors": {
       "1.0.1": ["audit20250506", "audit20250508"],
@@ -728,6 +751,9 @@
     },
     "MegaETHBridgeFacet": {
       "1.0.0": ["audit20251203_1"]
+    },
+    "NEARIntentsFacet": {
+      "1.0.0": ["audit20251216"]
     },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]

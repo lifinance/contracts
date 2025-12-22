@@ -1,0 +1,28 @@
+---
+schema: 1
+scope: workspace
+description: Transaction analysis activation gate
+globs:
+  - '**/*'
+---
+
+## Activation Gate
+
+**Apply ONLY when:**
+
+- User provides tx hash + network name AND asks to analyze/debug that specific transaction
+- Phrases like: "analyze this transaction", "debug this failing tx", "why did this bridge/swap revert?" (or similar variations)
+- User invokes `/analyze-tx` command
+
+**Do NOT apply for:**
+
+- General Solidity/Foundry questions
+- Deployment questions not tied to a single transaction
+- High-level protocol/architecture questions
+- Requests without concrete tx hash
+
+If partially matched (e.g., hash but no network), ask for missing info before entering transaction-analysis mode.
+
+## Transaction Analysis Mode
+
+When activated, use `.cursor/commands/analyze-tx.mdc` for complete workflow, rules, and policies.

@@ -1,0 +1,11 @@
+---
+name: Final checks
+description: Completion checklist to keep repo green
+globs:
+  - '**/*'
+alwaysApply: true
+---
+
+- **Conventions**: Verify `[CONV:LICENSE]`/`[CONV:NATSPEC]`/`[CONV:BLANKLINES]`/`[CONV:NAMING]` satisfied; avoid interface/storage changes unless requested.
+- **Testing**: After Solidity changes → `forge test` (or note suites remaining); after TS → lint/tests with Bun; after Bash → check execution flags/sourcing. State explicitly if anything not run.
+- **Summary format**: Start with applied rules (filename/anchor), include tests/lints run, call out follow-ups/gaps.
