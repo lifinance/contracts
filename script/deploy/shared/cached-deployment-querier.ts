@@ -131,8 +131,10 @@ export class CachedDeploymentQuerier {
     const normalizedAddress = address.toLowerCase()
 
     return (
-      records.find((r) => r.address.toLowerCase() === normalizedAddress && r.network === network) ||
-      null
+      records.find(
+        (r) =>
+          r.address.toLowerCase() === normalizedAddress && r.network === network
+      ) || null
     )
   }
 
