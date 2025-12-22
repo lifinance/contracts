@@ -192,6 +192,10 @@
       "0xB2d2D9e94B8C690aE642c71B3Cc080E5893CE839": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
+      },
+      "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
