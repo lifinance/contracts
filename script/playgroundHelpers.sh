@@ -719,7 +719,7 @@ function analyzeFailingTx() {
   # Returns:
   #   0 on success, 1 on failure
   # Example:
-  #   analyzeFailingTx "<TX_HASH>" "<RPC_URL>"
+  #   analyzeFailingTx "<NETWORK>" "<TX_HASH>"
 
   local NETWORK="$1"
   local TX_HASH="$2"
