@@ -20,7 +20,7 @@ interface IWhitelistManagerFacet {
     );
 
     // ============================================================================
-    // NEW GRANULAR SYSTEM FUNCTIONS (PREFERRED)
+    // NEW GRANULAR SYSTEM FUNCTIONS
     // ============================================================================
     // These functions operate on contract-selector pairs and provide precise control.
     // They are the source of truth and synchronize the global arrays automatically.
@@ -87,74 +87,4 @@ interface IWhitelistManagerFacet {
         external
         view
         returns (address[] memory contracts, bytes4[][] memory selectors);
-
-    /// @notice Check if the allow list has been migrated.
-    /// @return True if the allow list has been migrated, false otherwise.
-    function isMigrated() external view returns (bool);
-
-    // ============================================================================
-    // BACKWARD COMPATIBILITY FUNCTIONS
-    // ============================================================================
-    // These functions read from the global arrays. They are required for existing,
-    // deployed facets to continue functioning. They should be considered part of a
-    // transitional phase and MUST NOT be used in new development.
-    // ============================================================================
-
-    /// @notice [BACKWARD COMPATIBILITY] Returns a list of all whitelisted addresses.
-    /// @dev WARNING: This function reads from the global list and is NOT granular.
-    ///      It is required for older, deployed facets to function correctly.
-    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
-    ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
-    ///      the call may run out of gas. Do not rely on it for unbounded iteration.
-    /// @return addresses List of whitelisted addresses.
-    function getWhitelistedAddresses()
-        external
-        view
-        returns (address[] memory addresses);
-
-    /// @notice [BACKWARD COMPATIBILITY] Returns whether an address is whitelisted.
-    /// @dev WARNING: This function reads from the global list and is NOT granular.
-    ///      It is required for older, deployed facets to function correctly.
-    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
-    /// @param _address The address to query.
-    /// @return whitelisted Whitelisted or not.
-    function isAddressWhitelisted(
-        address _address
-    ) external view returns (bool whitelisted);
-
-    /// @notice [BACKWARD COMPATIBILITY] Returns a list of all approved function selectors.
-    /// @dev WARNING: This function reads from the global list and is NOT granular.
-    ///      It is required for older, deployed facets to function correctly.
-    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
-    ///      Reading ~10 000 entries is safe, but if the list grows toward ~45 000+,
-    ///      the call may run out of gas. Do not rely on it for unbounded iteration.
-    /// @return selectors List of approved function selectors.
-    function getWhitelistedFunctionSelectors()
-        external
-        view
-        returns (bytes4[] memory selectors);
-
-    /// @notice [BACKWARD COMPATIBILITY] Returns whether a function selector is whitelisted.
-    /// @dev WARNING: This function reads from the global list and is NOT granular.
-    ///      It is required for older, deployed facets to function correctly.
-    ///      Avoid use in new code. Use isContractSelectorWhitelisted() instead.
-    /// @param _selector The function selector to query.
-    /// @return whitelisted Whitelisted or not.
-    function isFunctionSelectorWhitelisted(
-        bytes4 _selector
-    ) external view returns (bool whitelisted);
-
-    /// Temporary methods for migration ///
-
-    /// @notice Temporary method to check if the allow list has been migrated.
-    /// @dev Remove these methods after migration is complete in next facet upgrade.
-    /// @dev This function can only be called by the diamond owner or authorized addresses.
-    /// @param _selectorsToRemove Array of selectors to remove from the allow list.
-    /// @param _contracts Array of contract addresses.
-    /// @param _selectors Parallel array of selector arrays for each contract.
-    function migrate(
-        bytes4[] calldata _selectorsToRemove,
-        address[] calldata _contracts,
-        bytes4[][] calldata _selectors
-    ) external;
 }

@@ -66,7 +66,7 @@ contract ScriptBase is Script, DSTest {
     }
 
     /// @notice Reads the zkSync bytecode hash from a compiled contract's zkout JSON
-    /// @param _contractName The contract name (e.g., "MigrateWhitelistManager")
+    /// @param _contractName The contract name (e.g., "WhitelistManagerFacet")
     /// @return bytecodeHash The zkSync bytecode hash
     function getZkSyncBytecodeHash(
         string memory _contractName

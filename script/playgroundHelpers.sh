@@ -12,8 +12,6 @@ source script/helperFunctions.sh
 source script/tasks/diamondUpdateFacet.sh
 source script/tasks/diamondUpdatePeriphery.sh
 source script/deploy/deploySingleContract.sh
-source script/tasks/diamondSyncSigs.sh
-source script/tasks/diamondSyncDEXs.sh
 
 # =============================================================================
 # CONTRACT VERIFICATION FUNCTIONS
@@ -807,55 +805,6 @@ function analyzeFailingTx() {
 }
 
 # =============================================================================
-# SYNC FUNCTIONS
-# =============================================================================
-
-function syncSigsAndDEXsForNetwork() {
-  local NETWORK="${1}"
-  local ENVIRONMENT="${2:-production}"
-
-  if [[ -z "$NETWORK" ]]; then
-    error "Network is required"
-    echo "Usage: syncSigsAndDEXsForNetwork <network> [environment]"
-    return 1
-  fi
-
-  echo "=========================================="
-  echo "Syncing Sigs and DEXs for network"
-  echo "Network: $NETWORK"
-  echo "Environment: $ENVIRONMENT"
-  echo "=========================================="
-  echo ""
-
-  # Run both syncs in parallel
-  echo "[$NETWORK] Starting syncSigs and syncDEXs in parallel..."
-  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" "" &
-  SIGS_PID=$!
-  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" &
-  DEXS_PID=$!
-
-  # Wait for both to complete
-  wait $SIGS_PID
-  local SIGS_RESULT=$?
-  wait $DEXS_PID
-  local DEXS_RESULT=$?
-
-  echo ""
-  if [[ $SIGS_RESULT -eq 0 && $DEXS_RESULT -eq 0 ]]; then
-    success "[$NETWORK] Both syncSigs and syncDEXs completed successfully"
-    return 0
-  else
-    if [[ $SIGS_RESULT -ne 0 ]]; then
-      error "[$NETWORK] syncSigs failed with exit code $SIGS_RESULT"
-    fi
-    if [[ $DEXS_RESULT -ne 0 ]]; then
-      error "[$NETWORK] syncDEXs failed with exit code $DEXS_RESULT"
-    fi
-    return 1
-  fi
-}
-
-# =============================================================================
 # EXPORT FUNCTIONS FOR USE IN OTHER SCRIPTS
 # =============================================================================
 
@@ -878,4 +827,3 @@ export -f isContractAlreadyVerified
 export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
-export -f syncSigsAndDEXsForNetwork
