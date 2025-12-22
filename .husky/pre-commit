@@ -3,7 +3,7 @@ export HUSKY_SHELL="${HUSKY_SHELL:-bash}"
 . "$(dirname -- "$0")/_/husky.sh"
 
 # Early exit: Check if there are any staged files
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
 if [ -z "$STAGED_FILES" ]; then
   echo "No files staged for commit. Skipping pre-commit checks."
   exit 0
@@ -15,13 +15,17 @@ cd "$GIT_ROOT" || exit 1
 # Determine what types of files changed for conditional execution (optimized single pass)
 HAS_SOL_FILES="no"
 HAS_TS_JS_FILES="no"
-HAS_TYPE_FILES="no"
 
-echo "$STAGED_FILES" | grep -qE '\.sol$' && HAS_SOL_FILES="yes" && HAS_TYPE_FILES="yes"
-echo "$STAGED_FILES" | grep -qE '\.(ts|js|tsx)$' && HAS_TS_JS_FILES="yes" && HAS_TYPE_FILES="yes"
+# Check staged files for Solidity and TypeScript/JavaScript extensions
+echo "$STAGED_FILES" | grep -qE '\.sol$' && HAS_SOL_FILES="yes"
+echo "$STAGED_FILES" | grep -qE '\.(ts|js|tsx)$' && HAS_TS_JS_FILES="yes"
 
 # Create temp directory for parallel execution
-TEMP_DIR=$(mktemp -d)
+# Try portable form first, fall back to macOS-specific, then mkdir fallback
+TEMP_DIR=$(mktemp -d 2>/dev/null) || TEMP_DIR=$(mktemp -d -t precommit 2>/dev/null) || {
+  TEMP_DIR="${TMPDIR:-/tmp}/precommit.$$.$(date +%s).$RANDOM"
+  mkdir -p "$TEMP_DIR"
+}
 trap "rm -rf '$TEMP_DIR' 2>/dev/null" EXIT INT TERM
 
 FORGE_OUTPUT="$TEMP_DIR/forge.out"
@@ -290,84 +294,12 @@ run_secret_checks() {
     fi
 
     rm -f "$STAGED_COPY"
-  done < <(git diff --cached --name-only --diff-filter=ACM -z)
+  done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 }
 
 prepare_env_secrets
 
-# Start forge build and lint-staged in parallel (they're independent initially)
-FORGE_PID=""
-LINT_STAGED_PID=""
-
-print_section "Pre-commit Checks"
-
-# Start parallel tasks
-if [ "$HAS_SOL_FILES" = "yes" ]; then
-  print_status "info" "Building contracts with forge..."
-  (forge build --skip test > "$FORGE_OUTPUT" 2>&1; echo $? > "$FORGE_EXIT") &
-  FORGE_PID=$!
-else
-  print_status "skip" "Skipping forge build (no Solidity files changed)"
-  echo 0 > "$FORGE_EXIT"
-fi
-
-if [ "$HAS_TYPE_FILES" = "yes" ]; then
-  print_status "info" "Running lint-staged (formatting & linting)..."
-  (bun lint-staged > "$LINT_STAGED_OUTPUT" 2>&1; echo $? > "$LINT_STAGED_EXIT") &
-  LINT_STAGED_PID=$!
-else
-  print_status "skip" "Skipping lint-staged (no lintable files changed)"
-  echo 0 > "$LINT_STAGED_EXIT"
-fi
-
-# Wait for forge build if it was started
-if [ -n "$FORGE_PID" ]; then
-  if ! wait_and_check "$FORGE_PID" "$FORGE_EXIT" "$FORGE_OUTPUT" "Forge build failed. Aborting commit." "forge"; then
-    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
-    exit 1
-  fi
-  print_status "success" "Forge build completed"
-fi
-
-# Run typechain generation (only if forge succeeded and we have Solidity files)
-if [ "$HAS_SOL_FILES" = "yes" ]; then
-  print_status "info" "Generating TypeChain types..."
-  (bun typechain:incremental > "$TYPECHAIN_OUTPUT" 2>&1; echo $? > "$TYPECHAIN_EXIT") &
-  TYPECHAIN_PID=$!
-
-  if ! wait_and_check "$TYPECHAIN_PID" "$TYPECHAIN_EXIT" "$TYPECHAIN_OUTPUT" "TypeChain generation failed. Aborting commit." "typechain"; then
-    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
-    exit 1
-  fi
-  # Extract and show summary from typechain output (filter verbose lines)
-  TYPECHAIN_SUMMARY=$(grep -E "(Successfully|typings)" "$TYPECHAIN_OUTPUT" 2>/dev/null | grep -vE "^\$ " | head -1 || echo "TypeChain types generated")
-  print_status "success" "$TYPECHAIN_SUMMARY"
-fi
-
-# TypeScript compilation check (only if both TS/JS files changed AND typechain was regenerated)
-if [ "$HAS_TS_JS_FILES" = "yes" ] && [ "$HAS_SOL_FILES" = "yes" ]; then
-  print_status "info" "Checking TypeScript compilation..."
-  (bunx tsc-files --noEmit > "$TSC_OUTPUT" 2>&1; echo $? > "$TSC_EXIT") &
-  TSC_PID=$!
-
-  if ! wait_and_check "$TSC_PID" "$TSC_EXIT" "$TSC_OUTPUT" "" "tsc"; then
-    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
-    printf '\n\033[31mTypeScript compilation failed.\033[0m\n'
-    printf 'This may indicate outdated TypeChain types.\n'
-    printf 'Please run \033[1mbun typechain\033[0m manually and fix any type errors before committing.\n\n'
-    exit 1
-  fi
-  print_status "success" "TypeScript compilation passed"
-fi
-
-# Wait for lint-staged if it was started
-if [ -n "$LINT_STAGED_PID" ]; then
-  if ! wait_and_check "$LINT_STAGED_PID" "$LINT_STAGED_EXIT" "$LINT_STAGED_OUTPUT" "Lint-staged failed. Aborting commit." "lint-staged"; then
-    exit 1
-  fi
-  print_status "success" "Lint-staged completed"
-fi
-
+# Run secret checks early before heavy work
 print_status "info" "Checking for secrets and private keys..."
 run_secret_checks
 
@@ -396,6 +328,91 @@ if [ "$PRIVATE_KEY_FOUND" -eq 1 ]; then
   print_status "success" "Secret check completed (warnings only)"
 else
   print_status "success" "Secret check passed"
+fi
+
+# Start forge build and lint-staged in parallel (they're independent initially)
+FORGE_PID=""
+LINT_STAGED_PID=""
+TSC_PID=""
+
+print_section "Pre-commit Checks"
+
+# Start parallel tasks
+if [ "$HAS_SOL_FILES" = "yes" ]; then
+  print_status "info" "Building contracts with forge..."
+  (forge build --skip test > "$FORGE_OUTPUT" 2>&1; echo $? > "$FORGE_EXIT") &
+  FORGE_PID=$!
+else
+  print_status "skip" "Skipping forge build (no Solidity files changed)"
+  echo 0 > "$FORGE_EXIT"
+fi
+
+print_status "info" "Running lint-staged (formatting & linting)..."
+(bun lint-staged > "$LINT_STAGED_OUTPUT" 2>&1; echo $? > "$LINT_STAGED_EXIT") &
+LINT_STAGED_PID=$!
+
+# If we have TS/JS files but no Solidity files, start TypeScript compilation in parallel
+# (it doesn't need to wait for typechain in this case)
+if [ "$HAS_TS_JS_FILES" = "yes" ] && [ "$HAS_SOL_FILES" = "no" ]; then
+  print_status "info" "Checking TypeScript compilation..."
+  (bunx tsc-files --noEmit > "$TSC_OUTPUT" 2>&1; echo $? > "$TSC_EXIT") &
+  TSC_PID=$!
+fi
+
+# Wait for forge build if it was started
+if [ -n "$FORGE_PID" ]; then
+  if ! wait_and_check "$FORGE_PID" "$FORGE_EXIT" "$FORGE_OUTPUT" "Forge build failed. Aborting commit." "forge"; then
+    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
+    [ -n "$TSC_PID" ] && wait "$TSC_PID" 2>/dev/null
+    exit 1
+  fi
+  print_status "success" "Forge build completed"
+fi
+
+# Run typechain generation (only if forge succeeded and we have Solidity files)
+if [ "$HAS_SOL_FILES" = "yes" ]; then
+  print_status "info" "Generating TypeChain types..."
+  (bun typechain:incremental > "$TYPECHAIN_OUTPUT" 2>&1; echo $? > "$TYPECHAIN_EXIT") &
+  TYPECHAIN_PID=$!
+
+  if ! wait_and_check "$TYPECHAIN_PID" "$TYPECHAIN_EXIT" "$TYPECHAIN_OUTPUT" "TypeChain generation failed. Aborting commit." "typechain"; then
+    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
+    [ -n "$TSC_PID" ] && wait "$TSC_PID" 2>/dev/null
+    exit 1
+  fi
+  # Extract and show summary from typechain output (filter verbose lines)
+  TYPECHAIN_SUMMARY=$(grep -E "(Successfully|typings)" "$TYPECHAIN_OUTPUT" 2>/dev/null | grep -vE "^\$ " | head -1 || echo "TypeChain types generated")
+  print_status "success" "$TYPECHAIN_SUMMARY"
+fi
+
+# TypeScript compilation check (only if TS/JS files changed)
+# If we have Solidity files, we need to wait for typechain (already done above)
+# If we don't have Solidity files, tsc is already running in parallel
+if [ "$HAS_TS_JS_FILES" = "yes" ] && [ "$HAS_SOL_FILES" = "yes" ]; then
+  print_status "info" "Checking TypeScript compilation..."
+  (bunx tsc-files --noEmit > "$TSC_OUTPUT" 2>&1; echo $? > "$TSC_EXIT") &
+  TSC_PID=$!
+fi
+
+# Wait for all remaining parallel tasks (tsc and lint-staged)
+# Check if tsc is running and wait for it
+if [ -n "$TSC_PID" ]; then
+  if ! wait_and_check "$TSC_PID" "$TSC_EXIT" "$TSC_OUTPUT" "" "tsc"; then
+    [ -n "$LINT_STAGED_PID" ] && wait "$LINT_STAGED_PID" 2>/dev/null
+    printf '\n\033[31mTypeScript compilation failed.\033[0m\n'
+    printf 'This may indicate outdated TypeChain types.\n'
+    printf 'Please run \033[1mbun typechain\033[0m manually and fix any type errors before committing.\n\n'
+    exit 1
+  fi
+  print_status "success" "TypeScript compilation passed"
+fi
+
+# Wait for lint-staged if it was started
+if [ -n "$LINT_STAGED_PID" ]; then
+  if ! wait_and_check "$LINT_STAGED_PID" "$LINT_STAGED_EXIT" "$LINT_STAGED_OUTPUT" "Lint-staged failed. Aborting commit." "lint-staged"; then
+    exit 1
+  fi
+  print_status "success" "Lint-staged completed"
 fi
 
 printf '\n\033[1m━━━ All pre-commit checks passed! ━━━\033[0m\n'
