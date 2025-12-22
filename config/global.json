@@ -34,7 +34,6 @@
   "coreFacets": [
     "AccessManagerFacet",
     "CalldataVerificationFacet",
-    "WhitelistManagerFacet",
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
@@ -43,6 +42,7 @@
     "GenericSwapFacetV3",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
+    "WhitelistManagerFacet",
     "WithdrawFacet"
   ],
   "corePeriphery": [

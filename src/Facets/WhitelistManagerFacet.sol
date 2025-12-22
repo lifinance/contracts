@@ -10,7 +10,7 @@ import { CannotAuthoriseSelf, InvalidConfig } from "../Errors/GenericErrors.sol"
 /// @title WhitelistManagerFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing whitelisted addresses for various protocol interactions.
-/// @custom:version 1.1.0
+/// @custom:version 2.0.0
 contract WhitelistManagerFacet is IWhitelistManagerFacet {
     /// External Methods ///
 

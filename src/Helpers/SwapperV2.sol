@@ -194,23 +194,28 @@ contract SwapperV2 is ILiFi {
         uint256[] memory _initialBalances
     ) internal noLeftovers(_swaps, _leftoverReceiver, _initialBalances) {
         uint256 numSwaps = _swaps.length;
-        for (uint256 i; i < numSwaps; ++i) {
+        for (uint256 i; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
+            address callTo = currentSwap.callTo;
+            address approveTo = currentSwap.approveTo;
 
             if (
                 !LibAllowList.contractSelectorIsAllowed(
-                    currentSwap.callTo,
+                    callTo,
                     bytes4(currentSwap.callData[:4])
                 ) ||
                 (!LibAsset.isNativeAsset(currentSwap.sendingAssetId) &&
-                    currentSwap.approveTo != currentSwap.callTo &&
+                    approveTo != callTo &&
                     !LibAllowList.contractSelectorIsAllowed(
-                        currentSwap.approveTo,
+                        approveTo,
                         APPROVE_TO_ONLY_SELECTOR
                     ))
             ) revert ContractCallNotAllowed();
 
             LibSwap.swap(_transactionId, currentSwap);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -236,16 +241,18 @@ contract SwapperV2 is ILiFi {
         uint256 numSwaps = _swaps.length;
         for (uint256 i; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
+            address callTo = currentSwap.callTo;
+            address approveTo = currentSwap.approveTo;
 
             if (
                 !LibAllowList.contractSelectorIsAllowed(
-                    currentSwap.callTo,
+                    callTo,
                     bytes4(currentSwap.callData[:4])
                 ) ||
                 (!LibAsset.isNativeAsset(currentSwap.sendingAssetId) &&
-                    currentSwap.approveTo != currentSwap.callTo &&
+                    approveTo != callTo &&
                     !LibAllowList.contractSelectorIsAllowed(
-                        currentSwap.approveTo,
+                        approveTo,
                         APPROVE_TO_ONLY_SELECTOR
                     ))
             ) revert ContractCallNotAllowed();
