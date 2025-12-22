@@ -1,6 +1,10 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import { Keypair } from '@solana/web3.js'
+// @ts-expect-error - bs58 types not available
+// eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
+import bs58 from 'bs58'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import {
@@ -20,6 +24,7 @@ import {
   getContract,
   http,
   parseAbi,
+  toHex,
   zeroAddress,
   type Abi,
   type PublicClient,
@@ -104,12 +109,77 @@ export const ADDRESS_DEV_WALLET_SOLANA_BYTES32 =
 export const ADDRESS_DEV_WALLET_V4 =
   '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
 
+// LiFi chain ID for Solana (from LiFiData.sol)
+export const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
+
 /// ############# HELPER FUNCTIONS ###################### ///
 
 ///
 export const leftPadAddressToBytes32 = (address: string): string => {
   // Convert address to bytes32 format: pad with zeros to make it 32 bytes
   return '0x000000000000000000000000' + address.slice(2)
+}
+
+/**
+ * Derives a Solana address from an Ethereum private key
+ * Uses the first 32 bytes of the EVM private key as seed for Ed25519 keypair generation
+ * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
+ * @returns Solana address in base58 format
+ */
+export const deriveSolanaAddress = (ethPrivateKey: string): string => {
+  // Remove '0x' prefix if present
+  const seed = ethPrivateKey.replace('0x', '')
+
+  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
+  const seedBytes = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) {
+    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
+  }
+
+  // Create Solana keypair from seed
+  const keypair = Keypair.fromSeed(seedBytes)
+  return keypair.publicKey.toBase58()
+}
+
+/**
+ * Converts a Solana base58 address to bytes32 format for non-EVM address fields
+ * Solana addresses are 32-byte Ed25519 public keys encoded in base58
+ * @param solanaAddress - Solana address in base58 format
+ * @returns Hex string in bytes32 format (0x...)
+ */
+export const solanaAddressToBytes32 = (
+  solanaAddress: string
+): `0x${string}` => {
+  // Decode base58 to get raw 32 bytes
+  const addressBytes = bs58.decode(solanaAddress)
+
+  if (addressBytes.length !== 32) {
+    throw new Error(
+      `Invalid Solana address length: ${addressBytes.length} bytes (expected 32)`
+    )
+  }
+
+  // Convert to hex string
+  return toHex(addressBytes)
+}
+
+/**
+ * Converts a receiver address to bytes32 format, handling both EVM and non-EVM addresses
+ * @param receiver - EVM address or NON_EVM_ADDRESS sentinel
+ * @param nonEVMReceiver - Optional bytes32 non-EVM receiver (e.g., Solana address)
+ * @returns Receiver address as bytes32
+ */
+export const receiverToBytes32 = (
+  receiver: string,
+  nonEVMReceiver?: `0x${string}`
+): `0x${string}` => {
+  // If bridging to non-EVM chain, use the nonEVMReceiver
+  if (receiver === NON_EVM_ADDRESS && nonEVMReceiver) {
+    return nonEVMReceiver
+  }
+
+  // Convert EVM address to bytes32 (left-pad with zeros)
+  return `0x${BigInt(receiver).toString(16).padStart(64, '0')}` as `0x${string}`
 }
 
 export const getProvider = (

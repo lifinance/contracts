@@ -1,0 +1,15 @@
+---
+name: TypeScript tests
+description: Bun test structure, coverage, and expectations for `.test.ts`
+globs:
+  - '**/*.test.ts'
+---
+
+## TypeScript Tests
+
+- Use Bun (`describe` / `it` / `expect`).
+- Cover edge cases and error paths.
+
+## Post-Change Actions
+
+- After TS test changes, run Bun tests (or state which suites remain).

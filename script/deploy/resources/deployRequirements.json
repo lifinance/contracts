@@ -714,5 +714,14 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "NEARIntentsFacet": {
+    "configData": {
+      "_backendSigner": {
+        "configFileName": "nearintents.json",
+        "keyInConfigFile": ".<ENVIRONMENT>.backendSigner",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
