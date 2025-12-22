@@ -5,6 +5,7 @@ pragma solidity ^0.8.17;
 // solhint-disable-next-line no-unused-import
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IWrapper } from "../Interfaces/IWrapper.sol";
@@ -18,6 +19,7 @@ contract TokenWrapper is WithdrawablePeriphery {
     address public immutable WRAPPED_TOKEN;
     address public immutable CONVERTER;
     bool private immutable USE_CONVERTER;
+    uint256 private immutable SWAP_RATIO_MULTIPLIER;
 
     /// Errors ///
     error WithdrawFailure();
@@ -48,41 +50,29 @@ contract TokenWrapper is WithdrawablePeriphery {
                 _converter,
                 type(uint256).max
             );
+            // Calculate swap ratio based on decimal difference between native (18) and wrapped token
+            uint8 wrappedDecimals = IERC20Metadata(_wrappedToken).decimals();
+            SWAP_RATIO_MULTIPLIER = 10 ** wrappedDecimals;
         } else {
             CONVERTER = _wrappedToken;
+            SWAP_RATIO_MULTIPLIER = 1 ether; // 1:1 ratio for 18 decimals
         }
     }
 
     /// External Methods ///
 
     /// @notice Wraps the native token and transfers wrapped tokens to caller
-    /// @dev If converter is set, uses it to convert native to wrapped tokens and measures actual amount received
+    /// @dev If converter is set, uses it to convert native to wrapped tokens using precalculated ratio
     /// @dev If no converter, wraps native 1:1 and transfers msg.value of wrapped tokens
     function deposit() external payable {
-        if (USE_CONVERTER) {
-            uint256 balanceBefore = IERC20(WRAPPED_TOKEN).balanceOf(
-                address(this)
-            );
-            IWrapper(CONVERTER).deposit{ value: msg.value }();
-            uint256 balanceAfter = IERC20(WRAPPED_TOKEN).balanceOf(
-                address(this)
-            );
-            uint256 amountReceived = balanceAfter - balanceBefore;
-            SafeTransferLib.safeTransfer(
-                WRAPPED_TOKEN,
-                msg.sender,
-                amountReceived
-            );
-        } else {
-            IWrapper(CONVERTER).deposit{ value: msg.value }();
-            SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, msg.value);
-        }
+        IWrapper(CONVERTER).deposit{ value: msg.value }();
+        uint256 wrappedAmount = (msg.value * SWAP_RATIO_MULTIPLIER) / 1 ether;
+        SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, wrappedAmount);
     }
 
     /// @notice Unwraps all the caller's balance of wrapped token and returns native tokens
     /// @dev Pulls wrapped tokens from msg.sender based on their balance (requires prior approval)
-    /// @dev If converter is set, measures actual native amount received after conversion
-    /// @dev If no converter, unwraps 1:1 and transfers exact amount of native tokens
+    /// @dev Uses precalculated ratio to determine native token amount to return
     function withdraw() external {
         // While in a general purpose contract it would make sense
         // to have `amount` equal to the minimum between the balance and the
@@ -96,16 +86,9 @@ contract TokenWrapper is WithdrawablePeriphery {
             amount
         );
 
-        if (USE_CONVERTER) {
-            uint256 balanceBefore = address(this).balance;
-            IWrapper(CONVERTER).withdraw(amount);
-            uint256 balanceAfter = address(this).balance;
-            uint256 amountReceived = balanceAfter - balanceBefore;
-            SafeTransferLib.safeTransferETH(msg.sender, amountReceived);
-        } else {
-            IWrapper(CONVERTER).withdraw(amount);
-            SafeTransferLib.safeTransferETH(msg.sender, amount);
-        }
+        IWrapper(CONVERTER).withdraw(amount);
+        uint256 nativeAmount = (amount * 1 ether) / SWAP_RATIO_MULTIPLIER;
+        SafeTransferLib.safeTransferETH(msg.sender, nativeAmount);
     }
 
     // Needs to be able to receive native on `withdraw`
