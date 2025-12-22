@@ -26,14 +26,13 @@ contract DeployScript is DeployScriptBase {
             root,
             "/config/across-v4-swap.json"
         );
-        string memory json = vm.readFile(path);
 
         address spokePoolPeriphery = _getConfigContractAddress(
-            json,
+            path,
             string.concat(".", network, ".spokePoolPeriphery")
         );
         address spokePool = _getConfigContractAddress(
-            json,
+            path,
             string.concat(".", network, ".spokePool")
         );
 

@@ -1,6 +1,6 @@
 {
   "mainnet": {
-    "spokePoolPeriphery": "0x649C790f02B7e04a5A2e60b6EE6e7d5B2E6B29A5",
+    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
     "spokePool": "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5"
   },
   "optimism": {
@@ -12,7 +12,7 @@
     "spokePool": "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096"
   },
   "arbitrum": {
-    "spokePoolPeriphery": "0x649C790f02B7e04a5A2e60b6EE6e7d5B2E6B29A5",
+    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
     "spokePool": "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A"
   },
   "base": {
