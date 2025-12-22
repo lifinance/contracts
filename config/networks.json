@@ -566,6 +566,27 @@
     "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
+  "jovay": {
+    "name": "jovay",
+    "chainId": 5734951,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0xeA29Cbb2808CF848C185E4405Bb002F53f92a241",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.jovay.io",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://explorer.jovay.io",
+    "explorerApiUrl": "https://explorer.jovay.io/api",
+    "multicallAddress": "",
+    "safeAddress": "507",
+    "gasZipChainId": 392,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.28",
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "devNotes": "Does not seem to support automatic contract verification according to https://docs.jovay.io/developer/verify-contract-guide"
+  },
   "kaia": {
     "name": "kaia",
     "chainId": 8217,
