@@ -9,7 +9,7 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IWrapper } from "../Interfaces/IWrapper.sol";
-import { InvalidContract, NoTransferToNullAddress } from "../Errors/GenericErrors.sol";
+import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
@@ -35,8 +35,8 @@ contract TokenWrapper is WithdrawablePeriphery {
         address _converter,
         address _owner
     ) WithdrawablePeriphery(_owner) {
-        if (_wrappedToken == address(0)) revert NoTransferToNullAddress();
-        if (_owner == address(0)) revert NoTransferToNullAddress();
+        if (_wrappedToken == address(0)) revert InvalidConfig();
+        if (_owner == address(0)) revert InvalidConfig();
 
         WRAPPED_TOKEN = _wrappedToken;
         USE_CONVERTER = _converter != address(0);
