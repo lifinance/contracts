@@ -8,7 +8,7 @@ pragma solidity ^0.8.17;
 ///      1. NEW GRANULAR SYSTEM: Contract-selector pairs for precise control
 ///      2. BACKWARD COMPATIBILITY: Global lists for existing deployed facets
 ///      New development should exclusively use the granular functions.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 interface IWhitelistManagerFacet {
     /// Events ///
 
