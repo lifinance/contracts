@@ -21,10 +21,12 @@ import {
   MongoClient,
 } from 'mongodb'
 
+import type { EnvironmentEnum } from '../common/types'
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+
 import {
   type IDeploymentRecord,
   type IUpdateConfig,
-  type DeploymentEnvironment,
   RecordTransformer,
 } from './shared/mongo-log-utils'
 
@@ -37,7 +39,7 @@ interface IIndexSpec {
 
 // Configuration setup
 const config: IUpdateConfig = {
-  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+  mongoUri: getEnvVar('MONGODB_URI'),
   logFilePath: path.join(
     process.cwd(),
     'deployments/_deployments_log_file.json'
@@ -68,7 +70,7 @@ class DeploymentLogManager {
 
   public constructor(
     private config: IUpdateConfig,
-    private environment: DeploymentEnvironment
+    private environment: keyof typeof EnvironmentEnum
   ) {
     this.client = new MongoClient(config.mongoUri)
   }
@@ -566,7 +568,7 @@ const syncCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -714,7 +716,7 @@ const addCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -862,7 +864,7 @@ const updateCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
@@ -906,7 +908,7 @@ const createIndexesCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as DeploymentEnvironment
+      args.env as keyof typeof EnvironmentEnum
     )
 
     try {
