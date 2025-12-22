@@ -26,13 +26,15 @@ import path from 'path'
 
 import { consola } from 'consola'
 
+import type { EnvironmentEnum } from '../../common/types'
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+
 import type { DeploymentCache } from './deployment-cache'
 import { createDefaultCache } from './deployment-cache'
 import {
   DatabaseConnectionManager,
   type IDeploymentRecord,
   type IConfig,
-  type DeploymentEnvironment,
 } from './mongo-log-utils'
 
 /**
@@ -94,7 +96,7 @@ export class DeploymentLogger {
    */
   public async log(
     deployment: Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>,
-    environment: DeploymentEnvironment,
+    environment: keyof typeof EnvironmentEnum,
     options: ILogOptions = {}
   ): Promise<void> {
     const {
@@ -121,6 +123,9 @@ export class DeploymentLogger {
         contractVersionKey: `${deployment.contractName}-${deployment.version}`,
       }
 
+      // Remove createdAt before using in $set to prevent overwriting original timestamp
+      const { createdAt: _createdAt, ...recordForSet } = record
+
       // Write to MongoDB (primary source)
       await collection.updateOne(
         {
@@ -131,7 +136,7 @@ export class DeploymentLogger {
         },
         {
           $set: {
-            ...record,
+            ...recordForSet,
             updatedAt: now,
           },
           $setOnInsert: {
@@ -170,7 +175,7 @@ export class DeploymentLogger {
     deployments: Array<
       Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>
     >,
-    environment: DeploymentEnvironment,
+    environment: keyof typeof EnvironmentEnum,
     options: ILogOptions = {}
   ): Promise<void> {
     const {
@@ -268,7 +273,7 @@ export class DeploymentLogger {
    */
   private async updateLocalJsonFile(
     record: IDeploymentRecord,
-    environment: DeploymentEnvironment
+    environment: keyof typeof EnvironmentEnum
   ): Promise<void> {
     if (!this.localJsonPath) return
 
@@ -356,11 +361,12 @@ let defaultLogger: DeploymentLogger | null = null
 /**
  * Gets or creates the default logger instance
  * @returns Default DeploymentLogger instance
+ * @throws Error if MONGODB_URI environment variable is not set
  */
 function getDefaultLogger(): DeploymentLogger {
   if (!defaultLogger) {
     const mongoConfig: IConfig = {
-      mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+      mongoUri: getEnvVar('MONGODB_URI'),
       batchSize: 100,
       databaseName: 'contract-deployments',
     }
@@ -400,7 +406,7 @@ function getDefaultLogger(): DeploymentLogger {
  */
 export async function logDeployment(
   deployment: Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>,
-  environment: 'staging' | 'production',
+  environment: keyof typeof EnvironmentEnum,
   options?: ILogOptions
 ): Promise<void> {
   const logger = getDefaultLogger()
@@ -418,7 +424,7 @@ export async function logDeploymentBatch(
   deployments: Array<
     Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>
   >,
-  environment: 'staging' | 'production',
+  environment: keyof typeof EnvironmentEnum,
   options?: ILogOptions
 ): Promise<void> {
   const logger = getDefaultLogger()
