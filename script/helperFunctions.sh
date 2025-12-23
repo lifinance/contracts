@@ -2163,6 +2163,7 @@ function verifyAllUnverifiedContractsInLogFile() {
           OPTIMIZER_RUNS=$(echo "$ENTRY" | awk -F'"' '/"OPTIMIZER_RUNS":/{print $4}')
           TIMESTAMP=$(echo "$ENTRY" | awk -F'"' '/"TIMESTAMP":/{print $4}')
           CONSTRUCTOR_ARGS=$(echo "$ENTRY" | awk -F'"' '/"CONSTRUCTOR_ARGS":/{print $4}')
+          local SALT SOLC_VERSION EVM_VERSION ZK_SOLC_VERSION
           SALT=$(echo "$ENTRY" | jq -r '.SALT // empty')
           SOLC_VERSION=$(echo "$ENTRY" | jq -r '.SOLC_VERSION // empty')
           EVM_VERSION=$(echo "$ENTRY" | jq -r '.EVM_VERSION // empty')
