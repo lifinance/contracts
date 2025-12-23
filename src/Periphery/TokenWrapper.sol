@@ -38,6 +38,7 @@ contract TokenWrapper is WithdrawablePeriphery {
     ) WithdrawablePeriphery(_owner) {
         if (_wrappedToken == address(0)) revert InvalidConfig();
         if (_owner == address(0)) revert InvalidConfig();
+        if (!LibAsset.isContract(_wrappedToken)) revert InvalidContract();
 
         WRAPPED_TOKEN = _wrappedToken;
         USE_CONVERTER = _converter != address(0);
