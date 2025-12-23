@@ -8,7 +8,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { IWrapper } from "../Interfaces/IWrapper.sol";
+import { WETH } from "solady/tokens/WETH.sol";
 import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title TokenWrapper
@@ -67,7 +67,7 @@ contract TokenWrapper is WithdrawablePeriphery {
     /// @dev If no converter, wraps native 1:1 and transfers msg.value of wrapped tokens
     function deposit() external payable {
         uint256 amount = msg.value;
-        IWrapper(CONVERTER).deposit{ value: amount }();
+        WETH(payable(CONVERTER)).deposit{ value: amount }();
         uint256 wrappedAmount;
         if (USE_CONVERTER) {
             wrappedAmount =
@@ -95,7 +95,7 @@ contract TokenWrapper is WithdrawablePeriphery {
             amount
         );
 
-        IWrapper(CONVERTER).withdraw(amount);
+        WETH(payable(CONVERTER)).withdraw(amount);
         uint256 nativeAmount;
         if (USE_CONVERTER) {
             nativeAmount = (amount * BASE_DENOMINATOR) / SWAP_RATIO_MULTIPLIER;
