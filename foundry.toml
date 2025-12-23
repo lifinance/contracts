@@ -69,6 +69,7 @@ katana = "${ETH_NODE_URI_KATANA}"
 lens = "${ETH_NODE_URI_LENS}"
 linea = "${ETH_NODE_URI_LINEA}"
 lisk = "${ETH_NODE_URI_LISK}"
+megaeth = "${ETH_NODE_URI_MEGAETH}"
 monad= "${ETH_NODE_URI_MONAD}"
 moonbeam = "${ETH_NODE_URI_MOONBEAM}"
 moonriver = "${ETH_NODE_URI_MOONRIVER}"
@@ -142,6 +143,7 @@ lens = { key = "${LENS_ETHERSCAN_API_KEY}", url = "https://api-explorer-verify.l
 linea = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = "59144" }
 lisk = { key = "${BLOCKSCOUT_API_KEY}", url = "https://blockscout.lisk.com/api", chain = "1135", verifier = "blockscout" }
 mantle = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=5000", chain = "5000" }
+megaeth = { key = "${BLOCKSCOUT_API_KEY}", url = "https://megaeth-testnet-v3.blockscout.com/api", chain = "4326", verifier = "blockscout" }
 metis = { key = "${VERIFY_CONTRACT_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
 monad = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=143", verifier = "custom", chain = "143" }
@@ -161,7 +163,7 @@ sei = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2
 soneium = { key = "${BLOCKSCOUT_API_KEY}", url = "https://soneium.blockscout.com/api", verifier = "blockscout", chain = "1868" }
 sonic = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=146", chain = "146" }
 sophon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=50104", chain = "50104" }
-stable = { key = "${BLOCKSCOUT_API_KEY}", url = "https://partners-explorer.stable.xyz/api", chain = "988"}
+stable = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=988", chain = "988"}
 superposition = { key = "${BLOCKSCOUT_API_KEY}", url = "https://explorer-superposition-1v9rjalnat.t.conduit.xyz/api/", chain = "55244", verifier = "blockscout" }
 swellchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1923", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }

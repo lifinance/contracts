@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import { Keypair } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
 // eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
-import { decode as decodeBase58 } from 'bs58'
+import bs58 from 'bs58'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import {
@@ -151,7 +151,7 @@ export const solanaAddressToBytes32 = (
   solanaAddress: string
 ): `0x${string}` => {
   // Decode base58 to get raw 32 bytes
-  const addressBytes = decodeBase58(solanaAddress)
+  const addressBytes = bs58.decode(solanaAddress)
 
   if (addressBytes.length !== 32) {
     throw new Error(
