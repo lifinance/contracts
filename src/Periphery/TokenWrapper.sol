@@ -51,7 +51,7 @@ contract TokenWrapper is WithdrawablePeriphery {
                 _converter,
                 type(uint256).max
             );
-            // Calculate swap ratio based on decimal difference between native (18) and wrapped token
+            // Set swap ratio multiplier to wrapped token's decimal scale
             uint8 wrappedDecimals = IERC20Metadata(_wrappedToken).decimals();
             SWAP_RATIO_MULTIPLIER = 10 ** wrappedDecimals;
         } else {
