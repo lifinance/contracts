@@ -66,9 +66,16 @@ contract TokenWrapper is WithdrawablePeriphery {
     /// @dev If converter is set, uses it to convert native to wrapped tokens using precalculated ratio
     /// @dev If no converter, wraps native 1:1 and transfers msg.value of wrapped tokens
     function deposit() external payable {
-        IWrapper(CONVERTER).deposit{ value: msg.value }();
-        uint256 wrappedAmount = (msg.value * SWAP_RATIO_MULTIPLIER) /
-            BASE_DENOMINATOR;
+        uint256 amount = msg.value;
+        IWrapper(CONVERTER).deposit{ value: amount }();
+        uint256 wrappedAmount;
+        if (USE_CONVERTER) {
+            wrappedAmount =
+                (amount * SWAP_RATIO_MULTIPLIER) /
+                BASE_DENOMINATOR;
+        } else {
+            wrappedAmount = amount;
+        }
         SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, wrappedAmount);
     }
 
@@ -89,8 +96,12 @@ contract TokenWrapper is WithdrawablePeriphery {
         );
 
         IWrapper(CONVERTER).withdraw(amount);
-        uint256 nativeAmount = (amount * BASE_DENOMINATOR) /
-            SWAP_RATIO_MULTIPLIER;
+        uint256 nativeAmount;
+        if (USE_CONVERTER) {
+            nativeAmount = (amount * BASE_DENOMINATOR) / SWAP_RATIO_MULTIPLIER;
+        } else {
+            nativeAmount = amount;
+        }
         SafeTransferLib.safeTransferETH(msg.sender, nativeAmount);
     }
 
