@@ -687,6 +687,27 @@
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
     "devNotes": "When using LDA 1.11.0 in evm=cancun some transactions were failing. So probably better to always use 0.8.17 and evm=london"
   },
+  "megaeth": {
+    "name": "megaeth",
+    "chainId": 4326,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://mainnet.megaeth.com/rpc",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://megaeth.blockscout.com",
+    "explorerApiUrl": "https://megaeth.blockscout.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeAddress": "0xb160467220BF28e596015EA841eD9b8daC6102Fd",
+    "gasZipChainId": 514,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
+    "devNotes": "For forge script deployments, add these flags: --gas-limit 50000000 --gas-price 2000000 --skip-simulation --legacy. Required for deploySingleContract.sh, updateFacetConfig.sh, and diamondUpdateFacet.sh scripts. Example: forge script <script> -f megaeth --broadcast --legacy --gas-limit 50000000 --gas-price 2000000 --skip-simulation"
+  },
   "metis": {
     "name": "metis",
     "chainId": 1088,
