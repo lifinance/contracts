@@ -313,6 +313,8 @@ export class DeploymentCache {
       }
 
       throw error
+    } finally {
+      await dbManager.disconnect()
     }
   }
 
