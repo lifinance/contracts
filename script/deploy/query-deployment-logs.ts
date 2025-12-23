@@ -247,6 +247,7 @@ const latestCommand = defineCommand({
         args.env as keyof typeof EnvironmentEnum
       )
 
+      let exitCode = 0
       try {
         await querier.connect()
         const deployment = await querier.getLatestDeployment(
@@ -257,14 +258,15 @@ const latestCommand = defineCommand({
           if (args.format === 'table') console.log(formatDeployment(deployment))
           else outputJSON(deployment)
         } else {
-          process.exit(1)
+          exitCode = 1
         }
       } catch (error) {
         consola.error('Query failed:', error)
-        process.exit(1)
+        exitCode = 1
       } finally {
         await querier.disconnect()
       }
+      if (exitCode !== 0) process.exit(exitCode)
     }
   },
 })
@@ -327,6 +329,7 @@ const listCommand = defineCommand({
     const limit = ValidationUtils.safeParseInt(args.limit, 50, 1, 1000)
     const page = ValidationUtils.safeParseInt(args.page, 1, 1)
 
+    let exitCode = 0
     try {
       await querier.connect()
       const result = await querier.listDeployments(
@@ -363,11 +366,11 @@ const listCommand = defineCommand({
         })
     } catch (error) {
       consola.error('Query failed:', error)
-      await querier.disconnect()
-      process.exit(1)
+      exitCode = 1
     } finally {
       await querier.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -417,6 +420,7 @@ const findCommand = defineCommand({
       args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await querier.connect()
       const deployment = await querier.findByAddress(args.address, args.network)
@@ -425,16 +429,15 @@ const findCommand = defineCommand({
         if (args.format === 'table') console.log(formatDeployment(deployment))
         else outputJSON(deployment)
       else {
-        await querier.disconnect()
-        process.exit(1)
+        exitCode = 1
       }
     } catch (error) {
       consola.error('Query failed:', error)
-      await querier.disconnect()
-      process.exit(1)
+      exitCode = 1
     } finally {
       await querier.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -540,6 +543,7 @@ const filterCommand = defineCommand({
         args.env as keyof typeof EnvironmentEnum
       )
 
+      let exitCode = 0
       try {
         await querier.connect()
         const deployments = await querier.filterDeployments(filters)
@@ -556,11 +560,11 @@ const filterCommand = defineCommand({
         else outputJSON([])
       } catch (error) {
         consola.error('Query failed:', error)
-        await querier.disconnect()
-        process.exit(1)
+        exitCode = 1
       } finally {
         await querier.disconnect()
       }
+      if (exitCode !== 0) process.exit(exitCode)
     }
   },
 })
@@ -611,6 +615,7 @@ const historyCommand = defineCommand({
       args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await querier.connect()
       const deployments = await querier.getDeploymentHistory(
@@ -626,16 +631,15 @@ const historyCommand = defineCommand({
           })
         } else outputJSON(deployments)
       else {
-        await querier.disconnect()
-        process.exit(1)
+        exitCode = 1
       }
     } catch (error) {
       consola.error('Query failed:', error)
-      await querier.disconnect()
-      process.exit(1)
+      exitCode = 1
     } finally {
       await querier.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -680,6 +684,7 @@ const existsCommand = defineCommand({
       args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await querier.connect()
       const deployments = await querier.filterDeployments({
@@ -690,15 +695,15 @@ const existsCommand = defineCommand({
       })
 
       // Exit with code 0 if exists, 1 if not (bash-compatible)
-      process.exit(deployments.length > 0 ? 0 : 1)
+      exitCode = deployments.length > 0 ? 0 : 1
     } catch (error) {
       // Exit with error code on failure
       consola.error('Error checking deployment existence:', error)
-      await querier.disconnect()
-      process.exit(1)
+      exitCode = 1
     } finally {
       await querier.disconnect()
     }
+    process.exit(exitCode)
   },
 })
 
@@ -791,6 +796,7 @@ const getCommand = defineCommand({
         args.env as keyof typeof EnvironmentEnum
       )
 
+      let exitCode = 0
       try {
         await querier.connect()
         const deployments = await querier.filterDeployments({
@@ -801,25 +807,24 @@ const getCommand = defineCommand({
         })
 
         if (deployments.length === 0) {
-          await querier.disconnect()
-          process.exit(1)
+          exitCode = 1
+        } else {
+          const deployment = deployments[0]
+          if (!deployment) {
+            exitCode = 1
+          } else {
+            if (args.format === 'table')
+              console.log(formatDeployment(deployment))
+            else console.log(JSON.stringify(deployment, null, 2))
+          }
         }
-
-        const deployment = deployments[0]
-        if (!deployment) {
-          await querier.disconnect()
-          process.exit(1)
-        }
-
-        if (args.format === 'table') console.log(formatDeployment(deployment))
-        else console.log(JSON.stringify(deployment, null, 2))
       } catch (error) {
         consola.error('Error querying deployment logs:', error)
-        await querier.disconnect()
-        process.exit(1)
+        exitCode = 1
       } finally {
         await querier.disconnect()
       }
+      if (exitCode !== 0) process.exit(exitCode)
     }
   },
 })
