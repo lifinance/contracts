@@ -21,13 +21,13 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xa574407A8bA37E83841eCa2084b1DAC51d0f0b8A": {
-        "Name": "",
-        "Version": ""
+      "0xb5a9740923C412185Bd7Da45C2AD2e256555dDe9": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",
@@ -85,10 +85,6 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
-      "0xB4E02721E552Ef3721f32E1D90BC13cb390b6cB3": {
-        "Name": "",
-        "Version": ""
-      },
       "0xa73a8BC8d36472269138c3233e24D0Ee0c344bd8": {
         "Name": "CircleBridgeFacet",
         "Version": "1.0.0"
@@ -125,10 +121,6 @@
         "Name": "MayanFacet",
         "Version": "1.2.0"
       },
-      "0x681a3409c35F12224c436D50Ce14F25f954B6Ea2": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
       "0x7C27b0FD92dbC5a1cA268255A649320E8C649e70": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
@@ -149,17 +141,9 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0xa884c21873A671bD010567cf97c937b153F842Cc": {
-        "Name": "ChainflipFacet",
-        "Version": "1.0.0"
-      },
       "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
         "Name": "PioneerFacet",
         "Version": "1.0.0"
-      },
-      "0x80Fa81Ba88C74f6E4fee1A5c6d2aaA4AEF442781": {
-        "Name": "",
-        "Version": ""
       },
       "0xB289F36bAb7d94341E051C0c998f44A23D48D72C": {
         "Name": "AllBridgeFacet",
@@ -173,24 +157,61 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x36e1375B0755162d720276dFF6893DF02bd49225": {
-        "Name": "GlacisFacet",
-        "Version": "1.1.0"
-      },
       "0x004E291b9244C811B0BE00cA2C179d54FAA5073D": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x7Ea86FE59Ab35d76ba2446b09104A52E95d3267e": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.1"
+      },
+      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0x508DEA1EdbE8F9D019d36B7Ba67f0EF8d8FBf35f": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
+      },
+      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
+      },
+      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xfeac1be55bCccc46D88743F9dBCCF60f66562357": {
+        "Name": "CelerCircleBridgeV2Facet",
+        "Version": "1.0.0"
+      },
+      "0x8EFcbD11864c37CE82446FFC3846610Fda3269E0": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
+      },
+      "0x8d02904CCFEd82AFc87201AC991924B83a65557E": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
+      "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "LidoWrapper": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
-      "Permit2Proxy": "0xb33Fe241BEd9bf5F694101D7498F63a0d060F999",
+      "Permit2Proxy": "0x104BD390Fed41089650Ac14aC6D9a8F3513A04cf",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverAcrossV4": "0x8fd9e1893fdE2e52b49F2875E63277Ba5675D014",
       "ReceiverChainflip": "",

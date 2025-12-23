@@ -929,24 +929,36 @@ export async function registerFacetToDiamond(
     const selectorsToReplace = []
     let alreadyRegisteredCount = 0
 
-    for (const selector of selectors) 
+    for (const selector of selectors)
       try {
-        const currentFacetAddress = await diamond.facetAddress(selector).call()
+        const currentFacetAddressRaw = await diamond
+          .facetAddress(selector)
+          .call()
+        const currentFacetAddress = String(currentFacetAddressRaw)
 
         const isZeroAddress =
           !currentFacetAddress ||
           currentFacetAddress === 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb' ||
           currentFacetAddress ===
             '0x0000000000000000000000000000000000000000' ||
+          currentFacetAddress ===
+            '410000000000000000000000000000000000000000' ||
           currentFacetAddress === ZERO_ADDRESS
 
         if (isZeroAddress) selectorsToAdd.push(selector)
-        else if (currentFacetAddress === facetAddress) alreadyRegisteredCount++
         else {
-          selectorsToReplace.push(selector)
-          consola.debug(
-            `Selector ${selector} currently on ${currentFacetAddress}, will replace with ${facetAddress}`
-          )
+          const currentHex = tronWeb.address
+            .toHex(currentFacetAddress)
+            .toLowerCase()
+          const targetHex = tronWeb.address.toHex(facetAddress).toLowerCase()
+
+          if (currentHex === targetHex) alreadyRegisteredCount++
+          else {
+            selectorsToReplace.push(selector)
+            consola.debug(
+              `Selector ${selector} currently on ${currentFacetAddress}, will replace with ${facetAddress}`
+            )
+          }
         }
       } catch (error) {
         consola.debug(
@@ -954,7 +966,6 @@ export async function registerFacetToDiamond(
         )
         selectorsToAdd.push(selector)
       }
-    
 
     // Build facetCuts array based on what's needed
     const facetCuts = []
@@ -971,11 +982,10 @@ export async function registerFacetToDiamond(
       )
     }
 
-    if (alreadyRegisteredCount > 0) 
+    if (alreadyRegisteredCount > 0)
       consola.info(
         `${alreadyRegisteredCount} selectors already registered to this facet`
       )
-    
 
     // If nothing to do, exit early
     if (facetCuts.length === 0) {

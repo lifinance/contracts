@@ -89,15 +89,20 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x9428951809Cc7aB7CeC79295FEFcC96670eAeb9E": {
+      "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
+      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",

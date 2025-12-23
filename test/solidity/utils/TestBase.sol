@@ -8,24 +8,16 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ReentrancyError, ETHTransferFailed } from "src/Errors/GenericErrors.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { TestWhitelistManagerBase } from "./TestWhitelistManagerBase.sol";
 import { LiFiData } from "src/Helpers/LiFiData.sol";
 
 using stdJson for string;
 
-contract TestFacet {
+contract TestFacet is TestWhitelistManagerBase {
     constructor() {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract ReentrancyChecker is DSTest {

@@ -65,15 +65,20 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x39CE4e6b1c8Bc0Ac631b1779F7deCD5714893AE2": {
+      "0x6956df7664ACbd742cBCae485a57C4BFe3e075b3": {
         "Name": "GlacisFacet",
-        "Version": "1.1.0"
+        "Version": "1.2.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xEd170C587Ccb4DaD6986798c8E7cC66fBb564AC5",
       "Executor": "0x6d425eAb1Eb6e002Bf40c44e5d9Ff7fC6a38824a",
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
+      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xE38621607316cB43367c134C65dca3f41B61250f",

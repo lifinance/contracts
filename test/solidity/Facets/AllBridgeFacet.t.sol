@@ -1,23 +1,15 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 
 // Stub AllBridgeFacet Contract
-contract TestAllBridgeFacet is AllBridgeFacet {
+contract TestAllBridgeFacet is AllBridgeFacet, TestWhitelistManagerBase {
     constructor(IAllBridge _allBridge) AllBridgeFacet(_allBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 
     function getAllBridgeChainId(
         uint256 _chainId
@@ -46,6 +38,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
     uint32 private constant ALLBRIDGE_ID_SONIC = 12;
     uint32 private constant ALLBRIDGE_ID_SUI = 13;
     uint32 private constant ALLBRIDGE_ID_UNICHAIN = 14;
+    uint32 private constant ALLBRIDGE_ID_LINEA = 17;
     uint256 internal constant LIFI_CHAIN_ID_ETHEREUM = 1;
     uint256 internal constant LIFI_CHAIN_ID_OPTIMISM = 10;
     uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
@@ -53,6 +46,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
     uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
     uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
     uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
+    uint256 internal constant LIFI_CHAIN_ID_LINEA = 59144;
     uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
     uint256 internal constant LIFI_CHAIN_ID_SONIC = 146;
     uint256 internal constant LIFI_CHAIN_ID_UNICHAIN = 130;
@@ -68,30 +62,31 @@ contract AllBridgeFacetTest is TestBaseFacet {
         initTestBase();
 
         allBridgeFacet = new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = allBridgeFacet
             .startBridgeTokensViaAllBridge
             .selector;
         functionSelectors[1] = allBridgeFacet
             .swapAndStartBridgeTokensViaAllBridge
             .selector;
-        functionSelectors[2] = allBridgeFacet.addDex.selector;
-        functionSelectors[3] = allBridgeFacet
-            .setFunctionApprovalBySignature
+        functionSelectors[2] = allBridgeFacet
+            .addAllowedContractSelector
             .selector;
-        functionSelectors[4] = allBridgeFacet.getAllBridgeChainId.selector;
+        functionSelectors[3] = allBridgeFacet.getAllBridgeChainId.selector;
 
         addFacet(diamond, address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
-        allBridgeFacet.addDex(ADDRESS_UNISWAP);
-        allBridgeFacet.setFunctionApprovalBySignature(
+        allBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        allBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        allBridgeFacet.setFunctionApprovalBySignature(
+        allBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
+        );
+        allBridgeFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
         );
 
         setFacetAddressInTestBase(address(allBridgeFacet), "AllBridgeFacet");
@@ -393,6 +388,11 @@ contract AllBridgeFacetTest is TestBaseFacet {
         assertEq(
             allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_UNICHAIN),
             ALLBRIDGE_ID_UNICHAIN
+        );
+        // linea
+        assertEq(
+            allBridgeFacet.getAllBridgeChainId(LIFI_CHAIN_ID_LINEA),
+            ALLBRIDGE_ID_LINEA
         );
         // unknown
         vm.expectRevert(UnsupportedAllBridgeChainId.selector);

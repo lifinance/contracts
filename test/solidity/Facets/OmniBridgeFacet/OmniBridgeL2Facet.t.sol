@@ -2,24 +2,16 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 import { IOmniBridge } from "lifi/Interfaces/IOmniBridge.sol";
+import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
 
 // Stub OmniBridgeFacet Contract
-contract TestOmniBridgeFacet is OmniBridgeFacet {
+contract TestOmniBridgeFacet is OmniBridgeFacet, TestWhitelistManagerBase {
     constructor(
         IOmniBridge _foreignOmniBridge,
         IOmniBridge _wethOmniBridge
     ) OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract OmniBridgeL2FacetTest is TestBaseFacet {
@@ -57,23 +49,27 @@ contract OmniBridgeL2FacetTest is TestBaseFacet {
         functionSelectors[1] = omniBridgeFacet
             .swapAndStartBridgeTokensViaOmniBridge
             .selector;
-        functionSelectors[2] = omniBridgeFacet.addDex.selector;
+        functionSelectors[2] = omniBridgeFacet
+            .addAllowedContractSelector
+            .selector;
         functionSelectors[3] = omniBridgeFacet
-            .setFunctionApprovalBySignature
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(omniBridgeFacet), functionSelectors);
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 
-        omniBridgeFacet.addDex(address(uniswap));
-        omniBridgeFacet.setFunctionApprovalBySignature(
+        omniBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapExactTokensForTokens.selector
         );
-        omniBridgeFacet.setFunctionApprovalBySignature(
+        omniBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapETHForExactTokens.selector
         );
-        omniBridgeFacet.setFunctionApprovalBySignature(
+        omniBridgeFacet.addAllowedContractSelector(
+            address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
 

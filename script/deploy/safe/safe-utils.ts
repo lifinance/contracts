@@ -30,7 +30,11 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import {
+  buildExplorerContractPageUrl,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
 
@@ -430,10 +434,50 @@ export class ViemSafe {
     }
   }
 
+  /**
+   * Alternative signing path: sign the Safe transaction hash via eth_sign
+   * instead of EIP-712 typed data.
+   *
+   * This is useful for hardware wallets (e.g. Ledger) that may reject very
+   * large EIP-712 payloads (status 0x6a80). The Safe contracts fully support
+   * eth_sign signatures over the Safe transaction hash.
+   */
+  public async signTransactionWithHash(
+    safeTx: ISafeTransaction
+  ): Promise<ISafeTransaction> {
+    try {
+      // 1) Compute the Safe transaction hash on-chain (via viem client)
+      const hash = await this.getTransactionHash(safeTx)
+      consola.info(
+        `[safe-utils] Signing Safe tx hash (ENABLE_SAFE_TX_HASH_SIGNING=true): ${hash}`
+      )
+
+      // 2) Sign the hash using eth_sign-compatible flow
+      const sig = await this.signHash(hash)
+
+      // 3) Attach signature to the Safe transaction
+      safeTx.signatures.set(sig.signer.toLowerCase(), sig)
+
+      return safeTx
+    } catch (error: any) {
+      console.error('Error signing transaction hash:', error)
+      throw new Error(
+        `Failed to sign transaction hash: ${error.message || error}`
+      )
+    }
+  }
+
   // Sign a Safe transaction (replaces signTransaction from Safe SDK)
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    // Optional feature flag to switch between EIP-712 signing and hash signing.
+    // If ENABLE_SAFE_TX_HASH_SIGNING === 'true', we sign the Safe tx hash
+    // using eth_sign instead of constructing a large EIP-712 payload.
+    if (getEnvVar('ENABLE_SAFE_TX_HASH_SIGNING') === 'true') {
+      return this.signTransactionWithHash(safeTx)
+    }
+
     try {
       // Get chain ID for domain
       const chainId = await this.publicClient.getChainId()
@@ -907,18 +951,48 @@ export async function storeTransactionInMongoDB(
 
 /**
  * Gets a MongoDB client and collection for Safe transactions
+ * Connects to the new MongoDB cluster using SC_MONGODB_URI
  * @returns MongoDB client and pendingTransactions collection
- * @throws Error if MONGODB_URI is not set
+ * @throws Error if SC_MONGODB_URI is not set or if not connected to VPN
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
   pendingTransactions: Collection<ISafeTxDocument>
 }> {
-  if (!process.env.MONGODB_URI)
-    throw new Error('MONGODB_URI environment variable is required')
+  if (!process.env.SC_MONGODB_URI)
+    throw new Error('SC_MONGODB_URI environment variable is required')
 
-  const client = new MongoClient(process.env.MONGODB_URI)
-  const db = client.db('SAFE')
+  // Check VPN connection by verifying IP address
+  try {
+    const response = await fetch('https://api.ipify.org?format=json')
+    const data = (await response.json()) as { ip: string }
+
+    if (data.ip !== '18.195.61.255') {
+      consola.warn(`VPN connection required! Current IP: ${data.ip}`)
+      consola.warn(
+        'Please connect to the VPN before accessing the Safe MongoDB collection.'
+      )
+      throw new Error(
+        'VPN connection required to access Safe MongoDB collection'
+      )
+    }
+  } catch (error) {
+    // If the error is our VPN error, re-throw it
+    if (
+      error instanceof Error &&
+      error.message.includes('VPN connection required')
+    ) {
+      throw error
+    }
+    // For other errors (network issues, etc.), log and continue with a warning
+    consola.warn('Could not verify VPN connection:', error)
+    consola.warn(
+      'Proceeding with caution - ensure you are connected to the VPN'
+    )
+  }
+
+  const client = new MongoClient(process.env.SC_MONGODB_URI)
+  const db = client.db('sc_private')
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )
@@ -1222,6 +1296,20 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
   // Create selector map for efficient lookup
   const selectorMap = await createSelectorMap()
 
+  // Best-effort resolution of the network id from chainId so we can build explorer links.
+  let networkIdForExplorer: string | undefined
+  try {
+    const maybeNetworks = data as Record<string, { chainId?: number }>
+
+    for (const [id, cfg] of Object.entries(maybeNetworks))
+      if (cfg?.chainId === chainId) {
+        networkIdForExplorer = id
+        break
+      }
+  } catch {
+    networkIdForExplorer = undefined
+  }
+
   consola.info('Diamond Cut Details:')
   consola.info('-'.repeat(80))
   // diamondCutData.args[0] contains an array of modifications.
@@ -1230,7 +1318,15 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
     try {
-      consola.info(`Facet Address: \u001b[34m${facetAddress}\u001b[0m`)
+      let facetLine = `Facet Address: \u001b[34m${facetAddress}\u001b[0m`
+      if (networkIdForExplorer) {
+        const explorerUrl = buildExplorerContractPageUrl(
+          networkIdForExplorer,
+          facetAddress
+        )
+        if (explorerUrl) facetLine += ` \u001b[36m${explorerUrl}\u001b[0m`
+      }
+      consola.info(facetLine)
       consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
 
       // Use selector map for efficient lookup

@@ -14,7 +14,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 /// @title Allbridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through AllBridge
-/// @custom:version 2.1.1
+/// @custom:version 2.1.2
 contract AllBridgeFacet is
     ILiFi,
     ReentrancyGuard,
@@ -35,12 +35,14 @@ contract AllBridgeFacet is
     uint256 private constant ALLBRIDGE_ID_SONIC = 12;
     uint256 private constant ALLBRIDGE_ID_SUI = 13;
     uint256 private constant ALLBRIDGE_ID_UNICHAIN = 14;
+    uint256 private constant ALLBRIDGE_ID_LINEA = 17;
 
     uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
     uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
     uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
     uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
     uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
+    uint256 internal constant LIFI_CHAIN_ID_LINEA = 59144;
     uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
     uint256 internal constant LIFI_CHAIN_ID_SONIC = 146;
     uint256 internal constant LIFI_CHAIN_ID_UNICHAIN = 130;
@@ -197,6 +199,7 @@ contract AllBridgeFacet is
     }
 
     /// @notice Converts LiFi internal chain IDs to AllBridge chain IDs
+    // https://docs-core.allbridge.io/product/how-does-allbridge-core-work/allbridge-core-contracts
     /// @param _destinationChainId The LiFi chain ID to convert
     /// @return The corresponding Chainflip chain ID
     /// @dev Reverts if the destination chain is not supported
@@ -231,6 +234,8 @@ contract AllBridgeFacet is
             return ALLBRIDGE_ID_SONIC;
         else if (_destinationChainId == LIFI_CHAIN_ID_UNICHAIN)
             return ALLBRIDGE_ID_UNICHAIN;
+        else if (_destinationChainId == LIFI_CHAIN_ID_LINEA)
+            return ALLBRIDGE_ID_LINEA;
         // revert if no match found
         else revert UnsupportedAllBridgeChainId();
     }
