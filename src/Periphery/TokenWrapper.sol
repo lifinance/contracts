@@ -20,6 +20,7 @@ contract TokenWrapper is WithdrawablePeriphery {
     address public immutable CONVERTER;
     bool private immutable USE_CONVERTER;
     uint256 private immutable SWAP_RATIO_MULTIPLIER;
+    uint256 private constant BASE_DENOMINATOR = 1 ether;
 
     /// Errors ///
     error WithdrawFailure();
@@ -55,7 +56,7 @@ contract TokenWrapper is WithdrawablePeriphery {
             SWAP_RATIO_MULTIPLIER = 10 ** wrappedDecimals;
         } else {
             CONVERTER = _wrappedToken;
-            SWAP_RATIO_MULTIPLIER = 1 ether; // 1:1 ratio for 18 decimals
+            SWAP_RATIO_MULTIPLIER = BASE_DENOMINATOR; // 1:1 ratio for 18 decimals
         }
     }
 
@@ -66,7 +67,8 @@ contract TokenWrapper is WithdrawablePeriphery {
     /// @dev If no converter, wraps native 1:1 and transfers msg.value of wrapped tokens
     function deposit() external payable {
         IWrapper(CONVERTER).deposit{ value: msg.value }();
-        uint256 wrappedAmount = (msg.value * SWAP_RATIO_MULTIPLIER) / 1 ether;
+        uint256 wrappedAmount = (msg.value * SWAP_RATIO_MULTIPLIER) /
+            BASE_DENOMINATOR;
         SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, wrappedAmount);
     }
 
@@ -87,7 +89,8 @@ contract TokenWrapper is WithdrawablePeriphery {
         );
 
         IWrapper(CONVERTER).withdraw(amount);
-        uint256 nativeAmount = (amount * 1 ether) / SWAP_RATIO_MULTIPLIER;
+        uint256 nativeAmount = (amount * BASE_DENOMINATOR) /
+            SWAP_RATIO_MULTIPLIER;
         SafeTransferLib.safeTransferETH(msg.sender, nativeAmount);
     }
 
