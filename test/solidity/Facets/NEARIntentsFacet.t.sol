@@ -39,6 +39,17 @@ contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
 contract NEARIntentsFacetTest is TestBaseFacet {
     TestNEARIntentsFacet internal nearIntentsFacet;
 
+    // Event definition for testing (matches NEARIntentsFacet.NEARIntentsBridgeStarted)
+    event NEARIntentsBridgeStarted(
+        bytes32 indexed transactionId,
+        bytes32 indexed quoteId,
+        address indexed depositAddress,
+        address sendingAssetId,
+        uint256 amount,
+        uint256 deadline,
+        uint256 minAmountOut
+    );
+
     // Test constants
     bytes32 internal constant TEST_QUOTE_ID = keccak256("test-quote-1");
     address internal constant TEST_DEPOSIT_ADDRESS =
@@ -285,7 +296,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -339,7 +350,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -513,7 +524,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -551,7 +562,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -593,7 +604,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -621,7 +632,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events for first bridge
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -653,7 +664,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events for second bridge
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             newNearData.quoteId,
             newNearData.depositAddress,
@@ -757,7 +768,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect NEARIntentsBridgeStarted event
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -816,7 +827,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect NEARIntentsBridgeStarted event
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,
@@ -899,7 +910,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect events
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             customNearData.quoteId,
             customNearData.depositAddress,
@@ -954,7 +965,7 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         // Expect NEARIntentsBridgeStarted event
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit NEARIntentsFacet.NEARIntentsBridgeStarted(
+        emit NEARIntentsBridgeStarted(
             bridgeData.transactionId,
             validNearData.quoteId,
             validNearData.depositAddress,

@@ -31,6 +31,11 @@ source script/playgroundHelpers.sh
 # ENVIRONMENT="staging"
 ENVIRONMENT="production"
 
+# Contract to execute actions for (e.g., "WhitelistManagerFacet", "GlacisFacet")
+CONTRACT="AllBridgeFacet"
+export CONTRACT
+export ENVIRONMENT
+
 # =============================================================================
 # NETWORK SELECTION CONFIGURATION
 # =============================================================================
@@ -41,15 +46,17 @@ ENVIRONMENT="production"
 # NETWORKS=($(getIncludedNetworksArray))
 
 # Option 2: Use specific networks (uncomment and modify as needed)
-# NETWORKS=("mainnet" "arbitrum" "base" "blast" "zksync" "hyperevm")
+# NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "gnosis" "lisk" "mainnet" "mantle" "optimism" "polygon" "scroll" "sonic" "worldchain" "berachain" "hyperevm" "ink" "soneium" "unichain" "katana" "plume")
+
   # NETWORKS=("arbitrum" "optimism" "base" "bsc" "linea" "scroll" "polygon" "blast" "mainnet" "worldchain")
 
 # Option 3: Use networks by EVM version (uncomment as needed)
 # NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))
-NETWORKS=($(getIncludedNetworksByEvmVersionArray "cancun"))
+# NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))
 
 # Option 4: Use networks where contract is deployed (uncomment as needed)
-# NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
+NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
+# NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT" "cancun"))
 
 # Option 5: Use whitelist filtering (uncomment and modify as needed)
 # NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "zksync")
@@ -58,7 +65,8 @@ NETWORKS=($(getIncludedNetworksByEvmVersionArray "cancun"))
 # Option 6: Use blacklist filtering (applied after network selection)
 # Networks in the blacklist will be excluded from the final network list
 # This is useful for excluding networks that need to be skipped (e.g. already done manually)
-NETWORKS_BLACKLIST=("aurora" "moonriver" "xlayer")
+# NETWORKS_BLACKLIST=("aurora" "moonriver" "xlayer" "corn" "superposition" "tron" "tronshasta")
+NETWORKS_BLACKLIST=("tron")
 
 # Foundry.toml backup file
 FOUNDRY_TOML_BACKUP="foundry.toml.backup"
@@ -70,16 +78,13 @@ FOUNDRY_TOML_BACKUP="foundry.toml.backup"
 function executeNetworkActions() {
     # This function executes the actions configured below
     # To modify actions, edit the code in this function
-    # ENVIRONMENT is read from the global configuration variable
-    # CONTRACT is determined here based on the actions being performed
+    # ENVIRONMENT and CONTRACT are read from the global configuration variables
 
-    local NETWORK="$1"
-    local LOG_DIR="$2"
+    local NETWORK="${1:-}"
+    local LOG_DIR="${2:-}"
     local RETURN_CODE=0
 
-    # Determine the contract based on the actions being performed
-    # This should be set based on what contract you're working with
-    CONTRACT="WhitelistManagerFacet"
+    # CONTRACT is set in the EXECUTION CONFIGURATION section above
     # Export CONTRACT so it can be used by other functions
     export CONTRACT
 
@@ -97,17 +102,28 @@ function executeNetworkActions() {
     # All commands will be executed, and the last command's exit code will be returned
 
     # DEPLOY & VERIFY CONTRACT
-    # CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
-    # echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
-    # deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false
+    # CURRENT_VERSION=$(getCurrentContractVersion "${CONTRACT:-}")
+    # # # echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
+    # deploySingleContract "${CONTRACT:-}" "$NETWORK" "${ENVIRONMENT:-}" "${CURRENT_VERSION:-}" false
     # RETURN_CODE=$?
     # echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
 
+
     # VERIFY - Verify the contract on the network
-    getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+    # getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+    # RETURN_CODE=$?
+    # if [[ $RETURN_CODE -ne 0 ]]; then
+    #     return $RETURN_CODE
+    # fi
+
+    # SYNC WHITEL IST - Sync whitelist from whitelist.json to diamo
 
     # PROPOSE - Create multisig proposal for the contract
-    # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
+    createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
+        RETURN_CODE=$?
+    if [[ $RETURN_CODE -ne 0 ]]; then
+        return $RETURN_CODE
+    fi
 
     # UPDATE DIAMOND - Update diamond log for the network
     # updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
@@ -123,9 +139,7 @@ function executeNetworkActions() {
 
     # Return the exit code of the last executed command (defaults to 0 if no commands executed)
     # If you need more sophisticated error handling, you can add it here
-    if [ $? -ne 0 ]; then
-        RETURN_CODE=1
-    fi
+    # Note: If no commands are executed, RETURN_CODE defaults to 0, so we always return success
     return "${RETURN_CODE}"
 }
 
@@ -206,12 +220,13 @@ ZKEVM_ALWAYS_SEQUENTIAL=true
 # NETWORK SELECTION HELPER
 # =============================================================================
 
-function getConfiguredNetworks() {
+function getConfiguredNetworksWithoutBlacklist() {
     # This function returns the networks configured in the NETWORK SELECTION CONFIGURATION section above
+    # WITHOUT applying blacklist filtering (used for display purposes)
     # It handles the case where variables like $CONTRACT and $ENVIRONMENT might not be available yet
 
-    local CONTRACT="$1"
-    local ENVIRONMENT="$2"
+    local CONTRACT="${1:-}"
+    local ENVIRONMENT="${2:-}"
     local SELECTED_NETWORKS=()
 
     # Check if NETWORKS array is empty or contains function calls that need variables
@@ -263,6 +278,21 @@ function getConfiguredNetworks() {
         SELECTED_NETWORKS=("${FILTERED_NETWORKS[@]}")
     fi
 
+    # Return the network list WITHOUT blacklist filtering
+    printf '%s\n' "${SELECTED_NETWORKS[@]}"
+}
+
+function getConfiguredNetworks() {
+    # This function returns the networks configured in the NETWORK SELECTION CONFIGURATION section above
+    # WITH blacklist filtering applied (used for actual execution)
+    # It handles the case where variables like $CONTRACT and $ENVIRONMENT might not be available yet
+
+    local CONTRACT="${1:-}"
+    local ENVIRONMENT="${2:-}"
+
+    # Get networks without blacklist filtering first
+    local SELECTED_NETWORKS=($(getConfiguredNetworksWithoutBlacklist "$CONTRACT" "$ENVIRONMENT"))
+
     # Apply blacklist filtering if NETWORKS_BLACKLIST is defined and not empty
     if [[ ${NETWORKS_BLACKLIST+x} && ${#NETWORKS_BLACKLIST[@]} -gt 0 ]]; then
         local FILTERED_NETWORKS=()
@@ -281,8 +311,27 @@ function getConfiguredNetworks() {
         SELECTED_NETWORKS=("${FILTERED_NETWORKS[@]}")
     fi
 
-    # Return the final network list
+    # Return the final network list (with blacklist filtering applied)
     printf '%s\n' "${SELECTED_NETWORKS[@]}"
+}
+
+function isNetworkBlacklisted() {
+    # Check if a network is in the blacklist
+    local NETWORK="${1:-}"
+
+    if [[ -z "$NETWORK" ]]; then
+        return 1
+    fi
+
+    if [[ ${NETWORKS_BLACKLIST+x} && ${#NETWORKS_BLACKLIST[@]} -gt 0 ]]; then
+        for BLACKLISTED_NETWORK in "${NETWORKS_BLACKLIST[@]}"; do
+            if [[ "$NETWORK" == "$BLACKLISTED_NETWORK" ]]; then
+                return 0  # Network is blacklisted
+            fi
+        done
+    fi
+
+    return 1  # Network is not blacklisted
 }
 
 # =============================================================================
@@ -292,7 +341,7 @@ function getConfiguredNetworks() {
 function logGroupInfo() {
     # This function is kept for potential future use but currently not called
     # to avoid duplicate output (group info is already shown in execution plan)
-    local group="$1"
+    local group="${1:-}"
     local -a networks=("${@:2}")
     logWithTimestamp "Group: $group (${#networks[@]} networks): ${networks[*]}"
 }
@@ -321,10 +370,10 @@ function groupNetworksByExecutionGroup() {
 
     # Group networks
     for NETWORK in "${NETWORKS[@]}"; do
-        local GROUP=$(getNetworkGroup "$NETWORK")
+        local GROUP=$(getNetworkGroup "$NETWORK" 2>/dev/null || echo "")
         local GROUP_RESULT=$?
 
-        if [[ $GROUP_RESULT -eq 0 ]]; then
+        if [[ $GROUP_RESULT -eq 0 && -n "${GROUP:-}" ]]; then
             case "$GROUP" in
                 "london")
                     LONDON_NETWORKS+=("$NETWORK")
@@ -342,11 +391,33 @@ function groupNetworksByExecutionGroup() {
     done
 
     # Output results as JSON
+    # Handle empty arrays safely by using conditional expansion
+    local london_json="[]"
+    local zkevm_json="[]"
+    local cancun_json="[]"
+    local invalid_json="[]"
+
+    if [[ ${#LONDON_NETWORKS[@]} -gt 0 ]]; then
+        london_json=$(printf '%s\n' "${LONDON_NETWORKS[@]}" | jq -R . | jq -s .)
+    fi
+
+    if [[ ${#ZKEVM_NETWORKS[@]} -gt 0 ]]; then
+        zkevm_json=$(printf '%s\n' "${ZKEVM_NETWORKS[@]}" | jq -R . | jq -s .)
+    fi
+
+    if [[ ${#CANCUN_NETWORKS[@]} -gt 0 ]]; then
+        cancun_json=$(printf '%s\n' "${CANCUN_NETWORKS[@]}" | jq -R . | jq -s .)
+    fi
+
+    if [[ ${#INVALID_NETWORKS[@]} -gt 0 ]]; then
+        invalid_json=$(printf '%s\n' "${INVALID_NETWORKS[@]}" | jq -R . | jq -s .)
+    fi
+
     jq -n \
-        --argjson london "$(printf '%s\n' "${LONDON_NETWORKS[@]}" | jq -R . | jq -s .)" \
-        --argjson zkevm "$(printf '%s\n' "${ZKEVM_NETWORKS[@]}" | jq -R . | jq -s .)" \
-        --argjson cancun "$(printf '%s\n' "${CANCUN_NETWORKS[@]}" | jq -R . | jq -s .)" \
-        --argjson invalid "$(printf '%s\n' "${INVALID_NETWORKS[@]}" | jq -R . | jq -s .)" \
+        --argjson london "$london_json" \
+        --argjson zkevm "$zkevm_json" \
+        --argjson cancun "$cancun_json" \
+        --argjson invalid "$invalid_json" \
         '{london: $london, zkevm: $zkevm, cancun: $cancun, invalid: $invalid}'
 }
 
@@ -370,13 +441,13 @@ function restoreFoundryToml() {
         logWithTimestamp "Restored foundry.toml from $FOUNDRY_TOML_BACKUP"
         rm "$FOUNDRY_TOML_BACKUP"
     else
-        # Don't show error if backup doesn't exist (might have been cleaned up already)
-        logWithTimestamp "Foundry.toml backup not found (already restored or never created)"
+        # Silently return if backup doesn't exist (expected after restore)
+        return 0
     fi
 }
 
 function updateFoundryTomlForGroup() {
-    local group="$1"
+    local group="${1:-}"
 
     if [[ -z "$group" ]]; then
         error "Group is required"
@@ -385,46 +456,27 @@ function updateFoundryTomlForGroup() {
 
     case "$group" in
         "$GROUP_LONDON")
-            logWithTimestamp "Updating foundry.toml for London EVM (solc $SOLC_LONDON)"
             # Update solc version and EVM version in profile.default section only
-            logWithTimestamp "Running sed commands..."
-            # Use simpler sed pattern - just replace the first occurrence of each setting
-            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_LONDON'/" foundry.toml
-            logWithTimestamp "Updated solc_version"
-            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_LONDON'/" foundry.toml
-            logWithTimestamp "Updated evm_version"
+            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_LONDON'/" foundry.toml 2>/dev/null || true
+            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_LONDON'/" foundry.toml 2>/dev/null || true
             rm -f foundry.toml.bak
-            logWithTimestamp "Updated foundry.toml successfully"
             # Build with new solc version (Foundry will detect if recompilation is needed)
-            logWithTimestamp "Running forge build..."
-            timeout 300 forge build --silent 2>/dev/null || {
-                logWithTimestamp "Forge build timed out or failed, continuing..."
-            }
-            logWithTimestamp "Forge build completed"
+            logWithTimestamp "Running forge build for London EVM group..."
+            forge build || true
             ;;
         "$GROUP_ZKEVM")
-            logWithTimestamp "zkEVM networks use profile.zksync - no foundry.toml updates needed"
             # zkEVM networks use the [profile.zksync] section with zksolc
             # No need to update the main solc_version or evm_version settings
             # No standard forge build needed for zkEVM - compilation handled by deploy scripts
             ;;
         "$GROUP_CANCUN")
-            logWithTimestamp "Updating foundry.toml for Cancun EVM (solc $SOLC_CANCUN)"
             # Update solc version and EVM version in profile.default section only
-            logWithTimestamp "Running sed commands..."
-            # Use simpler sed pattern - just replace the first occurrence of each setting
-            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_CANCUN'/" foundry.toml
-            logWithTimestamp "Updated solc_version"
-            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_CANCUN'/" foundry.toml
-            logWithTimestamp "Updated evm_version"
+            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_CANCUN'/" foundry.toml 2>/dev/null || true
+            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_CANCUN'/" foundry.toml 2>/dev/null || true
             rm -f foundry.toml.bak
-            logWithTimestamp "Updated foundry.toml successfully"
             # Build with new solc version (Foundry will detect if recompilation is needed)
-            logWithTimestamp "Running forge build..."
-            timeout 300 forge build --silent 2>/dev/null || {
-                logWithTimestamp "Forge build timed out or failed, continuing..."
-            }
-            logWithTimestamp "Forge build completed"
+            logWithTimestamp "Running forge build for Cancun EVM group..."
+            forge build || true
             ;;
         *)
             error "Unknown group: $group"
@@ -434,19 +486,17 @@ function updateFoundryTomlForGroup() {
 }
 
 function recompileForGroup() {
-    local group="$1"
+    local group="${1:-}"
 
     if [[ -z "$group" ]]; then
         error "Group is required"
         return 1
     fi
 
-    logWithTimestamp "Recompiling contracts for group: $group"
-
     case "$group" in
         "$GROUP_ZKEVM")
             # zkEVM networks use zksolc with zksync profile
-            logWithTimestamp "Compiling with zksolc (zksync profile)"
+            logWithTimestamp "Running forge build --profile zksync for zkEVM group..."
             if ! forge build --profile zksync; then
                 error "Failed to compile contracts with zksolc"
                 return 1
@@ -454,15 +504,13 @@ function recompileForGroup() {
             ;;
         *)
             # All other groups use standard solc compilation
-            logWithTimestamp "Compiling with standard solc"
+            logWithTimestamp "Running forge build for $group group..."
             if ! forge build; then
                 error "Failed to compile contracts"
                 return 1
             fi
             ;;
     esac
-
-    logWithTimestamp "Compilation completed successfully for group: $group"
 }
 
 # =============================================================================
@@ -503,9 +551,9 @@ function detectActionType() {
 }
 
 function setProgressTrackingFile() {
-    local ACTION_TYPE="$1"
-    local CONTRACT="$2"
-    local ENVIRONMENT="$3"
+    local ACTION_TYPE="${1:-}"
+    local CONTRACT="${2:-}"
+    local ENVIRONMENT="${3:-}"
 
     case "$ACTION_TYPE" in
         "verification")
@@ -530,17 +578,22 @@ function setProgressTrackingFile() {
 
 function isActionAlreadyCompleted() {
     # Generic function to check if an action is already completed for a network
-    local ACTION_TYPE="$1"
-    local CONTRACT="$2"
-    local NETWORK="$3"
-    local ENVIRONMENT="$4"
+    # NOTE: For "deployment" actions, this function is NOT called during initialization.
+    # Deployment completion is determined solely by the progress tracking file to allow
+    # redeploying new versions of contracts even if an older version exists.
+    local ACTION_TYPE="${1:-}"
+    local CONTRACT="${2:-}"
+    local NETWORK="${3:-}"
+    local ENVIRONMENT="${4:-}"
 
     case "$ACTION_TYPE" in
         "verification")
             isContractAlreadyVerified "$CONTRACT" "$NETWORK" "$ENVIRONMENT"
             ;;
         "deployment")
-            isContractAlreadyDeployed "$CONTRACT" "$NETWORK" "$ENVIRONMENT"
+            # For deployments, we don't check deployment files - only progress file matters
+            # This allows redeploying new versions even if an old version exists
+            return 1  # Always treat as not completed - progress file is the source of truth
             ;;
         "proposal")
             # For proposals, we might want to check if a proposal was already created
@@ -564,9 +617,11 @@ function isActionAlreadyCompleted() {
 # =============================================================================
 
 function initializeProgressTracking() {
-    local contract="$1"
-    local environment="$2"
-    local -a networks=("${@:3}")
+    local contract="${1:-}"
+    local environment="${2:-}"
+    # Properly capture remaining arguments as an array
+    shift 2
+    local -a networks=("$@")
 
     if [[ -z "$contract" || -z "$environment" || ${#networks[@]} -eq 0 ]]; then
         error "Contract, environment, and networks are required"
@@ -594,6 +649,11 @@ function initializeProgressTracking() {
             # Add any new networks that aren't already tracked
             local updated_data="$existing_data"
             for network in "${networks[@]}"; do
+                # Skip invalid network names (contain spaces or empty)
+                if [[ -z "$network" || "$network" == *" "* ]]; then
+                    continue
+                fi
+
                 local network_exists=$(echo "$existing_data" | jq -r --arg network "$network" '.networks[$network] // empty' 2>/dev/null || echo "")
                 if [[ -z "$network_exists" || "$network_exists" == "null" ]]; then
                     logWithTimestamp "Adding new network to tracking: $network"
@@ -601,11 +661,28 @@ function initializeProgressTracking() {
                 fi
             done
 
+            # Clean up any invalid network entries (those with spaces in the name)
+            updated_data=$(echo "$updated_data" | jq 'del(.networks | to_entries[] | select(.key | contains(" ")) | .key)' 2>/dev/null || echo "$updated_data")
+
+            # Count how many invalid entries were removed
+            local invalid_count=$(echo "$existing_data" | jq '[.networks | to_entries[] | select(.key | contains(" "))] | length' 2>/dev/null || echo "0")
+            if [[ "$invalid_count" -gt 0 ]]; then
+                logWithTimestamp "Cleaned up $invalid_count invalid network entry/entries from progress tracking file"
+            fi
+
             if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
                 error "Failed to write progress tracking data"
                 return 1
             fi
-            mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE"
+
+            # Only move if temp file exists
+            if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+                mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || {
+                    error "Failed to move progress tracking temp file"
+                    rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                    return 1
+                }
+            fi
             return 0
         else
             logWithTimestamp "Different contract/environment/action detected. Creating new progress tracking."
@@ -618,24 +695,38 @@ function initializeProgressTracking() {
     local checked_count=0
 
     for network in "${networks[@]}"; do
+        # Skip if network name contains spaces (likely a concatenated string)
+        if [[ "$network" == *" "* ]]; then
+            error "Skipping invalid network name (contains spaces): '$network'"
+            continue
+        fi
+
+        # Skip empty network names
+        if [[ -z "$network" ]]; then
+            continue
+        fi
+
         local network_status="pending"
         local attempts=0
         local lastAttempt=null
         local error=null
 
-        # Check if action is already completed for this network
-        checked_count=$((checked_count + 1))
-        if [[ $((checked_count % 10)) -eq 0 ]] || [[ $checked_count -eq $total_networks ]]; then
-            logWithTimestamp "Checking completion status: $checked_count/$total_networks networks..."
-        fi
+        # For deployment actions, we only rely on the progress file to determine completion
+        # This allows redeploying new versions of contracts even if an older version exists
+        # For other action types (like verification), we can still check if already completed
+        if [[ "$action_type" != "deployment" ]]; then
+            checked_count=$((checked_count + 1))
+            if [[ $total_networks -gt 10 ]] && [[ $((checked_count % 10)) -eq 0 ]]; then
+                logWithTimestamp "Checking completion status: $checked_count/$total_networks networks..."
+            fi
 
-        if isActionAlreadyCompleted "$action_type" "$contract" "$network" "$environment" 2>/dev/null; then
-            network_status="success"
-            attempts=1
-            lastAttempt="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            logWithTimestamp "Network $network already has $action_type completed for $contract - marking as success"
-        else
-            logWithTimestamp "Network $network needs $action_type for $contract - marking as pending"
+            # Only check if already completed for non-deployment actions
+            if isActionAlreadyCompleted "$action_type" "$contract" "$network" "$environment" 2>/dev/null; then
+                network_status="success"
+                attempts=1
+                lastAttempt="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                # Don't log every network individually during initialization to reduce noise
+            fi
         fi
 
         # Use --argjson for null values to ensure proper JSON null handling
@@ -665,22 +756,122 @@ function initializeProgressTracking() {
         error "Failed to write initial progress tracking data"
         return 1
     fi
-    mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE"
+
+    # Only move if temp file exists
+    if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+        mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || {
+            error "Failed to move progress tracking temp file"
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            return 1
+        }
+    fi
+
     logWithTimestamp "Initialized progress tracking for $action_type action on $contract in $environment"
 }
 
 function updateNetworkProgress() {
-    local network="$1"
-    local status="$2"
-    local error_message="$3"
+    local network="${1:-}"
+    local status="${2:-}"
+    local error_message="${3:-}"
 
     if [[ -z "$network" || -z "$status" ]]; then
         error "Network and status are required"
         return 1
     fi
 
+    # Skip invalid network names (contain spaces)
+    if [[ "$network" == *" "* ]]; then
+        return 0
+    fi
+
+    # Create progress file if it doesn't exist
     if [[ ! -f "$PROGRESS_TRACKING_FILE" ]]; then
-        error "Progress tracking file not found"
+        # Try to initialize it - if we can't determine contract/environment, create minimal structure
+        local contract="${CONTRACT:-unknown}"
+        local environment="${ENVIRONMENT:-unknown}"
+        local action_type=$(detectActionType 2>/dev/null || echo "generic")
+
+        local initial_data=$(jq -n \
+            --arg contract "$contract" \
+            --arg environment "$environment" \
+            --arg actionType "$action_type" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+                contract: $contract,
+                environment: $environment,
+                actionType: $actionType,
+                startTime: $timestamp,
+                lastUpdate: $timestamp,
+                networks: {}
+            }')
+
+        if ! echo "$initial_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
+            error "Failed to create progress tracking file"
+            return 1
+        fi
+        mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || true
+    fi
+
+    # Use file locking to prevent race conditions in parallel execution
+    local lock_file="${PROGRESS_TRACKING_FILE}.lock"
+    local lock_timeout=120  # Increased to 120 seconds (2 minutes) for parallel execution
+    local lock_attempts=0
+    local max_lock_attempts=240  # 240 attempts * 0.5s = 120 seconds
+
+    # Wait for lock to be available - CRITICAL: We MUST get the lock, can't skip updates
+    while [[ -f "$lock_file" && $lock_attempts -lt $max_lock_attempts ]]; do
+        # Check if lock file is stale (older than 5 minutes) - might be from a crashed process
+        if [[ -f "$lock_file" ]]; then
+            local lock_age=$(($(date +%s) - $(stat -f %m "$lock_file" 2>/dev/null || echo 0)))
+            if [[ $lock_age -gt 300 ]]; then
+                # Lock is stale (older than 5 minutes), remove it
+                rm -f "$lock_file" 2>/dev/null || true
+                sleep 0.1
+                continue
+            fi
+        fi
+        sleep 0.5
+        lock_attempts=$((lock_attempts + 1))
+    done
+
+    # If we still couldn't get the lock after waiting, this is CRITICAL - we must update status
+    # Try to force acquire by removing stale lock
+    if [[ -f "$lock_file" ]]; then
+        local lock_age=$(($(date +%s) - $(stat -f %m "$lock_file" 2>/dev/null || echo 0)))
+        if [[ $lock_age -gt 300 ]]; then
+            # Force remove stale lock
+            rm -f "$lock_file" 2>/dev/null || true
+            sleep 0.1
+        else
+            # Lock is still held by active process - this is a serious issue
+            # Silently try to update anyway (better than leaving status wrong)
+            # Don't log error - this is expected under heavy parallel load
+            :
+        fi
+    fi
+
+    # Create lock file - retry if it fails
+    local lock_created=false
+    for i in {1..10}; do
+        if echo "$$" > "$lock_file" 2>/dev/null; then
+            lock_created=true
+            break
+        fi
+        sleep 0.1
+    done
+
+    if [[ "$lock_created" == "false" ]]; then
+        # Silently continue - will try to update without lock (better than nothing)
+        # Don't log error - this is expected under heavy parallel load
+        :
+    fi
+
+    # Ensure lock is released on exit (use full path to avoid unbound variable)
+    trap "rm -f '${PROGRESS_TRACKING_FILE}.lock' 2>/dev/null" RETURN
+
+    # Re-read file in case it was updated by another process
+    if [[ ! -f "$PROGRESS_TRACKING_FILE" ]]; then
+        rm -f "$lock_file"
         return 1
     fi
 
@@ -695,26 +886,72 @@ function updateNetworkProgress() {
          .networks[$network].attempts += 1 |
          .networks[$network].error = ($error | if . == "null" then null else . end) |
          .lastUpdate = $timestamp' \
-        "$PROGRESS_TRACKING_FILE")
+        "$PROGRESS_TRACKING_FILE" 2>/dev/null)
 
-    if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
-        error "Failed to write progress update for $network"
+    if [[ -z "$updated_data" ]]; then
+        rm -f "$lock_file"
         return 1
     fi
-    mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE"
 
-    # Log the update
-    case "$status" in
-        "success")
-            logNetworkResult "$network" "✅ SUCCESS" "Operation completed successfully"
-            ;;
-        "failed")
-            logNetworkResult "$network" "❌ FAILED" "${error_message:-Unknown error}"
-            ;;
-        "in_progress")
-            logNetworkResult "$network" "🔄 IN PROGRESS" "Operation started"
-            ;;
-    esac
+    if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
+        rm -f "$lock_file"
+        # Silently return failure - caller will retry
+        return 1
+    fi
+
+    # Only move if temp file exists and is valid
+    if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+        if mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            # Verify the update actually happened by reading back the status
+            # Note: Under heavy parallel load, another process might have updated the status
+            # between our write and verification, so we check if status matches OR if it's been
+            # updated to a "later" state (pending -> in_progress -> success/failed)
+            local verify_status=$(jq -r --arg network "$network" '.networks[$network].status // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+            if [[ "$verify_status" == "$status" ]]; then
+                # Update succeeded - remove lock and return success
+                rm -f "$lock_file"
+                return 0
+            else
+                # Status doesn't match - could be due to race condition with parallel updates
+                # Check if the current status is a "later" state (which is acceptable)
+                # Order: pending < in_progress < success/failed
+                local status_acceptable=false
+                if [[ "$status" == "pending" && ("$verify_status" == "in_progress" || "$verify_status" == "success" || "$verify_status" == "failed") ]]; then
+                    status_acceptable=true  # Status progressed forward, that's fine
+                elif [[ "$status" == "in_progress" && ("$verify_status" == "success" || "$verify_status" == "failed") ]]; then
+                    status_acceptable=true  # Status progressed forward, that's fine
+                elif [[ "$status" == "success" && "$verify_status" == "success" ]]; then
+                    status_acceptable=true  # Already success, that's fine
+                elif [[ "$status" == "failed" && "$verify_status" == "failed" ]]; then
+                    status_acceptable=true  # Already failed, that's fine
+                fi
+
+                if [[ "$status_acceptable" == "true" ]]; then
+                    # Status is acceptable (progressed forward or already correct)
+                    rm -f "$lock_file"
+                    return 0
+                else
+                    # Status mismatch - silently return failure, caller will retry
+                    rm -f "$lock_file"
+                    return 1
+                fi
+            fi
+        else
+            # Move failed - silently return failure, caller will retry
+            rm -f "$lock_file"
+            return 1
+        fi
+    else
+        # Temp file doesn't exist - silently return failure, caller will retry
+        rm -f "$lock_file"
+        return 1
+    fi
+
+    # Remove lock file (should already be removed above, but just in case)
+    rm -f "$lock_file"
+
+    # Don't log status updates here - they're logged by the caller
+    # This function only updates the progress file
 }
 
 function getPendingNetworks() {
@@ -729,7 +966,8 @@ function getPendingNetworks() {
         return 1
     fi
 
-    jq -r '.networks | to_entries[] | select(.value.status == "pending") | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null || true
+    # Filter out invalid network names (those containing spaces)
+    jq -r '.networks | to_entries[] | select(.value.status == "pending") | select(.key | contains(" ") | not) | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null || true
 }
 
 function getFailedNetworks() {
@@ -744,26 +982,28 @@ function getFailedNetworks() {
         return 1
     fi
 
-    jq -r '.networks | to_entries[] | select(.value.status == "failed") | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null || true
+    # Filter out invalid network names (those containing spaces)
+    jq -r '.networks | to_entries[] | select(.value.status == "failed") | select(.key | contains(" ") | not) | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null || true
 }
 
 function getProgressSummary() {
     if [[ ! -f "$PROGRESS_TRACKING_FILE" ]]; then
-        logWithTimestamp "Progress tracking file not found (no progress to summarize)"
+        # Silently return if file doesn't exist (expected after cleanup)
         return 0
     fi
 
     # Check if file is empty or invalid JSON
     if [[ ! -s "$PROGRESS_TRACKING_FILE" ]] || ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
-        logWithTimestamp "Progress tracking file is empty or contains invalid JSON (no progress to summarize)"
+        # Silently return if file is invalid (expected after cleanup)
         return 0
     fi
 
-    local total=$(jq '.networks | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local pending=$(jq '[.networks[] | select(.status == "pending")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local success=$(jq '[.networks[] | select(.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local failed=$(jq '[.networks[] | select(.status == "failed")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-    local in_progress=$(jq '[.networks[] | select(.status == "in_progress")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    # Filter out invalid network names (those containing spaces) when counting
+    local total=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not)] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local pending=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "pending")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local success=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local failed=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "failed")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+    local in_progress=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "in_progress")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
 
     echo ""
     echo "=========================================="
@@ -776,6 +1016,14 @@ function getProgressSummary() {
     echo "⏳ Pending: $pending"
     echo ""
 
+    if [[ $success -gt 0 ]]; then
+        echo "✅ SUCCESSFUL NETWORKS:"
+        jq -r '.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "success") | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null | while read -r network; do
+            echo "  - $network"
+        done
+        echo ""
+    fi
+
     if [[ $failed -gt 0 ]]; then
         echo "❌ FAILED NETWORKS:"
         getFailedNetworks | while read -r network; do
@@ -785,20 +1033,29 @@ function getProgressSummary() {
         echo ""
     fi
 
-      if [[ $pending -gt 0 ]]; then
-    echo "⏳ PENDING NETWORKS:"
-    getPendingNetworks | while read -r network; do
-      echo "  - $network"
-    done
-    echo ""
-  fi
+    if [[ $pending -gt 0 ]]; then
+        echo "⏳ PENDING NETWORKS:"
+        getPendingNetworks | while read -r network; do
+            echo "  - $network"
+        done
+        echo ""
+    fi
 
-  # Show retry instructions if there are failed or pending networks
+    if [[ $in_progress -gt 0 ]]; then
+        echo "🔄 IN PROGRESS NETWORKS:"
+        jq -r '.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "in_progress") | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null | while read -r network; do
+            echo "  - $network"
+        done
+        echo ""
+    fi
+
+  # Show retry instructions if there are failed, pending, or in_progress networks
   local remaining_networks=($(getFailedNetworks) $(getPendingNetworks))
-  if [[ ${#remaining_networks[@]} -gt 0 ]]; then
-    echo "🔄 TO RETRY FAILED/PENDING NETWORKS:"
+  local in_progress_networks=$(jq -r '.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "in_progress") | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null || true)
+  if [[ ${#remaining_networks[@]} -gt 0 || -n "$in_progress_networks" ]]; then
+    echo "🔄 TO RETRY FAILED/PENDING/IN_PROGRESS NETWORKS:"
     echo "  Simply run the same command again!"
-    echo "  The system will automatically skip successful networks and retry only the failed/pending ones."
+    echo "  The system will automatically skip successful networks and retry only the failed/pending/in_progress ones."
     echo ""
   fi
 
@@ -810,12 +1067,13 @@ function cleanupProgressTracking() {
     if [[ -n "$PROGRESS_TRACKING_FILE" && -f "$PROGRESS_TRACKING_FILE" ]]; then
         # Check if file is valid JSON
         if jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
-            local total=$(jq '.networks | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
-            local success=$(jq '[.networks[] | select(.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+            # Filter out invalid network names (those containing spaces) when counting
+            local total=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not)] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+            local success=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "success")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
 
             if [[ "$total" -gt 0 && "$success" -eq "$total" ]]; then
                 rm "$PROGRESS_TRACKING_FILE"
-                logWithTimestamp "All networks completed successfully - cleaned up progress tracking file: $PROGRESS_TRACKING_FILE"
+                # Success message already logged by caller, silently clean up
             else
                 logWithTimestamp "Progress tracking file preserved for resumable execution (success: $success/$total): $PROGRESS_TRACKING_FILE"
             fi
@@ -824,8 +1082,8 @@ function cleanupProgressTracking() {
             rm "$PROGRESS_TRACKING_FILE"
         fi
     else
-        # Don't show error if file doesn't exist (might have been cleaned up already)
-        logWithTimestamp "Progress tracking file not found (already cleaned up or never created): ${PROGRESS_TRACKING_FILE:-'not set'}"
+        # Silently return if file doesn't exist (expected after cleanup)
+        return 0
     fi
 }
 
@@ -856,6 +1114,11 @@ function isGroupComplete() {
 
     local PENDING_COUNT=0
     for NETWORK in "${NETWORKS[@]}"; do
+        # Skip invalid network names (contain spaces)
+        if [[ "$NETWORK" == *" "* ]]; then
+            continue
+        fi
+
         local STATUS=$(jq -r --arg network "$NETWORK" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
         if [[ "$STATUS" != "success" ]]; then
             PENDING_COUNT=$((PENDING_COUNT + 1))
@@ -867,31 +1130,335 @@ function isGroupComplete() {
 }
 
 # =============================================================================
+# PROCESS MANAGEMENT AND SIGNAL HANDLING
+# =============================================================================
+
+# Global PID tracking for all background processes
+declare -a GLOBAL_BACKGROUND_PIDS=()
+GLOBAL_PID_TRACKING_FILE=$(mktemp -t "multinetwork_pids.XXXXXX" 2>/dev/null || echo "/tmp/multinetwork_pids.$$")
+
+# Function to track a background PID
+trackBackgroundPid() {
+    local pid="${1:-}"
+    if [[ -n "$pid" && "$pid" -gt 0 ]]; then
+        GLOBAL_BACKGROUND_PIDS+=("$pid")
+        # Also write to file for cross-shell access
+        echo "$pid" >> "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null || true
+    fi
+}
+
+# Function to kill all tracked background processes and their children
+killAllBackgroundProcesses() {
+    local force="${1:-false}"
+    local signal="${2:-TERM}"
+
+    # Collect all PIDs from both array and file
+    local -a all_pids=()
+
+    # Add PIDs from global array (check if array is set to avoid unbound variable error)
+    # Use parameter expansion to safely check if array exists and has elements
+    if [[ -n "${GLOBAL_BACKGROUND_PIDS[*]:-}" ]] && [[ ${#GLOBAL_BACKGROUND_PIDS[@]} -gt 0 ]]; then
+        all_pids+=("${GLOBAL_BACKGROUND_PIDS[@]}")
+    fi
+
+    # Add PIDs from tracking file
+    if [[ -f "$GLOBAL_PID_TRACKING_FILE" ]]; then
+        while IFS= read -r pid || [[ -n "$pid" ]]; do
+            if [[ -n "$pid" && "$pid" -gt 0 ]]; then
+                all_pids+=("$pid")
+            fi
+        done < "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null || true
+    fi
+
+    # Also get all child processes of current shell
+    local shell_pid=$$
+    local -a child_pids=()
+    if command -v pgrep >/dev/null 2>&1; then
+        # Get all descendant processes
+        while IFS= read -r pid; do
+            if [[ -n "$pid" && "$pid" -gt 0 && "$pid" != "$shell_pid" ]]; then
+                child_pids+=("$pid")
+            fi
+        done < <(pgrep -P "$shell_pid" 2>/dev/null || true)
+
+        # Get processes in same process group
+        local pgid=$(ps -o pgid= -p "$shell_pid" 2>/dev/null | tr -d ' ' || echo "")
+        if [[ -n "$pgid" ]]; then
+            while IFS= read -r pid; do
+                if [[ -n "$pid" && "$pid" -gt 0 && "$pid" != "$shell_pid" ]]; then
+                    child_pids+=("$pid")
+                fi
+            done < <(pgrep -g "$pgid" 2>/dev/null | grep -v "^$shell_pid$" || true)
+        fi
+    fi
+
+    # Combine all PIDs
+    all_pids+=("${child_pids[@]}")
+
+    # Remove duplicates
+    local -a unique_pids=()
+    if [[ ${#all_pids[@]} -gt 0 ]]; then
+        for pid in "${all_pids[@]}"; do
+            local is_duplicate=false
+            if [[ ${#unique_pids[@]} -gt 0 ]]; then
+                for existing_pid in "${unique_pids[@]}"; do
+                    if [[ "$pid" == "$existing_pid" ]]; then
+                        is_duplicate=true
+                        break
+                    fi
+                done
+            fi
+            if [[ "$is_duplicate" == "false" ]]; then
+                unique_pids+=("$pid")
+            fi
+        done
+    fi
+
+    # Kill all processes
+    local killed_count=0
+    if [[ ${#unique_pids[@]} -gt 0 ]]; then
+        for pid in "${unique_pids[@]}"; do
+        # Check if process still exists
+        if kill -0 "$pid" 2>/dev/null; then
+            # Kill the process and its children
+            if [[ "$force" == "true" ]]; then
+                # Kill process group (more aggressive) - use negative PID for process group
+                # First try to get the process group ID
+                local pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")
+                if [[ -n "$pgid" && "$pgid" -gt 0 ]]; then
+                    # Kill entire process group
+                    kill -"$signal" -"$pgid" 2>/dev/null || kill -"$signal" "$pid" 2>/dev/null || true
+                else
+                    # Fallback to killing just the process
+                    kill -"$signal" "$pid" 2>/dev/null || true
+                fi
+            else
+                # Kill just the process
+                kill -"$signal" "$pid" 2>/dev/null || true
+            fi
+            killed_count=$((killed_count + 1))
+        fi
+        done
+    fi
+
+    # Also kill any remaining jobs in current shell
+    if [[ "$force" == "true" ]]; then
+        jobs -p 2>/dev/null | while read -r job_pid; do
+            if [[ -n "$job_pid" ]]; then
+                # Get process group and kill it
+                local job_pgid=$(ps -o pgid= -p "$job_pid" 2>/dev/null | tr -d ' ' || echo "")
+                if [[ -n "$job_pgid" && "$job_pgid" -gt 0 ]]; then
+                    kill -TERM -"$job_pgid" 2>/dev/null || kill -TERM "$job_pid" 2>/dev/null || true
+                else
+                    kill -TERM "$job_pid" 2>/dev/null || kill -KILL "$job_pid" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
+
+    # Wait a moment for processes to die
+    sleep 0.5
+
+    # Force kill any remaining processes
+    if [[ "$force" == "true" ]]; then
+        for pid in "${unique_pids[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                # Try to kill process group first
+                local pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")
+                if [[ -n "$pgid" && "$pgid" -gt 0 ]]; then
+                    kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+                else
+                    kill -KILL "$pid" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
+
+    # Clean up tracking file
+    rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null || true
+
+    return 0
+}
+
+# Global interrupt handler
+_global_interrupt_handler() {
+    echo ""
+    logWithTimestamp "⚠️  INTERRUPT RECEIVED - Stopping all processes..."
+
+    # Set flag to stop execution
+    export EXIT_REQUESTED=1
+
+    # Kill all background processes forcefully
+    killAllBackgroundProcesses true TERM
+
+    # Wait a moment
+    sleep 1
+
+    # Force kill any remaining
+    killAllBackgroundProcesses true KILL
+
+    logWithTimestamp "✅ All processes terminated"
+
+    # Restore foundry.toml if needed
+    restoreFoundryToml 2>/dev/null || true
+
+    # Clean up progress tracking
+    cleanupProgressTracking 2>/dev/null || true
+
+    exit 130  # Standard exit code for SIGINT
+}
+
+# =============================================================================
 # NETWORK EXECUTION FUNCTIONS
 # =============================================================================
 
+# Helper function for cleanup trap - must be defined before executeNetworkInGroup
+_cleanup_network_status() {
+    local net="${1:-}"
+    if [[ -z "$net" ]]; then
+        return 0
+    fi
+
+    # Check current status before overwriting - don't overwrite success/failed with failed
+    # This prevents cleanup traps from running after successful completion
+    if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+        # Verify file is valid JSON before reading
+        if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            # File is invalid JSON, don't try to update
+            return 0
+        fi
+
+        local current_status=$(jq -r --arg network "$net" '.networks[$network].status // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+        # Only update if status is not already success or failed (could be in_progress or pending)
+        if [[ "$current_status" != "success" && "$current_status" != "failed" ]]; then
+            # Update status synchronously (not in background) to prevent race conditions
+            updateNetworkProgress "$net" "failed" "Unexpected exit or timeout" 2>/dev/null || true
+        fi
+    else
+        # File doesn't exist - this could mean:
+        # 1. It was cleaned up because all networks succeeded (don't create new file)
+        # 2. It was never created (should create it)
+        # To distinguish, check if we're in a context where the file should exist
+        # If CONTRACT and ENVIRONMENT are set, we should create the file
+        # Otherwise, assume it was cleaned up and don't create a new one
+        if [[ -n "${CONTRACT:-}" && -n "${ENVIRONMENT:-}" ]]; then
+            # File should exist but doesn't - create it with this network's failure
+            updateNetworkProgress "$net" "failed" "Unexpected exit or timeout" 2>/dev/null || true
+        fi
+        # If CONTRACT/ENVIRONMENT not set, assume file was cleaned up (all succeeded) and don't recreate
+    fi
+}
+
 function executeNetworkInGroup() {
-    local network="$1"
-    local log_dir="$2"
+    local network="${1:-}"
+    local log_dir="${2:-}"
 
     if [[ -z "$network" || -z "$log_dir" ]]; then
         error "Network and log_dir are required for executeNetworkInGroup"
         return 1
     fi
 
-    # Update progress to in_progress
-    updateNetworkProgress "$network" "in_progress"
+    # Skip if network name contains spaces (invalid concatenated string)
+    if [[ "$network" == *" "* ]]; then
+        error "Skipping invalid network name (contains spaces): '$network'"
+        return 1
+    fi
+
+    # Update progress to in_progress - try to set it, but don't abort if it fails
+    # Under heavy parallel load, this might fail, but we should still proceed
+    local in_progress_set=false
+    for retry in {1..10}; do
+        if updateNetworkProgress "$network" "in_progress"; then
+            in_progress_set=true
+            break
+        fi
+        sleep 0.3
+    done
+    # Don't abort if in_progress fails - status will be corrected later
+    # The cleanup trap will ensure status is updated on exit
+
+    # Set up trap to ensure status is always updated, even on unexpected exit
+    # Note: INT/TERM are handled by global handler, but we still need EXIT for cleanup
+    trap "_cleanup_network_status \"$network\"" EXIT
+
+    # Quick check: If executeNetworkActions has no actual actions (all commented out),
+    # mark as success immediately to avoid unnecessary processing
+    # This is a simple heuristic - check if the function body contains any uncommented action commands
+    local actions_body=$(declare -f executeNetworkActions 2>/dev/null || echo "")
+    if [[ -n "$actions_body" ]]; then
+        # Count uncommented lines that contain actual action commands (not just setup/return)
+        local action_lines=$(echo "$actions_body" | grep -vE '^\s*#' | grep -vE '^\s*(local|export|return|if|fi|\[\[|\]\]|then|else|elif|echo|printf)' | grep -E '(deploy|verify|propose|cast|bunx|tsx|forge|getContract|createMultisig|updateDiamond|send|call)' | wc -l | tr -d ' ')
+        if [[ "${action_lines:-0}" -eq 0 ]]; then
+            # No actions configured - mark as success immediately
+            # CRITICAL: Must ensure status update succeeds before returning
+            trap - EXIT  # Remove EXIT trap before updating (INT/TERM handled by global handler)
+            local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+            printf '\033[0;32m[%s] [%s] ✅ SUCCESS - No actions configured, marking as successful\033[0m\n' "$TIMESTAMP" "$network"
+            # Retry status update up to 5 times to ensure it succeeds
+            local update_success=false
+            for retry in {1..5}; do
+                if updateNetworkProgress "$network" "success"; then
+                    update_success=true
+                    printf '\033[0;32m[%s] [%s] ✅ Status updated to SUCCESS in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+                    break
+                fi
+                sleep 0.2
+            done
+            if [[ "$update_success" == "false" ]]; then
+                # Try one final time - if it still fails, log warning but continue
+                if updateNetworkProgress "$network" "success"; then
+                    printf '\033[0;32m[%s] [%s] ✅ Status updated to SUCCESS in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+                else
+                    printf '\033[33m[%s] [%s] ⚠️  Warning: Failed to update status to success, but execution succeeded\033[0m\n' "$TIMESTAMP" "$network"
+                fi
+                return 0
+            fi
+            return 0
+        fi
+    fi
 
     # Get RPC URL (ENVIRONMENT is read from global variable)
     local rpc_url=$(getRPCUrl "$network" "$ENVIRONMENT")
     if [[ $? -ne 0 ]]; then
-        updateNetworkProgress "$network" "failed" "Failed to get RPC URL"
+        trap - EXIT  # Remove EXIT trap before updating (INT/TERM handled by global handler)
+        local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+        printf '\033[31m[%s] [%s] ❌ FAILED - Failed to get RPC URL\033[0m\n' "$TIMESTAMP" "$network"
+        # Retry status update
+        local update_success=false
+        for retry in {1..3}; do
+            if updateNetworkProgress "$network" "failed" "Failed to get RPC URL"; then
+                update_success=true
+                printf '\033[31m[%s] [%s] ❌ Status updated to FAILED in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+                # Output is flushed automatically by printf
+                break
+            fi
+            sleep 0.2
+        done
+        if [[ "$update_success" == "false" ]]; then
+            updateNetworkProgress "$network" "failed" "Failed to get RPC URL" || true
+        fi
         return 1
     fi
 
     # Check if RPC URL is empty (additional safety check)
     if [[ -z "$rpc_url" ]]; then
-        updateNetworkProgress "$network" "failed" "Empty RPC URL"
+        trap - EXIT  # Remove EXIT trap before updating (INT/TERM handled by global handler)
+        local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+        printf '\033[31m[%s] [%s] ❌ FAILED - Empty RPC URL\033[0m\n' "$TIMESTAMP" "$network"
+        # Retry status update
+        local update_success=false
+        for retry in {1..3}; do
+            if updateNetworkProgress "$network" "failed" "Empty RPC URL"; then
+                update_success=true
+                printf '\033[31m[%s] [%s] ❌ Status updated to FAILED in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+                # Output is flushed automatically by printf
+                break
+            fi
+            sleep 0.2
+        done
+        if [[ "$update_success" == "false" ]]; then
+            updateNetworkProgress "$network" "failed" "Empty RPC URL" || true
+        fi
         return 1
     fi
 
@@ -904,36 +1471,79 @@ function executeNetworkInGroup() {
     local max_attempts=3
     local last_error=""
 
-    # Attempt operations with retries
-    while [[ $command_status -ne 0 && $retry_count -lt $max_attempts ]]; do
+        # Attempt operations with retries
+        while [[ $command_status -ne 0 && $retry_count -lt $max_attempts ]]; do
         local attempt_num=$((retry_count + 1))
-        logWithTimestamp "[$network] ===== Attempt $attempt_num/$max_attempts: Starting execution ====="
+        printf '\033[36m[%s] [%s] ===== Attempt %d/%d: Starting execution =====\033[0m\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network" "$attempt_num" "$max_attempts"
 
         # Check if we should exit (in case of interrupt)
-        if [[ -n "$EXIT_REQUESTED" ]]; then
-            logWithTimestamp "[$network] Exit requested, stopping operations"
-            updateNetworkProgress "$network" "failed" "Execution interrupted"
+        if [[ -n "${EXIT_REQUESTED:-}" ]]; then
+            local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+            printf '\033[33m[%s] [%s] Exit requested, stopping operations\033[0m\n' "$TIMESTAMP" "$network"
+            trap - EXIT  # Remove EXIT trap before updating (INT/TERM handled by global handler)
+            updateNetworkProgress "$network" "failed" "Execution interrupted" || true
+            printf '\033[31m[%s] [%s] ❌ Status updated to FAILED in tracking file\033[0m\n' "$TIMESTAMP" "$network"
             return 1
         fi
 
         # Execute the actual network operations
         # This calls the executeNetworkActions function which contains the configured actions
         # CONTRACT is determined and exported in executeNetworkActions
-        logWithTimestamp "[$network] Attempt $attempt_num: Calling executeNetworkActions..."
         local start_time=$(date +%s)
-        # Use tee to capture output
+        # Use tee to capture output to log file AND show it in real-time
         # Note: PIPESTATUS must be captured immediately after the pipe command
-        executeNetworkActions "$network" "$log_dir" 2>&1 | tee "$log_dir/${network}_attempt_${attempt_num}.log" >/dev/null 2>&1
-        command_status=${PIPESTATUS[0]}
+        # Remove /dev/null redirect so users can see progress in real-time
+        executeNetworkActions "$network" "$log_dir" 2>&1 | tee "$log_dir/${network}_attempt_${attempt_num}.log"
+        command_status=${PIPESTATUS[0]:-1}
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
 
-        logWithTimestamp "[$network] Attempt $attempt_num: Completed with exit code $command_status (duration: ${duration}s)"
+        # Check log file for success indicators (even if exit code is non-zero)
+        local log_file="$log_dir/${network}_attempt_${attempt_num}.log"
+        local is_success=false
+        if [[ -f "$log_file" ]]; then
+            # Check for success indicators: "already verified", "Successfully verified", "successfully verified"
+            if grep -qiE "(already verified|Successfully verified|successfully verified)" "$log_file" 2>/dev/null; then
+                # If we see success messages, treat as success even if exit code is non-zero
+                # (exit code might be from log update failure, but verification succeeded)
+                if ! grep -qiE "(unbound variable|error.*failed|Failed to)" "$log_file" 2>/dev/null; then
+                    is_success=true
+                    command_status=0
+                fi
+            fi
+        fi
 
-        # Extract meaningful error message from log file if execution failed
         if [[ $command_status -ne 0 ]]; then
-            logWithTimestamp "[$network] Attempt $attempt_num: Execution failed, extracting error details..."
+            printf '\033[31m[%s] [%s] Attempt %d/%d: Failed with exit code %d (duration: %ds)\033[0m\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network" "$attempt_num" "$max_attempts" "$command_status" "$duration"
 
+            # Show error output from log file
+            if [[ -f "$log_file" ]]; then
+                # Show last 10 lines of error output (filter out noise, show actual errors)
+                local error_lines=$(tail -20 "$log_file" 2>/dev/null | grep -iE "(error|failed|revert|invalid|missing|timeout|exception|unbound variable)" | tail -10)
+                if [[ -n "$error_lines" ]]; then
+                    printf '[%s] [%s] Error details:\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network"
+                    echo "$error_lines" | while IFS= read -r line; do
+                        printf '[%s] [%s]   %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network" "$line"
+                    done
+                else
+                    # If no error keywords found, show last 5 lines of output (without colors for info)
+                    local last_lines=$(tail -5 "$log_file" 2>/dev/null)
+                    if [[ -n "$last_lines" ]]; then
+                        printf '[%s] [%s] Last output:\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network"
+                        echo "$last_lines" | while IFS= read -r line; do
+                            printf '[%s] [%s]   %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network" "$line"
+                        done
+                    fi
+                fi
+            fi
+        elif [[ "$is_success" == "true" ]]; then
+            # Log success even if original exit code was non-zero
+            local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+            printf '\033[0;32m[%s] [%s] ✅ SUCCESS - Operation completed successfully\033[0m\n' "$TIMESTAMP" "$network"
+        fi
+
+        # Extract meaningful error message from log file if execution failed (and not a success case)
+        if [[ $command_status -ne 0 && "$is_success" != "true" ]]; then
             # Priority order for error extraction (most specific first):
             # 1. Flattening errors
             # 2. API verification errors
@@ -953,7 +1563,6 @@ function executeNetworkInGroup() {
                 local flatten_error=$(grep -iE "\[$network\].*(flatten|pragma|solidity|compilation)" "$log_file" 2>/dev/null | grep -iE "(error|failed|invalid|malformed)" | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
                 if [[ -n "$flatten_error" ]]; then
                     last_error="$flatten_error"
-                    logWithTimestamp "[$network] Attempt $attempt_num: Flattening error extracted: $last_error"
                 fi
 
                 # Look for API verification errors
@@ -961,7 +1570,6 @@ function executeNetworkInGroup() {
                     local api_error=$(grep -iE "\[$network\].*(etherscan.*api|verification.*failed|api.*error|NOTOK|timeout)" "$log_file" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
                     if [[ -n "$api_error" ]]; then
                         last_error="$api_error"
-                        logWithTimestamp "[$network] Attempt $attempt_num: API error extracted: $last_error"
                     fi
                 fi
 
@@ -970,7 +1578,6 @@ function executeNetworkInGroup() {
                     local verify_error=$(grep -iE "\[$network\].*(verify|verification)" "$log_file" 2>/dev/null | grep -iE "(error|failed)" | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
                     if [[ -n "$verify_error" ]]; then
                         last_error="$verify_error"
-                        logWithTimestamp "[$network] Attempt $attempt_num: Verification error extracted: $last_error"
                     fi
                 fi
 
@@ -979,7 +1586,6 @@ function executeNetworkInGroup() {
                     local any_error=$(grep -iE "\[$network\].*(error|failed)" "$log_file" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
                     if [[ -n "$any_error" ]]; then
                         last_error="$any_error"
-                        logWithTimestamp "[$network] Attempt $attempt_num: General error extracted: $last_error"
                     fi
                 fi
 
@@ -988,26 +1594,19 @@ function executeNetworkInGroup() {
                     local generic_error=$(grep -iE "(error|failed|revert|invalid|missing|timeout)" "$log_file" 2>/dev/null | grep -v "^\[" | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-300)
                     if [[ -n "$generic_error" ]]; then
                         last_error="$generic_error"
-                        logWithTimestamp "[$network] Attempt $attempt_num: Generic error extracted: $last_error"
                     fi
                 fi
             fi
 
             # If no log error found, use generic message
             if [[ -z "$last_error" ]]; then
-                last_error="Execution failed with exit code $command_status (check logs for details)"
-                logWithTimestamp "[$network] Attempt $attempt_num: No specific error found, using generic message"
+                last_error="Execution failed with exit code $command_status"
             fi
-        else
-            logWithTimestamp "[$network] Attempt $attempt_num: Execution succeeded!"
-        fi
 
-        # Get CONTRACT from executeNetworkActions (it's exported)
-        local contract="${CONTRACT:-}"
-        if [[ -z "$contract" ]]; then
-            error "[$network] CONTRACT was not determined in executeNetworkActions"
-            updateNetworkProgress "$network" "failed" "CONTRACT not determined"
-            return 1
+            # Display the extracted error message (without color for info messages)
+            if [[ -n "$last_error" ]]; then
+                printf '[%s] [%s] Error: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network" "$last_error"
+            fi
         fi
 
         # Increase retry counter (must happen regardless of success/failure to prevent infinite loop)
@@ -1015,24 +1614,58 @@ function executeNetworkInGroup() {
 
         # If command succeeded, exit the loop immediately
         if [[ $command_status -eq 0 ]]; then
-            logWithTimestamp "[$network] Attempt $attempt_num: Command succeeded, exiting retry loop"
             break
+        fi
+
+        # Get CONTRACT from executeNetworkActions (it's exported) - only check if command failed
+        # If command succeeded, CONTRACT check is not critical
+        if [[ $command_status -ne 0 ]]; then
+            local contract="${CONTRACT:-}"
+            if [[ -z "$contract" ]]; then
+                printf '\033[33m[%s] [%s] ⚠️  Warning: CONTRACT was not determined in executeNetworkActions\033[0m\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$network"
+                # Don't fail here - just log a warning, the error handling below will handle it
+            fi
         fi
 
         # If we've reached max attempts, exit the loop
         if [[ $retry_count -ge $max_attempts ]]; then
-            logWithTimestamp "[$network] Maximum attempts ($max_attempts) reached, exiting retry loop"
             break
         fi
 
         # Sleep for 2 seconds before trying again
-        logWithTimestamp "[$network] Attempt $attempt_num: Waiting 2 seconds before retry..."
         sleep 2
     done
 
+    # Remove EXIT trap before final status update (to avoid double update)
+    # INT/TERM are handled by global handler, so we only remove EXIT
+    trap - EXIT
+
     # Check final status and update progress
+    # CRITICAL: Ensure status update succeeds - retry if necessary
     if [[ $command_status -eq 0 ]]; then
-        updateNetworkProgress "$network" "success"
+        # Success message already logged above, now update progress
+        # Retry updateNetworkProgress up to 5 times to ensure it succeeds
+        local update_success=false
+        for retry in {1..5}; do
+            if updateNetworkProgress "$network" "success"; then
+                update_success=true
+                local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                printf '\033[0;32m[%s] [%s] ✅ Status updated to SUCCESS in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+                # Output is flushed automatically by printf
+                break
+            fi
+            sleep 0.5
+        done
+        if [[ "$update_success" == "false" ]]; then
+            # Try one more time - if it still fails, log warning
+            if updateNetworkProgress "$network" "success"; then
+                local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                printf '\033[0;32m[%s] [%s] ✅ Status updated to SUCCESS in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+            else
+                local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                printf '\033[33m[%s] [%s] ⚠️  Warning: Failed to update status to success, but execution succeeded\033[0m\n' "$TIMESTAMP" "$network"
+            fi
+        fi
         return 0
     else
         # Use captured error message if available, otherwise generic message
@@ -1040,14 +1673,36 @@ function executeNetworkInGroup() {
         if [[ -n "$last_error" ]]; then
             final_error="Failed after $max_attempts attempts: $last_error"
         fi
-        updateNetworkProgress "$network" "failed" "$final_error"
+        local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+        printf '\033[31m[%s] [%s] ❌ FAILED - %s\033[0m\n' "$TIMESTAMP" "$network" "$final_error"
+        # CRITICAL: Ensure status update succeeds - retry if necessary
+        local update_success=false
+        for retry in {1..5}; do
+            if updateNetworkProgress "$network" "failed" "$final_error"; then
+                update_success=true
+                printf '\033[31m[%s] [%s] ❌ Status updated to FAILED in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+                # Output is flushed automatically by printf
+                break
+            fi
+            sleep 0.5
+        done
+        if [[ "$update_success" == "false" ]]; then
+            # Try one more time - if it still fails, log warning
+            if updateNetworkProgress "$network" "failed" "$final_error"; then
+                printf '\033[31m[%s] [%s] ❌ Status updated to FAILED in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+            else
+                printf '\033[33m[%s] [%s] ⚠️  Warning: Failed to update status to failed in tracking file\033[0m\n' "$TIMESTAMP" "$network"
+            fi
+        fi
         return 1
     fi
 }
 
 function executeGroupSequentially() {
-    local group="$1"
-    local -a networks=("${@:2}")
+    local group="${1:-}"
+    # Properly capture remaining arguments as an array
+    shift
+    local -a networks=("$@")
 
     if [[ -z "$group" || ${#networks[@]} -eq 0 ]]; then
         error "Group and networks are required"
@@ -1071,8 +1726,9 @@ function executeGroupSequentially() {
     # Create log directory for this group
     local log_dir=$(mktemp -d)
 
-    # Set up signal handler to kill background jobs on interrupt
-    trap 'echo ""; logWithTimestamp "Interrupt received. Stopping all background jobs..."; jobs -p | xargs -r kill; rm -rf "$log_dir"; exit 1' INT TERM
+    # Set up signal handler to kill all background processes on interrupt
+    # Use the global interrupt handler which properly kills all processes
+    trap '_global_interrupt_handler; rm -rf "$log_dir"; exit 130' INT TERM
 
     # Determine execution mode for this group
     local should_run_parallel="$RUN_PARALLEL"
@@ -1081,37 +1737,53 @@ function executeGroupSequentially() {
         logWithTimestamp "zkEVM group: forcing sequential execution"
     fi
 
+    # Initialize pids array at function scope to avoid unbound variable errors
+    local -a pids=()
+
     if [[ "$should_run_parallel" == "true" ]]; then
         # Execute networks in parallel within the group
         logWithTimestamp "Executing networks in parallel"
-
-        local -a pids=()
         local networks_to_execute=0
         for network in "${networks[@]}"; do
+            # Skip invalid network names (contain spaces)
+            if [[ "$network" == *" "* ]]; then
+                continue
+            fi
+
             # Check if this network is already successful
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
                 local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
                 if [[ "$status" == "success" ]]; then
                     local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-                    printf '\033[0;32m[%s] [%s] Skipping (status: %s)\033[0m\n' "$TIMESTAMP" "$network" "$status"
+                    printf '\033[0;32m[%s] [%s] ✅ Skipping - already successful\033[0m\n' "$TIMESTAMP" "$network"
                     continue
                 elif [[ "$status" == "failed" ]]; then
                     # Reset failed networks to pending so they can retry
                     local error_msg=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
                     local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-                    printf '\033[31m[%s] [%s] Resetting failed status to pending for retry (previous error: %s)\033[0m\n' "$TIMESTAMP" "$network" "$error_msg"
-                    updateNetworkProgress "$network" "pending"
+                    printf '\033[33m[%s] [%s] 🔄 Resetting failed status to pending for retry (previous error: %s)\033[0m\n' "$TIMESTAMP" "$network" "$error_msg"
+                    # Retry status update to ensure it succeeds
+                    for retry in {1..3}; do
+                        updateNetworkProgress "$network" "pending" && break
+                        sleep 0.2
+                    done
+                elif [[ "$status" == "pending" ]]; then
+                    # Network is already pending - this is fine, proceed with execution
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[36m[%s] [%s] ℹ️  Network is pending, starting execution\033[0m\n' "$TIMESTAMP" "$network"
                 fi
             fi
 
             # Start network execution in background
             # Each process runs independently and updates progress file atomically
-            logWithTimestamp "[$network] Starting parallel execution (PID will be logged)"
-            executeNetworkInGroup "$network" "$log_dir" &
+            # Note: executeNetworkInGroup has its own timeout protection via EXIT trap
+            # Use process groups for better signal handling
+            (set -m; executeNetworkInGroup "$network" "$log_dir") &
             local pid=$!
+            # Track the PID globally for proper cleanup
+            trackBackgroundPid "$pid"
             pids+=($pid)
             networks_to_execute=$((networks_to_execute + 1))
-            logWithTimestamp "[$network] Started in background with PID: $pid"
 
         done
 
@@ -1122,24 +1794,36 @@ function executeGroupSequentially() {
         # Execute networks sequentially within the group
         logWithTimestamp "Executing networks sequentially"
         for network in "${networks[@]}"; do
+            # Skip invalid network names (contain spaces)
+            if [[ "$network" == *" "* ]]; then
+                continue
+            fi
+
             # Check if this network is already successful
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
                 local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
                 if [[ "$status" == "success" ]]; then
                     local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-                    printf '\033[0;32m[%s] [%s] Skipping (status: %s)\033[0m\n' "$TIMESTAMP" "$network" "$status"
+                    printf '\033[0;32m[%s] [%s] ✅ Skipping - already successful\033[0m\n' "$TIMESTAMP" "$network"
                     continue
                 elif [[ "$status" == "failed" ]]; then
                     # Reset failed networks to pending so they can retry
                     local error_msg=$(jq -r --arg network "$network" '.networks[$network].error // "Unknown error"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "Unknown error")
                     local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-                    printf '\033[31m[%s] [%s] Resetting failed status to pending for retry (previous error: %s)\033[0m\n' "$TIMESTAMP" "$network" "$error_msg"
-                    updateNetworkProgress "$network" "pending"
+                    printf '\033[33m[%s] [%s] 🔄 Resetting failed status to pending for retry (previous error: %s)\033[0m\n' "$TIMESTAMP" "$network" "$error_msg"
+                    # Retry status update to ensure it succeeds
+                    for retry in {1..3}; do
+                        updateNetworkProgress "$network" "pending" && break
+                        sleep 0.2
+                    done
+                elif [[ "$status" == "pending" ]]; then
+                    # Network is already pending - this is fine, proceed with execution
+                    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+                    printf '\033[36m[%s] [%s] ℹ️  Network is pending, starting execution\033[0m\n' "$TIMESTAMP" "$network"
                 fi
             fi
 
             # Execute network in foreground
-            logWithTimestamp "[$network] Starting sequential execution"
             executeNetworkInGroup "$network" "$log_dir"
         done
     fi
@@ -1147,17 +1831,90 @@ function executeGroupSequentially() {
     # Wait for all background jobs to complete (only for parallel execution)
     local current_execution_failures=0
     if [[ "$should_run_parallel" == "true" ]]; then
-        for pid in "${pids[@]}"; do
-            if ! wait "$pid"; then
-                current_execution_failures=$((current_execution_failures + 1))
-            fi
+        # Check for interrupt before waiting
+        if [[ -n "${EXIT_REQUESTED:-}" ]]; then
+            logWithTimestamp "Exit requested, skipping wait for background jobs"
+        elif [[ ${#pids[@]} -gt 0 ]]; then
+            for pid in "${pids[@]}"; do
+                # Check if process still exists before waiting
+                if kill -0 "$pid" 2>/dev/null; then
+                    if ! wait "$pid" 2>/dev/null; then
+                        current_execution_failures=$((current_execution_failures + 1))
+                    fi
+                fi
+            done
+        fi
+
+        # Wait for file operations to complete (race condition fix)
+        # Give file locks time to be released and writes to complete
+        local lock_file="${PROGRESS_TRACKING_FILE}.lock"
+        local wait_attempts=0
+        local max_wait_attempts=40  # 20 seconds max wait
+
+        while [[ -f "$lock_file" && $wait_attempts -lt $max_wait_attempts ]]; do
+            sleep 0.5
+            wait_attempts=$((wait_attempts + 1))
         done
+
+        # Additional delay to ensure all file operations complete
+        sleep 2
+
+        # Wait for any networks still marked as "in_progress" to complete
+        # This handles race conditions where processes finish but haven't updated status yet
+        local in_progress_count=0
+        local max_in_progress_wait=120  # Wait up to 60 seconds for in_progress networks
+        local in_progress_wait_attempts=0
+        local last_in_progress_count=999
+
+        while [[ $in_progress_wait_attempts -lt $max_in_progress_wait ]]; do
+            in_progress_count=0
+            if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+                for network in "${networks[@]}"; do
+                    # Skip invalid network names (contain spaces)
+                    if [[ "$network" == *" "* ]]; then
+                        continue
+                    fi
+                    local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
+                    if [[ "$status" == "in_progress" ]]; then
+                        in_progress_count=$((in_progress_count + 1))
+                    fi
+                done
+            fi
+
+            # If no networks are in_progress, we're done waiting
+            if [[ $in_progress_count -eq 0 ]]; then
+                break
+            fi
+
+            # Log progress every 5 seconds, or if count changes
+            if [[ $in_progress_count -ne $last_in_progress_count ]] || [[ $((in_progress_wait_attempts % 10)) -eq 0 && $in_progress_wait_attempts -gt 0 ]]; then
+                logWithTimestamp "Waiting for $in_progress_count network(s) still in progress..."
+                last_in_progress_count=$in_progress_count
+            fi
+
+            sleep 0.5
+            in_progress_wait_attempts=$((in_progress_wait_attempts + 1))
+        done
+
+        # Final wait to ensure all cleanup traps and background processes have finished
+        # This prevents cleanup traps from overwriting status after we read it
+        sleep 3
+
+        # If we still have in_progress networks after waiting, log a warning
+        if [[ $in_progress_count -gt 0 ]]; then
+            logWithTimestamp "Warning: $in_progress_count network(s) still marked as in_progress after waiting. They may need manual retry."
+        fi
     fi
 
     # Count total failed networks (including those from previous runs)
     local total_failed_count=0
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
         for network in "${networks[@]}"; do
+            # Skip invalid network names (contain spaces)
+            if [[ "$network" == *" "* ]]; then
+                continue
+            fi
+
             local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
             if [[ "$status" == "failed" ]]; then
                 total_failed_count=$((total_failed_count + 1))
@@ -1182,9 +1939,11 @@ function executeGroupSequentially() {
 # =============================================================================
 
 function executeNetworksByGroup() {
-    local contract="$1"
-    local environment="$2"
-    local -a networks=("${@:3}")
+    local contract="${1:-}"
+    local environment="${2:-}"
+    # Properly capture remaining arguments as an array
+    shift 2
+    local -a networks=("$@")
 
     if [[ -z "$contract" || -z "$environment" || ${#networks[@]} -eq 0 ]]; then
         error "Usage: executeNetworksByGroup CONTRACT ENVIRONMENT NETWORK1 NETWORK2 ..."
@@ -1192,45 +1951,68 @@ function executeNetworksByGroup() {
         return 1
     fi
 
-    logWithTimestamp "Starting network execution for $contract in $environment"
-    logWithTimestamp "Networks to process: ${networks[*]}"
-
     # Determine CONTRACT from executeNetworkActions (using first network)
     local first_network="${networks[0]}"
     local temp_contract_file=$(mktemp)
     local temp_log_dir=$(mktemp -d)
 
-    logWithTimestamp "Determining CONTRACT from executeNetworkActions (using first network: $first_network)..."
-
     # Call executeNetworkActions with CONTRACT_FILE set so it writes CONTRACT to file
     CONTRACT_FILE="$temp_contract_file" executeNetworkActions "$first_network" "$temp_log_dir" > /dev/null 2>&1
-    local contract=$(cat "$temp_contract_file" 2>/dev/null || echo "")
+    local detected_contract=$(cat "$temp_contract_file" 2>/dev/null || echo "")
     rm -rf "$temp_log_dir" "$temp_contract_file"
 
-    if [[ -z "$contract" ]]; then
+    if [[ -z "$detected_contract" ]]; then
         error "CONTRACT could not be determined. Please ensure executeNetworkActions sets CONTRACT."
         return 1
     fi
 
-    logWithTimestamp "CONTRACT determined: $contract"
+    # Use detected contract if provided contract is empty, otherwise use provided
+    if [[ -z "$contract" ]]; then
+        contract="$detected_contract"
+    fi
 
-    # Initialize progress tracking with progress logging
-    logWithTimestamp "Initializing progress tracking for ${#networks[@]} networks..."
+    # Get all networks (including blacklisted) for display purposes
+    local -a all_networks=($(getConfiguredNetworksWithoutBlacklist "$contract" "$environment"))
+
+    # Group all networks (including blacklisted) for display in execution plan
+    local all_groups_data=$(groupNetworksByExecutionGroup "${all_networks[@]}")
+    if [[ $? -ne 0 ]]; then
+        error "Failed to group all networks for display"
+        return 1
+    fi
+
+    # Initialize progress tracking with filtered networks (excluding blacklisted)
     initializeProgressTracking "$contract" "$environment" "${networks[@]}"
-    logWithTimestamp "Progress tracking initialized"
 
-    # Group networks by execution requirements
+    # Group filtered networks by execution requirements (for actual execution)
     local groups_data=$(groupNetworksByExecutionGroup "${networks[@]}")
     if [[ $? -ne 0 ]]; then
         error "Failed to group networks"
         return 1
     fi
 
-    # Extract group arrays
-    local -a london_networks=($(echo "$groups_data" | jq -r '.london[]'))
-    local -a zkevm_networks=($(echo "$groups_data" | jq -r '.zkevm[]'))
-    local -a cancun_networks=($(echo "$groups_data" | jq -r '.cancun[]'))
-    local -a invalid_networks=($(echo "$groups_data" | jq -r '.invalid[]'))
+    # Extract group arrays - use mapfile to properly handle arrays
+    local -a london_networks=()
+    local -a zkevm_networks=()
+    local -a cancun_networks=()
+    local -a invalid_networks=()
+
+    # Use readarray/mapfile to properly capture arrays from jq output
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && london_networks+=("$line")
+    done < <(echo "$groups_data" | jq -r '.london[]? // empty' 2>/dev/null | grep -v '^$')
+
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && zkevm_networks+=("$line")
+    done < <(echo "$groups_data" | jq -r '.zkevm[]? // empty' 2>/dev/null | grep -v '^$')
+
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && cancun_networks+=("$line")
+    done < <(echo "$groups_data" | jq -r '.cancun[]? // empty' 2>/dev/null | grep -v '^$')
+
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && invalid_networks+=("$line")
+    done < <(echo "$groups_data" | jq -r '.invalid[]? // empty' 2>/dev/null | grep -v '^$')
 
     # Report invalid networks
     if [[ ${#invalid_networks[@]} -gt 0 ]]; then
@@ -1241,8 +2023,12 @@ function executeNetworksByGroup() {
     # Backup foundry.toml
     backupFoundryToml
 
-    # Set up cleanup on exit
-    trap 'restoreFoundryToml; getProgressSummary; cleanupProgressTracking' EXIT
+    # Set up global interrupt handler at the top level
+    trap '_global_interrupt_handler' INT TERM
+
+    # Set up cleanup on exit (only if script exits unexpectedly)
+    # Normal completion will handle cleanup explicitly, so trap only handles errors/interrupts
+    trap 'restoreFoundryToml 2>/dev/null; cleanupProgressTracking 2>/dev/null; rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null' EXIT
 
     # Show group execution plan
     echo ""
@@ -1251,26 +2037,35 @@ function executeNetworksByGroup() {
     echo "=================================================================================="
 
     if [[ ${#cancun_networks[@]} -gt 0 ]]; then
+        local cancun_list=$(IFS=', '; echo "${cancun_networks[*]}")
         if isGroupComplete "${cancun_networks[@]}"; then
             logWithTimestamp "✅ Cancun EVM Group (${#cancun_networks[@]} networks): SKIP - All completed"
+            logWithTimestamp "   Networks: $cancun_list"
         else
             logWithTimestamp "🚀 Cancun EVM Group (${#cancun_networks[@]} networks): EXECUTE - Has pending networks"
+            logWithTimestamp "   Networks: $cancun_list"
         fi
     fi
 
     if [[ ${#zkevm_networks[@]} -gt 0 ]]; then
+        local zkevm_list=$(IFS=', '; echo "${zkevm_networks[*]}")
         if isGroupComplete "${zkevm_networks[@]}"; then
             logWithTimestamp "✅ zkEVM Group (${#zkevm_networks[@]} networks): SKIP - All completed"
+            logWithTimestamp "   Networks: $zkevm_list"
         else
             logWithTimestamp "🚀 zkEVM Group (${#zkevm_networks[@]} networks): EXECUTE - Has pending networks"
+            logWithTimestamp "   Networks: $zkevm_list"
         fi
     fi
 
     if [[ ${#london_networks[@]} -gt 0 ]]; then
+        local london_list=$(IFS=', '; echo "${london_networks[*]}")
         if isGroupComplete "${london_networks[@]}"; then
             logWithTimestamp "✅ London EVM Group (${#london_networks[@]} networks): SKIP - All completed"
+            logWithTimestamp "   Networks: $london_list"
         else
             logWithTimestamp "🚀 London EVM Group (${#london_networks[@]} networks): EXECUTE - Has pending networks"
+            logWithTimestamp "   Networks: $london_list"
         fi
     fi
 
@@ -1337,16 +2132,93 @@ function executeNetworksByGroup() {
     # Restore foundry.toml
     restoreFoundryToml
 
-    # Show final summary
-    getProgressSummary
+    # Clean up PID tracking file
+    rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null || true
 
+    # Wait for any remaining file operations to complete
+    local lock_file="${PROGRESS_TRACKING_FILE}.lock"
+    local wait_attempts=0
+    local max_wait_attempts=40  # 20 seconds max wait
+
+    while [[ -f "$lock_file" && $wait_attempts -lt $max_wait_attempts ]]; do
+        sleep 0.5
+        wait_attempts=$((wait_attempts + 1))
+    done
+
+    # Additional delay to ensure all file operations and cleanup traps complete
+    # This prevents cleanup traps from overwriting status after we read it
+    sleep 3
+
+    # Show final summary (always show, even if file is invalid)
+    # Try to show summary - if file is invalid, it will handle it gracefully
+    echo ""
+    logWithTimestamp "Generating final execution summary..."
+    getProgressSummary || {
+        logWithTimestamp "Warning: Could not generate summary. Progress file may be locked or invalid."
+        # Try to show basic info even if summary fails
+        if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+            echo ""
+            echo "=========================================="
+            echo "  EXECUTION PROGRESS SUMMARY (Basic)"
+            echo "=========================================="
+            echo "Progress file: $PROGRESS_TRACKING_FILE"
+            echo "File exists: Yes"
+            if jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+                echo "File is valid JSON: Yes"
+            else
+                echo "File is valid JSON: No"
+            fi
+            echo "=========================================="
+            echo ""
+        fi
+    }
+
+    # Check actual progress file state to determine success
+    # Success means: no failed, no pending, and no in_progress networks
+    if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+        # Validate JSON before using it
+        if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            # File is invalid JSON - log warning but don't remove yet (summary already shown)
+            logWithTimestamp "Warning: Progress tracking file contains invalid JSON, will be cleaned up"
+        fi
+    fi
+
+    if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+        # Validate JSON before using it
+        if jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            # File is valid JSON - check status
+            local actual_failed=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "failed")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+            local actual_pending=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "pending")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+            local actual_in_progress=$(jq '[.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "in_progress")] | length' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "0")
+
+            if [[ "$actual_failed" -eq 0 && "$actual_pending" -eq 0 && "$actual_in_progress" -eq 0 && "$overall_success" == "true" ]]; then
+                logWithTimestamp "All network executions completed successfully!"
+                cleanupProgressTracking
+                return 0
+            else
+                if [[ "$actual_failed" -gt 0 ]]; then
+                    logWithTimestamp "Some network executions failed. Check the summary above."
+                elif [[ "$actual_pending" -gt 0 ]]; then
+                    logWithTimestamp "Some networks are still pending. Check the summary above."
+                elif [[ "$actual_in_progress" -gt 0 ]]; then
+                    logWithTimestamp "Some networks are still in progress. Check the summary above."
+                fi
+                logWithTimestamp "You can rerun the same command to retry failed/pending/in_progress networks."
+                return 1
+            fi
+        else
+            # File is invalid JSON - clean it up
+            logWithTimestamp "Progress tracking file contains invalid JSON, removing it"
+            rm -f "$PROGRESS_TRACKING_FILE"
+        fi
+    fi
+
+    # If we get here, either file doesn't exist or was invalid
     if [[ "$overall_success" == "true" ]]; then
         logWithTimestamp "All network executions completed successfully!"
-        cleanupProgressTracking
         return 0
     else
-        logWithTimestamp "Some network executions failed. Check the summary above."
-        logWithTimestamp "You can rerun the same command to retry failed networks."
+        logWithTimestamp "Some network executions may have failed. Check the summary above."
         return 1
     fi
 }
@@ -1356,8 +2228,8 @@ function executeNetworksByGroup() {
 # =============================================================================
 
 function executeAllNetworksForContract() {
-    local contract="$1"
-    local environment="$2"
+    local contract="${1:-}"
+    local environment="${2:-}"
 
     if [[ -z "$contract" || -z "$environment" ]]; then
         error "Usage: executeAllNetworksForContract CONTRACT ENVIRONMENT"
@@ -1371,9 +2243,9 @@ function executeAllNetworksForContract() {
 }
 
 function executeNetworksByEvmVersion() {
-    local contract="$1"
-    local environment="$2"
-    local evm_version="$3"
+    local contract="${1:-}"
+    local environment="${2:-}"
+    local evm_version="${3:-}"
 
     if [[ -z "$contract" || -z "$environment" || -z "$evm_version" ]]; then
         error "Usage: executeNetworksByEvmVersion CONTRACT ENVIRONMENT EVM_VERSION"
@@ -1401,8 +2273,8 @@ function executeNetworksByEvmVersion() {
 
 function iterateAllNetworksOriginal() {
     # Original function from playground.sh - now with grouping support
-    local CONTRACT="$1"
-    local ENVIRONMENT="$2"
+    local CONTRACT="${1:-}"
+    local ENVIRONMENT="${2:-}"
 
     local RUN_PARALLEL=true  # <<<<<<<<---------------------- ADJUST FOR PARALLEL vs. SEQUENTIAL EXECUTION
 
@@ -1469,12 +2341,15 @@ function iterateAllNetworksOriginal() {
     if [[ "$RUN_PARALLEL" == "true" ]]; then
         echo "[info] Running in parallel mode"
 
-        # Set up signal handler to kill background jobs on interrupt
-        trap 'echo ""; echo "[info] Interrupt received. Stopping all background jobs..."; jobs -p | xargs -r kill; rm -rf "$LOG_DIR"; exit 1' INT TERM
+        # Set up signal handler to kill all background processes on interrupt
+        # Use the global interrupt handler which properly kills all processes
+        trap '_global_interrupt_handler; rm -rf "$LOG_DIR"; exit 130' INT TERM
 
         # Run all networks in parallel
         for NETWORK in "${NETWORKS[@]}"; do
-            handleNetworkOriginal "$NETWORK" "$ENVIRONMENT" "$LOG_DIR" "$CONTRACT" &
+            (set -m; handleNetworkOriginal "$NETWORK" "$ENVIRONMENT" "$LOG_DIR" "$CONTRACT") &
+            local pid=$!
+            trackBackgroundPid "$pid"
         done
 
         # Wait for all background jobs to complete
@@ -1499,13 +2374,13 @@ function iterateAllNetworksOriginal() {
 
 function iterateAllNetworksGrouped() {
     # This function replaces iterateAllNetworks but with automatic grouping
-    # It maintains the same interface but adds grouping functionality
+    # CONTRACT and ENVIRONMENT are read from the global configuration variables
+    # Set them in the EXECUTION CONFIGURATION section above
 
-    local CONTRACT="$1"
-    local ENVIRONMENT="$2"
-
-    if [[ -z "$CONTRACT" || -z "$ENVIRONMENT" ]]; then
-        error "Usage: iterateAllNetworksGrouped CONTRACT ENVIRONMENT"
+    if [[ -z "${CONTRACT:-}" || -z "${ENVIRONMENT:-}" ]]; then
+        error "CONTRACT and ENVIRONMENT must be set in the EXECUTION CONFIGURATION section of multiNetworkExecution.sh"
+        error "Current CONTRACT: ${CONTRACT:-'not set'}"
+        error "Current ENVIRONMENT: ${ENVIRONMENT:-'not set'}"
         return 1
     fi
 
@@ -1518,36 +2393,34 @@ function iterateAllNetworksGrouped() {
         return 1
     fi
 
+    # Try to detect action type early (before CONTRACT is determined)
+    local action_type=$(detectActionType)
+
     # Log execution summary before starting
     echo ""
     echo "=================================================================================="
     logWithTimestamp "📋 MULTI-NETWORK EXECUTION SUMMARY"
     echo "=================================================================================="
+    logWithTimestamp "Contract: $CONTRACT"
     logWithTimestamp "Environment: $ENVIRONMENT"
-
-    # Try to detect action type early (before CONTRACT is determined)
-    local action_type=$(detectActionType)
     logWithTimestamp "Action Type: $action_type"
-
-    # Show network count and list
     logWithTimestamp "Total Networks: ${#NETWORKS[@]}"
-    local network_list=$(IFS=', '; echo "${NETWORKS[*]}")
-    logWithTimestamp "Networks: $network_list"
     echo "=================================================================================="
     echo ""
 
     # Use the new execution logic with group skipping
+    # Ensure NETWORKS is properly expanded as an array
     executeNetworksByGroup "$CONTRACT" "$ENVIRONMENT" "${NETWORKS[@]}"
 }
 
 function handleNetworkOriginal() {
-    local NETWORK="$1"
-    local ENVIRONMENT="$2"
-    local LOG_DIR="$3"
-    local CONTRACT="$4"
+    local NETWORK="${1:-}"
+    local ENVIRONMENT="${2:-}"
+    local LOG_DIR="${3:-}"
+    local CONTRACT="${4:-}"
 
-    RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
-    if [[ $? -ne 0 ]]; then
+    RPC_URL=$(getRPCUrl "${NETWORK:-}" "${ENVIRONMENT:-}" 2>/dev/null || echo "")
+    if [[ -z "${RPC_URL:-}" ]]; then
         echo "[$NETWORK] Failed to get RPC URL"
         return 1
     fi
@@ -1566,7 +2439,7 @@ function handleNetworkOriginal() {
     COMMAND_STATUS=1
     MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=1
 
-    if [[ -z "$CONTRACT" ]]; then
+    if [[ -z "${CONTRACT:-}" ]]; then
         echo "[$NETWORK] No contract provided, cannot proceed"
         return 1
     fi
@@ -1576,7 +2449,7 @@ function handleNetworkOriginal() {
         echo "[$NETWORK] Attempt $((RETRY_COUNT + 1))/$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION: Executing operations..."
 
         # Check if we should exit (in case of interrupt)
-        if [[ -n "$EXIT_REQUESTED" ]]; then
+        if [[ -n "${EXIT_REQUESTED:-}" ]]; then
             echo "[$NETWORK] Exit requested, stopping operations"
             echo "FAILED" > "$LOG_DIR/${NETWORK}.log"
             return 1
@@ -1584,8 +2457,8 @@ function handleNetworkOriginal() {
 
         # Execute the configured network actions
         # To modify actions, edit the NETWORK ACTION CONFIGURATION section at the top of this file
-        executeNetworkActions "$NETWORK" "$ENVIRONMENT" "$LOG_DIR" "$CONTRACT"
-        COMMAND_STATUS=$?
+        executeNetworkActions "${NETWORK:-}" "${ENVIRONMENT:-}" "${LOG_DIR:-}" "${CONTRACT:-}"
+        COMMAND_STATUS=${?:-1}
 
         # increase retry counter
         RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -1607,7 +2480,7 @@ function handleNetworkOriginal() {
 }
 
 function generateSummaryOriginal() {
-    local LOG_DIR="$1"
+    local LOG_DIR="${1:-}"
 
     # Get the actual networks that were processed by reading the log files
     local NETWORKS=()
@@ -1704,9 +2577,9 @@ function cleanupStaleLocksOriginal() {
 
 function executeGroupWithHandleNetwork() {
     # This function executes a group of networks using your existing handleNetwork function
-    local group="$1"
-    local environment="$2"
-    local contract="$3"
+    local group="${1:-}"
+    local environment="${2:-}"
+    local contract="${3:-}"
     local -a networks=("${@:4}")
 
     if [[ -z "$group" || ${#networks[@]} -eq 0 || -z "$environment" || -z "$contract" ]]; then
@@ -1731,8 +2604,9 @@ function executeGroupWithHandleNetwork() {
     # Create log directory for this group
     local log_dir=$(mktemp -d)
 
-    # Set up signal handler to kill background jobs on interrupt
-    trap 'echo ""; logWithTimestamp "Interrupt received. Stopping all background jobs..."; jobs -p | xargs -r kill; rm -rf "$log_dir"; exit 1' INT TERM
+    # Set up signal handler to kill all background processes on interrupt
+    # Use the global interrupt handler which properly kills all processes
+    trap '_global_interrupt_handler; rm -rf "$log_dir"; exit 130' INT TERM
 
     # Determine execution mode for this group
     local should_run_parallel="$RUN_PARALLEL"
@@ -1741,10 +2615,12 @@ function executeGroupWithHandleNetwork() {
         logWithTimestamp "zkEVM group: forcing sequential execution"
     fi
 
+    # Initialize pids array at function scope to avoid unbound variable errors
+    local -a pids=()
+
     if [[ "$should_run_parallel" == "true" ]]; then
         # Execute networks in parallel within the group using your existing handleNetwork function
         logWithTimestamp "Executing networks in parallel"
-        local -a pids=()
         for network in "${networks[@]}"; do
             # Check if this network is still pending
             if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
@@ -1762,17 +2638,21 @@ function executeGroupWithHandleNetwork() {
             fi
 
             # Start network execution in background using your existing handleNetwork function
-            executeNetworkWithHandleNetwork "$network" "$environment" "$log_dir" "$contract" "$group" &
-            pids+=($!)
+            (set -m; executeNetworkWithHandleNetwork "$network" "$environment" "$log_dir" "$contract" "$group") &
+            local pid=$!
+            trackBackgroundPid "$pid"
+            pids+=($pid)
         done
 
         # Wait for all background jobs to complete
         local current_execution_failures=0
-        for pid in "${pids[@]}"; do
-            if ! wait "$pid"; then
-                current_execution_failures=$((current_execution_failures + 1))
-            fi
-        done
+        if [[ ${#pids[@]} -gt 0 ]]; then
+            for pid in "${pids[@]}"; do
+                if ! wait "$pid"; then
+                    current_execution_failures=$((current_execution_failures + 1))
+                fi
+            done
+        fi
     else
         # Execute networks sequentially within the group using your existing handleNetwork function
         logWithTimestamp "Executing networks sequentially"
@@ -1804,6 +2684,11 @@ function executeGroupWithHandleNetwork() {
     local total_failed_count=0
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
         for network in "${networks[@]}"; do
+            # Skip invalid network names (contain spaces)
+            if [[ "$network" == *" "* ]]; then
+                continue
+            fi
+
             local status=$(jq -r --arg network "$network" '.networks[$network].status // "pending"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "pending")
             if [[ "$status" == "failed" ]]; then
                 total_failed_count=$((total_failed_count + 1))
@@ -1825,11 +2710,11 @@ function executeGroupWithHandleNetwork() {
 
 function executeNetworkWithHandleNetwork() {
     # This function wraps your existing handleNetwork function with progress tracking
-    local network="$1"
-    local environment="$2"
-    local log_dir="$3"
-    local contract="$4"
-    local group="$5"
+    local network="${1:-}"
+    local environment="${2:-}"
+    local log_dir="${3:-}"
+    local contract="${4:-}"
+    local group="${5:-}"
 
     if [[ -z "$network" || -z "$environment" || -z "$log_dir" || -z "$contract" || -z "$group" ]]; then
         error "All parameters are required for executeNetworkWithHandleNetwork"
@@ -1849,7 +2734,7 @@ function executeNetworkWithHandleNetwork() {
         logWithTimestamp "[$network] Attempt $((retry_count + 1))/$max_attempts: Executing operations..."
 
         # Check if we should exit (in case of interrupt)
-        if [[ -n "$EXIT_REQUESTED" ]]; then
+        if [[ -n "${EXIT_REQUESTED:-}" ]]; then
             logWithTimestamp "[$network] Exit requested, stopping operations"
             updateNetworkProgress "$network" "failed" "Execution interrupted"
             return 1
@@ -1912,4 +2797,71 @@ function resetProgressTracking() {
     fi
 }
 
+function resetNetworkStatuses() {
+    # Reset specific network statuses to "pending" to force redeployment
+    # Usage: resetNetworkStatuses "network1" "network2" ...
+    local -a networks=("$@")
+
+    if [[ ${#networks[@]} -eq 0 ]]; then
+        error "No networks specified to reset"
+        return 1
+    fi
+
+    if [[ ! -f "$PROGRESS_TRACKING_FILE" ]]; then
+        logWithTimestamp "Progress tracking file not found - nothing to reset"
+        return 0
+    fi
+
+    # Check if file is valid JSON
+    if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+        error "Progress tracking file contains invalid JSON"
+        return 1
+    fi
+
+    local updated_data=$(cat "$PROGRESS_TRACKING_FILE")
+    local reset_count=0
+
+    for network in "${networks[@]}"; do
+        # Skip invalid network names
+        if [[ -z "$network" || "$network" == *" "* ]]; then
+            continue
+        fi
+
+        # Check if network exists in tracking file
+        local network_exists=$(echo "$updated_data" | jq -r --arg network "$network" '.networks[$network] // empty' 2>/dev/null || echo "")
+        if [[ -n "$network_exists" && "$network_exists" != "null" ]]; then
+            # Reset network status to pending
+            updated_data=$(echo "$updated_data" | jq \
+                --arg network "$network" \
+                --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                '.networks[$network].status = "pending" | .networks[$network].attempts = 0 | .networks[$network].lastAttempt = $timestamp | .networks[$network].error = null | .lastUpdate = $timestamp' 2>/dev/null || echo "$updated_data")
+            reset_count=$((reset_count + 1))
+            logWithTimestamp "Reset network status to pending: $network"
+        fi
+    done
+
+    if [[ $reset_count -eq 0 ]]; then
+        logWithTimestamp "No matching networks found in progress tracking file to reset"
+        return 0
+    fi
+
+    # Write updated data
+    if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
+        error "Failed to write updated progress tracking data"
+        return 1
+    fi
+
+    if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+        mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || {
+            error "Failed to move progress tracking temp file"
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            return 1
+        }
+    fi
+
+    logWithTimestamp "Reset $reset_count network(s) to pending status"
+    return 0
+}
+
 export -f resetProgressTracking
+export -f resetNetworkStatuses
