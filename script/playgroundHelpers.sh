@@ -43,8 +43,8 @@ function getContractVerified() {
   ARGS=$(getConstructorArgsFromMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT")
   ARGS_RETURN_CODE=$?
 
-  if [[ $ARGS_RETURN_CODE -ne 0 || -z "$ARGS" ]]; then
-    error "[$NETWORK] No constructor args found for $CONTRACT"
+  if [[ $ARGS_RETURN_CODE -ne 0 || -z "$ARGS" || "$ARGS" == "null" ]]; then
+    error "[$NETWORK] No constructor args found for $CONTRACT - this indicates a problem with the deployment log entry"
     return 1
   fi
 
@@ -57,12 +57,15 @@ function getContractVerified() {
     return 1
   fi
 
-  CURRENT_ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS")
-  CURRENT_OPTIMIZER=$(echo "$LOG_ENTRY" | jq -r ".OPTIMIZER_RUNS")
-  CURRENT_TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
+  CURRENT_ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".address")
+  CURRENT_OPTIMIZER=$(echo "$LOG_ENTRY" | jq -r ".optimizerRuns")
+  CURRENT_TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".timestamp")
   CURRENT_CONSTRUCTOR_ARGS=$(echo "$LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS")
-  CURRENT_SALT=$(echo "$LOG_ENTRY" | jq -r ".SALT")
-  CURRENT_VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
+  CURRENT_SALT=$(echo "$LOG_ENTRY" | jq -r ".salt")
+  CURRENT_VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".verified")
+  CURRENT_SOLC_VERSION=$(echo "$LOG_ENTRY" | jq -r ".solcVersion // empty")
+  CURRENT_EVM_VERSION=$(echo "$LOG_ENTRY" | jq -r ".evmVersion // empty")
+  CURRENT_ZK_SOLC_VERSION=$(echo "$LOG_ENTRY" | jq -r ".zkSolcVersion // empty")
 
   if [[ "$CURRENT_ADDRESS" != "$CONTRACT_ADDRESS" ]]; then
     error "[$NETWORK] Address mismatch: $CURRENT_ADDRESS != $CONTRACT_ADDRESS"
@@ -80,7 +83,7 @@ function getContractVerified() {
   if [[ $? -eq 0 ]]; then
     success "[$NETWORK] Successfully verified $CONTRACT with address $CONTRACT_ADDRESS. Updating VERIFIED flag in log entry now."
 
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$CURRENT_TIMESTAMP" "$VERSION" "$CURRENT_OPTIMIZER" "$CURRENT_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$CONTRACT_ADDRESS" "true" "$CURRENT_SALT"
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$CURRENT_TIMESTAMP" "$VERSION" "$CURRENT_OPTIMIZER" "$CURRENT_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$CONTRACT_ADDRESS" "true" "$CURRENT_SALT" "$CURRENT_SOLC_VERSION" "$CURRENT_EVM_VERSION" "$CURRENT_ZK_SOLC_VERSION"
     return 0
   else
     error "[$NETWORK] Failed to verify $CONTRACT with address $CONTRACT_ADDRESS"
@@ -94,21 +97,24 @@ function getContractVerified() {
 
 function getNetworksByEvmVersionAndContractDeployment() {
   # Function: getNetworksByEvmVersionAndContractDeployment
-  # Description: Gets a list of networks where a contract is deployed, optionally filtered by EVM version
+  # Description: Gets a list of networks where a contract is deployed, optionally filtered by EVM version.
+  #              If EVM_VERSION is not provided, returns networks for all EVM versions.
+  #              If EVM_VERSION is provided, returns only networks matching that EVM version.
   # Arguments:
   #   $1 - CONTRACT: The contract name to check for deployment
   #   $2 - ENVIRONMENT: The environment to check (production/staging)
-  #   $3 - EVM_VERSION: (Optional) The EVM version to filter by (e.g., "london", "cancun", "shanghai")
+  #   $3 - EVM_VERSION: (Optional) The EVM version to filter by (e.g., "london", "cancun", "shanghai").
+  #                     If not set, returns networks for all EVM versions.
   # Returns:
   #   Array of network names that match the criteria
   # Example:
-  #   getNetworksByEvmVersionAndContractDeployment "GlacisFacet" "production"  # all networks with contract deployed
+  #   getNetworksByEvmVersionAndContractDeployment "GlacisFacet" "production"  # all networks with contract deployed (all EVM versions)
   #   getNetworksByEvmVersionAndContractDeployment "GlacisFacet" "production" "cancun"  # only cancun networks with contract deployed
 
   # read function arguments into variables
   local CONTRACT="$1"
   local ENVIRONMENT="$2"
-  local EVM_VERSION="$3"
+  local EVM_VERSION="${3:-}"
 
   # validate required parameters
   if [[ -z "$CONTRACT" || -z "$ENVIRONMENT" ]]; then
@@ -121,10 +127,10 @@ function getNetworksByEvmVersionAndContractDeployment() {
 
   # get initial list of networks based on EVM version
   if [[ -n "$EVM_VERSION" ]]; then
-    # get networks with specific EVM version
+    # get networks filtered by specific EVM version
     NETWORKS=($(getIncludedNetworksByEvmVersionArray "$EVM_VERSION"))
   else
-    # get all included networks
+    # get all included networks (all EVM versions)
     NETWORKS=($(getIncludedNetworksArray))
   fi
 
