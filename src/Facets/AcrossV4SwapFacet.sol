@@ -14,7 +14,9 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title AcrossV4SwapFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol using the Swap API (SpokePoolPeriphery)
-/// @custom:version 1.0.0
+/// @dev This contract does not custody user funds. Any native tokens received are either forwarded
+///      to the SpokePoolPeriphery or refunded to the sender via the refundExcessNative modifier.
+/// @custom:version 1.0.1
 contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -99,6 +101,7 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        uint256 originalAmount = _bridgeData.minAmount;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -106,7 +109,16 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender)
         );
 
-        _startBridge(_bridgeData, _acrossV4SwapData);
+        // Update minExpectedInputTokenAmount proportionally if there was positive slippage
+        AcrossV4SwapData memory updatedAcrossData = _acrossV4SwapData;
+        if (_bridgeData.minAmount > originalAmount) {
+            updatedAcrossData.minExpectedInputTokenAmount =
+                (_acrossV4SwapData.minExpectedInputTokenAmount *
+                    _bridgeData.minAmount) /
+                originalAmount;
+        }
+
+        _startBridge(_bridgeData, updatedAcrossData);
     }
 
     /// Internal Methods ///
@@ -116,7 +128,7 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _acrossV4SwapData Data specific to Across V4 Swap API
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        AcrossV4SwapData calldata _acrossV4SwapData
+        AcrossV4SwapData memory _acrossV4SwapData
     ) internal {
         // Approve the periphery to spend tokens
         LibAsset.maxApproveERC20(
@@ -147,9 +159,10 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     nonce: 0 // Not used in gasful flow
                 });
 
+        // Emit event before external call for proper event ordering
+        emit LiFiTransferStarted(_bridgeData);
+
         // Call the periphery's swapAndBridge function
         SPOKE_POOL_PERIPHERY.swapAndBridge(swapAndDepositData);
-
-        emit LiFiTransferStarted(_bridgeData);
     }
 }

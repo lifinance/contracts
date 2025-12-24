@@ -1,23 +1,34 @@
+import { randomBytes } from 'crypto'
+
 import { consola } from 'consola'
-import { BigNumber, constants, utils } from 'ethers'
+import { config } from 'dotenv'
+import {
+  decodeFunctionData,
+  erc20Abi,
+  getContract,
+  parseAbi,
+  zeroAddress,
+  type Abi,
+} from 'viem'
 
 import acrossV4SwapConfig from '../../config/across-v4-swap.json'
-import deploymentsARB from '../../deployments/arbitrum.staging.json'
-import {
-  type AcrossV4SwapFacet,
-  type ILiFi,
-  type ISpokePoolPeriphery,
-  AcrossV4SwapFacet__factory,
+import acrossV4SwapFacetArtifact from '../../out/AcrossV4SwapFacet.sol/AcrossV4SwapFacet.json'
+import type {
+  AcrossV4SwapFacet,
+  ILiFi,
+  ISpokePoolPeriphery,
 } from '../../typechain'
 
 import {
   ADDRESS_WETH_ARB,
   ADDRESS_USDC_OPT,
-  ensureBalanceAndAllowanceToDiamond,
-  getProvider,
-  getWalletFromPrivateKeyInDotEnv,
-  sendTransaction,
+  ensureAllowance,
+  ensureBalance,
+  executeTransaction,
+  setupEnvironment,
 } from './utils/demoScriptHelpers'
+
+config()
 
 // ==========================================================================================================
 // ACROSS V4 SWAP FACET DEMO SCRIPT
@@ -199,6 +210,11 @@ const getAcrossSwapQuote = async (
   return data
 }
 
+// ABI for decoding SpokePoolPeriphery.swapAndBridge calldata
+const swapAndBridgeAbi = parseAbi([
+  'function swapAndBridge((( uint256 amount, address recipient) submissionFees, (address inputToken, bytes32 outputToken, uint256 outputAmount, address depositor, bytes32 recipient, uint256 destinationChainId, bytes32 exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityParameter, bytes message) depositData, address swapToken, address exchange, uint8 transferType, uint256 swapTokenAmount, uint256 minExpectedInputTokenAmount, bytes routerCalldata, bool enableProportionalAdjustment, address spokePool, uint256 nonce) swapAndDepositData)',
+])
+
 /**
  * Decodes the swapAndBridge calldata to extract swap parameters
  */
@@ -225,12 +241,16 @@ const decodeSwapAndBridgeCalldata = (
   }
 } => {
   // The calldata is for SpokePoolPeriphery.swapAndBridge(SwapAndDepositData)
-  const iface = new utils.Interface([
-    'function swapAndBridge(tuple(tuple(uint256 amount, address recipient) submissionFees, tuple(address inputToken, bytes32 outputToken, uint256 outputAmount, address depositor, bytes32 recipient, uint256 destinationChainId, bytes32 exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityParameter, bytes message) depositData, address swapToken, address exchange, uint8 transferType, uint256 swapTokenAmount, uint256 minExpectedInputTokenAmount, bytes routerCalldata, bool enableProportionalAdjustment, address spokePool, uint256 nonce) swapAndDepositData)',
-  ])
+  const decoded = decodeFunctionData({
+    abi: swapAndBridgeAbi,
+    data: calldata as `0x${string}`,
+  })
 
-  const decoded = iface.decodeFunctionData('swapAndBridge', calldata)
-  const swapData = decoded.swapAndDepositData
+  if (!decoded.args) {
+    throw new Error('Failed to decode swapAndBridge calldata')
+  }
+
+  const swapData = decoded.args[0] as any
 
   return {
     swapToken: swapData.swapToken,
@@ -257,7 +277,7 @@ const decodeSwapAndBridgeCalldata = (
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
 // Source chain configuration
-const SRC_CHAIN = 'arbitrum'
+const SRC_CHAIN = 'arbitrum' as const
 const fromChainId = 42161 // Arbitrum
 const toChainId = 10 // Optimism
 
@@ -269,22 +289,20 @@ const INPUT_TOKEN = ADDRESS_WETH_ARB // WETH on Arbitrum
 const OUTPUT_TOKEN = ADDRESS_USDC_OPT // USDC on Optimism
 
 // Amount: 0.001 WETH (10^15 wei) - small amount for testing
-const fromAmount = '1000000000000000' // 0.001 WETH
+const fromAmount = 1000000000000000n // 0.001 WETH
 
-// Contract addresses
-const DIAMOND_ADDRESS = deploymentsARB.LiFiDiamond as string
-const config = acrossV4SwapConfig as Record<
+const config_data = acrossV4SwapConfig as Record<
   string,
   { spokePoolPeriphery: string; spokePool: string }
 >
 
 // Validate chain is supported
-if (!config[SRC_CHAIN]) {
+if (!config_data[SRC_CHAIN]) {
   throw new Error(`Chain ${SRC_CHAIN} not supported in across-v4-swap config`)
 }
 
-const SPOKE_POOL_PERIPHERY = config[SRC_CHAIN].spokePoolPeriphery
-const SPOKE_POOL = config[SRC_CHAIN].spokePool
+const SPOKE_POOL_PERIPHERY = config_data[SRC_CHAIN].spokePoolPeriphery
+const SPOKE_POOL = config_data[SRC_CHAIN].spokePool
 
 const EXPLORER_BASE_URL = 'https://arbiscan.io/tx/'
 // ############################################################################################################
@@ -294,18 +312,21 @@ async function main() {
   consola.info('  Across V4 Swap Facet Demo Script')
   consola.info('==========================================\n')
 
-  // Setup wallet and provider
-  const provider = getProvider(SRC_CHAIN)
-  const wallet = getWalletFromPrivateKeyInDotEnv(provider)
-  const walletAddress = await wallet.getAddress()
-  consola.info(`Wallet address: ${walletAddress}`)
+  // Setup environment using viem
+  const ACROSS_V4_SWAP_FACET_ABI = acrossV4SwapFacetArtifact.abi as Abi
 
-  // Connect to diamond with AcrossV4SwapFacet interface
-  const acrossV4SwapFacet = AcrossV4SwapFacet__factory.connect(
-    DIAMOND_ADDRESS,
-    wallet
-  )
-  consola.info(`Diamond address: ${DIAMOND_ADDRESS}`)
+  const {
+    publicClient,
+    walletClient,
+    walletAccount,
+    lifiDiamondContract,
+    lifiDiamondAddress,
+  } = await setupEnvironment(SRC_CHAIN, ACROSS_V4_SWAP_FACET_ABI)
+
+  const walletAddress = walletAccount.address
+
+  consola.info(`Wallet address: ${walletAddress}`)
+  consola.info(`Diamond address: ${lifiDiamondAddress}`)
   consola.info(`SpokePoolPeriphery: ${SPOKE_POOL_PERIPHERY}`)
   consola.info(`SpokePool: ${SPOKE_POOL}\n`)
 
@@ -328,7 +349,7 @@ async function main() {
     destinationChainId: toChainId,
     inputToken: INPUT_TOKEN,
     outputToken: OUTPUT_TOKEN,
-    amount: fromAmount,
+    amount: fromAmount.toString(),
     recipient: walletAddress, // User receives tokens on destination
     depositor: walletAddress, // User receives refunds if bridge fails
     refundAddress: walletAddress, // Same as depositor for consistency
@@ -436,11 +457,13 @@ async function main() {
   // Step 4: Prepare LiFi BridgeData
   consola.info('\nStep 4: Preparing LiFi BridgeData...')
 
+  const transactionId = `0x${randomBytes(32).toString('hex')}` as `0x${string}`
+
   const bridgeData: ILiFi.BridgeDataStruct = {
-    transactionId: utils.randomBytes(32),
+    transactionId,
     bridge: 'acrossV4Swap',
     integrator: 'lifi-demoScript',
-    referrer: constants.AddressZero,
+    referrer: zeroAddress,
     sendingAssetId: INPUT_TOKEN,
     receiver: walletAddress,
     minAmount: fromAmount,
@@ -507,34 +530,48 @@ async function main() {
   )
   consola.info('==========================================\n')
 
-  // Step 7: Execute transaction
+  // Step 7: Check balance and allowance
   consola.info('Step 6: Checking balance and allowance...')
-  await ensureBalanceAndAllowanceToDiamond(
-    INPUT_TOKEN,
-    wallet,
-    DIAMOND_ADDRESS,
-    BigNumber.from(fromAmount),
-    false
+
+  // Create token contract for balance/allowance checks
+  const tokenContract = getContract({
+    address: INPUT_TOKEN as `0x${string}`,
+    abi: erc20Abi,
+    client: { public: publicClient, wallet: walletClient },
+  })
+
+  // Ensure sufficient balance
+  await ensureBalance(tokenContract, walletAddress, fromAmount, publicClient)
+
+  // Ensure allowance to diamond
+  await ensureAllowance(
+    tokenContract,
+    walletAddress,
+    lifiDiamondAddress as string,
+    fromAmount,
+    publicClient
   )
+
   consola.info('  Balance and allowance OK\n')
 
+  // Step 8: Execute transaction
   consola.info('Step 7: Executing transaction...')
-  const txData = await acrossV4SwapFacet.populateTransaction
-    .startBridgeTokensViaAcrossV4Swap(bridgeData, acrossV4SwapData)
-    .then((tx) => tx.data)
 
-  const transactionResponse = await sendTransaction(
-    wallet,
-    DIAMOND_ADDRESS,
-    txData as string,
-    BigNumber.from(0)
+  await executeTransaction(
+    () =>
+      (lifiDiamondContract as any).write.startBridgeTokensViaAcrossV4Swap([
+        bridgeData,
+        acrossV4SwapData,
+      ]),
+    'Starting bridge tokens via AcrossV4Swap',
+    publicClient,
+    true
   )
 
   consola.info('\n==========================================')
   consola.info('  TRANSACTION SUCCESSFUL!')
   consola.info('==========================================')
-  consola.info(`TX Hash: ${transactionResponse.hash}`)
-  consola.info(`Explorer: ${EXPLORER_BASE_URL}${transactionResponse.hash}\n`)
+  consola.info(`Explorer: ${EXPLORER_BASE_URL}\n`)
 }
 
 main()

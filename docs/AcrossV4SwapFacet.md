@@ -88,15 +88,15 @@ enum TransferType {
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap-specific library that expects an array of calldata that can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
-The swap library can be found [here](../src/Libraries/LibSwap.sol).
+The swap library can be found in [LibSwap.sol](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
 Some methods accept a `BridgeData _bridgeData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found in [ILiFi.sol](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 
@@ -127,7 +127,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found in the [LI.FI API documentation](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

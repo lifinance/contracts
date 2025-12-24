@@ -19,7 +19,7 @@ interface ISpokePoolPeriphery {
         address recipient;
     }
 
-    /// @notice Base deposit data for Across V3 deposits
+    /// @notice Base deposit data for Across V4 deposits
     struct BaseDepositData {
         address inputToken; // Token deposited on origin chain (after swap)
         bytes32 outputToken; // Token received on destination chain

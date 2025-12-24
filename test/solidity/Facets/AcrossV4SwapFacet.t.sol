@@ -192,11 +192,10 @@ contract AcrossV4SwapFacetTest is TestBaseFacet {
         );
 
         assertEq(
-            address(acrossV4SwapFacet.SPOKE_POOL_PERIPHERY()) ==
-                SPOKE_POOL_PERIPHERY,
-            true
+            address(acrossV4SwapFacet.SPOKE_POOL_PERIPHERY()),
+            SPOKE_POOL_PERIPHERY
         );
-        assertEq(acrossV4SwapFacet.SPOKE_POOL() == SPOKE_POOL, true);
+        assertEq(acrossV4SwapFacet.SPOKE_POOL(), SPOKE_POOL);
     }
 
     function testRevert_WhenConstructedWithZeroPeripheryAddress() public {
