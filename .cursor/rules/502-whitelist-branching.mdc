@@ -1,0 +1,51 @@
+---
+name: Whitelist config branching strategy
+description: Ensure whitelist config files are only changed in main branch to prevent segregation
+globs:
+  - 'config/whitelist.json'
+  - 'config/composerWhitelist.json'
+alwaysApply: false
+---
+
+## Whitelist Config Branching Policy
+
+### Core Requirement
+
+**Whitelist configuration files MUST only be modified via PRs that merge into the `main` branch**. Direct commits to `main` are not allowed. Whitelist changes must NOT be included in PRs that target feature branches (non-main branches).
+
+### Rationale
+
+1. **Prevent segregation**: Whitelist updates must be centralized in `main` to ensure all deployments and integrations use the same authoritative whitelist state
+2. **Avoid conflicts**: Multiple PRs modifying whitelists in parallel can create merge conflicts and inconsistent states
+3. **Single source of truth**: `main` branch serves as the canonical source for whitelist configuration across all environments
+
+### Workflow Requirements
+
+#### When Editing Whitelist Files
+
+1. **All PRs with whitelist changes must target `main`**: Whether the whitelist change is standalone or part of a larger feature, the PR must target `main` (not a feature branch). All whitelist changes must go through PR review; direct commits to `main` are not allowed.
+
+2. **Whitelist changes as part of features**: If whitelist changes are required as part of feature work (e.g., adding a new periphery contract that needs to be whitelisted), it is acceptable and expected to include both the feature code and whitelist changes in the same PR, as long as the PR targets `main`.
+
+3. **Feature branches targeting other feature branches**: If you are working on a feature branch that targets another feature branch (not `main`), you must NOT include whitelist changes in that PR. In such cases:
+   - Complete the feature work without whitelist changes
+   - Create a separate PR targeting `main` for the whitelist changes after the feature is merged
+
+### Agent Behavior
+
+When the agent detects edits to whitelist config files:
+
+1. **Warn the user** if attempting to commit directly to `main` (all changes must go through PRs)
+2. **Enforce PR workflow**: All whitelist changes must be made via PRs that merge into `main`; direct commits to `main` are prohibited
+3. **Check PR target**:
+   - If the PR targets `main`: Whitelist changes are allowed, whether standalone or as part of feature work (e.g., new periphery contract)
+   - If the PR targets a feature branch (not `main`): Warn that whitelist changes must be removed from this PR. The whitelist changes should either be:
+     - Moved to a separate PR targeting `main`, or
+     - Included in this PR only if the PR base branch is changed to `main`
+4. **Feature work context**: If whitelist changes are part of feature work (e.g., adding a new periphery contract), it is expected and acceptable to include both in the same PR as long as the PR targets `main`
+5. **Document intent**: If proceeding with whitelist changes, ensure the PR description clearly states whether this is a standalone whitelist update or part of a larger feature
+
+### Exceptions
+
+- **Emergency updates**: In rare cases where whitelist updates are critical and time-sensitive, coordinate with the team to ensure proper merge strategy
+- **Staging whitelist**: `config/whitelist.staging.json` follows the same policy (target `main` branch)
