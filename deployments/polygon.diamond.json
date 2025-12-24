@@ -69,9 +69,9 @@
         "Name": "HopFacet",
         "Version": "2.0.0"
       },
-      "0x4640AaaaB3E6f5bB9b4A16fb00EA0DBD6D98B397": {
+      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.1"
+        "Version": "2.1.2"
       },
       "0xdC49bca8314e7cd7C90EDb8652375a0b15EFe611": {
         "Name": "GlacisFacet",
@@ -196,13 +196,14 @@
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
-      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
