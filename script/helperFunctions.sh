@@ -27,10 +27,10 @@ function logContractDeploymentInfo {
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
   local VERIFIED="$9"
-  local SALT="${10}"
-  local SOLC_VERSION="${11}"
-  local EVM_VERSION="${12}"
-  local ZK_SOLC_VERSION="${13}"
+  local SALT="${10:-}"
+  local SOLC_VERSION="${11:-}"
+  local EVM_VERSION="${12:-}"
+  local ZK_SOLC_VERSION="${13:-}"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -2163,6 +2163,11 @@ function verifyAllUnverifiedContractsInLogFile() {
           OPTIMIZER_RUNS=$(echo "$ENTRY" | awk -F'"' '/"OPTIMIZER_RUNS":/{print $4}')
           TIMESTAMP=$(echo "$ENTRY" | awk -F'"' '/"TIMESTAMP":/{print $4}')
           CONSTRUCTOR_ARGS=$(echo "$ENTRY" | awk -F'"' '/"CONSTRUCTOR_ARGS":/{print $4}')
+          local SALT SOLC_VERSION EVM_VERSION ZK_SOLC_VERSION
+          SALT=$(echo "$ENTRY" | jq -r '.SALT // empty')
+          SOLC_VERSION=$(echo "$ENTRY" | jq -r '.SOLC_VERSION // empty')
+          EVM_VERSION=$(echo "$ENTRY" | jq -r '.EVM_VERSION // empty')
+          ZK_SOLC_VERSION=$(echo "$ENTRY" | jq -r '.ZK_SOLC_VERSION // empty')
 
           # check if contract is verified
           if [[ "$VERIFIED" != "true" ]]; then
@@ -2177,7 +2182,7 @@ function verifyAllUnverifiedContractsInLogFile() {
             # check result
             if [ $? -eq 0 ]; then
               # update log file
-              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT"
+              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
 
               # increase COUNTER
               COUNTER=$((COUNTER + 1))
@@ -2628,8 +2633,10 @@ function getIncludedNetworksArray() {
     fi
   done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
-  # return ARRAY
-  printf '%s\n' "${ARRAY[@]}"
+  # return ARRAY (safely handle empty arrays)
+  if [[ ${#ARRAY[@]} -gt 0 ]]; then
+    printf '%s\n' "${ARRAY[@]}"
+  fi
 }
 
 function getIncludedNetworksByEvmVersionArray() {
@@ -2676,8 +2683,10 @@ function getIncludedNetworksByEvmVersionArray() {
     fi
   done < <(jq -r 'keys[]' "$FILE")
 
-  # return ARRAY
-  printf '%s\n' "${ARRAY[@]}"
+  # return ARRAY (safely handle empty arrays)
+  if [[ ${#ARRAY[@]} -gt 0 ]]; then
+    printf '%s\n' "${ARRAY[@]}"
+  fi
 }
 
 function getFileSuffix() {
@@ -3065,7 +3074,7 @@ function getContractAddressFromSalt() {
   ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
-  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "${!RPC_URL}")
+  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "$RPC_URL")
 
   # return address
   echo "$RESULT"
