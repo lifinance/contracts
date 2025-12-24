@@ -33,6 +33,17 @@ import {
 //
 // Flow: User -> LiFiDiamond -> AcrossV4SwapFacet -> SpokePoolPeriphery -> SwapProxy -> DEX -> SpokePool
 //
+// API INTEGRATION NOTES:
+// When calling /swap/approval for contract integration:
+// 1. Set recipient = user's wallet (receives tokens on destination)
+// 2. Set depositor = user's wallet (receives refunds if bridge fails)
+// 3. Set skipOriginTxEstimation = true (Diamond won't have tokens at quote time)
+// 4. Extract transferType from API calldata and use it (don't hardcode!)
+//
+// EXAMPLE SUCCESSFUL TRANSACTIONS:
+// - Source (Arbitrum): https://arbiscan.io/tx/0xb94bba8ae2fca41e8aacc41279829bf74d1bd94af77a8e753cca627bb66dbb9e
+// - Destination (Optimism): https://optimistic.etherscan.io/tx/0xc61365d4a1d5ef4cddc6693f725e523a97da9a1c4a99d2766b359454cb8b8283
+//
 // IMPORTANT: This demo uses WETH -> USDC route to trigger an "anyToBridgeable" swap type.
 // For direct bridgeable-to-bridgeable routes (USDC -> USDC), use AcrossV4 facet instead.
 // ==========================================================================================================
@@ -134,10 +145,11 @@ interface IAcrossSwapApiRequest {
   outputToken: string
   amount: string
   recipient: string
-  depositor?: string
+  depositor: string // Should be the contract calling SpokePoolPeriphery (e.g., LiFi Diamond)
   refundAddress?: string
   refundOnOrigin?: boolean
   slippageTolerance?: number // e.g., 1 for 1%
+  skipOriginTxEstimation?: boolean // Skip simulation - required when depositor is a contract
 }
 
 /// HELPER FUNCTIONS
@@ -161,9 +173,11 @@ const getAcrossSwapQuote = async (
     outputToken: request.outputToken,
     amount: request.amount,
     recipient: request.recipient,
-    depositor: request.depositor || request.recipient,
+    depositor: request.depositor,
     refundOnOrigin: (request.refundOnOrigin ?? true).toString(),
     slippageTolerance: (request.slippageTolerance || 1).toString(), // 1 for 1%
+    // Skip origin tx estimation since the depositor (Diamond) won't have tokens at quote time
+    skipOriginTxEstimation: (request.skipOriginTxEstimation ?? true).toString(),
   })
 
   if (request.refundAddress) {
@@ -171,7 +185,7 @@ const getAcrossSwapQuote = async (
   }
 
   const fullUrl = `${baseUrl}?${params.toString()}`
-  logDebug(`Requesting Across Swap API: ${fullUrl}`)
+  consola.info(`  API URL: ${fullUrl}`)
 
   const response = await fetch(fullUrl)
   if (!response.ok) {
@@ -193,6 +207,7 @@ const decodeSwapAndBridgeCalldata = (
 ): {
   swapToken: string
   exchange: string
+  transferType: number
   routerCalldata: string
   minExpectedInputTokenAmount: string
   depositData: {
@@ -220,6 +235,7 @@ const decodeSwapAndBridgeCalldata = (
   return {
     swapToken: swapData.swapToken,
     exchange: swapData.exchange,
+    transferType: swapData.transferType,
     routerCalldata: swapData.routerCalldata,
     minExpectedInputTokenAmount:
       swapData.minExpectedInputTokenAmount.toString(),
@@ -304,17 +320,21 @@ async function main() {
   // Step 1: Get quote from Across Swap API
   consola.info('Step 1: Fetching quote from Across Swap API...')
 
+  // NOTE: Both recipient and depositor should be the user's wallet address.
+  // The Diamond is only the msg.sender to SpokePoolPeriphery, not the depositor.
+  // skipOriginTxEstimation=true is required because the Diamond won't have tokens at quote time.
   const swapApiRequest: IAcrossSwapApiRequest = {
     originChainId: fromChainId,
     destinationChainId: toChainId,
     inputToken: INPUT_TOKEN,
     outputToken: OUTPUT_TOKEN,
     amount: fromAmount,
-    recipient: walletAddress,
-    depositor: walletAddress, // User is depositor (facet will handle approval)
-    refundAddress: walletAddress,
+    recipient: walletAddress, // User receives tokens on destination
+    depositor: walletAddress, // User receives refunds if bridge fails
+    refundAddress: walletAddress, // Same as depositor for consistency
     refundOnOrigin: true,
     slippageTolerance: 1, // 1%
+    skipOriginTxEstimation: true, // Required: Diamond won't have tokens at quote time
   }
 
   const swapQuote = await getAcrossSwapQuote(swapApiRequest)
@@ -398,9 +418,14 @@ async function main() {
     consola.info(`  Swap Token: ${decodedData.swapToken}`)
     consola.info(`  Exchange: ${decodedData.exchange}`)
     consola.info(
+      `  Transfer Type: ${decodedData.transferType} (0=Approval, 1=Transfer, 2=Permit2)`
+    )
+    consola.info(
       `  Min Expected Input: ${decodedData.minExpectedInputTokenAmount}`
     )
     consola.info(`  Output Amount: ${decodedData.depositData.outputAmount}`)
+    consola.info(`  Depositor: ${decodedData.depositData.depositor}`)
+    consola.info(`  Recipient: ${decodedData.depositData.recipient}`)
   } catch (error) {
     consola.error(`Failed to decode calldata: ${error}`)
     consola.info('The API may have returned a different transaction format.')
@@ -428,11 +453,13 @@ async function main() {
   // Step 5: Prepare AcrossV4SwapData
   consola.info('\nStep 5: Preparing AcrossV4SwapData...')
 
+  // Use decoded deposit data directly - API was called with depositor=DIAMOND_ADDRESS
+  // so all fields should be correctly set
   const depositData: ISpokePoolPeriphery.BaseDepositDataStruct = {
     inputToken: decodedData.depositData.inputToken,
     outputToken: decodedData.depositData.outputToken as `0x${string}`,
     outputAmount: decodedData.depositData.outputAmount,
-    depositor: DIAMOND_ADDRESS, // Diamond is depositor when going through facet
+    depositor: decodedData.depositData.depositor, // Should be DIAMOND_ADDRESS from API
     recipient: decodedData.depositData.recipient as `0x${string}`,
     destinationChainId: Number(decodedData.depositData.destinationChainId),
     exclusiveRelayer: decodedData.depositData.exclusiveRelayer as `0x${string}`,
@@ -443,11 +470,12 @@ async function main() {
   }
 
   // TransferType: 0 = Approval, 1 = Transfer, 2 = Permit2Approval
+  // Use the transferType from the API calldata
   const acrossV4SwapData: AcrossV4SwapFacet.AcrossV4SwapDataStruct = {
     depositData,
     swapToken: decodedData.swapToken,
     exchange: decodedData.exchange,
-    transferType: 0, // Approval
+    transferType: decodedData.transferType,
     routerCalldata: decodedData.routerCalldata,
     minExpectedInputTokenAmount: decodedData.minExpectedInputTokenAmount,
     enableProportionalAdjustment: true,
