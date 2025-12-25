@@ -862,6 +862,548 @@ function syncSigsAndDEXsForNetwork() {
 }
 
 # =============================================================================
+<<<<<<< Updated upstream
+=======
+# SAFE OWNER MANAGEMENT FUNCTIONS
+# =============================================================================
+
+function manageSafeOwner() {
+  # Function: manageSafeOwner
+  # Description: Creates a multisig proposal to add, remove, or replace a Safe owner
+  # Arguments:
+  #   $1 - MODE: "remove", "replace", or "add"
+  #   $2 - NETWORK: Network name
+  #   $3 - OWNER_TO_BE_REMOVED: Address of owner to remove (required for remove/replace modes)
+  #   $4 - OWNER_TO_BE_ADDED: Address of owner to add (required for replace/add modes)
+  # Returns:
+  #   0 on success, 1 on failure
+  # Example:
+  #   manageSafeOwner "remove" "mainnet" "0x123..."
+  #   manageSafeOwner "replace" "mainnet" "0x123..." "0x456..."
+  #   manageSafeOwner "add" "mainnet" "" "0x456..."
+
+  local MODE="$1"
+  local NETWORK="$2"
+  local OWNER_TO_BE_REMOVED="${3:-}"
+  local OWNER_TO_BE_ADDED="${4:-}"
+  local ENVIRONMENT="production"
+
+  # Validate required parameters
+  if [[ -z "$MODE" || -z "$NETWORK" ]]; then
+    error "Usage: manageSafeOwner MODE NETWORK [OWNER_TO_BE_REMOVED] [OWNER_TO_BE_ADDED]"
+    error "Modes: remove, replace, add"
+    return 1
+  fi
+
+  # Validate mode
+  if [[ "$MODE" != "remove" && "$MODE" != "replace" && "$MODE" != "add" ]]; then
+    error "[$NETWORK] Invalid mode: $MODE. Must be 'remove', 'replace', or 'add'"
+    return 1
+  fi
+
+  # Validate mode-specific parameters
+  if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
+    if [[ -z "$OWNER_TO_BE_REMOVED" ]]; then
+      error "[$NETWORK] OWNER_TO_BE_REMOVED is required for mode: $MODE"
+      return 1
+    fi
+  fi
+
+  if [[ "$MODE" == "replace" || "$MODE" == "add" ]]; then
+    if [[ -z "$OWNER_TO_BE_ADDED" ]]; then
+      error "[$NETWORK] OWNER_TO_BE_ADDED is required for mode: $MODE"
+      return 1
+    fi
+  fi
+
+  # Get Safe address from networks.json
+  local SAFE_ADDRESS
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
+  if [[ $? -ne 0 || -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+    error "[$NETWORK] Safe address not found in networks.json"
+    return 1
+  fi
+
+  # Get RPC URL (always use production for Safe operations)
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK" "production")
+  if [[ $? -ne 0 || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] Failed to get RPC URL"
+    return 1
+  fi
+
+  # For remove/replace modes: check if owner exists and get prevOwner
+  local PREV_OWNER=""
+  if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
+    # Check if owner is currently an owner
+    local IS_OWNER
+    IS_OWNER=$(cast call "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_REMOVED" --rpc-url "$RPC_URL" 2>/dev/null)
+    if [[ $? -ne 0 || "$IS_OWNER" != "true" ]]; then
+      error "[$NETWORK] Address $OWNER_TO_BE_REMOVED is not an owner of the Safe"
+      return 1
+    fi
+
+    # Get owners list
+    local OWNERS_JSON
+    OWNERS_JSON=$(cast call "$SAFE_ADDRESS" "getOwners() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+    if [[ $? -ne 0 || -z "$OWNERS_JSON" ]]; then
+      error "[$NETWORK] Failed to get owners list"
+      return 1
+    fi
+
+    # Parse owners array (cast returns addresses without quotes, need to convert to valid JSON)
+    # cast returns: [0xABC..., 0xDEF...] which is invalid JSON
+    # Convert to valid JSON: ["0xABC...", "0xDEF..."]
+    local OWNERS_ARRAY
+    local VALID_JSON
+    VALID_JSON=$(echo "$OWNERS_JSON" | sed 's/0x/"0x/g; s/, /", /g; s/\[/\["/g; s/\]/"\]/g' 2>/dev/null) || true
+    OWNERS_ARRAY=$(echo "$VALID_JSON" | jq -r '.[]' 2>/dev/null) || true
+
+    if [[ -z "$OWNERS_ARRAY" ]]; then
+      # Fallback: parse manually using sed/grep
+      OWNERS_ARRAY=$(echo "$OWNERS_JSON" | sed 's/\[//; s/\]//' | sed 's/,/\n/g' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '^0x[a-fA-F0-9]{40}$' || true)
+      if [[ -z "$OWNERS_ARRAY" ]]; then
+        error "[$NETWORK] Failed to parse owners list"
+        return 1
+      fi
+    fi
+
+    # Find the owner and track the previous owner (needed for Safe's linked list structure)
+    local FOUND=false
+    local PREV_OWNER_TEMP="0x0000000000000000000000000000000000000001"  # SENTINEL for first owner
+    while IFS= read -r owner; do
+      if [[ -n "$owner" ]]; then
+        if [[ "$(echo "$owner" | tr '[:upper:]' '[:lower:]')" == "$(echo "$OWNER_TO_BE_REMOVED" | tr '[:upper:]' '[:lower:]')" ]]; then
+          PREV_OWNER="$PREV_OWNER_TEMP"
+          FOUND=true
+          break
+        fi
+        PREV_OWNER_TEMP="$owner"
+      fi
+    done <<< "$OWNERS_ARRAY"
+
+    if [[ "$FOUND" != "true" ]]; then
+      error "[$NETWORK] Owner not found in owners list"
+      return 1
+    fi
+  fi
+
+  # Get current threshold
+  local THRESHOLD
+  THRESHOLD=$(cast call "$SAFE_ADDRESS" "getThreshold() returns (uint256)" --rpc-url "$RPC_URL" 2>/dev/null)
+  if [[ $? -ne 0 || -z "$THRESHOLD" ]]; then
+    error "[$NETWORK] Failed to get current threshold"
+    return 1
+  fi
+
+  # For remove mode: validate threshold won't exceed remaining owners
+  if [[ "$MODE" == "remove" ]]; then
+    local CURRENT_OWNER_COUNT
+    CURRENT_OWNER_COUNT=$(echo "$OWNERS_ARRAY" | grep -c '^0x' || echo "0")
+    local REMAINING_OWNERS=$((CURRENT_OWNER_COUNT - 1))
+
+    # Get threshold as decimal for comparison
+    local THRESHOLD_DEC
+    THRESHOLD_DEC=$(cast --to-dec "$THRESHOLD" 2>/dev/null || echo "$THRESHOLD")
+
+    if [[ $THRESHOLD_DEC -gt $REMAINING_OWNERS ]]; then
+      error "[$NETWORK] Cannot remove owner: threshold ($THRESHOLD_DEC) would exceed remaining owners ($REMAINING_OWNERS)"
+      error "[$NETWORK] Please lower the threshold first or use a different removal strategy"
+      return 1
+    fi
+  fi
+
+  # Create calldata based on mode
+  local CALLDATA=""
+  case "$MODE" in
+    "remove")
+      CALLDATA=$(cast calldata "removeOwner(address,address,uint256)" "$PREV_OWNER" "$OWNER_TO_BE_REMOVED" "$THRESHOLD")
+      ;;
+    "replace")
+      CALLDATA=$(cast calldata "swapOwner(address,address,address)" "$PREV_OWNER" "$OWNER_TO_BE_REMOVED" "$OWNER_TO_BE_ADDED")
+      ;;
+    "add")
+      CALLDATA=$(cast calldata "addOwnerWithThreshold(address,uint256)" "$OWNER_TO_BE_ADDED" "$THRESHOLD")
+      ;;
+  esac
+
+  if [[ -z "$CALLDATA" ]]; then
+    error "[$NETWORK] Failed to create calldata"
+    return 1
+  fi
+
+  # Create multisig proposal
+  case "$MODE" in
+    "remove")
+      echo "[$NETWORK] Creating proposal to remove owner: $OWNER_TO_BE_REMOVED"
+      ;;
+    "replace")
+      echo "[$NETWORK] Creating proposal to replace owner $OWNER_TO_BE_REMOVED with $OWNER_TO_BE_ADDED"
+      ;;
+    "add")
+      echo "[$NETWORK] Creating proposal to add owner: $OWNER_TO_BE_ADDED"
+      ;;
+  esac
+
+  bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+    --to "$SAFE_ADDRESS" \
+    --calldata "$CALLDATA" \
+    --network "$NETWORK" \
+    --rpcUrl "$RPC_URL" \
+    --privateKey "$(getPrivateKey "$NETWORK" "production")" \
+    >/dev/null 2>&1
+
+  local PROPOSAL_STATUS=$?
+
+  if [[ $PROPOSAL_STATUS -eq 0 ]]; then
+    case "$MODE" in
+      "remove")
+        success "[$NETWORK] Successfully created proposal to remove owner: $OWNER_TO_BE_REMOVED"
+        ;;
+      "replace")
+        success "[$NETWORK] Successfully created proposal to replace owner $OWNER_TO_BE_REMOVED with $OWNER_TO_BE_ADDED"
+        ;;
+      "add")
+        success "[$NETWORK] Successfully created proposal to add owner: $OWNER_TO_BE_ADDED"
+        ;;
+    esac
+    return 0
+  else
+    case "$MODE" in
+      "remove")
+        error "[$NETWORK] Failed to create proposal to remove owner: $OWNER_TO_BE_REMOVED"
+        ;;
+      "replace")
+        error "[$NETWORK] Failed to create proposal to replace owner $OWNER_TO_BE_REMOVED with $OWNER_TO_BE_ADDED"
+        ;;
+      "add")
+        error "[$NETWORK] Failed to create proposal to add owner: $OWNER_TO_BE_ADDED"
+        ;;
+    esac
+    return 1
+  fi
+}
+
+function _createTimelockCancellerProposal() {
+  # Internal helper function to create a single proposal
+  # Arguments:
+  #   $1 - NETWORK: Network name
+  #   $2 - TIMELOCK_ADDRESS: Timelock contract address
+  #   $3 - CANCELLER_ROLE: The bytes32 role value
+  #   $4 - OPERATION: "grant" or "revoke"
+  #   $5 - ADDRESS: Address to grant/revoke role from
+  #   $6 - RPC_URL: RPC URL for the network
+  # Returns: 0 on success, 1 on failure
+
+  local NETWORK="$1"
+  local TIMELOCK_ADDRESS="$2"
+  local CANCELLER_ROLE="$3"
+  local OPERATION="$4"
+  local ADDRESS="$5"
+  local RPC_URL="$6"
+
+  local CALLDATA=""
+  case "$OPERATION" in
+    "revoke")
+      CALLDATA=$(cast calldata "revokeRole(bytes32,address)" "$CANCELLER_ROLE" "$ADDRESS" 2>&1)
+      local CALLDATA_EXIT_CODE=$?
+      ;;
+    "grant")
+      CALLDATA=$(cast calldata "grantRole(bytes32,address)" "$CANCELLER_ROLE" "$ADDRESS" 2>&1)
+      local CALLDATA_EXIT_CODE=$?
+      ;;
+    *)
+      error "[$NETWORK] Invalid operation: $OPERATION"
+      return 1
+      ;;
+  esac
+
+  if [[ $CALLDATA_EXIT_CODE -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
+    error "[$NETWORK] Failed to create calldata for $OPERATION operation"
+    error "[$NETWORK] CANCELLER_ROLE: $CANCELLER_ROLE"
+    error "[$NETWORK] ADDRESS: $ADDRESS"
+    error "[$NETWORK] Cast error: $CALLDATA"
+    return 1
+  fi
+
+  # Verify calldata looks valid (should start with 0x and be a reasonable length)
+  if [[ ! "$CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]] || [[ ${#CALLDATA} -lt 10 ]]; then
+    error "[$NETWORK] Invalid calldata generated: $CALLDATA"
+    return 1
+  fi
+
+  # Verify Safe has PROPOSER_ROLE (required to call schedule())
+  local PROPOSER_ROLE
+  PROPOSER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "PROPOSER_ROLE() returns (bytes32)" --rpc-url "$RPC_URL" 2>/dev/null | tr -d '[:space:]')
+  if [[ -n "$PROPOSER_ROLE" ]]; then
+    local SAFE_HAS_PROPOSER_ROLE
+    SAFE_HAS_PROPOSER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$PROPOSER_ROLE" "$SAFE_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    if [[ "$SAFE_HAS_PROPOSER_ROLE" != "true" ]]; then
+      error "[$NETWORK] Safe address ($SAFE_ADDRESS) does not have PROPOSER_ROLE on timelock"
+      error "[$NETWORK] Safe needs PROPOSER_ROLE to schedule operations"
+      return 1
+    fi
+  fi
+
+  # The calldata needs to be wrapped in a timelock schedule operation
+  # The Safe will call schedule() on the timelock, which will schedule the grantRole/revokeRole call
+  # Use the --timelock flag which automatically wraps the calldata in a schedule call
+  # Note: --to should be the timelock address (where schedule() will be called)
+  # The inner calldata (grantRole/revokeRole) will target the timelock itself
+  bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+    --to "$TIMELOCK_ADDRESS" \
+    --calldata "$CALLDATA" \
+    --network "$NETWORK" \
+    --rpcUrl "$RPC_URL" \
+    --privateKey "$(getPrivateKey "$NETWORK" "production")" \
+    --timelock \
+    >/dev/null 2>&1
+
+  return $?
+}
+
+function manageTimelockCanceller() {
+  # Function: manageTimelockCanceller
+  # Description: Creates a multisig proposal to add, remove, or replace a CANCELLER_ROLE in LiFiTimelockController
+  # Arguments:
+  #   $1 - MODE: "remove", "replace", or "add"
+  #   $2 - NETWORK: Network name
+  #   $3 - REMOVE_ROLE_FROM_ADDRESS: Address of canceller to remove (required for remove/replace modes)
+  #   $4 - GRANT_ROLE_TO_ADDRESS: Address of canceller to add (required for replace/add modes)
+  # Returns:
+  #   0 on success, 1 on failure
+  # Example:
+  #   manageTimelockCanceller "remove" "mainnet" "0x123..."
+  #   manageTimelockCanceller "replace" "mainnet" "0x123..." "0x456..."
+  #   manageTimelockCanceller "add" "mainnet" "" "0x456..."
+
+  local MODE="$1"
+  local NETWORK="$2"
+  local REMOVE_ROLE_FROM_ADDRESS="${3:-}"
+  local GRANT_ROLE_TO_ADDRESS="${4:-}"
+  local ENVIRONMENT="production"
+
+  # Validate required parameters
+  if [[ -z "$MODE" || -z "$NETWORK" ]]; then
+    error "Usage: manageTimelockCanceller MODE NETWORK [REMOVE_ROLE_FROM_ADDRESS] [GRANT_ROLE_TO_ADDRESS]"
+    error "Modes: remove, replace, add"
+    return 1
+  fi
+
+  # Validate mode
+  if [[ "$MODE" != "remove" && "$MODE" != "replace" && "$MODE" != "add" ]]; then
+    error "[$NETWORK] Invalid mode: $MODE. Must be 'remove', 'replace', or 'add'"
+    return 1
+  fi
+
+  # Validate mode-specific parameters
+  if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
+    if [[ -z "$REMOVE_ROLE_FROM_ADDRESS" ]]; then
+      error "[$NETWORK] REMOVE_ROLE_FROM_ADDRESS is required for mode: $MODE"
+      return 1
+    fi
+  fi
+
+  if [[ "$MODE" == "replace" || "$MODE" == "add" ]]; then
+    if [[ -z "$GRANT_ROLE_TO_ADDRESS" ]]; then
+      error "[$NETWORK] GRANT_ROLE_TO_ADDRESS is required for mode: $MODE"
+      return 1
+    fi
+  fi
+
+  # Get timelock controller address from deployments
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  local DEPLOYMENT_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+
+  if [[ ! -f "$DEPLOYMENT_FILE" ]]; then
+    error "[$NETWORK] Deployment file not found: $DEPLOYMENT_FILE"
+    return 1
+  fi
+
+  local TIMELOCK_ADDRESS
+  TIMELOCK_ADDRESS=$(getValueFromJSONFile "$DEPLOYMENT_FILE" "LiFiTimelockController")
+  if [[ $? -ne 0 || -z "$TIMELOCK_ADDRESS" || "$TIMELOCK_ADDRESS" == "null" || "$TIMELOCK_ADDRESS" == "0x" ]]; then
+    error "[$NETWORK] LiFiTimelockController address not found in deployment file: $DEPLOYMENT_FILE"
+    return 1
+  fi
+
+  # Get RPC URL (always use production for timelock operations)
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK" "production")
+  if [[ $? -ne 0 || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] Failed to get RPC URL"
+    return 1
+  fi
+
+  # Get CANCELLER_ROLE bytes value from contract
+  local CANCELLER_ROLE
+  CANCELLER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "CANCELLER_ROLE() returns (bytes32)" --rpc-url "$RPC_URL" 2>/dev/null)
+  if [[ $? -ne 0 || -z "$CANCELLER_ROLE" ]]; then
+    error "[$NETWORK] Failed to get CANCELLER_ROLE from timelock contract at $TIMELOCK_ADDRESS"
+    return 1
+  fi
+
+  # Ensure CANCELLER_ROLE is properly formatted as a hex string (should be 0x followed by 64 hex chars = 66 total)
+  # Remove all whitespace (including newlines, tabs, spaces) and ensure it starts with 0x
+  CANCELLER_ROLE=$(echo -n "$CANCELLER_ROLE" | tr -d '[:space:]' | tr -d '\n' | tr -d '\r')
+  if [[ ! "$CANCELLER_ROLE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+    error "[$NETWORK] Invalid CANCELLER_ROLE format: '$CANCELLER_ROLE' (expected 0x followed by 64 hex characters, got ${#CANCELLER_ROLE} chars)"
+    error "[$NETWORK] Raw value (hex dump): $(echo -n "$CANCELLER_ROLE" | xxd -p -c 256)"
+    return 1
+  fi
+
+  # For remove/replace modes: check if address has CANCELLER_ROLE
+  local OLD_ADDRESS_HAS_ROLE=false
+  if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
+    local HAS_ROLE
+    HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$REMOVE_ROLE_FROM_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    if [[ $? -eq 0 && "$HAS_ROLE" == "true" ]]; then
+      OLD_ADDRESS_HAS_ROLE=true
+    fi
+
+    if [[ "$OLD_ADDRESS_HAS_ROLE" == "false" ]]; then
+      # Address doesn't have the role - desired state already achieved
+      if [[ "$MODE" == "remove" ]]; then
+        warning "[$NETWORK] Address $REMOVE_ROLE_FROM_ADDRESS does not have CANCELLER_ROLE - no action needed"
+        success "[$NETWORK] No proposal needed: address already does not have CANCELLER_ROLE"
+        return 0
+      elif [[ "$MODE" == "replace" ]]; then
+        warning "[$NETWORK] Address $REMOVE_ROLE_FROM_ADDRESS does not have CANCELLER_ROLE - skipping revoke and proceeding with grant only"
+      fi
+    else
+      # Address has the role - proceed with safety checks
+      # Safety check: Warn if removing might leave no CANCELLER_ROLE holders
+      # Note: TimelockController uses AccessControl (not AccessControlEnumerable), so we can't enumerate role members
+      # We check if Safe has CANCELLER_ROLE as a safety measure
+      local SAFE_HAS_ROLE
+      SAFE_HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$SAFE_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+
+      if [[ "$MODE" == "remove" ]]; then
+        # For remove mode: check if Safe has the role as backup
+        if [[ "$SAFE_HAS_ROLE" != "true" ]]; then
+          warning "[$NETWORK] ⚠️  WARNING: Removing CANCELLER_ROLE from $REMOVE_ROLE_FROM_ADDRESS"
+          warning "[$NETWORK] Safe address ($SAFE_ADDRESS) does not have CANCELLER_ROLE"
+          warning "[$NETWORK] Ensure at least one other address has CANCELLER_ROLE before proceeding"
+          warning "[$NETWORK] Otherwise, the timelock may be left without any cancellers"
+          warning "[$NETWORK] The Safe (with TIMELOCK_ADMIN_ROLE) can grant CANCELLER_ROLE later, but this requires a proposal"
+          echo ""
+          read -p "[$NETWORK] Continue with removal? (yes/no): " CONFIRM
+          if [[ "$CONFIRM" != "yes" ]]; then
+            error "[$NETWORK] Operation cancelled by user"
+            return 1
+          fi
+        else
+          echo "[$NETWORK] ✓ Safe address has CANCELLER_ROLE - removal is safe"
+        fi
+      elif [[ "$MODE" == "replace" ]]; then
+        # For replace mode: safer since we're adding a new one, but still warn if Safe doesn't have it
+        if [[ "$SAFE_HAS_ROLE" != "true" ]]; then
+          warning "[$NETWORK] ⚠️  NOTE: Safe address ($SAFE_ADDRESS) does not have CANCELLER_ROLE"
+          warning "[$NETWORK] After replacement, ensure at least one address retains CANCELLER_ROLE"
+        fi
+      fi
+    fi
+  fi
+
+  # For add/replace modes: check if new address already has CANCELLER_ROLE
+  local NEW_ADDRESS_HAS_ROLE=false
+  if [[ "$MODE" == "add" || "$MODE" == "replace" ]]; then
+    local HAS_ROLE
+    HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$GRANT_ROLE_TO_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    if [[ $? -eq 0 && "$HAS_ROLE" == "true" ]]; then
+      NEW_ADDRESS_HAS_ROLE=true
+    fi
+
+    if [[ "$NEW_ADDRESS_HAS_ROLE" == "true" ]]; then
+      if [[ "$MODE" == "add" ]]; then
+        warning "[$NETWORK] Address $GRANT_ROLE_TO_ADDRESS already has CANCELLER_ROLE"
+        success "[$NETWORK] No proposal needed: address already has CANCELLER_ROLE"
+        return 0
+      elif [[ "$MODE" == "replace" ]]; then
+        warning "[$NETWORK] Address $GRANT_ROLE_TO_ADDRESS already has CANCELLER_ROLE - skipping grant step"
+      fi
+    fi
+  fi
+
+  # Handle replace mode by creating proposals as needed
+  if [[ "$MODE" == "replace" ]]; then
+    local PROPOSALS_CREATED=0
+
+    # First, remove the role from the old address (if it has the role)
+    if [[ "$OLD_ADDRESS_HAS_ROLE" == "true" ]]; then
+      echo "[$NETWORK] Replace mode: creating proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS"
+      if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "revoke" "$REMOVE_ROLE_FROM_ADDRESS" "$RPC_URL"; then
+        error "[$NETWORK] Failed to create proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS"
+        return 1
+      fi
+      PROPOSALS_CREATED=$((PROPOSALS_CREATED + 1))
+    fi
+
+    # Then, grant the role to the new address (if it doesn't already have it)
+    if [[ "$NEW_ADDRESS_HAS_ROLE" == "false" ]]; then
+      echo "[$NETWORK] Replace mode: creating proposal to grant CANCELLER_ROLE to: $GRANT_ROLE_TO_ADDRESS"
+      if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "grant" "$GRANT_ROLE_TO_ADDRESS" "$RPC_URL"; then
+        error "[$NETWORK] Failed to create proposal to grant CANCELLER_ROLE to: $GRANT_ROLE_TO_ADDRESS"
+        return 1
+      fi
+      PROPOSALS_CREATED=$((PROPOSALS_CREATED + 1))
+    fi
+
+    if [[ $PROPOSALS_CREATED -eq 0 ]]; then
+      warning "[$NETWORK] Both addresses are already in the desired state"
+      success "[$NETWORK] No proposals needed: $REMOVE_ROLE_FROM_ADDRESS does not have role, $GRANT_ROLE_TO_ADDRESS already has role"
+      return 0
+    elif [[ $PROPOSALS_CREATED -eq 1 ]]; then
+      if [[ "$OLD_ADDRESS_HAS_ROLE" == "true" ]]; then
+        success "[$NETWORK] Successfully created proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS @LiFiTimelockController: $TIMELOCK_ADDRESS"
+      else
+        success "[$NETWORK] Successfully created proposal to grant CANCELLER_ROLE to: $GRANT_ROLE_TO_ADDRESS @LiFiTimelockController: $TIMELOCK_ADDRESS"
+      fi
+    else
+      success "[$NETWORK] Successfully created both proposals to replace CANCELLER_ROLE from $REMOVE_ROLE_FROM_ADDRESS to $GRANT_ROLE_TO_ADDRESS @LiFiTimelockController: $TIMELOCK_ADDRESS"
+    fi
+    return 0
+  fi
+
+  # Handle remove and add modes
+  local OPERATION=""
+  local ADDRESS=""
+  case "$MODE" in
+    "remove")
+      OPERATION="revoke"
+      ADDRESS="$REMOVE_ROLE_FROM_ADDRESS"
+      ;;
+    "add")
+      OPERATION="grant"
+      ADDRESS="$GRANT_ROLE_TO_ADDRESS"
+      ;;
+  esac
+
+  if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "$OPERATION" "$ADDRESS" "$RPC_URL"; then
+    case "$MODE" in
+      "remove")
+        error "[$NETWORK] Failed to create proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS"
+        ;;
+      "add")
+        error "[$NETWORK] Failed to create proposal to grant CANCELLER_ROLE to: $GRANT_ROLE_TO_ADDRESS"
+        ;;
+    esac
+    return 1
+  fi
+
+  case "$MODE" in
+    "remove")
+      success "[$NETWORK] Successfully created proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS @LiFiTimelockController: $TIMELOCK_ADDRESS"
+      ;;
+    "add")
+      success "[$NETWORK] Successfully created proposal to grant CANCELLER_ROLE to: $GRANT_ROLE_TO_ADDRESS @LiFiTimelockController: $TIMELOCK_ADDRESS"
+      ;;
+  esac
+  return 0
+}
+
+# =============================================================================
+>>>>>>> Stashed changes
 # EXPORT FUNCTIONS FOR USE IN OTHER SCRIPTS
 # =============================================================================
 
@@ -885,3 +1427,8 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f syncSigsAndDEXsForNetwork
+<<<<<<< Updated upstream
+=======
+export -f manageSafeOwner
+export -f manageTimelockCanceller
+>>>>>>> Stashed changes
