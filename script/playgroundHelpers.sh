@@ -953,16 +953,13 @@ function manageSafeOwner() {
     # cast returns: [0xABC..., 0xDEF...] which is invalid JSON
     # Convert to valid JSON: ["0xABC...", "0xDEF..."]
     local OWNERS_ARRAY
-    set +e  # Temporarily disable exit on error
     local VALID_JSON
-    VALID_JSON=$(echo "$OWNERS_JSON" | sed 's/0x/"0x/g; s/, /", /g; s/\[/\["/g; s/\]/"\]/g' 2>/dev/null)
-    OWNERS_ARRAY=$(echo "$VALID_JSON" | jq -r '.[]' 2>/dev/null)
-    local PARSE_STATUS=$?
-    set -e  # Re-enable exit on error
+    VALID_JSON=$(echo "$OWNERS_JSON" | sed 's/0x/"0x/g; s/, /", /g; s/\[/\["/g; s/\]/"\]/g' 2>/dev/null) || true
+    OWNERS_ARRAY=$(echo "$VALID_JSON" | jq -r '.[]' 2>/dev/null) || true
 
-    if [[ $PARSE_STATUS -ne 0 || -z "$OWNERS_ARRAY" ]]; then
+    if [[ -z "$OWNERS_ARRAY" ]]; then
       # Fallback: parse manually using sed/grep
-      OWNERS_ARRAY=$(echo "$OWNERS_JSON" | sed 's/\[//; s/\]//' | sed 's/,/\n/g' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '^0x[a-fA-F0-9]{40}$')
+      OWNERS_ARRAY=$(echo "$OWNERS_JSON" | sed 's/\[//; s/\]//' | sed 's/,/\n/g' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '^0x[a-fA-F0-9]{40}$' || true)
       if [[ -z "$OWNERS_ARRAY" ]]; then
         error "[$NETWORK] Failed to parse owners list"
         return 1
