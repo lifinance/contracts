@@ -861,6 +861,108 @@ function syncSigsAndDEXsForNetwork() {
   fi
 }
 
+function removeDeployerWhitelistPermission() {
+  # Function: removeDeployerWhitelistPermission
+  # Description: Creates a multisig proposal to remove deployer wallet's permission to call batchSetContractSelectorWhitelist
+  # Arguments:
+  #   $1 - NETWORK: Network name
+  # Returns:
+  #   0 on success, 1 on failure or if no action needed
+  # Example:
+  #   removeDeployerWhitelistPermission "mainnet"
+
+  local NETWORK="$1"
+  local ENVIRONMENT="production"
+
+  # Validate required parameters
+  if [[ -z "$NETWORK" ]]; then
+    error "Usage: removeDeployerWhitelistPermission NETWORK"
+    return 1
+  fi
+
+  # Get deployer wallet address from global.json
+  local DEPLOYER_WALLET
+  DEPLOYER_WALLET=$(getValueFromJSONFile "./config/global.json" "deployerWallet")
+  if [[ $? -ne 0 || -z "$DEPLOYER_WALLET" || "$DEPLOYER_WALLET" == "null" || "$DEPLOYER_WALLET" == "0x" ]]; then
+    error "[$NETWORK] Deployer wallet address not found in global.json"
+    return 1
+  fi
+
+  # Get function selector for batchSetContractSelectorWhitelist
+  local SELECTOR="0x1171c007"
+
+  # Get diamond address
+  local DIAMOND_ADDRESS
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
+  if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" || "$DIAMOND_ADDRESS" == "null" || "$DIAMOND_ADDRESS" == "0x" ]]; then
+    error "[$NETWORK] LiFiDiamond address not found in deployment logs"
+    return 1
+  fi
+
+  # Get RPC URL
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
+  if [[ $? -ne 0 || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] Failed to get RPC URL"
+    return 1
+  fi
+
+  # Check if deployer wallet can execute the method
+  local CAN_EXECUTE
+  CAN_EXECUTE=$(cast call "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address) returns (bool)" "$SELECTOR" "$DEPLOYER_WALLET" --rpc-url "$RPC_URL" 2>/dev/null)
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Failed to check if deployer wallet can execute method"
+    return 1
+  fi
+
+  # Remove whitespace and normalize
+  CAN_EXECUTE=$(echo -n "$CAN_EXECUTE" | tr -d '[:space:]' | tr -d '\n' | tr -d '\r')
+
+  # If no permission exists, no action needed
+  if [[ "$CAN_EXECUTE" != "true" ]]; then
+    warning "[$NETWORK] Deployer wallet ($DEPLOYER_WALLET) does not have permission to call batchSetContractSelectorWhitelist"
+    success "[$NETWORK] No action needed: deployer wallet already does not have permission"
+    return 1
+  fi
+
+  # Create calldata for setCanExecute(selector, deployerWallet, false)
+  local CALLDATA
+  CALLDATA=$(cast calldata "setCanExecute(bytes4,address,bool)" "$SELECTOR" "$DEPLOYER_WALLET" "false" 2>&1)
+  local CALLDATA_EXIT_CODE=$?
+
+  if [[ $CALLDATA_EXIT_CODE -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
+    error "[$NETWORK] Failed to create calldata for setCanExecute"
+    error "[$NETWORK] SELECTOR: $SELECTOR"
+    error "[$NETWORK] DEPLOYER_WALLET: $DEPLOYER_WALLET"
+    error "[$NETWORK] Cast error: $CALLDATA"
+    return 1
+  fi
+
+  # Verify calldata looks valid
+  if [[ ! "$CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]] || [[ ${#CALLDATA} -lt 10 ]]; then
+    error "[$NETWORK] Invalid calldata generated: $CALLDATA"
+    return 1
+  fi
+
+  # Create proposal to Safe
+  echo "[$NETWORK] Creating proposal to remove deployer wallet permission to call batchSetContractSelectorWhitelist"
+  bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+    --to "$DIAMOND_ADDRESS" \
+    --calldata "$CALLDATA" \
+    --network "$NETWORK" \
+    --rpcUrl "$RPC_URL" \
+    --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
+    >/dev/null 2>&1
+
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Failed to create proposal to remove deployer wallet permission"
+    return 1
+  fi
+
+  success "[$NETWORK] Successfully created proposal to remove deployer wallet ($DEPLOYER_WALLET) permission to call batchSetContractSelectorWhitelist @LiFiDiamond: $DIAMOND_ADDRESS"
+  return 0
+}
+
 # =============================================================================
 # EXPORT FUNCTIONS FOR USE IN OTHER SCRIPTS
 # =============================================================================
@@ -885,3 +987,4 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f syncSigsAndDEXsForNetwork
+export -f removeDeployerWhitelistPermission
