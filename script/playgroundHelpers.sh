@@ -1093,6 +1093,7 @@ function _createTimelockCancellerProposal() {
   #   $4 - OPERATION: "grant" or "revoke"
   #   $5 - ADDRESS: Address to grant/revoke role from
   #   $6 - RPC_URL: RPC URL for the network
+  #   $7 - SAFE_ADDRESS: Safe multisig address
   # Returns: 0 on success, 1 on failure
 
   local NETWORK="$1"
@@ -1101,6 +1102,7 @@ function _createTimelockCancellerProposal() {
   local OPERATION="$4"
   local ADDRESS="$5"
   local RPC_URL="$6"
+  local SAFE_ADDRESS="$7"
 
   local CALLDATA=""
   case "$OPERATION" in
@@ -1235,6 +1237,14 @@ function manageTimelockCanceller() {
     return 1
   fi
 
+  # Get Safe address from networks.json
+  local SAFE_ADDRESS
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
+  if [[ $? -ne 0 || -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+    error "[$NETWORK] Safe address not found in networks.json"
+    return 1
+  fi
+
   # Get CANCELLER_ROLE bytes value from contract
   local CANCELLER_ROLE
   CANCELLER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "CANCELLER_ROLE() returns (bytes32)" --rpc-url "$RPC_URL" 2>/dev/null)
@@ -1332,7 +1342,7 @@ function manageTimelockCanceller() {
     # First, remove the role from the old address (if it has the role)
     if [[ "$OLD_ADDRESS_HAS_ROLE" == "true" ]]; then
       echo "[$NETWORK] Replace mode: creating proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS"
-      if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "revoke" "$REMOVE_ROLE_FROM_ADDRESS" "$RPC_URL"; then
+      if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "revoke" "$REMOVE_ROLE_FROM_ADDRESS" "$RPC_URL" "$SAFE_ADDRESS"; then
         error "[$NETWORK] Failed to create proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS"
         return 1
       fi
@@ -1342,7 +1352,7 @@ function manageTimelockCanceller() {
     # Then, grant the role to the new address (if it doesn't already have it)
     if [[ "$NEW_ADDRESS_HAS_ROLE" == "false" ]]; then
       echo "[$NETWORK] Replace mode: creating proposal to grant CANCELLER_ROLE to: $GRANT_ROLE_TO_ADDRESS"
-      if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "grant" "$GRANT_ROLE_TO_ADDRESS" "$RPC_URL"; then
+      if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "grant" "$GRANT_ROLE_TO_ADDRESS" "$RPC_URL" "$SAFE_ADDRESS"; then
         error "[$NETWORK] Failed to create proposal to grant CANCELLER_ROLE to: $GRANT_ROLE_TO_ADDRESS"
         return 1
       fi
@@ -1379,7 +1389,7 @@ function manageTimelockCanceller() {
       ;;
   esac
 
-  if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "$OPERATION" "$ADDRESS" "$RPC_URL"; then
+  if ! _createTimelockCancellerProposal "$NETWORK" "$TIMELOCK_ADDRESS" "$CANCELLER_ROLE" "$OPERATION" "$ADDRESS" "$RPC_URL" "$SAFE_ADDRESS"; then
     case "$MODE" in
       "remove")
         error "[$NETWORK] Failed to create proposal to remove CANCELLER_ROLE from: $REMOVE_ROLE_FROM_ADDRESS"
