@@ -994,6 +994,23 @@ function manageSafeOwner() {
     return 1
   fi
 
+  # For remove mode: validate threshold won't exceed remaining owners
+  if [[ "$MODE" == "remove" ]]; then
+    local CURRENT_OWNER_COUNT
+    CURRENT_OWNER_COUNT=$(echo "$OWNERS_ARRAY" | grep -c '^0x' || echo "0")
+    local REMAINING_OWNERS=$((CURRENT_OWNER_COUNT - 1))
+
+    # Get threshold as decimal for comparison
+    local THRESHOLD_DEC
+    THRESHOLD_DEC=$(cast --to-dec "$THRESHOLD" 2>/dev/null || echo "$THRESHOLD")
+
+    if [[ $THRESHOLD_DEC -gt $REMAINING_OWNERS ]]; then
+      error "[$NETWORK] Cannot remove owner: threshold ($THRESHOLD_DEC) would exceed remaining owners ($REMAINING_OWNERS)"
+      error "[$NETWORK] Please lower the threshold first or use a different removal strategy"
+      return 1
+    fi
+  fi
+
   # Create calldata based on mode
   local CALLDATA=""
   case "$MODE" in
