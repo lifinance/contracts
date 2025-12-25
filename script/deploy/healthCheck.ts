@@ -872,17 +872,37 @@ const checkWhitelistIntegrity = async (
     // --- 2. Check Config vs. On-Chain Contract Functions (Multicall) ---
     consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
 
-    // Check source of truth: isContractSelectorWhitelisted
-    const granularMulticall = expectedPairs.map((pair) => ({
-      address: whitelistManager.address,
-      abi: whitelistManager.abi,
-      functionName: 'isContractSelectorWhitelisted',
-      args: [pair.contract, pair.selector],
-    }))
-    const granularResults = await publicClient.multicall({
-      contracts: granularMulticall,
-      allowFailure: false,
-    })
+    // Check if multicall3 is available on this chain
+    const hasMulticall3 =
+      publicClient.chain?.contracts?.multicall3 !== undefined
+
+    let granularResults: boolean[]
+    if (hasMulticall3) {
+      // Use multicall if available
+      const granularMulticall = expectedPairs.map((pair) => ({
+        address: whitelistManager.address,
+        abi: whitelistManager.abi,
+        functionName: 'isContractSelectorWhitelisted',
+        args: [pair.contract, pair.selector],
+      }))
+      granularResults = await publicClient.multicall({
+        contracts: granularMulticall,
+        allowFailure: false,
+      })
+    } else {
+      // Fallback to individual calls if multicall3 is not available
+      consola.info(
+        'Multicall3 not available on this chain, using individual calls...'
+      )
+      granularResults = await Promise.all(
+        expectedPairs.map((pair) =>
+          whitelistManager.read.isContractSelectorWhitelisted([
+            pair.contract,
+            pair.selector,
+          ])
+        )
+      )
+    }
 
     let granularFails = 0
     granularResults.forEach((isWhitelisted, index) => {
