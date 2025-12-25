@@ -104,7 +104,7 @@ function executeNetworkActions() {
     # echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
 
     # VERIFY - Verify the contract on the network
-    getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+    # getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
 
     # PROPOSE - Create multisig proposal for the contract
     # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
@@ -115,6 +115,15 @@ function executeNetworkActions() {
     # CUSTOM ACTIONS - Add your custom actions here
     # CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
     # cast send "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "$CALLDATA" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_PRODUCTION"
+
+    #### MANAGE SAFE OWNERS #############
+    # Remove an owner from Safe
+    # manageSafeOwner "remove" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb"
+    # Replace an owner in Safe (remove old, add new)
+    # manageSafeOwner "replace" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb" "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+    # Add a new owner to Safe
+    # manageSafeOwner "add" "$NETWORK" "" "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+
 
     # bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --ledger
 
