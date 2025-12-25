@@ -886,8 +886,6 @@ function manageSafeOwner() {
   local OWNER_TO_BE_ADDED="${4:-}"
   local ENVIRONMENT="production"
 
-  echo "[$NETWORK] manageSafeOwner called with mode: $MODE"
-
   # Validate required parameters
   if [[ -z "$MODE" || -z "$NETWORK" ]]; then
     error "Usage: manageSafeOwner MODE NETWORK [OWNER_TO_BE_REMOVED] [OWNER_TO_BE_ADDED]"
@@ -897,138 +895,98 @@ function manageSafeOwner() {
 
   # Validate mode
   if [[ "$MODE" != "remove" && "$MODE" != "replace" && "$MODE" != "add" ]]; then
-    error "Invalid mode: $MODE. Must be 'remove', 'replace', or 'add'"
+    error "[$NETWORK] Invalid mode: $MODE. Must be 'remove', 'replace', or 'add'"
     return 1
   fi
 
   # Validate mode-specific parameters
   if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
     if [[ -z "$OWNER_TO_BE_REMOVED" ]]; then
-      error "OWNER_TO_BE_REMOVED is required for mode: $MODE"
+      error "[$NETWORK] OWNER_TO_BE_REMOVED is required for mode: $MODE"
       return 1
     fi
   fi
 
   if [[ "$MODE" == "replace" || "$MODE" == "add" ]]; then
     if [[ -z "$OWNER_TO_BE_ADDED" ]]; then
-      error "OWNER_TO_BE_ADDED is required for mode: $MODE"
+      error "[$NETWORK] OWNER_TO_BE_ADDED is required for mode: $MODE"
       return 1
     fi
   fi
 
   # Get Safe address from networks.json
-  echo "[$NETWORK] Getting Safe address from networks.json..."
   local SAFE_ADDRESS
   SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
   if [[ $? -ne 0 || -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
     error "[$NETWORK] Safe address not found in networks.json"
     return 1
   fi
-  echo "[$NETWORK] Safe address: $SAFE_ADDRESS"
 
   # Get RPC URL (always use production for Safe operations)
-  echo "[$NETWORK] Getting RPC URL..."
   local RPC_URL
   RPC_URL=$(getRPCUrl "$NETWORK" "production")
   if [[ $? -ne 0 || -z "$RPC_URL" ]]; then
     error "[$NETWORK] Failed to get RPC URL"
     return 1
   fi
-  echo "[$NETWORK] RPC URL retrieved"
 
   # For remove/replace modes: check if owner exists and get prevOwner
   local PREV_OWNER=""
   if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
-    echo "[$NETWORK] Checking if $OWNER_TO_BE_REMOVED is an owner..."
     # Check if owner is currently an owner
     local IS_OWNER
     IS_OWNER=$(cast call "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_REMOVED" --rpc-url "$RPC_URL" 2>/dev/null)
     if [[ $? -ne 0 || "$IS_OWNER" != "true" ]]; then
-      error "[$NETWORK] Address $OWNER_TO_BE_REMOVED is not an owner of the Safe (isOwner returned: $IS_OWNER)"
+      error "[$NETWORK] Address $OWNER_TO_BE_REMOVED is not an owner of the Safe"
       return 1
     fi
-    echo "[$NETWORK] Owner confirmed: $OWNER_TO_BE_REMOVED is an owner"
 
     # Get owners list
-    echo "[$NETWORK] Getting owners list..."
     local OWNERS_JSON
     OWNERS_JSON=$(cast call "$SAFE_ADDRESS" "getOwners() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
-    local GET_OWNERS_STATUS=$?
-    if [[ $GET_OWNERS_STATUS -ne 0 || -z "$OWNERS_JSON" ]]; then
-      error "[$NETWORK] Failed to get owners list (exit code: $GET_OWNERS_STATUS)"
+    if [[ $? -ne 0 || -z "$OWNERS_JSON" ]]; then
+      error "[$NETWORK] Failed to get owners list"
       return 1
     fi
-    echo "[$NETWORK] Owners JSON: $OWNERS_JSON"
 
     # Parse owners array (cast returns addresses without quotes, need to convert to valid JSON)
-    echo "[$NETWORK] Parsing owners list..."
-
     # cast returns: [0xABC..., 0xDEF...] which is invalid JSON
     # Convert to valid JSON: ["0xABC...", "0xDEF..."]
     local OWNERS_ARRAY
     set +e  # Temporarily disable exit on error
-
-    # Try to convert to valid JSON and parse with jq
     local VALID_JSON
     VALID_JSON=$(echo "$OWNERS_JSON" | sed 's/0x/"0x/g; s/, /", /g; s/\[/\["/g; s/\]/"\]/g' 2>/dev/null)
     OWNERS_ARRAY=$(echo "$VALID_JSON" | jq -r '.[]' 2>/dev/null)
     local PARSE_STATUS=$?
-
     set -e  # Re-enable exit on error
 
     if [[ $PARSE_STATUS -ne 0 || -z "$OWNERS_ARRAY" ]]; then
       # Fallback: parse manually using sed/grep
-      echo "[$NETWORK] jq parsing failed, using manual parsing..."
       OWNERS_ARRAY=$(echo "$OWNERS_JSON" | sed 's/\[//; s/\]//' | sed 's/,/\n/g' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '^0x[a-fA-F0-9]{40}$')
       if [[ -z "$OWNERS_ARRAY" ]]; then
         error "[$NETWORK] Failed to parse owners list"
         return 1
       fi
-      echo "[$NETWORK] Manual parsing succeeded"
-    else
-      echo "[$NETWORK] jq parsing succeeded"
     fi
-
-    echo "[$NETWORK] Checking if owners array is empty..."
-    if [[ -z "$OWNERS_ARRAY" ]]; then
-      error "[$NETWORK] Owners array is empty after parsing"
-      return 1
-    fi
-    echo "[$NETWORK] Owners array is not empty, length: ${#OWNERS_ARRAY}"
-    echo "[$NETWORK] Owners array parsed successfully"
-    echo "[$NETWORK] Parsed owners:"
-    echo "$OWNERS_ARRAY" | while IFS= read -r owner; do
-      if [[ -n "$owner" ]]; then
-        echo "  - $owner"
-      fi
-    done
 
     # Find the owner and track the previous owner (needed for Safe's linked list structure)
-    # Safe uses a linked list, so we need prevOwner to remove/swap an owner
-    echo "[$NETWORK] Finding previous owner for: $OWNER_TO_BE_REMOVED"
     local FOUND=false
     local PREV_OWNER_TEMP="0x0000000000000000000000000000000000000001"  # SENTINEL for first owner
-    local COUNT=0
     while IFS= read -r owner; do
-      COUNT=$((COUNT + 1))
       if [[ -n "$owner" ]]; then
-        echo "[$NETWORK] Checking owner #$COUNT: $owner"
         if [[ "$(echo "$owner" | tr '[:upper:]' '[:lower:]')" == "$(echo "$OWNER_TO_BE_REMOVED" | tr '[:upper:]' '[:lower:]')" ]]; then
           PREV_OWNER="$PREV_OWNER_TEMP"
           FOUND=true
-          echo "[$NETWORK] Found owner at position #$COUNT, previous owner: $PREV_OWNER"
           break
         fi
         PREV_OWNER_TEMP="$owner"
-        echo "[$NETWORK] Not a match, updating prevOwner to: $PREV_OWNER_TEMP"
       fi
     done <<< "$OWNERS_ARRAY"
 
     if [[ "$FOUND" != "true" ]]; then
-      error "[$NETWORK] Owner not found in owners list (this should not happen)"
+      error "[$NETWORK] Owner not found in owners list"
       return 1
     fi
-    echo "[$NETWORK] Previous owner determined: $PREV_OWNER"
   fi
 
   # Get current threshold
@@ -1059,24 +1017,53 @@ function manageSafeOwner() {
   fi
 
   # Create multisig proposal
-  echo "[$NETWORK] Creating multisig proposal to $MODE owner..."
-  echo "[$NETWORK] Safe address: $SAFE_ADDRESS"
-  echo "[$NETWORK] Calldata: $CALLDATA"
+  case "$MODE" in
+    "remove")
+      echo "[$NETWORK] Creating proposal to remove owner: $OWNER_TO_BE_REMOVED"
+      ;;
+    "replace")
+      echo "[$NETWORK] Creating proposal to replace owner $OWNER_TO_BE_REMOVED with $OWNER_TO_BE_ADDED"
+      ;;
+    "add")
+      echo "[$NETWORK] Creating proposal to add owner: $OWNER_TO_BE_ADDED"
+      ;;
+  esac
 
   bunx tsx ./script/deploy/safe/propose-to-safe.ts \
     --to "$SAFE_ADDRESS" \
     --calldata "$CALLDATA" \
     --network "$NETWORK" \
     --rpcUrl "$RPC_URL" \
-    --privateKey "$(getPrivateKey "$NETWORK" "production")"
+    --privateKey "$(getPrivateKey "$NETWORK" "production")" \
+    >/dev/null 2>&1
 
   local PROPOSAL_STATUS=$?
 
   if [[ $PROPOSAL_STATUS -eq 0 ]]; then
-    success "[$NETWORK] Successfully created proposal to $MODE owner"
+    case "$MODE" in
+      "remove")
+        success "[$NETWORK] Successfully created proposal to remove owner: $OWNER_TO_BE_REMOVED"
+        ;;
+      "replace")
+        success "[$NETWORK] Successfully created proposal to replace owner $OWNER_TO_BE_REMOVED with $OWNER_TO_BE_ADDED"
+        ;;
+      "add")
+        success "[$NETWORK] Successfully created proposal to add owner: $OWNER_TO_BE_ADDED"
+        ;;
+    esac
     return 0
   else
-    error "[$NETWORK] Failed to create proposal to $MODE owner (exit code: $PROPOSAL_STATUS)"
+    case "$MODE" in
+      "remove")
+        error "[$NETWORK] Failed to create proposal to remove owner: $OWNER_TO_BE_REMOVED"
+        ;;
+      "replace")
+        error "[$NETWORK] Failed to create proposal to replace owner $OWNER_TO_BE_REMOVED with $OWNER_TO_BE_ADDED"
+        ;;
+      "add")
+        error "[$NETWORK] Failed to create proposal to add owner: $OWNER_TO_BE_ADDED"
+        ;;
+    esac
     return 1
   fi
 }
