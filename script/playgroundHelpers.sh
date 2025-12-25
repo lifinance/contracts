@@ -922,7 +922,7 @@ function removeDeployerWhitelistPermission() {
   if [[ "$CAN_EXECUTE" != "true" ]]; then
     warning "[$NETWORK] Deployer wallet ($DEPLOYER_WALLET) does not have permission to call batchSetContractSelectorWhitelist"
     success "[$NETWORK] No action needed: deployer wallet already does not have permission"
-    return 1
+    return 0
   fi
 
   # Create calldata for setCanExecute(selector, deployerWallet, false)
