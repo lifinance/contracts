@@ -912,6 +912,12 @@ function manageSafeOwner() {
       error "[$NETWORK] OWNER_TO_BE_ADDED is required for mode: $MODE"
       return 1
     fi
+
+    # Validate Ethereum address format
+    if [[ ! "$OWNER_TO_BE_ADDED" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+      error "[$NETWORK] OWNER_TO_BE_ADDED must be a valid Ethereum address (format: 0x followed by 40 hex characters)"
+      return 1
+    fi
   fi
 
   # Get Safe address from networks.json
@@ -928,6 +934,20 @@ function manageSafeOwner() {
   if [[ $? -ne 0 || -z "$RPC_URL" ]]; then
     error "[$NETWORK] Failed to get RPC URL"
     return 1
+  fi
+
+  # For add mode: check if address is already an owner (prevent duplicates)
+  if [[ "$MODE" == "add" ]]; then
+    local IS_ALREADY_OWNER
+    IS_ALREADY_OWNER=$(cast call "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_ADDED" --rpc-url "$RPC_URL" 2>/dev/null)
+    if [[ $? -ne 0 ]]; then
+      error "[$NETWORK] Failed to check if address is already an owner"
+      return 1
+    fi
+    if [[ "$IS_ALREADY_OWNER" == "true" ]]; then
+      error "[$NETWORK] Address $OWNER_TO_BE_ADDED is already an owner of the Safe"
+      return 1
+    fi
   fi
 
   # For remove/replace modes: check if owner exists and get prevOwner
