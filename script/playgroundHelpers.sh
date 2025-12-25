@@ -1403,7 +1403,6 @@ function manageTimelockCanceller() {
 }
 
 # =============================================================================
->>>>>>> Stashed changes
 # EXPORT FUNCTIONS FOR USE IN OTHER SCRIPTS
 # =============================================================================
 
@@ -1427,8 +1426,4 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f syncSigsAndDEXsForNetwork
-<<<<<<< Updated upstream
-=======
-export -f manageSafeOwner
 export -f manageTimelockCanceller
->>>>>>> Stashed changes
