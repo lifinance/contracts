@@ -23,7 +23,7 @@
       },
       "0xb5a9740923C412185Bd7Da45C2AD2e256555dDe9": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
@@ -195,11 +195,39 @@
       },
       "0x8EFcbD11864c37CE82446FFC3846610Fda3269E0": {
         "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x8d02904CCFEd82AFc87201AC991924B83a65557E": {
         "Name": "CelerCircleBridgeFacet",
         "Version": "2.0.0"
+      },
+      "0xB4E02721E552Ef3721f32E1D90BC13cb390b6cB3": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x80Fa81Ba88C74f6E4fee1A5c6d2aaA4AEF442781": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x33EcEb68994E0499a61FAda3b49Ab243e63555F1": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x2D732A56c10F33292484911C660C2F68F0615a89": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -208,13 +236,14 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x104BD390Fed41089650Ac14aC6D9a8F3513A04cf",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverAcrossV4": "0x8fd9e1893fdE2e52b49F2875E63277Ba5675D014",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
