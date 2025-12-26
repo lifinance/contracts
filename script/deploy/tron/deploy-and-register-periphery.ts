@@ -802,10 +802,27 @@ async function deployAndRegisterPeripheryImpl(options: {
 
             const refundWalletHex = globalConfig.refundWallet
 
-            const constructorArgs = [wrappedNativeHex, refundWalletHex]
+            // Try to get converter address, default to zero address if not found
+            const converterHex = tronConfig.converterAddress
+              ? '0x' +
+                tronWeb.address.toHex(tronConfig.converterAddress).substring(2)
+              : '0x0000000000000000000000000000000000000000'
+
+            const constructorArgs = [
+              wrappedNativeHex,
+              converterHex,
+              refundWalletHex,
+            ]
 
             consola.info(
               ` Using wrappedNative: ${wrappedNativeBase58} (hex: ${wrappedNativeHex})`
+            )
+            consola.info(
+              `Using converter: ${
+                converterHex === '0x0000000000000000000000000000000000000000'
+                  ? 'None (zero address)'
+                  : converterHex
+              }`
             )
             consola.info(`Using refundWallet: ${refundWalletHex}`)
             consola.info(`Version: ${version}`)
@@ -871,10 +888,27 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           const refundWalletHex = globalConfig.refundWallet
 
-          const constructorArgs = [wrappedNativeHex, refundWalletHex]
+          // Try to get converter address, default to zero address if not found
+          const converterHex = tronConfig.converterAddress
+            ? '0x' +
+              tronWeb.address.toHex(tronConfig.converterAddress).substring(2)
+            : '0x0000000000000000000000000000000000000000'
+
+          const constructorArgs = [
+            wrappedNativeHex,
+            converterHex,
+            refundWalletHex,
+          ]
 
           consola.info(
             ` Using wrappedNative: ${wrappedNativeBase58} (hex: ${wrappedNativeHex})`
+          )
+          consola.info(
+            `Using converter: ${
+              converterHex === '0x0000000000000000000000000000000000000000'
+                ? 'None (zero address)'
+                : converterHex
+            }`
           )
           consola.info(`Using refundWallet: ${refundWalletHex}`)
           consola.info(`Version: ${version}`)
