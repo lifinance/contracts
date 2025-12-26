@@ -14,6 +14,8 @@ import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
+/// @dev IMPORTANT: This contract assumes the native token has 18 decimals (standard for all EVM chains)
+/// @dev IMPORTANT: The converter contract (if used) MUST NOT charge any fees and should only perform decimal conversion
 /// @custom:version 1.2.0
 contract TokenWrapper is WithdrawablePeriphery {
     address public immutable WRAPPED_TOKEN;
@@ -21,9 +23,6 @@ contract TokenWrapper is WithdrawablePeriphery {
     bool private immutable USE_CONVERTER;
     uint256 private immutable SWAP_RATIO_MULTIPLIER;
     uint256 private constant BASE_DENOMINATOR = 1 ether;
-
-    /// Errors ///
-    error WithdrawFailure();
 
     /// @notice Creates a new TokenWrapper contract
     /// @param _wrappedToken Address of the wrapped token (e.g., WETH, or token returned by converter)
@@ -69,15 +68,12 @@ contract TokenWrapper is WithdrawablePeriphery {
     function deposit() external payable {
         uint256 amount = msg.value;
         WETH(payable(CONVERTER)).deposit{ value: amount }();
-        uint256 wrappedAmount;
+
         if (USE_CONVERTER) {
-            wrappedAmount =
-                (amount * SWAP_RATIO_MULTIPLIER) /
-                BASE_DENOMINATOR;
-        } else {
-            wrappedAmount = amount;
+            amount = (amount * SWAP_RATIO_MULTIPLIER) / BASE_DENOMINATOR;
         }
-        SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, wrappedAmount);
+
+        SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, amount);
     }
 
     /// @notice Unwraps all the caller's balance of wrapped token and returns native tokens
@@ -97,13 +93,12 @@ contract TokenWrapper is WithdrawablePeriphery {
         );
 
         WETH(payable(CONVERTER)).withdraw(amount);
-        uint256 nativeAmount;
+
         if (USE_CONVERTER) {
-            nativeAmount = (amount * BASE_DENOMINATOR) / SWAP_RATIO_MULTIPLIER;
-        } else {
-            nativeAmount = amount;
+            amount = (amount * BASE_DENOMINATOR) / SWAP_RATIO_MULTIPLIER;
         }
-        SafeTransferLib.safeTransferETH(msg.sender, nativeAmount);
+
+        SafeTransferLib.safeTransferETH(msg.sender, amount);
     }
 
     // Needs to be able to receive native on `withdraw`
