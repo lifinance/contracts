@@ -194,6 +194,8 @@ function findContractInMasterLog() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION="$4"
+  local MAX_RETRIES=3
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -201,21 +203,31 @@ function findContractInMasterLog() {
     return 1
   fi
 
-  # Query MongoDB
+  # Query MongoDB with retry logic
   echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
-  MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
-  local MONGO_EXIT_CODE=$?
+  
+  local attempt=1
+  while [[ $attempt -le $MAX_RETRIES ]]; do
+    MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    local MONGO_EXIT_CODE=$?
 
-  if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that the result is valid JSON before returning it
-    if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
-      echo "$MONGO_RESULT"
-      return 0
-    else
-      error "MongoDB returned invalid JSON for $CONTRACT on $NETWORK"
-      return 1
+    if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that the result is valid JSON before returning it
+      if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
+        echo "$MONGO_RESULT"
+        return 0
+      else
+        echoDebug "MongoDB returned invalid JSON for $CONTRACT on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+      fi
     fi
-  fi
+
+    if [[ $attempt -lt $MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
+    fi
+    attempt=$((attempt + 1))
+  done
 
   echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
   return 1
@@ -224,6 +236,8 @@ function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET_ADDRESS="$3"
+  local MAX_RETRIES=3
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -232,31 +246,41 @@ function findContractInMasterLogByAddress() {
   fi
 
   echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
-  local MONGO_RESULT
-  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-    --env "$ENVIRONMENT" \
-    --network "$NETWORK" \
-    --address "$TARGET_ADDRESS" 2>/dev/null)
-  local MONGO_EXIT=$?
+  
+  local attempt=1
+  while [[ $attempt -le $MAX_RETRIES ]]; do
+    local MONGO_RESULT
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env "$ENVIRONMENT" \
+      --network "$NETWORK" \
+      --address "$TARGET_ADDRESS" 2>/dev/null)
+    local MONGO_EXIT=$?
 
-  if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that MONGO_RESULT is valid JSON
-    if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
-      error "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK"
-      return 1
+    if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that MONGO_RESULT is valid JSON
+      if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+        # Convert MongoDB result to expected format
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+
+        if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
+          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+          echo "$JSON_ENTRY"
+          return 0
+        fi
+      else
+        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+      fi
     fi
 
-    # Convert MongoDB result to expected format
-    local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-    local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-    local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
-
-    if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
-      local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
-      echo "$JSON_ENTRY"
-      return 0
+    if [[ $attempt -lt $MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
-  fi
+    attempt=$((attempt + 1))
+  done
 
   echo "[info] address not found in MongoDB"
   return 1
