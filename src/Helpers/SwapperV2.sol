@@ -194,10 +194,12 @@ contract SwapperV2 is ILiFi {
         uint256[] memory _initialBalances
     ) internal noLeftovers(_swaps, _leftoverReceiver, _initialBalances) {
         uint256 numSwaps = _swaps.length;
+        address callTo;
+        address approveTo;
         for (uint256 i; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
-            address callTo = currentSwap.callTo;
-            address approveTo = currentSwap.approveTo;
+            callTo = currentSwap.callTo;
+            approveTo = currentSwap.approveTo;
 
             if (
                 !LibAllowList.contractSelectorIsAllowed(
@@ -239,10 +241,12 @@ contract SwapperV2 is ILiFi {
         )
     {
         uint256 numSwaps = _swaps.length;
+        address callTo;
+        address approveTo;
         for (uint256 i; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
-            address callTo = currentSwap.callTo;
-            address approveTo = currentSwap.approveTo;
+            callTo = currentSwap.callTo;
+            approveTo = currentSwap.approveTo;
 
             if (
                 !LibAllowList.contractSelectorIsAllowed(
