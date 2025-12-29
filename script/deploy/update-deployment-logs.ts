@@ -571,6 +571,8 @@ const syncCommand = defineCommand({
       args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
+    let shouldSync = true
     try {
       await manager.connect()
 
@@ -595,17 +597,20 @@ const syncCommand = defineCommand({
         )
         if (!confirmed) {
           consola.info('Sync cancelled')
-          process.exit(0)
+          shouldSync = false
         }
       }
 
-      await manager.syncDeployments(args.mode as 'merge' | 'overwrite')
+      if (shouldSync) {
+        await manager.syncDeployments(args.mode as 'merge' | 'overwrite')
+      }
     } catch (error) {
       consola.error('Sync failed:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -719,6 +724,7 @@ const addCommand = defineCommand({
       args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await manager.connect()
       consola.info(
@@ -730,10 +736,11 @@ const addCommand = defineCommand({
       )
     } catch (error) {
       consola.error('Add operation failed:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -867,6 +874,7 @@ const updateCommand = defineCommand({
       args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await manager.connect()
       consola.info(`Updating deployment: ${args.contract} on ${args.network}`)
@@ -879,10 +887,11 @@ const updateCommand = defineCommand({
       )
     } catch (error) {
       consola.error('Update operation failed:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -911,6 +920,7 @@ const createIndexesCommand = defineCommand({
       args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await manager.connect()
       consola.info('Creating/updating indexes...')
@@ -918,10 +928,11 @@ const createIndexesCommand = defineCommand({
       consola.success('Indexes created/updated successfully')
     } catch (error) {
       consola.error('Failed to create indexes:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 

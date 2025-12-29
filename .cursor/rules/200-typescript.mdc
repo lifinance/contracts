@@ -30,6 +30,10 @@ globs:
   - Domain-specific types: colocated in domain-specific files (e.g., Tron types in `script/deploy/tron/types.ts`, Safe types in `script/deploy/safe/safe-utils.ts`).
   - Script-specific types: inline in the script file if only used locally.
 - **Reuse existing types**: Prefer importing and reusing existing types over defining duplicates.
+- **Naming conventions** (enforced by `.eslintrc.cjs`):
+  - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by ESLint.
+  - Type aliases use PascalCase without prefix (e.g., `SupportedChain`, `HexString`).
+  - Enums use PascalCase with `Enum` suffix (e.g., `EnvironmentEnum`).
 
 ## Demo Scripts
 
