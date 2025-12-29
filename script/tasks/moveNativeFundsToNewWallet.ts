@@ -155,6 +155,8 @@ function isInsufficientFundsError(errorText: string): boolean {
     'ERR_GAS_PAYMENT_OUT_OF_FUND',
     'InsufficientFunds',
     'insufficient balance',
+    // On Arbitrum and some L2s, insufficient funds during gas estimation shows as "gas required exceeds allowance"
+    'gas required exceeds allowance',
   ]
   return patterns.some((p) => errorText.toLowerCase().includes(p.toLowerCase()))
 }
@@ -170,6 +172,8 @@ function isGasEstimationError(errorText: string): boolean {
     'insufficient to cover the transaction cost',
     'gas limit.*insufficient',
     'gas.*too low',
+    // Note: "gas required exceeds allowance" is handled as insufficient funds, not gas estimation
+    'minimum needed',
     /transaction cost of \d+ gas/i,
   ]
   return patterns.some((p) =>
@@ -197,11 +201,16 @@ function extractErrorValues(errorText: string): {
   // - "minimum needed 60543000"
   // - "transaction cost of 621000 gas"
   // - "gas limit.*(\d+)"
+  // - "gas required exceeds allowance (16059)"
+  // - "intrinsic gas too low: gas 21000, minimum needed 60417000"
   const requiredGasMatch =
     errorText.match(/transaction cost of (\d+) gas/i) ||
     errorText.match(/minimum needed (\d+)/i) ||
     errorText.match(/required (\d+) gas/i) ||
-    errorText.match(/gas limit.*?(\d+)/i)
+    errorText.match(/gas limit.*?(\d+)/i) ||
+    errorText.match(/gas required exceeds allowance \((\d+)\)/i) ||
+    errorText.match(/intrinsic gas too low:.*minimum needed (\d+)/i) ||
+    errorText.match(/minimum needed (\d+)/i)
 
   return {
     txCost: txCostMatch?.[1] ? BigInt(txCostMatch[1]) : undefined,
@@ -244,20 +253,24 @@ async function estimateGasLimit(
     )
 
     // Use legacy type to avoid EIP-1559 params for networks that don't support it
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const gasLimit = await Promise.race([
-      (client.estimateGas as any)({
+      client.estimateGas({
         account,
         to,
         value,
         type: 'legacy',
-      }),
+      } as Parameters<typeof client.estimateGas>[0]),
       timeoutPromise,
     ])
     // Add buffer: 20% for zkEVMs, 10% for others
     return (gasLimit * (isZkEVM ? 120n : 110n)) / 100n
-  } catch {
-    // Fallback to standard gas
+  } catch (error) {
+    // Check if this is an insufficient funds error - if so, propagate it
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    if (isInsufficientFundsError(errorMessage)) {
+      throw error // Re-throw insufficient funds errors so caller can handle them
+    }
+    // Fallback to standard gas for other errors
     return 21000n
   }
 }
@@ -373,6 +386,8 @@ async function sendViaCastSend(
   value: bigint,
   privateKey: string
 ): Promise<`0x${string}`> {
+  // Declare stderr in outer scope so it's accessible in the outer catch block
+  let stderr = ''
   try {
     // Escape shell arguments to prevent injection
     const escapedRpcUrl = rpcUrl.replace(/'/g, "'\"'\"'")
@@ -386,6 +401,7 @@ async function sendViaCastSend(
 
     // Execute command and capture output (both stdout and stderr)
     let output: string
+    let combinedOutput = ''
     try {
       output = execSync(command, {
         encoding: 'utf-8',
@@ -397,9 +413,9 @@ async function sendViaCastSend(
       // execSync throws when there's output to stderr, but the command might have succeeded
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const execError = error as any
-      const stderr = execError.stderr?.toString() || execError.message || ''
+      stderr = execError.stderr?.toString() || execError.message || ''
       const stdout = execError.stdout?.toString() || ''
-      const combinedOutput = stdout + '\n' + stderr
+      combinedOutput = stdout + '\n' + stderr
 
       // Try to parse transaction hash from combined output
       const txHashMatch = combinedOutput.match(
@@ -421,25 +437,60 @@ async function sendViaCastSend(
       throw error
     }
 
-    // Parse transaction hash from cast output
+    // Parse transaction hash from cast output (check combined output if we have stderr)
     // Cast output format: "blockHash: 0x...\ntransactionHash: 0x..."
-    const txHashMatch = output.match(/transactionHash:\s*(0x[a-fA-F0-9]{64})/i)
+    const parseOutput = stderr ? combinedOutput : output
+    const txHashMatch = parseOutput.match(
+      /transactionHash:\s*(0x[a-fA-F0-9]{64})/i
+    )
     if (txHashMatch && txHashMatch[1]) {
       return txHashMatch[1] as `0x${string}`
     }
 
     // Fallback: try to find any 0x hash in the output
-    const hashMatch = output.match(/(0x[a-fA-F0-9]{64})/)
+    const hashMatch = parseOutput.match(/(0x[a-fA-F0-9]{64})/)
     if (hashMatch && hashMatch[1]) {
       return hashMatch[1] as `0x${string}`
     }
 
+    // If we only have warnings in stderr but no hash, check if it's just warnings
+    if (stderr && !stderr.match(/(0x[a-fA-F0-9]{64})/)) {
+      const hasOnlyWarnings =
+        (stderr.includes('Warning:') || stderr.includes('warning:')) &&
+        !stderr.match(/Error:/i) &&
+        !stderr.match(/error code/i)
+
+      if (!hasOnlyWarnings) {
+        throw new Error(
+          `Could not parse transaction hash from cast output. stdout: ${output.substring(
+            0,
+            200
+          )}, stderr: ${stderr.substring(0, 200)}`
+        )
+      }
+    }
+
     throw new Error(
-      `Could not parse transaction hash from cast output: ${output}`
+      `Could not parse transaction hash from cast output: ${output.substring(
+        0,
+        200
+      )}`
     )
   } catch (error) {
     // Preserve full error details for summary, but throw concise message for execution logs
     const errorMessage = error instanceof Error ? error.message : String(error)
+
+    // Combine stderr with error message to check for insufficient funds
+    const fullErrorText = stderr ? `${errorMessage}\n${stderr}` : errorMessage
+
+    // If it's an insufficient funds error, preserve it so the caller can detect it
+    if (
+      isInsufficientFundsError(fullErrorText) ||
+      isInsufficientFundsError(errorMessage)
+    ) {
+      throw error // Re-throw as-is so caller can detect it
+    }
+
     // Extract just the first line or key error message (avoid verbose cast output)
     const firstLine = errorMessage.split('\n')[0] || errorMessage
     const conciseMessage = firstLine.replace(/^error:\s*/i, '').trim()
@@ -595,7 +646,7 @@ async function transferNativeTokensOnNetwork(
     }
   }
 
-  let shouldEstimateGas = network.isZkEVM
+  let shouldEstimateGas = true // Always try to estimate gas first
   let lastError: Error | undefined
   let extractedGasLimit: bigint | undefined
 
@@ -607,11 +658,30 @@ async function transferNativeTokensOnNetwork(
         balance = await getBalanceWithTimeout(publicClient, oldWalletAddress)
       } catch (error) {
         const errorMessage = extractErrorMessage(error, false)
-        if (errorMessage.includes('timeout')) {
+        if (
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('Balance check timeout')
+        ) {
           return {
             network: networkName,
             success: false,
-            error: 'RPC timeout when checking balance',
+            error: 'Balance check timeout',
+            errorDetails:
+              'RPC timeout when checking balance. Network may be slow or unresponsive.',
+            attempts: attempt,
+          }
+        }
+        // Handle RPC errors (e.g., Flow network's unexpected response format)
+        if (
+          errorMessage.includes('null is not an object') ||
+          errorMessage.includes('HTTP request failed') ||
+          errorMessage.includes('RPC')
+        ) {
+          return {
+            network: networkName,
+            success: false,
+            error: `RPC error when checking balance: ${errorMessage}`,
+            errorDetails: extractErrorMessage(error, true),
             attempts: attempt,
           }
         }
@@ -638,7 +708,7 @@ async function transferNativeTokensOnNetwork(
       if (extractedGasLimit) {
         gasLimit = extractedGasLimit
         extractedGasLimit = undefined // Clear after use
-      } else if (shouldEstimateGas || network.isZkEVM) {
+      } else if (shouldEstimateGas) {
         const estimationValue =
           balance > 1000000000000000n * 10n ? 1000000000000000n : balance / 10n
         try {
@@ -651,6 +721,8 @@ async function transferNativeTokensOnNetwork(
           )
         } catch (error) {
           const errorMessage = extractErrorMessage(error, false)
+
+          // Check for insufficient funds FIRST (some networks like Arbitrum report this as "gas required exceeds allowance")
           if (isInsufficientFundsError(errorMessage)) {
             console.log(
               `  [${networkName}] ⏭️  Balance too small to cover gas costs`
@@ -663,12 +735,24 @@ async function transferNativeTokensOnNetwork(
               attempts: attempt,
             }
           }
-          return {
-            network: networkName,
-            success: false,
-            error: `Gas estimation failed: ${errorMessage}`,
-            errorDetails: extractErrorMessage(error, true),
-            attempts: attempt,
+
+          // Try to extract required gas from error message
+          if (isGasEstimationError(errorMessage)) {
+            const errorValues = extractErrorValues(errorMessage)
+            if (errorValues.requiredGas) {
+              // Use extracted gas with buffer
+              gasLimit = (errorValues.requiredGas * 120n) / 100n // 20% buffer
+              // Continue with this gas limit
+            } else {
+              // Gas estimation failed for other reasons, fall back to 21000
+              // but mark that we should retry estimation on next attempt
+              gasLimit = 21000n
+              shouldEstimateGas = true // Keep trying to estimate
+            }
+          } else {
+            // Other error - fall back to 21000 but keep trying to estimate
+            gasLimit = 21000n
+            shouldEstimateGas = true
           }
         }
       } else {
@@ -982,17 +1066,24 @@ async function processNetworksInBatches(
       )
     )
 
-    for (const result of batchResults) {
+    for (let index = 0; index < batchResults.length; index++) {
+      const result = batchResults[index]
+      const network = batch[index] // Use index to correlate with the batch array
+
+      if (!result) continue // Skip if result is undefined (shouldn't happen, but TypeScript safety)
+
       if (result.status === 'fulfilled') {
         const transferResult = result.value
-        const network = networks.find((n) => n.id === transferResult.network)
+        const networkFromResult = networks.find(
+          (n) => n.id === transferResult.network
+        )
 
         const networkResult: INetworkTransferResult = {
           ...transferResult,
           amountFormatted: transferResult.amount
             ? formatEther(transferResult.amount)
             : undefined,
-          nativeCurrency: network?.nativeCurrency,
+          nativeCurrency: networkFromResult?.nativeCurrency,
         }
 
         results.push(networkResult)
@@ -1005,7 +1096,7 @@ async function processNetworksInBatches(
         ) {
           logSuccess(
             `✅ [${transferResult.network}] ${networkResult.amountFormatted} ${
-              network?.nativeCurrency || 'tokens'
+              networkFromResult?.nativeCurrency || 'tokens'
             }`
           )
         } else if (!transferResult.skipReason) {
@@ -1016,14 +1107,16 @@ async function processNetworksInBatches(
           )
         }
       } else {
-        const networkName = batch.find((n) => n.id)?.id || 'unknown'
+        // Use the network from the batch array at the same index
+        const networkName = network?.id || 'unknown'
+        const rejectedReason = result.reason
         results.push({
           network: networkName,
           success: false,
-          error: result.reason?.message || 'Promise rejected',
-          errorDetails: result.reason
-            ? `${result.reason.message || 'Promise rejected'}${
-                result.reason.stack ? `\n${result.reason.stack}` : ''
+          error: rejectedReason?.message || 'Promise rejected',
+          errorDetails: rejectedReason
+            ? `${rejectedReason.message || 'Promise rejected'}${
+                rejectedReason.stack ? `\n${rejectedReason.stack}` : ''
               }`
             : 'Promise rejected',
           attempts: MAX_RETRIES,
@@ -1151,75 +1244,90 @@ const main = defineCommand({
     }
 
     // Process all networks in batches
-    const results = await processNetworksInBatches(
-      networks,
-      oldWallet,
-      newWallet,
-      privateKey
-    )
-
-    // Generate summary
-    consola.info('\n' + '='.repeat(80))
-    consola.info('TRANSFER SUMMARY')
-    consola.info('='.repeat(80))
-
-    const successful = results.filter(
-      (r) => r.success && r.amount && r.amount > 0n
-    )
-    const noOps = results.filter((r) => r.skipReason)
-    const failed = results.filter((r) => !r.success && !r.skipReason)
-
-    consola.info(`\n✅ Successful transfers: ${successful.length}`)
-    if (successful.length > 0) {
-      successful.forEach((r) => {
-        const txStatus = r.errorDetails
-          ? ' (pending confirmation)'
-          : ' (confirmed)'
-        consola.success(
-          `  [${r.network}] ${r.amountFormatted} ${r.nativeCurrency} - TX: ${r.txHash}${txStatus}`
-        )
-      })
-    }
-
-    const noActionRequired = noOps.length
-    if (noActionRequired > 0) {
-      consola.info(`\n⏭️  No action required: ${noActionRequired}`)
-      noOps.forEach((r) => {
-        if (r.skipReason === 'zero_balance') {
-          consola.info(`  [${r.network}] No balance on this network`)
-        } else if (r.skipReason === 'insufficient_balance') {
-          consola.info(`  [${r.network}] Balance too low to transfer`)
-        }
-      })
-    }
-
-    if (failed.length > 0) {
-      consola.info(`\n❌ Unsuccessful networks: ${failed.length}`)
-      failed.forEach((r, index) => {
-        if (index > 0) {
-          console.log('')
-          console.log('#'.repeat(80))
-        }
-        const errorMessage = r.errorDetails || r.error || 'Transaction failed'
-        // Use console.error directly to avoid consola's timestamp formatting
-        console.error(`  [${r.network}]`)
-        console.error(`     ${errorMessage}`)
-      })
-    }
-
-    consola.info('\n' + '='.repeat(80))
-
-    // Exit with error code if any transfers failed
-    if (failed.length > 0) {
-      consola.error(
-        `\n⚠️  ${failed.length} network(s) failed. Please review the errors above.`
+    let results: INetworkTransferResult[]
+    try {
+      results = await processNetworksInBatches(
+        networks,
+        oldWallet,
+        newWallet,
+        privateKey
       )
+    } catch (error) {
+      consola.error('Fatal error during network processing:')
+      consola.error(extractErrorMessage(error, true))
       process.exit(1)
-    } else {
-      consola.success(
-        `\n✅ All transfers completed successfully! ${successful.length} network(s) transferred funds.`
+    }
+
+    // Generate summary - always print, even if there were errors
+    try {
+      consola.info('\n' + '='.repeat(80))
+      consola.info('TRANSFER SUMMARY')
+      consola.info('='.repeat(80))
+
+      const successful = results.filter(
+        (r) => r.success && r.amount && r.amount > 0n
       )
-      process.exit(0)
+      const noOps = results.filter((r) => r.skipReason)
+      const failed = results.filter((r) => !r.success && !r.skipReason)
+
+      consola.info(`\n✅ Successful transfers: ${successful.length}`)
+      if (successful.length > 0) {
+        successful.forEach((r) => {
+          const txStatus = r.errorDetails
+            ? ' (pending confirmation)'
+            : ' (confirmed)'
+          consola.success(
+            `  [${r.network}] ${r.amountFormatted} ${r.nativeCurrency} - TX: ${r.txHash}${txStatus}`
+          )
+        })
+      }
+
+      const noActionRequired = noOps.length
+      if (noActionRequired > 0) {
+        consola.info(`\n⏭️  No action required: ${noActionRequired}`)
+        noOps.forEach((r) => {
+          if (r.skipReason === 'zero_balance') {
+            consola.info(`  [${r.network}] No balance on this network`)
+          } else if (r.skipReason === 'insufficient_balance') {
+            consola.info(`  [${r.network}] Balance too low to transfer`)
+          }
+        })
+      }
+
+      if (failed.length > 0) {
+        consola.info(`\n❌ Unsuccessful networks: ${failed.length}`)
+        failed.forEach((r, index) => {
+          if (index > 0) {
+            console.log('')
+            console.log('#'.repeat(80))
+          }
+          const errorMessage = r.errorDetails || r.error || 'Transaction failed'
+          // Use console.error directly to avoid consola's timestamp formatting
+          console.error(`  [${r.network}]`)
+          console.error(`     ${errorMessage}`)
+        })
+      }
+
+      consola.info('\n' + '='.repeat(80))
+
+      // Exit with error code if any transfers failed
+      if (failed.length > 0) {
+        consola.error(
+          `\n⚠️  ${failed.length} network(s) failed. Please review the errors above.`
+        )
+        process.exit(1)
+      } else {
+        consola.success(
+          `\n✅ All transfers completed successfully! ${successful.length} network(s) transferred funds.`
+        )
+        process.exit(0)
+      }
+    } catch (error) {
+      // If summary printing fails, at least show basic info
+      consola.error('Error generating summary:')
+      consola.error(extractErrorMessage(error, true))
+      consola.info(`Processed ${results.length} networks`)
+      process.exit(1)
     }
   },
 })
