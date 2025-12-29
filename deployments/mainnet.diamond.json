@@ -97,9 +97,9 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0x4640AaaaB3E6f5bB9b4A16fb00EA0DBD6D98B397": {
+      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.1"
+        "Version": "2.1.2"
       },
       "0xfDB9a62a5f4F98A0C4e4B864eB22a9EEcB0BcE5F": {
         "Name": "HopFacetPacked",
@@ -175,7 +175,7 @@
       },
       "0x989a7eFaBb9bE76ac3424B940862d9cf55334873": {
         "Name": "UnitFacet",
-        "Version": "1.0.1"
+        "Version": ""
       },
       "0xE46E9a5Ae71f1Fb3Ac59D09469830d6Ecc1D21f2": {
         "Name": "MegaETHBridgeFacet",
@@ -183,7 +183,11 @@
       },
       "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
         "Name": "CelerCircleBridgeFacet",
-        "Version": "2.0.0"
+        "Version": ""
+      },
+      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -199,6 +203,7 @@
       "ReceiverAcrossV3": "0x81F35E762B6792Eea8781fC52F72e62235A5C416",
       "ReceiverAcrossV4": "0x07Cc0a0b41641D349240e1988169Fa11b31FC24E",
       "ReceiverChainflip": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",
+      "ReceiverOIF": "0x761B0e8f6e80BBd23F3886663Cc071a554be37A3",
       "ReceiverStargateV2": "0xB539B40793171211DCA8834da044fC14bCe64BDC",
       "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6"
     }
