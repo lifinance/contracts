@@ -3565,6 +3565,72 @@ function getPrivateKey() {
     fi
   fi
 }
+
+# Send or propose transaction
+# This function handles:
+# - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
+# - Staging: Sends directly using PRIVATE_KEY via cast send --data
+# Usage: sendOrPropose <network> <environment> <target> <calldata>
+#   network: Network name (e.g., "mainnet")
+#   environment: "production" or "staging"
+#   target: Target contract address
+#   calldata: Transaction calldata (hex string starting with 0x)
+function sendOrPropose() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local TARGET="$3"
+  local CALLDATA="$4"
+
+  # Validate required arguments
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$CALLDATA" ]]; then
+    error "sendOrPropose: Missing required arguments"
+    return 1
+  fi
+
+  # Validate calldata format
+  if [[ ! "$CALLDATA" =~ ^0x ]]; then
+    error "sendOrPropose: Calldata must start with 0x"
+    return 1
+  fi
+
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    # Production: propose to Safe using propose-to-safe.ts
+    bunx tsx script/deploy/safe/propose-to-safe.ts \
+      --network "$NETWORK" \
+      --to "$TARGET" \
+      --calldata "$CALLDATA" \
+      --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
+  else
+    # Staging: send directly using cast send with --data flag for raw calldata
+    # Get RPC URL
+    local RPC_URL
+    RPC_URL=$(getRPCUrl "$NETWORK") || {
+      error "sendOrPropose: Failed to get RPC URL for $NETWORK"
+      return 1
+    }
+
+    # Get private key
+    local PRIVATE_KEY
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+      return 1
+    }
+
+    # Send transaction using cast send with --data flag for raw calldata
+    # cast send will handle signing, gas estimation, and receipt waiting
+    cast send "$TARGET" \
+      --data "$CALLDATA" \
+      --rpc-url "$RPC_URL" \
+      --private-key "$PRIVATE_KEY" \
+      --legacy \
+      --confirmations 1
+
+    return $?
+  fi
+
+  return $?
+}
+
 function isZkEvmNetwork() {
   # read function arguments into variables
   local NETWORK="$1"

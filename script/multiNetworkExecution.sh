@@ -132,6 +132,15 @@ function executeNetworkActions() {
     # CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
     # cast send "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "$CALLDATA" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_PRODUCTION"
 
+    #### MANAGE SAFE OWNERS #############
+    # Remove an owner from Safe
+    # manageSafeOwner "remove" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb"
+    # Replace an owner in Safe (remove old, add new)
+    # manageSafeOwner "replace" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb" "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+    # Add a new owner to Safe
+    # manageSafeOwner "add" "$NETWORK" "" "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+
+
     # bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --ledger
 
     # RESPONSE=$(cast call "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "isFunctionApproved(bytes4) returns (bool)" 0x23b872dd --rpc-url "$RPC_URL")
