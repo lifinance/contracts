@@ -38,9 +38,27 @@ Before adding a new guideline:
 
 ## Cross-Reference Minimization
 
-- Avoid “see also” pointers.
-- Prefer: “this rule is always active” or “this activates via globs” over linking another file.
+- Avoid "see also" pointers.
+- Prefer: "this rule is always active" or "this activates via globs" over linking another file.
 - If a workflow truly must live in a command (explicitly invoked), keep rules minimal and avoid circular references.
+- **Avoid "Related Files" sections**: Do not include file references unless they are absolutely critical for understanding or enforcing the rule. File paths change, and such references add maintenance burden without clear value. Only include file references if:
+  - The rule directly depends on specific file locations or patterns
+  - The files are explicitly mentioned in the rule's requirements or examples
+
+## Keep Implementation Details Separate
+
+- **Rules define "what" and "why", not "how"**: Rules should state requirements, constraints, and behaviors. Implementation details (CI workflows, tooling setup) should NOT be part of the rule itself.
+- **Report implementation suggestions separately**: When creating a rule, if you identify helpful implementation approaches (e.g., CI enforcement, tooling, example patterns), report these back to the user as suggestions or recommendations, but do NOT include them in the rule file.
+- **Examples of what to exclude from rules**:
+  - CI workflow code examples (GitHub Actions, etc.)
+  - Detailed tooling setup instructions
+  - "Recommended" enforcement mechanisms that are optional
+- **What belongs in rules**:
+  - Requirements and constraints
+  - Example implementation code and anti-patterns
+  - Behavioral expectations
+  - Agent behavior instructions
+  - Rationale for the rule
 
 ## Naming Conventions + Uniqueness Check (repo source of truth)
 

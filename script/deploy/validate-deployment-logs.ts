@@ -472,6 +472,7 @@ const validateCommand = defineCommand({
 
     const validator = new DeploymentValidator(config)
 
+    let exitCode = 0
     try {
       await validator.connect()
 
@@ -509,15 +510,16 @@ const validateCommand = defineCommand({
         }
       }
 
-      // Exit with error code if validation failed
+      // Set exit code if validation failed
       const anyFailed = allResults.some((r) => !r.passed)
-      if (anyFailed) process.exit(1)
+      if (anyFailed) exitCode = 1
     } catch (error) {
       consola.error('Validation failed:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await validator.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 

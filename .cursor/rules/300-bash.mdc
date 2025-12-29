@@ -7,9 +7,37 @@ globs:
 
 ## Bash Deployment Framework
 
-- Bash deploy wraps Foundry; robust retries; modular functions; helpers; early env validation.
-- Start with `#!/bin/bash`; organize into functions (Logging, Error handling, Deployment functions); keep DRY via helpers.
+- Start with `#!/bin/bash`; organize into functions (logging, error handling, deployment); keep DRY via helpers.
+- **Use existing helpers**: Source `script/helperFunctions.sh` and `script/playgroundHelpers.sh` for reusable functions (deployment, verification, network queries, logging, etc.). Prefer existing helpers over reimplementing logic.
 - Load env from `.env`/`config.sh`; validate required vars early; update `.env.example` when adding envs; add system deps to `preinstall.sh` when needed.
 - Use logging helpers (`echoDebug`, `error`, `warning`, `success`) and `checkFailure`; implement retries for RPC-sensitive steps; avoid inline secrets.
-- Variable names must be all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
+- Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
 - Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
+
+## Syntax Validation (CRITICAL)
+
+**All bash code must be validated before suggesting changes.**
+
+### Required Steps
+
+1. **Syntax**: `bash -n <script>` - always run before suggesting changes
+2. **Unbound variables** (with `set -euo pipefail`):
+   - Use `${VAR:-}` not `$VAR`; `${ARRAY[@]:-}` not `-v ARRAY[@]`
+   - Check `${#ARRAY[@]}` before accessing arrays
+3. **Compatibility**: bash 5.0+ (macOS default); avoid bash 4.0-only features
+4. **Test strict mode**: `bash -c 'set -euo pipefail; source script.sh'`
+
+### Validation Checklist
+
+- [ ] `bash -n` syntax check passes
+- [ ] No unbound variable errors with `set -u`
+- [ ] Array access tested with empty arrays
+- [ ] Parameter expansion uses `:-` defaults
+- [ ] Conditionals work in strict mode
+
+### Common Pitfalls
+
+- Arrays: `${ARRAY[@]:-}` not `-v ARRAY[@]`
+- Variables: `${VAR:-default}` when `set -u` enabled
+- Process substitution: `< <(...)` requires `#!/bin/bash` shebang
+- Conditionals: `[[ ]]` not `[ ]` for bash-specific features
