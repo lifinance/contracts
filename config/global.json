@@ -6,7 +6,7 @@
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "deployerWallet": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
   "deployerWalletTron": "TS8EymUNucdNwseZMcLZRzTLy7Yz768yeD",
-  "devWallet": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62",
+  "devWallet": "0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3",
   "approvedSelectorsForRefundWallet": [
     {
       "selector": "0x0d19e519",
