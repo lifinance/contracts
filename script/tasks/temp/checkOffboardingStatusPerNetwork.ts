@@ -7,16 +7,16 @@ import {
   type Address,
 } from 'viem'
 
-import globalConfig from '../../config/global.json'
-import networksConfig from '../../config/networks.json'
+import globalConfig from '../../../config/global.json'
+import networksConfig from '../../../config/networks.json'
 import {
   EnvironmentEnum,
   type INetwork,
   type SupportedChain,
-} from '../common/types'
-import { SAFE_SINGLETON_ABI } from '../deploy/safe/config'
-import { getDeployments } from '../utils/deploymentHelpers'
-import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+} from '../../common/types'
+import { SAFE_SINGLETON_ABI } from '../../deploy/safe/config'
+import { getDeployments } from '../../utils/deploymentHelpers'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 // Old addresses (hardcoded - these should be removed)
 const EDMUND_SAFE_SIGNER =
@@ -235,14 +235,12 @@ async function checkNetworkStatus(
           })
 
           const ownerLower = currentOwner.toLowerCase()
-          const oldOwnerLower = OLD_SC_DEV_WALLET.toLowerCase()
-          const newOwnerLower = NEW_SC_DEV_WALLET.toLowerCase()
+          const devWalletLower = NEW_SC_DEV_WALLET.toLowerCase()
 
-          // Check: owner is NOT old SC dev wallet AND owner IS new SC dev wallet
-          const notOldOwner = ownerLower !== oldOwnerLower
-          const isNewOwner = ownerLower === newOwnerLower
-
-          status.stagingDiamondOwnershipTransferred = notOldOwner && isNewOwner
+          // Check: owner matches the dev wallet from global.json
+          // This will be green if owner matches devWallet, regardless of whether it's old or new
+          status.stagingDiamondOwnershipTransferred =
+            ownerLower === devWalletLower
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
@@ -316,7 +314,7 @@ function printTable(results: INetworkStatus[]) {
     'Network'.length,
     ...results.map((r) => r.network.length)
   )
-  const colWidth = 8
+  const colWidth = 5 // Width to match emoji display (emoji + spaces)
 
   // Legend above table
   console.log('\n')
@@ -345,11 +343,28 @@ function printTable(results: INetworkStatus[]) {
 
   // Header - always 8 columns now
   const numColumns = 8
+  // Helper to center-align content in column
+  // For emojis, we need to account for their visual width (2 chars) vs string length (1 char)
+  const centerInColumn = (
+    content: string,
+    width: number,
+    isEmoji = false
+  ): string => {
+    // Emojis visually take 2 character cells but have string length 1
+    const visualWidth = isEmoji ? 2 : content.length
+    const padding = width - visualWidth
+    const leftPad = Math.floor(padding / 2)
+    const rightPad = padding - leftPad
+    return ' '.repeat(leftPad) + content + ' '.repeat(rightPad)
+  }
+
   const headerCols = Array.from({ length: numColumns }, (_, i) =>
-    String(i + 1).padStart(colWidth)
+    centerInColumn(String(i + 1), colWidth, false)
   ).join(' | ')
-  console.log(`${'Network'.padEnd(networkWidth)} | ${headerCols}`)
-  console.log('-'.repeat(networkWidth + numColumns * colWidth + numColumns + 1))
+  const headerLine = `${'Network'.padEnd(networkWidth)} | ${headerCols}`
+  console.log(headerLine)
+  // Use actual header line length for separator to ensure perfect alignment
+  console.log('-'.repeat(headerLine.length))
 
   // Rows
   for (const result of results) {
@@ -372,24 +387,47 @@ function printTable(results: INetworkStatus[]) {
     const networkColor = allDone ? 'green' : 'red'
     const networkName = result.network.padEnd(networkWidth)
 
-    const edmund = formatStatus(result.edmundRemoved).padStart(colWidth)
-    const oldDep = formatStatus(result.oldDeployerRemoved).padStart(colWidth)
-    const newDep = formatStatus(result.newDeployerAdded).padStart(colWidth)
-    const oldCan = formatStatus(result.oldDeployerCancellerRemoved).padStart(
-      colWidth
+    // Center-align the status emojis in their columns (emojis have visual width 2)
+    const edmund = centerInColumn(
+      formatStatus(result.edmundRemoved),
+      colWidth,
+      true
     )
-    const newCan = formatStatus(result.newDeployerCancellerGranted).padStart(
-      colWidth
+    const oldDep = centerInColumn(
+      formatStatus(result.oldDeployerRemoved),
+      colWidth,
+      true
     )
-    const oldWht = formatStatus(result.oldDeployerWhitelistRemoved).padStart(
-      colWidth
+    const newDep = centerInColumn(
+      formatStatus(result.newDeployerAdded),
+      colWidth,
+      true
     )
-    const newWht = formatStatus(result.newDeployerWhitelistGranted).padStart(
-      colWidth
+    const oldCan = centerInColumn(
+      formatStatus(result.oldDeployerCancellerRemoved),
+      colWidth,
+      true
     )
-    const stagingOwnership = formatStatus(
-      result.stagingDiamondOwnershipTransferred
-    ).padStart(colWidth)
+    const newCan = centerInColumn(
+      formatStatus(result.newDeployerCancellerGranted),
+      colWidth,
+      true
+    )
+    const oldWht = centerInColumn(
+      formatStatus(result.oldDeployerWhitelistRemoved),
+      colWidth,
+      true
+    )
+    const newWht = centerInColumn(
+      formatStatus(result.newDeployerWhitelistGranted),
+      colWidth,
+      true
+    )
+    const stagingOwnership = centerInColumn(
+      formatStatus(result.stagingDiamondOwnershipTransferred),
+      colWidth,
+      true
+    )
 
     // Print network name in color - only one line per network
     const line = `${getColorCode(networkColor)}${networkName}${getColorCode(
@@ -415,7 +453,8 @@ function printTable(results: INetworkStatus[]) {
     return baseChecksDone && stagingCheckDone
   }).length
 
-  console.log('-'.repeat(networkWidth + numColumns * colWidth + numColumns + 1))
+  // Use same header line for bottom separator
+  console.log('-'.repeat(headerLine.length))
   console.log('')
   console.log('Legend:')
   console.log(
@@ -494,39 +533,33 @@ async function main() {
 
   consola.info(`Checking ${networkNames.length} active networks...`)
 
-  // Process in batches to avoid overwhelming RPCs
-  const BATCH_SIZE = 5
-  for (let i = 0; i < networkNames.length; i += BATCH_SIZE) {
-    const batch = networkNames.slice(i, i + BATCH_SIZE)
-    consola.info(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}...`)
-
-    const batchResults = await Promise.all(
-      batch.map((networkName) => {
-        const networkConfig = networks[networkName]
-        if (!networkConfig) {
-          const errorStatus: INetworkStatus = {
-            network: networkName,
-            edmundRemoved: null,
-            oldDeployerRemoved: null,
-            newDeployerAdded: null,
-            oldDeployerCancellerRemoved: null,
-            newDeployerCancellerGranted: null,
-            oldDeployerWhitelistRemoved: null,
-            newDeployerWhitelistGranted: null,
-            stagingDiamondOwnershipTransferred: null,
-            errors: ['Network config not found'],
-          }
-          return errorStatus
+  // Process all networks in parallel
+  const networkResults = await Promise.all(
+    networkNames.map((networkName) => {
+      const networkConfig = networks[networkName]
+      if (!networkConfig) {
+        const errorStatus: INetworkStatus = {
+          network: networkName,
+          edmundRemoved: null,
+          oldDeployerRemoved: null,
+          newDeployerAdded: null,
+          oldDeployerCancellerRemoved: null,
+          newDeployerCancellerGranted: null,
+          oldDeployerWhitelistRemoved: null,
+          newDeployerWhitelistGranted: null,
+          stagingDiamondOwnershipTransferred: null,
+          errors: ['Network config not found'],
         }
-        return checkNetworkStatus(
-          networkName as SupportedChain,
-          networkConfig as INetwork
-        )
-      })
-    )
+        return errorStatus
+      }
+      return checkNetworkStatus(
+        networkName as SupportedChain,
+        networkConfig as INetwork
+      )
+    })
+  )
 
-    results.push(...batchResults)
-  }
+  results.push(...networkResults)
 
   // Sort results: completed first, then by network name
   results.sort((a, b) => {
