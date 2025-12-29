@@ -4,10 +4,7 @@ pragma solidity ^0.8.17;
 /// @title IWhitelistManagerFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Interface for WhitelistManagerFacet facet for managing approved contracts and function selectors.
-/// @dev This interface supports a dual-model allow list system:
-///      1. NEW GRANULAR SYSTEM: Contract-selector pairs for precise control
-///      2. BACKWARD COMPATIBILITY: Global lists for existing deployed facets
-///      New development should exclusively use the granular functions.
+/// @dev This interface provides a granular allow list system using contract-selector pairs for precise control.
 /// @custom:version 1.1.0
 interface IWhitelistManagerFacet {
     /// Events ///
@@ -20,10 +17,9 @@ interface IWhitelistManagerFacet {
     );
 
     // ============================================================================
-    // NEW GRANULAR SYSTEM FUNCTIONS
+    // GRANULAR SYSTEM FUNCTIONS
     // ============================================================================
     // These functions operate on contract-selector pairs and provide precise control.
-    // They are the source of truth and synchronize the global arrays automatically.
     // ============================================================================
 
     /// @notice Sets the whitelist status for a specific contract and selector pair.
@@ -35,9 +31,6 @@ interface IWhitelistManagerFacet {
     ///      Some DEXs have specific contracts that need to be approved to while another
     ///      (router) contract must be called to initiate the swap. This selector enables
     ///      whitelisting such approveTo-only contracts while preventing any function calls.
-    ///      Note: This makes isAddressWhitelisted(_contract) return true for backward
-    ///      compatibility, but does not allow any granular calls. Actual selectors must
-    ///      still be explicitly whitelisted for real function call usage.
     function setContractSelectorWhitelist(
         address _contract,
         bytes4 _selector,
@@ -53,9 +46,6 @@ interface IWhitelistManagerFacet {
     ///      Some DEXs have specific contracts that need to be approved to while another
     ///      (router) contract must be called to initiate the swap. This selector enables
     ///      whitelisting such approveTo-only contracts while preventing any function calls.
-    ///      Note: This makes isAddressWhitelisted(_contract) return true for backward
-    ///      compatibility, but does not allow any granular calls. Actual selectors must
-    ///      still be explicitly whitelisted for real function call usage.
     function batchSetContractSelectorWhitelist(
         address[] calldata _contracts,
         bytes4[] calldata _selectors,
@@ -79,8 +69,8 @@ interface IWhitelistManagerFacet {
     ) external view returns (bytes4[] memory selectors);
 
     /// @notice Returns all whitelisted contract-selector pairs in a single call.
-    /// @dev This is more efficient than calling getWhitelistedAddresses() and then
-    ///      getWhitelistedSelectorsForContract() for each address separately.
+    /// @dev This is more efficient than calling getWhitelistedSelectorsForContract()
+    ///      for each address separately.
     /// @return contracts Array of whitelisted contract addresses.
     /// @return selectors Array of corresponding selector arrays for each contract.
     function getAllContractSelectorPairs()
