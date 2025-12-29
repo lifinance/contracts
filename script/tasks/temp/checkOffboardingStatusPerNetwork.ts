@@ -7,6 +7,8 @@ import {
   type Address,
 } from 'viem'
 
+import 'dotenv/config'
+
 import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
 import {
@@ -16,6 +18,7 @@ import {
 } from '../../common/types'
 import { SAFE_SINGLETON_ABI } from '../../deploy/safe/config'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { getRPCEnvVarName } from '../../utils/network'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 // Old addresses (hardcoded - these should be removed)
@@ -93,7 +96,12 @@ async function checkNetworkStatus(
     }
 
     const safeAddress = getAddress(networkConfig.safeAddress)
-    const rpcUrl = networkConfig.rpcUrl
+
+    // Use premium RPC from .env if available, fallback to networks.json
+    // getRPCEnvVarName handles hyphen-to-underscore conversion (e.g., moon-beam -> ETH_NODE_URI_MOON_BEAM)
+    const rpcEnvVarName = getRPCEnvVarName(networkName)
+    const premiumRpcUrl = process.env[rpcEnvVarName]
+    const rpcUrl = premiumRpcUrl || networkConfig.rpcUrl
 
     if (!rpcUrl) {
       status.errors.push('No RPC URL configured')
