@@ -168,14 +168,6 @@ contract AcrossV4SwapFacetTest is TestBaseFacet {
     // Flow: User sends USDC -> SpokePoolPeriphery swaps USDC->USDT -> bridges USDT to Arbitrum
     // Balance checks verify USDC leaves user account (origin swap happens inside periphery)
 
-    // Facet does not support destination call flag (no message support in periphery)
-    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-        public
-        override
-    {
-        // Skipped: Periphery doesn't validate destination call flag same way
-    }
-
     // Facet does not support native bridging directly (needs WETH)
     function testBase_CanBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
