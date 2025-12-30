@@ -12,12 +12,14 @@ import {
 } from 'viem'
 
 import acrossV4SwapConfig from '../../config/across-v4-swap.json'
+import networks from '../../config/networks.json'
 import acrossV4SwapFacetArtifact from '../../out/AcrossV4SwapFacet.sol/AcrossV4SwapFacet.json'
 import type {
   AcrossV4SwapFacet,
   ILiFi,
   ISpokePoolPeriphery,
 } from '../../typechain'
+import { EnvironmentEnum, type SupportedChain } from '../common/types'
 
 import {
   ADDRESS_WETH_ARB,
@@ -25,6 +27,7 @@ import {
   ensureAllowance,
   ensureBalance,
   executeTransaction,
+  getConfigElement,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
@@ -276,10 +279,13 @@ const decodeSwapAndBridgeCalldata = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-// Source chain configuration
-const SRC_CHAIN = 'arbitrum' as const
-const fromChainId = 42161 // Arbitrum
-const toChainId = 10 // Optimism
+// Chain configuration - use SupportedChain type from helpers
+const SRC_CHAIN: SupportedChain = 'arbitrum'
+const DST_CHAIN: SupportedChain = 'optimism'
+
+// Get chain IDs from networks config
+const fromChainId = networks[SRC_CHAIN].chainId
+const toChainId = networks[DST_CHAIN].chainId
 
 // Token configuration:
 // We use WETH as input to trigger an "anyToBridgeable" swap type
@@ -291,20 +297,19 @@ const OUTPUT_TOKEN = ADDRESS_USDC_OPT // USDC on Optimism
 // Amount: 0.001 WETH (10^15 wei) - small amount for testing
 const fromAmount = 1000000000000000n // 0.001 WETH
 
-const config_data = acrossV4SwapConfig as Record<
-  string,
-  { spokePoolPeriphery: string; spokePool: string }
->
+// Environment: staging or production
+const ENVIRONMENT = EnvironmentEnum.staging
 
-// Validate chain is supported
-if (!config_data[SRC_CHAIN]) {
-  throw new Error(`Chain ${SRC_CHAIN} not supported in across-v4-swap config`)
-}
+// Get config elements using helper
+const SPOKE_POOL_PERIPHERY = getConfigElement(
+  acrossV4SwapConfig,
+  SRC_CHAIN,
+  'spokePoolPeriphery'
+)
+const SPOKE_POOL = getConfigElement(acrossV4SwapConfig, SRC_CHAIN, 'spokePool')
 
-const SPOKE_POOL_PERIPHERY = config_data[SRC_CHAIN].spokePoolPeriphery
-const SPOKE_POOL = config_data[SRC_CHAIN].spokePool
-
-const EXPLORER_BASE_URL = 'https://arbiscan.io/tx/'
+// Get explorer URL from networks config
+const EXPLORER_BASE_URL = `${networks[SRC_CHAIN].explorerUrl}/tx/`
 // ############################################################################################################
 
 async function main() {
@@ -321,7 +326,7 @@ async function main() {
     walletAccount,
     lifiDiamondContract,
     lifiDiamondAddress,
-  } = await setupEnvironment(SRC_CHAIN, ACROSS_V4_SWAP_FACET_ABI)
+  } = await setupEnvironment(SRC_CHAIN, ACROSS_V4_SWAP_FACET_ABI, ENVIRONMENT)
 
   const walletAddress = walletAccount.address
 
@@ -333,7 +338,7 @@ async function main() {
   // Display route details
   consola.info('Route Details:')
   consola.info(`  Source Chain: ${SRC_CHAIN} (Chain ID: ${fromChainId})`)
-  consola.info(`  Destination Chain: Optimism (Chain ID: ${toChainId})`)
+  consola.info(`  Destination Chain: ${DST_CHAIN} (Chain ID: ${toChainId})`)
   consola.info(`  Input Token: ${INPUT_TOKEN} (WETH)`)
   consola.info(`  Output Token: ${OUTPUT_TOKEN} (USDC)`)
   consola.info(`  Amount: 0.001 WETH\n`)
