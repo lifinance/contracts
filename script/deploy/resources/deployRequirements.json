@@ -696,6 +696,25 @@
       }
     }
   },
+  "TokenWrapper": {
+    "configData": {
+      "_wrappedToken": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_converter": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.converterAddress",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "NEARIntentsFacet": {
     "configData": {
       "_backendSigner": {
