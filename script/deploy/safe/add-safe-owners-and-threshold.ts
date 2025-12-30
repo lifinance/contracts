@@ -188,10 +188,13 @@ const main = defineCommand({
           senderAddress
         )
 
-        if (!result.acknowledged)
+        if (result === null) {
+          consola.info('Proposal already exists - skipping')
+        } else if (!result.acknowledged) {
           throw new Error('MongoDB insert was not acknowledged')
-
-        consola.success('Transaction successfully stored in MongoDB')
+        } else {
+          consola.success('Transaction successfully stored in MongoDB')
+        }
       } catch (error) {
         consola.error('Failed to store transaction in MongoDB:', error)
         throw error
@@ -242,10 +245,13 @@ const main = defineCommand({
           senderAddress
         )
 
-        if (!result.acknowledged)
+        if (result === null) {
+          consola.info('Proposal already exists - skipping')
+        } else if (!result.acknowledged) {
           throw new Error('MongoDB insert was not acknowledged')
-
-        consola.success('Transaction successfully stored in MongoDB')
+        } else {
+          consola.success('Transaction successfully stored in MongoDB')
+        }
       } catch (error) {
         consola.error('Failed to store transaction in MongoDB:', error)
         throw error

@@ -252,6 +252,11 @@ const main = defineCommand({
         senderAddress
       )
 
+      if (result === null) {
+        consola.info('Proposal already exists - no new proposal created')
+        return
+      }
+
       if (!result.acknowledged)
         throw new Error('MongoDB insert was not acknowledged')
 
