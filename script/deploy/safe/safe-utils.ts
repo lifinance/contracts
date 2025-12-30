@@ -15,8 +15,10 @@ import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
 import {
   createPublicClient,
   createWalletClient,
+  encodeAbiParameters,
   encodeFunctionData,
   http,
+  keccak256,
   parseAbi,
   toFunctionSelector,
   type Account,
@@ -80,6 +82,7 @@ export interface ISafeTxDocument {
   proposer: string
   timestamp: Date
   status: 'pending' | 'executed'
+  intentHash?: string // Optional for backwards compatibility with existing documents
 }
 
 export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
@@ -913,7 +916,53 @@ export async function getSafeInfoFromContract(
 }
 
 /**
+ * Computes a unique hash representing the intent of a proposal
+ * Used for duplicate detection - excludes nonce so same action = same hash
+ * @param network - Network name
+ * @param chainId - Chain ID
+ * @param safeAddress - Safe contract address
+ * @param to - Target contract address
+ * @param value - ETH value
+ * @param data - Calldata
+ * @param operation - Call or DelegateCall
+ * @returns Keccak256 hash of the encoded parameters
+ */
+export function computeProposalIntentHash(
+  network: string,
+  chainId: number,
+  safeAddress: Address,
+  to: Address,
+  value: bigint,
+  data: Hex,
+  operation: OperationTypeEnum
+): Hex {
+  const encoded = encodeAbiParameters(
+    [
+      { name: 'network', type: 'string' },
+      { name: 'chainId', type: 'uint256' },
+      { name: 'safeAddress', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+      { name: 'operation', type: 'uint8' },
+    ],
+    [
+      network.toLowerCase(),
+      BigInt(chainId),
+      safeAddress,
+      to,
+      value,
+      data,
+      operation,
+    ]
+  )
+
+  return keccak256(encoded)
+}
+
+/**
  * Stores a Safe transaction in MongoDB
+ * Skips storage if a pending proposal with the same intent already exists
  * @param pendingTransactions - MongoDB collection
  * @param safeAddress - Address of the Safe
  * @param network - Network name
@@ -921,7 +970,7 @@ export async function getSafeInfoFromContract(
  * @param safeTx - The transaction to store
  * @param safeTxHash - Hash of the transaction
  * @param proposer - Address of the proposer
- * @returns Result of the MongoDB insert operation
+ * @returns Result of the MongoDB insert operation, or null if duplicate exists
  */
 export async function storeTransactionInMongoDB(
   pendingTransactions: Collection<ISafeTxDocument>,
@@ -931,7 +980,35 @@ export async function storeTransactionInMongoDB(
   safeTx: ISafeTransaction,
   safeTxHash: Hex,
   proposer: Address
-): Promise<InsertOneResult<ISafeTxDocument>> {
+): Promise<InsertOneResult<ISafeTxDocument> | null> {
+  // Compute intent hash for duplicate detection
+  const intentHash = computeProposalIntentHash(
+    network,
+    chainId,
+    safeAddress,
+    safeTx.data.to,
+    safeTx.data.value,
+    safeTx.data.data,
+    safeTx.data.operation
+  )
+
+  // Check for existing pending proposal with same intent
+  const existing = await pendingTransactions.findOne({
+    intentHash,
+    status: 'pending',
+  })
+
+  if (existing) {
+    consola.warn(
+      `Duplicate pending proposal detected - skipping storage.\n` +
+        `  Intent hash: ${intentHash}\n` +
+        `  Existing proposal ID: ${existing._id}\n` +
+        `  Created at: ${existing.timestamp}\n` +
+        `  SafeTxHash: ${existing.safeTxHash}`
+    )
+    return null
+  }
+
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
@@ -941,6 +1018,7 @@ export async function storeTransactionInMongoDB(
     proposer,
     timestamp: new Date(),
     status: 'pending' as const,
+    intentHash,
   } satisfies ISafeTxDocument
 
   return retry(async () => {
