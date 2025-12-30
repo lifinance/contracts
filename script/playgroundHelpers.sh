@@ -1397,6 +1397,209 @@ export -f validateDependencies
 export -f deployContract
 export -f getContractDeploymentStatusSummary
 export -f compareContractBytecode
+# =============================================================================
+# STAGING DIAMOND OWNERSHIP TRANSFER
+# =============================================================================
+
+# Transfer ownership of staging diamond to new dev wallet
+# This function performs the complete ownership transfer flow:
+# 1. Identifies if there is a staging diamond for the network
+# 2. Initiates ownership transfer from old dev wallet (using PRIVATE_KEY_OLD from .env)
+# 3. Accepts ownership transfer from new dev wallet (using PRIVATE_KEY from .env)
+# 4. Verifies that owner of staging diamond is new dev wallet (from config/global.json)
+# Returns 0 on success, 1 on error (for retry logic)
+# Usage: transferStagingDiamondOwnership <network>
+function transferStagingDiamondOwnership() {
+  local NETWORK="${1:-}"
+
+  if [[ -z "$NETWORK" ]]; then
+    error "transferStagingDiamondOwnership: Network is required"
+    return 1
+  fi
+
+  # Step 1: Identify if there is a staging diamond
+  local STAGING_DIAMOND_FILE="./deployments/${NETWORK}.diamond.staging.json"
+
+  if [[ ! -f "$STAGING_DIAMOND_FILE" ]]; then
+    logWithTimestamp "[$NETWORK] No staging diamond found - marking as success"
+    return 0
+  fi
+
+  logWithTimestamp "[$NETWORK] Staging diamond found, starting ownership transfer..."
+
+  # Get diamond address from staging deployment log using existing helper
+  local DIAMOND_ADDRESS
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "staging" "LiFiDiamond")
+
+  if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" || "$DIAMOND_ADDRESS" == "null" || "$DIAMOND_ADDRESS" == "0x" ]]; then
+    error "[$NETWORK] Failed to get LiFiDiamond address from staging deployment log"
+    return 1
+  fi
+
+  # Get new dev wallet address from global.json
+  local NEW_DEV_WALLET
+  NEW_DEV_WALLET=$(jq -r '.devWallet // empty' "./config/global.json" 2>/dev/null)
+
+  if [[ -z "$NEW_DEV_WALLET" || "$NEW_DEV_WALLET" == "null" || "$NEW_DEV_WALLET" == "0x" ]]; then
+    error "[$NETWORK] Failed to get devWallet from config/global.json"
+    return 1
+  fi
+
+  # Get RPC URL for the network
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK") || {
+    error "[$NETWORK] Failed to get RPC URL"
+    return 1
+  }
+
+  # Get current owner from the diamond
+  local CURRENT_OWNER
+  CURRENT_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+
+  if [[ -z "$CURRENT_OWNER" || "$CURRENT_OWNER" == "0x" ]]; then
+    error "[$NETWORK] Failed to get current owner from diamond at $DIAMOND_ADDRESS"
+    return 1
+  fi
+
+  # Normalize addresses for comparison (lowercase)
+  local CURRENT_OWNER_LOWER=$(echo "$CURRENT_OWNER" | tr '[:upper:]' '[:lower:]')
+  local NEW_DEV_WALLET_LOWER=$(echo "$NEW_DEV_WALLET" | tr '[:upper:]' '[:lower:]')
+
+  # Check if ownership transfer is already complete
+  if [[ "$CURRENT_OWNER_LOWER" == "$NEW_DEV_WALLET_LOWER" ]]; then
+    logWithTimestamp "[$NETWORK] Ownership already transferred to new dev wallet ($NEW_DEV_WALLET)"
+    return 0
+  fi
+
+  logWithTimestamp "[$NETWORK] Current owner: $CURRENT_OWNER, New dev wallet: $NEW_DEV_WALLET"
+
+  # Step 2: Get private key for old dev wallet (using PRIVATE_KEY_OLD from .env)
+  local OLD_OWNER_PRIVATE_KEY="${PRIVATE_KEY_OLD:-}"
+
+  if [[ -z "$OLD_OWNER_PRIVATE_KEY" ]]; then
+    error "[$NETWORK] PRIVATE_KEY_OLD environment variable is not set"
+    error "[$NETWORK] Please set PRIVATE_KEY_OLD in your .env file with the private key for the old dev wallet"
+    return 1
+  fi
+
+  # Verify old owner private key matches current owner
+  local OLD_OWNER_ADDRESS
+  OLD_OWNER_ADDRESS=$(cast wallet address --private-key "$OLD_OWNER_PRIVATE_KEY" 2>/dev/null)
+
+  if [[ -z "$OLD_OWNER_ADDRESS" ]]; then
+    error "[$NETWORK] Failed to get address from PRIVATE_KEY_OLD"
+    return 1
+  fi
+
+  local OLD_OWNER_ADDRESS_LOWER=$(echo "$OLD_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$OLD_OWNER_ADDRESS_LOWER" != "$CURRENT_OWNER_LOWER" ]]; then
+    error "[$NETWORK] PRIVATE_KEY_OLD address ($OLD_OWNER_ADDRESS) does not match current owner ($CURRENT_OWNER)"
+    error "[$NETWORK] Cannot transfer ownership - current owner must match PRIVATE_KEY_OLD"
+    return 1
+  fi
+
+  # Step 2a: Initiate ownership transfer from old owner
+  logWithTimestamp "[$NETWORK] Step 1: Initiating ownership transfer from old dev wallet..."
+  local TRANSFER_OUTPUT
+  TRANSFER_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$NEW_DEV_WALLET" \
+    --private-key "$OLD_OWNER_PRIVATE_KEY" \
+    --rpc-url "$RPC_URL" \
+    --legacy \
+    2>&1)
+  local TRANSFER_EXIT_CODE=$?
+
+  if [[ $TRANSFER_EXIT_CODE -ne 0 ]]; then
+    error "[$NETWORK] Failed to call transferOwnership: $TRANSFER_OUTPUT"
+    return 1
+  fi
+
+  # Check if transfer was successful (look for transaction hash in output)
+  if [[ "$TRANSFER_OUTPUT" != *"transactionHash"* && "$TRANSFER_OUTPUT" != *"blockHash"* ]]; then
+    error "[$NETWORK] transferOwnership transaction may have failed. Output: $TRANSFER_OUTPUT"
+    return 1
+  fi
+
+  logWithTimestamp "[$NETWORK] Step 1 completed successfully - ownership transfer initiated"
+  logWithTimestamp "[$NETWORK] ⚠️  Next steps: Move funds to new dev wallet ($NEW_DEV_WALLET), then uncomment Step 2 and Step 3 below to accept and verify"
+
+  # Step 3: Accept ownership transfer from new dev wallet
+  logWithTimestamp "[$NETWORK] Step 2: Accepting ownership transfer from new dev wallet..."
+
+  # Get private key for new dev wallet (using PRIVATE_KEY from .env)
+  local NEW_DEV_WALLET_PRIVATE_KEY="${PRIVATE_KEY:-}"
+
+  if [[ -z "$NEW_DEV_WALLET_PRIVATE_KEY" ]]; then
+    error "[$NETWORK] PRIVATE_KEY environment variable is not set"
+    error "[$NETWORK] Please set PRIVATE_KEY in your .env file with the private key for $NEW_DEV_WALLET"
+    return 1
+  fi
+
+  # Verify new dev wallet private key matches the expected address
+  local VERIFIED_NEW_OWNER_ADDRESS
+  VERIFIED_NEW_OWNER_ADDRESS=$(cast wallet address --private-key "$NEW_DEV_WALLET_PRIVATE_KEY" 2>/dev/null)
+
+  if [[ -z "$VERIFIED_NEW_OWNER_ADDRESS" ]]; then
+    error "[$NETWORK] Failed to get address from PRIVATE_KEY"
+    return 1
+  fi
+
+  local VERIFIED_NEW_OWNER_ADDRESS_LOWER=$(echo "$VERIFIED_NEW_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$VERIFIED_NEW_OWNER_ADDRESS_LOWER" != "$NEW_DEV_WALLET_LOWER" ]]; then
+    error "[$NETWORK] PRIVATE_KEY does not match new dev wallet address"
+    error "[$NETWORK] Expected: $NEW_DEV_WALLET, Got: $VERIFIED_NEW_OWNER_ADDRESS"
+    return 1
+  fi
+
+  local CONFIRM_OUTPUT
+  CONFIRM_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" \
+    --private-key "$NEW_DEV_WALLET_PRIVATE_KEY" \
+    --rpc-url "$RPC_URL" \
+    --legacy \
+    2>&1)
+  local CONFIRM_EXIT_CODE=$?
+
+  if [[ $CONFIRM_EXIT_CODE -ne 0 ]]; then
+    # Check if the error is because there's no pending transfer
+    if [[ "$CONFIRM_OUTPUT" == *"NotPendingOwner"* ]] || [[ "$CONFIRM_OUTPUT" == *"NoPendingOwnershipTransfer"* ]]; then
+      error "[$NETWORK] No pending ownership transfer found. This may indicate the transfer was cancelled or already completed"
+      return 1
+    else
+      error "[$NETWORK] Failed to call confirmOwnershipTransfer: $CONFIRM_OUTPUT"
+      return 1
+    fi
+  fi
+
+  # Check if confirmation was successful
+  if [[ "$CONFIRM_OUTPUT" != *"transactionHash"* && "$CONFIRM_OUTPUT" != *"blockHash"* ]]; then
+    error "[$NETWORK] confirmOwnershipTransfer transaction may have failed. Output: $CONFIRM_OUTPUT"
+    return 1
+  fi
+
+  logWithTimestamp "[$NETWORK] Step 2 completed successfully - ownership transfer accepted"
+
+  # Step 4: Verify that owner of staging diamond is new dev wallet
+  logWithTimestamp "[$NETWORK] Step 3: Verifying ownership transfer..."
+  local VERIFIED_OWNER
+  VERIFIED_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+
+  if [[ -z "$VERIFIED_OWNER" || "$VERIFIED_OWNER" == "0x" ]]; then
+    error "[$NETWORK] Failed to verify new owner"
+    return 1
+  fi
+
+  local VERIFIED_OWNER_LOWER=$(echo "$VERIFIED_OWNER" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$VERIFIED_OWNER_LOWER" == "$NEW_DEV_WALLET_LOWER" ]]; then
+    logWithTimestamp "[$NETWORK] ✅ Ownership successfully transferred to new dev wallet ($NEW_DEV_WALLET)"
+    return 0
+  else
+    error "[$NETWORK] Ownership verification failed. Current owner: $VERIFIED_OWNER, Expected: $NEW_DEV_WALLET"
+    return 1
+  fi
+}
+
 export -f getNetworkEvmVersion
 export -f getNetworkSolcVersion
 export -f isZkEvmNetwork
@@ -1408,3 +1611,4 @@ export -f logNetworkResult
 export -f analyzeFailingTx
 export -f manageTimelockCanceller
 export -f manageSafeOwner
+export -f transferStagingDiamondOwnership
