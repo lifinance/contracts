@@ -612,6 +612,8 @@ async function main() {
   // Step 9: Execute transaction
   consola.info('Step 7: Executing transaction...')
 
+  let txHash: string | null = null
+
   if (COLLECT_FEE) {
     // Get FeeCollector address based on environment
     const feeCollectorAddress = getFeeCollectorAddress(ENVIRONMENT)
@@ -648,7 +650,7 @@ async function main() {
       hasSourceSwaps: true, // Required for swapAndStart function
     }
 
-    await executeTransaction(
+    txHash = await executeTransaction(
       () =>
         (
           lifiDiamondContract as any
@@ -663,7 +665,7 @@ async function main() {
     )
   } else {
     // No fee collection - use the simple start function
-    await executeTransaction(
+    txHash = await executeTransaction(
       () =>
         (lifiDiamondContract as any).write.startBridgeTokensViaAcrossV4Swap([
           bridgeData,
@@ -678,7 +680,7 @@ async function main() {
   consola.info('\n==========================================')
   consola.info('  TRANSACTION SUCCESSFUL!')
   consola.info('==========================================')
-  consola.info(`Explorer: ${EXPLORER_BASE_URL}\n`)
+  consola.info(`Explorer: ${EXPLORER_BASE_URL}${txHash}\n`)
 }
 
 main()
