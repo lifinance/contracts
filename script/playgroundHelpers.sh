@@ -1474,6 +1474,7 @@ function removeDeployerWhitelistPermission() {
     --network "$NETWORK" \
     --rpcUrl "$RPC_URL" \
     --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
+    --timelock \
     >/dev/null 2>&1
 
   if [[ $? -ne 0 ]]; then
