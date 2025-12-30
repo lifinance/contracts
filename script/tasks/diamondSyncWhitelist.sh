@@ -17,10 +17,12 @@ function diamondSyncWhitelist {
   echo "[info] Whitelist periphery update completed"
   echo ""
 
-  # Configuration flag - set to true to allow token contracts to be whitelisted
+  # --- CONFIGURATION ---
   ALLOW_TOKEN_CONTRACTS=${ALLOW_TOKEN_CONTRACTS:-false}
-
-  # Confirm risky mode when allowing token contracts
+  # We use this dummy contract to attach "Orphan Selectors" to, so we can flush them from the system
+  STALE_CLEANUP_DUMMY_CONTRACT=${STALE_CLEANUP_DUMMY_CONTRACT:-"0x1111111111111111111111111111111111111111"}
+  
+  # --- INTERACTIVE SAFETY CHECKS ---
   if [[ "$ALLOW_TOKEN_CONTRACTS" == "true" ]]; then
     echo ""
     printf '\033[31m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
@@ -29,22 +31,16 @@ function diamondSyncWhitelist {
     printf '\033[31m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     echo ""
     printf '\033[33m%s\033[0m\n' "Do you want to continue?"
-    local SELECTION=$(
-      gum choose \
-        "yes" \
-        "no"
-    )
-
-    if [[ "$SELECTION" != "yes" ]]; then
+    if [[ "$(gum choose "yes" "no")" != "yes" ]]; then
       echo "...exiting script"
       return 0
     fi
   fi
 
-  # Read function arguments into variables
+  # --- SETUP NETWORK & ARGS ---
   local NETWORK="$1"
   local ENVIRONMENT="${2:-production}"  # Default to production if not specified
-  local DIAMOND_CONTRACT_NAME="$3"
+  local DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
   # Temp file to track failed logs
   FAILED_LOG_FILE=$(mktemp)
@@ -64,9 +60,6 @@ function diamondSyncWhitelist {
       checkRequiredVariablesInDotEnv "$NETWORK"
     fi
   fi
-
-  # no need to distinguish between mutable and immutable anymore
-  DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
   # Determine which networks to process
   RUN_FOR_ALL_NETWORKS=false
@@ -91,25 +84,6 @@ function diamondSyncWhitelist {
       fi
     fi
     return 1
-  }
-
-  # Function to detect token contracts in DEX list
-  function detectTokenContracts {
-    local RPC_URL=$1
-    shift
-    local ADDRESSES=("$@")
-
-    local TOKEN_CONTRACTS=()
-
-    for ADDRESS in "${ADDRESSES[@]}"; do
-      if isTokenContract "$ADDRESS" "$RPC_URL"; then
-        TOKEN_CONTRACTS+=("$ADDRESS")
-      fi
-    done
-
-    for contract in "${TOKEN_CONTRACTS[@]}"; do
-      echo "$contract"
-    done
   }
 
   # Controlled debug logging for this script:
@@ -169,75 +143,6 @@ function diamondSyncWhitelist {
 
     echoSyncDebug "Using RPC URL: $RPC_URL"
     echoSyncDebug "Diamond address: $DIAMOND_ADDRESS"
-
-    # Function to get contract-selector pairs from whitelist files (whitelist.json or whitelist.staging.json)
-    function getContractSelectorPairs {
-      local NETWORK=$1
-      local CONTRACT_SELECTOR_PAIRS=()
-
-      # Determine the correct whitelist file based on environment
-      local WHITELIST_FILE
-      if [[ "$ENVIRONMENT" == "production" ]]; then
-        WHITELIST_FILE="config/whitelist.json"
-      else
-        WHITELIST_FILE="config/whitelist.staging.json"
-      fi
-
-      # Get DEX contracts
-      echoSyncDebug "Getting DEX contracts..."
-      local DEX_CONTRACTS=$(jq -r --arg network "$NETWORK" '.DEXS[] | select(.contracts[$network] != null) | .contracts[$network][] | select(.address != null) | "\(.address)|\(.functions | keys | join(","))"' "$WHITELIST_FILE" 2>&1)
-      local dex_exit_code=$?
-
-      if [[ $dex_exit_code -ne 0 ]]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to extract DEX contracts from $WHITELIST_FILE (jq exit code $dex_exit_code)"
-        return 1
-      fi
-
-      # Count non-empty DEX entries for sanity checking
-      local DEX_COUNT=0
-      while IFS= read -r line; do
-        if [[ -n "$line" ]]; then
-          ((DEX_COUNT++))
-        fi
-      done <<< "$DEX_CONTRACTS"
-      echoSyncDebug "DEX contracts extracted from $WHITELIST_FILE: $DEX_COUNT entries"
-
-      # Get PERIPHERY contracts from the appropriate whitelist file
-      echo ""
-      echoSyncDebug "Getting periphery contracts from $WHITELIST_FILE..."
-      local PERIPHERY_CONTRACTS=$(jq -r --arg network "$NETWORK" '.PERIPHERY[$network] // [] | .[] | select(.address != null) | "\(.address)|\(.selectors | map(.selector) | join(","))"' "$WHITELIST_FILE" 2>&1)
-      local periphery_exit_code=$?
-
-      if [[ $periphery_exit_code -ne 0 ]]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to extract periphery contracts from $WHITELIST_FILE (jq exit code $periphery_exit_code)"
-        return 1
-      fi
-
-      # Count non-empty PERIPHERY entries for sanity checking
-      local PERIPHERY_COUNT=0
-      while IFS= read -r line; do
-        if [[ -n "$line" ]]; then
-          ((PERIPHERY_COUNT++))
-        fi
-      done <<< "$PERIPHERY_CONTRACTS"
-      echoSyncDebug "Periphery contracts extracted from $WHITELIST_FILE: $PERIPHERY_COUNT entries"
-
-      # Combine DEX and PERIPHERY contracts
-      local ALL_CONTRACTS="$DEX_CONTRACTS"$'\n'"$PERIPHERY_CONTRACTS"
-
-      while IFS= read -r line; do
-        if [[ -n "$line" ]]; then
-          CONTRACT_SELECTOR_PAIRS+=("$line")
-          # Each line is a contract entry in the form "address|selector1,selector2,..."
-          # The actual (contract, selector) pairs are derived later when splitting by comma.
-        fi
-      done <<< "$ALL_CONTRACTS"
-
-      echoSyncDebug "Total contract entries (DEX + PERIPHERY, before expanding into pairs): ${#CONTRACT_SELECTOR_PAIRS[@]}"
-      for pair in "${CONTRACT_SELECTOR_PAIRS[@]}"; do
-        echo "$pair"
-      done
-    }
 
     # Function to get current whitelisted contract-selector pairs from the diamond
     function getCurrentWhitelistedPairs {
@@ -412,23 +317,20 @@ function diamondSyncWhitelist {
       return 1
     }
 
-    # Get required contract-selector pairs from whitelist files
-    echoSyncStage "----- [$NETWORK] Stage 1: Loading required whitelist configuration -----"
-    REQUIRED_PAIRS=($(getContractSelectorPairs "$NETWORK"))
+    # 1. READ RAW V1 ARRAYS (Using TS script)
+    function readV1Data {
+      echoSyncDebug "Fetching Raw V1 Storage..."
+      bunx tsx script/tasks/readV1WhitelistArrays.ts "$NETWORK" "$DIAMOND_ADDRESS" "$RPC_URL" 2>/dev/null
+    }
+    
+    local V1_JSON
+    V1_JSON=$(readV1Data)
+    local V1_CONTRACTS=($(echo "$V1_JSON" | jq -r '.contracts[]?' 2>/dev/null))
+    local V1_SELECTORS=($(echo "$V1_JSON" | jq -r '.selectors[]?' 2>/dev/null))
 
-    echoSyncDebug "Found ${#REQUIRED_PAIRS[@]} required pairs from whitelist files"
-    if [[ ${#REQUIRED_PAIRS[@]} -gt 0 ]]; then
-      echoSyncDebug "Required pairs: ${REQUIRED_PAIRS[*]}"
-    fi
-
-    if [[ ${#REQUIRED_PAIRS[@]} -eq 0 ]]; then
-      printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] No contract-selector pairs found in whitelist files for this network"
-      return
-    fi
-
-    # Get current whitelisted pairs from diamond
-    echoSyncStage "----- [$NETWORK] Stage 2: Fetching current whitelisted pairs from diamond -----"
-    CURRENT_PAIRS=($(getCurrentWhitelistedPairs))
+    # 2. READ V2 PAIRS (Using Cast)
+    echoSyncStage "----- [$NETWORK] Stage 1: Loading current whitelist state -----"
+    local V2_PAIRS=($(getCurrentWhitelistedPairs))
     local get_pairs_exit_code=$?
 
     if [[ $get_pairs_exit_code -ne 0 ]]; then
@@ -440,39 +342,254 @@ function diamondSyncWhitelist {
       return
     fi
 
-    # Determine missing pairs and pairs to remove
-    echoSyncStage "----- [$NETWORK] Stage 3: Determining missing and obsolete contract-selector pairs -----"
-    NEW_PAIRS=()
-    NEW_ADDRESSES=()
-    REMOVED_PAIRS=()
+    echoSyncDebug "V1 state: ${#V1_CONTRACTS[@]} contracts, ${#V1_SELECTORS[@]} selectors"
+    echoSyncDebug "V2 state: ${#V2_PAIRS[@]} pairs"
 
-    # Normalize CURRENT_PAIRS to lowercase for consistent comparison
-    # getCurrentWhitelistedPairs already returns lowercase, but we normalize again to be safe
-    NORMALIZED_CURRENT_PAIRS=()
-    for CURRENT_PAIR in "${CURRENT_PAIRS[@]}"; do
-      NORMALIZED_CURRENT_PAIRS+=("$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')")
-    done
+    # 3. READ CONFIG (Standard)
+    echoSyncStage "----- [$NETWORK] Stage 2: Loading required whitelist configuration -----"
+    
+    # Determine the correct whitelist file based on environment
+    local WHITELIST_FILE
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      WHITELIST_FILE="config/whitelist.json"
+    else
+      WHITELIST_FILE="config/whitelist.staging.json"
+    fi
 
-    # First, normalize REQUIRED_PAIRS to lowercase addresses for comparison
-    # This creates a normalized list that we'll use for comparison
-    NORMALIZED_REQUIRED_PAIRS=()
-    for REQUIRED_PAIR in "${REQUIRED_PAIRS[@]}"; do
-      # Split the pair by '|' character using parameter expansion
-      ADDRESS="${REQUIRED_PAIR%%|*}"
-      SELECTORS_STR="${REQUIRED_PAIR#*|}"
+    # Get DEX contracts
+    echoSyncDebug "Getting DEX contracts..."
+    local DEX_CONTRACTS=$(jq -r --arg network "$NETWORK" '.DEXS[] | select(.contracts[$network] != null) | .contracts[$network][] | select(.address != null) | "\(.address)|\(.functions | keys | join(","))"' "$WHITELIST_FILE" 2>&1)
+    local dex_exit_code=$?
+
+    if [[ $dex_exit_code -ne 0 ]]; then
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to extract DEX contracts from $WHITELIST_FILE (jq exit code $dex_exit_code)"
+      {
+        echo "[$NETWORK] Error: Failed to extract DEX contracts"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
+      return
+    fi
+
+    # Get PERIPHERY contracts from the appropriate whitelist file
+    echoSyncDebug "Getting periphery contracts from $WHITELIST_FILE..."
+    local PERIPHERY_CONTRACTS=$(jq -r --arg network "$NETWORK" '.PERIPHERY[$network] // [] | .[] | select(.address != null) | "\(.address)|\(.selectors | map(.selector) | join(","))"' "$WHITELIST_FILE" 2>&1)
+    local periphery_exit_code=$?
+
+    if [[ $periphery_exit_code -ne 0 ]]; then
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to extract periphery contracts from $WHITELIST_FILE (jq exit code $periphery_exit_code)"
+      {
+        echo "[$NETWORK] Error: Failed to extract periphery contracts"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
+      return
+    fi
+
+    # Combine DEX and PERIPHERY contracts
+    local RAW_CONFIG="$DEX_CONTRACTS"$'\n'"$PERIPHERY_CONTRACTS"
+    local REQUIRED_PAIRS=()
+    while IFS= read -r line; do
+      if [[ -n "$line" ]]; then
+        REQUIRED_PAIRS+=("$line")
+      fi
+    done <<< "$RAW_CONFIG"
+
+    if [[ ${#REQUIRED_PAIRS[@]} -eq 0 ]]; then
+      printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] No contract-selector pairs found in whitelist files for this network"
+      return
+    fi
+
+    # ------------------------------------------------------------
+    # LOGIC: CALCULATE DELTAS (MERGED APPROACH)
+    # ------------------------------------------------------------
+    echoSyncStage "----- [$NETWORK] Stage 3: Calculating deltas (additions and removals) -----"
+
+    # Use regular arrays instead of associative arrays for compatibility
+    # Build flat arrays for membership checks
+    local REQUIRED_PAIRS_NORMALIZED=()
+    local V2_PAIRS_NORMALIZED=()
+    local V2_CONTRACTS_NORMALIZED=()
+    local V2_SELECTORS_NORMALIZED=()
+
+    # Helper function to check if value is in array
+    function isInArray {
+      local SEARCH_VALUE="$1"
+      shift
+      local ARRAY=("$@")
+      for item in "${ARRAY[@]}"; do
+        if [[ "$item" == "$SEARCH_VALUE" ]]; then
+          return 0
+        fi
+      done
+      return 1
+    }
+
+    # Helper function to process batch in chunks (to avoid gas limits and identify failing pairs)
+    function processBatchInChunks {
+      local CONTRACTS_STR="$1"
+      local SELECTORS_STR="$2"
+      local IS_ADD="$3"  # true or false
+      local TOTAL_COUNT="$4"
+      local BATCH_SIZE=50  # Process 20 pairs at a time
+      
+      # Convert strings to arrays
+      local -a CONTRACTS_ARRAY
+      local -a SELECTORS_ARRAY
+      IFS=',' read -ra CONTRACTS_ARRAY <<< "$CONTRACTS_STR"
+      IFS=',' read -ra SELECTORS_ARRAY <<< "$SELECTORS_STR"
+      
+      local TOTAL_BATCHES=$(( (TOTAL_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+      local SUCCESS_COUNT=0
+      local FAIL_COUNT=0
+      
+      for ((BATCH=0; BATCH < TOTAL_BATCHES; BATCH++)); do
+        local START=$((BATCH * BATCH_SIZE))
+        local END=$((START + BATCH_SIZE))
+        if [[ $END -gt $TOTAL_COUNT ]]; then
+          END=$TOTAL_COUNT
+        fi
+        
+        local BATCH_CONTRACTS=""
+        local BATCH_SELECTORS=""
+        local BATCH_COUNT=0
+        
+        for ((i=START; i < END; i++)); do
+          if [[ $BATCH_COUNT -gt 0 ]]; then
+            BATCH_CONTRACTS+=","
+            BATCH_SELECTORS+=","
+          fi
+          BATCH_CONTRACTS+="${CONTRACTS_ARRAY[$i]}"
+          BATCH_SELECTORS+="${SELECTORS_ARRAY[$i]}"
+          ((BATCH_COUNT++))
+        done
+        
+        echoSyncDebug "Processing batch $((BATCH + 1))/$TOTAL_BATCHES ($BATCH_COUNT pairs)..."
+        
+        local TX_OUTPUT
+        TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS]" "[$BATCH_SELECTORS]" "$IS_ADD" --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
+        local TX_EXIT_CODE=$?
+        
+        # Log full output for debugging
+        if [[ $TX_EXIT_CODE -ne 0 ]] || [[ "$TX_OUTPUT" == *"Error"* ]] || [[ "$TX_OUTPUT" == *"revert"* ]] || [[ "$TX_OUTPUT" == *"execution reverted"* ]]; then
+          echoSyncDebug "Transaction output: $TX_OUTPUT"
+        fi
+        
+        # Extract transaction hash
+        local TX_HASH=""
+        if [[ "$TX_OUTPUT" =~ transactionHash[[:space:]]*0x([0-9a-fA-F]{64}) ]]; then
+          TX_HASH="0x${BASH_REMATCH[1]}"
+        elif [[ "$TX_OUTPUT" =~ 0x([0-9a-fA-F]{64}) ]]; then
+          TX_HASH="${BASH_REMATCH[0]}"
+        fi
+        
+        if [[ $TX_EXIT_CODE -eq 0 ]] && [[ -n "$TX_HASH" ]]; then
+          sleep 3
+          # Check receipt status properly using JSON output
+          local TX_STATUS
+          TX_STATUS=$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json 2>/dev/null | jq -r '.status // empty' 2>/dev/null)
+          local TX_RECEIPT_RAW
+          TX_RECEIPT_RAW=$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" 2>&1)
+          
+          # Verify transaction actually succeeded
+          if [[ "$TX_STATUS" == "0x1" ]] || ([[ -z "$TX_STATUS" ]] && [[ "$TX_RECEIPT_RAW" != *"reverted"* ]] && [[ "$TX_RECEIPT_RAW" != *"status"*"0x0"* ]] && [[ "$TX_RECEIPT_RAW" == *"blockHash"* ]]); then
+            # Double-check by verifying ALL pairs were actually added (not just samples)
+            local VERIFY_SUCCESS_COUNT=0
+            local VERIFY_FAIL_COUNT=0
+            local SAMPLE_CONTRACTS_ARRAY
+            local SAMPLE_SELECTORS_ARRAY
+            IFS=',' read -ra SAMPLE_CONTRACTS_ARRAY <<< "$BATCH_CONTRACTS"
+            IFS=',' read -ra SAMPLE_SELECTORS_ARRAY <<< "$BATCH_SELECTORS"
+            
+            # Verify ALL pairs in the batch were actually added
+            for ((j=0; j < BATCH_COUNT; j++)); do
+              local CHECK_CONTRACT="${SAMPLE_CONTRACTS_ARRAY[$j]}"
+              local CHECK_SELECTOR="${SAMPLE_SELECTORS_ARRAY[$j]}"
+              local IS_WHITELISTED_HEX
+              IS_WHITELISTED_HEX=$(cast call "$DIAMOND_ADDRESS" "isContractSelectorWhitelisted(address,bytes4)" "$CHECK_CONTRACT" "$CHECK_SELECTOR" --rpc-url "$RPC_URL" 2>/dev/null | tail -1 | tr -d '[:space:]')
+              
+              # Parse hex result: 0x...0001 = true, 0x...0000 = false
+              # cast call returns booleans as hex-encoded uint256
+              # Simple check: if hex is non-zero (not all zeros), it's true
+              local IS_WHITELISTED=false
+              if [[ -n "$IS_WHITELISTED_HEX" ]]; then
+                # Remove 0x prefix and leading zeros, check if anything remains
+                local HEX_WITHOUT_PREFIX="${IS_WHITELISTED_HEX#0x}"
+                local HEX_TRIMMED="${HEX_WITHOUT_PREFIX#"${HEX_WITHOUT_PREFIX%%[!0]*}"}"  # Remove leading zeros
+                # If trimmed hex is not empty and not just "0", it's true
+                if [[ -n "$HEX_TRIMMED" ]] && [[ "$HEX_TRIMMED" != "0" ]]; then
+                  IS_WHITELISTED=true
+                fi
+              fi
+              
+              if [[ "$IS_WHITELISTED" == "true" ]]; then
+                ((VERIFY_SUCCESS_COUNT++))
+              else
+                ((VERIFY_FAIL_COUNT++))
+                if [[ $VERIFY_FAIL_COUNT -le 3 ]]; then
+                  echoSyncDebug "Pair not whitelisted: $CHECK_CONTRACT / $CHECK_SELECTOR (result: $IS_WHITELISTED_HEX)"
+                fi
+              fi
+            done
+            
+            if [[ $VERIFY_FAIL_COUNT -eq 0 ]]; then
+              ((SUCCESS_COUNT += BATCH_COUNT))
+              echoSyncDebug "Batch $((BATCH + 1))/$TOTAL_BATCHES succeeded (all $BATCH_COUNT pairs verified)"
+            else
+              ((FAIL_COUNT += BATCH_COUNT))
+              printf '\033[0;31m%s\033[0m\n' "❌ Batch $((BATCH + 1))/$TOTAL_BATCHES: Transaction succeeded but only $VERIFY_SUCCESS_COUNT/$BATCH_COUNT pairs were whitelisted" >&2
+              echoSyncDebug "Transaction: $TX_HASH"
+              {
+                echo "[$NETWORK] Error: Batch $((BATCH + 1))/$TOTAL_BATCHES transaction succeeded but pairs not whitelisted"
+                echo "[$NETWORK] Transaction: $TX_HASH"
+                echo "[$NETWORK] Verified: $VERIFY_SUCCESS_COUNT/$BATCH_COUNT pairs"
+                echo "[$NETWORK] Failed: $VERIFY_FAIL_COUNT pairs"
+                echo "[$NETWORK] Contracts: $BATCH_CONTRACTS"
+                echo "[$NETWORK] Selectors: $BATCH_SELECTORS"
+                echo ""
+              } >> "$FAILED_LOG_FILE"
+            fi
+          else
+            ((FAIL_COUNT += BATCH_COUNT))
+            echoSyncDebug "Batch $((BATCH + 1))/$TOTAL_BATCHES reverted (status: $TX_STATUS)"
+            {
+              echo "[$NETWORK] Error: Batch $((BATCH + 1))/$TOTAL_BATCHES reverted"
+              echo "[$NETWORK] Transaction: $TX_HASH"
+              echo "[$NETWORK] Status: $TX_STATUS"
+              echo "[$NETWORK] Receipt: $TX_RECEIPT_RAW"
+              echo "[$NETWORK] Contracts: $BATCH_CONTRACTS"
+              echo "[$NETWORK] Selectors: $BATCH_SELECTORS"
+              echo ""
+            } >> "$FAILED_LOG_FILE"
+          fi
+        else
+          ((FAIL_COUNT += BATCH_COUNT))
+          echoSyncDebug "Batch $((BATCH + 1))/$TOTAL_BATCHES failed to send: $TX_OUTPUT"
+          {
+            echo "[$NETWORK] Error: Batch $((BATCH + 1))/$TOTAL_BATCHES failed to send"
+            echo "[$NETWORK] Contracts: $BATCH_CONTRACTS"
+            echo "[$NETWORK] Selectors: $BATCH_SELECTORS"
+            echo "[$NETWORK] Output: $TX_OUTPUT"
+            echo ""
+          } >> "$FAILED_LOG_FILE"
+        fi
+        
+        sleep 1  # Brief pause between batches
+      done
+      
+      echo "$SUCCESS_COUNT|$FAIL_COUNT"
+    }
+
+    # A. Parse Config into normalized arrays
+    for PAIR in "${REQUIRED_PAIRS[@]}"; do
+      ADDRESS="${PAIR%%|*}"
+      SELECTORS_STR="${PAIR#*|}"
 
       # Check for address zero (forbidden)
-      # Handle all variations: uppercase, lowercase, mixed case
       ADDRESS_LOWER=$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')
       if [[ "$ADDRESS_LOWER" == "0x0000000000000000000000000000000000000000" ]]; then
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Error: Whitelisting address zero is forbidden: $ADDRESS"
         printf '\033[0;33m%s\033[0m\n' "⚠️  Please check whitelist.json or whitelist.staging.json"
-        printf '\033[0;33m%s\033[0m\n' "⚠️  Remove address zero from configuration and discuss with backend team"
         {
           echo "[$NETWORK] Error: Whitelisting address zero is forbidden: $ADDRESS"
-          echo "[$NETWORK] This address is invalid and should not be in the whitelist configuration"
-          echo "[$NETWORK] Please check whitelist.json or whitelist.staging.json and remove address zero"
-          echo "[$NETWORK] Discuss with backend team if this address is needed"
           echo ""
         } >> "$FAILED_LOG_FILE"
         return 1
@@ -486,434 +603,292 @@ function diamondSyncWhitelist {
         continue
       fi
 
-      # Parse selectors (comma-separated)
-      if [[ -n "$SELECTORS_STR" && "$SELECTORS_STR" != "" ]]; then
-        # Split selectors by comma (use tr for portability)
-        SELECTORS=($(echo "$SELECTORS_STR" | tr ',' ' '))
+      # Check for token contracts
+      if [[ "$ALLOW_TOKEN_CONTRACTS" != "true" ]] && isTokenContract "$CHECKSUMMED" "$RPC_URL"; then
+        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Token detected in config: $CHECKSUMMED"
+        {
+          echo "[$NETWORK] Error: Token contract in config: $CHECKSUMMED"
+          echo ""
+        } >> "$FAILED_LOG_FILE"
+        return 1
+      fi
 
+      ADDR_L=$(echo "$CHECKSUMMED" | tr '[:upper:]' '[:lower:]')
+
+      if [[ -z "$SELECTORS_STR" || "$SELECTORS_STR" == "" ]]; then
+        # No selectors defined - add ApproveTo-Only Selector (0xffffffff) for backward compatibility
+        REQUIRED_PAIRS_NORMALIZED+=("$ADDR_L|0xffffffff")
+      else
+        # Parse selectors (comma-separated)
+        SELECTORS=($(echo "$SELECTORS_STR" | tr ',' ' '))
         for SELECTOR in "${SELECTORS[@]}"; do
           if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
-            # Normalize selector to lowercase for comparison
             SELECTOR_LOWER=$(echo "$SELECTOR" | tr '[:upper:]' '[:lower:]')
-            PAIR_KEY="$ADDRESS_LOWER|$SELECTOR_LOWER"
-            NORMALIZED_REQUIRED_PAIRS+=("$PAIR_KEY")
-            
-            # Check if this pair is already whitelisted
-            # Use a more robust comparison by checking each normalized current pair
-            FOUND_IN_CURRENT=false
-            for NORMALIZED_CURRENT in "${NORMALIZED_CURRENT_PAIRS[@]}"; do
-              if [[ "$PAIR_KEY" == "$NORMALIZED_CURRENT" ]]; then
-                FOUND_IN_CURRENT=true
-                echoSyncDebug "Pair already whitelisted: $PAIR_KEY"
-                break
-              fi
-            done
-            
-            if [[ "$FOUND_IN_CURRENT" == "false" ]]; then
-              echoSyncDebug "New pair to add: $PAIR_KEY (checksummed: $CHECKSUMMED|$SELECTOR)"
-              NEW_PAIRS+=("$CHECKSUMMED|$SELECTOR")
-              NEW_ADDRESSES+=("$CHECKSUMMED")
-            fi
+            REQUIRED_PAIRS_NORMALIZED+=("$ADDR_L|$SELECTOR_LOWER")
           fi
         done
-      else
-        # No selectors defined - add ApproveTo-Only Selector (0xffffffff) for backward compatibility
-        #
-        # Context: During migration from DexManagerFacet to WhitelistManagerFacet, the old system
-        # used simple address-based whitelisting (e.g., approve entire DEX contract). The new
-        # WhitelistManagerFacet uses granular contract-selector pairs for better security.
-        #
-        # This selector makes isAddressWhitelisted(_contract) return true for backward
-        # compatibility with legacy address-only checks, but does not allow any granular calls.
-        APPROVE_TO_SELECTOR="0xffffffff"
-        SELECTOR_LOWER="$APPROVE_TO_SELECTOR"
-        PAIR_KEY="$ADDRESS_LOWER|$SELECTOR_LOWER"
-        NORMALIZED_REQUIRED_PAIRS+=("$PAIR_KEY")
-
-        # Check if this ApproveTo-Only Selector pair is already whitelisted
-        # Use a more robust comparison by checking each normalized current pair
-        FOUND_IN_CURRENT=false
-        for NORMALIZED_CURRENT in "${NORMALIZED_CURRENT_PAIRS[@]}"; do
-          if [[ "$PAIR_KEY" == "$NORMALIZED_CURRENT" ]]; then
-            FOUND_IN_CURRENT=true
-            break
-          fi
-        done
-        
-        if [[ "$FOUND_IN_CURRENT" == "false" ]]; then
-          NEW_PAIRS+=("$CHECKSUMMED|$APPROVE_TO_SELECTOR")
-          NEW_ADDRESSES+=("$CHECKSUMMED")
-        fi
       fi
     done
 
-    echoSyncDebug "Determined ${#NEW_PAIRS[@]} new pairs to add and ${#NORMALIZED_REQUIRED_PAIRS[@]} required pairs"
+    # B. Parse V2 into normalized arrays
+    for PAIR in "${V2_PAIRS[@]}"; do
+      P_L=$(echo "$PAIR" | tr '[:upper:]' '[:lower:]')
+      V2_PAIRS_NORMALIZED+=("$P_L")
+      V2_CONTRACTS_NORMALIZED+=("${P_L%%|*}")
+      V2_SELECTORS_NORMALIZED+=("${P_L#*|}")
+    done
 
-    # Now determine pairs that need to be removed (in CURRENT_PAIRS but not in REQUIRED_PAIRS)
-    if [[ ${#CURRENT_PAIRS[@]} -gt 0 ]]; then
-      echoSyncDebug "Comparing ${#CURRENT_PAIRS[@]} current pairs against ${#NORMALIZED_REQUIRED_PAIRS[@]} required pairs"
-      
-      for CURRENT_PAIR in "${CURRENT_PAIRS[@]}"; do
-        # Normalize current pair to lowercase for comparison
-        CURRENT_PAIR_LOWER=$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')
-        
-        # Check if this pair is in the required pairs
-        FOUND_IN_REQUIRED=false
-        for REQUIRED_PAIR_NORM in "${NORMALIZED_REQUIRED_PAIRS[@]}"; do
-          if [[ "$CURRENT_PAIR_LOWER" == "$REQUIRED_PAIR_NORM" ]]; then
-            FOUND_IN_REQUIRED=true
-            break
-          fi
-        done
-        
-        # If not found in required pairs, mark for removal
-        if [[ "$FOUND_IN_REQUIRED" == "false" ]]; then
-          # Convert back to checksummed address format for removal
-          # CURRENT_PAIR format is "address|selector" (already lowercase from getCurrentWhitelistedPairs)
-          ADDRESS_PART="${CURRENT_PAIR_LOWER%%|*}"
-          SELECTOR_PART="${CURRENT_PAIR_LOWER#*|}"
-          CHECKSUMMED_ADDR=$(cast --to-checksum-address "$ADDRESS_PART")
-          REMOVED_PAIRS+=("$CHECKSUMMED_ADDR|$SELECTOR_PART")
+    # C. Determine ADDITIONS (Config - V2)
+    local TO_ADD_CONTRACTS=""
+    local TO_ADD_SELECTORS=""
+    local ADD_COUNT=0
+    
+    for PAIR_NORM in "${REQUIRED_PAIRS_NORMALIZED[@]}"; do
+      if ! isInArray "$PAIR_NORM" "${V2_PAIRS_NORMALIZED[@]}"; then
+        # It's in config, not in V2 -> ADD
+        ADDR="${PAIR_NORM%%|*}"
+        SEL="${PAIR_NORM#*|}"
+        ADDR=$(cast --to-checksum-address "$ADDR")
+        if [[ "$ADD_COUNT" -gt 0 ]]; then
+          TO_ADD_CONTRACTS+=","
+          TO_ADD_SELECTORS+=","
         fi
-      done
-    fi
+        TO_ADD_CONTRACTS+="$ADDR"
+        TO_ADD_SELECTORS+="$SEL"
+        ((ADD_COUNT++))
+      fi
+    done
 
-    # Check for token contracts in the new addresses that will be added
-    if [[ ! ${#NEW_ADDRESSES[@]} -eq 0 ]]; then
-      UNIQUE_ADDRESSES=($(printf '%s\n' "${NEW_ADDRESSES[@]}" | sort -u))
+    # D. Determine REMOVALS (The "Three Buckets" of cleanup)
+    local TO_REMOVE_CONTRACTS=""
+    local TO_REMOVE_SELECTORS=""
+    local REMOVE_COUNT=0
+    
+    function queueForRemoval {
+      local A=$1
+      local S=$2
+      A=$(cast --to-checksum-address "$A")
+      if [[ "$REMOVE_COUNT" -gt 0 ]]; then
+        TO_REMOVE_CONTRACTS+=","
+        TO_REMOVE_SELECTORS+=","
+      fi
+      TO_REMOVE_CONTRACTS+="$A"
+      TO_REMOVE_SELECTORS+="$S"
+      ((REMOVE_COUNT++))
+    }
 
-      # Detect token contracts in the new addresses
-      TOKEN_CONTRACTS=($(detectTokenContracts "$RPC_URL" "${UNIQUE_ADDRESSES[@]}"))
+    # Bucket 1: Obsolete (In V2, Not in Config)
+    for PAIR in "${V2_PAIRS[@]}"; do
+      P_L=$(echo "$PAIR" | tr '[:upper:]' '[:lower:]')
+      if ! isInArray "$P_L" "${REQUIRED_PAIRS_NORMALIZED[@]}"; then
+        queueForRemoval "${P_L%%|*}" "${P_L#*|}"
+      fi
+    done
 
-      if [[ ${#TOKEN_CONTRACTS[@]} -gt 0 ]]; then
-        if [[ "$ALLOW_TOKEN_CONTRACTS" == "true" ]]; then
-          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Token contracts detected but proceeding (ALLOW_TOKEN_CONTRACTS=true)"
-          printf '\033[0;33m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[*]}"
-        else
-          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Token contracts detected in new addresses - aborting whitelist sync"
-          printf '\033[0;31m%s\033[0m\n' "Token addresses: ${TOKEN_CONTRACTS[*]}"
-          echo ""
-          printf '\033[0;33m%s\033[0m\n' "💡 To bypass this check, set ALLOW_TOKEN_CONTRACTS=true and run again:"
-          echo ""
-          {
-            echo "[$NETWORK] Error: Token contracts detected in new addresses"
-            echo "[$NETWORK] Token addresses: ${TOKEN_CONTRACTS[*]}"
-          } >> "$FAILED_LOG_FILE"
-          return
+    # Bucket 2: Zombie Contracts (In V1, Not in V2)
+    for C in "${V1_CONTRACTS[@]}"; do
+      C_L=$(echo "$C" | tr '[:upper:]' '[:lower:]')
+      if ! isInArray "$C_L" "${V2_CONTRACTS_NORMALIZED[@]}"; then
+        echoSyncDebug "Found Zombie Contract: $C"
+        # We attach dummy selector to flush it
+        queueForRemoval "$C_L" "0xffffffff"
+      fi
+    done
+
+    # Bucket 3: Zombie Selectors (In V1, Not in V2)
+    # For zombie selectors, we need a valid contract address to attach them to
+    # Use a core facet address (cannot use diamond address due to CannotAuthoriseSelf)
+    local DUMMY_CONTRACT_FOR_SELECTORS=""
+    local CORE_FACETS=($(getCoreFacetsArray 2>/dev/null))
+    if [[ ${#CORE_FACETS[@]} -gt 0 ]]; then
+      # Use the first core facet (e.g., DiamondCutFacet, DiamondLoupeFacet, etc.)
+      local FIRST_CORE_FACET="${CORE_FACETS[0]}"
+      DUMMY_CONTRACT_FOR_SELECTORS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FIRST_CORE_FACET" 2>/dev/null)
+      if [[ -z "$DUMMY_CONTRACT_FOR_SELECTORS" || "$DUMMY_CONTRACT_FOR_SELECTORS" == "null" ]]; then
+        # Fallback: try to get any valid contract from V2 pairs
+        if [[ ${#V2_PAIRS[@]} -gt 0 ]]; then
+          DUMMY_CONTRACT_FOR_SELECTORS=$(echo "${V2_PAIRS[0]}" | cut -d'|' -f1 | tr '[:upper:]' '[:lower:]')
+          DUMMY_CONTRACT_FOR_SELECTORS=$(cast --to-checksum-address "$DUMMY_CONTRACT_FOR_SELECTORS" 2>/dev/null || echo "$DUMMY_CONTRACT_FOR_SELECTORS")
         fi
       fi
+    else
+      # Fallback: use first contract from V2 pairs if core facets not available
+      if [[ ${#V2_PAIRS[@]} -gt 0 ]]; then
+        DUMMY_CONTRACT_FOR_SELECTORS=$(echo "${V2_PAIRS[0]}" | cut -d'|' -f1 | tr '[:upper:]' '[:lower:]')
+        DUMMY_CONTRACT_FOR_SELECTORS=$(cast --to-checksum-address "$DUMMY_CONTRACT_FOR_SELECTORS" 2>/dev/null || echo "$DUMMY_CONTRACT_FOR_SELECTORS")
+      fi
+    fi
+    
+    # If we still don't have a valid contract, skip zombie selector cleanup
+    if [[ -z "$DUMMY_CONTRACT_FOR_SELECTORS" || "$DUMMY_CONTRACT_FOR_SELECTORS" == "null" ]]; then
+      echoSyncDebug "Warning: Could not find valid contract for zombie selector cleanup, skipping..."
+    else
+      for S in "${V1_SELECTORS[@]}"; do
+        S_L=$(echo "$S" | tr '[:upper:]' '[:lower:]')
+        # Skip invalid selectors (0x00000000) that would cause InvalidCallData error
+        if [[ "$S_L" == "0x00000000" ]]; then
+          echoSyncDebug "Skipping invalid zombie selector: $S"
+          continue
+        fi
+        if ! isInArray "$S_L" "${V2_SELECTORS_NORMALIZED[@]}"; then
+          echoSyncDebug "Found Zombie Selector: $S"
+          # We attach a core facet address to flush the zombie selector from V1 state
+          queueForRemoval "$DUMMY_CONTRACT_FOR_SELECTORS" "$S_L"
+        fi
+      done
     fi
 
-    # Remove obsolete contract-selector pairs (process removals first)
-    if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
-      echoSyncStage "----- [$NETWORK] Stage 4a: Removing obsolete contract-selector pairs -----"
-      printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#REMOVED_PAIRS[@]} pairs to remove (no longer in whitelist files)"
-      echoSyncStep "🔍 [$NETWORK] Preparing removal transaction with ${#REMOVED_PAIRS[@]} pairs"
+    # ------------------------------------------------------------
+    # EXECUTION: BATCH TRANSACTIONS
+    # ------------------------------------------------------------
+
+    # 1. PROCESS REMOVALS (Add -> Remove Pattern for safety)
+    if [[ "$REMOVE_COUNT" -gt 0 ]]; then
+      echoSyncStage "----- [$NETWORK] Stage 4a: Processing $REMOVE_COUNT removals (safe mode: add-then-remove) -----"
       
-      # Build comma-separated strings directly in cast format
-      local REMOVE_CONTRACTS_ARRAY=""
-      local REMOVE_SELECTORS_ARRAY=""
-      local REMOVE_COUNT=0
+      # Step A: TEMP ADD (Fix broken states)
+      echoSyncStep "🔄 [$NETWORK] Step 1/2: Temp adding pairs to fix broken states..."
+      local ADD_TX_OUTPUT
+      ADD_TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$TO_REMOVE_CONTRACTS]" "[$TO_REMOVE_SELECTORS]" true --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
+      local ADD_TX_EXIT_CODE=$?
 
-      echoSyncStep "🔄 [$NETWORK] Processing pairs for removal..."
-      local first=true
-      for PAIR in "${REMOVED_PAIRS[@]}"; do
-        # Split pair by '|' to get address and selector
-        CHECKSUMMED_ADDRESS="${PAIR%%|*}"
-        SELECTOR="${PAIR#*|}"
-
-        if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
-          if [[ "$first" == "true" ]]; then
-            first=false
-          else
-            REMOVE_CONTRACTS_ARRAY+=","
-            REMOVE_SELECTORS_ARRAY+=","
-          fi
-          REMOVE_CONTRACTS_ARRAY+="$CHECKSUMMED_ADDRESS"
-          REMOVE_SELECTORS_ARRAY+="$SELECTOR"
-          ((REMOVE_COUNT++))
-        fi
-      done
-      echoSyncStep "✔️  [$NETWORK] Processed $REMOVE_COUNT pairs for removal"
-
-      echoSyncDebug "Removal batch call parameters:"
-      echoSyncDebug "Contracts: $REMOVE_CONTRACTS_ARRAY"
-      echoSyncDebug "Selectors: $REMOVE_SELECTORS_ARRAY"
-
-      echoSyncStep ""
-      echoSyncStep "🚀 [$NETWORK] Starting removal transaction attempts..."
-      local REMOVE_ATTEMPTS=1
-      local REMOVE_SUCCESS=false
-      
-      while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
-
-        local REMOVE_TX_OUTPUT
-        REMOVE_TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" false --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
-        local REMOVE_TX_EXIT_CODE=$?
-
-        # Print transaction output for debugging (single-network runs only)
-        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-          echo "$REMOVE_TX_OUTPUT"
-        fi
-
-        # Check if transaction succeeded
-        if [[ $REMOVE_TX_EXIT_CODE -eq 0 ]] && ([[ "$REMOVE_TX_OUTPUT" == *"blockHash"* ]] || [[ "$REMOVE_TX_OUTPUT" == *"transactionHash"* ]]); then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal transaction successful!"
-          REMOVE_SUCCESS=true
-          break
-        else
-          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal transaction failed (attempt $REMOVE_ATTEMPTS)"
-        fi
-
-        REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
-      done
-
-      if [[ "$REMOVE_SUCCESS" == "false" ]]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not remove ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
-        {
-          echo "[$NETWORK] Error: Could not remove obsolete pairs"
-          echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[*]}"
-          echo ""
-        } >> "$FAILED_LOG_FILE"
-        # Continue with additions even if removals failed
-      else
-        # Brief wait for state to propagate after removal
+      if [[ $ADD_TX_EXIT_CODE -eq 0 ]] && ([[ "$ADD_TX_OUTPUT" == *"blockHash"* ]] || [[ "$ADD_TX_OUTPUT" == *"transactionHash"* ]]); then
+        echoSyncDebug "Temp add successful"
         sleep 2
-      fi
-    fi
-
-    # Add missing contract-selector pairs
-    if [[ ${#NEW_PAIRS[@]} -gt 0 ]]; then
-      if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
-        echoSyncStage "----- [$NETWORK] Stage 4b: Adding missing contract-selector pairs -----"
       else
-        echoSyncStage "----- [$NETWORK] Stage 4: Preparing and sending whitelist transactions -----"
+        echoSyncDebug "Temp add failed (may be expected for some broken states): $ADD_TX_OUTPUT"
+        # Continue anyway - some pairs may already be in correct state
       fi
-      printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#NEW_PAIRS[@]} new pairs to add (out of ${#REQUIRED_PAIRS[@]} required)"
-      echoSyncStep "🔍 [$NETWORK] Entering batch send section with ${#NEW_PAIRS[@]} pairs"
-      # Build comma-separated strings directly in cast format
-      # batchSetContractSelectorWhitelist expects: address[], bytes4[], bool
-      # where each address corresponds to one selector
-      local CONTRACTS_ARRAY=""
-      local SELECTORS_ARRAY=""
-      local PAIR_COUNT=0
 
-      echoSyncStep "🔄 [$NETWORK] Processing pairs..."
-      local first=true
-      for PAIR in "${NEW_PAIRS[@]}"; do
-        # Split pair by '|' to get address and selector(s)
-        CHECKSUMMED_ADDRESS="${PAIR%%|*}"
-        SELECTORS_STR="${PAIR#*|}"
-
-        # Handle multiple selectors (comma-separated)
-        # Each selector needs its own contract-address pair for batchSetContractSelectorWhitelist
-        if [[ -n "$SELECTORS_STR" && "$SELECTORS_STR" != "" ]]; then
-          # Split selectors by comma
-          local SELECTOR_ARRAY=($(echo "$SELECTORS_STR" | tr ',' ' '))
-          for SEL in "${SELECTOR_ARRAY[@]}"; do
-            if [[ -n "$SEL" && "$SEL" != "" ]]; then
-              if [[ "$first" == "true" ]]; then
-                first=false
-              else
-                CONTRACTS_ARRAY+=","
-                SELECTORS_ARRAY+=","
-              fi
-              CONTRACTS_ARRAY+="$CHECKSUMMED_ADDRESS"
-              SELECTORS_ARRAY+="$SEL"
-              ((PAIR_COUNT++))
-            fi
-          done
-        fi
-      done
-      echoSyncStep "✔️  [$NETWORK] Processed $PAIR_COUNT pairs"
-      echoSyncStep "📝 [$NETWORK] Prepared batch call arrays"
-      echoSyncDebug "Batch call parameters:"
-      echoSyncDebug "Contracts: $CONTRACTS_ARRAY"
-      echoSyncDebug "Selectors: $SELECTORS_ARRAY"
-
-      echoSyncStep ""
-      echoSyncStep "🚀 [$NETWORK] Starting transaction attempts..."
-      local ATTEMPTS=1
-      while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        # Use batchSetContractSelectorWhitelist for efficiency
-        # This function is idempotent - calling it multiple times with same pairs is safe
-        # but inefficient. We call it once with ALL pairs.
-        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $ATTEMPTS: Calling batchSetContractSelectorWhitelist with $PAIR_COUNT pairs"
-
-        # Capture transaction output to check if it succeeded
-        local TX_OUTPUT
-        echoSyncDebug "CONTRACTS_ARRAY: $CONTRACTS_ARRAY"
-        echoSyncDebug "SELECTORS_ARRAY: $SELECTORS_ARRAY"
-        TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_ARRAY]" "[$SELECTORS_ARRAY]" true --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
-        local TX_EXIT_CODE=$?
-
-        # Print transaction output for debugging (single-network runs only)
-        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-          echo "$TX_OUTPUT"
-        fi
-
-        # Check if transaction succeeded (exit code 0 and contains "blockHash")
-        if [[ $TX_EXIT_CODE -eq 0 ]] && ([[ "$TX_OUTPUT" == *"blockHash"* ]] || [[ "$TX_OUTPUT" == *"transactionHash"* ]]); then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Transaction successful!"
-
-          # Check if any events were emitted (indicates new pairs were added)
-          local NEW_PAIRS_ADDED=false
-          if [[ "$TX_OUTPUT" == *"logs"* ]] && [[ "$TX_OUTPUT" != *"logs                 []"* ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Transaction emitted events - new pairs were added"
-            NEW_PAIRS_ADDED=true
-          else
-            printf '\033[0;36m%s\033[0m\n' "ℹ️  [$NETWORK] No events emitted - all pairs were already whitelisted (idempotent)"
-          fi
-
-          # Verify by calling getAllContractSelectorPairs() to confirm the state
-          echo ""
-          printf '\033[0;36m%s\033[0m\n' "🔍 [$NETWORK] Verifying whitelist state by calling getAllContractSelectorPairs()..."
-          sleep 2  # Brief wait for state to propagate
-
-          UPDATED_PAIRS=($(getCurrentWhitelistedPairs))
-          local verify_exit_code=$?
-
-          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-            echo "DEBUG: Got ${#UPDATED_PAIRS[@]} pairs from getCurrentWhitelistedPairs"
-            echo "DEBUG: First 5 UPDATED_PAIRS:"
-            for i in 0 1 2 3 4; do
-              if [[ $i -lt ${#UPDATED_PAIRS[@]} ]]; then
-                echo "  [$i]: ${UPDATED_PAIRS[$i]}"
-              fi
-            done
-          fi
-
-          if [[ $verify_exit_code -ne 0 ]]; then
-            printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Could not verify whitelist state (getAllContractSelectorPairs failed)"
-            printf '\033[0;36m%s\033[0m\n' "💡 Transaction succeeded but verification skipped - pairs should be whitelisted"
-            return 0
-          fi
-
-          # Verify pairs were added correctly
-          # NEW_PAIRS format: array of "address|selector" strings
-          # UPDATED_PAIRS format: array of "address|selector" strings (from getCurrentWhitelistedPairs)
-          # Both can be in different orders, so we need exact matching
-
-          local VERIFIED_COUNT=0
-          local MISSING_COUNT=0
-
-          # Normalize both arrays to lowercase for comparison
-          local NORMALIZED_NEW=()
-          for pair in "${NEW_PAIRS[@]}"; do
-            NORMALIZED_NEW+=("$(echo "$pair" | tr '[:upper:]' '[:lower:]')")
-          done
-
-          local NORMALIZED_UPDATED=()
-          for pair in "${UPDATED_PAIRS[@]}"; do
-            NORMALIZED_UPDATED+=("$(echo "$pair" | tr '[:upper:]' '[:lower:]')")
-          done
-
-          # Optional verbose debug info only for single-network runs
-          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-            echo ""
-            echo "=== VERIFICATION DEBUG ==="
-            echo "Comparing ${#NEW_PAIRS[@]} NEW_PAIRS against ${#UPDATED_PAIRS[@]} UPDATED_PAIRS"
-            echo ""
-
-            # Show sample of what we're comparing (first 3 from each array)
-            echo "Sample NEW_PAIRS (first 3):"
-            for i in 0 1 2; do
-              if [[ $i -lt ${#NORMALIZED_NEW[@]} ]]; then
-                echo "  NEW[$i]: ${NORMALIZED_NEW[$i]}"
-              fi
-            done
-            echo ""
-            echo "Sample UPDATED_PAIRS (first 3):"
-            for i in 0 1 2; do
-              if [[ $i -lt ${#NORMALIZED_UPDATED[@]} ]]; then
-                echo "  UPDATED[$i]: ${NORMALIZED_UPDATED[$i]}"
-              fi
-            done
-            echo ""
-          fi
-
-          # Check each NEW pair against UPDATED pairs
-          local checked_count=0
-          for new_pair in "${NORMALIZED_NEW[@]}"; do
-            local FOUND=false
-
-            # Show detailed comparison for first 3 pairs (single-network runs only)
-            if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]] && [[ $checked_count -lt 3 ]]; then
-              echo "Checking NEW pair [$checked_count]: '$new_pair'"
-              echo "  Searching in ${#NORMALIZED_UPDATED[@]} UPDATED pairs..."
-            fi
-
-            # Search for exact match in UPDATED_PAIRS
-            for updated_pair in "${NORMALIZED_UPDATED[@]}"; do
-              if [[ "$new_pair" == "$updated_pair" ]]; then
-                FOUND=true
-                if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]] && [[ $checked_count -lt 3 ]]; then
-                  echo "  ✓ FOUND exact match: '$updated_pair'"
-                fi
-                break
-              fi
-            done
-
-            if [[ "$FOUND" == "true" ]]; then
-              ((VERIFIED_COUNT++))
-            else
-              ((MISSING_COUNT++))
-              if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]] && [[ $MISSING_COUNT -le 5 ]]; then
-                echo "❌ MISSING PAIR: $new_pair"
-                echo "   (not found in any of the ${#NORMALIZED_UPDATED[@]} UPDATED pairs)"
-              fi
-              echoSyncDebug "Missing pair: $new_pair"
-            fi
-
-            ((checked_count++))
-          done
-
-          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-            if [[ $MISSING_COUNT -gt 5 ]]; then
-              echo "... and $((MISSING_COUNT - 5)) more missing pairs"
-            fi
-
-            echo ""
-            echo "=== END VERIFICATION DEBUG ==="
-            echo ""
-          fi
-
-          # Report verification results
-          if [[ $MISSING_COUNT -eq 0 ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Verified: All ${#NEW_PAIRS[@]} contract-selector pairs are whitelisted"
-            return 0
-          elif [[ $VERIFIED_COUNT -gt 0 ]]; then
-            printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Partial verification: $VERIFIED_COUNT/${#NEW_PAIRS[@]} pairs confirmed whitelisted"
-            printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] $MISSING_COUNT pairs not found in whitelist (may be case sensitivity or formatting issue)"
-            return 0
-          else
-            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Verification failed: None of the ${#NEW_PAIRS[@]} pairs found in whitelist"
-            printf '\033[0;33m%s\033[0m\n' "⚠️  This may indicate a transaction revert or state sync issue"
-            # Don't retry - transaction succeeded, this is likely a verification issue
-            return 0
-          fi
+      # Step B: PERMANENT REMOVE
+      echoSyncStep "🗑️  [$NETWORK] Step 2/2: Permanently removing pairs..."
+      local REMOVE_TX_OUTPUT
+      REMOVE_TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$TO_REMOVE_CONTRACTS]" "[$TO_REMOVE_SELECTORS]" false --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
+      local REMOVE_TX_EXIT_CODE=$?
+      
+      # Extract transaction hash from output
+      local REMOVE_TX_HASH=""
+      if [[ "$REMOVE_TX_OUTPUT" =~ transactionHash[[:space:]]*0x([0-9a-fA-F]{64}) ]]; then
+        REMOVE_TX_HASH="0x${BASH_REMATCH[1]}"
+      elif [[ "$REMOVE_TX_OUTPUT" =~ 0x([0-9a-fA-F]{64}) ]]; then
+        REMOVE_TX_HASH="${BASH_REMATCH[0]}"
+      fi
+      
+      if [[ $REMOVE_TX_EXIT_CODE -eq 0 ]] && [[ -n "$REMOVE_TX_HASH" ]]; then
+        # Wait for transaction to be mined and check receipt
+        sleep 3
+        local REMOVE_TX_RECEIPT
+        REMOVE_TX_RECEIPT=$(cast receipt "$REMOVE_TX_HASH" --rpc-url "$RPC_URL" 2>&1)
+        local REMOVE_RECEIPT_EXIT_CODE=$?
+        
+        if [[ $REMOVE_RECEIPT_EXIT_CODE -eq 0 ]] && [[ "$REMOVE_TX_RECEIPT" != *"reverted"* ]] && [[ "$REMOVE_TX_RECEIPT" != *"status"*"0x0"* ]]; then
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful ($REMOVE_COUNT pairs)"
+          sleep 2
         else
-          # Transaction failed - retry
-          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Transaction failed (attempt $ATTEMPTS)"
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal transaction reverted"
+          echoSyncDebug "Transaction hash: $REMOVE_TX_HASH"
+          echoSyncDebug "Receipt: $REMOVE_TX_RECEIPT"
+          {
+            echo "[$NETWORK] Error: Removal transaction reverted"
+            echo "[$NETWORK] Transaction: $REMOVE_TX_HASH"
+            echo "[$NETWORK] Pairs: $REMOVE_COUNT"
+            echo "[$NETWORK] Receipt: $REMOVE_TX_RECEIPT"
+            echo ""
+          } >> "$FAILED_LOG_FILE"
         fi
-
-        ATTEMPTS=$((ATTEMPTS + 1))
-      done
-
-      if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] - Could not whitelist all ${#NEW_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+      else
+        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal failed to send"
+        echoSyncDebug "Output: $REMOVE_TX_OUTPUT"
         {
-          echo "[$NETWORK] Error: Could not whitelist all pairs"
-          echo "[$NETWORK] Missing pairs: ${NEW_PAIRS[*]}"
+          echo "[$NETWORK] Error: Removal failed to send"
+          echo "[$NETWORK] Pairs: $REMOVE_COUNT"
+          echo "[$NETWORK] Output: $REMOVE_TX_OUTPUT"
           echo ""
         } >> "$FAILED_LOG_FILE"
       fi
     else
-      if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
-        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were removed"
+      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No stale/obsolete pairs found"
+    fi
+
+    # 2. PROCESS ADDITIONS (Standard)
+    if [[ "$ADD_COUNT" -gt 0 ]]; then
+      echoSyncStage "----- [$NETWORK] Stage 4b: Adding $ADD_COUNT new pairs -----"
+      
+      # Use batch processing for large batches to avoid gas limits and identify failing pairs
+      local BATCH_RESULT
+      BATCH_RESULT=$(processBatchInChunks "$TO_ADD_CONTRACTS" "$TO_ADD_SELECTORS" "true" "$ADD_COUNT")
+      local SUCCESS_COUNT=$(echo "$BATCH_RESULT" | cut -d'|' -f1)
+      local FAIL_COUNT=$(echo "$BATCH_RESULT" | cut -d'|' -f2)
+      
+      # Ensure SUCCESS_COUNT and FAIL_COUNT are numeric (handle cases where function returns error text)
+      if ! [[ "$SUCCESS_COUNT" =~ ^[0-9]+$ ]]; then
+        SUCCESS_COUNT=0
+      fi
+      if ! [[ "$FAIL_COUNT" =~ ^[0-9]+$ ]]; then
+        FAIL_COUNT=0
+      fi
+      
+      if [[ $SUCCESS_COUNT -gt 0 ]]; then
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Additions successful ($SUCCESS_COUNT/$ADD_COUNT pairs)"
+        
+        if [[ $FAIL_COUNT -gt 0 ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] $FAIL_COUNT pairs failed (check failed log for details)"
+        fi
+
+        # Verify by calling getAllContractSelectorPairs() to confirm the state
+        echo ""
+        printf '\033[0;36m%s\033[0m\n' "🔍 [$NETWORK] Verifying whitelist state..."
+        sleep 3  # Wait for state to propagate
+
+        local UPDATED_PAIRS=($(getCurrentWhitelistedPairs))
+        local verify_exit_code=$?
+
+        if [[ $verify_exit_code -eq 0 ]]; then
+          # Check if all required pairs are now present
+          local VERIFIED_COUNT=0
+          local MISSING_COUNT=0
+
+          # Build normalized array of updated pairs for lookup
+          local UPDATED_PAIRS_NORMALIZED=()
+          for pair in "${UPDATED_PAIRS[@]}"; do
+            UPDATED_PAIRS_NORMALIZED+=("$(echo "$pair" | tr '[:upper:]' '[:lower:]')")
+          done
+
+          # Check each required pair
+          for PAIR_NORM in "${REQUIRED_PAIRS_NORMALIZED[@]}"; do
+            if isInArray "$PAIR_NORM" "${UPDATED_PAIRS_NORMALIZED[@]}"; then
+              ((VERIFIED_COUNT++))
+            else
+              ((MISSING_COUNT++))
+            fi
+          done
+
+          if [[ $MISSING_COUNT -eq 0 ]]; then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Verified: All required pairs are whitelisted"
+          elif [[ $VERIFIED_COUNT -gt 0 ]]; then
+            printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Partial verification: $VERIFIED_COUNT/${#REQUIRED_PAIRS_NORMALIZED[@]} pairs confirmed"
+            if [[ $FAIL_COUNT -gt 0 ]]; then
+              echoSyncDebug "Some pairs failed to add. Check failed log for details."
+            fi
+          else
+            printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Verification incomplete (may be timing issue or transaction failures)"
+          fi
+        else
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Could not verify whitelist state"
+        fi
       else
-        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Skipped - all contract-selector pairs are already whitelisted and no obsolete pairs found"
+        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] All additions failed"
+        {
+          echo "[$NETWORK] Error: All additions failed"
+          echo "[$NETWORK] Total pairs attempted: $ADD_COUNT"
+          echo ""
+        } >> "$FAILED_LOG_FILE"
+      fi
+    else
+      if [[ "$REMOVE_COUNT" -gt 0 ]]; then
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but $REMOVE_COUNT obsolete/stale pairs were removed"
+      else
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Skipped - all contract-selector pairs are already whitelisted"
       fi
     fi
   }
