@@ -4,21 +4,27 @@ import { consola } from 'consola'
 import { config } from 'dotenv'
 import {
   decodeFunctionData,
+  encodeFunctionData,
   erc20Abi,
+  formatUnits,
   getContract,
   parseAbi,
+  parseUnits,
   zeroAddress,
   type Abi,
 } from 'viem'
 
 import acrossV4SwapConfig from '../../config/across-v4-swap.json'
 import networks from '../../config/networks.json'
+import arbitrumProductionDeployments from '../../deployments/arbitrum.json'
+import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
 import acrossV4SwapFacetArtifact from '../../out/AcrossV4SwapFacet.sol/AcrossV4SwapFacet.json'
 import type {
   AcrossV4SwapFacet,
   ILiFi,
   ISpokePoolPeriphery,
 } from '../../typechain'
+import type { LibSwap } from '../../typechain/GenericSwapFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 
 import {
@@ -31,7 +37,20 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
+// Import deployment files for FeeCollector addresses
+
 config()
+
+// ==========================================================================================================
+// CLI FLAGS
+// ==========================================================================================================
+// --collect-fee: Enable fee collection via FeeCollector before bridging
+const COLLECT_FEE = process.argv.includes('--collect-fee')
+
+// FeeCollector ABI for encoding collectTokenFees call
+const FEE_COLLECTOR_ABI = parseAbi([
+  'function collectTokenFees(address tokenAddress, uint256 integratorFee, uint256 lifiFee, address integratorAddress)',
+])
 
 // ==========================================================================================================
 // ACROSS V4 SWAP FACET DEMO SCRIPT
@@ -57,6 +76,9 @@ config()
 // EXAMPLE SUCCESSFUL TRANSACTIONS:
 // - Source (Arbitrum): https://arbiscan.io/tx/0xb94bba8ae2fca41e8aacc41279829bf74d1bd94af77a8e753cca627bb66dbb9e
 // - Destination (Optimism): https://optimistic.etherscan.io/tx/0xc61365d4a1d5ef4cddc6693f725e523a97da9a1c4a99d2766b359454cb8b8283
+// - With Fee Collection (--collect-fee):
+//   - Source (Arbitrum): https://arbiscan.io/tx/0xd6dcb70d742fc6f1d12cc04fe667c395005378d8bd2059c621b2af495d50cebc
+//   - Destination (Optimism): https://optimistic.etherscan.io/tx/0x49824eef459b458b4ea6166de24d7dc863078cefac9f9fbdbf1a51a9420c2afb
 //
 // IMPORTANT: This demo uses WETH -> USDC route to trigger an "anyToBridgeable" swap type.
 // For direct bridgeable-to-bridgeable routes (USDC -> USDC), use AcrossV4 facet instead.
@@ -300,6 +322,19 @@ const fromAmount = 1000000000000000n // 0.001 WETH
 // Environment: staging or production
 const ENVIRONMENT = EnvironmentEnum.staging
 
+// Fee collection configuration (only used when --collect-fee flag is passed)
+// Fees are split between integrator and LiFi protocol
+const INTEGRATOR_FEE = parseUnits('0.0001', 18) // 0.0001 WETH
+const LIFI_FEE = parseUnits('0.00005', 18) // 0.00005 WETH
+
+// Get FeeCollector address based on environment
+const getFeeCollectorAddress = (environment: EnvironmentEnum): string => {
+  if (environment === EnvironmentEnum.staging) {
+    return arbitrumStagingDeployments.FeeCollector
+  }
+  return arbitrumProductionDeployments.FeeCollector
+}
+
 // Get config elements using helper
 const SPOKE_POOL_PERIPHERY = getConfigElement(
   acrossV4SwapConfig,
@@ -533,9 +568,24 @@ async function main() {
       Number(bridgeStep.fees.pct) / 1e16
     ).toFixed(4)}%)`
   )
+
+  // Show fee collection info if enabled
+  if (COLLECT_FEE) {
+    consola.info('------------------------------------------')
+    consola.info('Fee Collection Enabled:')
+    consola.info(`  Integrator Fee: ${formatUnits(INTEGRATOR_FEE, 18)} WETH`)
+    consola.info(`  LiFi Fee: ${formatUnits(LIFI_FEE, 18)} WETH`)
+    consola.info(
+      `  Total Fees: ${formatUnits(INTEGRATOR_FEE + LIFI_FEE, 18)} WETH`
+    )
+  }
   consola.info('==========================================\n')
 
-  // Step 7: Check balance and allowance
+  // Step 7: Calculate amounts and prepare fee collection if enabled
+  const totalFees = COLLECT_FEE ? INTEGRATOR_FEE + LIFI_FEE : 0n
+  const totalAmount = fromAmount + totalFees
+
+  // Step 8: Check balance and allowance
   consola.info('Step 6: Checking balance and allowance...')
 
   // Create token contract for balance/allowance checks
@@ -545,33 +595,85 @@ async function main() {
     client: { public: publicClient, wallet: walletClient },
   })
 
-  // Ensure sufficient balance
-  await ensureBalance(tokenContract, walletAddress, fromAmount, publicClient)
+  // Ensure sufficient balance (including fees if collecting)
+  await ensureBalance(tokenContract, walletAddress, totalAmount, publicClient)
 
-  // Ensure allowance to diamond
+  // Ensure allowance to diamond (including fees if collecting)
   await ensureAllowance(
     tokenContract,
     walletAddress,
     lifiDiamondAddress as string,
-    fromAmount,
+    totalAmount,
     publicClient
   )
 
   consola.info('  Balance and allowance OK\n')
 
-  // Step 8: Execute transaction
+  // Step 9: Execute transaction
   consola.info('Step 7: Executing transaction...')
 
-  await executeTransaction(
-    () =>
-      (lifiDiamondContract as any).write.startBridgeTokensViaAcrossV4Swap([
-        bridgeData,
-        acrossV4SwapData,
-      ]),
-    'Starting bridge tokens via AcrossV4Swap',
-    publicClient,
-    true
-  )
+  if (COLLECT_FEE) {
+    // Get FeeCollector address based on environment
+    const feeCollectorAddress = getFeeCollectorAddress(ENVIRONMENT)
+    consola.info(`  Using FeeCollector: ${feeCollectorAddress}`)
+
+    // Prepare fee collection swap data
+    // This "swap" doesn't actually swap tokens - it collects fees to FeeCollector
+    // and leaves the remaining tokens in the Diamond for the bridge
+    const feeCollectionSwapData: LibSwap.SwapDataStruct = {
+      callTo: feeCollectorAddress,
+      approveTo: feeCollectorAddress,
+      sendingAssetId: INPUT_TOKEN,
+      receivingAssetId: INPUT_TOKEN, // Same token - just collecting fees
+      fromAmount: totalAmount,
+      callData: encodeFunctionData({
+        abi: FEE_COLLECTOR_ABI,
+        functionName: 'collectTokenFees',
+        args: [
+          INPUT_TOKEN, // tokenAddress
+          INTEGRATOR_FEE, // integratorFee
+          LIFI_FEE, // lifiFee
+          walletAddress, // integratorAddress (user receives integrator fees)
+        ],
+      }),
+      requiresDeposit: true,
+    }
+
+    // Update bridgeData for swap flow
+    // minAmount should be fromAmount (amount AFTER fees are deducted)
+    // because that's what will be available for bridging after fee collection
+    const bridgeDataWithSwap: ILiFi.BridgeDataStruct = {
+      ...bridgeData,
+      minAmount: fromAmount, // Amount after fees - what reaches the bridge
+      hasSourceSwaps: true, // Required for swapAndStart function
+    }
+
+    await executeTransaction(
+      () =>
+        (
+          lifiDiamondContract as any
+        ).write.swapAndStartBridgeTokensViaAcrossV4Swap([
+          bridgeDataWithSwap,
+          [feeCollectionSwapData],
+          acrossV4SwapData,
+        ]),
+      'Starting bridge with fee collection via AcrossV4Swap',
+      publicClient,
+      true
+    )
+  } else {
+    // No fee collection - use the simple start function
+    await executeTransaction(
+      () =>
+        (lifiDiamondContract as any).write.startBridgeTokensViaAcrossV4Swap([
+          bridgeData,
+          acrossV4SwapData,
+        ]),
+      'Starting bridge tokens via AcrossV4Swap',
+      publicClient,
+      true
+    )
+  }
 
   consola.info('\n==========================================')
   consola.info('  TRANSACTION SUCCESSFUL!')
