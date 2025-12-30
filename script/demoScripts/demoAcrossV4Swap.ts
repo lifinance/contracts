@@ -586,7 +586,7 @@ async function main() {
   const totalAmount = fromAmount + totalFees
 
   // Step 8: Check balance and allowance
-  consola.info('Step 6: Checking balance and allowance...')
+  consola.info('Step 8: Checking balance and allowance...')
 
   // Create token contract for balance/allowance checks
   const tokenContract = getContract({
@@ -610,7 +610,7 @@ async function main() {
   consola.info('  Balance and allowance OK\n')
 
   // Step 9: Execute transaction
-  consola.info('Step 7: Executing transaction...')
+  consola.info('Step 9: Executing transaction...')
 
   let txHash: string | null = null
 

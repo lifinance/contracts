@@ -9,7 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InformationMismatch, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title AcrossV4SwapFacet
 /// @author LI.FI (https://li.fi)
@@ -132,6 +132,22 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         AcrossV4SwapData memory _acrossV4SwapData
     ) internal {
+        // Validate destination chain IDs match
+        if (
+            _acrossV4SwapData.depositData.destinationChainId !=
+            _bridgeData.destinationChainId
+        ) {
+            revert InformationMismatch();
+        }
+
+        // Validate recipient matches for EVM destinations
+        if (
+            _convertAddressToBytes32(_bridgeData.receiver) !=
+            _acrossV4SwapData.depositData.recipient
+        ) {
+            revert InvalidReceiver();
+        }
+
         // Approve the periphery to spend tokens
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
@@ -166,5 +182,14 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Call the periphery's swapAndBridge function
         SPOKE_POOL_PERIPHERY.swapAndBridge(swapAndDepositData);
+    }
+
+    /// @notice Converts an address to bytes32
+    /// @param _address The address to convert
+    /// @return The address as bytes32
+    function _convertAddressToBytes32(
+        address _address
+    ) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(_address)));
     }
 }
