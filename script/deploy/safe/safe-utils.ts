@@ -992,23 +992,6 @@ export async function storeTransactionInMongoDB(
     safeTx.data.operation
   )
 
-  // Check for existing pending proposal with same intent
-  const existing = await pendingTransactions.findOne({
-    intentHash,
-    status: 'pending',
-  })
-
-  if (existing) {
-    consola.warn(
-      `Duplicate pending proposal detected - skipping storage.\n` +
-        `  Intent hash: ${intentHash}\n` +
-        `  Existing proposal ID: ${existing._id}\n` +
-        `  Created at: ${existing.timestamp}\n` +
-        `  SafeTxHash: ${existing.safeTxHash}`
-    )
-    return null
-  }
-
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
@@ -1022,9 +1005,59 @@ export async function storeTransactionInMongoDB(
   } satisfies ISafeTxDocument
 
   return retry(async () => {
-    const insertResult = await pendingTransactions.insertOne(txDoc)
-    return insertResult
+    try {
+      const insertResult = await pendingTransactions.insertOne(txDoc)
+      return insertResult
+    } catch (error: unknown) {
+      // E11000 = MongoDB duplicate key error (from partial unique index on intentHash + pending status)
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code: number }).code === 11000
+      ) {
+        consola.warn(
+          `Duplicate pending proposal detected - skipping storage.\n` +
+            `  Intent hash: ${intentHash}`
+        )
+        return null
+      }
+      throw error
+    }
   })
+}
+
+/**
+ * Ensures the partial unique index exists on intentHash for pending proposals
+ * This index guarantees no duplicate pending proposals can exist at the database level
+ * @param pendingTransactions - MongoDB collection
+ */
+async function ensurePendingProposalIndex(
+  pendingTransactions: Collection<ISafeTxDocument>
+): Promise<void> {
+  try {
+    await pendingTransactions.createIndex(
+      { intentHash: 1 },
+      {
+        unique: true,
+        partialFilterExpression: {
+          status: 'pending',
+          intentHash: { $exists: true },
+        },
+        name: 'unique_pending_intent_hash',
+      }
+    )
+  } catch (error: unknown) {
+    // Index already exists with same options - this is fine
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code: number }).code === 85
+    ) {
+      return
+    }
+    // For other errors, log but don't fail - the application-level check still works
+    consola.warn('Failed to create pending proposal index:', error)
+  }
 }
 
 /**
@@ -1074,6 +1107,9 @@ export async function getSafeMongoCollection(): Promise<{
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )
+
+  // Ensure the partial unique index exists for duplicate prevention
+  await ensurePendingProposalIndex(pendingTransactions)
 
   return { client, pendingTransactions }
 }
