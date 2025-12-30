@@ -55,7 +55,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -141,7 +142,8 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -294,7 +296,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
