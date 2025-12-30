@@ -11,6 +11,7 @@ import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import {
   decodeFunctionData,
+  getAddress,
   parseAbi,
   type Abi,
   type Account,
@@ -19,6 +20,8 @@ import {
 } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 
 import type { ILedgerAccountResult } from './ledger'
@@ -47,6 +50,60 @@ dotenv.config()
 
 const storedResponses: Record<string, string> = {}
 
+/**
+ * Gets the name of a target address by matching it against known contracts
+ * @param address - The address to look up
+ * @param network - The network name
+ * @returns The contract name or empty string if not found
+ */
+async function getTargetName(
+  address: Address,
+  network: string
+): Promise<string> {
+  try {
+    const normalizedAddress = getAddress(address).toLowerCase()
+    const networkKey = network.toLowerCase() as SupportedChain
+
+    // Check safe address from networks.json
+    const networkConfig = networksData[networkKey as keyof typeof networksData]
+    if (networkConfig?.safeAddress) {
+      const safeAddress = getAddress(networkConfig.safeAddress).toLowerCase()
+      if (safeAddress === normalizedAddress) return '(Multisig Safe)'
+    }
+
+    // Check deployment addresses (diamond and timelock)
+    try {
+      const deployments = await getDeployments(
+        networkKey,
+        EnvironmentEnum.production
+      )
+
+      // Check diamond address
+      if (deployments.LiFiDiamond) {
+        const diamondAddress = getAddress(
+          deployments.LiFiDiamond as Address
+        ).toLowerCase()
+        if (diamondAddress === normalizedAddress) return '(LiFiDiamond)'
+      }
+
+      // Check timelock address
+      if (deployments.LiFiTimelockController) {
+        const timelockAddress = getAddress(
+          deployments.LiFiTimelockController as Address
+        ).toLowerCase()
+        if (timelockAddress === normalizedAddress)
+          return '(LiFiTimelockController)'
+      }
+    } catch (error) {
+      // Deployment file might not exist for this network, continue silently
+    }
+  } catch (error) {
+    // If address normalization fails, return empty string
+  }
+
+  return ''
+}
+
 // Global arrays to record execution failures and timeouts
 const globalFailedExecutions: Array<{
   chain: string
@@ -68,15 +125,26 @@ const globalTimeoutExecutions: Array<{
  * Decodes nested timelock schedule calls that may contain diamondCut
  * @param decoded - The decoded schedule function data
  * @param chainId - Chain ID for ABI fetching
+ * @param network - Network name for address lookup
  */
-async function decodeNestedTimelockCall(decoded: any, chainId: number) {
+async function decodeNestedTimelockCall(
+  decoded: any,
+  chainId: number,
+  network: string
+) {
   if (decoded.functionName === 'schedule') {
     consola.info('Timelock Schedule Details:')
     consola.info('-'.repeat(80))
 
     const [target, value, data, predecessor, salt, delay] = decoded.args
 
-    consola.info(`Target:      \u001b[32m${target}\u001b[0m`)
+    // Get target name for display (network is available from chain context)
+    const targetName = await getTargetName(target as Address, network)
+    const targetDisplay = targetName
+      ? `${target} \u001b[33m${targetName}\u001b[0m`
+      : target
+
+    consola.info(`Target:      \u001b[32m${targetDisplay}\u001b[0m`)
     consola.info(`Value:       \u001b[32m${value}\u001b[0m`)
     consola.info(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
     consola.info(`Salt:        \u001b[32m${salt}\u001b[0m`)
@@ -392,7 +460,7 @@ const processTxs = async (
       if (decoded && decoded.functionName === 'diamondCut')
         await decodeDiamondCut(decoded, chain.id)
       else if (decoded && decoded.functionName === 'schedule')
-        await decodeNestedTimelockCall(decoded, chain.id)
+        await decodeNestedTimelockCall(decoded, chain.id, network)
       else {
         consola.info('Method:', abi)
         if (decoded) {
@@ -434,9 +502,15 @@ const processTxs = async (
         }
       }
 
+    // Get target name for display
+    const targetName = await getTargetName(tx.safeTx.data.to, network)
+    const toDisplay = targetName
+      ? `${tx.safeTx.data.to} \u001b[33m${targetName}\u001b[0m`
+      : tx.safeTx.data.to
+
     consola.info(`Safe Transaction Details:
     Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
-    To:              \u001b[32m${tx.safeTx.data.to}\u001b[0m
+    To:              \u001b[32m${toDisplay}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
