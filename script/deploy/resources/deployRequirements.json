@@ -97,6 +97,20 @@
       }
     }
   },
+  "AcrossV4SwapFacet": {
+    "configData": {
+      "_spokePoolPeriphery": {
+        "configFileName": "across-v4-swap.json",
+        "keyInConfigFile": ".<NETWORK>.spokePoolPeriphery",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_spokePool": {
+        "configFileName": "across-v4-swap.json",
+        "keyInConfigFile": ".<NETWORK>.spokePool",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "AllBridgeFacet": {
     "configData": {
       "_allBridge": {
