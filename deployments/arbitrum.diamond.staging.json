@@ -239,11 +239,11 @@
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
-      "Permit2Proxy": "0x104BD390Fed41089650Ac14aC6D9a8F3513A04cf",
+      "Permit2Proxy": "0x6DfAFe261B5d489aeF52e9AfA6303c291F520902",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverAcrossV4": "0x8fd9e1893fdE2e52b49F2875E63277Ba5675D014",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0x55C74AdB64A9C11EFA5637dF58AC17Bc77D5c911",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
