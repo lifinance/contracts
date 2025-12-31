@@ -40,24 +40,24 @@ contract TokenWrapper is WithdrawablePeriphery {
         if (!LibAsset.isContract(_wrappedToken)) revert InvalidContract();
 
         WRAPPED_TOKEN = _wrappedToken;
-        USE_CONVERTER = _converter != address(0);
+        bool useConverter = _converter != address(0);
+        USE_CONVERTER = useConverter;
 
-        if (USE_CONVERTER) {
+        if (useConverter) {
             if (!LibAsset.isContract(_converter)) revert InvalidContract();
-            CONVERTER = _converter;
             // Approve converter once for all future withdrawals (gas optimization)
             LibAsset.maxApproveERC20(
                 IERC20(_wrappedToken),
                 _converter,
                 type(uint256).max
             );
-            // Set swap ratio multiplier to wrapped token's decimal scale
-            uint8 wrappedDecimals = IERC20Metadata(_wrappedToken).decimals();
-            SWAP_RATIO_MULTIPLIER = 10 ** wrappedDecimals;
-        } else {
-            CONVERTER = _wrappedToken;
-            SWAP_RATIO_MULTIPLIER = BASE_DENOMINATOR; // 1:1 ratio for 18 decimals
         }
+
+        // Immutable variables must be assigned unconditionally (not inside if statements)
+        CONVERTER = useConverter ? _converter : _wrappedToken;
+        SWAP_RATIO_MULTIPLIER = useConverter
+            ? 10 ** IERC20Metadata(_wrappedToken).decimals()
+            : BASE_DENOMINATOR; // 1:1 ratio for 18 decimals
     }
 
     /// External Methods ///
