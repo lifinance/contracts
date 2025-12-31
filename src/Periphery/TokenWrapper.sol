@@ -16,7 +16,7 @@ import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for wrapping and unwrapping tokens
 /// @dev IMPORTANT: This contract assumes the native token has 18 decimals (standard for all EVM chains)
 /// @dev IMPORTANT: The converter contract (if used) MUST NOT charge any fees and should only perform decimal conversion
-/// @custom:version 1.2.0
+/// @custom:version 1.2.1
 contract TokenWrapper is WithdrawablePeriphery {
     address public immutable WRAPPED_TOKEN;
     address public immutable CONVERTER;
