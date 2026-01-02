@@ -704,7 +704,7 @@
         "allowToDeployWithZeroAddress": "false"
       },
       "_converter": {
-        "configFileName": "networks.json",
+        "configFileName": "tokenconverters.json",
         "keyInConfigFile": ".<NETWORK>.converterAddress",
         "allowToDeployWithZeroAddress": "true"
       },
