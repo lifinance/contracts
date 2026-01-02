@@ -766,7 +766,7 @@ function analyzeFailingTx() {
   # Returns:
   #   0 on success, 1 on failure
   # Example:
-  #   analyzeFailingTx "arbitrum" "0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9"
+  #   analyzeFailingTx "<NETWORK>" "<TX_HASH>"
 
   local NETWORK="$1"
   local TX_HASH="$2"
@@ -774,7 +774,6 @@ function analyzeFailingTx() {
   # Validate required parameters
   if [[ -z "$NETWORK" || -z "$TX_HASH" ]]; then
     error "Usage: analyzeFailingTx NETWORK TX_HASH"
-    error "Example: analyzeFailingTx arbitrum 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9"
     return 1
   fi
 
