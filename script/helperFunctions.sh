@@ -194,6 +194,8 @@ function findContractInMasterLog() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION="$4"
+  local MAX_RETRIES=3
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -201,21 +203,31 @@ function findContractInMasterLog() {
     return 1
   fi
 
-  # Query MongoDB
+  # Query MongoDB with retry logic
   echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
-  MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
-  local MONGO_EXIT_CODE=$?
 
-  if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that the result is valid JSON before returning it
-    if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
-      echo "$MONGO_RESULT"
-      return 0
-    else
-      error "MongoDB returned invalid JSON for $CONTRACT on $NETWORK"
-      return 1
+  local attempt=1
+  while [[ $attempt -le $MAX_RETRIES ]]; do
+    MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    local MONGO_EXIT_CODE=$?
+
+    if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that the result is valid JSON before returning it
+      if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
+        echo "$MONGO_RESULT"
+        return 0
+      else
+        echoDebug "MongoDB returned invalid JSON for $CONTRACT on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+      fi
     fi
-  fi
+
+    if [[ $attempt -lt $MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
+    fi
+    attempt=$((attempt + 1))
+  done
 
   echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
   return 1
@@ -224,6 +236,8 @@ function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET_ADDRESS="$3"
+  local MAX_RETRIES=3
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -232,31 +246,41 @@ function findContractInMasterLogByAddress() {
   fi
 
   echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
-  local MONGO_RESULT
-  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-    --env "$ENVIRONMENT" \
-    --network "$NETWORK" \
-    --address "$TARGET_ADDRESS" 2>/dev/null)
-  local MONGO_EXIT=$?
 
-  if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that MONGO_RESULT is valid JSON
-    if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
-      error "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK"
-      return 1
+  local attempt=1
+  while [[ $attempt -le $MAX_RETRIES ]]; do
+    local MONGO_RESULT
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env "$ENVIRONMENT" \
+      --network "$NETWORK" \
+      --address "$TARGET_ADDRESS" 2>/dev/null)
+    local MONGO_EXIT=$?
+
+    if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that MONGO_RESULT is valid JSON
+      if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+        # Convert MongoDB result to expected format
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+
+        if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
+          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+          echo "$JSON_ENTRY"
+          return 0
+        fi
+      else
+        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+      fi
     fi
 
-    # Convert MongoDB result to expected format
-    local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-    local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-    local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
-
-    if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
-      local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
-      echo "$JSON_ENTRY"
-      return 0
+    if [[ $attempt -lt $MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
-  fi
+    attempt=$((attempt + 1))
+  done
 
   echo "[info] address not found in MongoDB"
   return 1
@@ -317,9 +341,15 @@ function getHighestDeployedContractVersionFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK"
+      return 1
+    fi
+
     # Extract all versions and find the highest one using version sort
-    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
-    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" ]]; then
+    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' 2>/dev/null | sort -V | tail -1)
+    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" && "$HIGHEST_VERSION" != "" ]]; then
       echo "$HIGHEST_VERSION"
       return 0
     fi
@@ -628,7 +658,14 @@ function getConstructorArgsFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs')
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK"
+      echo ""
+      return 1
+    fi
+
+    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs' 2>/dev/null)
 
     if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
       echo "$CONSTRUCTOR_ARGS"
@@ -1727,89 +1764,6 @@ function getBytecodeFromArtifact() {
     return 0
   else
     error "no bytecode found for $contract in file $file_path. Script cannot continue."
-    exit 1
-  fi
-}
-
-function addPeripheryToWhitelistJson() {
-  # read function arguments into variables
-  local NETWORK="$1"
-  local ENVIRONMENT="$2"
-
-  # Determine the correct whitelist file based on environment
-  local WHITELIST_FILE
-  if [[ "$ENVIRONMENT" == "production" ]]; then
-    WHITELIST_FILE="config/whitelist.json"
-  else
-    WHITELIST_FILE="config/whitelist.staging.json"
-  fi
-
-  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to $WHITELIST_FILE"
-
-  # Use file paths from config.sh
-  local FILEPATH_GLOBAL_CONFIG="$GLOBAL_FILE_PATH"
-  local FILEPATH_WHITELIST="$WHITELIST_FILE"
-
-  # Get all periphery contracts from global.json whitelistPeripheryFunctions section
-  WHITELIST_PERIPHERY=($(jq -r '.whitelistPeripheryFunctions | keys[]' "$FILEPATH_GLOBAL_CONFIG"))
-
-  # Get all contracts that need to be whitelisted
-  CONTRACTS=("${WHITELIST_PERIPHERY[@]}")
-
-  # get number of periphery contracts to be added
-  local ADD_COUNTER=${#CONTRACTS[@]}
-
-  # get number of existing periphery contracts in the file for the given network
-  local EXISTING_PERIPHERY_COUNT=$(jq --arg network "$NETWORK" '.PERIPHERY[$network] // [] | length' "$FILEPATH_WHITELIST")
-
-  # Iterate through all contracts
-  for CONTRACT in "${CONTRACTS[@]}"; do
-    # get contract address
-    local CONTRACT_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
-
-    if [[ -z "$CONTRACT_ADDRESS" ]]; then
-      error "Could not find contract address for contract $CONTRACT on network $NETWORK ($ENVIRONMENT) in deploy log."
-      error "Please manually whitelist this contract after this task has been completed."
-      # reduce add counter since we are not adding this contract
-      ((ADD_COUNTER--))
-      continue
-    fi
-
-    # check if address already exists in whitelist file PERIPHERY section for the given network
-    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '.PERIPHERY[$network] // [] | any(.address == $address)' "$FILEPATH_WHITELIST")
-
-    if [ "$EXISTS" == "true" ]; then
-      echo "The address $CONTRACT_ADDRESS is already part of the periphery contracts in network $NETWORK ($ENVIRONMENT)."
-
-      # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
-      ((ADD_COUNTER--)) # reduces by 1
-    else
-      # add the contract to whitelist file PERIPHERY section
-      local TMP_FILE="tmp.$$.json"
-      jq --arg address "$CONTRACT_ADDRESS" --arg name "$CONTRACT" --arg network "$NETWORK" '
-        (.PERIPHERY[$network] //= []) |
-        .PERIPHERY[$network] += [{
-          "name": $name,
-          "address": $address,
-          "selectors": []
-        }]
-      ' "$FILEPATH_WHITELIST" > "$TMP_FILE" && mv "$TMP_FILE" "$FILEPATH_WHITELIST"
-      rm -f "$TMP_FILE"
-
-      success "$CONTRACT address $CONTRACT_ADDRESS added to $WHITELIST_FILE PERIPHERY[$NETWORK]"
-    fi
-  done
-
-  # check how many periphery contracts are in the whitelist file now
-  local CURRENT_PERIPHERY_COUNT=$(jq --arg network "$NETWORK" '.PERIPHERY[$network] // [] | length' "$FILEPATH_WHITELIST")
-
-  EXPECTED_PERIPHERY_COUNT=$((EXISTING_PERIPHERY_COUNT + ADD_COUNTER))
-
-  # make sure whitelist file has been updated correctly
-  if [ $CURRENT_PERIPHERY_COUNT -eq $EXPECTED_PERIPHERY_COUNT ]; then
-    success "$ADD_COUNTER periphery contracts were added to $WHITELIST_FILE for $NETWORK ($ENVIRONMENT)"
-  else
-    error "The PERIPHERY array in $WHITELIST_FILE for network $NETWORK ($ENVIRONMENT) does not have the expected number of elements after executing this script (expected: $EXPECTED_PERIPHERY_COUNT, got: $CURRENT_PERIPHERY_COUNT)."
     exit 1
   fi
 }

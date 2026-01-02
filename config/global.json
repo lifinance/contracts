@@ -27,16 +27,15 @@
   "coreFacets": [
     "AccessManagerFacet",
     "CalldataVerificationFacet",
-    "WhitelistManagerFacet",
     "DiamondCutFacet",
     "DiamondLoupeFacet",
-    "DexManagerFacet",
     "EmergencyPauseFacet",
     "GasZipFacet",
     "GenericSwapFacet",
     "GenericSwapFacetV3",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
+    "WhitelistManagerFacet",
     "WithdrawFacet"
   ],
   "corePeriphery": [

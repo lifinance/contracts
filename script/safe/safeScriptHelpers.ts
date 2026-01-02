@@ -134,6 +134,12 @@ export async function sendOrPropose({
       safe.account.address
     )
 
+    if (result === null) {
+      consola.info('ℹ️ Proposal already exists - no new proposal created')
+      await mongoClient.close()
+      return
+    }
+
     if (!result.acknowledged)
       throw new Error('MongoDB insert was not acknowledged')
 

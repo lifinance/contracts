@@ -16,7 +16,7 @@ import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for wrapping and unwrapping tokens
 /// @dev IMPORTANT: This contract assumes the native token has 18 decimals (standard for all EVM chains)
 /// @dev IMPORTANT: The converter contract (if used) MUST NOT charge any fees and should only perform decimal conversion
-/// @custom:version 1.2.0
+/// @custom:version 1.2.1
 contract TokenWrapper is WithdrawablePeriphery {
     address public immutable WRAPPED_TOKEN;
     address public immutable CONVERTER;
@@ -44,20 +44,19 @@ contract TokenWrapper is WithdrawablePeriphery {
 
         if (USE_CONVERTER) {
             if (!LibAsset.isContract(_converter)) revert InvalidContract();
-            CONVERTER = _converter;
             // Approve converter once for all future withdrawals (gas optimization)
             LibAsset.maxApproveERC20(
                 IERC20(_wrappedToken),
                 _converter,
                 type(uint256).max
             );
-            // Set swap ratio multiplier to wrapped token's decimal scale
-            uint8 wrappedDecimals = IERC20Metadata(_wrappedToken).decimals();
-            SWAP_RATIO_MULTIPLIER = 10 ** wrappedDecimals;
-        } else {
-            CONVERTER = _wrappedToken;
-            SWAP_RATIO_MULTIPLIER = BASE_DENOMINATOR; // 1:1 ratio for 18 decimals
         }
+
+        // Immutable variables must be assigned unconditionally (not inside if statements)
+        CONVERTER = USE_CONVERTER ? _converter : _wrappedToken;
+        SWAP_RATIO_MULTIPLIER = USE_CONVERTER
+            ? 10 ** IERC20Metadata(_wrappedToken).decimals()
+            : BASE_DENOMINATOR; // 1:1 ratio for 18 decimals
     }
 
     /// External Methods ///

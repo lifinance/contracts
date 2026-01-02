@@ -63,6 +63,7 @@ interface INetworkStatus {
   newDeployerWhitelistGranted: boolean | null
   stagingDiamondOwnershipTransferred: boolean | null
   errors: string[]
+  excluded?: boolean // Mark networks that are excluded from checks
 }
 
 async function checkNetworkStatus(
@@ -276,7 +277,8 @@ async function checkNetworkStatus(
   return status
 }
 
-function formatStatus(value: boolean | null): string {
+function formatStatus(value: boolean | null, excluded = false): string {
+  if (excluded) return '-'
   if (value === null) return '❓'
   return value ? '✅' : '❌'
 }
@@ -348,6 +350,13 @@ function printTable(results: INetworkStatus[]) {
     `  8: Staging diamond ownership transferred from old SC dev wallet (${OLD_SC_DEV_WALLET}) to new SC dev wallet (${NEW_SC_DEV_WALLET})`
   )
   console.log('')
+  console.log(
+    'Note: Networks "tron" and "tronshasta" are excluded from checks (marked as "-")'
+  )
+  console.log(
+    '      as they are non-EVM chains that do not support standard EVM contract checks.'
+  )
+  console.log('')
 
   // Header - always 8 columns now
   const numColumns = 8
@@ -376,7 +385,10 @@ function printTable(results: INetworkStatus[]) {
 
   // Rows
   for (const result of results) {
+    // Excluded networks are not considered "done" or "not done" - they're just excluded
+    const isExcluded = result.excluded === true
     const baseChecksDone =
+      !isExcluded &&
       result.edmundRemoved === true &&
       result.oldDeployerRemoved === true &&
       result.newDeployerAdded === true &&
@@ -387,54 +399,56 @@ function printTable(results: INetworkStatus[]) {
 
     // Staging diamond check: if staging diamond exists, it must be transferred; if it doesn't exist, it's N/A (null)
     const stagingCheckDone =
+      isExcluded ||
       result.stagingDiamondOwnershipTransferred === null ||
       result.stagingDiamondOwnershipTransferred === true
 
     const allDone = baseChecksDone && stagingCheckDone
 
-    const networkColor = allDone ? 'green' : 'red'
+    // Excluded networks use default color (no special highlighting)
+    const networkColor = isExcluded ? 'reset' : allDone ? 'green' : 'red'
     const networkName = result.network.padEnd(networkWidth)
 
     // Center-align the status emojis in their columns (emojis have visual width 2)
     const edmund = centerInColumn(
-      formatStatus(result.edmundRemoved),
+      formatStatus(result.edmundRemoved, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
     const oldDep = centerInColumn(
-      formatStatus(result.oldDeployerRemoved),
+      formatStatus(result.oldDeployerRemoved, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
     const newDep = centerInColumn(
-      formatStatus(result.newDeployerAdded),
+      formatStatus(result.newDeployerAdded, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
     const oldCan = centerInColumn(
-      formatStatus(result.oldDeployerCancellerRemoved),
+      formatStatus(result.oldDeployerCancellerRemoved, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
     const newCan = centerInColumn(
-      formatStatus(result.newDeployerCancellerGranted),
+      formatStatus(result.newDeployerCancellerGranted, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
     const oldWht = centerInColumn(
-      formatStatus(result.oldDeployerWhitelistRemoved),
+      formatStatus(result.oldDeployerWhitelistRemoved, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
     const newWht = centerInColumn(
-      formatStatus(result.newDeployerWhitelistGranted),
+      formatStatus(result.newDeployerWhitelistGranted, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
     const stagingOwnership = centerInColumn(
-      formatStatus(result.stagingDiamondOwnershipTransferred),
+      formatStatus(result.stagingDiamondOwnershipTransferred, isExcluded),
       colWidth,
-      true
+      !isExcluded
     )
 
     // Print network name in color - only one line per network
@@ -445,8 +459,9 @@ function printTable(results: INetworkStatus[]) {
     console.log(line)
   }
 
-  // Summary
+  // Summary (exclude excluded networks from counts)
   const allDoneCount = results.filter((r) => {
+    if (r.excluded === true) return false // Don't count excluded networks
     const baseChecksDone =
       r.edmundRemoved === true &&
       r.oldDeployerRemoved === true &&
@@ -460,6 +475,9 @@ function printTable(results: INetworkStatus[]) {
       r.stagingDiamondOwnershipTransferred === true
     return baseChecksDone && stagingCheckDone
   }).length
+
+  const excludedCount = results.filter((r) => r.excluded === true).length
+  const checkedNetworksCount = results.length - excludedCount
 
   // Use same header line for bottom separator
   console.log('-'.repeat(headerLine.length))
@@ -494,9 +512,16 @@ function printTable(results: INetworkStatus[]) {
   )
   console.log(
     `  ${getColorCode('red')}❌ Incomplete: ${
-      results.length - allDoneCount
+      checkedNetworksCount - allDoneCount
     }${getColorCode('reset')}`
   )
+  if (excludedCount > 0) {
+    console.log(
+      `  ${getColorCode('reset')}➖ Excluded: ${excludedCount}${getColorCode(
+        'reset'
+      )}`
+    )
+  }
 
   // Show networks with errors separately
   const networksWithErrors = results.filter((r) => r.errors.length > 0)
@@ -534,16 +559,48 @@ async function main() {
     (name): name is SupportedChain => name in networks
   )
 
+  // Excluded networks (non-EVM chains that don't support standard checks)
+  const EXCLUDED_NETWORKS = ['tron', 'tronshasta']
+
   // Process networks in parallel with concurrency limit
   const networkNames = validNetworkNames.filter(
     (name) => networks[name]?.status === 'active'
   )
 
-  consola.info(`Checking ${networkNames.length} active networks...`)
+  // Separate excluded networks
+  const excludedNetworks = networkNames.filter((name) =>
+    EXCLUDED_NETWORKS.includes(name)
+  )
+  const networksToCheck = networkNames.filter(
+    (name) => !EXCLUDED_NETWORKS.includes(name)
+  )
+
+  consola.info(
+    `Checking ${networksToCheck.length} active networks (${
+      excludedNetworks.length
+    } excluded: ${excludedNetworks.join(', ')})...`
+  )
+
+  // Add excluded networks to results with special marker
+  for (const excludedNetwork of excludedNetworks) {
+    results.push({
+      network: excludedNetwork,
+      edmundRemoved: null,
+      oldDeployerRemoved: null,
+      newDeployerAdded: null,
+      oldDeployerCancellerRemoved: null,
+      newDeployerCancellerGranted: null,
+      oldDeployerWhitelistRemoved: null,
+      newDeployerWhitelistGranted: null,
+      stagingDiamondOwnershipTransferred: null,
+      errors: [],
+      excluded: true,
+    })
+  }
 
   // Process all networks in parallel
   const networkResults = await Promise.all(
-    networkNames.map((networkName) => {
+    networksToCheck.map((networkName) => {
       const networkConfig = networks[networkName]
       if (!networkConfig) {
         const errorStatus: INetworkStatus = {
@@ -569,8 +626,19 @@ async function main() {
 
   results.push(...networkResults)
 
-  // Sort results: completed first, then by network name
+  // Sort results: completed first, then by network name (excluded networks at the end)
   results.sort((a, b) => {
+    // Excluded networks go to the end
+    if (a.excluded !== b.excluded) {
+      return a.excluded ? 1 : -1
+    }
+
+    // If both are excluded, sort by name
+    if (a.excluded && b.excluded) {
+      return a.network.localeCompare(b.network)
+    }
+
+    // For non-excluded networks, sort by completion status, then by name
     const aBaseDone =
       a.edmundRemoved === true &&
       a.oldDeployerRemoved === true &&
