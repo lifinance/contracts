@@ -205,7 +205,7 @@ function findContractInMasterLog() {
 
   # Query MongoDB with retry logic
   echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
-  
+
   local attempt=1
   while [[ $attempt -le $MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
@@ -246,14 +246,29 @@ function findContractInMasterLogByAddress() {
   fi
 
   echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
-  
+
   local attempt=1
+  local USE_CACHE=true
   while [[ $attempt -le $MAX_RETRIES ]]; do
     local MONGO_RESULT
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-      --env "$ENVIRONMENT" \
-      --network "$NETWORK" \
-      --address "$TARGET_ADDRESS" 2>/dev/null)
+    # On last attempt, try without cache to ensure we get fresh data
+    if [[ $attempt -eq $MAX_RETRIES ]]; then
+      USE_CACHE=false
+      echoDebug "Cache query failed, trying direct MongoDB query (no cache) for address $TARGET_ADDRESS on $NETWORK"
+    fi
+
+    if [[ "$USE_CACHE" == "true" ]]; then
+      MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        --env "$ENVIRONMENT" \
+        --network "$NETWORK" \
+        --address "$TARGET_ADDRESS" 2>/dev/null)
+    else
+      MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        --env "$ENVIRONMENT" \
+        --network "$NETWORK" \
+        --address "$TARGET_ADDRESS" \
+        --no-use-cache 2>/dev/null)
+    fi
     local MONGO_EXIT=$?
 
     if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
@@ -264,8 +279,9 @@ function findContractInMasterLogByAddress() {
         local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
         local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
 
-        if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
-          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+        # Check for valid contract name and version (version can be empty string but not null)
+        if [[ "$CONTRACT_NAME" != "null" && "$CONTRACT_NAME" != "" ]]; then
+          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
           echo "$JSON_ENTRY"
           return 0
         fi
