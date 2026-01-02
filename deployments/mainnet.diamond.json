@@ -175,7 +175,7 @@
       },
       "0x989a7eFaBb9bE76ac3424B940862d9cf55334873": {
         "Name": "UnitFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0xE46E9a5Ae71f1Fb3Ac59D09469830d6Ecc1D21f2": {
         "Name": "MegaETHBridgeFacet",
@@ -183,7 +183,7 @@
       },
       "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
         "Name": "CelerCircleBridgeFacet",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
         "Name": "NEARIntentsFacet",
