@@ -188,6 +188,10 @@
       "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
         "Name": "CelerCircleBridgeFacet",
         "Version": "2.0.0"
+      },
+      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

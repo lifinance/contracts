@@ -124,6 +124,10 @@
       "0xb28Dd740D27853A91639795223AB409088A73E23": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -139,6 +143,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0x0dC56076590CdF0efc37114273f02f45A96B5500",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }

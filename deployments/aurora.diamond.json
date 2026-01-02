@@ -68,6 +68,10 @@
       "0xae4CC962a7F728cf29dD293caD79773D8a989F4F": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -76,13 +80,14 @@
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
