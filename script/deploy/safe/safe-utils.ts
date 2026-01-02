@@ -1574,8 +1574,6 @@ export async function getNetworksWithActionableTransactions(
     consola.info('')
   }
 
-  return actionableNetworks
-
   // Filter out null values and return actionable networks
   return actionableNetworks.filter(
     (network): network is string => network !== null
