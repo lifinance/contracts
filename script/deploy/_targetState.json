@@ -2311,7 +2311,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
-        "ArbitrumBridgeFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
