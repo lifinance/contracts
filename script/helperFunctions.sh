@@ -797,24 +797,56 @@ function saveDiamondFacets() {
 
   local FACETS_JSON='{}'
   if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
-    FACETS_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+    # merge all facet JSON files, ensuring valid JSON output
+    FACETS_JSON=$(jq -s 'add' "${MERGE_FILES[@]}" 2>/dev/null)
+    if [[ $? -ne 0 || -z "$FACETS_JSON" ]]; then
+      warning "[$NETWORK] Failed to merge facet JSON files, using empty object"
+      FACETS_JSON='{}'
+    fi
   fi
 
   # if called in facets-only mode, output to path and skip touching DIAMOND_FILE or periphery
   if [[ "$OUTPUT_MODE" == "facets-only" && -n "$OUTPUT_PATH" ]]; then
-    printf %s "$FACETS_JSON" >"$OUTPUT_PATH"
+    # write properly formatted JSON to output path
+    echo "$FACETS_JSON" | jq . >"$OUTPUT_PATH" 2>/dev/null || echo '{}' >"$OUTPUT_PATH"
   else
-    # ensure diamond file exists
+    # ensure diamond file exists and is valid JSON
     if [[ ! -e $DIAMOND_FILE ]]; then
       echo "{}" >"$DIAMOND_FILE"
+    else
+      # validate existing file is valid JSON, reset if corrupted
+      if ! jq -e . "$DIAMOND_FILE" >/dev/null 2>&1; then
+        warning "[$NETWORK] Existing diamond file is corrupted, resetting to empty object"
+        echo "{}" >"$DIAMOND_FILE"
+      fi
     fi
 
     # write merged facets to diamond file in a single atomic update
-    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
+    result=$(jq --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
         .[$diamond_name] = (.[$diamond_name] // {}) |
         .[$diamond_name].Facets = ((.[$diamond_name].Facets // {}) + $facets_obj)
-      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
-    printf %s "$result" >"$DIAMOND_FILE"
+      ' "$DIAMOND_FILE" 2>/dev/null)
+
+    # if merge failed, create fresh structure
+    if [[ $? -ne 0 || -z "$result" ]]; then
+      warning "[$NETWORK] Merge failed, creating fresh diamond structure with facets"
+      result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
+        {
+          ($diamond_name): {
+            Facets: $facets_obj,
+            Periphery: {}
+          }
+        }
+      ' 2>/dev/null)
+    fi
+
+    # write properly formatted JSON
+    if [[ -n "$result" ]]; then
+      echo "$result" | jq . >"$DIAMOND_FILE"
+    else
+      error "[$NETWORK] Failed to generate valid diamond JSON"
+      return 1
+    fi
 
     # add information about registered periphery contracts
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
@@ -999,23 +1031,54 @@ function saveDiamondPeriphery() {
 
   local PERIPHERY_JSON='{}'
   if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
-    PERIPHERY_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+    # merge all periphery JSON files, ensuring valid JSON output
+    PERIPHERY_JSON=$(jq -s 'add' "${MERGE_FILES[@]}" 2>/dev/null)
+    if [[ $? -ne 0 || -z "$PERIPHERY_JSON" ]]; then
+      warning "[$NETWORK] Failed to merge periphery JSON files, using empty object"
+      PERIPHERY_JSON='{}'
+    fi
   fi
 
   if [[ "$OUTPUT_MODE" == "periphery-only" && -n "$OUTPUT_PATH" ]]; then
-    # write only the periphery object to the given path
-    printf %s "$PERIPHERY_JSON" >"$OUTPUT_PATH"
+    # write properly formatted JSON to output path
+    echo "$PERIPHERY_JSON" | jq . >"$OUTPUT_PATH" 2>/dev/null || echo '{}' >"$OUTPUT_PATH"
   else
-    # ensure diamond file exists
+    # ensure diamond file exists and is valid JSON
     if [[ ! -e $DIAMOND_FILE ]]; then
       echo "{}" >"$DIAMOND_FILE"
+    else
+      # validate existing file is valid JSON, reset if corrupted
+      if ! jq -e . "$DIAMOND_FILE" >/dev/null 2>&1; then
+        warning "[$NETWORK] Existing diamond file is corrupted, resetting to empty object"
+        echo "{}" >"$DIAMOND_FILE"
+      fi
     fi
     # update diamond file in a single atomic write
-    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
+    result=$(jq --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
         .[$diamond_name] = (.[$diamond_name] // {}) |
         .[$diamond_name].Periphery = $periphery_obj
-      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
-    printf %s "$result" >"$DIAMOND_FILE"
+      ' "$DIAMOND_FILE" 2>/dev/null)
+
+    # if merge failed, create fresh structure
+    if [[ $? -ne 0 || -z "$result" ]]; then
+      warning "[$NETWORK] Merge failed, creating fresh diamond structure with periphery"
+      result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
+        {
+          ($diamond_name): {
+            Facets: {},
+            Periphery: $periphery_obj
+          }
+        }
+      ' 2>/dev/null)
+    fi
+
+    # write properly formatted JSON
+    if [[ -n "$result" ]]; then
+      echo "$result" | jq . >"$DIAMOND_FILE"
+    else
+      error "[$NETWORK] Failed to generate valid diamond JSON"
+      return 1
+    fi
   fi
 
   # cleanup
@@ -4355,19 +4418,45 @@ function updateDiamondLogForNetwork() {
   if [[ ! -s "$FACETS_TMP" ]]; then echo '{}' >"$FACETS_TMP"; fi
   if [[ ! -s "$PERIPHERY_TMP" ]]; then echo '{}' >"$PERIPHERY_TMP"; fi
 
-  # ensure diamond file exists
+  # ensure diamond file exists and is valid JSON
   if [[ ! -e $DIAMOND_FILE ]]; then
     echo "{}" >"$DIAMOND_FILE"
+  else
+    # validate existing file is valid JSON, reset if corrupted
+    if ! jq -e . "$DIAMOND_FILE" >/dev/null 2>&1; then
+      warning "[$NETWORK] Existing diamond file is corrupted, resetting to empty object"
+      echo "{}" >"$DIAMOND_FILE"
+    fi
   fi
 
   # merge facets and periphery into diamond file atomically
   local MERGED
-  MERGED=$(jq -r --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
+  MERGED=$(jq --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
       .[$diamond_name] = (.[$diamond_name] // {}) |
       .[$diamond_name].Facets = $facets[0] |
       .[$diamond_name].Periphery = $periphery[0]
-    ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
-  printf %s "$MERGED" >"$DIAMOND_FILE"
+    ' "$DIAMOND_FILE" 2>/dev/null)
+
+  # if merge failed, create fresh structure from temp files
+  if [[ $? -ne 0 || -z "$MERGED" ]]; then
+    warning "[$NETWORK] Merge failed, creating fresh diamond structure"
+    MERGED=$(jq -n --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
+      {
+        ($diamond_name): {
+          Facets: $facets[0],
+          Periphery: $periphery[0]
+        }
+      }
+    ' 2>/dev/null)
+  fi
+
+  # write merged JSON with proper formatting
+  if [[ -n "$MERGED" ]]; then
+    echo "$MERGED" | jq . >"$DIAMOND_FILE"
+  else
+    error "[$NETWORK] Failed to generate valid diamond JSON"
+    return 1
+  fi
 
   # clean up
   rm -rf "$TEMP_DIR"
