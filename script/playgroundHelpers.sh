@@ -419,10 +419,18 @@ function proposePeripheryContractRegistration() {
   # Create calldata for registerPeripheryContract
   local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT" "$CONTRACT_ADDRESS")
 
-  # Propose to safe
-  bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
+  # Get contracts directory and use absolute path for bunx
+  local contracts_dir
+  contracts_dir=$(getContractsDirectory)
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Could not determine contracts directory"
+    return 1
+  fi
 
+  set +e  # Temporarily disable exit on error to capture exit code
+  (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" >/dev/null 2>&1)
   local PROPOSAL_STATUS=$?
+  set -e  # Re-enable exit on error
 
   if [[ $PROPOSAL_STATUS -eq 0 ]]; then
     # Mark this network as successfully proposed
@@ -439,6 +447,41 @@ function proposePeripheryContractRegistration() {
 # =============================================================================
 # DEPENDENCY VALIDATION FUNCTIONS
 # =============================================================================
+
+function getContractsDirectory() {
+  # Get the absolute path to the contracts directory
+  # This is critical for parallel execution where PWD might not be set correctly
+  local script_file="${BASH_SOURCE[0]}"
+  local contracts_dir
+
+  if [[ -f "$script_file" ]]; then
+    # Get absolute path to script, then go up one level to contracts root
+    local script_dir
+    if command -v realpath >/dev/null 2>&1; then
+      script_dir=$(realpath "$(dirname "$script_file")")
+    elif command -v readlink >/dev/null 2>&1; then
+      script_dir=$(cd "$(dirname "$(readlink -f "$script_file" 2>/dev/null || echo "$script_file")")" && pwd)
+    else
+      script_dir=$(cd "$(dirname "$script_file")" && pwd)
+    fi
+    contracts_dir=$(cd "$script_dir/.." && pwd)
+  else
+    # Fallback: use absolute path from current directory
+    contracts_dir=$(pwd)
+  fi
+
+  # Ensure contracts_dir is absolute and exists
+  if [[ ! "$contracts_dir" =~ ^/ ]]; then
+    contracts_dir=$(cd "$contracts_dir" && pwd)
+  fi
+
+  # Verify contracts directory exists and has required files
+  if [[ ! -d "$contracts_dir" ]] || [[ ! -f "$contracts_dir/package.json" ]]; then
+    return 1
+  fi
+
+  echo "$contracts_dir"
+}
 
 function validateDependencies() {
   local missing_deps=()
@@ -723,7 +766,7 @@ function analyzeFailingTx() {
   # Returns:
   #   0 on success, 1 on failure
   # Example:
-  #   analyzeFailingTx "arbitrum" "0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9"
+  #   analyzeFailingTx "<NETWORK>" "<TX_HASH>"
 
   local NETWORK="$1"
   local TX_HASH="$2"
@@ -731,7 +774,6 @@ function analyzeFailingTx() {
   # Validate required parameters
   if [[ -z "$NETWORK" || -z "$TX_HASH" ]]; then
     error "Usage: analyzeFailingTx NETWORK TX_HASH"
-    error "Example: analyzeFailingTx arbitrum 0xedc3d7580e0b333f7c232649b0506aa3e811b0f5060d84e75a91b0dec68b4cc9"
     return 1
   fi
 
@@ -882,16 +924,27 @@ function _createTimelockCancellerProposal() {
   # Use the --timelock flag which automatically wraps the calldata in a schedule call
   # Note: --to should be the timelock address (where schedule() will be called)
   # The inner calldata (grantRole/revokeRole) will target the timelock itself
-  bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+
+  # Get contracts directory and use absolute path for bunx
+  local contracts_dir
+  contracts_dir=$(getContractsDirectory)
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Could not determine contracts directory"
+    return 1
+  fi
+
+  set +e  # Temporarily disable exit on error to capture exit code
+  (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts \
     --to "$TIMELOCK_ADDRESS" \
     --calldata "$CALLDATA" \
     --network "$NETWORK" \
     --rpcUrl "$RPC_URL" \
     --privateKey "$(getPrivateKey "$NETWORK" "production")" \
-    --timelock \
-    >/dev/null 2>&1
+    --timelock >/dev/null 2>&1)
+  local PROPOSAL_STATUS=$?
+  set -e  # Re-enable exit on error
 
-  return $?
+  return $PROPOSAL_STATUS
 }
 
 function manageTimelockCanceller() {
@@ -1344,15 +1397,37 @@ function manageSafeOwner() {
       ;;
   esac
 
-  bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+  local proposal_output
+  local proposal_error
+
+  # Get contracts directory and use absolute path for bunx
+  local contracts_dir
+  contracts_dir=$(getContractsDirectory)
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Could not determine contracts directory"
+    return 1
+  fi
+
+  # Use temp file to capture output and preserve exit code
+  # Use bunx with explicit working directory via --cwd or absolute path
+  local temp_output
+  temp_output=$(mktemp)
+  set +e  # Temporarily disable exit on error to capture exit code
+
+  # Use absolute path to script and run from contracts directory
+  (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts \
     --to "$SAFE_ADDRESS" \
     --calldata "$CALLDATA" \
     --network "$NETWORK" \
     --rpcUrl "$RPC_URL" \
     --privateKey "$(getPrivateKey "$NETWORK" "production")" \
-    >/dev/null 2>&1
-
+    >"$temp_output" 2>&1)
   local PROPOSAL_STATUS=$?
+  set -e  # Re-enable exit on error
+
+  # Read output from temp file
+  proposal_output=$(cat "$temp_output" 2>/dev/null || echo "")
+  rm -f "$temp_output" 2>/dev/null || true
 
   if [[ $PROPOSAL_STATUS -eq 0 ]]; then
     case "$MODE" in
@@ -1368,147 +1443,481 @@ function manageSafeOwner() {
     esac
     return 0
   else
+    # Extract comprehensive error information from output
+    # Look for specific error patterns from propose-to-safe.ts
+    local signer_address
+    local current_owners
+    local error_summary
+
+    # Check if it's the "not an owner" error
+    if echo "$proposal_output" | grep -q "The current signer is not an owner"; then
+      signer_address=$(echo "$proposal_output" | grep -A 1 "Signer address:" | tail -1 | sed 's/^[[:space:]]*//')
+      current_owners=$(echo "$proposal_output" | grep -A 10 "Current owners:" | grep -E "^0x[a-fA-F0-9]{40}" | tr '\n' ' ' || echo "Unable to parse")
+      error_summary="Signer ($signer_address) is not a Safe owner. Current owners: ${current_owners}"
+    else
+      # Try to extract other error messages
+      error_summary=$(echo "$proposal_output" | grep -iE "(error|failed|revert|Cannot)" | head -3 | tr '\n' '; ' || echo "$proposal_output" | tail -3 | tr '\n' '; ')
+    fi
+
     case "$MODE" in
       "remove")
         error "[$NETWORK] Failed to create proposal to remove owner: $OWNER_TO_BE_REMOVED"
+        error "[$NETWORK] Error details: ${error_summary:-Exit code $PROPOSAL_STATUS}"
         ;;
       "replace")
         error "[$NETWORK] Failed to create proposal to replace owner $OWNER_TO_BE_REMOVED with $OWNER_TO_BE_ADDED"
+        error "[$NETWORK] Error details: ${error_summary:-Exit code $PROPOSAL_STATUS}"
         ;;
       "add")
         error "[$NETWORK] Failed to create proposal to add owner: $OWNER_TO_BE_ADDED"
+        error "[$NETWORK] Error details: ${error_summary:-Exit code $PROPOSAL_STATUS}"
         ;;
     esac
     return 1
   fi
 }
 
-function removeDeployerWhitelistPermission() {
-  # Function: removeDeployerWhitelistPermission
-  # Description: Creates a multisig proposal to remove deployer wallet's permission to call batchSetContractSelectorWhitelist
+# =============================================================================
+# ACCESS MANAGER PERMISSION MANAGEMENT FUNCTIONS
+# =============================================================================
+
+function removeAccessManagerPermission() {
+  # Function: removeAccessManagerPermission
+  # Description: Creates a multisig proposal to remove permission for an address to call a specific function via AccessManagerFacet
   # Arguments:
   #   $1 - NETWORK: Network name
+  #   $2 - FUNCTION_SELECTOR: Function selector (bytes4) to remove permission for (e.g., "0x1171c007")
+  #   $3 - EXECUTOR_ADDRESS: Address to remove permission from
+  #   $4 - ENVIRONMENT: Environment (default: "production")
   # Returns:
-  #   0 on success, 1 on failure or if no action needed
+  #   0 on success, 1 on failure
   # Example:
-  #   removeDeployerWhitelistPermission "mainnet"
+  #   removeAccessManagerPermission "mainnet" "0x1171c007" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
+  #   removeAccessManagerPermission "mainnet" "0x1171c007" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "production"
 
   local NETWORK="$1"
-  local ENVIRONMENT="production"
+  local FUNCTION_SELECTOR="$2"
+  local EXECUTOR_ADDRESS="$3"
+  local ENVIRONMENT="${4:-production}"
 
   # Validate required parameters
-  if [[ -z "$NETWORK" ]]; then
-    error "Usage: removeDeployerWhitelistPermission NETWORK"
+  if [[ -z "$NETWORK" || -z "$FUNCTION_SELECTOR" || -z "$EXECUTOR_ADDRESS" ]]; then
+    error "Usage: removeAccessManagerPermission NETWORK FUNCTION_SELECTOR EXECUTOR_ADDRESS [ENVIRONMENT]"
+    error "Example: removeAccessManagerPermission mainnet 0x1171c007 0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
     return 1
   fi
 
-  # Get deployer wallet address from global.json
-  local DEPLOYER_WALLET
-  DEPLOYER_WALLET=$(getValueFromJSONFile "./config/global.json" "deployerWallet")
-  if [[ $? -ne 0 || -z "$DEPLOYER_WALLET" || "$DEPLOYER_WALLET" == "null" || "$DEPLOYER_WALLET" == "0x" ]]; then
-    error "[$NETWORK] Deployer wallet address not found in global.json"
+  # Validate function selector format (should be 0x followed by 8 hex characters)
+  if [[ ! "$FUNCTION_SELECTOR" =~ ^0x[0-9a-fA-F]{8}$ ]]; then
+    error "[$NETWORK] Invalid function selector format: $FUNCTION_SELECTOR"
+    error "[$NETWORK] Function selector must be 0x followed by 8 hex characters (e.g., 0x1171c007)"
     return 1
   fi
 
-  # Get function selector for batchSetContractSelectorWhitelist
-  local SELECTOR="0x1171c007"
-
-  # Get diamond address
-  local DIAMOND_ADDRESS
-  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
-  if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" || "$DIAMOND_ADDRESS" == "null" || "$DIAMOND_ADDRESS" == "0x" ]]; then
-    error "[$NETWORK] LiFiDiamond address not found in deployment logs"
+  # Validate address format
+  if [[ ! "$EXECUTOR_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    error "[$NETWORK] Invalid executor address format: $EXECUTOR_ADDRESS"
     return 1
   fi
 
-  # Get RPC URL
+  # Get network configuration
   local RPC_URL
-  RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
-  if [[ $? -ne 0 || -z "$RPC_URL" ]]; then
+  RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT") || {
     error "[$NETWORK] Failed to get RPC URL"
     return 1
-  fi
+  }
 
-  # Check if deployer wallet can execute the method
-  local CAN_EXECUTE
-  CAN_EXECUTE=$(cast call "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address) returns (bool)" "$SELECTOR" "$DEPLOYER_WALLET" --rpc-url "$RPC_URL" 2>/dev/null)
-  if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] Failed to check if deployer wallet can execute method"
+  # Get Diamond address
+  local DIAMOND_ADDRESS
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond") || {
+    error "[$NETWORK] Failed to get LiFiDiamond address"
+    return 1
+  }
+
+  if [[ -z "$DIAMOND_ADDRESS" || "$DIAMOND_ADDRESS" == "null" ]]; then
+    error "[$NETWORK] LiFiDiamond not found in deployment logs"
     return 1
   fi
 
-  # Remove whitespace and normalize
-  CAN_EXECUTE=$(echo -n "$CAN_EXECUTE" | tr -d '[:space:]' | tr -d '\n' | tr -d '\r')
+  # Check if the deployer wallet already has permission removed (can't execute)
+  # If permission is already removed, skip proposal creation and mark as success
+  local CAN_EXECUTE
+  CAN_EXECUTE=$(cast call "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address) returns (bool)" "$FUNCTION_SELECTOR" "$EXECUTOR_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null || echo "false")
 
-  # If no permission exists, no action needed
-  if [[ "$CAN_EXECUTE" != "true" ]]; then
-    warning "[$NETWORK] Deployer wallet ($DEPLOYER_WALLET) does not have permission to call batchSetContractSelectorWhitelist"
-    success "[$NETWORK] No action needed: deployer wallet already does not have permission"
+  if [[ "$CAN_EXECUTE" == "false" ]]; then
+    success "[$NETWORK] ✅ Permission already removed - deployer wallet ($EXECUTOR_ADDRESS) cannot execute function selector $FUNCTION_SELECTOR. Skipping proposal creation."
     return 0
   fi
 
-  # Create calldata for setCanExecute(selector, deployerWallet, false)
+  # Get Safe address from networks.json (not deployment logs)
+  # Required for propose-to-safe.ts to initialize Safe client
+  # Even with --timelock, we need Safe address to create and sign the transaction
+  local SAFE_ADDRESS
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
+  if [[ $? -ne 0 || -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+    error "[$NETWORK] Safe address not found in networks.json"
+    return 1
+  fi
+
+  # Create calldata for AccessManagerFacet.setCanExecute(bytes4,address,bool)
+  # setCanExecute(bytes4 _selector, address _executor, bool _canExecute)
+  # We're setting _canExecute to false to remove the permission
   local CALLDATA
-  CALLDATA=$(cast calldata "setCanExecute(bytes4,address,bool)" "$SELECTOR" "$DEPLOYER_WALLET" "false" 2>&1)
+  CALLDATA=$(cast calldata "setCanExecute(bytes4,address,bool)" "$FUNCTION_SELECTOR" "$EXECUTOR_ADDRESS" false 2>&1)
   local CALLDATA_EXIT_CODE=$?
 
   if [[ $CALLDATA_EXIT_CODE -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
     error "[$NETWORK] Failed to create calldata for setCanExecute"
-    error "[$NETWORK] SELECTOR: $SELECTOR"
-    error "[$NETWORK] DEPLOYER_WALLET: $DEPLOYER_WALLET"
+    error "[$NETWORK] Function selector: $FUNCTION_SELECTOR"
+    error "[$NETWORK] Executor address: $EXECUTOR_ADDRESS"
     error "[$NETWORK] Cast error: $CALLDATA"
     return 1
   fi
 
-  # Verify calldata looks valid
+  # Verify calldata looks valid (should start with 0x and be a reasonable length)
   if [[ ! "$CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]] || [[ ${#CALLDATA} -lt 10 ]]; then
     error "[$NETWORK] Invalid calldata generated: $CALLDATA"
     return 1
   fi
 
-  # Create proposal to Safe
-  echo "[$NETWORK] Creating proposal to remove deployer wallet permission to call batchSetContractSelectorWhitelist"
-  bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+  echo "[$NETWORK] Creating proposal to remove permission for $EXECUTOR_ADDRESS to call function selector $FUNCTION_SELECTOR"
+
+  local proposal_output
+  local proposal_error
+
+  # Get contracts directory and use absolute path for bunx
+  local contracts_dir
+  contracts_dir=$(getContractsDirectory)
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Could not determine contracts directory"
+    return 1
+  fi
+
+  # Use temp file to capture output and preserve exit code
+  local temp_output
+  temp_output=$(mktemp)
+  set +e  # Temporarily disable exit on error to capture exit code
+
+  # Use absolute path to script and run from contracts directory
+  # Note: AccessManagerFacet.setCanExecute requires owner, so we wrap in timelock
+  (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts \
     --to "$DIAMOND_ADDRESS" \
     --calldata "$CALLDATA" \
     --network "$NETWORK" \
     --rpcUrl "$RPC_URL" \
-    --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
     --timelock \
-    >/dev/null 2>&1
+    --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
+    >"$temp_output" 2>&1)
+  local PROPOSAL_STATUS=$?
+  set -e  # Re-enable exit on error
 
-  if [[ $? -ne 0 ]]; then
-    error "[$NETWORK] Failed to create proposal to remove deployer wallet permission"
+  # Read output from temp file
+  proposal_output=$(cat "$temp_output" 2>/dev/null || echo "")
+  rm -f "$temp_output" 2>/dev/null || true
+
+  if [[ $PROPOSAL_STATUS -eq 0 ]]; then
+    success "[$NETWORK] Successfully created proposal to remove permission for $EXECUTOR_ADDRESS to call function selector $FUNCTION_SELECTOR @LiFiDiamond: $DIAMOND_ADDRESS"
+    return 0
+  else
+    # Extract comprehensive error information from output
+    local signer_address
+    local current_owners
+    local error_summary
+
+    # Check if it's the "not an owner" error
+    if echo "$proposal_output" | grep -q "The current signer is not an owner"; then
+      signer_address=$(echo "$proposal_output" | grep -A 1 "Signer address:" | tail -1 | sed 's/^[[:space:]]*//')
+      current_owners=$(echo "$proposal_output" | grep -A 10 "Current owners:" | grep -E "^0x[a-fA-F0-9]{40}" | tr '\n' ' ' || echo "Unable to parse")
+      error_summary="Signer ($signer_address) is not a Safe owner. Current owners: ${current_owners}"
+    else
+      # Try to extract other error messages
+      error_summary=$(echo "$proposal_output" | grep -iE "(error|failed|revert|Cannot)" | head -3 | tr '\n' '; ' || echo "$proposal_output" | tail -3 | tr '\n' '; ')
+    fi
+
+    error "[$NETWORK] Failed to create proposal to remove permission for $EXECUTOR_ADDRESS to call function selector $FUNCTION_SELECTOR"
+    error "[$NETWORK] Error details: ${error_summary:-Exit code $PROPOSAL_STATUS}"
+    return 1
+  fi
+}
+
+function removeDeployerWhitelistPermission() {
+  # Function: removeDeployerWhitelistPermission
+  # Description: Convenience wrapper to remove the old deployer wallet's permission to call batchSetContractSelectorWhitelist
+  #              This is a specific use case for offboarding the old deployer wallet.
+  #              Uses hardcoded values: function selector 0x1171c007 and old deployer address 0x11F1022cA6AdEF6400e5677528a80d49a069C00c
+  # Arguments:
+  #   $1 - NETWORK: Network name
+  #   $2 - ENVIRONMENT: Environment (default: "production")
+  # Returns:
+  #   0 on success, 1 on failure
+  # Example:
+  #   removeDeployerWhitelistPermission "mainnet"
+  #   removeDeployerWhitelistPermission "mainnet" "production"
+
+  local NETWORK="$1"
+  local ENVIRONMENT="${2:-production}"
+
+  # Validate required parameters
+  if [[ -z "$NETWORK" ]]; then
+    error "Usage: removeDeployerWhitelistPermission NETWORK [ENVIRONMENT]"
+    error "Example: removeDeployerWhitelistPermission mainnet"
     return 1
   fi
 
-  success "[$NETWORK] Successfully created proposal to remove deployer wallet ($DEPLOYER_WALLET) permission to call batchSetContractSelectorWhitelist @LiFiDiamond: $DIAMOND_ADDRESS"
-  return 0
+  # Hardcoded values for this specific use case
+  local FUNCTION_SELECTOR="0x1171c007"  # batchSetContractSelectorWhitelist
+  local OLD_DEPLOYER_ADDRESS="0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
+
+  echo "[$NETWORK] Removing whitelist permission from old deployer wallet ($OLD_DEPLOYER_ADDRESS)"
+  echo "[$NETWORK] Function selector: $FUNCTION_SELECTOR (batchSetContractSelectorWhitelist)"
+
+  # Call the generic function with hardcoded values
+  removeAccessManagerPermission "$NETWORK" "$FUNCTION_SELECTOR" "$OLD_DEPLOYER_ADDRESS" "$ENVIRONMENT"
+}
+
+# =============================================================================
+# STAGING DIAMOND OWNERSHIP TRANSFER
+# =============================================================================
+
+# Transfer ownership of staging diamond to new dev wallet
+# This function performs the complete ownership transfer flow:
+# 1. Identifies if there is a staging diamond for the network
+# 2. Initiates ownership transfer from old dev wallet (using PRIVATE_KEY_OLD from .env)
+# 3. Accepts ownership transfer from new dev wallet (using PRIVATE_KEY from .env)
+# 4. Verifies that owner of staging diamond is new dev wallet (from config/global.json)
+# Returns 0 on success, 1 on error (for retry logic)
+# Usage: transferStagingDiamondOwnership <network>
+function transferStagingDiamondOwnership() {
+  local NETWORK="${1:-}"
+
+  if [[ -z "$NETWORK" ]]; then
+    error "transferStagingDiamondOwnership: Network is required"
+    return 1
+  fi
+
+  # Step 1: Identify if there is a staging diamond
+  local STAGING_DIAMOND_FILE="./deployments/${NETWORK}.diamond.staging.json"
+
+  if [[ ! -f "$STAGING_DIAMOND_FILE" ]]; then
+    logWithTimestamp "[$NETWORK] No staging diamond found - marking as success"
+    return 0
+  fi
+
+  logWithTimestamp "[$NETWORK] Staging diamond found, starting ownership transfer..."
+
+  # Get diamond address from staging deployment log using existing helper
+  local DIAMOND_ADDRESS
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "staging" "LiFiDiamond")
+
+  if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" || "$DIAMOND_ADDRESS" == "null" || "$DIAMOND_ADDRESS" == "0x" ]]; then
+    error "[$NETWORK] Failed to get LiFiDiamond address from staging deployment log"
+    return 1
+  fi
+
+  # Get new dev wallet address from global.json
+  local NEW_DEV_WALLET
+  NEW_DEV_WALLET=$(jq -r '.devWallet // empty' "./config/global.json" 2>/dev/null)
+
+  if [[ -z "$NEW_DEV_WALLET" || "$NEW_DEV_WALLET" == "null" || "$NEW_DEV_WALLET" == "0x" ]]; then
+    error "[$NETWORK] Failed to get devWallet from config/global.json"
+    return 1
+  fi
+
+  # Get RPC URL for the network
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK") || {
+    error "[$NETWORK] Failed to get RPC URL"
+    return 1
+  }
+
+  # Get current owner from the diamond
+  local CURRENT_OWNER
+  CURRENT_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+
+  if [[ -z "$CURRENT_OWNER" || "$CURRENT_OWNER" == "0x" ]]; then
+    error "[$NETWORK] Failed to get current owner from diamond at $DIAMOND_ADDRESS"
+    return 1
+  fi
+
+  # Normalize addresses for comparison (lowercase)
+  local CURRENT_OWNER_LOWER
+  CURRENT_OWNER_LOWER=$(echo "$CURRENT_OWNER" | tr '[:upper:]' '[:lower:]')
+  local NEW_DEV_WALLET_LOWER
+  NEW_DEV_WALLET_LOWER=$(echo "$NEW_DEV_WALLET" | tr '[:upper:]' '[:lower:]')
+
+  # Check if ownership transfer is already complete
+  if [[ "$CURRENT_OWNER_LOWER" == "$NEW_DEV_WALLET_LOWER" ]]; then
+    logWithTimestamp "[$NETWORK] Ownership already transferred to new dev wallet ($NEW_DEV_WALLET)"
+    return 0
+  fi
+
+  logWithTimestamp "[$NETWORK] Current owner: $CURRENT_OWNER, New dev wallet: $NEW_DEV_WALLET"
+
+  # Step 2: Get private key for old dev wallet (using PRIVATE_KEY_OLD from .env)
+  local OLD_OWNER_PRIVATE_KEY="${PRIVATE_KEY_OLD:-}"
+
+  if [[ -z "$OLD_OWNER_PRIVATE_KEY" ]]; then
+    error "[$NETWORK] PRIVATE_KEY_OLD environment variable is not set"
+    error "[$NETWORK] Please set PRIVATE_KEY_OLD in your .env file with the private key for the old dev wallet"
+    return 1
+  fi
+
+  # Verify old owner private key matches current owner
+  local OLD_OWNER_ADDRESS
+  OLD_OWNER_ADDRESS=$(cast wallet address --private-key "$OLD_OWNER_PRIVATE_KEY" 2>/dev/null)
+
+  if [[ -z "$OLD_OWNER_ADDRESS" ]]; then
+    error "[$NETWORK] Failed to get address from PRIVATE_KEY_OLD"
+    return 1
+  fi
+
+  local OLD_OWNER_ADDRESS_LOWER
+  OLD_OWNER_ADDRESS_LOWER=$(echo "$OLD_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$OLD_OWNER_ADDRESS_LOWER" != "$CURRENT_OWNER_LOWER" ]]; then
+    error "[$NETWORK] PRIVATE_KEY_OLD address ($OLD_OWNER_ADDRESS) does not match current owner ($CURRENT_OWNER)"
+    error "[$NETWORK] Cannot transfer ownership - current owner must match PRIVATE_KEY_OLD"
+    return 1
+  fi
+
+  # Step 2a: Initiate ownership transfer from old owner
+  logWithTimestamp "[$NETWORK] Step 1: Initiating ownership transfer from old dev wallet..."
+  local TRANSFER_OUTPUT
+  TRANSFER_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$NEW_DEV_WALLET" \
+    --private-key "$OLD_OWNER_PRIVATE_KEY" \
+    --rpc-url "$RPC_URL" \
+    --legacy \
+    2>&1)
+  local TRANSFER_EXIT_CODE=$?
+
+  if [[ $TRANSFER_EXIT_CODE -ne 0 ]]; then
+    error "[$NETWORK] Failed to call transferOwnership: $TRANSFER_OUTPUT"
+    return 1
+  fi
+
+  # Check if transfer was successful (look for transaction hash in output)
+  if [[ "$TRANSFER_OUTPUT" != *"transactionHash"* && "$TRANSFER_OUTPUT" != *"blockHash"* ]]; then
+    error "[$NETWORK] transferOwnership transaction may have failed. Output: $TRANSFER_OUTPUT"
+    return 1
+  fi
+
+  logWithTimestamp "[$NETWORK] Step 1 completed successfully - ownership transfer initiated"
+  logWithTimestamp "[$NETWORK] ⚠️  Next steps: Move funds to new dev wallet ($NEW_DEV_WALLET), then uncomment Step 2 and Step 3 below to accept and verify"
+
+  # Step 3: Accept ownership transfer from new dev wallet
+  logWithTimestamp "[$NETWORK] Step 2: Accepting ownership transfer from new dev wallet..."
+
+  # Get private key for new dev wallet (using PRIVATE_KEY from .env)
+  local NEW_DEV_WALLET_PRIVATE_KEY="${PRIVATE_KEY:-}"
+
+  if [[ -z "$NEW_DEV_WALLET_PRIVATE_KEY" ]]; then
+    error "[$NETWORK] PRIVATE_KEY environment variable is not set"
+    error "[$NETWORK] Please set PRIVATE_KEY in your .env file with the private key for $NEW_DEV_WALLET"
+    return 1
+  fi
+
+  # Verify new dev wallet private key matches the expected address
+  local VERIFIED_NEW_OWNER_ADDRESS
+  VERIFIED_NEW_OWNER_ADDRESS=$(cast wallet address --private-key "$NEW_DEV_WALLET_PRIVATE_KEY" 2>/dev/null)
+
+  if [[ -z "$VERIFIED_NEW_OWNER_ADDRESS" ]]; then
+    error "[$NETWORK] Failed to get address from PRIVATE_KEY"
+    return 1
+  fi
+
+  local VERIFIED_NEW_OWNER_ADDRESS_LOWER
+  VERIFIED_NEW_OWNER_ADDRESS_LOWER=$(echo "$VERIFIED_NEW_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$VERIFIED_NEW_OWNER_ADDRESS_LOWER" != "$NEW_DEV_WALLET_LOWER" ]]; then
+    error "[$NETWORK] PRIVATE_KEY does not match new dev wallet address"
+    error "[$NETWORK] Expected: $NEW_DEV_WALLET, Got: $VERIFIED_NEW_OWNER_ADDRESS"
+    return 1
+  fi
+
+  local CONFIRM_OUTPUT
+  CONFIRM_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" \
+    --private-key "$NEW_DEV_WALLET_PRIVATE_KEY" \
+    --rpc-url "$RPC_URL" \
+    --legacy \
+    2>&1)
+  local CONFIRM_EXIT_CODE=$?
+
+  if [[ $CONFIRM_EXIT_CODE -ne 0 ]]; then
+    # Check if the error is because there's no pending transfer
+    if [[ "$CONFIRM_OUTPUT" == *"NotPendingOwner"* ]] || [[ "$CONFIRM_OUTPUT" == *"NoPendingOwnershipTransfer"* ]]; then
+      error "[$NETWORK] No pending ownership transfer found. This may indicate the transfer was cancelled or already completed"
+      return 1
+    else
+      error "[$NETWORK] Failed to call confirmOwnershipTransfer: $CONFIRM_OUTPUT"
+      return 1
+    fi
+  fi
+
+  # Check if confirmation was successful
+  if [[ "$CONFIRM_OUTPUT" != *"transactionHash"* && "$CONFIRM_OUTPUT" != *"blockHash"* ]]; then
+    error "[$NETWORK] confirmOwnershipTransfer transaction may have failed. Output: $CONFIRM_OUTPUT"
+    return 1
+  fi
+
+  logWithTimestamp "[$NETWORK] Step 2 completed successfully - ownership transfer accepted"
+
+  # Step 4: Verify that owner of staging diamond is new dev wallet
+  logWithTimestamp "[$NETWORK] Step 3: Verifying ownership transfer..."
+  local VERIFIED_OWNER
+  VERIFIED_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+
+  if [[ -z "$VERIFIED_OWNER" || "$VERIFIED_OWNER" == "0x" ]]; then
+    error "[$NETWORK] Failed to verify new owner"
+    return 1
+  fi
+
+  local VERIFIED_OWNER_LOWER
+  VERIFIED_OWNER_LOWER=$(echo "$VERIFIED_OWNER" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$VERIFIED_OWNER_LOWER" == "$NEW_DEV_WALLET_LOWER" ]]; then
+    logWithTimestamp "[$NETWORK] ✅ Ownership successfully transferred to new dev wallet ($NEW_DEV_WALLET)"
+    return 0
+  else
+    error "[$NETWORK] Ownership verification failed. Current owner: $VERIFIED_OWNER, Expected: $NEW_DEV_WALLET"
+    return 1
+  fi
 }
 
 # =============================================================================
 # EXPORT FUNCTIONS FOR USE IN OTHER SCRIPTS
 # =============================================================================
 
-# Make functions available to other scripts
+# Contract verification and deployment
 export -f getContractVerified
-export -f getNetworksByEvmVersionAndContractDeployment
-export -f createMultisigProposalForContract
-export -f proposeDiamondCutForContract
-export -f proposePeripheryContractRegistration
-export -f validateDependencies
 export -f deployContract
 export -f getContractDeploymentStatusSummary
 export -f compareContractBytecode
+export -f isContractAlreadyDeployed
+export -f isContractAlreadyVerified
+
+# Network utilities
+export -f getNetworksByEvmVersionAndContractDeployment
 export -f getNetworkEvmVersion
 export -f getNetworkSolcVersion
 export -f isZkEvmNetwork
 export -f getNetworkGroup
-export -f isContractAlreadyDeployed
-export -f isContractAlreadyVerified
+
+# Multisig proposal functions
+export -f createMultisigProposalForContract
+export -f proposeDiamondCutForContract
+export -f proposePeripheryContractRegistration
+
+# Access management
+export -f removeAccessManagerPermission
+export -f removeDeployerWhitelistPermission
+export -f manageTimelockCanceller
+export -f manageSafeOwner
+
+# Utility functions
+export -f validateDependencies
 export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
+export -f transferStagingDiamondOwnership
 export -f manageTimelockCanceller
 export -f manageSafeOwner
-export -f removeDeployerWhitelistPermission

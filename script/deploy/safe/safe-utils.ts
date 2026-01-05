@@ -15,8 +15,10 @@ import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
 import {
   createPublicClient,
   createWalletClient,
+  encodeAbiParameters,
   encodeFunctionData,
   http,
+  keccak256,
   parseAbi,
   toFunctionSelector,
   type Account,
@@ -80,6 +82,7 @@ export interface ISafeTxDocument {
   proposer: string
   timestamp: Date
   status: 'pending' | 'executed'
+  intentHash?: string // Optional for backwards compatibility with existing documents
 }
 
 export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
@@ -428,9 +431,10 @@ export class ViemSafe {
         signer: this.account.address,
         data: safeSignature,
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
       console.error('Error signing hash with eth_sign:', error)
-      throw new Error(`Failed to sign hash: ${error.message || error}`)
+      throw new Error(`Failed to sign hash: ${errorMsg}`)
     }
   }
 
@@ -459,11 +463,10 @@ export class ViemSafe {
       safeTx.signatures.set(sig.signer.toLowerCase(), sig)
 
       return safeTx
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
       console.error('Error signing transaction hash:', error)
-      throw new Error(
-        `Failed to sign transaction hash: ${error.message || error}`
-      )
+      throw new Error(`Failed to sign transaction hash: ${errorMsg}`)
     }
   }
 
@@ -536,9 +539,10 @@ export class ViemSafe {
       safeTx.signatures.set(signature.signer.toLowerCase(), signature)
 
       return safeTx
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
       console.error('Error signing transaction:', error)
-      throw new Error(`Failed to sign transaction: ${error.message || error}`)
+      throw new Error(`Failed to sign transaction: ${errorMsg}`)
     }
   }
 
@@ -599,9 +603,10 @@ export class ViemSafe {
       }
 
       return signatureBytes
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
       console.error('Error formatting signatures:', error)
-      throw new Error(`Failed to format signatures: ${error.message || error}`)
+      throw new Error(`Failed to format signatures: ${errorMsg}`)
     }
   }
 
@@ -661,8 +666,12 @@ export class ViemSafe {
         if (receipt.status === 'success') return { hash: txHash, receipt }
         else
           throw new Error(`Transaction failed with status: ${receipt.status}`)
-      } catch (timeoutError: any) {
-        if (timeoutError.message.includes('timeout')) {
+      } catch (timeoutError: unknown) {
+        const errorMsg =
+          timeoutError instanceof Error
+            ? timeoutError.message
+            : String(timeoutError)
+        if (errorMsg.includes('timeout')) {
           // Timeout reached - return optimistically with warning
           consola.warn(
             `⚠️  Transaction submitted but confirmation timed out after 30 seconds`
@@ -674,11 +683,12 @@ export class ViemSafe {
         // Some other error occurred
         else throw timeoutError
       }
-    } catch (error: any) {
-      if (error.message?.includes('execution reverted'))
-        throw new Error(`Safe execution reverted: ${error.message}`)
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      if (errorMsg.includes('execution reverted'))
+        throw new Error(`Safe execution reverted: ${errorMsg}`)
 
-      throw new Error(`Error executing transaction: ${error.message || error}`)
+      throw new Error(`Error executing transaction: ${errorMsg}`)
     }
   }
 
@@ -692,17 +702,22 @@ export class ViemSafe {
         this.publicClient?.transport &&
         'close' in this.publicClient.transport
       )
-        await (this.publicClient.transport as any).close?.()
+        await (
+          this.publicClient.transport as { close?: () => Promise<void> }
+        ).close?.()
 
       // Close wallet client transport if it has a close method
       if (
         this.walletClient?.transport &&
         'close' in this.walletClient.transport
       )
-        await (this.walletClient.transport as any).close?.()
-    } catch (error: any) {
+        await (
+          this.walletClient.transport as { close?: () => Promise<void> }
+        ).close?.()
+    } catch (error: unknown) {
       // Don't throw on cleanup errors, just log them
-      consola.warn(`Warning during ViemSafe cleanup: ${error.message}`)
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(`Warning during ViemSafe cleanup: ${errorMsg}`)
     }
   }
 }
@@ -735,11 +750,18 @@ export const initializeSafeTransaction = async (
     // Convert from document format to Map
     const signatures = new Map<string, { signer: Address; data: Hex }>()
     Object.entries(txFromMongo.safeTx.signatures).forEach(
-      ([key, value]: [string, any]) => {
-        signatures.set(key, {
-          signer: value.signer as Address,
-          data: value.data as Hex,
-        })
+      ([key, value]: [string, unknown]) => {
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          'signer' in value &&
+          'data' in value
+        ) {
+          signatures.set(key, {
+            signer: (value as { signer: Address }).signer,
+            data: (value as { data: Hex }).data,
+          })
+        }
       }
     )
     safeTransaction.signatures = signatures
@@ -913,7 +935,53 @@ export async function getSafeInfoFromContract(
 }
 
 /**
+ * Computes a unique hash representing the intent of a proposal
+ * Used for duplicate detection - excludes nonce so same action = same hash
+ * @param network - Network name
+ * @param chainId - Chain ID
+ * @param safeAddress - Safe contract address
+ * @param to - Target contract address
+ * @param value - ETH value
+ * @param data - Calldata
+ * @param operation - Call or DelegateCall
+ * @returns Keccak256 hash of the encoded parameters
+ */
+export function computeProposalIntentHash(
+  network: string,
+  chainId: number,
+  safeAddress: Address,
+  to: Address,
+  value: bigint,
+  data: Hex,
+  operation: OperationTypeEnum
+): Hex {
+  const encoded = encodeAbiParameters(
+    [
+      { name: 'network', type: 'string' },
+      { name: 'chainId', type: 'uint256' },
+      { name: 'safeAddress', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+      { name: 'operation', type: 'uint8' },
+    ],
+    [
+      network.toLowerCase(),
+      BigInt(chainId),
+      safeAddress,
+      to,
+      value,
+      data,
+      operation,
+    ]
+  )
+
+  return keccak256(encoded)
+}
+
+/**
  * Stores a Safe transaction in MongoDB
+ * Skips storage if a pending proposal with the same intent already exists
  * @param pendingTransactions - MongoDB collection
  * @param safeAddress - Address of the Safe
  * @param network - Network name
@@ -921,7 +989,7 @@ export async function getSafeInfoFromContract(
  * @param safeTx - The transaction to store
  * @param safeTxHash - Hash of the transaction
  * @param proposer - Address of the proposer
- * @returns Result of the MongoDB insert operation
+ * @returns Result of the MongoDB insert operation, or null if duplicate exists
  */
 export async function storeTransactionInMongoDB(
   pendingTransactions: Collection<ISafeTxDocument>,
@@ -931,7 +999,18 @@ export async function storeTransactionInMongoDB(
   safeTx: ISafeTransaction,
   safeTxHash: Hex,
   proposer: Address
-): Promise<InsertOneResult<ISafeTxDocument>> {
+): Promise<InsertOneResult<ISafeTxDocument> | null> {
+  // Compute intent hash for duplicate detection
+  const intentHash = computeProposalIntentHash(
+    network,
+    chainId,
+    safeAddress,
+    safeTx.data.to,
+    safeTx.data.value,
+    safeTx.data.data,
+    safeTx.data.operation
+  )
+
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
@@ -941,12 +1020,63 @@ export async function storeTransactionInMongoDB(
     proposer,
     timestamp: new Date(),
     status: 'pending' as const,
+    intentHash,
   } satisfies ISafeTxDocument
 
   return retry(async () => {
-    const insertResult = await pendingTransactions.insertOne(txDoc)
-    return insertResult
+    try {
+      const insertResult = await pendingTransactions.insertOne(txDoc)
+      return insertResult
+    } catch (error: unknown) {
+      // E11000 = MongoDB duplicate key error (from partial unique index on intentHash + pending status)
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code: number }).code === 11000
+      ) {
+        consola.warn(
+          `Duplicate pending proposal detected - skipping storage.\n` +
+            `  Intent hash: ${intentHash}`
+        )
+        return null
+      }
+      throw error
+    }
   })
+}
+
+/**
+ * Ensures the partial unique index exists on intentHash for pending proposals
+ * This index guarantees no duplicate pending proposals can exist at the database level
+ * @param pendingTransactions - MongoDB collection
+ */
+async function ensurePendingProposalIndex(
+  pendingTransactions: Collection<ISafeTxDocument>
+): Promise<void> {
+  try {
+    await pendingTransactions.createIndex(
+      { intentHash: 1 },
+      {
+        unique: true,
+        partialFilterExpression: {
+          status: 'pending',
+          intentHash: { $exists: true },
+        },
+        name: 'unique_pending_intent_hash',
+      }
+    )
+  } catch (error: unknown) {
+    // Index already exists with same options - this is fine
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code: number }).code === 85
+    ) {
+      return
+    }
+    // For other errors, log but don't fail - the application-level check still works
+    consola.warn('Failed to create pending proposal index:', error)
+  }
 }
 
 /**
@@ -996,6 +1126,9 @@ export async function getSafeMongoCollection(): Promise<{
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
   )
+
+  // Ensure the partial unique index exists for duplicate prevention
+  await ensurePendingProposalIndex(pendingTransactions)
 
   return { client, pendingTransactions }
 }
@@ -1122,11 +1255,10 @@ export async function initializeSafeClient(
     })
 
     return { safe, chain, safeAddress: finalSafeAddress }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
     consola.error(`Error encountered while setting up Safe: ${error}`)
-    throw new Error(
-      `Failed to initialize Safe for ${network}: ${error.message}`
-    )
+    throw new Error(`Failed to initialize Safe for ${network}: ${errorMsg}`)
   }
 }
 
@@ -1187,6 +1319,265 @@ export async function getNetworksWithPendingTransactions(
   })
 
   return validNetworks
+}
+
+/**
+ * Gets networks where the user can take action (is a Safe owner AND has actionable transactions)
+ * @param pendingTransactions - MongoDB collection
+ * @param signerAddress - Address of the signer to check ownership for
+ * @param privateKey - Private key for signing (optional if useLedger is true)
+ * @param useLedger - Whether to use a Ledger device for signing
+ * @param ledgerOptions - Options for Ledger connection
+ * @param account - Pre-created account (for Ledger)
+ * @param rpcUrl - Optional RPC URL override
+ * @returns List of network names where the signer can take action
+ */
+export async function getNetworksWithActionableTransactions(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  signerAddress: Address,
+  privateKey?: string,
+  useLedger?: boolean,
+  ledgerOptions?: {
+    derivationPath?: string
+    ledgerLive?: boolean
+    accountIndex?: number
+  },
+  account?: Account,
+  rpcUrl?: string
+): Promise<string[]> {
+  // First, get all networks with pending transactions
+  const networksWithPendingTxs = await getNetworksWithPendingTransactions(
+    pendingTransactions
+  )
+
+  if (networksWithPendingTxs.length === 0) return []
+
+  // Get all pending transactions grouped by network
+  const txsByNetwork = await getPendingTransactionsByNetwork(
+    pendingTransactions,
+    networksWithPendingTxs
+  )
+
+  // Check ownership and actionable transactions for each network in parallel
+  // Use Promise.allSettled to handle errors gracefully and get detailed results
+  const networkResults = await Promise.allSettled(
+    networksWithPendingTxs.map(async (network: string) => {
+      // Get pending transactions for this network
+      const networkTxs = txsByNetwork[network.toLowerCase()]
+      if (!networkTxs || networkTxs.length === 0) {
+        consola.debug(`No pending transactions for ${network}`)
+        return { network, actionable: false, reason: 'no_pending_txs' }
+      }
+
+      // Use the Safe address from the transaction document (not networks.json)
+      // This matches the behavior in processTxs
+      const txSafeAddress = networkTxs[0]?.safeAddress as Address
+      if (!txSafeAddress) {
+        consola.debug(`No Safe address in transaction document for ${network}`)
+        return { network, actionable: false, reason: 'no_safe_address_in_tx' }
+      }
+
+      // Initialize a Safe client to check ownership and transaction status
+      // Use the Safe address from the transaction, not from networks.json
+      const { safe } = await initializeSafeClient(
+        network,
+        privateKey,
+        rpcUrl,
+        useLedger,
+        ledgerOptions,
+        txSafeAddress,
+        account
+      )
+
+      try {
+        // Check if the signer is an owner
+        const owners = await safe.getOwners()
+        const isOwner = isAddressASafeOwner(owners, signerAddress)
+
+        // Log detailed ownership check
+        if (!isOwner) {
+          consola.warn(
+            `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${txSafeAddress}`
+          )
+          consola.warn(`[${network}]    Safe owners: ${owners.join(', ')}`)
+          return { network, actionable: false, reason: 'not_owner' }
+        }
+
+        // Get threshold to check if transactions are actionable
+        const threshold = Number(await safe.getThreshold())
+
+        // Check if there are any actionable transactions
+        // A transaction is actionable if:
+        // 1. It has enough signatures to execute (user can execute it), OR
+        // 2. User hasn't signed it yet AND it needs more signatures
+        let hasActionableTx = false
+        for (const tx of networkTxs) {
+          try {
+            const safeTransaction = await initializeSafeTransaction(tx, safe)
+            const hasSignedAlready = isSignedByCurrentSigner(
+              safeTransaction,
+              signerAddress
+            )
+            const canExecute = hasEnoughSignatures(safeTransaction, threshold)
+
+            // If it can be executed, it's actionable
+            if (canExecute) {
+              hasActionableTx = true
+              break
+            }
+
+            // If user hasn't signed and it needs more signatures, it's actionable
+            if (
+              !hasSignedAlready &&
+              safeTransaction.signatures.size < threshold
+            ) {
+              hasActionableTx = true
+              break
+            }
+          } catch (error: unknown) {
+            // Skip transactions that can't be initialized
+            const errorMsg =
+              error instanceof Error ? error.message : String(error)
+            consola.debug(
+              `Failed to check transaction ${tx.safeTxHash} on ${network}: ${errorMsg}`
+            )
+            continue
+          }
+        }
+
+        return {
+          network,
+          actionable: hasActionableTx,
+          reason: hasActionableTx ? 'has_actionable_tx' : 'no_actionable_tx',
+        }
+      } finally {
+        // Always cleanup the Safe client
+        await safe.cleanup()
+      }
+    })
+  )
+
+  // Process results and collect actionable networks
+  const actionableNetworks: string[] = []
+  const errors: Array<{ network: string; error: string }> = []
+
+  for (let i = 0; i < networkResults.length; i++) {
+    const result = networkResults[i]
+    if (!result) continue
+
+    const network = networksWithPendingTxs[i]
+    if (!network) continue
+
+    if (result.status === 'fulfilled') {
+      const value = result.value
+      if (value.actionable) {
+        actionableNetworks.push(value.network)
+      } else if (value.reason === 'not_owner') {
+        // Log networks where user is not owner (for debugging)
+        consola.debug(
+          `Skipping ${network}: signer is not a Safe owner (reason: ${value.reason})`
+        )
+      }
+    } else if (result.status === 'rejected') {
+      // Log errors for debugging
+      const errorMsg =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason)
+      errors.push({ network, error: errorMsg })
+      consola.warn(
+        `Failed to check ${network} for actionable transactions: ${errorMsg}`
+      )
+    }
+  }
+
+  // Show detailed summary of results
+  const notOwnerCount = networkResults.filter(
+    (
+      r
+    ): r is PromiseFulfilledResult<{
+      network: string
+      actionable: boolean
+      reason: string
+    }> =>
+      r !== undefined &&
+      r.status === 'fulfilled' &&
+      r.value.reason === 'not_owner'
+  ).length
+  const noActionableTxCount = networkResults.filter(
+    (
+      r
+    ): r is PromiseFulfilledResult<{
+      network: string
+      actionable: boolean
+      reason: string
+    }> =>
+      r !== undefined &&
+      r.status === 'fulfilled' &&
+      r.value.reason === 'no_actionable_tx'
+  ).length
+  const noPendingTxsCount = networkResults.filter(
+    (
+      r
+    ): r is PromiseFulfilledResult<{
+      network: string
+      actionable: boolean
+      reason: string
+    }> =>
+      r !== undefined &&
+      r.status === 'fulfilled' &&
+      r.value.reason === 'no_pending_txs'
+  ).length
+
+  // Always show summary if we checked networks
+  if (networksWithPendingTxs.length > 0) {
+    consola.info('')
+    consola.info('='.repeat(80))
+    consola.info('Network Check Summary:')
+    consola.info('='.repeat(80))
+    consola.info(`Total networks checked: ${networksWithPendingTxs.length}`)
+    consola.info(
+      `Networks with actionable transactions: ${actionableNetworks.length}`
+    )
+
+    if (notOwnerCount > 0) {
+      consola.warn(
+        `  ⚠️  ${notOwnerCount} network(s) where signer is NOT a Safe owner`
+      )
+    }
+    if (noActionableTxCount > 0) {
+      consola.info(
+        `  ℹ️  ${noActionableTxCount} network(s) where all transactions are already signed or not actionable`
+      )
+    }
+    if (noPendingTxsCount > 0) {
+      consola.info(
+        `  ℹ️  ${noPendingTxsCount} network(s) with no pending transactions in MongoDB`
+      )
+    }
+    if (errors.length > 0) {
+      consola.warn(`  ⚠️  ${errors.length} network(s) with errors during check`)
+      // Show first few errors as examples
+      const exampleErrors = errors.slice(0, 5)
+      for (const { network, error } of exampleErrors) {
+        consola.warn(
+          `     - ${network}: ${error.substring(0, 100)}${
+            error.length > 100 ? '...' : ''
+          }`
+        )
+      }
+      if (errors.length > 5) {
+        consola.warn(`     - ... and ${errors.length - 5} more`)
+      }
+    }
+    consola.info('='.repeat(80))
+    consola.info('')
+  }
+
+  // Filter out null values and return actionable networks
+  return actionableNetworks.filter(
+    (network): network is string => network !== null
+  )
 }
 
 /**
@@ -1261,7 +1652,9 @@ async function createSelectorMap(): Promise<Map<
         try {
           const selector = toFunctionSelector(abiItem)
           const inputs =
-            abiItem.inputs?.map((input: any) => input.type).join(',') || ''
+            abiItem.inputs
+              ?.map((input: { type: string }) => input.type)
+              .join(',') || ''
           const signature = `${abiItem.name}(${inputs})`
 
           selectorMap.set(selector, {
@@ -1286,7 +1679,10 @@ async function createSelectorMap(): Promise<Map<
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
  */
-export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
+export async function decodeDiamondCut(
+  diamondCutData: { functionName: string; args?: readonly unknown[] },
+  chainId: number
+) {
   const actionMap: Record<number, string> = {
     0: 'Add',
     1: 'Replace',
@@ -1313,7 +1709,18 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
   consola.info('Diamond Cut Details:')
   consola.info('-'.repeat(80))
   // diamondCutData.args[0] contains an array of modifications.
-  const modifications = diamondCutData.args[0]
+  const args = diamondCutData.args
+  if (!args || args.length === 0) {
+    consola.warn('No arguments found in diamondCut data')
+    return
+  }
+
+  const modifications = args[0]
+  if (!Array.isArray(modifications)) {
+    consola.warn('Invalid modifications format in diamondCut data')
+    return
+  }
+
   for (const mod of modifications) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
@@ -1357,11 +1764,42 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
           for (const selector of selectors)
             try {
               // Find matching function in ABI
-              const matchingFunction = resData.abi.find((abiItem: any) => {
-                if (abiItem.type !== 'function') return false
-                const calculatedSelector = toFunctionSelector(abiItem)
-                return calculatedSelector === selector
-              })
+              const matchingFunction = resData.abi.find(
+                (abiItem: {
+                  type?: string
+                  name?: string
+                  inputs?: unknown[]
+                  outputs?: unknown[]
+                  stateMutability?: string
+                }) => {
+                  if (abiItem.type !== 'function' || !abiItem.name) return false
+                  try {
+                    // Create a proper ABI function for toFunctionSelector
+                    const abiFunction = {
+                      type: 'function' as const,
+                      name: abiItem.name,
+                      inputs: (abiItem.inputs || []) as Array<{
+                        type: string
+                        name?: string
+                      }>,
+                      outputs: (abiItem.outputs || []) as Array<{
+                        type: string
+                        name?: string
+                      }>,
+                      stateMutability:
+                        (abiItem.stateMutability as
+                          | 'pure'
+                          | 'view'
+                          | 'nonpayable'
+                          | 'payable') || 'nonpayable',
+                    }
+                    const calculatedSelector = toFunctionSelector(abiFunction)
+                    return calculatedSelector === selector
+                  } catch {
+                    return false
+                  }
+                }
+              )
 
               if (matchingFunction)
                 consola.info(
@@ -1379,8 +1817,10 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
     consola.info('-'.repeat(80))
   }
   // Also log the initialization parameters (2nd and 3rd arguments of diamondCut)
-  consola.info(`Init Address: ${diamondCutData.args[1]}`)
-  consola.info(`Init Calldata: ${diamondCutData.args[2]}`)
+  if (args && args.length >= 3) {
+    consola.info(`Init Address: ${args[1]}`)
+    consola.info(`Init Calldata: ${args[2]}`)
+  }
 }
 
 /**
@@ -1390,7 +1830,7 @@ export async function decodeDiamondCut(diamondCutData: any, chainId: number) {
  */
 export async function decodeTransactionData(data: Hex): Promise<{
   functionName?: string
-  decodedData?: any
+  decodedData?: unknown
 }> {
   if (!data || data === '0x') return {}
 
@@ -1453,8 +1893,9 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
       publicClient,
       safeAddress as Address
     )
-  } catch (error: any) {
-    consola.error(`Failed to get Safe info: ${error.message}`)
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    consola.error(`Failed to get Safe info: ${errorMsg}`)
     throw new Error(`Could not get Safe info for ${safeAddress} on ${network}`)
   }
 
