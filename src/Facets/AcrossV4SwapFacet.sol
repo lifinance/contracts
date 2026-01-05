@@ -9,7 +9,8 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, InformationMismatch, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InformationMismatch, InvalidReceiver, InvalidNonEVMReceiver, InvalidCallData } from "../Errors/GenericErrors.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 
 /// @title AcrossV4SwapFacet
 /// @author LI.FI (https://li.fi)
@@ -17,7 +18,13 @@ import { InvalidConfig, InformationMismatch, InvalidReceiver } from "../Errors/G
 /// @dev This contract does not custody user funds. Any native tokens received are either forwarded
 ///      to the SpokePoolPeriphery or refunded to the sender via the refundExcessNative modifier.
 /// @custom:version 1.0.1
-contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract AcrossV4SwapFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
     /// @notice The contract address of the SpokePoolPeriphery on the source chain
@@ -132,6 +139,11 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         AcrossV4SwapData memory _acrossV4SwapData
     ) internal {
+        // Validate that message is empty since destination calls are disabled for this facet
+        if (_acrossV4SwapData.depositData.message.length > 0) {
+            revert InvalidCallData();
+        }
+
         // Validate destination chain IDs match
         if (
             _acrossV4SwapData.depositData.destinationChainId !=
@@ -140,12 +152,31 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InformationMismatch();
         }
 
-        // Validate recipient matches for EVM destinations
-        if (
-            _convertAddressToBytes32(_bridgeData.receiver) !=
-            _acrossV4SwapData.depositData.recipient
-        ) {
-            revert InvalidReceiver();
+        // Validate receiver address
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            // Destination chain is non-EVM
+            // Make sure recipient is non-zero (we cannot validate further)
+            if (_acrossV4SwapData.depositData.recipient == bytes32(0)) {
+                revert InvalidNonEVMReceiver();
+            }
+
+            // Emit event for non-EVM chain
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _acrossV4SwapData.depositData.recipient
+            );
+        } else {
+            // Destination chain is EVM
+            // Since destination calls are disabled, receiver addresses must always match
+            // Note: validateBridgeData already ensures bridgeData.receiver != address(0),
+            // so depositData.recipient cannot be bytes32(0) if they match
+            if (
+                _convertAddressToBytes32(_bridgeData.receiver) !=
+                _acrossV4SwapData.depositData.recipient
+            ) {
+                revert InvalidReceiver();
+            }
         }
 
         // Approve the periphery to spend tokens
@@ -177,11 +208,11 @@ contract AcrossV4SwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     nonce: 0 // Not used in gasful flow
                 });
 
-        // Emit event before external call for proper event ordering
-        emit LiFiTransferStarted(_bridgeData);
-
         // Call the periphery's swapAndBridge function
         SPOKE_POOL_PERIPHERY.swapAndBridge(swapAndDepositData);
+
+        // Emit event after external call completes successfully
+        emit LiFiTransferStarted(_bridgeData);
     }
 
     /// @notice Converts an address to bytes32
