@@ -53,9 +53,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x4640AaaaB3E6f5bB9b4A16fb00EA0DBD6D98B397": {
+      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.1"
+        "Version": "2.1.2"
       },
       "0xD8066332e52A210f7E6BD8F8D4F2be4197BE290D": {
         "Name": "GenericSwapFacetV3",
@@ -107,6 +107,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD"
     }

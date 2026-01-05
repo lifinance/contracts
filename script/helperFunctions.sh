@@ -205,7 +205,7 @@ function findContractInMasterLog() {
 
   # Query MongoDB with retry logic
   echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
-  
+
   local attempt=1
   while [[ $attempt -le $MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
@@ -246,7 +246,7 @@ function findContractInMasterLogByAddress() {
   fi
 
   echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
-  
+
   local attempt=1
   while [[ $attempt -le $MAX_RETRIES ]]; do
     local MONGO_RESULT
@@ -341,9 +341,15 @@ function getHighestDeployedContractVersionFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK"
+      return 1
+    fi
+
     # Extract all versions and find the highest one using version sort
-    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
-    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" ]]; then
+    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' 2>/dev/null | sort -V | tail -1)
+    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" && "$HIGHEST_VERSION" != "" ]]; then
       echo "$HIGHEST_VERSION"
       return 0
     fi
@@ -652,7 +658,14 @@ function getConstructorArgsFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs')
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK"
+      echo ""
+      return 1
+    fi
+
+    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs' 2>/dev/null)
 
     if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
       echo "$CONSTRUCTOR_ARGS"
