@@ -10,12 +10,12 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title RelayFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Relay Protocol
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract RelayFacet is
     ILiFi,
     ReentrancyGuard,
@@ -23,16 +23,35 @@ contract RelayFacet is
     Validatable,
     LiFiData
 {
-    // Receiver for native transfers
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable relayReceiver;
-    // Relayer wallet for ERC20 transfers
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable relaySolver;
+    /// Constants ///
+
+    /// @notice Namespace for diamond storage
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.relay");
+
+    /// Immutables ///
+
+    /// @dev Receiver for native transfers
+    address internal immutable RELAY_RECEIVER;
+
+    /// @dev Relayer wallet for ERC20 transfers
+    address internal immutable RELAY_SOLVER;
 
     /// Storage ///
 
-    mapping(bytes32 => bool) public consumedIds;
+    /// @dev [BACKWARD COMPATIBILITY] Legacy consumedIds mapping at slot 0.
+    /// In previous versions, this was the first (and only) storage variable,
+    /// therefore occupying slot 0 in the diamond when executed via delegatecall.
+    /// We only read from this mapping to preserve replay-protection after upgrades.
+    // solhint-disable-next-line var-name-mixedcase
+    mapping(bytes32 => bool) private DEPRECATED_consumedIds;
+
+    /// Diamond Storage ///
+
+    /// @notice Diamond storage structure (minimal - only replay protection)
+    struct Storage {
+        /// @dev Mapping to prevent duplicate quote usage (requestId => consumed)
+        mapping(bytes32 => bool) consumedIds;
+    }
 
     /// Types ///
 
@@ -61,7 +80,10 @@ contract RelayFacet is
         RelayData calldata _relayData
     ) {
         // Ensure that the id isn't already consumed
-        if (consumedIds[_relayData.requestId]) {
+        if (
+            getStorage().consumedIds[_relayData.requestId] ||
+            DEPRECATED_consumedIds[_relayData.requestId]
+        ) {
             revert InvalidQuote();
         }
 
@@ -70,7 +92,7 @@ contract RelayFacet is
             _bridgeData.receiver == NON_EVM_ADDRESS &&
             _relayData.nonEVMReceiver == bytes32(0)
         ) {
-            revert InvalidQuote();
+            revert InvalidNonEVMReceiver();
         }
 
         // Verify that the bridging quote has been signed by the Relay solver
@@ -92,7 +114,7 @@ contract RelayFacet is
             )
         );
         address signer = ECDSA.recover(message, _relayData.signature);
-        if (signer != relaySolver) {
+        if (signer != RELAY_SOLVER) {
             revert InvalidQuote();
         }
         _;
@@ -107,11 +129,18 @@ contract RelayFacet is
             revert InvalidConfig();
         }
 
-        relayReceiver = _relayReceiver;
-        relaySolver = _relaySolver;
+        RELAY_RECEIVER = _relayReceiver;
+        RELAY_SOLVER = _relaySolver;
     }
 
     /// External Methods ///
+
+    /// @notice Returns whether a requestId has already been consumed (replay protection)
+    /// @param requestId Relay API request ID
+    /// @return True if already consumed
+    function consumedIds(bytes32 requestId) external view returns (bool) {
+        return getStorage().consumedIds[requestId];
+    }
 
     /// @notice Bridges tokens via Relay
     /// @param _bridgeData The core information needed for bridging
@@ -177,7 +206,7 @@ contract RelayFacet is
             // Native
 
             // Send Native to relayReceiver along with requestId as extra data
-            (bool success, bytes memory reason) = relayReceiver.call{
+            (bool success, bytes memory reason) = RELAY_RECEIVER.call{
                 value: _bridgeData.minAmount
             }(abi.encode(_relayData.requestId));
             if (!success) {
@@ -191,7 +220,7 @@ contract RelayFacet is
             bytes memory transferCallData = bytes.concat(
                 abi.encodeWithSignature(
                     "transfer(address,uint256)",
-                    relaySolver,
+                    RELAY_SOLVER,
                     _bridgeData.minAmount
                 ),
                 abi.encode(_relayData.requestId)
@@ -204,7 +233,7 @@ contract RelayFacet is
             }
         }
 
-        consumedIds[_relayData.requestId] = true;
+        getStorage().consumedIds[_relayData.requestId] = true;
 
         // Emit special event if bridging to non-EVM chain
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
@@ -235,5 +264,17 @@ contract RelayFacet is
         }
 
         return chainId;
+    }
+
+    /// Private Methods ///
+
+    /// @dev Gets the diamond storage for this facet
+    /// @return s The storage struct
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }
