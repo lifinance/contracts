@@ -83,8 +83,9 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0x400410ce3632789c0eEDd050b10F61e20dF21970",
-      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
+      "TokenWrapper": "0x16a43D7db650c2B4D40484e4Ef29ab54B934A1C9"
     }
   }
 }
