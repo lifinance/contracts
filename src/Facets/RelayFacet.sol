@@ -139,7 +139,9 @@ contract RelayFacet is
     /// @param requestId Relay API request ID
     /// @return True if already consumed
     function consumedIds(bytes32 requestId) external view returns (bool) {
-        return getStorage().consumedIds[requestId];
+        return
+            getStorage().consumedIds[requestId] ||
+            DEPRECATED_consumedIds[requestId];
     }
 
     /// @notice Bridges tokens via Relay
