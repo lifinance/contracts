@@ -73,9 +73,9 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0x4640AaaaB3E6f5bB9b4A16fb00EA0DBD6D98B397": {
+      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.1"
+        "Version": "2.1.2"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
@@ -107,6 +107,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0xB05796e54CfADA2C4F7771A0553D6538DD66Ba9a",
       "TokenWrapper": "0x51f5A9675A0663C3EC2b46121eB1504687922911"
     }
