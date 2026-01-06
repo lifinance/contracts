@@ -121,7 +121,7 @@ deployAllContracts() {
       echo "Deployer wallet does not have any balance in network $NETWORK. Please fund the wallet and try again"
       exit 1
     fi
-
+  
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
     checkRequiredVariablesInDotEnv "$NETWORK"
@@ -195,10 +195,10 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 3 completed"
   fi
 
-  # Stage 4: Set approval for refund wallet)
+  # Stage 4: Set approvals (refund wallet and deployer wallet)
   if [[ $START_STAGE -le 4 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approval for refund wallet"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approvals (refund wallet and deployer wallet)"
 
     # approve refund wallet to execute refund-related functions
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving refund wallet to execute functions listed in config/global.json"
@@ -206,7 +206,12 @@ deployAllContracts() {
     checkFailure $? "update approve refund wallet to execute refund-related functions"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< refund wallet approved"
 
-    echo ""
+    # approve deployer wallet to execute config-related functions
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving deployer wallet to execute functions listed in config/global.json"
+    updateFacetConfig "" "$ENVIRONMENT" "$NETWORK" "ApproveDeployerWalletInDiamond" "$DIAMOND_CONTRACT_NAME"
+    checkFailure $? "update approve deployer wallet to execute config-related functions"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployer wallet approved"
+
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 4 completed"
   fi
 
