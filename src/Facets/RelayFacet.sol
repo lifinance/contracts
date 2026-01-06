@@ -138,7 +138,9 @@ contract RelayFacet is
     /// @notice Returns whether a requestId has already been consumed (replay protection)
     /// @param requestId Relay API request ID
     /// @return True if already consumed
-    function consumedIds(bytes32 requestId) external view returns (bool) {
+    function isRequestIdConsumed(
+        bytes32 requestId
+    ) external view returns (bool) {
         return
             getStorage().consumedIds[requestId] ||
             DEPRECATED_consumedIds[requestId];
@@ -203,6 +205,10 @@ contract RelayFacet is
         ILiFi.BridgeData memory _bridgeData,
         RelayData calldata _relayData
     ) internal {
+        // mark requestId as consumed
+        Storage storage s = getStorage();
+        s.consumedIds[_relayData.requestId] = true;
+
         // check if sendingAsset is native or ERC20
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Native
@@ -234,8 +240,6 @@ contract RelayFacet is
                 revert(LibUtil.getRevertMsg(reason));
             }
         }
-
-        getStorage().consumedIds[_relayData.requestId] = true;
 
         // Emit special event if bridging to non-EVM chain
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
