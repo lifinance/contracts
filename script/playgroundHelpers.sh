@@ -1740,8 +1740,10 @@ function transferStagingDiamondOwnership() {
   fi
 
   # Normalize addresses for comparison (lowercase)
-  local CURRENT_OWNER_LOWER=$(echo "$CURRENT_OWNER" | tr '[:upper:]' '[:lower:]')
-  local NEW_DEV_WALLET_LOWER=$(echo "$NEW_DEV_WALLET" | tr '[:upper:]' '[:lower:]')
+  local CURRENT_OWNER_LOWER
+  CURRENT_OWNER_LOWER=$(echo "$CURRENT_OWNER" | tr '[:upper:]' '[:lower:]')
+  local NEW_DEV_WALLET_LOWER
+  NEW_DEV_WALLET_LOWER=$(echo "$NEW_DEV_WALLET" | tr '[:upper:]' '[:lower:]')
 
   # Check if ownership transfer is already complete
   if [[ "$CURRENT_OWNER_LOWER" == "$NEW_DEV_WALLET_LOWER" ]]; then
@@ -1769,7 +1771,8 @@ function transferStagingDiamondOwnership() {
     return 1
   fi
 
-  local OLD_OWNER_ADDRESS_LOWER=$(echo "$OLD_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
+  local OLD_OWNER_ADDRESS_LOWER
+  OLD_OWNER_ADDRESS_LOWER=$(echo "$OLD_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
 
   if [[ "$OLD_OWNER_ADDRESS_LOWER" != "$CURRENT_OWNER_LOWER" ]]; then
     error "[$NETWORK] PRIVATE_KEY_OLD address ($OLD_OWNER_ADDRESS) does not match current owner ($CURRENT_OWNER)"
@@ -1822,7 +1825,8 @@ function transferStagingDiamondOwnership() {
     return 1
   fi
 
-  local VERIFIED_NEW_OWNER_ADDRESS_LOWER=$(echo "$VERIFIED_NEW_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
+  local VERIFIED_NEW_OWNER_ADDRESS_LOWER
+  VERIFIED_NEW_OWNER_ADDRESS_LOWER=$(echo "$VERIFIED_NEW_OWNER_ADDRESS" | tr '[:upper:]' '[:lower:]')
 
   if [[ "$VERIFIED_NEW_OWNER_ADDRESS_LOWER" != "$NEW_DEV_WALLET_LOWER" ]]; then
     error "[$NETWORK] PRIVATE_KEY does not match new dev wallet address"
@@ -1867,7 +1871,8 @@ function transferStagingDiamondOwnership() {
     return 1
   fi
 
-  local VERIFIED_OWNER_LOWER=$(echo "$VERIFIED_OWNER" | tr '[:upper:]' '[:lower:]')
+  local VERIFIED_OWNER_LOWER
+  VERIFIED_OWNER_LOWER=$(echo "$VERIFIED_OWNER" | tr '[:upper:]' '[:lower:]')
 
   if [[ "$VERIFIED_OWNER_LOWER" == "$NEW_DEV_WALLET_LOWER" ]]; then
     logWithTimestamp "[$NETWORK] ✅ Ownership successfully transferred to new dev wallet ($NEW_DEV_WALLET)"
@@ -1914,3 +1919,5 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f transferStagingDiamondOwnership
+export -f manageTimelockCanceller
+export -f manageSafeOwner

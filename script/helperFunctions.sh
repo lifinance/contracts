@@ -1806,6 +1806,14 @@ function verifyContract() {
   # Build verification command as array for safe execution
   local VERIFY_CMD=()
 
+  # Get verifier URL - all networks in foundry.toml have one configured
+  local VERIFIER_URL
+  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$VERIFIER_URL" ]; then
+    error "No verifier URL found for network $NETWORK in foundry.toml"
+    return 1
+  fi
+
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
     # Set environment variable for zkEVM
@@ -1815,18 +1823,20 @@ function verifyContract() {
       "verify-contract"
       "--zksync"
       "--watch"
-      "--chain" "$CHAIN_ID"
+      # Omit --chain flag since we always provide --verifier-url
       # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "$ADDRESS"
       "$FULL_PATH"
     )
   else
+    # For all networks, we use --verifier-url from foundry.toml
+    # No need for --chain or --chain-id since verifier-url is always provided
     VERIFY_CMD=(
       "forge"
       "verify-contract"
       # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "--watch"
-      "--chain" "$CHAIN_ID"
+      # Omit --chain flag since we always provide --verifier-url
       "$ADDRESS"
       "$FULL_PATH"
     )
@@ -1867,12 +1877,8 @@ function verifyContract() {
     fi
   fi
 
-  # Add verifier URL if available (for custom verifiers like oklink)
-  local VERIFIER_URL
-  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
-  if [ $? -eq 0 ] && [ -n "$VERIFIER_URL" ]; then
-    VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
-  fi
+  # Always add verifier URL since all networks have one configured in foundry.toml
+  VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
 
   echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
@@ -1883,9 +1889,27 @@ function verifyContract() {
     echo "[info] ${VERIFY_CMD[*]}"
 
     # Execute verification command with --watch flag (will wait for completion)
-    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1)
+    local VERIFY_EXIT_CODE=0
+    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1) || VERIFY_EXIT_CODE=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Check if command failed with non-zero exit code
+    if [ $VERIFY_EXIT_CODE -ne 0 ]; then
+      error "Verification command failed with exit code $VERIFY_EXIT_CODE"
+      if [ -z "$VERIFY_OUTPUT" ]; then
+        error "No output from verification command. This may indicate a network error, invalid API key, or command syntax issue."
+      else
+        error "Command output: $VERIFY_OUTPUT"
+      fi
+      # Continue to next retry instead of returning immediately
+      RETRY_COUNT=$((RETRY_COUNT + 1))
+      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+        echo "[info] Verification attempt failed, waiting 15 seconds before retry..."
+        sleep 15
+      fi
+      continue
+    fi
 
     # Check if contract is already verified
     if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
@@ -1896,6 +1920,12 @@ function verifyContract() {
     # Parse the final verification response from --watch output
     local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | tail -1 | awk '{print $2}' | tr -d '`')
     local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | tail -1 | cut -d'`' -f2)
+
+    # If no response found in output, display raw output for debugging
+    if [ -z "$RESPONSE" ] && [ -z "$DETAILS" ]; then
+      warning "Could not parse verification response from output. Raw output:"
+      echo "$VERIFY_OUTPUT"
+    fi
 
     # Check if verification succeeded based on final response
     if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
@@ -1909,12 +1939,22 @@ function verifyContract() {
       # Check final status
       local CHECK_CMD=()
       if isZkEvmNetwork "$NETWORK"; then
-        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--chain" "$CHAIN_ID" "$ADDRESS")
+        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "$ADDRESS")
       else
-        CHECK_CMD=("forge" "verify-check" "--chain" "$CHAIN_ID" "$ADDRESS")
+        # Use verifier URL instead of chain flag to match the verification command
+        CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
       fi
 
-      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1)
+      local CHECK_EXIT_CODE=0
+      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
+
+      if [ $CHECK_EXIT_CODE -ne 0 ]; then
+        error "Verification check command failed with exit code $CHECK_EXIT_CODE"
+        if [ -n "$CHECK_OUTPUT" ]; then
+          error "Check command output: $CHECK_OUTPUT"
+        fi
+      fi
+
       local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
       local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep "Details:" | cut -d'`' -f2)
 
