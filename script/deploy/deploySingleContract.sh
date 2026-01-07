@@ -247,12 +247,21 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
+    # Add network-specific flags for megaeth
+    if [[ "$NETWORK" == "megaeth" ]]; then
+      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
+      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
+      SKIP_SIMULATION_FLAG=""
+    else
+      MEGAETH_FLAGS=""
+    fi
+
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --gas-limit 50000000)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" $MEGAETH_FLAGS --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     fi
 
     RETURN_CODE=$?
