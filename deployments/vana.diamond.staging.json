@@ -58,13 +58,16 @@
       "ERC20Proxy": "",
       "Executor": "",
       "FeeCollector": "",
+      "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
     }

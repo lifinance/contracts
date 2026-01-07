@@ -23,7 +23,7 @@
       },
       "0x87158BfcC84E661ddb09b461d2F83e1313d7e3F9": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xc27D55C782E00B490e15f3DBacDfD8f06c626f46": {
         "Name": "PeripheryRegistryFacet",
@@ -80,6 +80,10 @@
       "0xd39ad783e336d42410b916A87d852967F4C18082": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -91,7 +95,7 @@
       "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "LidoWrapper": "",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
-      "Permit2Proxy": "",
+      "Permit2Proxy": "0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

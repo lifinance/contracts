@@ -108,6 +108,10 @@
       "0x458E14Db5f78a7D1f1A975b17c0F08ffc548e06f": {
         "Name": "MegaETHBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0xc9968D9BbaBa9462A5D228BE6617C870A2118082": {
+        "Name": "WhitelistManagerFacet",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -116,13 +120,14 @@
       "FeeCollector": "0x9ca271A532392230EAe919Fb5460aEa9D9718424",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "0xbb9340B54CaBd8F1628e5fe5273E59228894E322",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }

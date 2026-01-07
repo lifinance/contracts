@@ -48,19 +48,30 @@
       "0x954FF239eEEF244dBF0e49989CD7f595Dc52c899": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0x400599f379c87b1F110b795471B396dB06136259": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.1.0"
+      },
+      "0x3FEE9994AE75d235c204a10E8A475eB109835d52": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "",
       "Executor": "",
       "FeeCollector": "",
+      "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xeCa6ED5Fbd7c06cccaf66BFd9625dbE23b589952",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
     }

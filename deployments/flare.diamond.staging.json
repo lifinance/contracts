@@ -48,18 +48,66 @@
       "0xFeE601b7ae5397a553B67E3d0c78332d51E2BcF0]": {
         "Name": "",
         "Version": ""
+      },
+      "0xaa3ebC3d9a927D70e2B53491F68F942531770C21": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x70a219c3b84c41E6792D23E9594AC478F033b731": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xBDD4C640c36d701C500be86DBFA808d0e872C9A9": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x4dA22aDB6895581E750438677F3592d2A7f876e5": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x4D03091b368bd438eD594b5267237B7Cf51afbDC": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x1F95361EAb4b090441C6B29De138c842041f4D0c": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xAf9F42bd00608C35cc6eb17de23133f528d4D7f4": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF3DD0E19E8e02ce1b575778c325477f3a5a25CB4": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xBa89aB2742fB2a1AC4ed157759141e6b3BdCa890": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6924EF3331b4306fFE3a7e4dbbDD45E2F4199b54": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.1.0"
+      },
+      "0xe7De6D0D718e62Dfb5A680F0643df8CC09315d3a": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": ""
       }
     },
     "Periphery": {
       "ERC20Proxy": "",
       "Executor": "",
       "FeeCollector": "",
+      "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xE00313f38f42339F6443C84A2C34cAe29676399E",
+      "LidoWrapper": "",
+      "Patcher": "",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
     }

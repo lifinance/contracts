@@ -64,6 +64,10 @@
       "0xa65B95Ed19E6de0A020dC164C1f3cDD8B603f189": {
         "Name": "UnitFacet",
         "Version": "1.0.0"
+      },
+      "0x6924EF3331b4306fFE3a7e4dbbDD45E2F4199b54": {
+        "Name": "WhitelistManagerFacet",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -72,13 +76,14 @@
       "FeeCollector": "0xF2331183b80D2f3143a4Bc56B1232403034a542a",
       "FeeForwarder": "",
       "GasZipPeriphery": "0xd3804612169000bFAADDFd68079094D0FBF9e23b",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x595307AeF95db7110D4bfde3145A6FE0Ecca15c8",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "0x43B547DcCB87229C64e3dABDfCECa55047C7c65e",
       "ReceiverAcrossV3": "0xD48b21409827466445A959D08E11c726C52a96e2",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0xCF9376CE4f6c37233D869aE6815254bB68E99015",
       "TokenWrapper": "0x53875560FaF9e8320Eb0C807eeB84a56a800BD3d"
     }
