@@ -33,6 +33,12 @@ contract AcrossV4SwapFacet is
     /// @notice The contract address of the SpokePool on the source chain
     address public immutable SPOKE_POOL;
 
+    /// @notice The Across custom chain ID for Solana
+    uint256 public constant ACROSS_CHAIN_ID_SOLANA = 34268394551451;
+
+    /// @notice The base for the outputAmountMultiplier (to allow room for adjustments in both directions)
+    uint256 public constant MULTIPLIER_BASE = 1e18;
+
     /// Types ///
 
     /// @notice Data specific to Across V4 Swap API bridging
@@ -42,6 +48,10 @@ contract AcrossV4SwapFacet is
     /// @param transferType How to transfer tokens to the exchange (Approval, Transfer, Permit2Approval)
     /// @param routerCalldata The calldata to execute on the DEX router
     /// @param minExpectedInputTokenAmount Minimum amount of bridgeable token expected after swap
+    /// @param outputAmountMultiplier Multiplier used to adjust outputAmount when positive slippage occurs after a swap.
+    ///                               Accounts for decimal differences between bridge input and output tokens.
+    ///                               Formula: multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals).
+    ///                               For same decimals, use 1e18 (100% multiplier). Only applied when minAmount > originalAmount.
     /// @param enableProportionalAdjustment If true, adjusts outputAmount proportionally based on swap results
     struct AcrossV4SwapData {
         ISpokePoolPeriphery.BaseDepositData depositData;
@@ -50,6 +60,7 @@ contract AcrossV4SwapFacet is
         ISpokePoolPeriphery.TransferType transferType;
         bytes routerCalldata;
         uint256 minExpectedInputTokenAmount;
+        uint128 outputAmountMultiplier;
         bool enableProportionalAdjustment;
     }
 
@@ -106,10 +117,11 @@ contract AcrossV4SwapFacet is
         payable
         nonReentrant
         refundExcessNative(payable(msg.sender))
-        containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
+        containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // deposit funds and execute swaps / fee collection, if applicable
         uint256 originalAmount = _bridgeData.minAmount;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -118,9 +130,21 @@ contract AcrossV4SwapFacet is
             payable(msg.sender)
         );
 
-        // Update minExpectedInputTokenAmount proportionally if there was positive slippage
+        // Update outputAmount and minExpectedInputTokenAmount proportionally if there was positive slippage
+        // If minAmount == originalAmount, no adjustment is needed as the outputAmount is already correct
+        // In case of different decimals between input and output, we will adjust the outputAmount
+        // with the outputAmountMultiplier to account for the difference in decimals. We divide by 1e18
+        // to allow room for adjustment in both directions, i.e. from 6 > 18 decimals and vice versa.
+        // The multiplier should be calculated as:  multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)
+        // NOTE: please note that we intentionally do not verify the outputAmount any further. Only use LI.FI backend-
+        //       generated calldata to avoid potential loss of funds.
         AcrossV4SwapData memory updatedAcrossData = _acrossV4SwapData;
         if (_bridgeData.minAmount > originalAmount) {
+            updatedAcrossData.depositData.outputAmount =
+                (_bridgeData.minAmount *
+                    _acrossV4SwapData.outputAmountMultiplier) /
+                MULTIPLIER_BASE;
+
             updatedAcrossData.minExpectedInputTokenAmount =
                 (_acrossV4SwapData.minExpectedInputTokenAmount *
                     _bridgeData.minAmount) /
@@ -139,54 +163,73 @@ contract AcrossV4SwapFacet is
         ILiFi.BridgeData memory _bridgeData,
         AcrossV4SwapData memory _acrossV4SwapData
     ) internal {
-        // Validate that message is empty since destination calls are disabled for this facet
-        if (_acrossV4SwapData.depositData.message.length > 0) {
-            revert InvalidCallData();
-        }
-
-        // Validate destination chain IDs match
-        if (
-            _acrossV4SwapData.depositData.destinationChainId !=
-            _bridgeData.destinationChainId
-        ) {
-            revert InformationMismatch();
-        }
-
-        // Validate receiver address
+        // validate receiver address and destination chain IDs
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            // Destination chain is non-EVM
-            // Make sure recipient is non-zero (we cannot validate further)
+            // destination chain is non-EVM
+            // validate destination chain IDs match (convert LiFi chain ID to Across chain ID for comparison)
+            uint256 expectedAcrossChainId = _getAcrossChainId(
+                _bridgeData.destinationChainId
+            );
+            if (
+                _acrossV4SwapData.depositData.destinationChainId !=
+                expectedAcrossChainId
+            ) {
+                revert InformationMismatch();
+            }
+
+            // make sure recipient is non-zero (we cannot validate further)
             if (_acrossV4SwapData.depositData.recipient == bytes32(0)) {
                 revert InvalidNonEVMReceiver();
             }
 
-            // Emit event for non-EVM chain
+            // emit event for non-EVM chain
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
                 _acrossV4SwapData.depositData.recipient
             );
         } else {
-            // Destination chain is EVM
-            // Since destination calls are disabled, receiver addresses must always match
-            // Note: validateBridgeData already ensures bridgeData.receiver != address(0),
-            // so depositData.recipient cannot be bytes32(0) if they match
+            // destination chain is EVM
+            // validate destination chain IDs match (for EVM chains, chain IDs match directly)
             if (
-                _convertAddressToBytes32(_bridgeData.receiver) !=
-                _acrossV4SwapData.depositData.recipient
+                _acrossV4SwapData.depositData.destinationChainId !=
+                _bridgeData.destinationChainId
             ) {
+                revert InformationMismatch();
+            }
+
+            // For the Swap API, depositData.recipient is always the multicall handler contract that executes
+            // the swap and forwards tokens to the actual recipient. The final recipient is encoded in
+            // routerCalldata or message (which is used by Across API for their own calldata, not for
+            // destination calls). We trust the LI.FI backend to ensure the final recipient matches
+            // bridgeData.receiver. We only validate that recipient is non-zero to prevent lost funds.
+            if (_acrossV4SwapData.depositData.recipient == bytes32(0)) {
                 revert InvalidReceiver();
             }
         }
 
-        // Approve the periphery to spend tokens
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(SPOKE_POOL_PERIPHERY),
-            _bridgeData.minAmount
-        );
+        // validate refund address to prevent loss of funds in case of refunds
+        if (_acrossV4SwapData.depositData.depositor == address(0)) {
+            revert InvalidCallData();
+        }
 
-        // Build the SwapAndDepositData struct for the periphery
+        // determine if msg.value or ERC20 approval is needed
+        uint256 msgValue;
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // NATIVE
+            // determine how many native tokens will be sent to the Spokepool periphery
+            msgValue = _bridgeData.minAmount;
+        } else {
+            // ERC20
+            // Approve the Spokepool periphery to spend tokens
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(SPOKE_POOL_PERIPHERY),
+                _bridgeData.minAmount
+            );
+        }
+
+        // Build the SwapAndDepositData struct for the periphery (same for native and ERC20)
         ISpokePoolPeriphery.SwapAndDepositData
             memory swapAndDepositData = ISpokePoolPeriphery
                 .SwapAndDepositData({
@@ -209,18 +252,25 @@ contract AcrossV4SwapFacet is
                 });
 
         // Call the periphery's swapAndBridge function
-        SPOKE_POOL_PERIPHERY.swapAndBridge(swapAndDepositData);
+        SPOKE_POOL_PERIPHERY.swapAndBridge{ value: msgValue }(
+            swapAndDepositData
+        );
 
         // Emit event after external call completes successfully
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @notice Converts an address to bytes32
-    /// @param _address The address to convert
-    /// @return The address as bytes32
-    function _convertAddressToBytes32(
-        address _address
-    ) internal pure returns (bytes32) {
-        return bytes32(uint256(uint160(_address)));
+    /// @notice Converts LiFi internal (non-EVM) chain IDs to Across chain IDs
+    ///         For EVM chainIds there is no need to convert, they will just returned as-is
+    /// @param _destinationChainId The LiFi chain ID to convert
+    function _getAcrossChainId(
+        uint256 _destinationChainId
+    ) internal pure returns (uint256) {
+        // currently only Solana has a custom chainId
+        if (_destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+            return ACROSS_CHAIN_ID_SOLANA;
+        } else {
+            return _destinationChainId;
+        }
     }
 }

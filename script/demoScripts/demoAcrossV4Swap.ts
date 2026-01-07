@@ -7,6 +7,7 @@ import {
   encodeFunctionData,
   erc20Abi,
   formatUnits,
+  getAddress,
   getContract,
   parseAbi,
   parseUnits,
@@ -28,8 +29,8 @@ import type { LibSwap } from '../../typechain/GenericSwapFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 
 import {
-  ADDRESS_WETH_ARB,
   ADDRESS_USDC_OPT,
+  ADDRESS_WETH_ARB,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -74,11 +75,11 @@ const FEE_COLLECTOR_ABI = parseAbi([
 // 4. Extract transferType from API calldata and use it (don't hardcode!)
 //
 // EXAMPLE SUCCESSFUL TRANSACTIONS:
-// - Source (Arbitrum): https://arbiscan.io/tx/0xb94bba8ae2fca41e8aacc41279829bf74d1bd94af77a8e753cca627bb66dbb9e
-// - Destination (Optimism): https://optimistic.etherscan.io/tx/0xc61365d4a1d5ef4cddc6693f725e523a97da9a1c4a99d2766b359454cb8b8283
+// - Source (Arbitrum): https://arbiscan.io/tx/0x6626f2b63a68f6ab374548fbe00f498eac38b10e16d22977a3ff75926b5ce847
+// - Destination (Optimism): https://optimistic.etherscan.io/tx/0xb6114697fa8089af867c13d379aac4be43240f34dfd500864bfe58d1836f7432
 // - With Fee Collection (--collect-fee):
-//   - Source (Arbitrum): https://arbiscan.io/tx/0xd6dcb70d742fc6f1d12cc04fe667c395005378d8bd2059c621b2af495d50cebc
-//   - Destination (Optimism): https://optimistic.etherscan.io/tx/0x49824eef459b458b4ea6166de24d7dc863078cefac9f9fbdbf1a51a9420c2afb
+//   - Source (Arbitrum): https://arbiscan.io/tx/0x6626f2b63a68f6ab374548fbe00f498eac38b10e16d22977a3ff75926b5ce847
+//   - Destination (Optimism): https://optimistic.etherscan.io/tx/0xc003343b1115fafa1d595cbd003a4f4e658fb8fb30402b2be2c4421d66e4e278
 //
 // IMPORTANT: This demo uses WETH -> USDC route to trigger an "anyToBridgeable" swap type.
 // For direct bridgeable-to-bridgeable routes (USDC -> USDC), use AcrossV4 facet instead.
@@ -316,8 +317,8 @@ const toChainId = networks[DST_CHAIN].chainId
 const INPUT_TOKEN = ADDRESS_WETH_ARB // WETH on Arbitrum
 const OUTPUT_TOKEN = ADDRESS_USDC_OPT // USDC on Optimism
 
-// Amount: 0.001 WETH (10^15 wei) - small amount for testing
-const fromAmount = 1000000000000000n // 0.001 WETH
+// Amount: 0.0003 WETH (3 * 10^14 wei) - small amount for testing
+const fromAmount = 300000000000000n // 0.0003 WETH
 
 // Environment: staging or production
 const ENVIRONMENT = EnvironmentEnum.staging
@@ -376,7 +377,7 @@ async function main() {
   consola.info(`  Destination Chain: ${DST_CHAIN} (Chain ID: ${toChainId})`)
   consola.info(`  Input Token: ${INPUT_TOKEN} (WETH)`)
   consola.info(`  Output Token: ${OUTPUT_TOKEN} (USDC)`)
-  consola.info(`  Amount: 0.001 WETH\n`)
+  consola.info(`  Amount: ${formatUnits(fromAmount, 18)} WETH\n`)
 
   // Step 1: Get quote from Across Swap API
   consola.info('Step 1: Fetching quote from Across Swap API...')
@@ -384,15 +385,17 @@ async function main() {
   // NOTE: Both recipient and depositor should be the user's wallet address.
   // The Diamond is only the msg.sender to SpokePoolPeriphery, not the depositor.
   // skipOriginTxEstimation=true is required because the Diamond won't have tokens at quote time.
+  // Ensure addresses are properly checksummed for the API
+  const checksummedWalletAddress = getAddress(walletAddress)
   const swapApiRequest: IAcrossSwapApiRequest = {
     originChainId: fromChainId,
     destinationChainId: toChainId,
     inputToken: INPUT_TOKEN,
     outputToken: OUTPUT_TOKEN,
     amount: fromAmount.toString(),
-    recipient: walletAddress, // User receives tokens on destination
-    depositor: walletAddress, // User receives refunds if bridge fails
-    refundAddress: walletAddress, // Same as depositor for consistency
+    recipient: checksummedWalletAddress, // User receives tokens on destination
+    depositor: checksummedWalletAddress, // User receives refunds if bridge fails
+    refundAddress: checksummedWalletAddress, // Same as depositor for consistency
     refundOnOrigin: true,
     slippageTolerance: 1, // 1%
     skipOriginTxEstimation: true, // Required: Diamond won't have tokens at quote time
@@ -487,6 +490,9 @@ async function main() {
     consola.info(`  Output Amount: ${decodedData.depositData.outputAmount}`)
     consola.info(`  Depositor: ${decodedData.depositData.depositor}`)
     consola.info(`  Recipient: ${decodedData.depositData.recipient}`)
+    consola.info(
+      `  Router Calldata length: ${decodedData.routerCalldata.length} bytes`
+    )
   } catch (error) {
     consola.error(`Failed to decode calldata: ${error}`)
     consola.info('The API may have returned a different transaction format.')
@@ -499,25 +505,33 @@ async function main() {
 
   const transactionId = `0x${randomBytes(32).toString('hex')}` as `0x${string}`
 
+  // Note: Destination calls are disabled for AcrossV4SwapFacet
+  // The message field is used by Across API for their own calldata, not for destination calls
+  const hasDestinationCall = false
+
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId,
     bridge: 'acrossV4Swap',
     integrator: 'lifi-demoScript',
     referrer: zeroAddress,
     sendingAssetId: INPUT_TOKEN,
-    receiver: walletAddress,
+    receiver: walletAddress, // Always use the user's wallet address
     minAmount: fromAmount,
     destinationChainId: toChainId,
     hasSourceSwaps: false, // Periphery handles the swap, not LiFi
-    hasDestinationCall: false,
+    hasDestinationCall, // Always false - destination calls are disabled
   }
   consola.info('  BridgeData prepared')
 
   // Step 5: Prepare AcrossV4SwapData
   consola.info('\nStep 5: Preparing AcrossV4SwapData...')
 
-  // Use decoded deposit data directly - API was called with depositor=DIAMOND_ADDRESS
+  // Use decoded deposit data directly - API was called with depositor=user wallet
   // so all fields should be correctly set
+  // For the Swap API, the recipient is always the multicall handler contract.
+  // The multicall handler executes the swap using routerCalldata and forwards tokens.
+  // The message field from the API should be used as-is - it's used by Across API
+  // for their own calldata, not for destination calls (which are disabled).
   const depositData: ISpokePoolPeriphery.BaseDepositDataStruct = {
     inputToken: decodedData.depositData.inputToken,
     outputToken: decodedData.depositData.outputToken as `0x${string}`,
@@ -529,11 +543,25 @@ async function main() {
     quoteTimestamp: decodedData.depositData.quoteTimestamp,
     fillDeadline: decodedData.depositData.fillDeadline,
     exclusivityParameter: decodedData.depositData.exclusivityParameter,
-    message: decodedData.depositData.message,
+    message: decodedData.depositData.message, // Use the message from API - don't clear it
   }
 
   // TransferType: 0 = Approval, 1 = Transfer, 2 = Permit2Approval
   // Use the transferType from the API calldata
+  // Calculate outputAmountMultiplier to account for decimal differences between bridge tokens
+  // Formula: 1e18 * 10^(bridgeOutputDecimals - bridgeInputDecimals)
+  // For same decimals, this equals 1e18 (100% multiplier)
+  // Note: uint128 max is ~3.4e38, so this calculation is safe for reasonable decimal differences
+  const bridgeInputDecimals = bridgeStep.tokenIn.decimals
+  const bridgeOutputDecimals = bridgeStep.tokenOut.decimals
+  const decimalDiff = bridgeOutputDecimals - bridgeInputDecimals
+  const multiplierBase = BigInt(10 ** 18)
+  const decimalAdjustment = BigInt(10 ** Math.abs(decimalDiff))
+  const outputAmountMultiplier =
+    decimalDiff >= 0
+      ? multiplierBase * decimalAdjustment
+      : multiplierBase / decimalAdjustment
+
   const acrossV4SwapData: AcrossV4SwapFacet.AcrossV4SwapDataStruct = {
     depositData,
     swapToken: decodedData.swapToken,
@@ -541,6 +569,7 @@ async function main() {
     transferType: decodedData.transferType,
     routerCalldata: decodedData.routerCalldata,
     minExpectedInputTokenAmount: decodedData.minExpectedInputTokenAmount,
+    outputAmountMultiplier: Number(outputAmountMultiplier),
     enableProportionalAdjustment: true,
   }
   consola.info('  AcrossV4SwapData prepared')
@@ -549,7 +578,7 @@ async function main() {
   consola.info('\n==========================================')
   consola.info('  Transaction Summary')
   consola.info('==========================================')
-  consola.info(`Input:  0.001 WETH on Arbitrum`)
+  consola.info(`Input:  ${formatUnits(fromAmount, 18)} WETH on Arbitrum`)
   consola.info(
     `Output: ~${(Number(decodedData.depositData.outputAmount) / 1e6).toFixed(
       2
