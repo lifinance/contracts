@@ -608,7 +608,11 @@ function diamondSyncWhitelist {
     if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
       echoSyncStage "----- [$NETWORK] Stage 4a: Removing obsolete contract-selector pairs -----"
       printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#REMOVED_PAIRS[@]} pairs to remove (no longer in whitelist files)"
-      echoSyncStep "🔍 [$NETWORK] Preparing removal proposal with ${#REMOVED_PAIRS[@]} pairs"
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        echoSyncStep "🔍 [$NETWORK] Preparing removal proposal with ${#REMOVED_PAIRS[@]} pairs"
+      else
+        echoSyncStep "🔍 [$NETWORK] Preparing removal transaction with ${#REMOVED_PAIRS[@]} pairs"
+      fi
       
       # Build comma-separated strings directly in cast format
       local REMOVE_CONTRACTS_ARRAY=""
@@ -641,12 +645,20 @@ function diamondSyncWhitelist {
       echoSyncDebug "Selectors: $REMOVE_SELECTORS_ARRAY"
 
       echoSyncStep ""
-      echoSyncStep "🚀 [$NETWORK] Starting removal proposal attempts..."
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        echoSyncStep "🚀 [$NETWORK] Starting removal proposal attempts..."
+      else
+        echoSyncStep "🚀 [$NETWORK] Starting removal transaction attempts..."
+      fi
       local REMOVE_ATTEMPTS=1
       local REMOVE_SUCCESS=false
       
       while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Proposing removal of $REMOVE_COUNT pairs"
+        if [[ "$ENVIRONMENT" == "production" ]]; then
+          printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Proposing removal of $REMOVE_COUNT pairs"
+        else
+          printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
+        fi
 
         # Wait before retries to allow base fee to stabilize (except first attempt)
         if [ $REMOVE_ATTEMPTS -gt 1 ]; then
@@ -654,49 +666,79 @@ function diamondSyncWhitelist {
           sleep 3
         fi
 
-        # Construct calldata for batchSetContractSelectorWhitelist
-        local REMOVE_CALLDATA
-        REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" false 2>&1)
-        local calldata_exit_code=$?
+        if [[ "$ENVIRONMENT" == "production" ]]; then
+          # Production: Use Safe proposal with timelock
+          # Construct calldata for batchSetContractSelectorWhitelist
+          local REMOVE_CALLDATA
+          REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" false 2>&1)
+          local calldata_exit_code=$?
 
-        if [[ $calldata_exit_code -ne 0 ]]; then
-          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for removal proposal (attempt $REMOVE_ATTEMPTS)"
-          REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
-          continue
-        fi
+          if [[ $calldata_exit_code -ne 0 ]]; then
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for removal proposal (attempt $REMOVE_ATTEMPTS)"
+            REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
+            continue
+          fi
 
-        # Propose to Safe with timelock
-        local REMOVE_PROPOSAL_OUTPUT
-        REMOVE_PROPOSAL_OUTPUT=$(bun script/deploy/safe/propose-to-safe.ts \
-          --network "$NETWORK" \
-          --rpcUrl "$RPC_URL" \
-          --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
-          --to "$DIAMOND_ADDRESS" \
-          --calldata "$REMOVE_CALLDATA" \
-          --timelock 2>&1)
-        local REMOVE_PROPOSAL_EXIT_CODE=$?
+          # Propose to Safe with timelock
+          local REMOVE_PROPOSAL_OUTPUT
+          REMOVE_PROPOSAL_OUTPUT=$(bun script/deploy/safe/propose-to-safe.ts \
+            --network "$NETWORK" \
+            --rpcUrl "$RPC_URL" \
+            --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
+            --to "$DIAMOND_ADDRESS" \
+            --calldata "$REMOVE_CALLDATA" \
+            --timelock 2>&1)
+          local REMOVE_PROPOSAL_EXIT_CODE=$?
 
-        # Print proposal output for debugging (single-network runs only)
-        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-          echo "$REMOVE_PROPOSAL_OUTPUT"
-        fi
+          # Print proposal output for debugging (single-network runs only)
+          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
+            echo "$REMOVE_PROPOSAL_OUTPUT"
+          fi
 
-        # Check if proposal succeeded (propose-to-safe.ts returns exit code 0 on success)
-        if [[ $REMOVE_PROPOSAL_EXIT_CODE -eq 0 ]]; then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal proposal successful!"
-          REMOVE_SUCCESS=true
-          break
+          # Check if proposal succeeded (propose-to-safe.ts returns exit code 0 on success)
+          if [[ $REMOVE_PROPOSAL_EXIT_CODE -eq 0 ]]; then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal proposal successful!"
+            REMOVE_SUCCESS=true
+            break
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal proposal failed (attempt $REMOVE_ATTEMPTS)"
+          fi
         else
-          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal proposal failed (attempt $REMOVE_ATTEMPTS)"
+          # Staging: Use direct cast send
+          local REMOVE_TX_OUTPUT
+          REMOVE_TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" false --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
+          local REMOVE_TX_EXIT_CODE=$?
+
+          # Print transaction output for debugging (single-network runs only)
+          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
+            echo "$REMOVE_TX_OUTPUT"
+          fi
+
+          # Check if transaction succeeded
+          if [[ $REMOVE_TX_EXIT_CODE -eq 0 ]] && ([[ "$REMOVE_TX_OUTPUT" == *"blockHash"* ]] || [[ "$REMOVE_TX_OUTPUT" == *"transactionHash"* ]]); then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal transaction successful!"
+            REMOVE_SUCCESS=true
+            break
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal transaction failed (attempt $REMOVE_ATTEMPTS)"
+          fi
         fi
 
         REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
       done
 
       if [[ "$REMOVE_SUCCESS" == "false" ]]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not propose removal of ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+        if [[ "$ENVIRONMENT" == "production" ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not propose removal of ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+        else
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not remove ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+        fi
         {
-          echo "[$NETWORK] Error: Could not propose removal of obsolete pairs"
+          if [[ "$ENVIRONMENT" == "production" ]]; then
+            echo "[$NETWORK] Error: Could not propose removal of obsolete pairs"
+          else
+            echo "[$NETWORK] Error: Could not remove obsolete pairs"
+          fi
           echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[*]}"
           echo ""
         } >> "$FAILED_LOG_FILE"
@@ -712,7 +754,11 @@ function diamondSyncWhitelist {
       if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
         echoSyncStage "----- [$NETWORK] Stage 4b: Adding missing contract-selector pairs -----"
       else
-        echoSyncStage "----- [$NETWORK] Stage 4: Preparing and sending whitelist proposals -----"
+        if [[ "$ENVIRONMENT" == "production" ]]; then
+          echoSyncStage "----- [$NETWORK] Stage 4: Preparing and sending whitelist proposals -----"
+        else
+          echoSyncStage "----- [$NETWORK] Stage 4: Preparing and sending whitelist transactions -----"
+        fi
       fi
       printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#NEW_PAIRS[@]} new pairs to add (out of ${#REQUIRED_PAIRS[@]} required)"
       echoSyncStep "🔍 [$NETWORK] Entering batch send section with ${#NEW_PAIRS[@]} pairs"
@@ -752,7 +798,11 @@ function diamondSyncWhitelist {
       echoSyncStep "📦 [$NETWORK] Processing $TOTAL_PAIR_COUNT pairs in $TOTAL_BATCHES batches (batch size: $BATCH_SIZE)"
 
       echoSyncStep ""
-      echoSyncStep "🚀 [$NETWORK] Starting batch proposals..."
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        echoSyncStep "🚀 [$NETWORK] Starting batch proposals..."
+      else
+        echoSyncStep "🚀 [$NETWORK] Starting batch transactions..."
+      fi
       local BATCH_NUM=0
       local BATCH_SUCCESS=true
       
@@ -794,41 +844,74 @@ function diamondSyncWhitelist {
             sleep 3
           fi
 
-          # Construct calldata for batchSetContractSelectorWhitelist
-          local BATCH_CALLDATA
-          BATCH_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS_ARRAY]" "[$BATCH_SELECTORS_ARRAY]" true 2>&1)
-          local calldata_exit_code=$?
+          if [[ "$ENVIRONMENT" == "production" ]]; then
+            # Production: Use Safe proposal with timelock
+            # Construct calldata for batchSetContractSelectorWhitelist
+            local BATCH_CALLDATA
+            BATCH_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS_ARRAY]" "[$BATCH_SELECTORS_ARRAY]" true 2>&1)
+            local calldata_exit_code=$?
 
-          if [[ $calldata_exit_code -ne 0 ]]; then
-            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for batch $BATCH_NUM/$TOTAL_BATCHES proposal (attempt $ATTEMPTS)"
-            ATTEMPTS=$((ATTEMPTS + 1))
-            continue
-          fi
+            if [[ $calldata_exit_code -ne 0 ]]; then
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for batch $BATCH_NUM/$TOTAL_BATCHES proposal (attempt $ATTEMPTS)"
+              ATTEMPTS=$((ATTEMPTS + 1))
+              continue
+            fi
 
-          # Propose to Safe with timelock
-          local PROPOSAL_OUTPUT
-          PROPOSAL_OUTPUT=$(bun script/deploy/safe/propose-to-safe.ts \
-            --network "$NETWORK" \
-            --rpcUrl "$RPC_URL" \
-            --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
-            --to "$DIAMOND_ADDRESS" \
-            --calldata "$BATCH_CALLDATA" \
-            --timelock 2>&1)
-          local PROPOSAL_EXIT_CODE=$?
+            # Propose to Safe with timelock
+            local PROPOSAL_OUTPUT
+            PROPOSAL_OUTPUT=$(bun script/deploy/safe/propose-to-safe.ts \
+              --network "$NETWORK" \
+              --rpcUrl "$RPC_URL" \
+              --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
+              --to "$DIAMOND_ADDRESS" \
+              --calldata "$BATCH_CALLDATA" \
+              --timelock 2>&1)
+            local PROPOSAL_EXIT_CODE=$?
 
-          # Print proposal output for debugging (single-network runs only)
-          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-            echo "$PROPOSAL_OUTPUT"
-          fi
+            # Print proposal output for debugging (single-network runs only)
+            if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
+              echo "$PROPOSAL_OUTPUT"
+            fi
 
-          # Check if proposal succeeded (propose-to-safe.ts returns exit code 0 on success)
-          if [[ $PROPOSAL_EXIT_CODE -eq 0 ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES proposal successful!"
-            BATCH_TX_SUCCESS=true
-            break
+            # Check if proposal succeeded (propose-to-safe.ts returns exit code 0 on success)
+            if [[ $PROPOSAL_EXIT_CODE -eq 0 ]]; then
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES proposal successful!"
+              BATCH_TX_SUCCESS=true
+              break
+            else
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES proposal failed (attempt $ATTEMPTS)"
+              ATTEMPTS=$((ATTEMPTS + 1))
+            fi
           else
-            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES proposal failed (attempt $ATTEMPTS)"
-            ATTEMPTS=$((ATTEMPTS + 1))
+            # Staging: Use direct cast send
+            local TX_OUTPUT
+            TX_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS_ARRAY]" "[$BATCH_SELECTORS_ARRAY]" true --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --legacy 2>&1)
+            local TX_EXIT_CODE=$?
+
+            # Print transaction output for debugging (single-network runs only)
+            if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
+              echo "$TX_OUTPUT"
+            fi
+
+            # Check if transaction succeeded (exit code 0 and contains "blockHash")
+            if [[ $TX_EXIT_CODE -eq 0 ]] && ([[ "$TX_OUTPUT" == *"blockHash"* ]] || [[ "$TX_OUTPUT" == *"transactionHash"* ]]); then
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES transaction successful!"
+
+              # Check if any events were emitted (indicates new pairs were added)
+              local NEW_PAIRS_ADDED=false
+              if [[ "$TX_OUTPUT" == *"logs"* ]] && [[ "$TX_OUTPUT" != *"logs                 []"* ]]; then
+                printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Transaction emitted events - new pairs were added"
+                NEW_PAIRS_ADDED=true
+              else
+                printf '\033[0;36m%s\033[0m\n' "ℹ️  [$NETWORK] No events emitted - all pairs were already whitelisted (idempotent)"
+              fi
+
+              BATCH_TX_SUCCESS=true
+              break
+            else
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES transaction failed (attempt $ATTEMPTS)"
+              ATTEMPTS=$((ATTEMPTS + 1))
+            fi
           fi
         done
 
@@ -978,7 +1061,11 @@ function diamondSyncWhitelist {
         return 0
       else
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Verification failed: None of the ${#NEW_PAIRS[@]} pairs found in whitelist"
-        printf '\033[0;33m%s\033[0m\n' "⚠️  This may indicate a proposal issue or state sync problem"
+        if [[ "$ENVIRONMENT" == "production" ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  This may indicate a proposal issue or state sync problem"
+        else
+          printf '\033[0;33m%s\033[0m\n' "⚠️  This may indicate a transaction revert or state sync issue"
+        fi
         # Don't retry - all batches succeeded, this is likely a verification issue
         return 0
       fi
