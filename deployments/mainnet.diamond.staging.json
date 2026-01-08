@@ -111,7 +111,11 @@
       },
       "0xc9968D9BbaBa9462A5D228BE6617C870A2118082": {
         "Name": "WhitelistManagerFacet",
-        "Version": ""
+        "Version": "1.1.0"
+      },
+      "0xc4c6357E392d7e57dB157450eF95baD6284Ad9C3": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": "1.0.2"
       }
     },
     "Periphery": {

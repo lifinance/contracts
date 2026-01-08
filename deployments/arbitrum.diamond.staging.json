@@ -255,6 +255,10 @@
       },
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
+        "Version": "1.0.2"
+      },
+      "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
+        "Name": "EcoFacet",
         "Version": ""
       }
     },
