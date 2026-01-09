@@ -158,10 +158,34 @@ function diamondSyncWhitelist {
 
     # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+    local get_address_exit_code=$?
 
     # Check if contract address exists
-    if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
-      printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] LiFiDiamond not deployed yet - skipping whitelist sync"
+    if [[ $get_address_exit_code -ne 0 || "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
+      # Determine expected file path for better error message
+      local FILE_SUFFIX
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        FILE_SUFFIX=""
+      else
+        FILE_SUFFIX="staging."
+      fi
+      local EXPECTED_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+      
+      if [[ ! -f "$EXPECTED_FILE" ]]; then
+        printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Deployment file not found: $EXPECTED_FILE - skipping whitelist sync"
+      else
+        # File exists but contract not found - check if it's a different issue
+        local FILE_CONTENT
+        FILE_CONTENT=$(jq -r ".$DIAMOND_CONTRACT_NAME // \"NOT_FOUND\"" "$EXPECTED_FILE" 2>/dev/null)
+        if [[ "$FILE_CONTENT" == "NOT_FOUND" ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Contract '$DIAMOND_CONTRACT_NAME' not found in $EXPECTED_FILE - skipping whitelist sync"
+        elif [[ "$FILE_CONTENT" == "0x" || -z "$FILE_CONTENT" ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Contract '$DIAMOND_CONTRACT_NAME' has invalid address (0x or empty) in $EXPECTED_FILE - skipping whitelist sync"
+        else
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Failed to retrieve LiFiDiamond address from $EXPECTED_FILE (exit code: $get_address_exit_code) - skipping whitelist sync"
+          echoSyncDebug "Found address in file: $FILE_CONTENT"
+        fi
+      fi
       return
     fi
 
@@ -419,6 +443,32 @@ function diamondSyncWhitelist {
       CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS_LOWER")
       CODE=$(cast code "$CHECKSUMMED" --rpc-url "$RPC_URL")
       if [[ "$CODE" == "0x" ]]; then
+        # Determine the correct whitelist file to check for contract name
+        local WHITELIST_FILE_CHECK
+        if [[ "$ENVIRONMENT" == "production" ]]; then
+          WHITELIST_FILE_CHECK="config/whitelist.json"
+        else
+          WHITELIST_FILE_CHECK="config/whitelist.staging.json"
+        fi
+        
+        # Check if this is a Composer contract
+        local IS_COMPOSER=false
+        local CONTRACT_NAME
+        CONTRACT_NAME=$(jq -r --arg network "$NETWORK" --arg address "$CHECKSUMMED" '.PERIPHERY[$network] // [] | .[] | select(.address == $address) | .name' "$WHITELIST_FILE_CHECK" 2>/dev/null)
+        
+        if [[ "$CONTRACT_NAME" == "Composer" ]]; then
+          IS_COMPOSER=true
+        fi
+        
+        # Print warning about address with no code
+        printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Address has no code: $CHECKSUMMED"
+        
+        if [[ "$IS_COMPOSER" == "true" ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] This is a Composer contract. Please reach out to Leo."
+        else
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Please reach out to the backend team about this address."
+        fi
+        
         echoSyncDebug "Skipping address with no code: $CHECKSUMMED"
         continue
       fi
