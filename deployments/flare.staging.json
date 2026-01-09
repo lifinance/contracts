@@ -12,5 +12,6 @@
   "PeripheryRegistryFacet": "0xb246f30D50cf7A27F3c182F3Ac5e6aaFC68b6871",
   "WithdrawFacet": "0x94229F0832923418c6246Bb4b365b03BCBF3eb41",
   "LiFiDiamond": "0x2a0f0d774038f766707d857F606f1ccb8D6c3617",
-  "WhitelistManagerFacet": "0xFeE601b7ae5397a553B67E3d0c78332d51E2BcF0"
+  "WhitelistManagerFacet": "0x6924EF3331b4306fFE3a7e4dbbDD45E2F4199b54",
+  "WhitelistRecoveryFacet": "0xe7De6D0D718e62Dfb5A680F0643df8CC09315d3a"
 }
