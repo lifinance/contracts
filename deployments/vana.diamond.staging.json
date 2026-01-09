@@ -52,6 +52,10 @@
       "0x1097453751d5fDCA607D3c88D66Ae93b30C8e762": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0x6924EF3331b4306fFE3a7e4dbbDD45E2F4199b54": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {

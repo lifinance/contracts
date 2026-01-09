@@ -9,46 +9,6 @@
         "Name": "DiamondLoupeFacet",
         "Version": ""
       },
-      "0xc554E1b1bf7e16ADBE5A7EE3d326b83d9b9DEEdA": {
-        "Name": "OwnershipFacet",
-        "Version": ""
-      },
-      "0x94229F0832923418c6246Bb4b365b03BCBF3eb41": {
-        "Name": "WithdrawFacet",
-        "Version": ""
-      },
-      "0xFd9985370b5485c9d67D6e6dBc4701823b92f141": {
-        "Name": "DexManagerFacet",
-        "Version": ""
-      },
-      "0xB0ae6C0c2Ba536d10ae43A005F9f3800E2a12355": {
-        "Name": "AccessManagerFacet",
-        "Version": ""
-      },
-      "0xb246f30D50cf7A27F3c182F3Ac5e6aaFC68b6871": {
-        "Name": "PeripheryRegistryFacet",
-        "Version": ""
-      },
-      "0x90E45b6578E6471c4Ce5186732689d674EcfCF71": {
-        "Name": "GenericSwapFacet",
-        "Version": ""
-      },
-      "0x12a639d4A6F48d9A7407E3904d17C92fd335dc99": {
-        "Name": "GenericSwapFacetV3",
-        "Version": ""
-      },
-      "0x78dD59345cE1e27E7E28016647bCdC0124AE6353": {
-        "Name": "CalldataVerificationFacet",
-        "Version": ""
-      },
-      "0x4E93FCC6149F41B97a505352FfF0a87BB33B2F0C": {
-        "Name": "EmergencyPauseFacet",
-        "Version": ""
-      },
-      "0xFeE601b7ae5397a553B67E3d0c78332d51E2BcF0]": {
-        "Name": "",
-        "Version": ""
-      },
       "0xaa3ebC3d9a927D70e2B53491F68F942531770C21": {
         "Name": "",
         "Version": ""
@@ -91,7 +51,7 @@
       },
       "0xe7De6D0D718e62Dfb5A680F0643df8CC09315d3a": {
         "Name": "WhitelistRecoveryFacet",
-        "Version": ""
+        "Version": "1.0.2"
       }
     },
     "Periphery": {

@@ -49,15 +49,11 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xF8875Bee262eA56113257B4035ab545bef2C38b6": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
       "0x2A6DB28EEe8d006d4F0781b57af3B24603b65A70": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x9ae70675f7d99231A6f917CA36F45c03a17F0417": {
+      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
         "Name": "PolymerCCTPFacet",
         "Version": "1.0.0"
       },
@@ -65,13 +61,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
-      },
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
-        "Version": ""
+        "Version": "1.0.2"
       }
     },
     "Periphery": {
