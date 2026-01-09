@@ -639,23 +639,15 @@ function diamondSyncWhitelist {
           sleep 3
         fi
 
-        # Use sendOrPropose TypeScript CLI to handle production/staging logic
-        local REMOVE_CMD=(
-          bunx tsx script/deploy/safe/send-or-propose.ts
-          --network "$NETWORK"
-          --environment "$ENVIRONMENT"
-          --diamondAddress "$DIAMOND_ADDRESS"
-          --calldata "$REMOVE_CALLDATA"
-        )
-        
-        # Add timelock flag for production
+        # Use sendOrPropose function to handle production/staging logic
+        local TIMELOCK_FLAG="false"
         if [[ "$ENVIRONMENT" == "production" ]]; then
-          REMOVE_CMD+=(--timelock)
+          TIMELOCK_FLAG="true"
         fi
         
         # Execute the helper
         local REMOVE_OUTPUT
-        REMOVE_OUTPUT=$("${REMOVE_CMD[@]}" 2>&1)
+        REMOVE_OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$REMOVE_CALLDATA" "$TIMELOCK_FLAG" 2>&1)
         local REMOVE_EXIT_CODE=$?
 
         # Print output in verbose mode
@@ -780,23 +772,15 @@ function diamondSyncWhitelist {
             sleep 3
           fi
 
-          # Use sendOrPropose TypeScript CLI to handle production/staging logic
-          local BATCH_CMD=(
-            bunx tsx script/deploy/safe/send-or-propose.ts
-            --network "$NETWORK"
-            --environment "$ENVIRONMENT"
-            --diamondAddress "$DIAMOND_ADDRESS"
-            --calldata "$BATCH_CALLDATA"
-          )
-          
-          # Add timelock flag for production
+          # Use sendOrPropose function to handle production/staging logic
+          local TIMELOCK_FLAG="false"
           if [[ "$ENVIRONMENT" == "production" ]]; then
-            BATCH_CMD+=(--timelock)
+            TIMELOCK_FLAG="true"
           fi
           
           # Execute the helper
           local OUTPUT
-          OUTPUT=$("${BATCH_CMD[@]}" 2>&1)
+          OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$BATCH_CALLDATA" "$TIMELOCK_FLAG" 2>&1)
           local EXIT_CODE=$?
 
           if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
