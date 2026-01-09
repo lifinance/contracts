@@ -104,7 +104,7 @@ const main = defineCommand({
 
       const wrappedTransaction = await wrapWithTimelockSchedule(
         args.network,
-        '', // rpcUrl will be determined by the helper function
+        '', // rpcUrl will fall back to chain.rpcUrls.default.http[0] in wrapWithTimelockSchedule
         getAddress(timelockAddress),
         getAddress(args.diamondAddress),
         finalCalldata
