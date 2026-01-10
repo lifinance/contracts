@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 contract Reverter {
@@ -29,7 +29,13 @@ contract TestRelayFacet is RelayFacet, TestWhitelistManagerBase {
     }
 
     function setConsumedId(bytes32 id) external {
-        consumedIds[id] = true;
+        bytes32 namespace = NAMESPACE;
+        RelayFacet.Storage storage s;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
+        s.consumedIds[id] = true;
     }
 }
 
@@ -211,7 +217,7 @@ contract RelayFacetTest is TestBaseFacet {
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(InvalidQuote.selector);
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
