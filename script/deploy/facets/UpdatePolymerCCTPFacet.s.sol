@@ -12,9 +12,13 @@ contract DeployScript is UpdateScriptBase {
         return update("PolymerCCTPFacet");
     }
 
-    function getExcludes() internal pure override returns (bytes4[] memory) {
-        bytes4[] memory excludes = new bytes4[](1);
+    function getExcludes() internal view override returns (bytes4[] memory) {
+        PolymerCCTPFacet polymer;
+        bytes4[] memory excludes = new bytes4[](2);
         excludes[0] = PolymerCCTPFacet.initPolymerCCTP.selector;
+        // Exclude USDC() to prevent conflict with CelerCircleBridgeFacet
+        // Both facets have USDC() but they should coexist - Celer's USDC() will remain active
+        excludes[1] = polymer.USDC.selector;
         return excludes;
     }
 
