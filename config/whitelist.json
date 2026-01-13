@@ -6854,16 +6854,6 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "kaia": [
