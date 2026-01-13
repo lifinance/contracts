@@ -261,6 +261,15 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
+    # Add network-specific flags for megaeth
+    if [[ "$NETWORK" == "megaeth" ]]; then
+      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
+      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
+      SKIP_SIMULATION_FLAG=""
+    else
+      MEGAETH_FLAGS=""
+    fi
+
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       # Capture stdout and stderr separately to extract JSON from stdout
