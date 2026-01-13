@@ -238,6 +238,20 @@ deploySingleContract() {
   attempts=1
   ADDRESS_COLLISION_DETECTED=false
 
+  # Create temporary files to capture stdout and stderr separately
+  # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
+  # Created outside the loop to avoid leaks across retries
+  STDOUT_LOG=$(mktemp)
+  STDERR_LOG=$(mktemp)
+  
+  # Cleanup function to remove temporary files
+  cleanup() {
+    rm -f "$STDOUT_LOG" "$STDERR_LOG"
+  }
+  
+  # Install EXIT trap to ensure cleanup on function exit
+  trap 'cleanup' EXIT
+
   while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; do
     echo "[info] trying to deploy $CONTRACT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT) "
 
@@ -246,12 +260,6 @@ deploySingleContract() {
 
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
-
-    # Create temporary files to capture stdout and stderr separately
-    # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
-    STDOUT_LOG=$(mktemp)
-    STDERR_LOG=$(mktemp)
-    trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
 
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
@@ -290,11 +298,18 @@ deploySingleContract() {
     
     # Extract JSON from RAW_RETURN_DATA (it should already be JSON when using --json)
     # Try to find JSON object with "logs" key
+    # Preserve original data to allow fallback extraction if grep fails
     if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-      # If not valid JSON, try to extract JSON object
-      RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-      if [[ -z "$RAW_RETURN_DATA" ]] || ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-        RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+      # Preserve original data before attempting grep extraction
+      ORIGINAL_RAW_RETURN_DATA="$RAW_RETURN_DATA"
+      # Try to extract JSON object with grep
+      TMP_RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
+      # Only use grep result if it's valid JSON
+      if [[ -n "$TMP_RAW_RETURN_DATA" ]] && echo "$TMP_RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+        RAW_RETURN_DATA="$TMP_RAW_RETURN_DATA"
+      else
+        # Fallback: try jq extraction on original data
+        RAW_RETURN_DATA=$(echo "$ORIGINAL_RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
       fi
     fi
     
@@ -329,6 +344,8 @@ deploySingleContract() {
 
       # Set flag and break out of retry loop - no point in retrying with same SALT
       ADDRESS_COLLISION_DETECTED=true
+      # Clean up temp files before breaking
+      cleanup
       break
 
     # check the return code the last call
@@ -341,16 +358,22 @@ deploySingleContract() {
         warning "❌ Could not extract deployed address from raw return data (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
         echoDebug "RAW_RETURN_DATA preview: ${RAW_RETURN_DATA:0:500}..."
         warning "Check STDERR logs: $STDERR_LOG"
+        # Clean up temp files before retry
+        cleanup
         attempts=$((attempts + 1))
         sleep 1
         continue
       elif [[ -n "$ADDRESS" ]]; then
         # address successfully extracted
         echoDebug "✅ Successfully extracted address: $ADDRESS"
+        # Clean up temp files before breaking
+        cleanup
         break
       else
         warning "Address extraction returned empty (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
         warning "Check STDERR logs: $STDERR_LOG"
+        # Clean up temp files before retry
+        cleanup
         attempts=$((attempts + 1))
         sleep 1
         continue
@@ -359,11 +382,17 @@ deploySingleContract() {
       # RETURN_CODE != 0
       warning "forge script returned non-zero exit code: $RETURN_CODE (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
       warning "To debug, run the forge script manually without --json flag to see verbose output."
+      # Clean up temp files before retry
+      cleanup
       attempts=$((attempts + 1))
       sleep 1
       continue
     fi
   done
+  
+  # Clean up temporary files and restore trap after loop completes
+  cleanup
+  trap - EXIT
 
   # check if we broke out due to address collision
   if [[ "$ADDRESS_COLLISION_DETECTED" == "true" ]]; then

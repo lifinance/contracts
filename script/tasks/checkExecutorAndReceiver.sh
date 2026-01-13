@@ -110,14 +110,14 @@ checkExecutorAndReceiver() {
     # check the return code the last call
     elif [[ $RETURN_CODE -eq 0 && $RAW_RETURN_DATA != *"\"returns\":{}"* ]]; then
       # extract the "logs" property and its contents from return data
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
 
       # extract the "returns" property and its contents from logs
-      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+      RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)
       #echoDebug "RETURN_DATA: $RETURN_DATA"
 
       # get the status from the return data
-      MATCH=$(echo $RETURN_DATA | jq -r '."0".value')
+      MATCH=$(echo "$RETURN_DATA" | jq -r '."0".value')
 
       if [[ $MATCH == "true" ]]; then
         RESULT="[info] Executor and Receiver match on network: $NETWORK"

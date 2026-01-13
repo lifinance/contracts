@@ -6,6 +6,13 @@ updateFacetConfig() {
   source script/config.sh
   source script/helperFunctions.sh
 
+  # Capture previous EXIT trap to restore it later
+  local prev_trap=$(trap -p EXIT)
+  
+  # Localize temporary file variables to prevent scope pollution
+  local STDOUT_LOG
+  local STDERR_LOG
+
   # read function arguments into variables
   ENVIRONMENT="$2"
   SCRIPT="$4"
@@ -84,7 +91,14 @@ updateFacetConfig() {
       # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
       STDOUT_LOG=$(mktemp)
       STDERR_LOG=$(mktemp)
-      trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
+      
+      # Cleanup function for temporary files (defined locally within function scope)
+      cleanup_temp_files() {
+        rm -f "$STDOUT_LOG" "$STDERR_LOG"
+      }
+      
+      # Set EXIT trap for this iteration's temp files
+      trap 'cleanup_temp_files' EXIT
       
       # Execute forge script with separate stdout/stderr redirection
       NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
@@ -110,9 +124,17 @@ updateFacetConfig() {
         fi
       fi
       
-      # Clean up temporary files
-      rm -f "$STDOUT_LOG" "$STDERR_LOG"
-      trap - EXIT
+      # Clean up temporary files explicitly
+      cleanup_temp_files
+      
+      # Restore previous EXIT trap (or clear if there wasn't one)
+      if [[ -n "$prev_trap" ]]; then
+        # Restore the previous trap by evaluating the captured trap command
+        eval "$prev_trap"
+      else
+        # No previous trap existed, so clear the current one
+        trap - EXIT
+      fi
       
       echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
       # exit the loop if the operation was successful

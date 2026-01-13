@@ -53,7 +53,14 @@ deployAndStoreCREATE3Factory() {
   # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
   STDOUT_LOG=$(mktemp)
   STDERR_LOG=$(mktemp)
-  trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
+  
+  # Cleanup function to remove temporary files
+  cleanup() {
+    rm -f "$STDOUT_LOG" "$STDERR_LOG"
+  }
+  
+  # Install EXIT trap to ensure cleanup on function exit
+  trap 'cleanup' EXIT
 
   PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
   RETURN_CODE=$?
@@ -82,6 +89,10 @@ deployAndStoreCREATE3Factory() {
   
   # print return data only if debug mode is activated
   echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+  
+  # Clean up temporary files explicitly after reading
+  cleanup
+  trap - EXIT
   
   unset PRIVATE_KEY
 
