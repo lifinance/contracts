@@ -4208,8 +4208,22 @@ function isVersionTag() {
   fi
 }
 function deployCreate3FactoryToAnvil() {
+  # Create temporary files to capture stdout and stderr separately
+  # This ensures we can extract address from stdout while keeping stderr logs for debugging
+  STDOUT_LOG=$(mktemp)
+  STDERR_LOG=$(mktemp)
+  trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
+  
   # deploy create3Factory
-  RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url "$ETH_NODE_URI_LOCALANVIL" --broadcast --silent)
+  PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url "$ETH_NODE_URI_LOCALANVIL" --broadcast >"$STDOUT_LOG" 2>"$STDERR_LOG"
+  
+  # Read stdout and stderr separately
+  RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
+  STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
+  
+  # Clean up temporary files
+  rm -f "$STDOUT_LOG" "$STDERR_LOG"
+  trap - EXIT
 
   # extract address of deployed factory contract
   ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')

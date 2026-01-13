@@ -80,16 +80,40 @@ updateFacetConfig() {
       # Add skip simulation flag based on environment variable
       SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-      if [[ "$DEBUG" == *"true"* ]]; then
-        # print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
-        RETURN_CODE=$?
-      else
-        # do not print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER") 2>/dev/null
-        RETURN_CODE=$?
+      # Create temporary files to capture stdout and stderr separately
+      # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
+      STDOUT_LOG=$(mktemp)
+      STDERR_LOG=$(mktemp)
+      trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
+      
+      # Execute forge script with separate stdout/stderr redirection
+      NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
+      RETURN_CODE=$?
+      
+      # Read stdout (should contain JSON) and stderr (warnings/errors) separately
+      RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
+      STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
+      
+      # Debug: Show what we captured
+      echoDebug "=== RAW_RETURN_DATA (stdout, first 1000 chars) ==="
+      echoDebug "${RAW_RETURN_DATA:0:1000}"
+      echoDebug "=== STDERR logs (first 500 chars) ==="
+      echoDebug "${STDERR_CONTENT:0:500}"
+      
+      # Extract JSON from RAW_RETURN_DATA (it should already be JSON when using --json)
+      # Try to find JSON object with "logs" key
+      if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+        # If not valid JSON, try to extract JSON object
+        RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
+        if [[ -z "$RAW_RETURN_DATA" ]] || ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+          RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+        fi
       fi
-
+      
+      # Clean up temporary files
+      rm -f "$STDOUT_LOG" "$STDERR_LOG"
+      trap - EXIT
+      
       echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
       # exit the loop if the operation was successful
       if [ "$RETURN_CODE" -eq 0 ]; then
