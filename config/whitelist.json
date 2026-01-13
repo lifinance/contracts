@@ -6108,74 +6108,6 @@
         ]
       }
     ],
-    "fantom": [
-      {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      }
-    ],
     "flare": [
       {
         "name": "FeeCollector",
@@ -8623,7 +8555,7 @@
       },
       {
         "name": "TokenWrapper",
-        "address": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+        "address": "0x16a43D7db650c2B4D40484e4Ef29ab54B934A1C9",
         "selectors": [
           {
             "selector": "0x3ccfd60b",
