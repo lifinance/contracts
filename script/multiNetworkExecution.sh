@@ -65,7 +65,7 @@ NETWORKS=($(getIncludedNetworksArray))
 # Option 6: Use blacklist filtering (applied after network selection)
 # Networks in the blacklist will be excluded from the final network list
 # This is useful for excluding networks that need to be skipped (e.g. already done manually)
-# NETWORKS_BLACKLIST=("aurora" "moonriver" "xlayer" "corn" "superposition" "tron" "tronshasta")
+# NETWORKS_BLACKLIST=("xlayer" "corn" "superposition" "tron" "tronshasta")
 NETWORKS_BLACKLIST=("tron" "tronshasta")
 
 # Foundry.toml backup file

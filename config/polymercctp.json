@@ -35,6 +35,11 @@
     "usdc": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
     "polymerFeeReceiver": ""
   },
+  "monad": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+    "polymerFeeReceiver": ""
+  },
   "optimism": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
