@@ -913,6 +913,24 @@ function diamondSyncWhitelist {
 
   wait
 
+  # If production was synced, also sync staging using staging whitelist
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    echo ""
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Syncing staging..."
+    echo ""
+    ENVIRONMENT="staging"
+    for NETWORK in "${NETWORKS[@]}"; do
+      while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+        sleep 1
+      done
+      processNetwork "$NETWORK" &
+    done
+    wait
+    echo ""
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Staging sync completed"
+    echo ""
+  fi
+
   # Summary of failures
   if [ -s "$FAILED_LOG_FILE" ]; then
     echo ""
