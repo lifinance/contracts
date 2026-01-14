@@ -198,8 +198,8 @@
         "Version": "1.1.0"
       },
       "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
-        "Name": "",
-        "Version": ""
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
@@ -208,14 +208,6 @@
       "0x13Dab942D27D5E84584c163fE0D732901b4733E3": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.1"
-      },
-      "0x8d02904CCFEd82AFc87201AC991924B83a65557E": {
-        "Name": "CelerCircleBridgeFacet",
-        "Version": "2.0.0"
-      },
-      "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
       },
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
