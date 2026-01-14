@@ -100,13 +100,23 @@
   "AcrossV4SwapFacet": {
     "configData": {
       "_spokePoolPeriphery": {
-        "configFileName": "across-v4-swap.json",
+        "configFileName": "acrossV4Swap.json",
         "keyInConfigFile": ".<NETWORK>.spokePoolPeriphery",
         "allowToDeployWithZeroAddress": "false"
       },
       "_spokePool": {
-        "configFileName": "across-v4-swap.json",
+        "configFileName": "acrossV4Swap.json",
         "keyInConfigFile": ".<NETWORK>.spokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_sponsoredOftSrcPeriphery": {
+        "configFileName": "acrossV4Swap.json",
+        "keyInConfigFile": ".<NETWORK>.sponsoredOftSrcPeriphery",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_sponsoredCctpSrcPeriphery": {
+        "configFileName": "acrossV4Swap.json",
+        "keyInConfigFile": ".<NETWORK>.sponsoredCctpSrcPeriphery",
         "allowToDeployWithZeroAddress": "false"
       }
     }

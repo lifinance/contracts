@@ -15,16 +15,12 @@ import {
   type Abi,
 } from 'viem'
 
-import acrossV4SwapConfig from '../../config/across-v4-swap.json'
+import acrossV4SwapConfig from '../../config/acrossV4Swap.json'
 import networks from '../../config/networks.json'
 import arbitrumProductionDeployments from '../../deployments/arbitrum.json'
 import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
 import acrossV4SwapFacetArtifact from '../../out/AcrossV4SwapFacet.sol/AcrossV4SwapFacet.json'
-import type {
-  AcrossV4SwapFacet,
-  ILiFi,
-  ISpokePoolPeriphery,
-} from '../../typechain'
+import type { AcrossV4SwapFacet, ILiFi } from '../../typechain'
 import type { LibSwap } from '../../typechain/GenericSwapFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 
@@ -523,56 +519,22 @@ async function main() {
   }
   consola.info('  BridgeData prepared')
 
-  // Step 5: Prepare AcrossV4SwapData
-  consola.info('\nStep 5: Preparing AcrossV4SwapData...')
+  // Step 5: Prepare AcrossV4SwapFacetData (enum + calldata)
+  consola.info('\nStep 5: Preparing AcrossV4SwapFacetData...')
 
-  // Use decoded deposit data directly - API was called with depositor=user wallet
-  // so all fields should be correctly set
-  // For the Swap API, the recipient is always the multicall handler contract.
-  // The multicall handler executes the swap using routerCalldata and forwards tokens.
-  // The message field from the API should be used as-is - it's used by Across API
-  // for their own calldata, not for destination calls (which are disabled).
-  const depositData: ISpokePoolPeriphery.BaseDepositDataStruct = {
-    inputToken: decodedData.depositData.inputToken,
-    outputToken: decodedData.depositData.outputToken as `0x${string}`,
-    outputAmount: decodedData.depositData.outputAmount,
-    depositor: decodedData.depositData.depositor, // Should be DIAMOND_ADDRESS from API
-    recipient: decodedData.depositData.recipient as `0x${string}`,
-    destinationChainId: Number(decodedData.depositData.destinationChainId),
-    exclusiveRelayer: decodedData.depositData.exclusiveRelayer as `0x${string}`,
-    quoteTimestamp: decodedData.depositData.quoteTimestamp,
-    fillDeadline: decodedData.depositData.fillDeadline,
-    exclusivityParameter: decodedData.depositData.exclusivityParameter,
-    message: decodedData.depositData.message, // Use the message from API - don't clear it
+  // `AcrossV4SwapFacet` expects `callData` WITHOUT the function selector.
+  // The Swap API returns `swapTx.data` as a call to SpokePoolPeriphery.swapAndBridge(...)
+  // so we strip the first 4 bytes and forward the remaining ABI-encoded struct.
+  const spokePoolPeripheryCallData = `0x${swapTx.data.slice(
+    10
+  )}` as `0x${string}`
+
+  const acrossV4SwapFacetData: AcrossV4SwapFacet.AcrossV4SwapFacetDataStruct = {
+    // enum SwapApiTarget.SpokePoolPeriphery = 1
+    swapApiTarget: 1,
+    callData: spokePoolPeripheryCallData,
   }
-
-  // TransferType: 0 = Approval, 1 = Transfer, 2 = Permit2Approval
-  // Use the transferType from the API calldata
-  // Calculate outputAmountMultiplier to account for decimal differences between bridge tokens
-  // Formula: 1e18 * 10^(bridgeOutputDecimals - bridgeInputDecimals)
-  // For same decimals, this equals 1e18 (100% multiplier)
-  // Note: uint128 max is ~3.4e38, so this calculation is safe for reasonable decimal differences
-  const bridgeInputDecimals = bridgeStep.tokenIn.decimals
-  const bridgeOutputDecimals = bridgeStep.tokenOut.decimals
-  const decimalDiff = bridgeOutputDecimals - bridgeInputDecimals
-  const multiplierBase = BigInt(10 ** 18)
-  const decimalAdjustment = BigInt(10 ** Math.abs(decimalDiff))
-  const outputAmountMultiplier =
-    decimalDiff >= 0
-      ? multiplierBase * decimalAdjustment
-      : multiplierBase / decimalAdjustment
-
-  const acrossV4SwapData: AcrossV4SwapFacet.AcrossV4SwapDataStruct = {
-    depositData,
-    swapToken: decodedData.swapToken,
-    exchange: decodedData.exchange,
-    transferType: decodedData.transferType,
-    routerCalldata: decodedData.routerCalldata,
-    minExpectedInputTokenAmount: decodedData.minExpectedInputTokenAmount,
-    outputAmountMultiplier: Number(outputAmountMultiplier),
-    enableProportionalAdjustment: true,
-  }
-  consola.info('  AcrossV4SwapData prepared')
+  consola.info('  AcrossV4SwapFacetData prepared')
 
   // Step 6: Display summary
   consola.info('\n==========================================')
@@ -686,7 +648,7 @@ async function main() {
         ).write.swapAndStartBridgeTokensViaAcrossV4Swap([
           bridgeDataWithSwap,
           [feeCollectionSwapData],
-          acrossV4SwapData,
+          acrossV4SwapFacetData,
         ]),
       'Starting bridge with fee collection via AcrossV4Swap',
       publicClient,
@@ -698,7 +660,7 @@ async function main() {
       () =>
         (lifiDiamondContract as any).write.startBridgeTokensViaAcrossV4Swap([
           bridgeData,
-          acrossV4SwapData,
+          acrossV4SwapFacetData,
         ]),
       'Starting bridge tokens via AcrossV4Swap',
       publicClient,

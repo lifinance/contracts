@@ -4,8 +4,26 @@ pragma solidity ^0.8.17;
 /// @title IAcrossSpokePoolV4
 /// @notice Interface for interacting with Across Protocol V4 Spoke Pool
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 interface IAcrossSpokePoolV4 {
+    /// @notice Bundled parameters for `deposit` (useful for calldata decoding/validation)
+    /// @dev This struct is not used by the SpokePool contract itself; it exists for consumers that
+    ///      want to decode `deposit(...)` calldata without a long tuple.
+    struct DepositParams {
+        bytes32 depositor;
+        bytes32 recipient;
+        bytes32 inputToken;
+        bytes32 outputToken;
+        uint256 inputAmount;
+        uint256 outputAmount;
+        uint256 destinationChainId;
+        bytes32 exclusiveRelayer;
+        uint32 quoteTimestamp;
+        uint32 fillDeadline;
+        uint32 exclusivityParameter;
+        bytes message;
+    }
+
     /// @notice Initiates a cross-chain token transfer via Across Protocol V4
     /// @dev This function allows users to deposit tokens on the origin chain for bridging to a destination chain.
     ///      The function supports both EVM and non-EVM chains through the use of bytes32 addresses.
