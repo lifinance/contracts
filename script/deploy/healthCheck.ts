@@ -1,7 +1,5 @@
 // @ts-nocheck
 import { execSync } from 'child_process'
-import * as fs from 'fs'
-import * as path from 'path'
 import { dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -9,16 +7,12 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
-  concat,
   createPublicClient,
   formatEther,
   getAddress,
   getContract,
   http,
-  keccak256,
-  pad,
   parseAbi,
-  toHex,
   type Address,
   type Hex,
   type PublicClient,
@@ -477,22 +471,11 @@ const main = defineCommand({
         const whitelistManager = getContract({
           address: deployedContracts['LiFiDiamond'],
           abi: parseAbi([
-            'function getWhitelistedAddresses() external view returns (address[])',
-            'function isFunctionSelectorWhitelisted(bytes4) external view returns (bool)',
-            'function getWhitelistedFunctionSelectors() external view returns (bytes4[])',
             'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
-            'function isAddressWhitelisted(address) external view returns (bool)',
-            'function getWhitelistedSelectorsForContract(address) external view returns (bytes4[])',
             'function getAllContractSelectorPairs() external view returns (address[],bytes4[][])',
-            'function isMigrated() external view returns (bool)',
           ]),
           client: publicClient,
         })
-
-        // We don't check the migrated field value because:
-        // - migrated = false: Fresh deployments (granular system from start) OR pre-migration contracts
-        // - migrated = true: Only post-migration contracts (after calling migrate() function)
-        // The migration status doesn't determine checking method - WhitelistManagerFacet should be always deployed
 
         // Get expected pairs from whitelist.json or whitelist.staging.json file
         const expectedPairs = await getExpectedPairs(
@@ -506,31 +489,13 @@ const main = defineCommand({
         const [onChainContracts, onChainSelectors] =
           await whitelistManager.read.getAllContractSelectorPairs()
 
-        const globalAddresses =
-          await whitelistManager.read.getWhitelistedAddresses()
-        const globalSelectors =
-          await whitelistManager.read.getWhitelistedFunctionSelectors()
-
         await checkWhitelistIntegrity(
           publicClient,
           diamondAddress,
           whitelistManager,
           expectedPairs,
-          globalAddresses,
-          globalSelectors,
           onChainContracts,
           onChainSelectors
-        )
-
-        //
-        //          ╭─────────────────────────────────────────────────────────╮
-        //          │            Check legacy selector cleanup                │
-        //          ╰─────────────────────────────────────────────────────────╯
-        //
-        await checkMigrationCleanup(
-          whitelistManager,
-          publicClient,
-          expectedPairs
         )
       } else {
         consola.info(
@@ -626,49 +591,6 @@ const main = defineCommand({
       ]),
       client: publicClient,
     })
-
-    // Check if deployer wallet is the owner
-    const diamondOwner = getContract({
-      address: deployedContracts['LiFiDiamond'],
-      abi: parseAbi(['function owner() external view returns (address)']),
-      client: publicClient,
-    })
-
-    const ownerAddress = await diamondOwner.read.owner()
-    const isDeployerOwner =
-      getAddress(ownerAddress) === getAddress(deployerWallet)
-
-    // Deployer wallet
-    const approveSelectors =
-      globalConfig.approvedSelectorsForDeployerWallet as {
-        selector: Hex
-        name: string
-      }[]
-
-    for (const selector of approveSelectors) {
-      const normalizedSelector = selector.selector.startsWith('0x')
-        ? (selector.selector as Hex)
-        : (`0x${selector.selector}` as Hex)
-
-      if (isDeployerOwner) {
-        // Owner can execute all methods, skip access check
-        consola.success(
-          `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector}) - owner has full access`
-        )
-      } else if (
-        !(await accessManager.read.addressCanExecuteMethod([
-          normalizedSelector,
-          deployerWallet,
-        ]))
-      )
-        logError(
-          `Deployer wallet ${deployerWallet} cannot execute ${selector.name} (${normalizedSelector})`
-        )
-      else
-        consola.success(
-          `Deployer wallet ${deployerWallet} can execute ${selector.name} (${normalizedSelector})`
-        )
-    }
 
     // Refund wallet
     const refundSelectors = globalConfig.approvedSelectorsForRefundWallet as {
@@ -869,19 +791,17 @@ const getExpectedPairs = async (
   }
 }
 
-// Checks the config.json (source of truth) against all on-chain states.
-// This one function handles all checks for data integrity and synchronization.
+// Checks the config.json (source of truth) against on-chain state.
+// This function handles all checks for data integrity and synchronization.
 const checkWhitelistIntegrity = async (
   publicClient: PublicClient,
   diamondAddress: Address,
   whitelistManager: ReturnType<typeof getContract>,
   expectedPairs: Array<{ contract: Address; selector: Hex }>,
-  globalAddresses: Address[],
-  globalSelectors: Hex[],
   onChainContracts: Address[],
   onChainSelectors: Hex[][]
 ) => {
-  consola.box('Checking Whitelist Integrity (Config vs. All On-Chain State)...')
+  consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
 
   if (expectedPairs.length === 0) {
     consola.warn('No expected pairs in config. Skipping all checks.')
@@ -895,21 +815,21 @@ const checkWhitelistIntegrity = async (
       (p) => `${p.contract.toLowerCase()}:${p.selector.toLowerCase()}`
     )
   )
-  const expectedContractSet = new Set(
+  const uniqueContracts = new Set(
     expectedPairs.map((p) => p.contract.toLowerCase())
   )
-  const expectedSelectorSet = new Set(
+  const uniqueSelectors = new Set(
     expectedPairs.map((p) => p.selector.toLowerCase())
   )
   consola.info(
-    `Config has ${expectedPairs.length} pairs, ${expectedContractSet.size} unique contracts, and ${expectedSelectorSet.size} unique selectors.`
+    `Config has ${expectedPairs.length} pairs, ${uniqueContracts.size} unique contracts, and ${uniqueSelectors.size} unique selectors.`
   )
 
   try {
-    // --- 2. Check Config vs. Contract Functions (Multicall) ---
-    consola.start('Step 1/4: Checking Config vs. On-Chain Functions...')
+    // --- 2. Check Config vs. On-Chain Contract Functions (Multicall) ---
+    consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
 
-    // A. Check V2 Source of Truth: isContractSelectorWhitelisted
+    // Check source of truth: isContractSelectorWhitelisted
     const granularMulticall = expectedPairs.map((pair) => ({
       address: whitelistManager.address,
       abi: whitelistManager.abi,
@@ -926,131 +846,23 @@ const checkWhitelistIntegrity = async (
       if (isWhitelisted === false) {
         const pair = expectedPairs[index]
         logError(
-          `V2 Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
+          `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
         )
         granularFails++
       }
     })
     if (granularFails === 0)
       consola.success(
-        'V2 Source of Truth (isContractSelectorWhitelisted) is synced.'
+        'Source of Truth (isContractSelectorWhitelisted) is synced.'
       )
-
-    // B. Check V1 Legacy: isAddressWhitelisted
-    const v1ContractMulticall = Array.from(expectedContractSet).map(
-      (contract) => ({
-        address: whitelistManager.address,
-        abi: whitelistManager.abi,
-        functionName: 'isAddressWhitelisted',
-        args: [contract as Address],
-      })
-    )
-    const v1ContractResults = await publicClient.multicall({
-      contracts: v1ContractMulticall,
-      allowFailure: false,
-    })
-
-    let v1ContractFails = 0
-    v1ContractResults.forEach((isWhitelisted, index) => {
-      if (isWhitelisted === false) {
-        const contract = Array.from(expectedContractSet)[index]
-        logError(
-          `V1 Legacy FAILED: isAddressWhitelisted(${contract}) is 'false'.`
-        )
-        v1ContractFails++
-      }
-    })
-    if (v1ContractFails === 0)
-      consola.success('V1 Legacy (isAddressWhitelisted) is synced.')
-
-    // C. Check V1 Legacy: isFunctionSelectorWhitelisted
-    const v1SelectorMulticall = Array.from(expectedSelectorSet).map(
-      (selector) => ({
-        address: whitelistManager.address,
-        abi: whitelistManager.abi,
-        functionName: 'isFunctionSelectorWhitelisted',
-        args: [selector as Hex],
-      })
-    )
-    const v1SelectorResults = await publicClient.multicall({
-      contracts: v1SelectorMulticall,
-      allowFailure: false,
-    })
-
-    let v1SelectorFails = 0
-    v1SelectorResults.forEach((isWhitelisted, index) => {
-      if (isWhitelisted === false) {
-        const selector = Array.from(expectedSelectorSet)[index]
-        logError(
-          `V1 Legacy FAILED: isFunctionSelectorWhitelisted(${selector}) is 'false'.`
-        )
-        v1SelectorFails++
-      }
-    })
-    if (v1SelectorFails === 0)
-      consola.success('V1 Legacy (isFunctionSelectorWhitelisted) is synced.')
   } catch (error) {
     logError(`Failed during functional checks: ${error.message}`)
   }
 
   // --- 3. Check Config vs. Getter Arrays ---
-  consola.start('Step 2/4: Checking Config vs. Getter Arrays...')
+  consola.start('Step 2/2: Checking Config vs. Getter Arrays...')
   try {
-    // A. Check V1 Contracts Array: getWhitelistedAddresses
-    const globalAddressesSet = new Set(
-      globalAddresses.map((a) => a.toLowerCase())
-    )
-    let missingContracts = 0
-    let staleContracts = 0
-    for (const expected of expectedContractSet) {
-      if (!globalAddressesSet.has(expected)) missingContracts++
-    }
-    for (const onChain of globalAddressesSet) {
-      if (!expectedContractSet.has(onChain)) staleContracts++
-    }
-    if (missingContracts === 0 && staleContracts === 0) {
-      consola.success(
-        `V1 Contract Array (getWhitelistedAddresses) is synced. (${globalAddresses.length} entries)`
-      )
-    } else {
-      if (missingContracts > 0)
-        logError(
-          `V1 Contract Array is missing ${missingContracts} contracts from config.`
-        )
-      if (staleContracts > 0)
-        logError(
-          `V1 Contract Array has ${staleContracts} stale contracts not in config.`
-        )
-    }
-
-    // B. Check V1 Selectors Array: getWhitelistedFunctionSelectors
-    const globalSelectorsSet = new Set(
-      globalSelectors.map((s) => s.toLowerCase())
-    )
-    let missingSelectors = 0
-    let staleSelectors = 0
-    for (const expected of expectedSelectorSet) {
-      if (!globalSelectorsSet.has(expected)) missingSelectors++
-    }
-    for (const onChain of globalSelectorsSet) {
-      if (!expectedSelectorSet.has(onChain)) staleSelectors++
-    }
-    if (missingSelectors === 0 && staleSelectors === 0) {
-      consola.success(
-        `V1 Selector Array (getWhitelistedFunctionSelectors) is synced. (${globalSelectors.length} entries)`
-      )
-    } else {
-      if (missingSelectors > 0)
-        logError(
-          `V1 Selector Array is missing ${missingSelectors} selectors from config.`
-        )
-      if (staleSelectors > 0)
-        logError(
-          `V1 Selector Array has ${staleSelectors} stale selectors not in config.`
-        )
-    }
-
-    // C. Check V2 Pair Array: getAllContractSelectorPairs
+    // Check pair array: getAllContractSelectorPairs
     const onChainPairSet = new Set<string>()
     for (let i = 0; i < onChainContracts.length; i++) {
       const contract = onChainContracts[i].toLowerCase()
@@ -1058,282 +870,44 @@ const checkWhitelistIntegrity = async (
         onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
       }
     }
-    let missingPairs = 0
-    let stalePairs = 0
+    const missingPairsList: string[] = []
+    const stalePairsList: string[] = []
     for (const expected of expectedPairSet) {
-      if (!onChainPairSet.has(expected)) missingPairs++
+      if (!onChainPairSet.has(expected)) missingPairsList.push(expected)
     }
     for (const onChain of onChainPairSet) {
-      if (!expectedPairSet.has(onChain)) stalePairs++
+      if (!expectedPairSet.has(onChain)) stalePairsList.push(onChain)
     }
-    if (missingPairs === 0 && stalePairs === 0) {
+    if (missingPairsList.length === 0 && stalePairsList.length === 0) {
       consola.success(
-        `V2 Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
+        `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
       )
     } else {
-      if (missingPairs > 0)
-        logError(`V2 Pair Array is missing ${missingPairs} pairs from config.`)
-      if (stalePairs > 0)
-        logError(`V2 Pair Array has ${stalePairs} stale pairs not in config.`)
+      if (missingPairsList.length > 0) {
+        logError(
+          `Pair Array is missing ${missingPairsList.length} pairs from config:`
+        )
+        missingPairsList.forEach((pair) => {
+          const [contract, selector] = pair.split(':')
+          consola.error(`  Missing: ${contract} / ${selector}`)
+        })
+        consola.info(`\n💡 To fix run diamondSyncWhitelist script`)
+      }
+      if (stalePairsList.length > 0) {
+        logError(
+          `Pair Array has ${stalePairsList.length} stale pairs not in config:`
+        )
+        stalePairsList.forEach((pair) => {
+          const [contract, selector] = pair.split(':')
+          consola.error(`  Stale: ${contract} / ${selector}`)
+        })
+        consola.info(
+          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist <network> <environment>`
+        )
+      }
     }
   } catch (error) {
     logError(`Failed during getter array checks: ${error.message}`)
-  }
-
-  // --- 4. Check Config vs. Raw Storage Slots ---
-  consola.start('Step 3/4: Checking Config vs. Raw Storage Slots...')
-  try {
-    // --- USER COMMENT: Added NAMESPACE hash ---
-    // cast keccak "com.lifi.library.allow.list"
-    // 0x7a8ac5d3b7183f220a0602439da45ea337311d699902d1ed11a3725a714e7f1e
-    const ALLOW_LIST_NAMESPACE =
-      '0x7a8ac5d3b7183f220a0602439da45ea337311d699902d1ed11a3725a714e7f1e'
-    const baseSlot = BigInt(ALLOW_LIST_NAMESPACE)
-    const contractAllowListSlot = baseSlot + 0n
-    const selectorAllowListSlot = baseSlot + 1n
-    const contractsSlot = baseSlot + 2n
-    const contractToIndexSlot = baseSlot + 3n
-    const selectorToIndexSlot = baseSlot + 4n
-    const selectorsSlot = baseSlot + 5n
-    const granularListSlot = baseSlot + 6n
-
-    // Check array lengths
-    const contractsLengthHex = await publicClient.getStorageAt({
-      address: diamondAddress,
-      slot: toHex(contractsSlot),
-    })
-    const contractsLength = parseInt(contractsLengthHex ?? '0x0', 16)
-    if (contractsLength === globalAddresses.length) {
-      consola.success(
-        `Raw contracts[] length (${contractsLength}) matches getter.`
-      )
-    } else {
-      logError(
-        `Raw contracts[] length (${contractsLength}) does NOT match getter length (${globalAddresses.length}).`
-      )
-    }
-
-    const selectorsLengthHex = await publicClient.getStorageAt({
-      address: diamondAddress,
-      slot: toHex(selectorsSlot),
-    })
-    const selectorsLength = parseInt(selectorsLengthHex ?? '0x0', 16)
-    if (selectorsLength === globalSelectors.length) {
-      consola.success(
-        `Raw selectors[] length (${selectorsLength}) matches getter.`
-      )
-    } else {
-      logError(
-        `Raw selectors[] length (${selectorsLength}) does NOT match getter length (${globalSelectors.length}).`
-      )
-    }
-
-    // --- Probe all pairs ---
-    consola.info(`Probing all ${expectedPairs.length} pairs in raw storage...`)
-    let v1ContractFails = 0
-    let v1SelectorFails = 0
-    let v2ContractIndexFails = 0
-    let v2SelectorIndexFails = 0
-    let v2GranularFails = 0
-
-    const getMappingSlot = async (key: Hex, baseMappingSlot: bigint) => {
-      const slot = keccak256(
-        concat([key, pad(toHex(baseMappingSlot), { size: 32 })])
-      )
-      return publicClient.getStorageAt({ address: diamondAddress, slot })
-    }
-    const getGranularMappingSlot = async (
-      contract: Hex,
-      selector: Hex,
-      baseMappingSlot: bigint
-    ) => {
-      const innerSlot = keccak256(
-        concat([contract, pad(toHex(baseMappingSlot), { size: 32 })])
-      )
-      const granularSlot = keccak256(concat([selector, innerSlot]))
-      return publicClient.getStorageAt({
-        address: diamondAddress,
-        slot: granularSlot,
-      })
-    }
-
-    for (const pair of expectedPairs) {
-      const probeContract = pad(pair.contract, { size: 32 })
-      const probeSelector = pad(pair.selector, { size: 32, dir: 'right' })
-
-      // Check V1 contractAllowList
-      const v1ContractBool = await getMappingSlot(
-        probeContract,
-        contractAllowListSlot
-      )
-      if (!v1ContractBool?.endsWith('01')) {
-        logError(`Raw V1 contractAllowList FAILED for ${pair.contract}`)
-        v1ContractFails++
-      }
-
-      // Check V1 selectorAllowList
-      const v1SelectorBool = await getMappingSlot(
-        probeSelector,
-        selectorAllowListSlot
-      )
-      if (!v1SelectorBool?.endsWith('01')) {
-        logError(`Raw V1 selectorAllowList FAILED for ${pair.selector}`)
-        v1SelectorFails++
-      }
-
-      // Check V2 contractToIndex
-      const v2ContractIndex = await getMappingSlot(
-        probeContract,
-        contractToIndexSlot
-      )
-      if (parseInt(v2ContractIndex ?? '0x0', 16) === 0) {
-        logError(`Raw V2 contractToIndex FAILED for ${pair.contract}`)
-        v2ContractIndexFails++
-      }
-
-      // Check V2 selectorToIndex
-      const v2SelectorIndex = await getMappingSlot(
-        probeSelector,
-        selectorToIndexSlot
-      )
-      if (parseInt(v2SelectorIndex ?? '0x0', 16) === 0) {
-        logError(`Raw V2 selectorToIndex FAILED for ${pair.selector}`)
-        v2SelectorIndexFails++
-      }
-
-      // Check V2 granularList (source of truth)
-      const v2GranularBool = await getGranularMappingSlot(
-        probeContract,
-        probeSelector,
-        granularListSlot
-      )
-      if (!v2GranularBool?.endsWith('01')) {
-        logError(
-          `Raw V2 granularList (Source of Truth) FAILED for ${pair.contract} / ${pair.selector}`
-        )
-        v2GranularFails++
-      }
-    }
-
-    // Report Results
-    consola.info('Raw storage probe summary:')
-    if (v1ContractFails === 0)
-      consola.success('Raw V1 contractAllowList is synced')
-    else logError(`Raw V1 contractAllowList has ${v1ContractFails} sync errors`)
-
-    if (v1SelectorFails === 0)
-      consola.success('Raw V1 selectorAllowList is synced')
-    else logError(`Raw V1 selectorAllowList has ${v1SelectorFails} sync errors`)
-
-    if (v2ContractIndexFails === 0)
-      consola.success('Raw V2 contractToIndex is synced')
-    else
-      logError(`Raw V2 contractToIndex has ${v2ContractIndexFails} sync errors`)
-
-    if (v2SelectorIndexFails === 0)
-      consola.success('Raw V2 selectorToIndex is synced')
-    else
-      logError(`Raw V2 selectorToIndex has ${v2SelectorIndexFails} sync errors`)
-
-    if (v2GranularFails === 0)
-      consola.success('Raw V2 granular contractSelectorAllowList is synced')
-    else
-      logError(
-        `Raw V2 granular contractSelectorAllowList has ${v2GranularFails} sync errors`
-      )
-  } catch (error) {
-    logError(`Failed to check direct storage: ${error.message}`)
-  }
-}
-
-/// Check 5: Migration Cleanup
-/// Verifies that any selector in `functionSelectorsToRemove.json` that is NOT
-/// in the current `whitelist.json` correctly returns `false` from the
-/// legacy V1 `isFunctionSelectorWhitelisted()` function.
-const checkMigrationCleanup = async (
-  whitelistManager: ReturnType<typeof getContract>,
-  publicClient: PublicClient,
-  expectedPairs: Array<{ contract: Address; selector: Hex }>
-) => {
-  consola.box('Checking legacy selector cleanup (Migration check)...')
-
-  try {
-    // 1. Load functionSelectorsToRemove.json
-    const removeJsonPath = path.resolve(
-      __dirname,
-      '../../config/functionSelectorsToRemove.json'
-    )
-    const removeFile = fs.readFileSync(removeJsonPath, 'utf8')
-    const { functionSelectorsToRemove } = JSON.parse(removeFile) as {
-      functionSelectorsToRemove: string[]
-    }
-
-    // 2. Create a Set of *expected* selectors from the whitelist config
-    const expectedSelectorSet = new Set(
-      expectedPairs.map((p) => p.selector.toLowerCase())
-    )
-
-    // 3. Create the list of selectors that *must* be false
-    const selectorsToCheck: Hex[] = []
-    for (const rawSelector of functionSelectorsToRemove) {
-      const selector = (
-        rawSelector.startsWith('0x') ? rawSelector : `0x${rawSelector}`
-      ).toLowerCase() as Hex
-
-      // --- USER COMMENT: Added logic explanation ---
-      // We do not expect selectors from whitelist.json to be whitelisted
-      if (!expectedSelectorSet.has(selector)) {
-        selectorsToCheck.push(selector)
-      }
-    }
-
-    if (selectorsToCheck.length === 0) {
-      consola.warn(
-        'No selectors found in functionSelectorsToRemove.json that are not in the current whitelist. Skipping check.'
-      )
-      return
-    }
-
-    consola.info(
-      `Checking ${selectorsToCheck.length} selectors from 'functionSelectorsToRemove.json' for proper cleanup...`
-    )
-
-    // 4. Use multicall to check isFunctionSelectorWhitelisted (the V1 bool)
-    const multicallContracts = selectorsToCheck.map((selector) => ({
-      address: whitelistManager.address,
-      abi: whitelistManager.abi,
-      functionName: 'isFunctionSelectorWhitelisted',
-      args: [selector],
-    }))
-
-    const results = await publicClient.multicall({
-      contracts: multicallContracts,
-      allowFailure: false,
-    })
-
-    // 5. Report any selectors that are still true
-    let staleSelectorErrors = 0
-    results.forEach((isStillWhitelisted, index) => {
-      if (isStillWhitelisted === true) {
-        const selector = selectorsToCheck[index]
-        logError(
-          `STALE SELECTOR FOUND: ${selector} is still 'true' in V1 selectorAllowList but should have been removed.`
-        )
-        staleSelectorErrors++
-      }
-    })
-
-    if (staleSelectorErrors === 0) {
-      consola.success(
-        `All ${selectorsToCheck.length} selectors were correctly cleaned up.`
-      )
-    } else {
-      logError(
-        `Found ${staleSelectorErrors} stale selectors from the migration list.`
-      )
-    }
-  } catch (error) {
-    logError(`Failed to check legacy selector cleanup: ${error.message}`)
   }
 }
 

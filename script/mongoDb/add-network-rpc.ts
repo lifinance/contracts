@@ -39,6 +39,7 @@ const main = defineCommand({
     }
 
     const client = new MongoClient(MONGODB_URI)
+    let exitCode = 0
     try {
       await client.connect()
       const db = client.db('blockchain-configs')
@@ -67,51 +68,56 @@ const main = defineCommand({
                 ) + 1
               : 1
 
-          try {
-            // Update the priority of the existing RPC endpoint
-            await collection.updateOne(
-              { chainName },
-              {
-                $set: {
-                  lastUpdated: new Date(),
-                  [`rpcs.${existingRpcIndex}.priority`]: newPriority,
-                  [`rpcs.${existingRpcIndex}.environment`]: environment,
-                },
-              }
-            )
+          // Update the priority of the existing RPC endpoint
+          await collection.updateOne(
+            { chainName },
+            {
+              $set: {
+                lastUpdated: new Date(),
+                [`rpcs.${existingRpcIndex}.priority`]: newPriority,
+                [`rpcs.${existingRpcIndex}.environment`]: environment,
+              },
+            }
+          )
 
-            consola.success(
-              `Updated priority of existing RPC endpoint ${rpcUrl} to ${newPriority}`
-            )
-            return
-          } catch (error) {
-            consola.error(
-              `Failed to update RPC endpoint for ${chainName}:`,
-              error
-            )
-            process.exit(1)
-          }
+          consola.success(
+            `Updated priority of existing RPC endpoint ${rpcUrl} to ${newPriority}`
+          )
+          // Successfully updated, exit cleanly after finally
+        } else {
+          // Need to add new endpoint (handled below)
+          exitCode = -1 // Flag to continue to add new endpoint
         }
+      } else {
+        // No existing doc or rpcs, need to add new endpoint
+        exitCode = -1 // Flag to continue to add new endpoint
       }
 
-      // Calculate the new highest priority for new endpoints
-      let newPriority = 1
-      if (
-        existingDoc &&
-        Array.isArray(existingDoc.rpcs) &&
-        existingDoc.rpcs.length > 0
-      )
-        newPriority =
-          Math.max(
-            ...existingDoc.rpcs.map(
-              (rpc: { priority: number }) => rpc.priority || 0
-            )
-          ) + 1
+      // Add new endpoint if needed
+      if (exitCode === -1) {
+        exitCode = 0 // Reset flag
 
-      // Construct the new RPC endpoint object with the new highest priority
-      const newRpcEndpoint = { url: rpcUrl, priority: newPriority, environment }
+        // Calculate the new highest priority for new endpoints
+        let newPriority = 1
+        if (
+          existingDoc &&
+          Array.isArray(existingDoc.rpcs) &&
+          existingDoc.rpcs.length > 0
+        )
+          newPriority =
+            Math.max(
+              ...existingDoc.rpcs.map(
+                (rpc: { priority: number }) => rpc.priority || 0
+              )
+            ) + 1
 
-      try {
+        // Construct the new RPC endpoint object with the new highest priority
+        const newRpcEndpoint = {
+          url: rpcUrl,
+          priority: newPriority,
+          environment,
+        }
+
         // Update (or create) the document by merging the new RPC endpoint
         await collection.updateOne(
           { chainName },
@@ -127,16 +133,14 @@ const main = defineCommand({
         consola.success(
           `RPC endpoint added successfully with priority ${newPriority}`
         )
-      } catch (error) {
-        consola.error(`Failed to add new RPC endpoint for ${chainName}:`, error)
-        process.exit(1)
       }
     } catch (error) {
-      consola.error('Failed to connect to MongoDB:', error)
-      process.exit(1)
+      consola.error('MongoDB operation failed:', error)
+      exitCode = 1
     } finally {
       await client.close()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 

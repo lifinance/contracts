@@ -120,22 +120,26 @@ const main = defineCommand({
               senderAddress
             )
 
-            if (!result.acknowledged)
+            if (result === null) {
+              consola.info(
+                `[${network.name}] Proposal already exists - skipping`
+              )
+            } else if (!result.acknowledged) {
               throw new Error(
                 `[${network.name}] MongoDB insert was not acknowledged`
               )
-
-            consola.info(
-              `[${network.name}] Transaction successfully stored in MongoDB`
-            )
+            } else {
+              consola.info(
+                `[${network.name}] Transaction successfully stored in MongoDB`
+              )
+              consola.success(`[${network.name}] Transaction proposed`)
+            }
           } catch (error) {
             consola.error(
               `[${network.name}] Failed to store transaction in MongoDB: ${error}`
             )
             throw error
           }
-
-          consola.success(`[${network.name}] Transaction proposed`)
         } catch (error) {
           consola.error(
             `[${network.name}] Error proposing unpause transaction:`,

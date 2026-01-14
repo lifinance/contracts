@@ -10,16 +10,25 @@
 
 import { readFileSync } from 'fs'
 import path from 'path'
+import { createInterface } from 'readline'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
   type Db,
   type Collection,
-  type ObjectId,
   type IndexSpecification,
   MongoClient,
 } from 'mongodb'
+
+import type { EnvironmentEnum } from '../common/types'
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+
+import {
+  type IDeploymentRecord,
+  type IUpdateConfig,
+  RecordTransformer,
+} from './shared/mongo-log-utils'
 
 // Interface for index specifications with old names
 interface IIndexSpec {
@@ -28,65 +37,9 @@ interface IIndexSpec {
   oldNames?: string[]
 }
 
-// TypeScript interface for deployment records
-interface IDeploymentRecord {
-  _id?: ObjectId
-  contractName: string
-  network: string
-  version: string
-  address: string
-  optimizerRuns: string
-  timestamp: Date
-  constructorArgs: string
-  salt?: string
-  verified: boolean
-  solcVersion?: string
-  evmVersion?: string
-  zkSolcVersion?: string
-
-  // Metadata for tracking
-  createdAt: Date
-  updatedAt: Date
-
-  // Composite fields for efficient querying
-  contractNetworkKey: string // `${contractName}-${network}`
-  contractVersionKey: string // `${contractName}-${version}`
-}
-
-// Type definitions for the expected JSON data structure
-interface IRawDeploymentData {
-  ADDRESS: string
-  OPTIMIZER_RUNS: string
-  TIMESTAMP: string
-  CONSTRUCTOR_ARGS: string
-  SALT?: string
-  VERIFIED: string
-  SOLC_VERSION?: string
-  EVM_VERSION?: string
-  ZK_SOLC_VERSION?: string
-}
-
-interface IJsonDataStructure {
-  [contractName: string]: {
-    [network: string]: {
-      [environment: string]: {
-        [version: string]: IRawDeploymentData[]
-      }
-    }
-  }
-}
-
-// Configuration interface
-interface IConfig {
-  mongoUri: string
-  logFilePath: string
-  batchSize: number
-  databaseName: string
-}
-
 // Configuration setup
-const config: IConfig = {
-  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+const config: IUpdateConfig = {
+  mongoUri: getEnvVar('MONGODB_URI'),
   logFilePath: path.join(
     process.cwd(),
     'deployments/_deployments_log_file.json'
@@ -95,14 +48,29 @@ const config: IConfig = {
   databaseName: 'contract-deployments',
 }
 
+// Helper function for user confirmation
+async function getUserConfirmation(prompt: string): Promise<boolean> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  })
+
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      rl.close()
+      resolve(answer.toLowerCase() === 'yes')
+    })
+  })
+}
+
 class DeploymentLogManager {
   private client: MongoClient
   private db: Db | undefined
   private collection: Collection<IDeploymentRecord> | undefined
 
   public constructor(
-    private config: IConfig,
-    private environment: 'staging' | 'production'
+    private config: IUpdateConfig,
+    private environment: keyof typeof EnvironmentEnum
   ) {
     this.client = new MongoClient(config.mongoUri)
   }
@@ -200,174 +168,6 @@ class DeploymentLogManager {
     }
   }
 
-  // Enhanced timestamp validation
-  private isValidTimestamp(timestamp: string): boolean {
-    if (!timestamp || typeof timestamp !== 'string') return false
-
-    // Check for common invalid formats that Date.parse() might accept
-    if (timestamp.trim() === '' || timestamp === 'Invalid Date') return false
-
-    // Try to parse the date
-    const parsedDate = new Date(timestamp)
-
-    // Check if the date is valid and not NaN
-    if (isNaN(parsedDate.getTime())) return false
-
-    // Check if the date is reasonable (not too far in past/future)
-    const now = new Date()
-    const minDate = new Date('2020-01-01') // Reasonable minimum for blockchain deployments
-    const maxDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000) // 1 year in future
-
-    return parsedDate >= minDate && parsedDate <= maxDate
-  }
-
-  // Type guard for validating raw deployment data
-  private isValidDeploymentData(data: unknown): data is IRawDeploymentData {
-    if (typeof data !== 'object' || data === null) return false
-
-    const deployment = data as Record<string, unknown>
-
-    // Check required fields exist and are strings
-    const requiredStringFields = [
-      'ADDRESS',
-      'OPTIMIZER_RUNS',
-      'TIMESTAMP',
-      'CONSTRUCTOR_ARGS',
-      'VERIFIED',
-    ]
-    for (const field of requiredStringFields)
-      if (typeof deployment[field] !== 'string' || !deployment[field])
-        return false
-
-    // SALT is optional but must be string if present
-    if (deployment.SALT !== undefined && typeof deployment.SALT !== 'string')
-      return false
-
-    // Validate timestamp format with stricter validation
-    const timestamp = deployment.TIMESTAMP as string
-    if (!this.isValidTimestamp(timestamp)) return false
-
-    // Validate verified field
-    const verified = deployment.VERIFIED as string
-    if (verified !== 'true' && verified !== 'false') return false
-
-    return true
-  }
-
-  // Type guard for validating JSON data structure
-  private isValidJsonStructure(data: unknown): data is IJsonDataStructure {
-    if (typeof data !== 'object' || data === null) return false
-
-    // Basic structure validation - we'll do deeper validation during iteration
-    return true
-  }
-
-  // Data validation for final deployment record
-  private validateRecord(record: IDeploymentRecord): boolean {
-    const required = ['contractName', 'network', 'version', 'address']
-    return required.every((field) => record[field as keyof IDeploymentRecord])
-  }
-
-  public transformLogData(jsonData: unknown): IDeploymentRecord[] {
-    const records: IDeploymentRecord[] = []
-
-    // Validate the overall structure
-    if (!this.isValidJsonStructure(jsonData)) {
-      consola.error('Invalid JSON data structure provided')
-      return records
-    }
-
-    const typedJsonData = jsonData as IJsonDataStructure
-
-    // Iterate through contracts
-    // Iterate through networks
-    // Iterate through environments - only process the target environment
-    for (const [contractName, contractData] of Object.entries(typedJsonData)) {
-      if (typeof contractData !== 'object' || contractData === null) {
-        consola.warn(`Skipping invalid contract data for: ${contractName}`)
-        continue
-      }
-
-      for (const [network, networkData] of Object.entries(contractData)) {
-        if (typeof networkData !== 'object' || networkData === null) {
-          consola.warn(
-            `Skipping invalid network data for: ${contractName}.${network}`
-          )
-          continue
-        }
-
-        for (const [environment, envData] of Object.entries(networkData)) {
-          // Skip environments that don't match our target environment
-          if (environment !== this.environment) continue
-
-          if (typeof envData !== 'object' || envData === null) {
-            consola.warn(
-              `Skipping invalid environment data for: ${contractName}.${network}.${environment}`
-            )
-            continue
-          }
-
-          // Iterate through versions
-          // Each version contains an array of deployments
-          for (const [version, deployments] of Object.entries(envData)) {
-            if (!Array.isArray(deployments)) {
-              consola.warn(
-                `Skipping invalid deployments array for: ${contractName}.${network}.${environment}.${version}`
-              )
-              continue
-            }
-
-            for (const deployment of deployments) {
-              // Validate each deployment object before processing
-              if (!this.isValidDeploymentData(deployment)) {
-                consola.warn(
-                  `Skipping invalid deployment data: ${contractName} on ${network} (${environment}) v${version}`
-                )
-                continue
-              }
-
-              // Now we can safely access properties with type safety
-              const typedDeployment = deployment as IRawDeploymentData
-
-              try {
-                const record: IDeploymentRecord = {
-                  contractName,
-                  network,
-                  version,
-                  address: typedDeployment.ADDRESS,
-                  optimizerRuns: typedDeployment.OPTIMIZER_RUNS,
-                  timestamp: new Date(typedDeployment.TIMESTAMP),
-                  constructorArgs: typedDeployment.CONSTRUCTOR_ARGS,
-                  salt: typedDeployment.SALT || undefined,
-                  verified: typedDeployment.VERIFIED === 'true',
-                  solcVersion: typedDeployment.SOLC_VERSION,
-                  evmVersion: typedDeployment.EVM_VERSION,
-                  zkSolcVersion: typedDeployment.ZK_SOLC_VERSION,
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                  contractNetworkKey: `${contractName}-${network}`,
-                  contractVersionKey: `${contractName}-${version}`,
-                }
-
-                if (this.validateRecord(record)) records.push(record)
-                else
-                  consola.warn(
-                    `Skipping record that failed final validation: ${contractName} on ${network} (${environment})`
-                  )
-              } catch (error) {
-                consola.warn(
-                  `Error processing deployment record for ${contractName} on ${network} (${environment}): ${error}`
-                )
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return records
-  }
-
   public async upsertDeployment(record: IDeploymentRecord): Promise<void> {
     if (!this.collection) throw new Error('Collection not initialized')
 
@@ -428,11 +228,13 @@ class DeploymentLogManager {
             optimizerRuns: record.optimizerRuns,
             timestamp: record.timestamp,
             constructorArgs: record.constructorArgs,
-            salt: record.salt,
+            // Convert undefined to "" so MongoDB overwrites existing values
+            // JSON is the source of truth - if field is missing, clear it to empty string
+            salt: record.salt ?? '',
             verified: record.verified,
-            solcVersion: record.solcVersion,
-            evmVersion: record.evmVersion,
-            zkSolcVersion: record.zkSolcVersion,
+            solcVersion: record.solcVersion ?? '',
+            evmVersion: record.evmVersion ?? '',
+            zkSolcVersion: record.zkSolcVersion ?? '',
             contractNetworkKey: record.contractNetworkKey,
             contractVersionKey: record.contractVersionKey,
             updatedAt: new Date(),
@@ -473,7 +275,9 @@ class DeploymentLogManager {
     }
   }
 
-  public async syncDeployments(): Promise<void> {
+  public async syncDeployments(
+    mode: 'merge' | 'overwrite' = 'merge'
+  ): Promise<void> {
     if (!this.collection) throw new Error('Collection not initialized')
 
     try {
@@ -481,7 +285,13 @@ class DeploymentLogManager {
       const jsonData = JSON.parse(readFileSync(this.config.logFilePath, 'utf8'))
 
       consola.info('Transforming data...')
-      const records = this.transformLogData(jsonData)
+      const records = RecordTransformer.processJsonData(
+        jsonData,
+        this.environment,
+        {
+          onSkip: (msg) => consola.warn(msg),
+        }
+      )
 
       consola.info(`Found ${records.length} deployment records in JSON file`)
 
@@ -549,12 +359,19 @@ class DeploymentLogManager {
         return !mongoKeysSet.has(key)
       })
 
+      // Find records to update (exist in both - update MongoDB with JSON values)
+      const recordsToUpdate = records.filter((record) => {
+        const key = `${record.contractName}-${record.network}-${record.version}-${record.address}`
+        return mongoKeysSet.has(key)
+      })
+
       // Find keys to remove (in MongoDB but not in JSON)
       const keysToRemove = Array.from(mongoKeysSet).filter(
         (key) => !jsonKeysSet.has(key)
       )
 
       consola.info(`Records to add: ${recordsToAdd.length}`)
+      consola.info(`Records to update: ${recordsToUpdate.length}`)
       consola.info(`Records to remove: ${keysToRemove.length}`)
 
       // Add new records in batches
@@ -571,8 +388,26 @@ class DeploymentLogManager {
         }
       }
 
-      // Remove records not in JSON using bulk operations
-      if (keysToRemove.length > 0) {
+      // Update existing records in batches (MongoDB takes values from JSON)
+      if (recordsToUpdate.length > 0) {
+        consola.info('Updating existing records with JSON values...')
+        for (
+          let i = 0;
+          i < recordsToUpdate.length;
+          i += this.config.batchSize
+        ) {
+          const batch = recordsToUpdate.slice(i, i + this.config.batchSize)
+          await this.batchUpsertDeployments(batch)
+          consola.info(
+            `Updated batch ${
+              Math.floor(i / this.config.batchSize) + 1
+            }/${Math.ceil(recordsToUpdate.length / this.config.batchSize)}`
+          )
+        }
+      }
+
+      // Remove records not in JSON using bulk operations (only in overwrite mode)
+      if (keysToRemove.length > 0 && mode === 'overwrite') {
         consola.warn(
           `Removing ${keysToRemove.length} records that are not in JSON file...`
         )
@@ -611,9 +446,24 @@ class DeploymentLogManager {
         }
 
         consola.info('Removed obsolete records')
+        consola.success(
+          'Sync completed - MongoDB now matches JSON file exactly'
+        )
+      } else if (keysToRemove.length > 0) {
+        consola.info(
+          `Merge mode: Skipping deletion of ${keysToRemove.length} records not in local JSON`
+        )
+        consola.info(
+          'These records exist in MongoDB (possibly from other developers)'
+        )
+        consola.success(
+          'Sync completed - Added new records, updated existing records, preserved extra MongoDB records'
+        )
+      } else {
+        consola.success(
+          'Sync completed - MongoDB is up to date (added/updated records as needed)'
+        )
       }
-
-      consola.success('Sync completed - MongoDB now matches JSON file exactly')
     } catch (error) {
       consola.error('Sync failed, but deployment can continue:', error)
     }
@@ -682,13 +532,19 @@ const syncCommand = defineCommand({
   meta: {
     name: 'sync',
     description:
-      'Sync MongoDB to match the local JSON file exactly (temporary migration feature)',
+      'Sync MongoDB with local JSON file. Use merge mode (default) to safely add entries without deletion.',
   },
   args: {
     env: {
       type: 'string',
       description: 'Environment (staging or production)',
       default: 'production',
+    },
+    mode: {
+      type: 'string',
+      description:
+        'Sync mode: merge (safe, default) or overwrite (dangerous, deletes missing entries)',
+      default: 'merge',
     },
   },
   async run({ args }) {
@@ -698,24 +554,63 @@ const syncCommand = defineCommand({
       process.exit(1)
     }
 
+    // Validate mode
+    if (args.mode !== 'merge' && args.mode !== 'overwrite') {
+      consola.error('Mode must be either "merge" or "overwrite"')
+      consola.info(
+        'Use "merge" to safely add entries without deleting existing ones'
+      )
+      consola.info(
+        'Use "overwrite" to make MongoDB match local JSON exactly (deletes missing entries)'
+      )
+      process.exit(1)
+    }
+
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
+    let shouldSync = true
     try {
       await manager.connect()
-      consola.info('Syncing MongoDB to match local JSON file...')
-      consola.warn(
-        'This is a temporary migration feature - the local JSON file will be deprecated'
-      )
-      await manager.syncDeployments()
+
+      if (args.mode === 'merge') {
+        consola.info(
+          'Syncing in MERGE mode (safe - will not delete MongoDB entries)'
+        )
+        consola.info(
+          'This will add entries from JSON that are missing in MongoDB'
+        )
+      } else {
+        consola.warn(
+          'Syncing in OVERWRITE mode (DANGEROUS - will delete MongoDB entries not in JSON)'
+        )
+        consola.warn(
+          'Use this mode only if you are certain your local JSON is the complete source of truth'
+        )
+
+        // Require confirmation for overwrite mode
+        const confirmed = await getUserConfirmation(
+          'Are you sure you want to delete MongoDB entries not in your local JSON? (yes/no): '
+        )
+        if (!confirmed) {
+          consola.info('Sync cancelled')
+          shouldSync = false
+        }
+      }
+
+      if (shouldSync) {
+        await manager.syncDeployments(args.mode as 'merge' | 'overwrite')
+      }
     } catch (error) {
       consola.error('Sync failed:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -810,14 +705,14 @@ const addCommand = defineCommand({
       optimizerRuns: args['optimizer-runs'],
       timestamp: new Date(args.timestamp),
       constructorArgs: args['constructor-args'],
-      salt: args.salt || undefined,
+      salt: args.salt || '',
       verified: args.verified === 'true',
-      solcVersion: args['solc-version'],
-      evmVersion: args['evm-version'],
+      solcVersion: args['solc-version'] || '',
+      evmVersion: args['evm-version'] || '',
       zkSolcVersion:
         typeof args['zk-solc-version'] === 'string'
           ? args['zk-solc-version']
-          : undefined,
+          : '',
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,
@@ -826,9 +721,10 @@ const addCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await manager.connect()
       consola.info(
@@ -840,10 +736,11 @@ const addCommand = defineCommand({
       )
     } catch (error) {
       consola.error('Add operation failed:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -974,9 +871,10 @@ const updateCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await manager.connect()
       consola.info(`Updating deployment: ${args.contract} on ${args.network}`)
@@ -989,10 +887,11 @@ const updateCommand = defineCommand({
       )
     } catch (error) {
       consola.error('Update operation failed:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
@@ -1018,9 +917,10 @@ const createIndexesCommand = defineCommand({
 
     const manager = new DeploymentLogManager(
       config,
-      args.env as 'staging' | 'production'
+      args.env as keyof typeof EnvironmentEnum
     )
 
+    let exitCode = 0
     try {
       await manager.connect()
       consola.info('Creating/updating indexes...')
@@ -1028,10 +928,11 @@ const createIndexesCommand = defineCommand({
       consola.success('Indexes created/updated successfully')
     } catch (error) {
       consola.error('Failed to create indexes:', error)
-      process.exit(1)
+      exitCode = 1
     } finally {
       await manager.disconnect()
     }
+    if (exitCode !== 0) process.exit(exitCode)
   },
 })
 
