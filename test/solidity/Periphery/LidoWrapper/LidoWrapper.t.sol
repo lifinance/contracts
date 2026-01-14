@@ -1,17 +1,20 @@
 // solhint-disable
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LidoWrapper, IStETH } from "lifi/Periphery/LidoWrapper.sol";
 import { TestBase } from "../../utils/TestBase.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { RelayFacet } from "lifi/Facets/RelayFacet.sol";
-import { TestRelayFacet } from "../../Facets/RelayFacet.t.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
-import { InvalidConfig, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
+import { RelayDepositoryFacet } from "lifi/Facets/RelayDepositoryFacet.sol";
+import { IRelayDepository } from "lifi/Interfaces/IRelayDepository.sol";
+import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
+import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
+import { MockRelayDepository } from "../../utils/MockRelayDepository.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 // Custom errors from stETH contract
 error ErrorZeroSharesWrap();
@@ -19,6 +22,16 @@ error ErrorZeroTokensUnwrap();
 error ErrorZeroSharesUnwrap();
 error ErrorNotEnoughBalance();
 error ErrorNotEnoughAllowance();
+
+// Test RelayDepositoryFacet Contract
+contract TestRelayDepositoryFacet is
+    RelayDepositoryFacet,
+    TestWhitelistManagerBase
+{
+    constructor(
+        address _relayDepository
+    ) RelayDepositoryFacet(_relayDepository) {}
+}
 
 contract LidoWrapperTest is TestBase {
     LidoWrapper private lidoWrapper;
@@ -32,14 +45,12 @@ contract LidoWrapperTest is TestBase {
         0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
     address private constant ST_ETH_WHALE =
         0xa243e782185D5E25dEB3829E98E3Ed9cCecc35B2;
-    address internal constant RELAY_RECEIVER =
-        0xa5F565650890fBA1824Ee0F21EbBbF660a179934;
-
-    uint256 internal privateKey = 0x1234567890;
-    address internal relaySolver = vm.addr(privateKey);
-    TestRelayFacet internal relayFacet;
-    RelayFacet.RelayData internal validRelayData;
     GenericSwapFacetV3 internal genericSwapFacetV3;
+    TestRelayDepositoryFacet internal relayDepositoryFacet;
+    RelayDepositoryFacet.RelayDepositoryData internal validDepositoryData;
+    MockRelayDepository internal mockDepository;
+    address internal constant ALLOCATOR_ADDRESS =
+        0x1234567890123456789012345678901234567890;
 
     error ContractNotYetReadyForMainnet();
 
@@ -81,52 +92,49 @@ contract LidoWrapperTest is TestBase {
             type(uint256).max
         );
 
-        // prepare diamond setup
-        // add relay bridge
-        // slither-disable-next-line reentrancy
-        relayFacet = new TestRelayFacet(RELAY_RECEIVER, relaySolver);
+        // Setup RelayDepositoryFacet for swap + bridge tests
+        // Deploy mock depository (reused from shared utils)
+        mockDepository = new MockRelayDepository(ALLOCATOR_ADDRESS);
+        relayDepositoryFacet = new TestRelayDepositoryFacet(
+            address(mockDepository)
+        );
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = relayFacet.startBridgeTokensViaRelay.selector;
-        functionSelectors[1] = relayFacet
-            .swapAndStartBridgeTokensViaRelay
+        bytes4[] memory functionSelectors = new bytes4[](3);
+        functionSelectors[0] = relayDepositoryFacet
+            .startBridgeTokensViaRelayDepository
             .selector;
-        functionSelectors[2] = relayFacet.addAllowedContractSelector.selector;
-        functionSelectors[3] = relayFacet.getMappedChainId.selector;
-        functionSelectors[4] = relayFacet.setConsumedId.selector;
+        functionSelectors[1] = relayDepositoryFacet
+            .swapAndStartBridgeTokensViaRelayDepository
+            .selector;
+        functionSelectors[2] = relayDepositoryFacet
+            .addAllowedContractSelector
+            .selector;
 
-        addFacet(diamond, address(relayFacet), functionSelectors);
-        // slither-disable-next-line reentrancy-no-eth
-        relayFacet = TestRelayFacet(address(diamond));
+        addFacet(diamond, address(relayDepositoryFacet), functionSelectors);
+        relayDepositoryFacet = TestRelayDepositoryFacet(address(diamond));
 
-        // update bridgeData
-        bridgeData.bridge = "symbiosis";
-        bridgeData.destinationChainId = 1;
-        bridgeData.minAmount = 0.1 ether;
-        // bridgeData.minAmount = 83152588364537670;
-        bridgeData.sendingAssetId = WST_ETH_ADDRESS_OPTIMISM;
-        bridgeData.hasSourceSwaps = true;
-
-        // prepare relayData
-        // slither-disable-next-line reentrancy-no-eth
-        validRelayData = RelayFacet.RelayData({
-            requestId: bytes32("1234"),
-            nonEVMReceiver: "",
-            receivingAssetId: bytes32(
-                uint256(uint160(WST_ETH_ADDRESS_MAINNET))
-            ),
-            signature: ""
-        });
-
-        // whitelist LidoWrapper as periphery
-        relayFacet.addAllowedContractSelector(
+        // Whitelist LidoWrapper for RelayDepositoryFacet
+        relayDepositoryFacet.addAllowedContractSelector(
             address(lidoWrapper),
             lidoWrapper.wrapStETHToWstETH.selector
         );
-        relayFacet.addAllowedContractSelector(
+        relayDepositoryFacet.addAllowedContractSelector(
             address(lidoWrapper),
             lidoWrapper.unwrapWstETHToStETH.selector
         );
+
+        // Setup bridge data
+        bridgeData.bridge = "relay-depository";
+        bridgeData.destinationChainId = 137;
+        bridgeData.minAmount = 0.1 ether;
+        bridgeData.sendingAssetId = WST_ETH_ADDRESS_OPTIMISM;
+        bridgeData.hasSourceSwaps = true;
+
+        // Setup valid depository data
+        validDepositoryData = RelayDepositoryFacet.RelayDepositoryData({
+            orderId: bytes32("test-order-id"),
+            depositorAddress: USER_SENDER
+        });
 
         vm.stopPrank();
 
@@ -347,14 +355,11 @@ contract LidoWrapperTest is TestBase {
             requiresDeposit: true
         });
 
-        // Sign relay data
-        validRelayData.signature = _signData(bridgeData, validRelayData);
-
-        // Execute swap and bridge
-        relayFacet.swapAndStartBridgeTokensViaRelay(
+        // Execute swap and bridge using RelayDepositoryFacet
+        relayDepositoryFacet.swapAndStartBridgeTokensViaRelayDepository(
             bridgeData,
             swapData,
-            validRelayData
+            validDepositoryData
         );
 
         // Verify balances
@@ -463,34 +468,6 @@ contract LidoWrapperTest is TestBase {
         vm.stopPrank();
     }
 
-    function _signData(
-        ILiFi.BridgeData memory _bridgeData,
-        RelayFacet.RelayData memory _relayData
-    ) internal view returns (bytes memory) {
-        bytes32 message = keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                keccak256(
-                    abi.encodePacked(
-                        _relayData.requestId,
-                        block.chainid,
-                        bytes32(uint256(uint160(address(relayFacet)))),
-                        bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
-                        _bridgeData.destinationChainId,
-                        _bridgeData.receiver == NON_EVM_ADDRESS
-                            ? _relayData.nonEVMReceiver
-                            : bytes32(uint256(uint160(_bridgeData.receiver))),
-                        _relayData.receivingAssetId
-                    )
-                )
-            )
-        );
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, message);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        return signature;
-    }
-
     function _deployAndAddGenericSwapFacetV3ToDiamond() internal {
         // deploy GenericSwapFacet
         genericSwapFacetV3 = new GenericSwapFacetV3(address(0));
@@ -504,5 +481,26 @@ contract LidoWrapperTest is TestBase {
         // add facet to diamond and  store diamond with facet interface in variable
         addFacet(diamond, address(genericSwapFacetV3), functionSelectors);
         genericSwapFacetV3 = GenericSwapFacetV3(address(diamond));
+
+        // Add WhitelistManagerFacet if not already added
+        WhitelistManagerFacet whitelistManagerFacet = new WhitelistManagerFacet();
+        bytes4[] memory whitelistSelectors = new bytes4[](1);
+        whitelistSelectors[0] = WhitelistManagerFacet
+            .setContractSelectorWhitelist
+            .selector;
+        addFacet(diamond, address(whitelistManagerFacet), whitelistSelectors);
+        whitelistManagerFacet = WhitelistManagerFacet(address(diamond));
+
+        // whitelist LidoWrapper functions
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(lidoWrapper),
+            lidoWrapper.wrapStETHToWstETH.selector,
+            true
+        );
+        whitelistManagerFacet.setContractSelectorWhitelist(
+            address(lidoWrapper),
+            lidoWrapper.unwrapWstETHToStETH.selector,
+            true
+        );
     }
 }
