@@ -51,7 +51,7 @@ DEPLOY_CONFIG_FILE_PATH="config/"
 
 # any networks listed here will be excluded from actions that are applied to "all networks"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest,localanvil"
-# exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonbeam,celo,fuse,cronos,velas,boba,nova"
+# exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,okx,avalanche,arbitrum,optimism,moonbeam,celo,fuse,cronos,velas,boba,nova"
 #EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,lineatest"
 EXCLUDE_NETWORKS="bsc-testnet,goerli,sepolia,mumbai,lineatest,localanvil,velas"
 
