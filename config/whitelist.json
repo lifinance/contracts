@@ -1607,6 +1607,51 @@
               "0xf78dc253": "unoswapTo(address,address,uint256,uint256,uint256[])"
             }
           }
+        ],
+        "unichain": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "linea": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "sonic": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
         ]
       }
     },
