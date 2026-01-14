@@ -16,8 +16,7 @@ contract DeployScript is UpdateScriptBase {
         PolymerCCTPFacet polymer;
         bytes4[] memory excludes = new bytes4[](2);
         excludes[0] = PolymerCCTPFacet.initPolymerCCTP.selector;
-        // Exclude USDC() to prevent conflict with CelerCircleBridgeFacet
-        // Both facets have USDC() but they should coexist - Celer's USDC() will remain active
+        // Exclude USDC() to prevent conflict with CelerCircleBridgeFacet (Celer's USDC() remains active)
         excludes[1] = polymer.USDC.selector;
         return excludes;
     }
