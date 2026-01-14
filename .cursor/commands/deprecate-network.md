@@ -110,7 +110,7 @@ When `/deprecate-network` is invoked with network names:
 8. **Remind user to update Product Target Sheet**:
 
    - Display a prominent reminder to manually update the Product Target State spreadsheet
-   - The spreadsheet tracks contract deployments across networks: https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0
+   - The spreadsheet tracks contract deployments across networks: [Product Target State spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0)
    - For deprecated networks: Move the network row(s) to the deprecated section
    - This is a manual step that must be done separately as the spreadsheet is not part of the codebase
 
@@ -222,7 +222,7 @@ The command handles:
 
 After the command completes, you **must** manually update the Product Target State spreadsheet:
 
-- **Spreadsheet URL**: https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0
+- **Spreadsheet URL**: [Product Target State spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0)
 - **For deprecated networks**: Move the network row(s) to the deprecated section in the spreadsheet
 - This spreadsheet tracks contract deployments across all networks and is used by the product team
 - The command cannot automatically update this spreadsheet as it's external to the codebase
