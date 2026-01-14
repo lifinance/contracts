@@ -320,27 +320,6 @@
     "deployedWithSolcVersion": "0.8.28",
     "create3Factory": "0x95d0A9c49A990514cB6FDAA7FfB49550BD23F148"
   },
-  "fantom": {
-    "name": "fantom",
-    "chainId": 250,
-    "nativeCurrency": "FTM",
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "wrappedNativeAddress": "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83",
-    "status": "active",
-    "type": "mainnet",
-    "rpcUrl": "https://rpc.ankr.com/fantom",
-    "verificationType": "etherscan",
-    "explorerUrl": "https://ftmscan.com",
-    "explorerApiUrl": "https://api.ftmscan.com/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
-    "safeAddress": "0x22A1e594b612eF694e021eaef730DdD5A1069e3B",
-    "gasZipChainId": 20,
-    "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
-    "devNotes": "Automatic verification does not work. This network will be decommissioned soon. We will not introduce TimelockController here"
-  },
   "flare": {
     "name": "flare",
     "chainId": 14,

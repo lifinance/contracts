@@ -50,7 +50,6 @@ celo = "${ETH_NODE_URI_CELO}"
 corn = "${ETH_NODE_URI_CORN}"
 cronos = "${ETH_NODE_URI_CRONOS}"
 evmos = "${ETH_NODE_URI_EVMOS}"
-fantom = "${ETH_NODE_URI_FANTOM}"
 flare = "${ETH_NODE_URI_FLARE}"
 flow = "${ETH_NODE_URI_FLOW}"
 fraxtal = "${ETH_NODE_URI_FRAXTAL}"
@@ -121,7 +120,6 @@ bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
 corn = { key = "${CORN_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan", chain = "21000000" }
 cronos = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=25", chain = "25" }
-fantom = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=250", chain = "250" }
 flare = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan", chain = "14" }
 flow = { key = "${BLOCKSCOUT_API_KEY}", url = "https://evm.flowscan.io/api", chain = "747" , verifier = "blockscout"}
 fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=252", chain = "252" }
