@@ -160,9 +160,13 @@ diamondUpdateFacet() {
       # Try to find JSON object with "logs" key
       if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
         # If not valid JSON, try to extract JSON object
-        RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-        if [[ -z "$RAW_RETURN_DATA" ]] || ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-          RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+        EXTRACTED=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
+        if [[ -n "$EXTRACTED" ]] && echo "$EXTRACTED" | jq empty 2>/dev/null; then
+          RAW_RETURN_DATA="$EXTRACTED"
+        else
+          # Try jq filter on original data as last resort
+          EXTRACTED=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+          [[ -n "$EXTRACTED" ]] && RAW_RETURN_DATA="$EXTRACTED"
         fi
       fi
       
@@ -299,9 +303,13 @@ diamondUpdateFacet() {
       # Try to find JSON object with "logs" key
       if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
         # If not valid JSON, try to extract JSON object
-        RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-        if [[ -z "$RAW_RETURN_DATA" ]] || ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-          RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+        EXTRACTED=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
+        if [[ -n "$EXTRACTED" ]] && echo "$EXTRACTED" | jq empty 2>/dev/null; then
+          RAW_RETURN_DATA="$EXTRACTED"
+        else
+          # Try jq filter on original data as last resort
+          EXTRACTED=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+          [[ -n "$EXTRACTED" ]] && RAW_RETURN_DATA="$EXTRACTED"
         fi
       fi
       

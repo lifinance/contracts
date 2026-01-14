@@ -367,22 +367,16 @@ deploySingleContract() {
         warning "❌ Could not extract deployed address from raw return data (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
         echoDebug "RAW_RETURN_DATA preview: ${RAW_RETURN_DATA:0:500}..."
         warning "Check STDERR logs: $STDERR_LOG"
-        # Clean up temp files before retry
-        cleanup
         attempts=$((attempts + 1))
         sleep 1
         continue
       elif [[ -n "$ADDRESS" ]]; then
         # address successfully extracted
         echoDebug "✅ Successfully extracted address: $ADDRESS"
-        # Clean up temp files before breaking
-        cleanup
         break
       else
         warning "Address extraction returned empty (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
         warning "Check STDERR logs: $STDERR_LOG"
-        # Clean up temp files before retry
-        cleanup
         attempts=$((attempts + 1))
         sleep 1
         continue
@@ -391,18 +385,12 @@ deploySingleContract() {
       # RETURN_CODE != 0
       warning "forge script returned non-zero exit code: $RETURN_CODE (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
       warning "To debug, run the forge script manually without --json flag to see verbose output."
-      # Clean up temp files before retry
-      cleanup
       attempts=$((attempts + 1))
       sleep 1
       continue
     fi
   done
   
-  # Clean up temporary files and restore trap after loop completes
-  cleanup
-  trap - EXIT
-
   # check if we broke out due to address collision
   if [[ "$ADDRESS_COLLISION_DETECTED" == "true" ]]; then
     error "Deployment stopped due to address collision. Please change SALT and retry."
@@ -419,9 +407,10 @@ deploySingleContract() {
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; then
     error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment after $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT attempts"
     echoDebug "Last RAW_RETURN_DATA: ${RAW_RETURN_DATA:0:500}..."
-    if [[ -f "$STDERR_LOG" ]]; then
-      echo "STDERR logs available at: $STDERR_LOG"
-    fi
+    echo "STDERR logs available at: $STDERR_LOG"
+    echo "STDOUT logs available at: $STDOUT_LOG"
+    # Don't cleanup - keep logs for debugging
+    trap - EXIT
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
@@ -434,6 +423,10 @@ deploySingleContract() {
   # check if address is available, otherwise do not continue
   if [[ -z "$ADDRESS" || "$ADDRESS" == "null" ]]; then
     warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
+    echo "STDERR logs available at: $STDERR_LOG"
+    echo "STDOUT logs available at: $STDOUT_LOG"
+    # Don't cleanup - keep logs for debugging
+    trap - EXIT
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
@@ -442,6 +435,10 @@ deploySingleContract() {
       exit 1
     fi
   fi
+
+  # Clean up temporary files and restore trap after successful deployment
+  cleanup
+  trap - EXIT
 
   # extract constructor arguments from return data
   CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)

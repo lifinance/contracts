@@ -80,11 +80,15 @@ checkExecutorAndReceiver() {
     
     # Extract JSON from RAW_RETURN_DATA (it should already be JSON when using --json)
     # Try to find JSON object with "logs" key
+    # Preserve original data to allow fallback extraction if grep fails
     if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+      ORIGINAL_RAW_RETURN_DATA="$RAW_RETURN_DATA"
       # If not valid JSON, try to extract JSON object
-      RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-      if [[ -z "$RAW_RETURN_DATA" ]] || ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-        RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+      TMP_RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
+      if [[ -n "$TMP_RAW_RETURN_DATA" ]] && echo "$TMP_RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+        RAW_RETURN_DATA="$TMP_RAW_RETURN_DATA"
+      else
+        RAW_RETURN_DATA=$(echo "$ORIGINAL_RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
       fi
     fi
     
