@@ -6,9 +6,6 @@ updateFacetConfig() {
   source script/config.sh
   source script/helperFunctions.sh
 
-  # Capture previous EXIT trap to restore it later
-  local prev_trap=$(trap -p EXIT)
-  
   # Localize temporary file variables to prevent scope pollution
   local STDOUT_LOG
   local STDERR_LOG
@@ -78,6 +75,18 @@ updateFacetConfig() {
     # ensure all required .env values are set
     checkRequiredVariablesInDotEnv "$NETWORK"
 
+    # Create temporary files outside the loop to avoid leaks across retries
+    # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
+    STDOUT_LOG=$(mktemp)
+    STDERR_LOG=$(mktemp)
+    
+    # Cleanup function for temporary files
+    cleanup_temp_files() {
+      rm -f "$STDOUT_LOG" "$STDERR_LOG"
+    }
+    
+    # Set EXIT trap once before the loop
+    trap 'cleanup_temp_files' EXIT
 
     # repeatedly call selected script until it's succeeded or out of attempts
     ATTEMPTS=1
@@ -87,18 +96,9 @@ updateFacetConfig() {
       # Add skip simulation flag based on environment variable
       SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-      # Create temporary files to capture stdout and stderr separately
-      # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
-      STDOUT_LOG=$(mktemp)
-      STDERR_LOG=$(mktemp)
-      
-      # Cleanup function for temporary files (defined locally within function scope)
-      cleanup_temp_files() {
-        rm -f "$STDOUT_LOG" "$STDERR_LOG"
-      }
-      
-      # Set EXIT trap for this iteration's temp files
-      trap 'cleanup_temp_files' EXIT
+      # Clear temp files from previous iteration
+      > "$STDOUT_LOG"
+      > "$STDERR_LOG"
       
       # Execute forge script with separate stdout/stderr redirection
       NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
@@ -130,18 +130,6 @@ updateFacetConfig() {
         fi
       fi
       
-      # Clean up temporary files explicitly
-      cleanup_temp_files
-      
-      # Restore previous EXIT trap (or clear if there wasn't one)
-      if [[ -n "$prev_trap" ]]; then
-        # Restore the previous trap by evaluating the captured trap command
-        eval "$prev_trap"
-      else
-        # No previous trap existed, so clear the current one
-        trap - EXIT
-      fi
-      
       echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
       # exit the loop if the operation was successful
       if [ "$RETURN_CODE" -eq 0 ]; then
@@ -151,6 +139,10 @@ updateFacetConfig() {
       ATTEMPTS=$(($ATTEMPTS + 1)) # increment attempts
       sleep 1                    # wait for 1 second before trying the operation again
     done
+    
+    # Clean up temporary files and restore trap after loop completes
+    cleanup_temp_files
+    trap - EXIT
 
     # check if call was executed successfully or used all attempts
     if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
