@@ -1607,6 +1607,51 @@
               "0xf78dc253": "unoswapTo(address,address,uint256,uint256,uint256[])"
             }
           }
+        ],
+        "unichain": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "linea": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "sonic": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
         ]
       }
     },
@@ -6108,74 +6153,6 @@
         ]
       }
     ],
-    "fantom": [
-      {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      }
-    ],
     "flare": [
       {
         "name": "FeeCollector",
@@ -6852,16 +6829,6 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -8623,7 +8590,7 @@
       },
       {
         "name": "TokenWrapper",
-        "address": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+        "address": "0x16a43D7db650c2B4D40484e4Ef29ab54B934A1C9",
         "selectors": [
           {
             "selector": "0x3ccfd60b",
