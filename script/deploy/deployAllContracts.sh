@@ -279,9 +279,10 @@ deployAllContracts() {
 
     # Update whitelist.json configuration files with periphery contract data
     # This updates the off-chain whitelist configuration files that will be synced on-chain.
+    # Always update both production and staging to keep them in sync
     echo ""
-    echo "[info] Updating whitelist periphery and composer entries..."
-    bunx tsx script/tasks/updateWhitelistPeriphery.ts || checkFailure $? "update whitelist periphery"
+    echo "[info] Updating whitelist periphery and composer entries for both production and staging..."
+    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment both || checkFailure $? "update whitelist periphery"
     echo "[info] Whitelist periphery update completed"
     echo ""
 

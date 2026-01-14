@@ -101,7 +101,7 @@ async function prepareTimelockCalldata(
     // Use the existing wrapWithTimelockSchedule helper function
     const wrappedTransaction = await wrapWithTimelockSchedule(
       network,
-      '', // rpcUrl will be determined by the helper function
+      '', // rpcUrl will fall back to chain.rpcUrls.default.http[0] in wrapWithTimelockSchedule
       timelockAddress as `0x${string}`,
       diamondAddress as `0x${string}`,
       originalCalldata
