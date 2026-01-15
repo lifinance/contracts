@@ -1,21 +1,22 @@
 {
+  "LinkToDeployedToAddresses": "https://github.com/across-protocol/contracts/blob/master/broadcast/deployed-addresses.json",
   "mainnet": {
     "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
     "spokePool": "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
+    "sponsoredOftSrcPeriphery": "0x4607bceaf7b22cb0c46882ffc9fab3c6efe66e5a",
+    "sponsoredCctpSrcPeriphery": "0x89004ea51bac007fec55976967135b2aa6e838d4"
   },
   "optimism": {
     "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
     "spokePool": "0x6f26Bf09B1C792e3228e5467807a900A503c0281",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
+    "sponsoredCctpSrcPeriphery": "0x986e476f93a423d7a4cd0baf362c5e0903268142"
   },
   "polygon": {
     "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
     "spokePool": "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
+    "sponsoredOftSrcPeriphery": "0xc6a21e6a57777f2183312c19e614dd6054b1a54f",
+    "sponsoredCctpSrcPeriphery": "0x473debe3db7338e03e3c8dc8e980bb1dacb25bc5"
   },
   "arbitrum": {
     "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
@@ -27,7 +28,7 @@
     "spokePoolPeriphery": "0xE0BCff426509723B18D6b2f0D8F4602d143bE3e0",
     "spokePool": "0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
+    "sponsoredCctpSrcPeriphery": "0x60eb88a83434f13095b0a138cdcbf5078aa5005c"
   },
   "zksync": {
     "spokePoolPeriphery": "0x672b9ba0CE73b69b5F940362F0ee36AAA3F02986",
@@ -80,7 +81,7 @@
   "unichain": {
     "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
     "spokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
+    "sponsoredOftSrcPeriphery": "0x0bf1a44ae69869cf7aea7e0cba76624792fad4de",
+    "sponsoredCctpSrcPeriphery": "0x2918236893ec1ec739a96c381e00403d52ac560f"
   }
 }

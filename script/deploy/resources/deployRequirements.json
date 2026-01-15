@@ -112,12 +112,12 @@
       "_sponsoredOftSrcPeriphery": {
         "configFileName": "acrossV4Swap.json",
         "keyInConfigFile": ".<NETWORK>.sponsoredOftSrcPeriphery",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "true"
       },
       "_sponsoredCctpSrcPeriphery": {
         "configFileName": "acrossV4Swap.json",
         "keyInConfigFile": ".<NETWORK>.sponsoredCctpSrcPeriphery",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "true"
       }
     }
   },
