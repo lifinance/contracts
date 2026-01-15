@@ -4871,6 +4871,28 @@
       }
     },
     {
+      "name": "Kumbaya",
+      "key": "kumbaya",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/kumbaya.svg",
+      "webUrl": "https://kumbaya.xyz/",
+      "contracts": {
+        "megaeth": [
+          {
+            "address": "0xe5bbef8de2db447a7432a47eba58924d94ee470e",
+            "functions": {
+              "0x5ae401dc": "multicall(uint256,bytes[])"
+            }
+          },
+          {
+            "address": "0xaab1c664cead881afbb58555e6a3a79523d3e4c0",
+            "functions": {
+              "0x3593564c": "execute(bytes,bytes[],uint256)"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "Superfluid",
       "key": "superfluid",
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/protocols/superfluid.svg",
