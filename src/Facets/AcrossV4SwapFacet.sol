@@ -63,7 +63,7 @@ contract AcrossV4SwapFacet is
 
     /// @notice Data specific to Across V4 Swap API bridging (enum + opaque calldata)
     /// @param swapApiTarget Which Across contract should be called (0-3)
-    /// @param callData ABI-encoded calldata for the selected target contract
+    /// @param callData ABI-encoded calldata for the selected target contract (no selector)
     struct AcrossV4SwapFacetData {
         SwapApiTarget swapApiTarget;
         bytes callData;
@@ -84,9 +84,7 @@ contract AcrossV4SwapFacet is
     ) {
         if (
             address(_spokePoolPeriphery) == address(0) ||
-            _spokePool == address(0) ||
-            _sponsoredOftSrcPeriphery == address(0) ||
-            _sponsoredCctpSrcPeriphery == address(0)
+            _spokePool == address(0)
         ) {
             revert InvalidConfig();
         }
@@ -236,7 +234,7 @@ contract AcrossV4SwapFacet is
             true
         );
 
-        // Validate refund address to prevent lost funds
+        // Validate depositor/refund address to prevent lost funds
         if (params.depositor == bytes32(0)) {
             revert InvalidCallData();
         }
@@ -317,7 +315,7 @@ contract AcrossV4SwapFacet is
             true
         );
 
-        // Validate refund address to prevent lost funds
+        // Validate depositor/refund address to prevent lost funds
         if (swapAndDepositData.depositData.depositor == address(0)) {
             revert InvalidCallData();
         }
