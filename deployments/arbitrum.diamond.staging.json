@@ -228,6 +228,18 @@
       "0x13Dab942D27D5E84584c163fE0D732901b4733E3": {
         "Name": "AcrossV4SwapFacet",
         "Version": ""
+      },
+      "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
+      },
+      "0xa606c44914FF57E431faCA4ff0F602D1b002D967": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": "1.0.2"
       }
     },
     "Periphery": {
