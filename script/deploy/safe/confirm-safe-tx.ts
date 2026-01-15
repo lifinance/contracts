@@ -6,6 +6,9 @@
  * and provides options to sign and/or execute them.
  */
 
+import * as fs from 'fs'
+import * as path from 'path'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
@@ -13,7 +16,9 @@ import { type Collection } from 'mongodb'
 import {
   decodeFunctionData,
   getAddress,
+  keccak256,
   parseAbi,
+  stringToHex,
   type Abi,
   type Account,
   type Address,
@@ -52,6 +57,127 @@ import {
 dotenv.config()
 
 const storedResponses: Record<string, string> = {}
+
+interface IWhitelistContractSelectorMeta {
+  contractLabel?: string
+  signature?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+let whitelistCache: unknown | undefined
+function getWhitelistJson(): unknown {
+  if (whitelistCache) return whitelistCache
+
+  // Read from repo root so script works regardless of TS JSON settings
+  const whitelistPath = path.join(process.cwd(), 'config', 'whitelist.json')
+  const raw = fs.readFileSync(whitelistPath, 'utf8')
+  whitelistCache = JSON.parse(raw)
+  return whitelistCache
+}
+
+function safeNormalizeAddress(address: string): string {
+  try {
+    return getAddress(address as Address).toLowerCase()
+  } catch {
+    return address.toLowerCase()
+  }
+}
+
+function computeSelectorFromSignature(signature: string): string {
+  const hash = keccak256(stringToHex(signature))
+  return `0x${hash.slice(2, 10)}`
+}
+
+function lookupWhitelistMetaForContractSelector(
+  network: string,
+  contractAddress: string,
+  selector: string
+): IWhitelistContractSelectorMeta {
+  const whitelist = getWhitelistJson()
+  if (!isRecord(whitelist)) return {}
+
+  const networkKey = network.toLowerCase()
+  const addr = safeNormalizeAddress(contractAddress)
+  const sel = selector.toLowerCase()
+
+  // 1) PERIPHERY has explicit name + selectors[] entries.
+  const peripheryRoot = whitelist['PERIPHERY']
+  if (isRecord(peripheryRoot)) {
+    const peripheryNetwork = peripheryRoot[networkKey]
+    if (Array.isArray(peripheryNetwork)) {
+      const entry = peripheryNetwork.find((e) => {
+        if (!isRecord(e)) return false
+        const address = typeof e.address === 'string' ? e.address : ''
+        return safeNormalizeAddress(address) === addr
+      })
+
+      if (isRecord(entry)) {
+        const entryName =
+          typeof entry.name === 'string' ? entry.name : undefined
+        const selectorsArr = entry.selectors
+
+        let signature: string | undefined
+        if (Array.isArray(selectorsArr)) {
+          const selectorEntry = selectorsArr.find((s) => {
+            if (!isRecord(s)) return false
+            const sSel = typeof s.selector === 'string' ? s.selector : ''
+            return sSel.toLowerCase() === sel
+          })
+          if (isRecord(selectorEntry)) {
+            const sig = selectorEntry.signature
+            if (typeof sig === 'string') signature = sig
+          }
+        }
+
+        return {
+          contractLabel: entryName ? `PERIPHERY/${entryName}` : 'PERIPHERY',
+          signature: signature ? String(signature) : undefined,
+        }
+      }
+    }
+  }
+
+  // 2) Generic: any top-level array section with items that have `.contracts[networkKey]`
+  //    mapping to [{ address, functions: { [selector]: signature } }].
+  for (const [sectionKey, sectionVal] of Object.entries(whitelist)) {
+    if (!Array.isArray(sectionVal)) continue
+
+    for (const item of sectionVal) {
+      if (!isRecord(item)) continue
+
+      const contracts = item.contracts
+      if (!isRecord(contracts)) continue
+
+      const contractsByNetwork = contracts[networkKey]
+      if (!Array.isArray(contractsByNetwork)) continue
+
+      const contractEntry = contractsByNetwork.find((c) => {
+        if (!isRecord(c)) return false
+        const address = typeof c.address === 'string' ? c.address : ''
+        return safeNormalizeAddress(address) === addr
+      })
+      if (!isRecord(contractEntry)) continue
+
+      let signature: string | undefined
+      const functions = contractEntry.functions
+      if (isRecord(functions)) {
+        const sig = functions[sel]
+        if (typeof sig === 'string') signature = sig
+      }
+
+      const itemName = typeof item.name === 'string' ? item.name : undefined
+      return {
+        contractLabel: itemName ? `${sectionKey}/${itemName}` : sectionKey,
+        signature: signature ? String(signature) : undefined,
+      }
+    }
+  }
+
+  return {}
+}
 
 /**
  * Gets the name of a target address by matching it against known contracts
@@ -206,21 +332,24 @@ async function decodeNestedTimelockCall(
                   'batchSetContractSelectorWhitelist'
                 ) {
                   formatBatchSetContractSelectorWhitelist(
-                    nestedDecodedData.args
+                    nestedDecodedData.args,
+                    network
                   )
                 } else {
                   consola.info('Nested Decoded Arguments:')
-                  nestedDecodedData.args.forEach((arg: any, index: number) => {
-                    // Handle different types of arguments
-                    let displayValue = arg
-                    if (typeof arg === 'bigint') displayValue = arg.toString()
-                    else if (typeof arg === 'object' && arg !== null)
-                      displayValue = JSON.stringify(arg)
+                  nestedDecodedData.args.forEach(
+                    (arg: unknown, index: number) => {
+                      // Handle different types of arguments
+                      let displayValue = arg
+                      if (typeof arg === 'bigint') displayValue = arg.toString()
+                      else if (typeof arg === 'object' && arg !== null)
+                        displayValue = JSON.stringify(arg)
 
-                    consola.info(
-                      `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
-                    )
-                  })
+                      consola.info(
+                        `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
+                      )
+                    }
+                  )
                 }
               } else
                 consola.info(
@@ -252,7 +381,10 @@ async function decodeNestedTimelockCall(
  * Formats and displays batchSetContractSelectorWhitelist arguments in a readable, grouped format
  * @param args - Decoded function arguments: [contracts: address[], selectors: bytes4[], whitelisted: bool]
  */
-function formatBatchSetContractSelectorWhitelist(args: readonly unknown[]) {
+function formatBatchSetContractSelectorWhitelist(
+  args: readonly unknown[],
+  network?: string
+) {
   if (!args || args.length < 3) {
     consola.warn('Invalid arguments for batchSetContractSelectorWhitelist')
     return
@@ -300,10 +432,47 @@ function formatBatchSetContractSelectorWhitelist(args: readonly unknown[]) {
     const originalContract =
       contracts.find((c) => c.toLowerCase() === contract) || contract
 
-    consola.info(`  Contract: \u001b[34m${originalContract}\u001b[0m`)
+    let contractLabel = ''
+    if (network) {
+      const meta = lookupWhitelistMetaForContractSelector(
+        network,
+        originalContract,
+        selectorList[0] ?? ''
+      )
+      if (meta.contractLabel)
+        contractLabel = ` \u001b[35m(${meta.contractLabel})\u001b[0m`
+    }
+
+    consola.info(
+      `  Contract: \u001b[34m${originalContract}\u001b[0m${contractLabel}`
+    )
     consola.info('    Selectors:')
     selectorList.forEach((selector) => {
-      consola.info(`      - \u001b[33m${selector}\u001b[0m`)
+      if (!network) {
+        consola.info(`      - \u001b[33m${selector}\u001b[0m`)
+        return
+      }
+
+      const meta = lookupWhitelistMetaForContractSelector(
+        network,
+        originalContract,
+        selector
+      )
+      const signature = meta.signature?.trim()
+      if (!signature) {
+        consola.info(
+          `      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown in whitelist)\u001b[0m`
+        )
+        return
+      }
+
+      const expected = computeSelectorFromSignature(signature)
+      const ok = expected.toLowerCase() === selector.toLowerCase()
+      const status = ok ? '\u001b[32m✓\u001b[0m' : '\u001b[31m✗\u001b[0m'
+      const mismatch = ok ? '' : ` \u001b[31m(expected ${expected})\u001b[0m`
+      consola.info(
+        `      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
+      )
     })
   })
 }
@@ -583,10 +752,10 @@ const processTxs = async (
 
           if (decoded.args && decoded.args.length > 0) {
             if (decoded.functionName === 'batchSetContractSelectorWhitelist') {
-              formatBatchSetContractSelectorWhitelist(decoded.args)
+              formatBatchSetContractSelectorWhitelist(decoded.args, network)
             } else {
               consola.info('Decoded Arguments:')
-              decoded.args.forEach((arg: any, index: number) => {
+              decoded.args.forEach((arg: unknown, index: number) => {
                 // Handle different types of arguments
                 let displayValue = arg
                 if (typeof arg === 'bigint') displayValue = arg.toString()
