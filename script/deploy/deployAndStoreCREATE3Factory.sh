@@ -49,54 +49,13 @@ deployAndStoreCREATE3Factory() {
   # Add skip simulation flag based on environment variable
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-  # Create temporary files to capture stdout and stderr separately
-  # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
-  STDOUT_LOG=$(mktemp)
-  STDERR_LOG=$(mktemp)
-  
-  # Cleanup function to remove temporary files
-  cleanup() {
-    rm -f "$STDOUT_LOG" "$STDERR_LOG"
-  }
-  
-  # Install EXIT trap to ensure cleanup on function exit
-  trap 'cleanup' EXIT
-
-  PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
-  RETURN_CODE=$?
-  
-  # Read stdout (should contain JSON) and stderr (warnings/errors) separately
-  RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
-  STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
-  
-  # Debug: Show what we captured
-  echoDebug "=== RAW_RETURN_DATA (stdout, first 1000 chars) ==="
-  echoDebug "${RAW_RETURN_DATA:0:1000}"
-  echoDebug "=== STDERR logs (first 500 chars) ==="
-  echoDebug "${STDERR_CONTENT:0:500}"
-  echoDebug "=== STDOUT log file: $STDOUT_LOG ==="
-  echoDebug "=== STDERR log file: $STDERR_LOG ==="
-  
-  # Extract JSON from RAW_RETURN_DATA (it should already be JSON when using --json)
-  # Try to find JSON object with "logs" key
-  # Preserve original data to allow fallback extraction if grep fails
-  if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-    ORIGINAL_RAW_RETURN_DATA="$RAW_RETURN_DATA"
-    # If not valid JSON, try to extract JSON object
-    TMP_RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-    if [[ -n "$TMP_RAW_RETURN_DATA" ]] && echo "$TMP_RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-      RAW_RETURN_DATA="$TMP_RAW_RETURN_DATA"
-    else
-      RAW_RETURN_DATA=$(echo "$ORIGINAL_RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
-    fi
-  fi
-  
-  # print return data only if debug mode is activated
-  echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-  
-  # Clean up temporary files explicitly after reading
-  cleanup
-  trap - EXIT
+  # Execute forge script with stdout/stderr capture and JSON extraction
+  executeCommandWithLogs \
+    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast \"$SKIP_SIMULATION_FLAG\" --slow --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+    "RAW_RETURN_DATA" \
+    "STDERR_CONTENT" \
+    "RETURN_CODE" \
+    "true"
   
   unset PRIVATE_KEY
 

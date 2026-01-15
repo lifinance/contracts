@@ -130,44 +130,23 @@ diamondUpdateFacet() {
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
 
-      # Create temporary files to capture stdout and stderr separately
-      # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
-      STDOUT_LOG=$(mktemp)
-      STDERR_LOG=$(mktemp)
-      trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
-
+      # Execute forge script with stdout/stderr capture and JSON extraction
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
+        executeCommandWithLogs \
+          "FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+          "RAW_RETURN_DATA" \
+          "STDERR_CONTENT" \
+          "RETURN_CODE" \
+          "true"
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" --json "$SKIP_SIMULATION_FLAG" --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
-      fi
-      
-      RETURN_CODE=$?
-      
-      # Read stdout (should contain JSON) and stderr (warnings/errors) separately
-      RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
-      STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
-      
-      # Debug: Show what we captured
-      echoDebug "=== RAW_RETURN_DATA (stdout, first 1000 chars) ==="
-      echoDebug "${RAW_RETURN_DATA:0:1000}"
-      echoDebug "=== STDERR logs (first 500 chars) ==="
-      echoDebug "${STDERR_CONTENT:0:500}"
-      
-      # Extract JSON from RAW_RETURN_DATA (it should already be JSON when using --json)
-      # Try to find JSON object with "logs" key
-      if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-        # If not valid JSON, try to extract JSON object
-        EXTRACTED=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-        if [[ -n "$EXTRACTED" ]] && echo "$EXTRACTED" | jq empty 2>/dev/null; then
-          RAW_RETURN_DATA="$EXTRACTED"
-        else
-          # Try jq filter on original data as last resort
-          EXTRACTED=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
-          [[ -n "$EXTRACTED" ]] && RAW_RETURN_DATA="$EXTRACTED"
-        fi
+        executeCommandWithLogs \
+          "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json \"$SKIP_SIMULATION_FLAG\" --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+          "RAW_RETURN_DATA" \
+          "STDERR_CONTENT" \
+          "RETURN_CODE" \
+          "true"
       fi
       
       # Extract JSON from cleaned RAW_RETURN_DATA (may have leading/trailing characters). Use sed to handle multi-line JSON
@@ -183,18 +162,17 @@ diamondUpdateFacet() {
       if ! echo "$JSON_DATA" | jq empty >/dev/null 2>&1; then
         {
           echo "Error: Failed to extract valid JSON from forge script output" >&2
-          echo "JSON_DATA snippet (first 500 chars): ${JSON_DATA:0:500}" >&2
-          echo "RAW_RETURN_DATA snippet (first 500 chars): ${RAW_RETURN_DATA:0:500}" >&2
-          echo "STDERR_CONTENT snippet (first 500 chars): ${STDERR_CONTENT:0:500}" >&2
+          echo "JSON_DATA:" >&2
+          echo "$JSON_DATA" >&2
+          echo "" >&2
+          echo "RAW_RETURN_DATA:" >&2
+          echo "$RAW_RETURN_DATA" >&2
+          echo "" >&2
+          echo "STDERR_CONTENT:" >&2
+          echo "$STDERR_CONTENT" >&2
         }
-        rm -f "$STDOUT_LOG" "$STDERR_LOG"
-        trap - EXIT
         return 1
       fi
-      
-      # Clean up temporary files
-      rm -f "$STDOUT_LOG" "$STDERR_LOG"
-      trap - EXIT
 
       # Extract cutData from the cleaned JSON output
       FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
@@ -275,47 +253,22 @@ diamondUpdateFacet() {
       # STAGING (or new network deployment): just deploy normally without further checks
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
-      # Create temporary files to capture stdout and stderr separately
-      # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
-      STDOUT_LOG=$(mktemp)
-      STDERR_LOG=$(mktemp)
-      trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
-
+      # Execute forge script with stdout/stderr capture and JSON extraction
       if isZkEvmNetwork "$NETWORK"; then
-        FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") >"$STDOUT_LOG" 2>"$STDERR_LOG"
+        executeCommandWithLogs \
+          "FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")" \
+          "RAW_RETURN_DATA" \
+          "STDERR_CONTENT" \
+          "RETURN_CODE" \
+          "true"
       else
-        NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" "$SKIP_SIMULATION_FLAG" >"$STDOUT_LOG" 2>"$STDERR_LOG"
+        executeCommandWithLogs \
+          "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" \"$SKIP_SIMULATION_FLAG\"" \
+          "RAW_RETURN_DATA" \
+          "STDERR_CONTENT" \
+          "RETURN_CODE" \
+          "true"
       fi
-      
-      RETURN_CODE=$?
-      
-      # Read stdout (should contain JSON) and stderr (warnings/errors) separately
-      RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
-      STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
-      
-      # Debug: Show what we captured
-      echoDebug "=== RAW_RETURN_DATA (stdout, first 1000 chars) ==="
-      echoDebug "${RAW_RETURN_DATA:0:1000}"
-      echoDebug "=== STDERR logs (first 500 chars) ==="
-      echoDebug "${STDERR_CONTENT:0:500}"
-      
-      # Extract JSON from RAW_RETURN_DATA (it should already be JSON when using --json)
-      # Try to find JSON object with "logs" key
-      if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-        # If not valid JSON, try to extract JSON object
-        EXTRACTED=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-        if [[ -n "$EXTRACTED" ]] && echo "$EXTRACTED" | jq empty 2>/dev/null; then
-          RAW_RETURN_DATA="$EXTRACTED"
-        else
-          # Try jq filter on original data as last resort
-          EXTRACTED=$(echo "$RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
-          [[ -n "$EXTRACTED" ]] && RAW_RETURN_DATA="$EXTRACTED"
-        fi
-      fi
-      
-      # Clean up temporary files
-      rm -f "$STDOUT_LOG" "$STDERR_LOG"
-      trap - EXIT
       
       echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
     fi

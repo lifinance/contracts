@@ -4208,22 +4208,13 @@ function isVersionTag() {
   fi
 }
 function deployCreate3FactoryToAnvil() {
-  # Create temporary files to capture stdout and stderr separately
-  # This ensures we can extract address from stdout while keeping stderr logs for debugging
-  STDOUT_LOG=$(mktemp)
-  STDERR_LOG=$(mktemp)
-  trap "rm -f '$STDOUT_LOG' '$STDERR_LOG'" EXIT
-  
-  # deploy create3Factory
-  PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url "$ETH_NODE_URI_LOCALANVIL" --broadcast >"$STDOUT_LOG" 2>"$STDERR_LOG"
-  
-  # Read stdout and stderr separately
-  RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
-  STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
-  
-  # Clean up temporary files
-  rm -f "$STDOUT_LOG" "$STDERR_LOG"
-  trap - EXIT
+  # Execute forge script with stdout/stderr capture (no JSON extraction needed for this case)
+  executeCommandWithLogs \
+    "PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url \"$ETH_NODE_URI_LOCALANVIL\" --broadcast" \
+    "RAW_RETURN_DATA" \
+    "STDERR_CONTENT" \
+    "RETURN_CODE" \
+    "false"
 
   # extract address of deployed factory contract
   ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')
@@ -4835,4 +4826,115 @@ function removeNetworkFromTargetStateJSON() {
     rm "$FILE_PATH.tmp" >/dev/null 2>&1
     return 1
   fi
+}
+
+# >>>>>> helpers for executing commands with stdout/stderr capture
+# Function: extractJsonFromForgeOutput
+# Description: Extracts valid JSON from forge script output, handling cases where output may contain non-JSON text
+# Arguments:
+#   $1 - RAW_RETURN_DATA: The raw output string to extract JSON from
+# Returns:
+#   Outputs the extracted JSON to stdout, or original string if no valid JSON found
+# Example:
+#   EXTRACTED=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
+function extractJsonFromForgeOutput() {
+  local RAW_RETURN_DATA="$1"
+  
+  # If already valid JSON, return as-is
+  if echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+    echo "$RAW_RETURN_DATA"
+    return 0
+  fi
+  
+  # Preserve original data for fallback
+  local ORIGINAL_RAW_RETURN_DATA="$RAW_RETURN_DATA"
+  
+  # Try to extract JSON object with "logs" key using grep
+  local TMP_RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
+  if [[ -n "$TMP_RAW_RETURN_DATA" ]] && echo "$TMP_RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+    echo "$TMP_RAW_RETURN_DATA"
+    return 0
+  fi
+  
+  # Fallback: try jq extraction on original data
+  local EXTRACTED=$(echo "$ORIGINAL_RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+  if [[ -n "$EXTRACTED" ]]; then
+    echo "$EXTRACTED"
+    return 0
+  fi
+  
+  # If all extraction attempts fail, return original
+  echo "$ORIGINAL_RAW_RETURN_DATA"
+  return 1
+}
+
+# Function: executeCommandWithLogs
+# Description: Executes a command with separate stdout/stderr capture using temporary files.
+#              Handles cleanup, debug output, and optional JSON extraction from forge output.
+# Arguments:
+#   $1 - COMMAND: The command to execute (as a string, will be eval'd)
+#   $2 - RAW_RETURN_DATA_VAR: Name of variable to store stdout content (default: "RAW_RETURN_DATA")
+#   $3 - STDERR_CONTENT_VAR: Name of variable to store stderr content (default: "STDERR_CONTENT")
+#   $4 - RETURN_CODE_VAR: Name of variable to store return code (default: "RETURN_CODE")
+#   $5 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
+# Returns:
+#   Returns the command's exit code
+#   Sets variables by name for stdout, stderr, and return code
+# Example:
+#   executeCommandWithLogs 'forge script ...' "MY_STDOUT" "MY_STDERR" "MY_RC" "true"
+#   echo "$MY_STDOUT"  # Contains stdout
+#   echo "$MY_STDERR"  # Contains stderr
+#   echo "$MY_RC"      # Contains return code
+function executeCommandWithLogs() {
+  local COMMAND="$1"
+  local RAW_RETURN_DATA_VAR="${2:-RAW_RETURN_DATA}"
+  local STDERR_CONTENT_VAR="${3:-STDERR_CONTENT}"
+  local RETURN_CODE_VAR="${4:-RETURN_CODE}"
+  local EXTRACT_JSON="${5:-false}"
+  
+  # Create temporary files to capture stdout and stderr separately
+  # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
+  local STDOUT_LOG=$(mktemp)
+  local STDERR_LOG=$(mktemp)
+  
+  # Cleanup function to remove temporary files
+  local cleanup() {
+    rm -f "$STDOUT_LOG" "$STDERR_LOG"
+  }
+  
+  # Install EXIT trap to ensure cleanup on function exit
+  trap 'cleanup' EXIT
+  
+  # Execute command with redirection
+  eval "$COMMAND" >"$STDOUT_LOG" 2>"$STDERR_LOG"
+  local RETURN_CODE=$?
+  
+  # Read stdout (should contain JSON) and stderr (warnings/errors) separately
+  local RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
+  local STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
+  
+  # Debug: Show what we captured
+  echoDebug "=== RAW_RETURN_DATA (stdout) ==="
+  echoDebug "$RAW_RETURN_DATA"
+  echoDebug "=== STDERR logs ==="
+  echoDebug "$STDERR_CONTENT"
+  echoDebug "=== STDOUT log file: $STDOUT_LOG ==="
+  echoDebug "=== STDERR log file: $STDERR_LOG ==="
+  
+  # Extract JSON if requested
+  if [[ "$EXTRACT_JSON" == "true" ]]; then
+    RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
+    echoDebug "RAW_RETURN_DATA (after JSON extraction): $RAW_RETURN_DATA"
+  fi
+  
+  # Set output variables by name
+  eval "$RAW_RETURN_DATA_VAR=\"\$RAW_RETURN_DATA\""
+  eval "$STDERR_CONTENT_VAR=\"\$STDERR_CONTENT\""
+  eval "$RETURN_CODE_VAR=\$RETURN_CODE"
+  
+  # Clean up temporary files explicitly after reading
+  cleanup
+  trap - EXIT
+  
+  return $RETURN_CODE
 }

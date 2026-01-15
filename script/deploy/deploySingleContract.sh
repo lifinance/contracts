@@ -238,20 +238,6 @@ deploySingleContract() {
   attempts=1
   ADDRESS_COLLISION_DETECTED=false
 
-  # Create temporary files to capture stdout and stderr separately
-  # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
-  # Created outside the loop to avoid leaks across retries
-  STDOUT_LOG=$(mktemp)
-  STDERR_LOG=$(mktemp)
-  
-  # Cleanup function to remove temporary files
-  cleanup() {
-    rm -f "$STDOUT_LOG" "$STDERR_LOG"
-  }
-  
-  # Install EXIT trap to ensure cleanup on function exit
-  trap 'cleanup' EXIT
-
   while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; do
     echo "[info] trying to deploy $CONTRACT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT) "
 
@@ -270,56 +256,23 @@ deploySingleContract() {
       MEGAETH_FLAGS=""
     fi
 
+    # Execute forge script with stdout/stderr capture and JSON extraction
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      # Capture stdout and stderr separately to extract JSON from stdout
-      FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --gas-limit 50000000 >"$STDOUT_LOG" 2>"$STDERR_LOG"
+      executeCommandWithLogs \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "RAW_RETURN_DATA" \
+        "STDERR_CONTENT" \
+        "RETURN_CODE" \
+        "true"
     else
       # try to execute call
-      # Capture stdout and stderr separately to extract JSON from stdout
-      DEPLOYSALT="$DEPLOYSALT" \
-      CREATE3_FACTORY_ADDRESS="$CREATE3_FACTORY_ADDRESS" \
-      NETWORK="$NETWORK" \
-      FILE_SUFFIX="$FILE_SUFFIX" \
-      DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT="$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT" \
-      DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS="$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS" \
-      PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" \
-      DIAMOND_TYPE="$DIAMOND_TYPE" \
-      forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" >"$STDOUT_LOG" 2>"$STDERR_LOG"
-    fi
-    
-    RETURN_CODE=$?
-    
-    # Read stdout (should contain JSON) and stderr (warnings/errors) separately
-    RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
-    STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
-    
-    # RAW_RETURN_DATA contains stdout (JSON output from forge script)
-    # STDERR_CONTENT contains stderr (warnings and errors)
-    
-    # Debug: Show what we captured
-    echoDebug "=== RAW_RETURN_DATA (stdout, first 1000 chars) ==="
-    echoDebug "${RAW_RETURN_DATA:0:1000}"
-    echoDebug "=== STDERR logs (first 500 chars) ==="
-    echoDebug "${STDERR_CONTENT:0:500}"
-    echoDebug "=== STDOUT log file: $STDOUT_LOG ==="
-    echoDebug "=== STDERR log file: $STDERR_LOG ==="
-    
-    # Extract JSON from RAW_RETURN_DATA (it should already be JSON when using --json)
-    # Try to find JSON object with "logs" key
-    # Preserve original data to allow fallback extraction if grep fails
-    if ! echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-      # Preserve original data before attempting grep extraction
-      ORIGINAL_RAW_RETURN_DATA="$RAW_RETURN_DATA"
-      # Try to extract JSON object with grep
-      TMP_RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
-      # Only use grep result if it's valid JSON
-      if [[ -n "$TMP_RAW_RETURN_DATA" ]] && echo "$TMP_RAW_RETURN_DATA" | jq empty 2>/dev/null; then
-        RAW_RETURN_DATA="$TMP_RAW_RETURN_DATA"
-      else
-        # Fallback: try jq extraction on original data
-        RAW_RETURN_DATA=$(echo "$ORIGINAL_RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
-      fi
+      executeCommandWithLogs \
+        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow \"$SKIP_SIMULATION_FLAG\" --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "RAW_RETURN_DATA" \
+        "STDERR_CONTENT" \
+        "RETURN_CODE" \
+        "true"
     fi
     
     # print return data only if debug mode is activated
@@ -353,8 +306,6 @@ deploySingleContract() {
 
       # Set flag and break out of retry loop - no point in retrying with same SALT
       ADDRESS_COLLISION_DETECTED=true
-      # Clean up temp files before breaking
-      cleanup
       break
 
     # check the return code the last call
@@ -365,8 +316,8 @@ deploySingleContract() {
       
       if [[ $EXTRACT_CODE -ne 0 ]]; then
         warning "❌ Could not extract deployed address from raw return data (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
-        echoDebug "RAW_RETURN_DATA preview: ${RAW_RETURN_DATA:0:500}..."
-        warning "Check STDERR logs: $STDERR_LOG"
+        echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+        echoDebug "STDERR_CONTENT: $STDERR_CONTENT"
         attempts=$((attempts + 1))
         sleep 1
         continue
@@ -376,7 +327,6 @@ deploySingleContract() {
         break
       else
         warning "Address extraction returned empty (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
-        warning "Check STDERR logs: $STDERR_LOG"
         attempts=$((attempts + 1))
         sleep 1
         continue
@@ -406,11 +356,6 @@ deploySingleContract() {
   # check if call was executed successfully or used all ATTEMPTS
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; then
     error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment after $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT attempts"
-    echoDebug "Last RAW_RETURN_DATA: ${RAW_RETURN_DATA:0:500}..."
-    echo "STDERR logs available at: $STDERR_LOG"
-    echo "STDOUT logs available at: $STDOUT_LOG"
-    # Don't cleanup - keep logs for debugging
-    trap - EXIT
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
@@ -423,10 +368,6 @@ deploySingleContract() {
   # check if address is available, otherwise do not continue
   if [[ -z "$ADDRESS" || "$ADDRESS" == "null" ]]; then
     warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
-    echo "STDERR logs available at: $STDERR_LOG"
-    echo "STDOUT logs available at: $STDOUT_LOG"
-    # Don't cleanup - keep logs for debugging
-    trap - EXIT
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
@@ -435,10 +376,6 @@ deploySingleContract() {
       exit 1
     fi
   fi
-
-  # Clean up temporary files and restore trap after successful deployment
-  cleanup
-  trap - EXIT
 
   # extract constructor arguments from return data
   CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
