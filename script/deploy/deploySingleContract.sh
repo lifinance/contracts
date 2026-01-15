@@ -287,6 +287,9 @@ deploySingleContract() {
       else
         error "execution of deploy script failed with message: $ERROR_MESSAGE"
       fi
+      attempts=$((attempts + 1))
+      sleep 1
+      continue
     # Check for zksync-specific address collision (revert with specific error code)
     elif isZkEvmNetwork "$NETWORK" && [[ $RAW_RETURN_DATA == *"\"status\":\"Revert\""* && $RAW_RETURN_DATA == *"0x9e4a3c8a"* ]]; then
       echo ""
