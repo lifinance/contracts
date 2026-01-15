@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBase } from "../utils/TestBase.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { TestHelpers, MockUniswapDEX } from "../utils/TestHelpers.sol";
+import { TestBase } from "../../../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
+import { TestHelpers, MockUniswapDEX } from "../../../utils/TestHelpers.sol";
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ISpokePoolPeriphery } from "lifi/Interfaces/ISpokePoolPeriphery.sol";
@@ -28,6 +28,33 @@ contract TestAcrossV4SwapFacetSponsored is
             _sponsoredCctpSrcPeriphery
         )
     {}
+}
+
+/// @dev Exposes internal Sponsored CCTP logic to cover otherwise unreachable branches.
+contract TestAcrossV4SwapFacetSponsoredHarness is
+    AcrossV4SwapFacet,
+    TestWhitelistManagerBase
+{
+    constructor(
+        ISpokePoolPeriphery _spokePoolPeriphery,
+        address _spokePool,
+        address _sponsoredOftSrcPeriphery,
+        address _sponsoredCctpSrcPeriphery
+    )
+        AcrossV4SwapFacet(
+            _spokePoolPeriphery,
+            _spokePool,
+            _sponsoredOftSrcPeriphery,
+            _sponsoredCctpSrcPeriphery
+        )
+    {}
+
+    function exposed_callSponsoredCctpDepositForBurn(
+        ILiFi.BridgeData memory _bridgeData,
+        bytes calldata _callData
+    ) external payable {
+        _callSponsoredCctpDepositForBurn(_bridgeData, _callData, 0);
+    }
 }
 
 contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
@@ -360,6 +387,27 @@ contract AcrossV4SwapFacetSponsoredTest is TestBase, TestHelpers {
         );
 
         vm.stopPrank();
+    }
+
+    function testRevert_SponsoredCctp_WhenBridgeDataAssetIsNative() public {
+        // This branch can't be reached via the normal external entrypoint because native-asset
+        // deposits require `msg.value`, but Sponsored CCTP is non-payable. We cover it via a harness.
+        TestAcrossV4SwapFacetSponsoredHarness harness = new TestAcrossV4SwapFacetSponsoredHarness(
+                ISpokePoolPeriphery(address(mockPeriphery)),
+                SPOKE_POOL,
+                address(new CalldataSink()),
+                address(new CalldataSink())
+            );
+
+        ILiFi.BridgeData memory localBridgeData = bridgeData;
+        localBridgeData.destinationChainId = 8453; // Base -> domain 6
+        localBridgeData.sendingAssetId = address(0);
+
+        vm.expectRevert(InvalidCallData.selector);
+        harness.exposed_callSponsoredCctpDepositForBurn(
+            localBridgeData,
+            _sponsoredCctpCallDataDomain6BurnUsdc()
+        );
     }
 
     function testRevert_SponsoredCctp_WhenBurnTokenMismatch() public {

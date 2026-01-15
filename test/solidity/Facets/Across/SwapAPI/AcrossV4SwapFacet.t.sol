@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { TestHelpers, MockUniswapDEX } from "../utils/TestHelpers.sol";
+import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
+import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
+import { TestHelpers, MockUniswapDEX } from "../../../utils/TestHelpers.sol";
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { ISpokePoolPeriphery } from "lifi/Interfaces/ISpokePoolPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { InvalidConfig, InformationMismatch, InvalidReceiver, InvalidNonEVMReceiver, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub AcrossV4SwapFacet Contract
@@ -60,6 +61,12 @@ contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
 contract AcrossV4SwapFacetTest is TestBaseFacet, TestHelpers {
     error FfiEncodeFailed();
     error SliceOutOfBounds();
+    /// @dev ABI-compatible with `AcrossV4SwapFacet.AcrossV4SwapFacetData` but uses `uint8` to
+    ///      allow encoding out-of-range enum values for decoder panic tests.
+    struct AcrossV4SwapFacetDataRaw {
+        uint8 swapApiTarget;
+        bytes callData;
+    }
     // Mainnet addresses (updated to new SpokePoolPeriphery)
 
     address internal constant SPOKE_POOL_PERIPHERY =
@@ -68,9 +75,9 @@ contract AcrossV4SwapFacetTest is TestBaseFacet, TestHelpers {
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
 
     address internal constant SPONSORED_OFT_SRC_PERIPHERY =
-        0x1111111111111111111111111111111111111111;
+        0x4607BceaF7b22cb0c46882FFc9fAB3c6efe66e5a;
     address internal constant SPONSORED_CCTP_SRC_PERIPHERY =
-        0x2222222222222222222222222222222222222222;
+        0x89004EA51Bac007FEc55976967135b2Aa6e838d4;
 
     // Mainnet token addresses
     address internal constant WETH =
@@ -159,7 +166,7 @@ contract AcrossV4SwapFacetTest is TestBaseFacet, TestHelpers {
         baseDepositData = ISpokePoolPeriphery.BaseDepositData({
             inputToken: USDC_MAINNET, // Bridge USDC directly (no swap)
             outputToken: _convertAddressToBytes32(USDC_ARBITRUM), // Receive USDC on Arbitrum
-            outputAmount: 99900000, // Slightly less due to fees
+            outputAmount: (bridgeData.minAmount * 99) / 100, // 99% of input amount
             depositor: USER_SENDER,
             recipient: _convertAddressToBytes32(USER_RECEIVER),
             destinationChainId: 42161, // Arbitrum
@@ -174,7 +181,7 @@ contract AcrossV4SwapFacetTest is TestBaseFacet, TestHelpers {
         exchange = UNISWAP_UNIVERSAL_ROUTER; // Router address (won't be called with empty calldata)
         transferType = ISpokePoolPeriphery.TransferType.Approval;
         routerCalldata = dummyRouterCalldata; // Empty execute() call
-        minExpectedInputTokenAmount = 100000000; // Expect full amount back (no swap)
+        minExpectedInputTokenAmount = bridgeData.minAmount; // Expect full amount back (no swap)
         enableProportionalAdjustment = false;
 
         vm.label(SPOKE_POOL_PERIPHERY, "SpokePoolPeriphery");
@@ -443,8 +450,20 @@ contract AcrossV4SwapFacetTest is TestBaseFacet, TestHelpers {
         vm.startPrank(USER_SENDER);
         dai.approve(address(localFacet), swapData[0].fromAmount);
 
-        ILiFi.BridgeData memory expectedEventData = localBridgeData;
-        expectedEventData.minAmount = swapOutputAmount;
+        // NOTE: Avoid memory aliasing with structs that contain dynamic types (e.g. `string`).
+        // Build a fresh struct so that mutating `expectedEventData` cannot affect `localBridgeData`.
+        ILiFi.BridgeData memory expectedEventData = ILiFi.BridgeData({
+            transactionId: localBridgeData.transactionId,
+            bridge: localBridgeData.bridge,
+            integrator: localBridgeData.integrator,
+            referrer: localBridgeData.referrer,
+            sendingAssetId: localBridgeData.sendingAssetId,
+            receiver: localBridgeData.receiver,
+            minAmount: swapOutputAmount,
+            destinationChainId: localBridgeData.destinationChainId,
+            hasSourceSwaps: localBridgeData.hasSourceSwaps,
+            hasDestinationCall: localBridgeData.hasDestinationCall
+        });
 
         vm.expectEmit(true, true, true, true, address(localFacet));
         emit LiFiTransferStarted(expectedEventData);
@@ -561,26 +580,7 @@ contract AcrossV4SwapFacetTest is TestBaseFacet, TestHelpers {
     function _buildCallData(
         uint256 _swapTokenAmount
     ) internal view returns (bytes memory) {
-        ISpokePoolPeriphery.SwapAndDepositData
-            memory swapAndDepositData = ISpokePoolPeriphery
-                .SwapAndDepositData({
-                    submissionFees: ISpokePoolPeriphery.Fees({
-                        amount: 0,
-                        recipient: address(0)
-                    }),
-                    depositData: baseDepositData,
-                    swapToken: swapToken,
-                    exchange: exchange,
-                    transferType: transferType,
-                    swapTokenAmount: _swapTokenAmount,
-                    minExpectedInputTokenAmount: minExpectedInputTokenAmount,
-                    routerCalldata: routerCalldata,
-                    enableProportionalAdjustment: enableProportionalAdjustment,
-                    spokePool: SPOKE_POOL,
-                    nonce: 0
-                });
-
-        return abi.encode(swapAndDepositData);
+        return _buildCallDataWithSpokePool(_swapTokenAmount, SPOKE_POOL);
     }
 
     function _buildCallDataWithSpokePool(
@@ -1006,6 +1006,32 @@ contract AcrossV4SwapFacetTest is TestBaseFacet, TestHelpers {
                 _buildCallData(bridgeData.minAmount)
             )
         );
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapApiTargetIsInvalid() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossV4SwapFacet), bridgeData.minAmount);
+
+        // the test will fail when trying to convert the enum value to the SwapApiTarget enum
+        // and never reaches the InvalidCallData revert
+        vm.expectRevert();
+        bytes memory encoded = abi.encodeWithSelector(
+            acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap.selector,
+            bridgeData,
+            AcrossV4SwapFacetDataRaw({
+                swapApiTarget: 5,
+                callData: _buildCallData(bridgeData.minAmount)
+            })
+        );
+
+        // Bubble up the revert data so `expectRevert` can match it.
+        (bool success, bytes memory returnData) = address(acrossV4SwapFacet)
+            .call(encoded);
+        if (!success) {
+            LibUtil.revertWith(returnData);
+        }
+
         vm.stopPrank();
     }
 
