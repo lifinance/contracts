@@ -200,14 +200,17 @@ async function decodeNestedTimelockCall(
                 data: data as Hex,
               })
 
-              if (
-                nestedDecodedData.args &&
-                Array.isArray(nestedDecodedData.args) &&
-                nestedDecodedData.args.length > 0
-              ) {
-                consola.info('Nested Decoded Arguments:')
-                nestedDecodedData.args.forEach(
-                  (arg: unknown, index: number) => {
+              if (nestedDecodedData.args && nestedDecodedData.args.length > 0) {
+                if (
+                  nestedDecodedData.functionName ===
+                  'batchSetContractSelectorWhitelist'
+                ) {
+                  formatBatchSetContractSelectorWhitelist(
+                    nestedDecodedData.args
+                  )
+                } else {
+                  consola.info('Nested Decoded Arguments:')
+                  nestedDecodedData.args.forEach((arg: any, index: number) => {
                     // Handle different types of arguments
                     let displayValue = arg
                     if (typeof arg === 'bigint') displayValue = arg.toString()
@@ -217,8 +220,8 @@ async function decodeNestedTimelockCall(
                     consola.info(
                       `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
                     )
-                  }
-                )
+                  })
+                }
               } else
                 consola.info(
                   'No nested arguments or failed to decode nested arguments'
@@ -243,6 +246,66 @@ async function decodeNestedTimelockCall(
         consola.info(`Raw nested data: ${data}`)
       }
   }
+}
+
+/**
+ * Formats and displays batchSetContractSelectorWhitelist arguments in a readable, grouped format
+ * @param args - Decoded function arguments: [contracts: address[], selectors: bytes4[], whitelisted: bool]
+ */
+function formatBatchSetContractSelectorWhitelist(args: readonly unknown[]) {
+  if (!args || args.length < 3) {
+    consola.warn('Invalid arguments for batchSetContractSelectorWhitelist')
+    return
+  }
+
+  const contracts = args[0] as readonly string[]
+  const selectors = args[1] as readonly string[]
+  const whitelisted = args[2] as boolean
+
+  // Validate arrays have same length
+  if (contracts.length !== selectors.length) {
+    consola.warn(
+      `Mismatch: contracts array length (${contracts.length}) != selectors array length (${selectors.length})`
+    )
+    return
+  }
+
+  // Group selectors by contract address
+  const contractToSelectors = new Map<string, string[]>()
+  for (let i = 0; i < contracts.length; i++) {
+    const contract = contracts[i]?.toLowerCase()
+    const selector = selectors[i]
+
+    if (!contract || !selector) continue
+
+    if (!contractToSelectors.has(contract)) {
+      contractToSelectors.set(contract, [])
+    }
+    const selectorList = contractToSelectors.get(contract)
+    if (selectorList) {
+      selectorList.push(selector)
+    }
+  }
+
+  // Display action type
+  const actionText = whitelisted ? 'Adding pairs' : 'Removing pairs'
+  const actionColor = whitelisted ? '\u001b[32m' : '\u001b[33m' // Green for adding, yellow for removing
+  consola.info(`Action: ${actionColor}${actionText}\u001b[0m`)
+  consola.info(`Total pairs: ${contracts.length}`)
+  consola.info('Pairs:')
+
+  // Display grouped pairs
+  contractToSelectors.forEach((selectorList, contract) => {
+    // Find original case for contract address (use first occurrence)
+    const originalContract =
+      contracts.find((c) => c.toLowerCase() === contract) || contract
+
+    consola.info(`  Contract: \u001b[34m${originalContract}\u001b[0m`)
+    consola.info('    Selectors:')
+    selectorList.forEach((selector) => {
+      consola.info(`      - \u001b[33m${selector}\u001b[0m`)
+    })
+  })
 }
 
 /**
@@ -519,16 +582,20 @@ const processTxs = async (
           }
 
           if (decoded.args && decoded.args.length > 0) {
-            consola.info('Decoded Arguments:')
-            decoded.args.forEach((arg: unknown, index: number) => {
-              // Handle different types of arguments
-              let displayValue = arg
-              if (typeof arg === 'bigint') displayValue = arg.toString()
-              else if (typeof arg === 'object' && arg !== null)
-                displayValue = JSON.stringify(arg)
+            if (decoded.functionName === 'batchSetContractSelectorWhitelist') {
+              formatBatchSetContractSelectorWhitelist(decoded.args)
+            } else {
+              consola.info('Decoded Arguments:')
+              decoded.args.forEach((arg: any, index: number) => {
+                // Handle different types of arguments
+                let displayValue = arg
+                if (typeof arg === 'bigint') displayValue = arg.toString()
+                else if (typeof arg === 'object' && arg !== null)
+                  displayValue = JSON.stringify(arg)
 
-              consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
-            })
+                consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
+              })
+            }
           } else consola.info('No arguments or failed to decode arguments')
 
           // Only show full decoded data if it contains useful information beyond what we've already shown

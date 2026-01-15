@@ -1913,9 +1913,10 @@ export async function wrapWithTimelockSchedule(
   originalCalldata: Hex
 ): Promise<{ calldata: Hex; targetAddress: Address }> {
   const chain = getViemChainForNetworkName(network)
+  const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   const client = createPublicClient({
     chain,
-    transport: http(rpcUrl),
+    transport: http(parsedRpcUrl),
   })
 
   // Get the minimum delay from the timelock controller
