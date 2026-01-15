@@ -142,7 +142,7 @@ diamondUpdateFacet() {
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
         executeCommandWithLogs \
-          "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json \"$SKIP_SIMULATION_FLAG\" --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+          "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
           "RAW_RETURN_DATA" \
           "STDERR_CONTENT" \
           "RETURN_CODE" \
@@ -263,7 +263,7 @@ diamondUpdateFacet() {
           "true"
       else
         executeCommandWithLogs \
-          "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" \"$SKIP_SIMULATION_FLAG\"" \
+          "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG" \
           "RAW_RETURN_DATA" \
           "STDERR_CONTENT" \
           "RETURN_CODE" \
