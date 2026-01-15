@@ -1186,7 +1186,7 @@
     "safeAddress": "0x57A9316866f1256c7008295aCa7C79D96DFC209c",
     "gasZipChainId": 420,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
+    "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
   },
