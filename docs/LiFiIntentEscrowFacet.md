@@ -2,7 +2,7 @@
 
 ## How it works
 
-LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intents. The LI.FI Intent Escrow Facet deposits into the Escrow Input Settler, which will release the deposited funds to the solver when the fill has been proven. The system is self serve, with the facet wrapping the deposit logic to ensure the appropriate parameters are called for the user to receive their output.
+LI.FI Intent Escrow uses a built-in escrow as a deposit mechanism for its intents. The LI.FI Intent Escrow Facet deposits into the Escrow Input Settler, which will release the deposited funds to the solver when the fill has been proven. The system is self-serve, with the facet wrapping the deposit logic to ensure the appropriate parameters are called for the user to receive their output.
 
 ```mermaid
 graph LR;
@@ -32,7 +32,7 @@ graph LR;
 ## Destination Calls
 
 The LI.FI intent facet supports destination swaps using the periphery contract `ReceiverOIF`.
-Destination swaps requires configuring `.dstCallReceiver` to a instance of `ReceiverOIF` and `dstCallSwapData` as a list of SwapData. When  `dstCallSwapData.length` > 0, the recipient will be replaced with `.dstCallReceiver` and instead encoded in data to be executed by `ReceiverOIF`. The `BridgeData.hasDestinationCall` flag must be set to `true`.
+Destination swaps require configuring `.dstCallReceiver` to an instance of `ReceiverOIF` and `dstCallSwapData` as a list of SwapData. When `dstCallSwapData.length` > 0, the recipient will be replaced with `.dstCallReceiver` and instead encoded in data to be executed by `ReceiverOIF`. The `BridgeData.hasDestinationCall` flag must be set to `true`.
 
 ## LIFIIntent Specific Parameters
 
