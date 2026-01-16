@@ -457,6 +457,27 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_MismatchedDestinationCallNoReceiver() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Set hasDestinationCall to false but provide dstCallSwapData data
+        bridgeData.hasDestinationCall = true;
+        validLIFIIntentData.dstCallSwapData = new LibSwap.SwapData[](1);
+        validLIFIIntentData.dstCallReceiver = bytes32(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
     function test_WithDestinationCallCheckOrderId() external {
         LiFiIntentEscrowFacet.LiFiIntentEscrowData
             memory validLIFIIntentData = _validLIFIIntentData();

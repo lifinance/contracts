@@ -149,19 +149,19 @@ contract LiFiIntentEscrowFacet is
             revert InformationMismatch();
         }
 
-        // Check if the receiver is the same according to bridgeData and LIFIIntentData
-        // This establishes a very important statement: _lifiIntentData.recipient is more reliable than _bridgeData.receiver since it covers non-evm. Going forward, we will apply it here.
+        // We wanna create a "canonical" recipient so we don't have to argue for which one (bridgeData/LIFIIntentData) to use.
         bytes32 recipient = _lifiIntentData.recipient;
         if (recipient == bytes32(0)) revert InvalidReceiver();
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            // In this case, _bridgeData.receiver is not useful.
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
                 abi.encodePacked(recipient)
             );
         } else {
-            // bridgeDataReceiver != NON_EVM_ADDRESS
-            // Note that we can derive 0 <= _bridgeData.receiver < recipient != 0 thus _bridgeData.receiver != 0.
+            // Check if the receiver is the same according to bridgeData and LIFIIntentData
+            // Note: We already know 0 <= _bridgeData.receiver < recipient != 0 thus _bridgeData.receiver != 0.
             if (recipient != bytes32(uint256(uint160(_bridgeData.receiver)))) {
                 revert InvalidReceiver();
             }
