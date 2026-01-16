@@ -14,6 +14,7 @@ import {
   getEnvironment,
   updateDiamondJsonBatch,
   getCurrentPrices,
+  waitBetweenDeployments,
 } from './utils.js'
 
 /**
@@ -582,10 +583,12 @@ async function registerFacetsToDiamond(
         if (!success && !options.dryRun)
           throw new Error(`Failed to register group: ${group.join(', ')}`)
 
-        // Small delay between groups
+        // Small delay between groups using TronGrid RPC
         if (i < FACET_GROUPS.length - 1 && !options.dryRun) {
-          consola.info(' Waiting 3 seconds before next group...')
-          await new Promise((resolve) => setTimeout(resolve, 3000))
+          consola.info(
+            ' Waiting 3 seconds before next group using TronGrid RPC...'
+          )
+          await waitBetweenDeployments(3, false, tronWeb, fullHost)
         }
       }
     } else {
