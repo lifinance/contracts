@@ -443,9 +443,15 @@ function formatBatchSetContractSelectorWhitelist(
         contractLabel = ` \u001b[35m(${meta.contractLabel})\u001b[0m`
     }
 
-    consola.info(
-      `  Contract: \u001b[34m${originalContract}\u001b[0m${contractLabel}`
-    )
+    let contractLine = `  Contract: \u001b[34m${originalContract}\u001b[0m${contractLabel}`
+    if (network) {
+      const explorerUrl = buildExplorerContractPageUrl(
+        network,
+        originalContract
+      )
+      if (explorerUrl) contractLine += ` \u001b[36m${explorerUrl}\u001b[0m`
+    }
+    consola.info(contractLine)
     consola.info('    Selectors:')
     selectorList.forEach((selector) => {
       if (!network) {
