@@ -45,7 +45,7 @@ contract LiFiIntentEscrowFacet is
     /// @param outputSettler Address of the output settlement contract containing the fill logic
     /// @param outputToken The desired destination token
     /// @param outputAmount The amount of the desired token
-    /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on receiverAddress. if empty no call is made
+    /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
     /// @param outputContext Context for the outputSettler to identify the order type
     struct LiFiIntentEscrowData {
         // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
