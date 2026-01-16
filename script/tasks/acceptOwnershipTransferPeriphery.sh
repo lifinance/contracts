@@ -55,15 +55,14 @@ acceptOwnershipTransferPeriphery() {
 
     while [ $attempts -lt 11 ]; do
       # Execute forge script with stdout/stderr capture and JSON extraction
-      executeCommandWithLogs \
+      local RESULT
+      RESULT=$(executeCommandWithLogs \
         "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
-        "RAW_RETURN_DATA" \
-        "STDERR_CONTENT" \
-        "RETURN_CODE" \
-        "true"
-
-      # print return data only if debug mode is activated
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+        "true")
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 
       # check return data for error message (regardless of return code as this is not 100% reliable)
       if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then

@@ -80,14 +80,15 @@ updateFacetConfig() {
       SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
       
       # Execute forge script with stdout/stderr capture and JSON extraction
-      executeCommandWithLogs \
+      local RESULT
+      RESULT=$(executeCommandWithLogs \
         "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-        "RAW_RETURN_DATA" \
-        "STDERR_CONTENT" \
-        "RETURN_CODE" \
-        "true"
+        "true")
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
       
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
       # exit the loop if the operation was successful
       if [ "$RETURN_CODE" -eq 0 ]; then
         break

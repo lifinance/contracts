@@ -39,12 +39,14 @@ diamondUpdateSgConfig() {
     echo "Trying to execute $SCRIPT now - attempt ${attempts}"
     
     # Execute forge script with stdout/stderr capture and JSON extraction
-    executeCommandWithLogs \
+    local RESULT
+    RESULT=$(executeCommandWithLogs \
       "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/deploy/facets/$SCRIPT.s.sol -f $NETWORK --json --broadcast --skip-simulation --legacy" \
-      "RAW_RETURN_DATA" \
-      "STDERR_CONTENT" \
-      "RETURN_CODE" \
-      "true"
+      "true")
+    local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+    RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+    STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+    RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 
     # check the return code the last call
     if [ "$RETURN_CODE" -eq 0 ]; then

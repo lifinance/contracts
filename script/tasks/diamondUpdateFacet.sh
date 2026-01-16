@@ -131,23 +131,22 @@ diamondUpdateFacet() {
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
 
       # Execute forge script with stdout/stderr capture and JSON extraction
+      local RESULT
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        executeCommandWithLogs \
+        RESULT=$(executeCommandWithLogs \
           "FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-          "RAW_RETURN_DATA" \
-          "STDERR_CONTENT" \
-          "RETURN_CODE" \
-          "true"
+          "true")
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        executeCommandWithLogs \
+        RESULT=$(executeCommandWithLogs \
           "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-          "RAW_RETURN_DATA" \
-          "STDERR_CONTENT" \
-          "RETURN_CODE" \
-          "true"
+          "true")
       fi
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
       
       # Extract JSON from cleaned RAW_RETURN_DATA (may have leading/trailing characters). Use sed to handle multi-line JSON
       # (critical for large hex strings that cause forge to output multi-line JSON)
@@ -254,23 +253,20 @@ diamondUpdateFacet() {
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
       # Execute forge script with stdout/stderr capture and JSON extraction
+      local RESULT
       if isZkEvmNetwork "$NETWORK"; then
-        executeCommandWithLogs \
+        RESULT=$(executeCommandWithLogs \
           "FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")" \
-          "RAW_RETURN_DATA" \
-          "STDERR_CONTENT" \
-          "RETURN_CODE" \
-          "true"
+          "true")
       else
-        executeCommandWithLogs \
+        RESULT=$(executeCommandWithLogs \
           "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG" \
-          "RAW_RETURN_DATA" \
-          "STDERR_CONTENT" \
-          "RETURN_CODE" \
-          "true"
+          "true")
       fi
-      
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
     fi
 
     # check the return code the last call

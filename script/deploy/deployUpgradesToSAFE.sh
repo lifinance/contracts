@@ -43,12 +43,14 @@ deployUpgradesToSAFE() {
       echo "Calculating facet cuts for $script..."
       
       # Execute forge script with stdout/stderr capture and JSON extraction
-      executeCommandWithLogs \
+      local RESULT
+      RESULT=$(executeCommandWithLogs \
         "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" -f $NETWORK --json --skip-simulation --legacy" \
-        "RAW_RETURN_DATA" \
-        "STDERR_CONTENT" \
-        "RETURN_CODE" \
-        "true"
+        "true")
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
       
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
       FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')

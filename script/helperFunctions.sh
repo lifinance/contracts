@@ -4262,26 +4262,21 @@ function extractJsonFromForgeOutput() {
 # Function: executeCommandWithLogs
 # Description: Executes a command with separate stdout/stderr capture using temporary files.
 #              Handles cleanup, debug output, and optional JSON extraction from forge output.
+#              Returns a JSON object with stdout, stderr, and return code (consistent with repo patterns).
 # Arguments:
 #   $1 - COMMAND: The command to execute (as a string, will be eval'd)
-#   $2 - RAW_RETURN_DATA_VAR: Name of variable to store stdout content (default: "RAW_RETURN_DATA")
-#   $3 - STDERR_CONTENT_VAR: Name of variable to store stderr content (default: "STDERR_CONTENT")
-#   $4 - RETURN_CODE_VAR: Name of variable to store return code (default: "RETURN_CODE")
-#   $5 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
+#   $2 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
 # Returns:
+#   Outputs JSON to stdout with structure: {"stdout": "...", "stderr": "...", "returnCode": 0}
 #   Returns the command's exit code
-#   Sets variables by name for stdout, stderr, and return code
 # Example:
-#   executeCommandWithLogs 'forge script ...' "MY_STDOUT" "MY_STDERR" "MY_RC" "true"
-#   echo "$MY_STDOUT"  # Contains stdout
-#   echo "$MY_STDERR"  # Contains stderr
-#   echo "$MY_RC"      # Contains return code
+#   RESULT=$(executeCommandWithLogs 'forge script ...' "true")
+#   RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+#   STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+#   RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 function executeCommandWithLogs() {
   local COMMAND="$1"
-  local RAW_RETURN_DATA_VAR="${2:-RAW_RETURN_DATA}"
-  local STDERR_CONTENT_VAR="${3:-STDERR_CONTENT}"
-  local RETURN_CODE_VAR="${4:-RETURN_CODE}"
-  local EXTRACT_JSON="${5:-false}"
+  local EXTRACT_JSON="${2:-false}"
   
   # Create temporary files to capture stdout and stderr separately
   # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
@@ -4314,13 +4309,16 @@ function executeCommandWithLogs() {
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
-    echoDebug "RAW_RETURN_DATA (after JSON extraction): $RAW_RETURN_DATA"
   fi
   
-  # Set output variables by name
-  eval "$RAW_RETURN_DATA_VAR=\"\$RAW_RETURN_DATA\""
-  eval "$STDERR_CONTENT_VAR=\"\$STDERR_CONTENT\""
-  eval "$RETURN_CODE_VAR=\$RETURN_CODE"
+  # Escape JSON strings properly for jq
+  # Use jq to create a properly escaped JSON object
+  local JSON_RESULT
+  JSON_RESULT=$(jq -n \
+    --arg stdout "$RAW_RETURN_DATA" \
+    --arg stderr "$STDERR_CONTENT" \
+    --argjson returnCode "$RETURN_CODE" \
+    '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
   
   # Explicit cleanup + restore previous EXIT trap
   rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
@@ -4330,18 +4328,23 @@ function executeCommandWithLogs() {
     trap - EXIT
   fi
   
+  # Output JSON to stdout
+  echo "$JSON_RESULT"
+  
   return $RETURN_CODE
 }
 # <<<<<< helpers for executing commands with stdout/stderr capture
 
 function deployCreate3FactoryToAnvil() {
   # Execute forge script with stdout/stderr capture (no JSON extraction needed for this case)
-  executeCommandWithLogs \
+  local RESULT
+  RESULT=$(executeCommandWithLogs \
     "PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url \"$ETH_NODE_URI_LOCALANVIL\" --broadcast" \
-    "RAW_RETURN_DATA" \
-    "STDERR_CONTENT" \
-    "RETURN_CODE" \
-    "false"
+    "false")
+  local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+  RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+  STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+  RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 
   # extract address of deployed factory contract
   ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')

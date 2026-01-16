@@ -50,12 +50,14 @@ deployAndStoreCREATE3Factory() {
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
   # Execute forge script with stdout/stderr capture and JSON extraction
-  executeCommandWithLogs \
+  local RESULT
+  RESULT=$(executeCommandWithLogs \
     "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast $SKIP_SIMULATION_FLAG --slow --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-    "RAW_RETURN_DATA" \
-    "STDERR_CONTENT" \
-    "RETURN_CODE" \
-    "true"
+    "true")
+  local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+  RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+  STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+  RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
   
   unset PRIVATE_KEY
 
