@@ -19,7 +19,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 /// @title LiFiIntentEscrowFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
@@ -34,7 +34,8 @@ contract LiFiIntentEscrowFacet is
 
     /// Types ///
 
-    /// @param receiverAddress The destination account for the delivered assets and calldata
+    /// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored.
+    /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
     /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
     /// @param nonce OrderId mixer. Used within the intent system to generate unqiue orderIds for each user. Should not be reused for `depositAndRefundAddress`
     /// @param expires If the proof for the fill does not arrive before this time, the claim expires
@@ -44,10 +45,13 @@ contract LiFiIntentEscrowFacet is
     /// @param outputSettler Address of the output settlement contract containing the fill logic
     /// @param outputToken The desired destination token
     /// @param outputAmount The amount of the desired token
-    /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made
+    /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on receiverAddress. if empty no call is made
     /// @param outputContext Context for the outputSettler to identify the order type
     struct LiFiIntentEscrowData {
-        bytes32 receiverAddress; // StandardOrder.outputs.recipient
+        // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
+        bytes32 dstCallReceiver;
+        // Goes intoStandardOrder.outputs.recipient if .dstCallSwapData.length == 0
+        bytes32 recipient;
         /// BatchClaim
         address depositAndRefundAddress; // StandardOrder.user
         uint256 nonce; // StandardOrder.nonce
@@ -58,7 +62,7 @@ contract LiFiIntentEscrowFacet is
         bytes32 outputSettler; // StandardOrder.outputs.settler
         bytes32 outputToken; // StandardOrder.outputs.token
         uint256 outputAmount; // StandardOrder.outputs.amount
-        bytes outputCall; // StandardOrder.outputs.callbackData
+        LibSwap.SwapData[] dstCallSwapData; // Goes into StandardOrder.outputs.callbackData
         bytes outputContext; // StandardOrder.outputs.context
     }
 
@@ -139,25 +143,31 @@ contract LiFiIntentEscrowFacet is
     ) internal {
         // Validate destination call flag matches actual behavior
         if (
-            (_lifiIntentData.outputCall.length > 0) !=
+            (_lifiIntentData.dstCallSwapData.length > 0) !=
             _bridgeData.hasDestinationCall
         ) {
             revert InformationMismatch();
         }
 
         // Check if the receiver is the same according to bridgeData and LIFIIntentData
-        address bridgeDataReceiver = _bridgeData.receiver;
-        if (bridgeDataReceiver != NON_EVM_ADDRESS) {
-            if (
-                _lifiIntentData.receiverAddress !=
-                bytes32(uint256(uint160(bridgeDataReceiver)))
-            ) {
+        // This establishes a very important statement: _lifiIntentData.recipient is more reliable than _bridgeData.receiver since it covers non-evm. Going forward, we will apply it here.
+        bytes32 recipient = _lifiIntentData.recipient;
+        if (recipient == bytes32(0)) revert InvalidReceiver();
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                abi.encodePacked(recipient)
+            );
+        } else {
+            // bridgeDataReceiver != NON_EVM_ADDRESS
+            // Note that we can derive 0 <= _bridgeData.receiver < recipient != 0 thus _bridgeData.receiver != 0.
+            if (recipient != bytes32(uint256(uint160(_bridgeData.receiver)))) {
                 revert InvalidReceiver();
             }
         }
-        if (_lifiIntentData.depositAndRefundAddress == address(0)) revert InvalidReceiver();
-        if (_lifiIntentData.receiverAddress == bytes32(0)) revert InvalidReceiver();
-
+        if (_lifiIntentData.depositAndRefundAddress == address(0))
+            revert InvalidReceiver();
 
         // Check outputAmount
         if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
@@ -170,9 +180,19 @@ contract LiFiIntentEscrowFacet is
             amount
         );
 
-        // Convert given token and amount into a idsAndAmount array
-        uint256[2][] memory inputs = new uint256[2][](1);
-        inputs[0] = [uint256(uint160(sendingAsset)), amount];
+        bytes memory outputCall = hex"";
+        if (_lifiIntentData.dstCallSwapData.length != 0) {
+            // Add swap data to the output call.
+            outputCall = abi.encode(
+                _bridgeData.transactionId,
+                _lifiIntentData.dstCallSwapData,
+                _lifiIntentData.recipient
+            );
+            // If we have external calldata, we need to swap out our recipient to the remote caller. We won't be using the recipient anymore so this is without side effects.
+            recipient = _lifiIntentData.dstCallReceiver;
+            // Check that _lifiIntentData.dstCallReceiver != 0.
+            if (recipient == bytes32(0)) revert InvalidReceiver();
+        }
 
         MandateOutput[] memory outputs = new MandateOutput[](1);
         outputs[0] = MandateOutput({
@@ -181,10 +201,14 @@ contract LiFiIntentEscrowFacet is
             chainId: _bridgeData.destinationChainId,
             token: _lifiIntentData.outputToken,
             amount: _lifiIntentData.outputAmount,
-            recipient: _lifiIntentData.receiverAddress,
-            callbackData: _lifiIntentData.outputCall,
+            recipient: recipient,
+            callbackData: outputCall,
             context: _lifiIntentData.outputContext
         });
+
+        // Convert given token and amount into a idsAndAmount array
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [uint256(uint160(sendingAsset)), amount];
 
         // Make the deposit on behalf of the user
         IOriginSettler(LIFI_INTENT_ESCROW_SETTLER).open(

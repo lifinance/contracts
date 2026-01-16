@@ -2,7 +2,7 @@
 
 ## How it works
 
-LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intents. The LI.FI Intent Escrow Facet deposits into the Escrow Input Settler, which will release the deposited funds to the solver when the fill has been proven. The system is highly self serve, with the facet wrapping the deposit logic to ensure the appropriate parameters are called for the user to receive their output.
+LI.FI Intent Escrow uses a built in escrow as a deposit mechanism for its intents. The LI.FI Intent Escrow Facet deposits into the Escrow Input Settler, which will release the deposited funds to the solver when the fill has been proven. The system is self serve, with the facet wrapping the deposit logic to ensure the appropriate parameters are called for the user to receive their output.
 
 ```mermaid
 graph LR;
@@ -31,26 +31,32 @@ graph LR;
 
 ## Destination Calls
 
-The facet supports destination calls through the `outputCall` parameter in `LiFiIntentEscrowData`. When `outputCall` contains calldata (length > 0), it will be executed on the destination chain after token delivery to the `receiverAddress`. The `BridgeData.hasDestinationCall` flag must be set to `true` when providing `outputCall` data, and `false` when no destination call is intended.
+The LI.FI intent facet supports destination swaps using the periphery contract `ReceiverOIF`.
+Destination swaps requires configuring `.dstCallReceiver` to a instance of `ReceiverOIF` and `dstCallSwapData` as a list of SwapData. When  `dstCallSwapData.length` > 0, the recipient will be replaced with `.dstCallReceiver` and instead encoded in data to be executed by `ReceiverOIF`. The `BridgeData.hasDestinationCall` flag must be set to `true`.
 
 ## LIFIIntent Specific Parameters
 
 The methods listed above take a variable labeled `_lifiIntentData`. This data is specific to LIFIIntent and is represented as the following struct type:
 
 ```solidity
-/// @param receiverAddress The destination account for the delivered assets and calldata.
-/// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address.
-/// @param expires If the proof for the fill does not arrive before this time, the claim expires.
-/// @param fillDeadline The fill has to happen before this time.
-/// @param inputOracle Address of the validation layer used on the input chain.
-/// @param outputOracle Address of the validation layer used on the output chain.
-/// @param outputSettler Address of the output settlement contract containing the fill logic.
-/// @param outputToken The desired destination token.
-/// @param outputAmount The amount of the desired token.
-/// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made.
-/// @param outputContext Context for the outputSettler to identify the order type.
+/// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored. 
+/// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
+/// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
+/// @param nonce OrderId mixer. Used within the intent system to generate unqiue orderIds for each user. Should not be reused for `depositAndRefundAddress`
+/// @param expires If the proof for the fill does not arrive before this time, the claim expires
+/// @param fillDeadline The fill has to happen before this time
+/// @param inputOracle Address of the validation layer used on the input chain
+/// @param outputOracle Address of the validation layer used on the output chain
+/// @param outputSettler Address of the output settlement contract containing the fill logic
+/// @param outputToken The desired destination token
+/// @param outputAmount The amount of the desired token
+/// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on receiverAddress. if empty no call is made
+/// @param outputContext Context for the outputSettler to identify the order type
 struct LiFiIntentEscrowData {
-  bytes32 receiverAddress; // StandardOrder.outputs.recipient
+  // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
+  bytes32 dstCallReceiver;
+    // Goes intoStandardOrder.outputs.recipient if .dstCallSwapData.length == 0
+  bytes32 recipient;
   /// BatchClaim
   address depositAndRefundAddress; // StandardOrder.user
   uint256 nonce; // StandardOrder.nonce
@@ -61,7 +67,7 @@ struct LiFiIntentEscrowData {
   bytes32 outputSettler; // StandardOrder.outputs.settler
   bytes32 outputToken; // StandardOrder.outputs.token
   uint256 outputAmount; // StandardOrder.outputs.amount
-  bytes outputCall; // StandardOrder.outputs.call
+  LibSwap.SwapData[] dstCallSwapData; // Goes into StandardOrder.outputs.callbackData
   bytes outputContext; // StandardOrder.outputs.context
 }
 ```
