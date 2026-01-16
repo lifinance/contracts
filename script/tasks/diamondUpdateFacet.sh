@@ -130,16 +130,39 @@ diamondUpdateFacet() {
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
 
+      # Execute forge script with stdout/stderr capture and JSON extraction
+      local RESULT
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+        RESULT=$(executeCommandWithLogs \
+          "FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+          "true")
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json "$SKIP_SIMULATION_FLAG" --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+        RESULT=$(executeCommandWithLogs \
+          "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+          "true")
       fi
-
-
-      # Extract JSON from mixed output (may have leading/trailing characters). Use sed to handle multi-line JSON
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      
+      # Abort on non-zero return code before parsing JSON data
+      if [[ "$RETURN_CODE" -ne 0 ]]; then
+        error "forge script failed for $CONTRACT_NAME on network $NETWORK (exit code: $RETURN_CODE)"
+        if [[ -n "$STDERR_CONTENT" ]]; then
+          error "stderr: $STDERR_CONTENT"
+        fi
+        if [[ -n "$RAW_RETURN_DATA" ]]; then
+          echoDebug "stdout: $RAW_RETURN_DATA"
+        fi
+        attempts=$((attempts + 1))
+        sleep 1
+        continue
+      fi
+      
+      # Extract JSON from cleaned RAW_RETURN_DATA (may have leading/trailing characters). Use sed to handle multi-line JSON
       # (critical for large hex strings that cause forge to output multi-line JSON)
       JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
 
@@ -152,8 +175,14 @@ diamondUpdateFacet() {
       if ! echo "$JSON_DATA" | jq empty >/dev/null 2>&1; then
         {
           echo "Error: Failed to extract valid JSON from forge script output" >&2
-          echo "JSON_DATA snippet (first 500 chars): ${JSON_DATA:0:500}" >&2
-          echo "RAW_RETURN_DATA snippet (first 500 chars): ${RAW_RETURN_DATA:0:500}" >&2
+          echo "JSON_DATA:" >&2
+          echo "$JSON_DATA" >&2
+          echo "" >&2
+          echo "RAW_RETURN_DATA:" >&2
+          echo "$RAW_RETURN_DATA" >&2
+          echo "" >&2
+          echo "STDERR_CONTENT:" >&2
+          echo "$STDERR_CONTENT" >&2
         }
         return 1
       fi
@@ -237,14 +266,34 @@ diamondUpdateFacet() {
       # STAGING (or new network deployment): just deploy normally without further checks
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
+      # Execute forge script with stdout/stderr capture and JSON extraction
+      local RESULT
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
+        RESULT=$(executeCommandWithLogs \
+          "FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")" \
+          "true")
       else
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --broadcast --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" "$SKIP_SIMULATION_FLAG")
+        RESULT=$(executeCommandWithLogs \
+          "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG" \
+          "true")
+      fi
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      
+      # Abort on non-zero return code before parsing JSON data
+      if [[ "$RETURN_CODE" -ne 0 ]]; then
+        error "forge script failed for $CONTRACT_NAME on network $NETWORK (exit code: $RETURN_CODE)"
+        if [[ -n "$STDERR_CONTENT" ]]; then
+          error "stderr: $STDERR_CONTENT"
+        fi
+        if [[ -n "$RAW_RETURN_DATA" ]]; then
+          echoDebug "stdout: $RAW_RETURN_DATA"
+        fi
+        return 1
       fi
     fi
-    RETURN_CODE=$?
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check the return code the last call
     if [ "$RETURN_CODE" -eq 0 ]; then

@@ -71,7 +71,6 @@ updateFacetConfig() {
     # ensure all required .env values are set
     checkRequiredVariablesInDotEnv "$NETWORK"
 
-
     # repeatedly call selected script until it's succeeded or out of attempts
     ATTEMPTS=1
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
@@ -79,18 +78,31 @@ updateFacetConfig() {
 
       # Add skip simulation flag based on environment variable
       SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
-
-      if [[ "$DEBUG" == *"true"* ]]; then
-        # print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
-        RETURN_CODE=$?
-      else
-        # do not print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER") 2>/dev/null
-        RETURN_CODE=$?
+      
+      # Execute forge script with stdout/stderr capture and JSON extraction
+      local RESULT
+      RESULT=$(executeCommandWithLogs \
+        "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "true")
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      
+      # Abort on non-zero return code before proceeding
+      if [[ "$RETURN_CODE" -ne 0 ]]; then
+        error "forge script failed for $SCRIPT on network $NETWORK (exit code: $RETURN_CODE)"
+        if [[ -n "$STDERR_CONTENT" ]]; then
+          error "stderr: $STDERR_CONTENT"
+        fi
+        if [[ -n "$RAW_RETURN_DATA" ]]; then
+          echoDebug "stdout: $RAW_RETURN_DATA"
+        fi
+        ATTEMPTS=$(($ATTEMPTS + 1))
+        sleep 1
+        continue
       fi
-
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+      
       # exit the loop if the operation was successful
       if [ "$RETURN_CODE" -eq 0 ]; then
         break

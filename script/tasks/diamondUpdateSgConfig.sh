@@ -37,11 +37,33 @@ diamondUpdateSgConfig() {
 
   while [ $attempts -lt 11 ]; do
     echo "Trying to execute $SCRIPT now - attempt ${attempts}"
-    # try to execute call
-    NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/deploy/facets/$SCRIPT.s.sol -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy
+    
+    # Execute forge script with stdout/stderr capture and JSON extraction
+    local RESULT
+    RESULT=$(executeCommandWithLogs \
+      "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/deploy/facets/$SCRIPT.s.sol -f $NETWORK --json --broadcast --skip-simulation --legacy" \
+      "true")
+    local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+    RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+    STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+    RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+
+    # Abort on non-zero return code before proceeding
+    if [[ "$RETURN_CODE" -ne 0 ]]; then
+      error "forge script failed for $SCRIPT on network $NETWORK (exit code: $RETURN_CODE)"
+      if [[ -n "$STDERR_CONTENT" ]]; then
+        error "stderr: $STDERR_CONTENT"
+      fi
+      if [[ -n "$RAW_RETURN_DATA" ]]; then
+        echoDebug "stdout: $RAW_RETURN_DATA"
+      fi
+      attempts=$((attempts + 1))
+      sleep 1
+      continue
+    fi
 
     # check the return code the last call
-    if [ $? -eq 0 ]; then
+    if [ "$RETURN_CODE" -eq 0 ]; then
       break # exit the loop if the operation was successful
     fi
 

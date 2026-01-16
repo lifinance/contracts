@@ -41,7 +41,29 @@ deployUpgradesToSAFE() {
       UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
       PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
       echo "Calculating facet cuts for $script..."
-      RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvvv --json --skip-simulation --legacy)
+      
+      # Execute forge script with stdout/stderr capture and JSON extraction
+      local RESULT
+      RESULT=$(executeCommandWithLogs \
+        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" -f $NETWORK --json --skip-simulation --legacy" \
+        "true")
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      
+      # Abort on non-zero return code before parsing cut data
+      if [[ "$RETURN_CODE" -ne 0 ]]; then
+        error "forge script failed for $script on network $NETWORK (exit code: $RETURN_CODE)"
+        if [[ -n "$STDERR_CONTENT" ]]; then
+          error "stderr: $STDERR_CONTENT"
+        fi
+        if [[ -n "$RAW_RETURN_DATA" ]]; then
+          echoDebug "stdout: $RAW_RETURN_DATA"
+        fi
+        continue
+      fi
+      
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
       FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
       if [ "$FACET_CUT" != "0x" ]; then

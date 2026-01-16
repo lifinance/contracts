@@ -49,18 +49,29 @@ deployAndStoreCREATE3Factory() {
   # Add skip simulation flag based on environment variable
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" -vvv --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" 2>&1)
-  echo ""
-  echo "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-  echo ""
-	RETURN_CODE=$?
+  # Execute forge script with stdout/stderr capture and JSON extraction
+  local RESULT
+  RESULT=$(executeCommandWithLogs \
+    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast $SKIP_SIMULATION_FLAG --slow --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+    "true")
+  local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+  RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+  STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+  RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+  
   unset PRIVATE_KEY
 
-  # check if deployment was successful
-	if [[ $RETURN_CODE -ne 0 ]]; then
-		error "❌ Deployment of CREATE3Factory failed"
-		return 1
-	fi
+  # Abort on non-zero return code before parsing deployment data
+  if [[ $RETURN_CODE -ne 0 ]]; then
+    error "❌ Deployment of CREATE3Factory failed on network $NETWORK (exit code: $RETURN_CODE)"
+    if [[ -n "$STDERR_CONTENT" ]]; then
+      error "stderr: $STDERR_CONTENT"
+    fi
+    if [[ -n "$RAW_RETURN_DATA" ]]; then
+      echoDebug "stdout: $RAW_RETURN_DATA"
+    fi
+    return 1
+  fi
 
   # extract deployed-to address from return data
   FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")

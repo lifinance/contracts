@@ -48,18 +48,21 @@ acceptOwnershipTransferPeriphery() {
   # go through all networks
   for CURRENT_NETWORK in "${NETWORKS[@]}"; do
     echo ""
-    echo "[info] now executing transfer ownership script in network: $NETWORK"
+    echo "[info] now executing transfer ownership script in network: $CURRENT_NETWORK"
 
     # execute script
     attempts=1
 
     while [ $attempts -lt 11 ]; do
-      # try to execute call
-      RAW_RETURN_DATA=$(NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $NETWORK -vvvvv --json --broadcast --verify --skip-simulation --legacy --tc DeployScript)
-      RETURN_CODE=$?
-
-      # print return data only if debug mode is activated
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+      # Execute forge script with stdout/stderr capture and JSON extraction
+      local RESULT
+      RESULT=$(executeCommandWithLogs \
+        "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
+        "true")
+      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
+      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 
       # check return data for error message (regardless of return code as this is not 100% reliable)
       if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
@@ -82,7 +85,7 @@ acceptOwnershipTransferPeriphery() {
       error "ownership transfer was not successful on network $CURRENT_NETWORK. Script will continue with next network, if any."
       continue
     else
-      echo "ownership transfer successful on network $NETWORK"
+      echo "ownership transfer successful on network $CURRENT_NETWORK"
     fi
 
   done
