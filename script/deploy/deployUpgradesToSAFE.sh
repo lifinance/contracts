@@ -52,6 +52,18 @@ deployUpgradesToSAFE() {
       STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
       RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
       
+      # Abort on non-zero return code before parsing cut data
+      if [[ "$RETURN_CODE" -ne 0 ]]; then
+        error "forge script failed for $script on network $NETWORK (exit code: $RETURN_CODE)"
+        if [[ -n "$STDERR_CONTENT" ]]; then
+          error "stderr: $STDERR_CONTENT"
+        fi
+        if [[ -n "$RAW_RETURN_DATA" ]]; then
+          echoDebug "stdout: $RAW_RETURN_DATA"
+        fi
+        continue
+      fi
+      
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
       FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
       if [ "$FACET_CUT" != "0x" ]; then

@@ -148,6 +148,20 @@ diamondUpdateFacet() {
       STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
       RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
       
+      # Abort on non-zero return code before parsing JSON data
+      if [[ "$RETURN_CODE" -ne 0 ]]; then
+        error "forge script failed for $CONTRACT_NAME on network $NETWORK (exit code: $RETURN_CODE)"
+        if [[ -n "$STDERR_CONTENT" ]]; then
+          error "stderr: $STDERR_CONTENT"
+        fi
+        if [[ -n "$RAW_RETURN_DATA" ]]; then
+          echoDebug "stdout: $RAW_RETURN_DATA"
+        fi
+        attempts=$((attempts + 1))
+        sleep 1
+        continue
+      fi
+      
       # Extract JSON from cleaned RAW_RETURN_DATA (may have leading/trailing characters). Use sed to handle multi-line JSON
       # (critical for large hex strings that cause forge to output multi-line JSON)
       JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
@@ -267,6 +281,18 @@ diamondUpdateFacet() {
       RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
       STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
       RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      
+      # Abort on non-zero return code before parsing JSON data
+      if [[ "$RETURN_CODE" -ne 0 ]]; then
+        error "forge script failed for $CONTRACT_NAME on network $NETWORK (exit code: $RETURN_CODE)"
+        if [[ -n "$STDERR_CONTENT" ]]; then
+          error "stderr: $STDERR_CONTENT"
+        fi
+        if [[ -n "$RAW_RETURN_DATA" ]]; then
+          echoDebug "stdout: $RAW_RETURN_DATA"
+        fi
+        return 1
+      fi
     fi
 
     # check the return code the last call

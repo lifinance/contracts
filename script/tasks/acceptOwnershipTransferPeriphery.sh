@@ -48,7 +48,7 @@ acceptOwnershipTransferPeriphery() {
   # go through all networks
   for CURRENT_NETWORK in "${NETWORKS[@]}"; do
     echo ""
-    echo "[info] now executing transfer ownership script in network: $NETWORK"
+    echo "[info] now executing transfer ownership script in network: $CURRENT_NETWORK"
 
     # execute script
     attempts=1
@@ -57,7 +57,7 @@ acceptOwnershipTransferPeriphery() {
       # Execute forge script with stdout/stderr capture and JSON extraction
       local RESULT
       RESULT=$(executeCommandWithLogs \
-        "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
+        "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
         "true")
       local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
       RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
@@ -85,7 +85,7 @@ acceptOwnershipTransferPeriphery() {
       error "ownership transfer was not successful on network $CURRENT_NETWORK. Script will continue with next network, if any."
       continue
     else
-      echo "ownership transfer successful on network $NETWORK"
+      echo "ownership transfer successful on network $CURRENT_NETWORK"
     fi
 
   done

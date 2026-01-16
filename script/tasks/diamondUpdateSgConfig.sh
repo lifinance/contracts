@@ -48,6 +48,20 @@ diamondUpdateSgConfig() {
     STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
     RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 
+    # Abort on non-zero return code before proceeding
+    if [[ "$RETURN_CODE" -ne 0 ]]; then
+      error "forge script failed for $SCRIPT on network $NETWORK (exit code: $RETURN_CODE)"
+      if [[ -n "$STDERR_CONTENT" ]]; then
+        error "stderr: $STDERR_CONTENT"
+      fi
+      if [[ -n "$RAW_RETURN_DATA" ]]; then
+        echoDebug "stdout: $RAW_RETURN_DATA"
+      fi
+      attempts=$((attempts + 1))
+      sleep 1
+      continue
+    fi
+
     # check the return code the last call
     if [ "$RETURN_CODE" -eq 0 ]; then
       break # exit the loop if the operation was successful

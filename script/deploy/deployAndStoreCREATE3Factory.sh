@@ -61,11 +61,17 @@ deployAndStoreCREATE3Factory() {
   
   unset PRIVATE_KEY
 
-  # check if deployment was successful
-	if [[ $RETURN_CODE -ne 0 ]]; then
-		error "❌ Deployment of CREATE3Factory failed"
-		return 1
-	fi
+  # Abort on non-zero return code before parsing deployment data
+  if [[ $RETURN_CODE -ne 0 ]]; then
+    error "❌ Deployment of CREATE3Factory failed on network $NETWORK (exit code: $RETURN_CODE)"
+    if [[ -n "$STDERR_CONTENT" ]]; then
+      error "stderr: $STDERR_CONTENT"
+    fi
+    if [[ -n "$RAW_RETURN_DATA" ]]; then
+      echoDebug "stdout: $RAW_RETURN_DATA"
+    fi
+    return 1
+  fi
 
   # extract deployed-to address from return data
   FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")

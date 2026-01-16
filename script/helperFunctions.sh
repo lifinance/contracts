@@ -4346,6 +4346,18 @@ function deployCreate3FactoryToAnvil() {
   STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
   RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 
+  # Abort on non-zero return code before parsing address
+  if [[ "$RETURN_CODE" -ne 0 ]]; then
+    error "forge script failed for CREATE3Factory deployment to anvil (exit code: $RETURN_CODE)"
+    if [[ -n "$STDERR_CONTENT" ]]; then
+      error "stderr: $STDERR_CONTENT"
+    fi
+    if [[ -n "$RAW_RETURN_DATA" ]]; then
+      echoDebug "stdout: $RAW_RETURN_DATA"
+    fi
+    return 1
+  fi
+
   # extract address of deployed factory contract
   ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')
 
