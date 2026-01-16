@@ -398,6 +398,25 @@
       }
     }
   },
+  "PolymerCCTPFacet": {
+    "configData": {
+      "_tokenMessenger": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.tokenMessengerV2",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_usdc": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.usdc",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_polymerFeeReceiver": {
+        "configFileName": "polymercctp.json",
+        "keyInConfigFile": ".<NETWORK>.polymerFeeReceiver",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "RoninBridgeFacet": {
     "configData": {
       "_gateway": {
@@ -544,6 +563,15 @@
       }
     }
   },
+  "FeeForwarder": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ServiceFeeCollector": {
     "configData": {
       "_owner": {
@@ -664,6 +692,43 @@
     },
     "contractAddresses": {
       "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "GardenFacet": {
+    "configData": {
+      "_htlcRegistry": {
+        "configFileName": "garden.json",
+        "keyInConfigFile": ".<NETWORK>.htlcRegistry",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "TokenWrapper": {
+    "configData": {
+      "_wrappedToken": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_converter": {
+        "configFileName": "tokenconverters.json",
+        "keyInConfigFile": ".<NETWORK>.converterAddress",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "NEARIntentsFacet": {
+    "configData": {
+      "_backendSigner": {
+        "configFileName": "nearintents.json",
+        "keyInConfigFile": ".<ENVIRONMENT>.backendSigner",
         "allowToDeployWithZeroAddress": "false"
       }
     }

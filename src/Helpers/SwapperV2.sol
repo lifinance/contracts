@@ -10,7 +10,7 @@ import { ContractCallNotAllowed, NoSwapDataProvided, CumulativeSlippageTooHigh }
 /// @title SwapperV2
 /// @author LI.FI (https://li.fi)
 /// @notice Abstract contract to provide swap functionality with leftover token handling
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract SwapperV2 is ILiFi {
     /// Types ///
 
@@ -20,6 +20,9 @@ contract SwapperV2 is ILiFi {
         address payable leftoverReceiver;
         uint256 nativeReserve;
     }
+
+    /// Constants ///
+    bytes4 internal constant APPROVE_TO_ONLY_SELECTOR = 0xffffffff;
 
     /// Modifiers ///
 
@@ -177,7 +180,9 @@ contract SwapperV2 is ILiFi {
 
     /// Private Methods ///
 
-    /// @dev Executes swaps and checks that DEXs used are in the allowList
+    /// @dev Executes swaps and checks that DEXs used are whitelisted via granular contract-selector pairs.
+    /// @notice For non-native assets, if approveTo != callTo, approveTo must be whitelisted with
+    ///         APPROVE_TO_ONLY_SELECTOR (0xffffffff) to prevent allowance leaks.
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swaps Array of data used to execute swaps
     /// @param _leftoverReceiver Address to send leftover tokens to
@@ -189,23 +194,36 @@ contract SwapperV2 is ILiFi {
         uint256[] memory _initialBalances
     ) internal noLeftovers(_swaps, _leftoverReceiver, _initialBalances) {
         uint256 numSwaps = _swaps.length;
-        for (uint256 i; i < numSwaps; ++i) {
+        address callTo;
+        address approveTo;
+        for (uint256 i; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
+            callTo = currentSwap.callTo;
+            approveTo = currentSwap.approveTo;
 
             if (
-                !((LibAsset.isNativeAsset(currentSwap.sendingAssetId) ||
-                    LibAllowList.contractIsAllowed(currentSwap.approveTo)) &&
-                    LibAllowList.contractIsAllowed(currentSwap.callTo) &&
-                    LibAllowList.selectorIsAllowed(
-                        bytes4(currentSwap.callData[:4])
+                !LibAllowList.contractSelectorIsAllowed(
+                    callTo,
+                    bytes4(currentSwap.callData[:4])
+                ) ||
+                (!LibAsset.isNativeAsset(currentSwap.sendingAssetId) &&
+                    approveTo != callTo &&
+                    !LibAllowList.contractSelectorIsAllowed(
+                        approveTo,
+                        APPROVE_TO_ONLY_SELECTOR
                     ))
             ) revert ContractCallNotAllowed();
 
             LibSwap.swap(_transactionId, currentSwap);
+            unchecked {
+                ++i;
+            }
         }
     }
 
-    /// @dev Executes swaps and checks that DEXs used are in the allowList
+    /// @dev Executes swaps and checks that DEXs used are whitelisted via granular contract-selector pairs.
+    /// @notice For non-native assets, if approveTo != callTo, approveTo must be whitelisted with
+    ///         APPROVE_TO_ONLY_SELECTOR (0xffffffff) to prevent allowance leaks.
     /// @param _reserveData Data passed used to reserve native tokens
     /// @param _swaps Array of data used to execute swaps
     /// @param _initialBalances Array of initial balances
@@ -223,19 +241,30 @@ contract SwapperV2 is ILiFi {
         )
     {
         uint256 numSwaps = _swaps.length;
-        for (uint256 i; i < numSwaps; ++i) {
+        address callTo;
+        address approveTo;
+        for (uint256 i; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
+            callTo = currentSwap.callTo;
+            approveTo = currentSwap.approveTo;
 
             if (
-                !((LibAsset.isNativeAsset(currentSwap.sendingAssetId) ||
-                    LibAllowList.contractIsAllowed(currentSwap.approveTo)) &&
-                    LibAllowList.contractIsAllowed(currentSwap.callTo) &&
-                    LibAllowList.selectorIsAllowed(
-                        bytes4(currentSwap.callData[:4])
+                !LibAllowList.contractSelectorIsAllowed(
+                    callTo,
+                    bytes4(currentSwap.callData[:4])
+                ) ||
+                (!LibAsset.isNativeAsset(currentSwap.sendingAssetId) &&
+                    approveTo != callTo &&
+                    !LibAllowList.contractSelectorIsAllowed(
+                        approveTo,
+                        APPROVE_TO_ONLY_SELECTOR
                     ))
             ) revert ContractCallNotAllowed();
 
             LibSwap.swap(_reserveData.transactionId, currentSwap);
+            unchecked {
+                ++i;
+            }
         }
     }
 

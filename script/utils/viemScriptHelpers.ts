@@ -32,6 +32,85 @@ const colors = {
 
 export const networks: INetworksObject = networksConfig
 
+/**
+ * Builds a block explorer address URL for a given network and address.
+ *
+ * For most EVM explorers we use the default `/address/<address>` pattern.
+ * Some explorers (e.g. Tron, Sourcify-style, or custom paths) may need to be
+ * handled specially – these can be added incrementally by extending the
+ * switch below without changing any call sites.
+ *
+ * If no `explorerUrl` is configured for the network, this returns `undefined`.
+ */
+export const buildExplorerAddressUrl = (
+  networkId: string,
+  address: string
+): string | undefined => {
+  const network = networks[networkId]
+  if (!network || !network.explorerUrl) return undefined
+
+  const base = network.explorerUrl.replace(/\/+$/, '')
+
+  // Normalise address for URL usage; the helper is agnostic to checksum vs. lowercasing.
+  const addr = address
+
+  // Handle special explorers that do NOT follow the default /address/<address> pattern.
+  // This list can be extended over time as we discover exceptions.
+  switch (network.verificationType) {
+    // Tron-style explorers – use /#/address/<address>
+    case 'tronscan': {
+      return `${base}/#/address/${addr}`
+    }
+
+    // Sourcify-style explorer (Ronin) – contract details live under /address/<address>
+    // but the configured explorerUrl already includes '/explorer', so default works.
+
+    // OKLink, Blockscout, Routescan and most Etherscan-like explorers
+    // work fine with the default /address/<address> pattern.
+    default: {
+      return `${base}/address/${addr}`
+    }
+  }
+}
+
+/**
+ * Builds a block explorer URL that links directly to the contract/code page
+ * for a given network and address.
+ *
+ * This helper composes {@link buildExplorerAddressUrl} and, for the majority
+ * of explorers, simply appends `#code` so we land on the contract tab.
+ *
+ * As we discover explorers where this does not work, we can extend the switch
+ * below with network-specific overrides without touching call sites.
+ */
+export const buildExplorerContractPageUrl = (
+  networkId: string,
+  address: string
+): string | undefined => {
+  const addressUrl = buildExplorerAddressUrl(networkId, address)
+  const network = networks[networkId]
+
+  if (!addressUrl || !network) return undefined
+
+  switch (network.verificationType) {
+    // OKLink contract pages live under /address/<address>/contract
+    case 'oklink': {
+      return `${addressUrl}/contract`
+    }
+
+    // Vana contract tab uses a query parameter instead of a hash.
+    case 'blockscout': {
+      if (networkId === 'vana') return `${addressUrl}?tab=contract`
+      return `${addressUrl}#code`
+    }
+
+    // Add more explicit overrides here for explorers that don't use `#code`.
+
+    default:
+      return `${addressUrl}#code`
+  }
+}
+
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]
 

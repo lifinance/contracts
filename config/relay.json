@@ -1,5 +1,5 @@
 {
-  "--- link_to_relay_docs_for_contract_addresses ---": "https://docs.relay.link/resources/contract-addresses",
+  "--- link_to_relay_docs_for_contract_addresses ---": "https://docs.relay.link/references/api/api_resources/supported-chains",
   "--- alternative (API) ---": "https://api.relay.link/chains?includeChains=562da1f0-bffe-4208-a3d8-143c2fbdb380",
   "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
   "mainnet": {
@@ -94,12 +94,20 @@
     "relayReceiver": "0xf366da269047a06a7275a933c6d653409bd6de5e",
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
+  "megaeth": {
+    "relayReceiver": "0xac4615ffec9dbf5efe28db0f98f0011e6df0dabd",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "metis": {
     "relayReceiver": "0xc56043daac3a26ad451abc7610f04f53cc4412e5",
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
   "mode": {
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
+  "monad": {
+    "relayReceiver": "0xf17902d51fdff7bf50aacc78d6bb399baf88b479",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "optimism": {
@@ -140,6 +148,10 @@
   },
   "sonic": {
     "relayReceiver": "0x7f4babd2c7d35221e72ab67ea72cba99573a0089",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
+  "stable": {
+    "relayReceiver": "0xac4615ffec9dbf5efe28db0f98f0011e6df0dabd",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "superposition": {

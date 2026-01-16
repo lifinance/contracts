@@ -113,6 +113,13 @@ deploySingleContract() {
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
+  # determine diamond type (default to LiFiDiamond unless contract is LiFiDiamondImmutable)
+  if [[ "$CONTRACT" == "LiFiDiamondImmutable" ]]; then
+    DIAMOND_TYPE="LiFiDiamondImmutable"
+  else
+    DIAMOND_TYPE="LiFiDiamond"
+  fi
+
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
   fi
@@ -181,23 +188,55 @@ deploySingleContract() {
       fi
     fi
   else
-      # Check if a zksync contract has already been deployed for a specific
-      # version otherwise it might fail since create2 will try to deploy to the
-      # same address
-      DEPLOYED=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" "$LOG_FILE_PATH")
-      if [[ $? == 0 ]]; then
-        gum style \
-	        --foreground 220 --border-foreground 220 --border double \
-	        --align center --width 50 --margin "1 2" --padding "2 4" \
-	        'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK" 'Deployment might fail'
-        gum confirm "Deploy anyway?" || exit 0
-      fi
+      # Build zksync artifacts first
+      echo "[info] building zksync artifacts"
+      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test
 
-      # Run zksync specific fork of forge
-      FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync
+      # Compute deploy salt for zk path and check for potential CREATE2 collision
+      local BYTECODE
+      BYTECODE=$(getBytecodeFromArtifact "$CONTRACT") || return 1
+
+      # Add custom salt from .env file (allows to re-deploy contracts with same bytecode)
+      local SALT_INPUT="$BYTECODE""$SALT"
+
+      # Create salt that is used to deploy contract (same logic as non-zkEVM path)
+      local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
+
+      # Get predicted contract address for zksync deployment
+      # Note: zksync uses CREATE2-like deterministic addressing
+      # We need to check if this address already has code deployed
+
+      # Check if this version was already deployed and compare derived salts
+      DEPLOYED=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+      if [[ $? == 0 ]]; then
+        # Extract the raw salt used previously and derive its deploy salt with the same bytecode
+        local SAVED_SALT_RAW
+        SAVED_SALT_RAW=$(echo "$DEPLOYED" | jq -r '.SALT // empty' 2>/dev/null)
+        local SAVED_DEPLOYSALT=""
+        if [[ -n "$SAVED_SALT_RAW" ]]; then
+          local SAVED_SALT_INPUT="$BYTECODE""$SAVED_SALT_RAW"
+          SAVED_DEPLOYSALT=$(cast keccak "$SAVED_SALT_INPUT")
+        fi
+
+        # Only warn if the same derived salt is being used (would re-use address)
+        if [[ -n "$SAVED_DEPLOYSALT" && "$SAVED_DEPLOYSALT" == "$DEPLOYSALT" ]]; then
+          gum style \
+            --foreground 220 --border-foreground 220 --border double \
+            --align center --width 50 --margin "1 2" --padding "2 4" \
+            'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK with the same salt" 'CREATE2 collision will occur'
+          gum confirm "Deploy anyway?" || exit 0
+        elif [[ -n "$SAVED_DEPLOYSALT" ]]; then
+          echo "[info] ⚠️  $CONTRACT v$VERSION is already deployed to $NETWORK"
+          echo "[info] ✅ Using different derived salt ($DEPLOYSALT vs $SAVED_DEPLOYSALT) - safe to deploy to a different address"
+        fi
+      else
+        echo "[info] No previous deployment found in logs for $CONTRACT v$VERSION"
+        echo "[info] Proceeding with deployment..."
+      fi
   fi
   # execute script
   attempts=1
+  ADDRESS_COLLISION_DETECTED=false
 
   while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; do
     echo "[info] trying to deploy $CONTRACT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT) "
@@ -205,12 +244,24 @@ deploySingleContract() {
     # ensure that gas price is below maximum threshold (for mainnet only)
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
+    # Add skip simulation flag based on environment variable
+    SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
+
+    # Add network-specific flags for megaeth
+    if [[ "$NETWORK" == "megaeth" ]]; then
+      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
+      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
+      SKIP_SIMULATION_FLAG=""
+    else
+      MEGAETH_FLAGS=""
+    fi
+
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --gas-limit 50000000)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" $MEGAETH_FLAGS --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     fi
 
     RETURN_CODE=$?
@@ -227,6 +278,26 @@ deploySingleContract() {
       else
         error "execution of deploy script failed with message: $ERROR_MESSAGE"
       fi
+    # Check for zksync-specific address collision (revert with specific error code)
+    elif isZkEvmNetwork "$NETWORK" && [[ $RAW_RETURN_DATA == *"\"status\":\"Revert\""* && $RAW_RETURN_DATA == *"0x9e4a3c8a"* ]]; then
+      echo ""
+      gum style \
+        --foreground 196 --border-foreground 196 --border double \
+        --align center --width 70 --margin "1 2" --padding "2 4" \
+        'zksync DEPLOYMENT FAILED - ADDRESS COLLISION' \
+        'Error Code 3: Contract already exists at the predicted address' \
+        'The deployment address is deterministic based on bytecode + SALT'
+
+      echo ""
+      echo "🔧 To fix this issue:"
+      echo "1. Add or modify SALT in your .env file:"
+      echo "   SALT=your_custom_salt_value"
+      echo "2. Re-run the deployment script"
+      echo ""
+
+      # Set flag and break out of retry loop - no point in retrying with same SALT
+      ADDRESS_COLLISION_DETECTED=true
+      break
 
     # check the return code the last call
     else
@@ -245,6 +316,18 @@ deploySingleContract() {
     attempts=$((attempts + 1)) # increment attempts
     sleep 1                    # wait for 1 second before trying the operation again
   done
+
+  # check if we broke out due to address collision
+  if [[ "$ADDRESS_COLLISION_DETECTED" == "true" ]]; then
+    error "Deployment stopped due to address collision. Please change SALT and retry."
+
+    # end this script according to flag
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
 
   # check if call was executed successfully or used all ATTEMPTS
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; then
@@ -279,13 +362,17 @@ deploySingleContract() {
   LOG_ENTRY_RETURN_CODE=$?
   echoDebug "existing log entry, may have a different address in case of a redeployment (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
 
+  # Initialize variables to avoid unbound variable errors
+  VERIFIED_LOG=""
+  ADDRESS_LOG=""
+
   if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
     VERIFIED_LOG=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
     ADDRESS_LOG=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS")
   fi
 
   # check if this was a redeployment (= if address does not match with what is already in log file)
-  if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$ADDRESS_LOG" | tr '[:upper:]' '[:lower:]')" ]]; then
+  if [[ -n "$ADDRESS_LOG" && "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$ADDRESS_LOG" | tr '[:upper:]' '[:lower:]')" ]]; then
     REDEPLOYMENT=false
   else
     REDEPLOYMENT=true

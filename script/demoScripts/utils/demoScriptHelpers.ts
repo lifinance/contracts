@@ -1,16 +1,30 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import { Keypair } from '@solana/web3.js'
+// @ts-expect-error - bs58 types not available
+// eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
+import bs58 from 'bs58'
+import { consola } from 'consola'
 import { config } from 'dotenv'
-import { BigNumber, constants, Contract, providers, Wallet } from 'ethers'
+import {
+  BigNumber,
+  constants,
+  Contract,
+  providers,
+  utils,
+  Wallet,
+} from 'ethers'
 import {
   createPublicClient,
   createWalletClient,
   formatEther,
   formatUnits,
+  getAddress,
   getContract,
   http,
   parseAbi,
+  toHex,
   zeroAddress,
   type Abi,
   type PublicClient,
@@ -20,6 +34,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
+import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
@@ -29,6 +44,11 @@ import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 config()
 
 export const DEV_WALLET_ADDRESS = globalConfig.devWallet
+
+// NON_EVM_ADDRESS constant from LiFiData.sol - used as receiver address when bridging to non-EVM chains
+export const NON_EVM_ADDRESS = getAddress(
+  '0x11f111f111f111F111f111f111F111f111f111F1'
+)
 
 export const DEFAULT_DEST_PAYLOAD_ABI = [
   'bytes32', // Transaction Id
@@ -70,7 +90,9 @@ export const ADDRESS_WETH_ETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 export const ADDRESS_WETH_OPT = '0x4200000000000000000000000000000000000006'
 export const ADDRESS_WETH_POL = '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
 export const ADDRESS_WETH_ARB = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
-export const ADDRESS_WMATIC_POL = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270 '
+export const ADDRESS_WETH_BASE = '0x4200000000000000000000000000000000000006'
+export const ADDRESS_WMATIC_POL = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
+export const ADDRESS_USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
 
 // common uniswap addresses on various chains
 export const ADDRESS_UNISWAP_ETH = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
@@ -78,6 +100,7 @@ export const ADDRESS_UNISWAP_BSC = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
 export const ADDRESS_UNISWAP_POL = '0xedf6066a2b290C185783862C7F4776A2C8077AD1'
 export const ADDRESS_UNISWAP_OPT = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2'
 export const ADDRESS_UNISWAP_ARB = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
+export const ADDRESS_UNISWAP_BASE = '0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891'
 // const UNISWAP_ADDRESS_DST = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2' // Uniswap OPT
 
 //
@@ -86,12 +109,77 @@ export const ADDRESS_DEV_WALLET_SOLANA_BYTES32 =
 export const ADDRESS_DEV_WALLET_V4 =
   '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
 
+// LiFi chain ID for Solana (from LiFiData.sol)
+export const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
+
 /// ############# HELPER FUNCTIONS ###################### ///
 
 ///
 export const leftPadAddressToBytes32 = (address: string): string => {
   // Convert address to bytes32 format: pad with zeros to make it 32 bytes
   return '0x000000000000000000000000' + address.slice(2)
+}
+
+/**
+ * Derives a Solana address from an Ethereum private key
+ * Uses the first 32 bytes of the EVM private key as seed for Ed25519 keypair generation
+ * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
+ * @returns Solana address in base58 format
+ */
+export const deriveSolanaAddress = (ethPrivateKey: string): string => {
+  // Remove '0x' prefix if present
+  const seed = ethPrivateKey.replace('0x', '')
+
+  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
+  const seedBytes = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) {
+    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
+  }
+
+  // Create Solana keypair from seed
+  const keypair = Keypair.fromSeed(seedBytes)
+  return keypair.publicKey.toBase58()
+}
+
+/**
+ * Converts a Solana base58 address to bytes32 format for non-EVM address fields
+ * Solana addresses are 32-byte Ed25519 public keys encoded in base58
+ * @param solanaAddress - Solana address in base58 format
+ * @returns Hex string in bytes32 format (0x...)
+ */
+export const solanaAddressToBytes32 = (
+  solanaAddress: string
+): `0x${string}` => {
+  // Decode base58 to get raw 32 bytes
+  const addressBytes = bs58.decode(solanaAddress)
+
+  if (addressBytes.length !== 32) {
+    throw new Error(
+      `Invalid Solana address length: ${addressBytes.length} bytes (expected 32)`
+    )
+  }
+
+  // Convert to hex string
+  return toHex(addressBytes)
+}
+
+/**
+ * Converts a receiver address to bytes32 format, handling both EVM and non-EVM addresses
+ * @param receiver - EVM address or NON_EVM_ADDRESS sentinel
+ * @param nonEVMReceiver - Optional bytes32 non-EVM receiver (e.g., Solana address)
+ * @returns Receiver address as bytes32
+ */
+export const receiverToBytes32 = (
+  receiver: string,
+  nonEVMReceiver?: `0x${string}`
+): `0x${string}` => {
+  // If bridging to non-EVM chain, use the nonEVMReceiver
+  if (receiver === NON_EVM_ADDRESS && nonEVMReceiver) {
+    return nonEVMReceiver
+  }
+
+  // Convert EVM address to bytes32 (left-pad with zeros)
+  return `0x${BigInt(receiver).toString(16).padStart(64, '0')}` as `0x${string}`
 }
 
 export const getProvider = (
@@ -988,3 +1076,39 @@ export const createContractObject = (
     },
   },
 })
+
+/**
+ * Logs a BridgeDataStruct in a formatted, human-readable way
+ * @param bridgeData The BridgeDataStruct to log
+ */
+export function logBridgeDataStruct(bridgeData: ILiFi.BridgeDataStruct): void {
+  // Convert transactionId to hex string if it's bytes
+  // Handle both string (hex) and BytesLike (Uint8Array, etc.) types
+  let transactionIdHex: string
+  if (typeof bridgeData.transactionId === 'string') {
+    transactionIdHex = bridgeData.transactionId
+  } else {
+    // It's BytesLike (Uint8Array or similar), convert to hex
+    transactionIdHex = utils.hexlify(
+      bridgeData.transactionId as utils.BytesLike
+    )
+  }
+
+  // Format referrer address
+  const referrerDisplay =
+    bridgeData.referrer === constants.AddressZero
+      ? `${bridgeData.referrer} (zero address)`
+      : bridgeData.referrer
+
+  consola.info('📋 BridgeData:')
+  consola.info(`  transactionId:     ${transactionIdHex}`)
+  consola.info(`  bridge:           ${bridgeData.bridge}`)
+  consola.info(`  integrator:       ${bridgeData.integrator}`)
+  consola.info(`  referrer:         ${referrerDisplay}`)
+  consola.info(`  sendingAssetId:   ${bridgeData.sendingAssetId}`)
+  consola.info(`  receiver:         ${bridgeData.receiver}`)
+  consola.info(`  minAmount:        ${bridgeData.minAmount}`)
+  consola.info(`  destinationChainId: ${bridgeData.destinationChainId}`)
+  consola.info(`  hasSourceSwaps:   ${bridgeData.hasSourceSwaps}`)
+  consola.info(`  hasDestinationCall: ${bridgeData.hasDestinationCall}`)
+}

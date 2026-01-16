@@ -10,8 +10,7 @@ deployAllContracts() {
   source script/deploy/deployCoreFacets.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
-  source script/tasks/diamondSyncDEXs.sh
-  source script/tasks/diamondSyncSigs.sh
+  source script/tasks/diamondSyncWhitelist.sh
   source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
   source script/tasks/updateERC20Proxy.sh
@@ -41,13 +40,14 @@ deployAllContracts() {
       "1) Initial setup and CREATE3Factory deployment" \
       "2) Deploy core facets" \
       "3) Deploy diamond and update with core facets" \
-      "4) Set approvals (refund wallet and deployer wallet)" \
+      "4) Set approval for refund wallet" \
       "5) Deploy non-core facets and add to diamond" \
       "6) Deploy periphery contracts" \
-      "7) Add periphery to diamond and update dexs.json" \
-      "8) Execute dexs/sigs scripts and update ERC20Proxy" \
-      "9) Run health check only" \
-      "10) Ownership transfer to timelock (production only)"
+      "7) Add periphery to diamond" \
+      "8) Update whitelist.json and execute sync whitelist script" \
+      "9) Update ERC20Proxy" \
+      "10) Run health check only" \
+      "11) Ownership transfer to timelock (production only)"
   )
 
   # Extract the stage number from the selection
@@ -71,6 +71,8 @@ deployAllContracts() {
     START_STAGE=9
   elif [[ "$START_FROM" == *"10)"* ]]; then
     START_STAGE=10
+  elif [[ "$START_FROM" == *"11)"* ]]; then
+    START_STAGE=11
   else
     error "invalid selection: $START_FROM - exiting script now"
     exit 1
@@ -193,10 +195,10 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 3 completed"
   fi
 
-  # Stage 4: Set approvals (refund wallet and deployer wallet)
+  # Stage 4: Set approval for refund wallet
   if [[ $START_STAGE -le 4 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approvals (refund wallet and deployer wallet)"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approval for refund wallet"
 
     # approve refund wallet to execute refund-related functions
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving refund wallet to execute functions listed in config/global.json"
@@ -204,12 +206,7 @@ deployAllContracts() {
     checkFailure $? "update approve refund wallet to execute refund-related functions"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< refund wallet approved"
 
-    # approve deployer wallet to execute config-related functions
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving deployer wallet to execute functions listed in config/global.json"
-    updateFacetConfig "" "$ENVIRONMENT" "$NETWORK" "ApproveDeployerWalletInDiamond" "$DIAMOND_CONTRACT_NAME"
-    checkFailure $? "update approve deployer wallet to execute config-related functions"
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployer wallet approved"
-
+    echo ""
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 4 completed"
   fi
 
@@ -262,71 +259,84 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
   fi
 
-  # Stage 7: Add periphery to diamond and update dexs.json
+  # Stage 7: Add periphery to diamond
   if [[ $START_STAGE -le 7 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update dexs.json"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond"
 
-    # update periphery registry
+    # Register periphery contracts in the diamond's PeripheryRegistryFacet
+    # This stores the contract name -> address mapping on-chain in the diamond contract.
+    # The diamond can then look up periphery contract addresses by name using getPeripheryContract().
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
-
-    # add core periphery addresses to dexs.json for whitelisting in subsequent steps
-    addPeripheryToDexsJson "$NETWORK" "$ENVIRONMENT"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
   fi
 
-  # Stage 8: Execute dexs/sigs scripts and update ERC20Proxy
+  # Stage 8: Update whitelist.json and execute sync whitelist script
   if [[ $START_STAGE -le 8 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute dexs/sigs scripts and update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Update whitelist.json and execute sync whitelist script"
 
-    # run sync dexs script
+    # Update whitelist.json configuration files with periphery contract data
+    # This updates the off-chain whitelist configuration files that will be synced on-chain.
+    # Always update both production and staging to keep them in sync
     echo ""
-    diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+    echo "[info] Updating whitelist periphery and composer entries for both production and staging..."
+    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment both || checkFailure $? "update whitelist periphery"
+    echo "[info] Whitelist periphery update completed"
+    echo ""
 
-    # run sync sigs script
+    # Sync whitelist data from config files to the diamond contract on-chain
+    # This whitelists contracts and their function selectors in the WhitelistManagerFacet
     echo ""
-    diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-
-    # register Executor as authorized caller in ERC20Proxy
-    echo ""
-    updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+    diamondSyncWhitelist "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 8 completed"
   fi
 
-  # Stage 9: Run health check only
+  # Stage 9: Update ERC20Proxy
   if [[ $START_STAGE -le 9 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Run health check only"
-    bun script/deploy/healthCheck.ts --network "$NETWORK"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Update ERC20Proxy"
+
+    # Register Executor as authorized caller in ERC20Proxy
+    # This allows the Executor contract to transfer tokens on behalf of users
+    updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
+  fi
+
+  # Stage 10: Run health check only
+  if [[ $START_STAGE -le 10 ]]; then
+    echo ""
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Run health check only"
+    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
 
     # Pause and ask user if they want to continue with ownership transfer
     if [[ "$ENVIRONMENT" == "production" ]]; then
       echo ""
       echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
       echo "This should only be done if the health check shows only diamond ownership errors."
-      echo "Continue with stage 10 (ownership transfer)? (y/n)"
+      echo "Continue with stage 11 (ownership transfer)? (y/n)"
       read -r response
       if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        echo "Proceeding with stage 10..."
+        echo "Proceeding with stage 11..."
       else
-        echo "Skipping stage 10 - ownership transfer cancelled by user"
+        echo "Skipping stage 11 - ownership transfer cancelled by user"
         echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
         return
       fi
     fi
   fi
 
-  # Stage 10: Ownership transfer to timelock (production only)
-  if [[ $START_STAGE -le 10 ]]; then
+  # Stage 11: Ownership transfer to timelock (production only)
+  if [[ $START_STAGE -le 11 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Ownership transfer to timelock (production only)"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Ownership transfer to timelock (production only)"
 
-      # make sure SAFE_ADDRESS is available (if starting in stage 10 it's not available yet)
+      # make sure SAFE_ADDRESS is available (if starting in stage 11 it's not available yet)
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
         SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
       fi

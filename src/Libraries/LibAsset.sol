@@ -10,7 +10,7 @@ import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsN
 
 /// @title LibAsset
 /// @author LI.FI (https://li.fi)
-/// @custom:version 2.1.2
+/// @custom:version 2.1.3
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
@@ -61,7 +61,7 @@ library LibAsset {
     function transferNativeAsset(
         address payable recipient,
         uint256 amount
-    ) private {
+    ) internal {
         // make sure a meaningful receiver address was provided
         if (recipient == NULL_ADDRESS) revert InvalidReceiver();
 

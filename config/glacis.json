@@ -38,6 +38,9 @@
   "flare": {
     "airlift": "0x0905E21AEf470adEf9Cf9dCf7922431610c875b5"
   },
+  "flow": {
+    "airlift": "0x51729fd7638111E05Ca5f30435e26da53b08816a"
+  },
   "fraxtal": {
     "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
   },
@@ -65,6 +68,9 @@
   "mode": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
+  "monad": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
   "optimism": {
     "airlift": "0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663"
   },
@@ -89,10 +95,16 @@
   "sei": {
     "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
   },
+  "soneium": {
+    "airlift": "0x290D54179960984599F16F77DCDA81320301b158"
+  },
   "sonic": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
   "sophon": {
+    "airlift": "0x51729fd7638111E05Ca5f30435e26da53b08816a"
+  },
+  "stable": {
     "airlift": "0x51729fd7638111E05Ca5f30435e26da53b08816a"
   },
   "swellchain": {

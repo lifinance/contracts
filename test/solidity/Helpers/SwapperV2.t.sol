@@ -3,11 +3,13 @@ pragma solidity ^0.8.17;
 
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { LibAllowList, LibSwap, TestBase } from "../utils/TestBase.sol";
+import { LibSwap, TestBase } from "../utils/TestBase.sol";
 import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import { ContractCallNotAllowed } from "src/Errors/GenericErrors.sol";
 
 // Stub SwapperV2 Contract
-contract TestSwapperV2 is SwapperV2 {
+contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
     function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
         _depositAndSwap(
             "",
@@ -67,14 +69,6 @@ contract TestSwapperV2 is SwapperV2 {
             finalAsset.transfer(address(1337), finalBalance);
         }
     }
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract SwapperV2Test is TestBase {
@@ -90,18 +84,20 @@ contract SwapperV2Test is TestBase {
         functionSelectors[0] = TestSwapperV2.doSwaps.selector;
         functionSelectors[1] = TestSwapperV2.doSwapsWithLowSlippage.selector;
         functionSelectors[2] = TestSwapperV2.doSwapsWithReserve.selector;
-        functionSelectors[3] = TestSwapperV2.addDex.selector;
-        functionSelectors[4] = TestSwapperV2
-            .setFunctionApprovalBySignature
+        functionSelectors[3] = TestWhitelistManagerBase
+            .addAllowedContractSelector
+            .selector;
+        functionSelectors[4] = TestWhitelistManagerBase
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
-        swapper.addDex(address(amm));
-        swapper.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
-        swapper.setFunctionApprovalBySignature(
-            bytes4(amm.partialSwap.selector)
+        swapper.addAllowedContractSelector(address(amm), amm.swap.selector);
+        swapper.addAllowedContractSelector(
+            address(amm),
+            amm.partialSwap.selector
         );
     }
 
@@ -397,5 +393,101 @@ contract SwapperV2Test is TestBase {
         assertEq(token1.balanceOf(address(this)), 0);
         assertEq(token2.balanceOf(address(this)), 0);
         assertEq(token3.balanceOf(address(1337)), 8_200 ether);
+    }
+
+    /// @notice Test that reverts when callTo contract is not whitelisted
+    function testRevert_WhenCallToNotWhitelisted() public {
+        ERC20 token1 = new ERC20("Token 1", "T1", 18);
+        ERC20 token2 = new ERC20("Token 2", "T2", 18);
+
+        // Create a new AMM that is NOT whitelisted
+        TestAMM unwhitelistedAMM = new TestAMM();
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(unwhitelistedAMM), // NOT whitelisted
+            address(unwhitelistedAMM),
+            address(token1),
+            address(token2),
+            10_000 ether,
+            abi.encodeWithSelector(
+                amm.swap.selector,
+                token1,
+                10_000 ether,
+                token2,
+                10_100 ether
+            ),
+            true
+        );
+
+        token1.mint(address(this), 10_000 ether);
+        token1.approve(address(swapper), 10_000 ether);
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+        swapper.doSwaps(swapData);
+    }
+
+    /// @notice Test that reverts when selector is not whitelisted for the contract
+    function testRevert_WhenSelectorNotWhitelistedForContract() public {
+        ERC20 token1 = new ERC20("Token 1", "T1", 18);
+        ERC20 token2 = new ERC20("Token 2", "T2", 18);
+
+        // Use a different selector that is not whitelisted for the AMM
+        bytes4 unwhitelistedSelector = bytes4(0xdeadbeef);
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(amm), // whitelisted contract
+            address(amm),
+            address(token1),
+            address(token2),
+            10_000 ether,
+            abi.encodeWithSelector(
+                unwhitelistedSelector, // NOT whitelisted selector
+                token1,
+                10_000 ether,
+                token2,
+                10_100 ether
+            ),
+            true
+        );
+
+        token1.mint(address(this), 10_000 ether);
+        token1.approve(address(swapper), 10_000 ether);
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+        swapper.doSwaps(swapData);
+    }
+
+    /// @notice Test that reverts when approveTo != callTo and approveTo is not whitelisted with APPROVE_TO_ONLY_SELECTOR
+    function testRevert_WhenApproveToNotWhitelistedForNonNativeAsset() public {
+        ERC20 token1 = new ERC20("Token 1", "T1", 18);
+        ERC20 token2 = new ERC20("Token 2", "T2", 18);
+
+        // Create a separate token spender contract that is NOT whitelisted
+        address tokenSpender = address(0x5678);
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(amm), // whitelisted
+            tokenSpender, // approveTo != callTo, and NOT whitelisted with APPROVE_TO_ONLY_SELECTOR
+            address(token1), // non-native asset
+            address(token2),
+            10_000 ether,
+            abi.encodeWithSelector(
+                amm.swap.selector,
+                token1,
+                10_000 ether,
+                token2,
+                10_100 ether
+            ),
+            true
+        );
+
+        token1.mint(address(this), 10_000 ether);
+        token1.approve(address(swapper), 10_000 ether);
+
+        vm.expectRevert(ContractCallNotAllowed.selector);
+        swapper.doSwaps(swapData);
     }
 }

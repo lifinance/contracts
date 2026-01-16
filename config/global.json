@@ -1,53 +1,32 @@
 {
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
-  "feeCollectorOwner": "0xAB483D44705Af49a83553821A1F7aAd8BBc70576",
+  "feeCollectorOwner": "0xC06ebbefD94032B85424D51906e2A335EFAe264B",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
   "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
-  "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
-  "devWallet": "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62",
-  "approvedSigsForRefundWallet": [
+  "deployerWallet": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+  "deployerWalletTron": "TS8EymUNucdNwseZMcLZRzTLy7Yz768yeD",
+  "devWallet": "0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3",
+  "approvedSelectorsForRefundWallet": [
     {
-      "sig": "0x0d19e519",
+      "selector": "0x0d19e519",
       "name": "CBridgeFacet.triggerRefund"
     },
     {
-      "sig": "0xd9caed12",
+      "selector": "0xd9caed12",
       "name": "WithdrawFacet.withdraw"
     }
   ],
-  "approvedSigsForDeployerWallet": [
-    {
-      "sig": "0xfcd8e49e",
-      "name": "DexManagerFacet.batchAddDex"
-    },
-    {
-      "sig": "0x9afc19c7",
-      "name": "DexManagerFacet.batchRemoveDex"
-    },
-    {
-      "sig": "0x44e2b18c",
-      "name": "DexManagerFacet.batchSetFunctionApprovalBySignature"
-    }
-  ],
   "safeOwners": [
-    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+    "0xb137683965ADC470f140df1a1D05B0D25C14E269",
     "0x518ee3D0F8AC59deDAc278859A7B8bc13dA360Dc",
     "0xb4557653119Dd49F7433fef4aE270665Be2cbf4F",
-    "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb",
     "0xFF0cC7DdcE415293c5dE85b8737bC487eff176cF",
     "0xe5552E1a40cBcB95b4905d92907336C06681280c"
-  ],
-  "autoWhitelistPeripheryContracts": [
-    "FeeCollector",
-    "GasZipPeriphery",
-    "TokenWrapper",
-    "LiFiDEXAggregator"
   ],
   "coreFacets": [
     "AccessManagerFacet",
     "CalldataVerificationFacet",
-    "DexManagerFacet",
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
@@ -56,17 +35,95 @@
     "GenericSwapFacetV3",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
+    "WhitelistManagerFacet",
     "WithdrawFacet"
   ],
   "corePeriphery": [
     "ERC20Proxy",
     "Executor",
     "FeeCollector",
+    "FeeForwarder",
     "GasZipPeriphery",
     "LiFiDEXAggregator",
     "LiFiTimelockController",
     "Permit2Proxy",
     "TokenWrapper"
   ],
-  "blacklistedFunctionSelectors": ["0x23b872dd"]
+  "blacklistedFunctionSelectors": ["0x23b872dd"],
+  "whitelistPeripheryFunctions": {
+    "FeeCollector": [
+      {
+        "selector": "0xeedd56e1",
+        "signature": "collectTokenFees(address,uint256,uint256,address)"
+      },
+      {
+        "selector": "0xe0cbc5f2",
+        "signature": "collectNativeFees(uint256,uint256,address)"
+      }
+    ],
+    "FeeForwarder": [
+      {
+        "selector": "0x332d746b",
+        "signature": "forwardERC20Fees(address,(address,uint256)[])"
+      },
+      {
+        "selector": "0x0e8ae67f",
+        "signature": "forwardNativeFees((address,uint256)[])"
+      }
+    ],
+    "GasZipPeriphery": [
+      {
+        "selector": "0x8b71ae6c",
+        "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+      },
+      {
+        "selector": "0xc4af5a74",
+        "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+      }
+    ],
+    "TokenWrapper": [
+      {
+        "selector": "0xd0e30db0",
+        "signature": "deposit()"
+      },
+      {
+        "selector": "0x3ccfd60b",
+        "signature": "withdraw()"
+      }
+    ],
+    "LiFiDEXAggregator": [
+      {
+        "selector": "0x2646478b",
+        "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+      }
+    ],
+    "Patcher": [
+      {
+        "selector": "0xefae576b",
+        "signature": "executeWithDynamicPatches(address,bytes,address,uint256,bytes,uint256[],bool)"
+      },
+      {
+        "selector": "0x922c8daa",
+        "signature": "depositAndExecuteWithDynamicPatches(address,address,bytes,address,uint256,bytes,uint256[],bool)"
+      },
+      {
+        "selector": "0xb7c52777",
+        "signature": "depositAndExecuteWithMultiplePatches(address,address[],bytes[],address,uint256,bytes,uint256[][],bool)"
+      },
+      {
+        "selector": "0x4d914979",
+        "signature": "executeWithMultiplePatches(address[],bytes[],address,uint256,bytes,uint256[][],bool)"
+      }
+    ],
+    "LidoWrapper": [
+      {
+        "selector": "0x24dd6483",
+        "signature": "wrapStETHToWstETH(uint256)"
+      },
+      {
+        "selector": "0xa816ca92",
+        "signature": "unwrapWstETHToStETH(uint256)"
+      }
+    ]
+  }
 }

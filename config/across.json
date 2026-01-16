@@ -74,6 +74,14 @@
       "0x25788a1a171ec66da6502f9975a15b609ff54cf6"
     ]
   },
+  "monad": {
+    "chainId": 143,
+    "acrossSpokePool": "0xd2ecb3afe598b746F8123CaE365a598DA831A449",
+    "tokensToApprove": [
+      "0x754704bc059f8c67012fed69bc8a327a5aafb603",
+      "0xe7cd86e13ac4309349f30b3435a9d337750fc82d"
+    ]
+  },
   "lens": {
     "chainId": 232,
     "acrossSpokePool": "0xb234cA484866c811d0e6D3318866F583781ED045",

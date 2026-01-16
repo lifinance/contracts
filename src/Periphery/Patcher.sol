@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title Patcher
 /// @author LI.FI (https://li.fi)
@@ -12,8 +13,10 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// excess of what is needed for execution will remain in the contract and can be stolen by anyone.
 /// This includes: excess tokens when the target doesn't use all approved tokens, excess ETH when
 /// msg.value > value parameter, and any tokens/ETH from failed transactions.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract Patcher {
+    using SafeTransferLib for address;
+
     /// @notice Error when getting a dynamic value fails
     error FailedToGetDynamicValue();
 
@@ -145,7 +148,7 @@ contract Patcher {
         );
 
         // Reset approval to 0 after execution
-        IERC20(tokenAddress).approve(finalTarget, 0);
+        _resetApprove(tokenAddress, finalTarget);
 
         emit PatchExecuted(
             msg.sender,
@@ -200,7 +203,7 @@ contract Patcher {
         );
 
         // Reset approval to 0 after execution
-        IERC20(tokenAddress).approve(finalTarget, 0);
+        _resetApprove(tokenAddress, finalTarget);
 
         emit PatchExecuted(
             msg.sender,
@@ -253,6 +256,13 @@ contract Patcher {
     }
 
     /// Private Methods ///
+
+    /// @notice Helper function to reset the approval for a token
+    /// @param token The ERC20 token to reset the approval for
+    /// @param target The contract to reset the approval for
+    function _resetApprove(address token, address target) private {
+        token.safeApprove(target, 0);
+    }
 
     /// @notice Helper function to handle token deposit and approval
     /// @dev Approves the maximum amount for gas efficiency. The approval is reset to 0 after execution
