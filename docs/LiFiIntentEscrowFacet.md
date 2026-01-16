@@ -42,7 +42,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 /// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored. 
 /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
 /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
-/// @param nonce OrderId mixer. Used within the intent system to generate unqiue orderIds for each user. Should not be reused for `depositAndRefundAddress`
+/// @param nonce OrderId mixer. Used within the intent system to generate unique orderIds for each user. Should not be reused for `depositAndRefundAddress`
 /// @param expires If the proof for the fill does not arrive before this time, the claim expires
 /// @param fillDeadline The fill has to happen before this time
 /// @param inputOracle Address of the validation layer used on the input chain
@@ -55,7 +55,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 struct LiFiIntentEscrowData {
   // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
   bytes32 dstCallReceiver;
-    // Goes intoStandardOrder.outputs.recipient if .dstCallSwapData.length == 0
+    // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length == 0
   bytes32 recipient;
   /// BatchClaim
   address depositAndRefundAddress; // StandardOrder.user
