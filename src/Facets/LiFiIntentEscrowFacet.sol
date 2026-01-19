@@ -141,23 +141,24 @@ contract LiFiIntentEscrowFacet is
         ILiFi.BridgeData memory _bridgeData,
         LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
+        uint256 dstCallSwapDataLength = _lifiIntentData.dstCallSwapData.length;
         // Validate destination call flag matches actual behavior
-        if (
-            (_lifiIntentData.dstCallSwapData.length > 0) !=
-            _bridgeData.hasDestinationCall
-        ) {
+        if ((dstCallSwapDataLength > 0) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
         }
+        if (_lifiIntentData.depositAndRefundAddress == address(0))
+            revert InvalidReceiver();
+        if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
 
         // We wanna create a "canonical" recipient so we don't have to argue for which one (bridgeData/LIFIIntentData) to use.
         bytes32 recipient = _lifiIntentData.recipient;
         if (recipient == bytes32(0)) revert InvalidReceiver();
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             // In this case, _bridgeData.receiver is not useful.
-            emit BridgeToNonEVMChain(
+            emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
-                abi.encodePacked(recipient)
+                recipient
             );
         } else {
             // Check if the receiver is the same according to bridgeData and LIFIIntentData
@@ -166,11 +167,7 @@ contract LiFiIntentEscrowFacet is
                 revert InvalidReceiver();
             }
         }
-        if (_lifiIntentData.depositAndRefundAddress == address(0))
-            revert InvalidReceiver();
 
-        // Check outputAmount
-        if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
         address sendingAsset = _bridgeData.sendingAssetId;
         // Set approval
         uint256 amount = _bridgeData.minAmount;
@@ -181,17 +178,18 @@ contract LiFiIntentEscrowFacet is
         );
 
         bytes memory outputCall = hex"";
-        if (_lifiIntentData.dstCallSwapData.length != 0) {
+        if (dstCallSwapDataLength != 0) {
+            // If we have external calldata, we need to swap out our recipient to the remote caller. We won't be using the recipient anymore so this is without side effects.
+            recipient = _lifiIntentData.dstCallReceiver;
+            // Check that _lifiIntentData.dstCallReceiver != 0.
+            if (recipient == bytes32(0)) revert InvalidReceiver();
+
             // Add swap data to the output call.
             outputCall = abi.encode(
                 _bridgeData.transactionId,
                 _lifiIntentData.dstCallSwapData,
                 _lifiIntentData.recipient
             );
-            // If we have external calldata, we need to swap out our recipient to the remote caller. We won't be using the recipient anymore so this is without side effects.
-            recipient = _lifiIntentData.dstCallReceiver;
-            // Check that _lifiIntentData.dstCallReceiver != 0.
-            if (recipient == bytes32(0)) revert InvalidReceiver();
         }
 
         MandateOutput[] memory outputs = new MandateOutput[](1);
