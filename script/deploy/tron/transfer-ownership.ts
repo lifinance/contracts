@@ -202,12 +202,10 @@ async function transferOwnership(options: {
     }
 
     // Add delay before transaction
-    if (options.delaySeconds && options.delaySeconds > 0) {
-      await waitBetweenDeployments(
-        options.delaySeconds,
-        options.verbose ?? false
-      )
-    }
+    await waitBetweenDeployments(
+      options.delaySeconds ?? 0,
+      options.verbose ?? false
+    )
 
     try {
       consola.info(`   Calling transferOwnership(${newOwnerBase58})...`)
@@ -253,12 +251,10 @@ async function transferOwnership(options: {
         diamondAddress
       )
 
-      if (options.delaySeconds && options.delaySeconds > 0) {
-        await waitBetweenDeployments(
-          options.delaySeconds,
-          options.verbose ?? false
-        )
-      }
+      await waitBetweenDeployments(
+        options.delaySeconds ?? 0,
+        options.verbose ?? false
+      )
 
       try {
         consola.info('   Calling confirmOwnershipTransfer()...')

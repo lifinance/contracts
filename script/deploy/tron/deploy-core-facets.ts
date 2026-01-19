@@ -268,10 +268,7 @@ async function deployCoreFacetsImpl(options: {
       deploymentResults.push(result)
 
       // Add delay between deployments to avoid rate limiting
-      // Skip delay for the last facet (before Diamond deployment)
-      if (i < coreFacets.length - 1 && options.delaySeconds > 0) {
-        await waitBetweenDeployments(options.delaySeconds, options.verbose)
-      }
+      await waitBetweenDeployments(options.delaySeconds, options.verbose)
 
       if (result.status === 'success' && result.address)
         facetAddresses[facet] = {
@@ -291,10 +288,9 @@ async function deployCoreFacetsImpl(options: {
         cost: 0,
         status: 'failed',
       })
+
       // Add delay even after failures to avoid rate limiting
-      if (i < coreFacets.length - 1 && options.delaySeconds > 0) {
-        await waitBetweenDeployments(options.delaySeconds, options.verbose)
-      }
+      await waitBetweenDeployments(options.delaySeconds, options.verbose)
     }
   }
 
