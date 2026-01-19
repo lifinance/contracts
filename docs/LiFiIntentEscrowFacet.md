@@ -39,7 +39,7 @@ Destination swaps require configuring `.dstCallReceiver` to an instance of `Rece
 The methods listed above take a variable labeled `_lifiIntentData`. This data is specific to LIFIIntent and is represented as the following struct type:
 
 ```solidity
-/// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored. 
+/// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored.
 /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
 /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
 /// @param nonce OrderId mixer. Used within the intent system to generate unique orderIds for each user. Should not be reused for `depositAndRefundAddress`
@@ -50,12 +50,12 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 /// @param outputSettler Address of the output settlement contract containing the fill logic
 /// @param outputToken The desired destination token
 /// @param outputAmount The amount of the desired token
-/// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on receiverAddress. if empty no call is made
+/// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
 /// @param outputContext Context for the outputSettler to identify the order type
 struct LiFiIntentEscrowData {
   // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
   bytes32 dstCallReceiver;
-    // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length == 0
+  // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length == 0
   bytes32 recipient;
   /// BatchClaim
   address depositAndRefundAddress; // StandardOrder.user
