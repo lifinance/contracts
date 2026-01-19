@@ -742,7 +742,15 @@ function saveDiamondFacets() {
   # Remove brackets from FACETS string and split into array
   FACETS_ADJ="${4#\[}"
   FACETS_ADJ="${FACETS_ADJ%\]}"
-  IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  
+  # Handle different output formats: Tron uses space-separated, EVM uses comma-separated
+  if isTronNetwork "$NETWORK"; then
+    # Tron: space-separated format from troncast
+    IFS=' ' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  else
+    # EVM: comma-separated format from cast
+    IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  fi
 
   # Set up a temp directory to collect facet entries (avoid concurrent writes)
   local TEMP_DIR
@@ -3583,6 +3591,37 @@ function sendOrPropose() {
     return 1
   fi
 
+  # Check if Tron network
+  if [[ "$NETWORK" == "tron" || "$NETWORK" == "tronshasta" ]]; then
+    # Tron-specific handling
+    # Tron doesn't have a timelock controller, so we always send directly
+    local TRON_ENV
+    if [[ "$NETWORK" == "tron" ]]; then
+      TRON_ENV="mainnet"
+    else
+      TRON_ENV="testnet"
+    fi
+    
+    # Get private key
+    local PRIVATE_KEY
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+      return 1
+    }
+    
+    # Validate calldata format
+    if [[ ! "$CALLDATA" =~ ^0x ]]; then
+      error "sendOrPropose: Calldata must start with 0x"
+      return 1
+    fi
+    
+    # Call troncast send with raw calldata
+    # Note: signature parameter is optional when --calldata is provided, but we provide empty string to satisfy positional arg
+    bun troncast send "$TARGET" "" --calldata "$CALLDATA" --env "$TRON_ENV" --private-key "$PRIVATE_KEY" --confirm
+    return $?
+  fi
+
+  # EVM networks - existing logic
   # Validate calldata format
   if [[ ! "$CALLDATA" =~ ^0x ]]; then
     error "sendOrPropose: Calldata must start with 0x"
@@ -3616,7 +3655,11 @@ function sendOrPropose() {
 
     # Get private key
     local PRIVATE_KEY
+    echo "NETWORK: $NETWORK"
+    echo "ENVIRONMENT: $ENVIRONMENT"
     PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+    echo "PRIVATE_KEY: $PRIVATE_KEY"
+
       error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
       return 1
     }
@@ -3680,6 +3723,25 @@ function isActiveMainnet() {
     return 0 # true
   else
     return 1 # false
+  fi
+}
+
+function isTronNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+  if [[ "$NETWORK" == "tron" || "$NETWORK" == "tronshasta" ]]; then
+    return 0  # true
+  fi
+  return 1  # false
+}
+
+function getTronEnv() {
+  # read function arguments into variables
+  local NETWORK="$1"
+  if [[ "$NETWORK" == "tron" ]]; then
+    echo "mainnet"
+  elif [[ "$NETWORK" == "tronshasta" ]]; then
+    echo "testnet"
   fi
 }
 
@@ -4359,7 +4421,15 @@ function updateDiamondLogForNetwork() {
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
-    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+    local KNOWN_FACET_ADDRESSES
+    if isTronNetwork "$NETWORK"; then
+      # Tron: use troncast
+      local TRON_ENV=$(getTronEnv "$NETWORK")
+      KNOWN_FACET_ADDRESSES=$(bun troncast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --env "$TRON_ENV" 2>/dev/null)
+    else
+      # EVM: use cast
+      KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+    fi
 
     # check the return code the last call
     if [ $? -eq 0 ]; then

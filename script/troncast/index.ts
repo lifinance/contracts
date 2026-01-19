@@ -11,6 +11,7 @@ const main = defineCommand({
   subCommands: {
     call: () => import('./commands/call').then((m) => m.callCommand),
     send: () => import('./commands/send').then((m) => m.sendCommand),
+    code: () => import('./commands/code').then((m) => m.codeCommand),
   },
 })
 

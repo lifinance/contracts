@@ -41,6 +41,65 @@ function diamondSyncWhitelist {
     fi
   fi
 
+  # Function to convert comma-separated base58 addresses to hex addresses for calldata generation
+  # This is needed because cast calldata expects hex addresses, but Tron uses base58
+  function convertTronAddressesToHex {
+    local ADDRESSES_STR="$1"
+    local TRON_ENV="$2"
+    
+    # If empty, return empty
+    if [[ -z "$ADDRESSES_STR" ]]; then
+      echo ""
+      return
+    fi
+    
+    # Use bun to run a small TypeScript snippet that converts all addresses at once
+    # This is more efficient than converting one by one
+    local HEX_ADDRESSES
+    local CONVERSION_ERROR
+    HEX_ADDRESSES=$(bun -e "
+      const { TronWeb } = require('tronweb');
+      const env = '$TRON_ENV';
+      const rpcUrl = env === 'mainnet' ? 'https://api.trongrid.io' : 'https://api.shasta.trongrid.io'; // [pre-commit-checker: not a secret]
+      const tronWeb = new TronWeb({ fullHost: rpcUrl });
+      const addresses = '$ADDRESSES_STR'.split(',');
+      const hexAddresses = addresses.map(addr => {
+        const trimmed = addr.trim();
+        // Check if it's a Tron base58 address (starts with T and is 34 chars)
+        if (trimmed.match(/^T[a-zA-Z0-9]{33}$/)) {
+          try {
+            const hex = tronWeb.address.toHex(trimmed);
+            // Remove '41' prefix and add '0x' for EVM format
+            return '0x' + hex.replace(/^41/, '');
+          } catch (e) {
+            // If conversion fails, return empty string to signal error
+            return '';
+          }
+        }
+        // Already hex or invalid, return as-is
+        return trimmed;
+      });
+      // Filter out empty strings (failed conversions) and check if all succeeded
+      const validHexAddresses = hexAddresses.filter(addr => addr !== '');
+      if (validHexAddresses.length !== addresses.length) {
+        process.exit(1);
+      }
+      console.log(validHexAddresses.join(','));
+    " 2>&1)
+    local conversion_exit_code=$?
+    
+    # Check if conversion was successful
+    # Valid output should be comma-separated hex addresses (each starting with 0x)
+    # Check that it doesn't contain error messages and contains at least one valid hex address
+    if [[ $conversion_exit_code -eq 0 && -n "$HEX_ADDRESSES" && ! "$HEX_ADDRESSES" =~ Error && "$HEX_ADDRESSES" =~ 0x ]]; then
+      echo "$HEX_ADDRESSES"
+    else
+      # Conversion failed - return empty to signal error
+      echo ""
+      return 1
+    fi
+  }
+
   # Read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="${2:-production}"  # Default to production if not specified
@@ -82,12 +141,25 @@ function diamondSyncWhitelist {
   function isTokenContract {
     local ADDRESS=$1
     local RPC_URL=$2
+    local NETWORK=$3  # Add network parameter
     local RESULT
-    # Try to call decimals() function
-    if RESULT=$(cast call "$ADDRESS" "decimals() returns (uint8)" --rpc-url "$RPC_URL" 2>/dev/null); then
-      # Validate 0–255 strictly
-      if [[ "$RESULT" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
-        return 0
+    
+    if isTronNetwork "$NETWORK"; then
+      # For Tron, use troncast
+      local TRON_ENV=$(getTronEnv "$NETWORK")
+      if RESULT=$(bun troncast call "$ADDRESS" "decimals() returns (uint8)" --env "$TRON_ENV" 2>/dev/null); then
+        # troncast output is just the number, validate 0-255
+        if [[ "$RESULT" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
+          return 0
+        fi
+      fi
+    else
+      # EVM networks - existing logic
+      if RESULT=$(cast call "$ADDRESS" "decimals() returns (uint8)" --rpc-url "$RPC_URL" 2>/dev/null); then
+        # Validate 0–255 strictly
+        if [[ "$RESULT" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
+          return 0
+        fi
       fi
     fi
     return 1
@@ -102,7 +174,7 @@ function diamondSyncWhitelist {
     local TOKEN_CONTRACTS=()
 
     for ADDRESS in "${ADDRESSES[@]}"; do
-      if isTokenContract "$ADDRESS" "$RPC_URL"; then
+      if isTokenContract "$ADDRESS" "$RPC_URL" "$NETWORK"; then
         TOKEN_CONTRACTS+=("$ADDRESS")
       fi
     done
@@ -247,14 +319,27 @@ function diamondSyncWhitelist {
     # Function to get current whitelisted contract-selector pairs from the diamond
     function getCurrentWhitelistedPairs {
       local ATTEMPT=1
+      local IS_TRON=false
+      if isTronNetwork "$NETWORK"; then
+        IS_TRON=true
+      fi
 
       while [ $ATTEMPT -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; do
         echoSyncDebug "Attempt $ATTEMPT: Trying to get whitelisted pairs from diamond $DIAMOND_ADDRESS"
 
         # Try the new efficient function first
         echoSyncDebug "Calling getAllContractSelectorPairs() on diamond..."
-        local cast_output=$(cast call "$DIAMOND_ADDRESS" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --rpc-url "$RPC_URL" 2>&1)
-        local call_exit_code=$?
+        local cast_output
+        local call_exit_code
+        
+        if [[ "$IS_TRON" == "true" ]]; then
+          local TRON_ENV=$(getTronEnv "$NETWORK")
+          cast_output=$(bun troncast call "$DIAMOND_ADDRESS" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --env "$TRON_ENV" 2>&1)
+          call_exit_code=$?
+        else
+          cast_output=$(cast call "$DIAMOND_ADDRESS" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --rpc-url "$RPC_URL" 2>&1)
+          call_exit_code=$?
+        fi
 
         if [[ $call_exit_code -eq 0 && -n "$cast_output" ]]; then
           echoSyncDebug "Successfully got result from getAllContractSelectorPairs"
@@ -272,53 +357,169 @@ function diamondSyncWhitelist {
           fi
 
           echoSyncDebug "Parsing result from getAllContractSelectorPairs..."
+          echoSyncDebug "Raw cast_output (first 200 chars): ${cast_output:0:200}"
 
-          # Parse the cast output
-          # Cast returns two lines:
-          # Line 1: Array of addresses [0xAddr1, 0xAddr2, ...]
-          # Line 2: Array of selector arrays [[0xSel1, 0xSel2], [0xSel3], ...]
+          # Parse the output
+          # Cast returns two lines (comma-separated): [0xAddr1, 0xAddr2, ...] and [[0xSel1, 0xSel2], [0xSel3], ...]
+          # Troncast returns a single line with nested arrays: [[addresses...] [[selectors...]]]
+          # Also need to filter out command echo lines that start with '$'
 
-          # Extract the two lines
           local addresses_line
           local selectors_line
-          addresses_line=$(echo "$cast_output" | sed -n '1p')
-          selectors_line=$(echo "$cast_output" | sed -n '2p')
-
-          # Parse addresses line: [0xAddr1, 0xAddr2, ...] -> array
-          local -a contract_list
-          while IFS= read -r addr; do
-            # Trim whitespace and lowercase
-            addr=$(echo "$addr" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
-            if [[ -n "$addr" && "$addr" != "[" && "$addr" != "]" ]]; then
-              contract_list+=("$addr")
+          
+          if [[ "$IS_TRON" == "true" ]]; then
+            # Tron: Extract the line that starts with [[ (the actual result)
+            # Filter out lines starting with $ (command echo) or containing "bun run"
+            local result_line=$(echo "$cast_output" | grep '^\[\[' | head -n 1)
+            
+            if [[ -z "$result_line" ]]; then
+              echoSyncDebug "No result line found starting with [["
+              # Fallback: try to find any line with Tron addresses
+              result_line=$(echo "$cast_output" | grep -E '\[T[a-zA-Z0-9]{33}' | head -n 1)
             fi
-          done < <(echo "$addresses_line" | tr -d '[]' | tr ',' '\n')
+            
+            if [[ -n "$result_line" ]]; then
+              # Parse nested structure: [[addresses...] [[selectors...]]]
+              # Format: [[addr1 addr2 ...] [[sel1 sel2] [sel3] ...]]
+              # Example: [[TWEKQEE6... TCipFFZJk...] [[0xe0cbc5f2 0xeedd56e1] [0x0e8ae67f] ...]]
+              # Raw: [[TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2] [[0xe0cbc5f2 0xeedd56e1] [0x0e8ae67f 0x332d746b] [0x3ccfd60b 0xd0e30db0]]]
+              
+              # Remove outer brackets: [[...]] -> [...]
+              local inner=$(echo "$result_line" | sed 's/^\[\[//; s/\]\]$//')
+              # inner is now: [TWEKQEE6... TCipFFZJk... TBfUqkma...] [[0xe0cbc5f2 0xeedd56e1] [0x0e8ae67f 0x332d746b] [0x3ccfd60b 0xd0e30db0]]
+              
+              # Extract addresses: first [...] part (content only, no brackets)
+              # Use a more robust approach: find the first ] that's followed by space
+              # Split on '] ' and take the first part, then remove the leading [
+              local first_part=$(echo "$inner" | cut -d']' -f1)
+              addresses_line=$(echo "$first_part" | sed 's/^\[//')
+              
+              # Extract selectors: the [[...]] part (keep brackets for selector parsing)
+              # Everything after the first '] ' (including the space)
+              # Use awk to split on '] ' and get everything after the first occurrence
+              # Then add back the final ']' that was part of the closing brackets
+              selectors_line=$(echo "$inner" | awk -F'] ' '{for(i=2;i<=NF;i++){if(i>2)printf"] "; printf"%s",$i}}')
+              # Add the final closing bracket if it's missing (it should end with ]])
+              if [[ "$selectors_line" != *"]]" ]]; then
+                selectors_line="${selectors_line}]"
+              fi
+              
+              # Validate extraction
+              if [[ "$addresses_line" == *"["* ]] || [[ "$addresses_line" == *"]"* ]]; then
+                echoSyncDebug "WARNING: Addresses line contains brackets, extraction may be wrong"
+              fi
+              if [[ "$selectors_line" != *"["* ]]; then
+                echoSyncDebug "WARNING: Selectors line doesn't start with bracket, extraction may be wrong"
+              fi
+              
+              echoSyncDebug "Extracted addresses: $addresses_line"
+              echoSyncDebug "Extracted selectors: $selectors_line"
+            else
+              echoSyncDebug "ERROR: Could not extract result from troncast output"
+            fi
+          else
+            # EVM: Extract the two lines - filter out any lines that don't start with [
+            addresses_line=$(echo "$cast_output" | grep '^\[' | sed -n '1p')
+            selectors_line=$(echo "$cast_output" | grep '^\[' | sed -n '2p')
+          fi
+          
+          echoSyncDebug "Addresses line: $addresses_line"
+          echoSyncDebug "Selectors line: $selectors_line"
+
+          # Parse addresses line
+          local -a contract_list
+          local -a contract_list_original  # For Tron: store original case
+          if [[ "$IS_TRON" == "true" ]]; then
+            # Tron: space-separated, addresses are base58 (keep original case for operations)
+            # Tron Base58 addresses start with 'T' and are 34 characters
+            # addresses_line is already without brackets, just space-separated addresses
+            for addr in $addresses_line; do
+              # Trim whitespace
+              addr=$(echo "$addr" | xargs)
+              # Check if it's a valid Tron Base58 address (starts with T, 34 chars)
+              if [[ -n "$addr" && "$addr" =~ ^T[a-zA-Z0-9]{33}$ ]]; then
+                # Store both original and normalized versions
+                contract_list_original+=("$addr")
+                contract_list+=("$(echo "$addr" | tr '[:upper:]' '[:lower:]')")
+              fi
+            done
+          else
+            # EVM: comma-separated, addresses are hex
+            while IFS= read -r addr; do
+              addr=$(echo "$addr" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+              if [[ -n "$addr" && "$addr" != "[" && "$addr" != "]" ]]; then
+                contract_list+=("$addr")
+              fi
+            done < <(echo "$addresses_line" | tr -d '[]' | tr ',' '\n')
+          fi
 
           echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Parsed ${#contract_list[@]} contract addresses"
 
-          # Parse selectors line: [[0xSel1, 0xSel2], [0xSel3], ...]
+          # Parse selectors line: [[0xSel1, 0xSel2], [0xSel3], ...] or [[0xSel1 0xSel2] [0xSel3] ...]
           # It's a 2D array. We need to maintain the correspondence: contract_list[i] has selectors from group i
           local selectors_grouped
-          selectors_grouped=$(echo "$selectors_line" | sed 's/^\[\[//; s/\]\]$//; s/\], \[/|/g')
+          if [[ "$IS_TRON" == "true" ]]; then
+            # Tron: space-separated groups
+            # Remove outer [[ and ]], then replace ] [ with |, and also remove any trailing ] from the last group
+            selectors_grouped=$(echo "$selectors_line" | sed 's/^\[\[//; s/\]\]$//; s/\] \[/|/g; s/\]$//')
+          else
+            # EVM: comma-separated groups
+            selectors_grouped=$(echo "$selectors_line" | sed 's/^\[\[//; s/\]\]$//; s/\], \[/|/g')
+          fi
 
           # Split into groups by |
           local -a selector_groups
           IFS='|' read -ra selector_groups <<< "$selectors_grouped"
 
+          # Validate that we have matching counts
+          if [[ ${#contract_list[@]} -ne ${#selector_groups[@]} ]]; then
+            echoSyncDebug "WARNING: Mismatch - ${#contract_list[@]} contracts but ${#selector_groups[@]} selector groups"
+            echoSyncDebug "Contracts: ${contract_list[*]}"
+            echoSyncDebug "Selector groups: ${selector_groups[*]}"
+          fi
+
           # Now expand: for each contract, create one entry per selector
           for i in "${!contract_list[@]}"; do
-            local contract="${contract_list[$i]}"
+            local contract_normalized="${contract_list[$i]}"
+            local contract_original
+            if [[ "$IS_TRON" == "true" && ${#contract_list_original[@]} -gt $i ]]; then
+              contract_original="${contract_list_original[$i]}"
+            else
+              contract_original="$contract_normalized"
+            fi
+            
+            # Skip if no selector group for this contract index
+            if [[ $i -ge ${#selector_groups[@]} ]]; then
+              echoSyncDebug "WARNING: No selector group for contract index $i"
+              continue
+            fi
+            
             local selector_group="${selector_groups[$i]}"
 
-            # Split the selector group by comma
-            IFS=',' read -ra selectors <<< "$selector_group"
+            # Split the selector group
+            if [[ "$IS_TRON" == "true" ]]; then
+              # Tron: space-separated
+              IFS=' ' read -ra selectors <<< "$selector_group"
+            else
+              # EVM: comma-separated
+              IFS=',' read -ra selectors <<< "$selector_group"
+            fi
 
             for selector in "${selectors[@]}"; do
               # Trim whitespace and lowercase
               selector=$(echo "$selector" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
-              if [[ -n "$selector" ]]; then
-                # Add to flat arrays
-                pairs+=("$contract|$selector")
+              # Validate selector: must be 0x followed by 8 hex characters
+              if [[ -n "$selector" && "$selector" =~ ^0x[0-9a-f]{8}$ ]]; then
+                # For Tron: store as "normalized_address|selector" but we'll use original for operations
+                # Store in format that allows us to recover original: "normalized|original|selector"
+                if [[ "$IS_TRON" == "true" ]]; then
+                  pairs+=("$contract_normalized|$contract_original|$selector")
+                else
+                  pairs+=("$contract_normalized|$selector")
+                fi
+              elif [[ -n "$selector" ]]; then
+                # Log invalid selector for debugging
+                echoSyncDebug "Skipping invalid selector: $selector"
               fi
             done
           done
@@ -337,23 +538,55 @@ function diamondSyncWhitelist {
 
         # Fallback to the original approach if the new function fails
         echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Attempting fallback to getWhitelistedAddresses()"
-        local addresses=$(cast call "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])" --rpc-url "$RPC_URL" 2>&1)
-        local addresses_exit_code=$?
+        local addresses
+        local addresses_exit_code
+        
+        if [[ "$IS_TRON" == "true" ]]; then
+          local TRON_ENV=$(getTronEnv "$NETWORK")
+          addresses=$(bun troncast call "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])" --env "$TRON_ENV" 2>&1)
+          addresses_exit_code=$?
+        else
+          addresses=$(cast call "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])" --rpc-url "$RPC_URL" 2>&1)
+          addresses_exit_code=$?
+        fi
 
         if [[ $addresses_exit_code -eq 0 && -n "$addresses" && "$addresses" != "[]" ]]; then
           # Successfully got addresses from getWhitelistedAddresses
           local pairs=()
-          local address_list=$(echo "${addresses:1:${#addresses}-2}" | tr ',' ' ')
+          local address_list
+          if [[ "$IS_TRON" == "true" ]]; then
+            # Tron: space-separated (troncast output format)
+            address_list=$(echo "${addresses:1:${#addresses}-2}" | tr -d '[]' | tr ' ' ' ')
+          else
+            # EVM: comma-separated
+            address_list=$(echo "${addresses:1:${#addresses}-2}" | tr ',' ' ')
+          fi
           
           echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Fallback processing $(echo "$address_list" | wc -w) addresses"
           local addr_count=0
           for addr in $address_list; do
             ((addr_count++))
-            local selectors=$(cast call "$DIAMOND_ADDRESS" "getWhitelistedSelectorsForContract(address) returns (bytes4[])" "$addr" --rpc-url "$RPC_URL" 2>&1)
-            local selectors_exit_code=$?
+            local selectors
+            local selectors_exit_code
+            
+            if [[ "$IS_TRON" == "true" ]]; then
+              local TRON_ENV=$(getTronEnv "$NETWORK")
+              selectors=$(bun troncast call "$DIAMOND_ADDRESS" "getWhitelistedSelectorsForContract(address) returns (bytes4[])" "$addr" --env "$TRON_ENV" 2>&1)
+              selectors_exit_code=$?
+            else
+              selectors=$(cast call "$DIAMOND_ADDRESS" "getWhitelistedSelectorsForContract(address) returns (bytes4[])" "$addr" --rpc-url "$RPC_URL" 2>&1)
+              selectors_exit_code=$?
+            fi
 
             if [[ $selectors_exit_code -eq 0 && -n "$selectors" && "$selectors" != "[]" ]]; then
-              local selector_list=$(echo "${selectors:1:${#selectors}-2}" | tr ',' ' ')
+              local selector_list
+              if [[ "$IS_TRON" == "true" ]]; then
+                # Tron: space-separated (troncast output format)
+                selector_list=$(echo "${selectors:1:${#selectors}-2}" | tr -d '[]' | tr ' ' ' ')
+              else
+                # EVM: comma-separated
+                selector_list=$(echo "${selectors:1:${#selectors}-2}" | tr ',' ' ')
+              fi
               for selector in $selector_list; do
                 pairs+=("$(echo "$addr" | tr '[:upper:]' '[:lower:]')|$selector")
               done
@@ -414,10 +647,20 @@ function diamondSyncWhitelist {
     REMOVED_PAIRS=()
 
     # Normalize CURRENT_PAIRS to lowercase for consistent comparison
-    # getCurrentWhitelistedPairs already returns lowercase, but we normalize again to be safe
+    # For Tron: pairs are in format "normalized|original|selector", extract normalized part
+    # For EVM: pairs are in format "address|selector"
     NORMALIZED_CURRENT_PAIRS=()
     for CURRENT_PAIR in "${CURRENT_PAIRS[@]}"; do
-      NORMALIZED_CURRENT_PAIRS+=("$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')")
+      if isTronNetwork "$NETWORK"; then
+        # Tron format: "normalized|original|selector" - extract normalized address and selector
+        local normalized_part="${CURRENT_PAIR%%|*}"  # First part (normalized address)
+        local rest="${CURRENT_PAIR#*|}"  # "original|selector"
+        local selector_part="${rest#*|}"  # Selector part
+        NORMALIZED_CURRENT_PAIRS+=("$normalized_part|$selector_part")
+      else
+        # EVM format: "address|selector"
+        NORMALIZED_CURRENT_PAIRS+=("$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')")
+      fi
     done
 
     # First, normalize REQUIRED_PAIRS to lowercase addresses for comparison
@@ -440,8 +683,19 @@ function diamondSyncWhitelist {
       fi
 
       # Check if address has code
-      CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS_LOWER")
-      CODE=$(cast code "$CHECKSUMMED" --rpc-url "$RPC_URL")
+      if isTronNetwork "$NETWORK"; then
+        # Tron: Use troncast code to check for contract bytecode
+        # Use original address (base58 format, not lowercased)
+        # Tron addresses start with 'T' and should not be lowercased
+        CHECKSUMMED="$ADDRESS"
+        local TRON_ENV=$(getTronEnv "$NETWORK")
+        CODE=$(bun troncast code "$CHECKSUMMED" --env "$TRON_ENV" 2>/dev/null || echo "0x")
+      else
+        # EVM: Use cast to check for code
+        CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS_LOWER")
+        CODE=$(cast code "$CHECKSUMMED" --rpc-url "$RPC_URL")
+      fi
+      
       if [[ "$CODE" == "0x" ]]; then
         # Determine the correct whitelist file to check for contract name
         local WHITELIST_FILE_CHECK
@@ -535,9 +789,26 @@ function diamondSyncWhitelist {
     # Now determine pairs that need to be removed (in CURRENT_PAIRS but not in REQUIRED_PAIRS)
     if [[ ${#CURRENT_PAIRS[@]} -gt 0 ]]; then
       echoSyncDebug "Comparing ${#CURRENT_PAIRS[@]} current pairs against ${#NORMALIZED_REQUIRED_PAIRS[@]} required pairs"
+      
+      # Debug: Show sample of current and required pairs for Tron networks
+      if isTronNetwork "$NETWORK" && [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
+        echoSyncDebug "Sample CURRENT_PAIRS (first 3): ${CURRENT_PAIRS[*]:0:3}"
+        echoSyncDebug "Sample NORMALIZED_REQUIRED_PAIRS (first 3): ${NORMALIZED_REQUIRED_PAIRS[*]:0:3}"
+      fi
+      
       for CURRENT_PAIR in "${CURRENT_PAIRS[@]}"; do
         # Normalize current pair to lowercase for comparison
-        CURRENT_PAIR_LOWER=$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')
+        # For Tron: pairs are "normalized|original|selector", extract normalized part
+        # For EVM: pairs are "address|selector"
+        if isTronNetwork "$NETWORK"; then
+          # Extract normalized address and selector (skip original address in middle)
+          local norm_addr="${CURRENT_PAIR%%|*}"
+          local rest="${CURRENT_PAIR#*|}"
+          local selector="${rest#*|}"
+          CURRENT_PAIR_LOWER="$norm_addr|$selector"
+        else
+          CURRENT_PAIR_LOWER=$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')
+        fi
         
         # Check if this pair is in the required pairs
         FOUND_IN_REQUIRED=false
@@ -550,10 +821,27 @@ function diamondSyncWhitelist {
         
         # If not found in required pairs, mark for removal
         if [[ "$FOUND_IN_REQUIRED" == "false" ]]; then
-          # Convert back to checksummed address format for removal
-          ADDRESS_PART="${CURRENT_PAIR_LOWER%%|*}"
-          SELECTOR_PART="${CURRENT_PAIR_LOWER#*|}"
-          CHECKSUMMED_ADDR=$(cast --to-checksum-address "$ADDRESS_PART")
+          if isTronNetwork "$NETWORK"; then
+            # Tron format: "normalized|original|selector"
+            # Extract original address (middle part) and selector (last part)
+            local normalized_part="${CURRENT_PAIR%%|*}"
+            local rest="${CURRENT_PAIR#*|}"  # "original|selector"
+            local original_addr="${rest%%|*}"  # Original address
+            local selector_part="${rest#*|}"  # Selector
+            CHECKSUMMED_ADDR="$original_addr"
+            SELECTOR_PART="$selector_part"
+          else
+            # EVM: Use lowercased address and convert to checksummed
+            ADDRESS_PART="${CURRENT_PAIR_LOWER%%|*}"
+            SELECTOR_PART="${CURRENT_PAIR_LOWER#*|}"
+            CHECKSUMMED_ADDR=$(cast --to-checksum-address "$ADDRESS_PART")
+          fi
+          
+          # Debug output for Tron networks
+          if isTronNetwork "$NETWORK" && [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
+            echoSyncDebug "Pair marked for removal: $CHECKSUMMED_ADDR|$SELECTOR_PART (normalized: $CURRENT_PAIR_LOWER)"
+          fi
+          
           REMOVED_PAIRS+=("$CHECKSUMMED_ADDR|$SELECTOR_PART")
         fi
       done
@@ -617,52 +905,161 @@ function diamondSyncWhitelist {
       done
       echoSyncStep "✔️  [$NETWORK] Processed $REMOVE_COUNT pairs for removal"
 
-      # Optimization: Create calldata ONCE before the retry loop
-      local REMOVE_CALLDATA
-      REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" false 2>&1)
-      local calldata_exit_code=$?
+      # For Tron networks, use troncast send directly (staging) or sendOrPropose (production)
+      # For EVM networks, generate calldata and use sendOrPropose
+      if isTronNetwork "$NETWORK" && [[ "$ENVIRONMENT" != "production" ]]; then
+        # Tron staging: use troncast send directly
+        local TRON_ENV=$(getTronEnv "$NETWORK")
+        echoSyncStep "🚀 [$NETWORK] Starting removal execution using troncast..."
+        local REMOVE_ATTEMPTS=1
+        local REMOVE_SUCCESS=false
+        
+        while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+          printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
 
-      if [[ $calldata_exit_code -ne 0 ]]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for removal"
-        return
-      fi
+          if [ $REMOVE_ATTEMPTS -gt 1 ]; then
+            echoSyncDebug "Waiting 3 seconds before retry..."
+            sleep 3
+          fi
 
-      echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
-      local REMOVE_ATTEMPTS=1
-      local REMOVE_SUCCESS=false
-      
-      while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
+          # Format arrays for troncast (JSON array format with quoted strings)
+          # Convert comma-separated to JSON array: "addr1,addr2" -> ["addr1","addr2"]
+          local TRON_CONTRACTS_JSON="["
+          local TRON_SELECTORS_JSON="["
+          local first_contract=true
+          local first_selector=true
+          IFS=',' read -ra CONTRACTS <<< "$REMOVE_CONTRACTS_ARRAY"
+          IFS=',' read -ra SELECTORS <<< "$REMOVE_SELECTORS_ARRAY"
+          for contract in "${CONTRACTS[@]}"; do
+            if [[ "$first_contract" == "true" ]]; then
+              first_contract=false
+            else
+              TRON_CONTRACTS_JSON+=","
+            fi
+            TRON_CONTRACTS_JSON+="\"$contract\""
+          done
+          TRON_CONTRACTS_JSON+="]"
+          for selector in "${SELECTORS[@]}"; do
+            if [[ "$first_selector" == "true" ]]; then
+              first_selector=false
+            else
+              TRON_SELECTORS_JSON+=","
+            fi
+            TRON_SELECTORS_JSON+="\"$selector\""
+          done
+          TRON_SELECTORS_JSON+="]"
+          
+          local TRON_CONTRACTS_PARAM="$TRON_CONTRACTS_JSON"
+          local TRON_SELECTORS_PARAM="$TRON_SELECTORS_JSON"
+          
+          # Debug: log the parameters being sent
+          echoSyncDebug "Tron staging removal - Contracts: $TRON_CONTRACTS_PARAM"
+          echoSyncDebug "Tron staging removal - Selectors: $TRON_SELECTORS_PARAM"
+          echoSyncDebug "Tron staging removal - Full params: $TRON_CONTRACTS_PARAM,$TRON_SELECTORS_PARAM,false"
+          
+          # Execute troncast send
+          local REMOVE_OUTPUT
+          REMOVE_OUTPUT=$(bun troncast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$TRON_CONTRACTS_PARAM,$TRON_SELECTORS_PARAM,false" --env "$TRON_ENV" --confirm 2>&1)
+          local REMOVE_EXIT_CODE=$?
 
-        if [ $REMOVE_ATTEMPTS -gt 1 ]; then
-          echoSyncDebug "Waiting 3 seconds before retry..."
-          sleep 3
-        fi
+          # Print output in verbose mode
+          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
 
-        # Use sendOrPropose function to handle production/staging logic
-        local TIMELOCK_FLAG="false"
-        if [[ "$ENVIRONMENT" == "production" ]]; then
-          TIMELOCK_FLAG="true"
+          if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
+            REMOVE_SUCCESS=true
+            break
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal failed (attempt $REMOVE_ATTEMPTS)"
+          fi
+
+          REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
+        done
+      else
+        # EVM networks or Tron production: use calldata and sendOrPropose
+        # For Tron production, convert base58 addresses to hex before generating calldata
+        
+        # Validate that we have arrays to process
+        if [[ -z "$REMOVE_CONTRACTS_ARRAY" || -z "$REMOVE_SELECTORS_ARRAY" ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Cannot construct calldata: empty arrays"
+          echoSyncDebug "REMOVE_CONTRACTS_ARRAY: '$REMOVE_CONTRACTS_ARRAY'"
+          echoSyncDebug "REMOVE_SELECTORS_ARRAY: '$REMOVE_SELECTORS_ARRAY'"
+          return
         fi
         
-        # Execute the helper
-        local REMOVE_OUTPUT
-        REMOVE_OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$REMOVE_CALLDATA" "$TIMELOCK_FLAG" 2>&1)
-        local REMOVE_EXIT_CODE=$?
+        local CONTRACTS_FOR_CALLDATA="$REMOVE_CONTRACTS_ARRAY"
+        if isTronNetwork "$NETWORK"; then
+          local TRON_ENV=$(getTronEnv "$NETWORK")
+          if ! CONTRACTS_FOR_CALLDATA=$(convertTronAddressesToHex "$REMOVE_CONTRACTS_ARRAY" "$TRON_ENV"); then
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex"
+            echoSyncDebug "Original addresses: '$REMOVE_CONTRACTS_ARRAY'"
+            return
+          fi
+          
+          # Validate conversion result is not empty
+          if [[ -z "$CONTRACTS_FOR_CALLDATA" ]]; then
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Address conversion returned empty result"
+            echoSyncDebug "Original addresses: '$REMOVE_CONTRACTS_ARRAY'"
+            return
+          fi
+        fi
+        
+        # Optimization: Create calldata ONCE before the retry loop
+        # Quote the arrays properly to prevent shell expansion issues
+        local REMOVE_CALLDATA
+        REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_FOR_CALLDATA]" "[$REMOVE_SELECTORS_ARRAY]" false 2>&1)
+        local calldata_exit_code=$?
 
-        # Print output in verbose mode
-        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
-
-        if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
-          REMOVE_SUCCESS=true
-          break
-        else
-          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal failed (attempt $REMOVE_ATTEMPTS)"
+        if [[ $calldata_exit_code -ne 0 ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for removal"
+          echoSyncDebug "cast calldata error output: $REMOVE_CALLDATA"
+          echoSyncDebug "CONTRACTS_FOR_CALLDATA: '$CONTRACTS_FOR_CALLDATA'"
+          echoSyncDebug "REMOVE_SELECTORS_ARRAY: '$REMOVE_SELECTORS_ARRAY'"
+          return
         fi
 
-        REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
-      done
+        echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
+        local REMOVE_ATTEMPTS=1
+        local REMOVE_SUCCESS=false
+        
+        while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+          printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
+
+          if [ $REMOVE_ATTEMPTS -gt 1 ]; then
+            echoSyncDebug "Waiting 3 seconds before retry..."
+            sleep 3
+          fi
+
+          # Use sendOrPropose function to handle production/staging logic
+          # For Tron networks, always use false (no timelock controller)
+          # For other networks, use timelock in production
+          local TIMELOCK_FLAG="false"
+          if [[ "$ENVIRONMENT" == "production" && "$NETWORK" != "tron" && "$NETWORK" != "tronshasta" ]]; then
+            TIMELOCK_FLAG="true"
+          fi
+          
+          # Debug: log the calldata being sent
+          echoSyncDebug "Calldata for removal: $REMOVE_CALLDATA"
+          
+          # Execute the helper
+          local REMOVE_OUTPUT
+          REMOVE_OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$REMOVE_CALLDATA" "$TIMELOCK_FLAG" 2>&1)
+          local REMOVE_EXIT_CODE=$?
+
+          # Print output in verbose mode
+          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
+
+          if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
+            REMOVE_SUCCESS=true
+            break
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal failed (attempt $REMOVE_ATTEMPTS)"
+          fi
+
+          REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
+        done
+      fi
 
       if [[ "$REMOVE_SUCCESS" == "false" ]]; then
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not remove ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
@@ -749,52 +1146,162 @@ function diamondSyncWhitelist {
           BATCH_SELECTORS_ARRAY+="${ALL_SELECTORS[$j]}"
         done
 
-        # Optimization: Create calldata ONCE before the retry loop
-        local BATCH_CALLDATA
-        BATCH_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS_ARRAY]" "[$BATCH_SELECTORS_ARRAY]" true 2>&1)
-        local calldata_exit_code=$?
+        # For Tron networks, use troncast send directly (staging) or sendOrPropose (production)
+        # For EVM networks, generate calldata and use sendOrPropose
+        if isTronNetwork "$NETWORK" && [[ "$ENVIRONMENT" != "production" ]]; then
+          # Tron staging: use troncast send directly
+          local TRON_ENV=$(getTronEnv "$NETWORK")
+          echoSyncStep "📤 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES: Processing $BATCH_COUNT pairs using troncast..."
 
-        if [[ $calldata_exit_code -ne 0 ]]; then
-            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for batch $BATCH_NUM"
+          local ATTEMPTS=1
+          local BATCH_TX_SUCCESS=false
+          
+          while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+            # Wait before retries to allow base fee to stabilize (except first attempt)
+            if [ $ATTEMPTS -gt 1 ]; then
+              echoSyncDebug "Waiting 3 seconds before retry..."
+              sleep 3
+            fi
+
+            # Format arrays for troncast (JSON array format with quoted strings)
+            # Convert comma-separated to JSON array: "addr1,addr2" -> ["addr1","addr2"]
+            local TRON_CONTRACTS_JSON="["
+            local TRON_SELECTORS_JSON="["
+            local first_contract=true
+            local first_selector=true
+            IFS=',' read -ra CONTRACTS <<< "$BATCH_CONTRACTS_ARRAY"
+            IFS=',' read -ra SELECTORS <<< "$BATCH_SELECTORS_ARRAY"
+            for contract in "${CONTRACTS[@]}"; do
+              if [[ "$first_contract" == "true" ]]; then
+                first_contract=false
+              else
+                TRON_CONTRACTS_JSON+=","
+              fi
+              TRON_CONTRACTS_JSON+="\"$contract\""
+            done
+            TRON_CONTRACTS_JSON+="]"
+            for selector in "${SELECTORS[@]}"; do
+              if [[ "$first_selector" == "true" ]]; then
+                first_selector=false
+              else
+                TRON_SELECTORS_JSON+=","
+              fi
+              TRON_SELECTORS_JSON+="\"$selector\""
+            done
+            TRON_SELECTORS_JSON+="]"
+            
+            local TRON_CONTRACTS_PARAM="$TRON_CONTRACTS_JSON"
+            local TRON_SELECTORS_PARAM="$TRON_SELECTORS_JSON"
+            
+            # Debug: log the parameters being sent
+            echoSyncDebug "Tron staging batch addition - Contracts: $TRON_CONTRACTS_PARAM"
+            echoSyncDebug "Tron staging batch addition - Selectors: $TRON_SELECTORS_PARAM"
+            echoSyncDebug "Tron staging batch addition - Full params: $TRON_CONTRACTS_PARAM,$TRON_SELECTORS_PARAM,true"
+            
+            # Execute troncast send
+            local OUTPUT
+            OUTPUT=$(bun troncast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$TRON_CONTRACTS_PARAM,$TRON_SELECTORS_PARAM,true" --env "$TRON_ENV" --confirm 2>&1)
+            local EXIT_CODE=$?
+
+            if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
+
+            if [[ $EXIT_CODE -eq 0 ]]; then
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
+              BATCH_TX_SUCCESS=true
+              break
+            else
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES failed (attempt $ATTEMPTS)"
+            fi
+            
+            ATTEMPTS=$((ATTEMPTS + 1))
+          done
+        else
+          # EVM networks or Tron production: use calldata and sendOrPropose
+          # For Tron production, convert base58 addresses to hex before generating calldata
+          
+          # Validate that we have arrays to process
+          if [[ -z "$BATCH_CONTRACTS_ARRAY" || -z "$BATCH_SELECTORS_ARRAY" ]]; then
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Cannot construct calldata for batch $BATCH_NUM: empty arrays"
+            echoSyncDebug "BATCH_CONTRACTS_ARRAY: '$BATCH_CONTRACTS_ARRAY'"
+            echoSyncDebug "BATCH_SELECTORS_ARRAY: '$BATCH_SELECTORS_ARRAY'"
             BATCH_SUCCESS=false
             continue
+          fi
+          
+          local CONTRACTS_FOR_CALLDATA="$BATCH_CONTRACTS_ARRAY"
+          if isTronNetwork "$NETWORK"; then
+            local TRON_ENV=$(getTronEnv "$NETWORK")
+            if ! CONTRACTS_FOR_CALLDATA=$(convertTronAddressesToHex "$BATCH_CONTRACTS_ARRAY" "$TRON_ENV"); then
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex for batch $BATCH_NUM"
+              echoSyncDebug "Original addresses: '$BATCH_CONTRACTS_ARRAY'"
+              BATCH_SUCCESS=false
+              continue
+            fi
+            
+            # Validate conversion result is not empty
+            if [[ -z "$CONTRACTS_FOR_CALLDATA" ]]; then
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Address conversion returned empty result for batch $BATCH_NUM"
+              echoSyncDebug "Original addresses: '$BATCH_CONTRACTS_ARRAY'"
+              BATCH_SUCCESS=false
+              continue
+            fi
+          fi
+          
+          # Optimization: Create calldata ONCE before the retry loop
+          local BATCH_CALLDATA
+          BATCH_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_FOR_CALLDATA]" "[$BATCH_SELECTORS_ARRAY]" true 2>&1)
+          local calldata_exit_code=$?
+
+          if [[ $calldata_exit_code -ne 0 ]]; then
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata for batch $BATCH_NUM"
+              echoSyncDebug "cast calldata error output: $BATCH_CALLDATA"
+              echoSyncDebug "CONTRACTS_FOR_CALLDATA: '$CONTRACTS_FOR_CALLDATA'"
+              echoSyncDebug "BATCH_SELECTORS_ARRAY: '$BATCH_SELECTORS_ARRAY'"
+              BATCH_SUCCESS=false
+              continue
+          fi
+
+          echoSyncStep "📤 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES: Processing $BATCH_COUNT pairs..."
+
+          local ATTEMPTS=1
+          local BATCH_TX_SUCCESS=false
+          
+          while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+            # Wait before retries to allow base fee to stabilize (except first attempt)
+            if [ $ATTEMPTS -gt 1 ]; then
+              echoSyncDebug "Waiting 3 seconds before retry..."
+              sleep 3
+            fi
+
+            # Use sendOrPropose function to handle production/staging logic
+            # For Tron networks, always use false (no timelock controller)
+            # For other networks, use timelock in production
+            local TIMELOCK_FLAG="false"
+            if [[ "$ENVIRONMENT" == "production" && "$NETWORK" != "tron" && "$NETWORK" != "tronshasta" ]]; then
+              TIMELOCK_FLAG="true"
+            fi
+            
+            # Debug: log the calldata being sent
+            echoSyncDebug "Calldata for batch addition: $BATCH_CALLDATA"
+            
+            # Execute the helper
+            local OUTPUT
+            OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$BATCH_CALLDATA" "$TIMELOCK_FLAG" 2>&1)
+            local EXIT_CODE=$?
+
+            if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
+
+            if [[ $EXIT_CODE -eq 0 ]]; then
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
+              BATCH_TX_SUCCESS=true
+              break
+            else
+              printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES failed (attempt $ATTEMPTS)"
+            fi
+            
+            ATTEMPTS=$((ATTEMPTS + 1))
+          done
         fi
-
-        echoSyncStep "📤 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES: Processing $BATCH_COUNT pairs..."
-
-        local ATTEMPTS=1
-        local BATCH_TX_SUCCESS=false
-        
-        while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-          # Wait before retries to allow base fee to stabilize (except first attempt)
-          if [ $ATTEMPTS -gt 1 ]; then
-            echoSyncDebug "Waiting 3 seconds before retry..."
-            sleep 3
-          fi
-
-          # Use sendOrPropose function to handle production/staging logic
-          local TIMELOCK_FLAG="false"
-          if [[ "$ENVIRONMENT" == "production" ]]; then
-            TIMELOCK_FLAG="true"
-          fi
-          
-          # Execute the helper
-          local OUTPUT
-          OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$BATCH_CALLDATA" "$TIMELOCK_FLAG" 2>&1)
-          local EXIT_CODE=$?
-
-          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
-
-          if [[ $EXIT_CODE -eq 0 ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
-            BATCH_TX_SUCCESS=true
-            break
-          else
-            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES failed (attempt $ATTEMPTS)"
-          fi
-          
-          ATTEMPTS=$((ATTEMPTS + 1))
-        done
 
         if [[ "$BATCH_TX_SUCCESS" == "false" ]]; then
           printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES failed after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
