@@ -145,7 +145,7 @@ async function deployCoreFacetsImpl(options: {
     process.exit(1)
   }
 
-  // Initialize deployer with API key in headers if provided (from getTronRPCConfig)
+  // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
     privateKey,
