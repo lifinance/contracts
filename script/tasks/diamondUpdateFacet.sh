@@ -144,19 +144,11 @@ diamondUpdateFacet() {
           "true")
       fi
       local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      parseExecuteCommandResult "$RESULT"
       
       # Abort on non-zero return code before parsing JSON data
-      if [[ "$RETURN_CODE" -ne 0 ]]; then
-        error "forge script failed for $CONTRACT_NAME on network $NETWORK (exit code: $RETURN_CODE)"
-        if [[ -n "$STDERR_CONTENT" ]]; then
-          error "stderr: $STDERR_CONTENT"
-        fi
-        if [[ -n "$RAW_RETURN_DATA" ]]; then
-          echoDebug "stdout: $RAW_RETURN_DATA"
-        fi
+      if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
+        "forge script failed for $CONTRACT_NAME on network $NETWORK" "continue"; then
         attempts=$((attempts + 1))
         sleep 1
         continue
@@ -278,19 +270,11 @@ diamondUpdateFacet() {
           "true")
       fi
       local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      parseExecuteCommandResult "$RESULT"
       
       # Abort on non-zero return code before parsing JSON data
-      if [[ "$RETURN_CODE" -ne 0 ]]; then
-        error "forge script failed for $CONTRACT_NAME on network $NETWORK (exit code: $RETURN_CODE)"
-        if [[ -n "$STDERR_CONTENT" ]]; then
-          error "stderr: $STDERR_CONTENT"
-        fi
-        if [[ -n "$RAW_RETURN_DATA" ]]; then
-          echoDebug "stdout: $RAW_RETURN_DATA"
-        fi
+      if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
+        "forge script failed for $CONTRACT_NAME on network $NETWORK" "return"; then
         return 1
       fi
     fi

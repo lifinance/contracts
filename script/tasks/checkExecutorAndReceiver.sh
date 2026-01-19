@@ -61,9 +61,7 @@ checkExecutorAndReceiver() {
       "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK --json --skip-simulation --legacy --tc DeployScript" \
       "true")
     local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-    RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-    STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-    RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+    parseExecuteCommandResult "$RESULT"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then

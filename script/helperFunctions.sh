@@ -4333,6 +4333,75 @@ function executeCommandWithLogs() {
   
   return $RETURN_CODE
 }
+
+# Function: parseExecuteCommandResult
+# Description: Parses JSON result from executeCommandWithLogs into variables
+# Arguments:
+#   $1 - RESULT: JSON result from executeCommandWithLogs
+#   $2 - RAW_RETURN_DATA_VAR: Variable name to store stdout (default: "RAW_RETURN_DATA")
+#   $3 - STDERR_CONTENT_VAR: Variable name to store stderr (default: "STDERR_CONTENT")
+#   $4 - RETURN_CODE_VAR: Variable name to store return code (default: "RETURN_CODE")
+# Returns:
+#   Sets variables by name with parsed values
+# Example:
+#   parseExecuteCommandResult "$RESULT" "MY_STDOUT" "MY_STDERR" "MY_RC"
+#   echo "$MY_STDOUT"
+function parseExecuteCommandResult() {
+  local RESULT="$1"
+  local RAW_RETURN_DATA_VAR="${2:-RAW_RETURN_DATA}"
+  local STDERR_CONTENT_VAR="${3:-STDERR_CONTENT}"
+  local RETURN_CODE_VAR="${4:-RETURN_CODE}"
+  
+  eval "$RAW_RETURN_DATA_VAR=\$(echo \"\$RESULT\" | jq -r '.stdout')"
+  eval "$STDERR_CONTENT_VAR=\$(echo \"\$RESULT\" | jq -r '.stderr')"
+  eval "$RETURN_CODE_VAR=\$(echo \"\$RESULT\" | jq -r '.returnCode')"
+}
+
+# Function: checkCommandResult
+# Description: Checks RETURN_CODE and displays error if non-zero, following DRY principle
+# Arguments:
+#   $1 - RETURN_CODE: The return code to check
+#   $2 - STDERR_CONTENT: stderr content to display on error
+#   $3 - RAW_RETURN_DATA: stdout content to display on error (optional, for debug)
+#   $4 - ERROR_MESSAGE: Custom error message (should include context like script name, network)
+#   $5 - ON_ERROR_ACTION: Action to take on error: "return" (default), "continue", or "exit"
+# Returns:
+#   Returns 0 if RETURN_CODE is 0, 1 otherwise
+#   Executes ON_ERROR_ACTION if RETURN_CODE is non-zero
+# Example:
+#   checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
+#     "forge script failed for $SCRIPT on network $NETWORK" "continue"
+function checkCommandResult() {
+  local RETURN_CODE="$1"
+  local STDERR_CONTENT="$2"
+  local RAW_RETURN_DATA="${3:-}"
+  local ERROR_MESSAGE="$4"
+  local ON_ERROR_ACTION="${5:-return}"
+  
+  if [[ "$RETURN_CODE" -ne 0 ]]; then
+    error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
+    if [[ -n "$STDERR_CONTENT" ]]; then
+      error "stderr: $STDERR_CONTENT"
+    fi
+    if [[ -n "$RAW_RETURN_DATA" ]]; then
+      echoDebug "stdout: $RAW_RETURN_DATA"
+    fi
+    
+    case "$ON_ERROR_ACTION" in
+      "continue")
+        return 1  # Caller should handle continue
+        ;;
+      "exit")
+        exit 1
+        ;;
+      "return"|*)
+        return 1
+        ;;
+    esac
+  fi
+  
+  return 0
+}
 # <<<<<< helpers for executing commands with stdout/stderr capture
 
 function deployCreate3FactoryToAnvil() {
@@ -4342,19 +4411,11 @@ function deployCreate3FactoryToAnvil() {
     "PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url \"$ETH_NODE_URI_LOCALANVIL\" --broadcast" \
     "false")
   local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-  RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-  STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-  RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
-
+  parseExecuteCommandResult "$RESULT"
+  
   # Abort on non-zero return code before parsing address
-  if [[ "$RETURN_CODE" -ne 0 ]]; then
-    error "forge script failed for CREATE3Factory deployment to anvil (exit code: $RETURN_CODE)"
-    if [[ -n "$STDERR_CONTENT" ]]; then
-      error "stderr: $STDERR_CONTENT"
-    fi
-    if [[ -n "$RAW_RETURN_DATA" ]]; then
-      echoDebug "stdout: $RAW_RETURN_DATA"
-    fi
+  if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
+    "forge script failed for CREATE3Factory deployment to anvil" "return"; then
     return 1
   fi
 

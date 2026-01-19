@@ -55,21 +55,13 @@ deployAndStoreCREATE3Factory() {
     "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast $SKIP_SIMULATION_FLAG --slow --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
     "true")
   local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-  RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-  STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-  RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+  parseExecuteCommandResult "$RESULT"
   
   unset PRIVATE_KEY
 
   # Abort on non-zero return code before parsing deployment data
-  if [[ $RETURN_CODE -ne 0 ]]; then
-    error "❌ Deployment of CREATE3Factory failed on network $NETWORK (exit code: $RETURN_CODE)"
-    if [[ -n "$STDERR_CONTENT" ]]; then
-      error "stderr: $STDERR_CONTENT"
-    fi
-    if [[ -n "$RAW_RETURN_DATA" ]]; then
-      echoDebug "stdout: $RAW_RETURN_DATA"
-    fi
+  if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
+    "❌ Deployment of CREATE3Factory failed on network $NETWORK" "return"; then
     return 1
   fi
 

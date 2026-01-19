@@ -270,9 +270,7 @@ deploySingleContract() {
         "true")
     fi
     local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-    RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-    STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-    RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+    parseExecuteCommandResult "$RESULT"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
@@ -311,9 +309,8 @@ deploySingleContract() {
     elif [ $RETURN_CODE -eq 0 ]; then
       # extract deployed-to address from return data
       ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
-      EXTRACT_CODE=$?
       
-      if [[ $EXTRACT_CODE -ne 0 ]]; then
+      if [[ $? -ne 0 ]]; then
         warning "❌ Could not extract deployed address from raw return data (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
         attempts=$((attempts + 1))
         sleep 1
