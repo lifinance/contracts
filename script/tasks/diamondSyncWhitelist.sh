@@ -45,7 +45,6 @@ function diamondSyncWhitelist {
   # This is needed because cast calldata expects hex addresses, but Tron uses base58
   function convertTronAddressesToHex {
     local ADDRESSES_STR="$1"
-    local TRON_ENV="$2"
     
     # If empty, return empty
     if [[ -z "$ADDRESSES_STR" ]]; then
@@ -53,39 +52,9 @@ function diamondSyncWhitelist {
       return
     fi
     
-    # Use bun to run a small TypeScript snippet that converts all addresses at once
-    # This is more efficient than converting one by one
+    # Use troncast to convert addresses
     local HEX_ADDRESSES
-    local CONVERSION_ERROR
-    HEX_ADDRESSES=$(bun -e "
-      const { TronWeb } = require('tronweb');
-      const env = '$TRON_ENV';
-      const rpcUrl = env === 'mainnet' ? 'https://api.trongrid.io' : 'https://api.shasta.trongrid.io'; // [pre-commit-checker: not a secret]
-      const tronWeb = new TronWeb({ fullHost: rpcUrl });
-      const addresses = '$ADDRESSES_STR'.split(',');
-      const hexAddresses = addresses.map(addr => {
-        const trimmed = addr.trim();
-        // Check if it's a Tron base58 address (starts with T and is 34 chars)
-        if (trimmed.match(/^T[a-zA-Z0-9]{33}$/)) {
-          try {
-            const hex = tronWeb.address.toHex(trimmed);
-            // Remove '41' prefix and add '0x' for EVM format
-            return '0x' + hex.replace(/^41/, '');
-          } catch (e) {
-            // If conversion fails, return empty string to signal error
-            return '';
-          }
-        }
-        // Already hex or invalid, return as-is
-        return trimmed;
-      });
-      // Filter out empty strings (failed conversions) and check if all succeeded
-      const validHexAddresses = hexAddresses.filter(addr => addr !== '');
-      if (validHexAddresses.length !== addresses.length) {
-        process.exit(1);
-      }
-      console.log(validHexAddresses.join(','));
-    " 2>&1)
+    HEX_ADDRESSES=$(bun run script/troncast/index.ts address to-hex "$ADDRESSES_STR" 2>&1)
     local conversion_exit_code=$?
     
     # Check if conversion was successful

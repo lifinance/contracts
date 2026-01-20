@@ -3571,7 +3571,7 @@ function getPrivateKey() {
 # Send or propose transaction
 # This function handles:
 # - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
-# - Staging: Sends directly using PRIVATE_KEY via cast send --data
+# - Staging: Sends directly using PRIVATE_KEY via cast send with raw calldata
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
 #   network: Network name (e.g., "mainnet")
 #   environment: "production" or "staging"
@@ -3603,7 +3603,6 @@ function sendOrPropose() {
     fi
     
     # Get private key
-    local PRIVATE_KEY
     PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
       error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
       return 1
@@ -3654,20 +3653,15 @@ function sendOrPropose() {
     }
 
     # Get private key
-    local PRIVATE_KEY
-    echo "NETWORK: $NETWORK"
-    echo "ENVIRONMENT: $ENVIRONMENT"
     PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
-    echo "PRIVATE_KEY: $PRIVATE_KEY"
-
       error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
       return 1
     }
 
-    # Send transaction using cast send with --data flag for raw calldata
+    # Send transaction using cast send with raw calldata
     # cast send will handle signing, gas estimation, and receipt waiting
-    cast send "$TARGET" \
-      --data "$CALLDATA" \
+    # For raw calldata, pass it as the function signature (first arg after target)
+    cast send "$TARGET" "$CALLDATA" \
       --rpc-url "$RPC_URL" \
       --private-key "$PRIVATE_KEY" \
       --legacy \
