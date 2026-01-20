@@ -233,6 +233,114 @@ async function getTargetName(
   return ''
 }
 
+type PeripheryDeploymentCheckResult =
+  | {
+      ok: true
+      peripheryName: string
+      providedAddress: Address
+      expectedAddress: Address
+    }
+  | {
+      ok: false
+      peripheryName: string
+      providedAddress: Address
+      expectedAddress?: Address
+      reason: string
+    }
+
+async function checkPeripheryAddressMatchesDeployments(
+  network: string,
+  peripheryName: string,
+  peripheryAddress: string
+): Promise<PeripheryDeploymentCheckResult> {
+  let providedAddress: Address
+  try {
+    providedAddress = getAddress(peripheryAddress as Address)
+  } catch {
+    return {
+      ok: false,
+      peripheryName,
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      providedAddress: peripheryAddress as Address,
+      reason: `Invalid periphery address provided for '${peripheryName}': ${String(
+        peripheryAddress
+      )}`,
+    }
+  }
+  const networkKey = network.toLowerCase() as SupportedChain
+
+  let deploymentsUnknown: unknown
+  try {
+    deploymentsUnknown = await getDeployments(
+      networkKey,
+      EnvironmentEnum.production
+    )
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return {
+      ok: false,
+      peripheryName,
+      providedAddress,
+      reason: `Could not load production deployments for '${networkKey}': ${msg}`,
+    }
+  }
+
+  // Be resilient to either JSON import shape:
+  // - direct object (tsx/tsconfig resolveJsonModule)
+  // - module with .default (Node JSON modules)
+  const deployments =
+    isRecord(deploymentsUnknown) && isRecord(deploymentsUnknown.default)
+      ? deploymentsUnknown.default
+      : deploymentsUnknown
+
+  if (!isRecord(deployments))
+    return {
+      ok: false,
+      peripheryName,
+      providedAddress,
+      reason: `Invalid deployments file format for '${networkKey}'`,
+    }
+
+  const expectedRaw = deployments[peripheryName]
+  if (typeof expectedRaw !== 'string' || !expectedRaw)
+    return {
+      ok: false,
+      peripheryName,
+      providedAddress,
+      reason: `No deployment entry found for '${peripheryName}' in 'deployments/${networkKey}.json'`,
+    }
+
+  let expectedAddress: Address
+  try {
+    expectedAddress = getAddress(expectedRaw as Address)
+  } catch {
+    return {
+      ok: false,
+      peripheryName,
+      providedAddress,
+      reason: `Invalid address for '${peripheryName}' in 'deployments/${networkKey}.json': ${String(
+        expectedRaw
+      )}`,
+    }
+  }
+
+  if (expectedAddress.toLowerCase() !== providedAddress.toLowerCase())
+    return {
+      ok: false,
+      peripheryName,
+      providedAddress,
+      expectedAddress,
+      reason: `Address mismatch for '${peripheryName}' on '${networkKey}': provided ${providedAddress}, expected ${expectedAddress}`,
+    }
+
+  return {
+    ok: true,
+    peripheryName,
+    providedAddress,
+    expectedAddress,
+  }
+}
+
 // Global arrays to record execution failures and timeouts
 const globalFailedExecutions: Array<{
   chain: string
@@ -260,7 +368,7 @@ async function decodeNestedTimelockCall(
   decoded: { functionName?: string; args?: unknown[] },
   chainId: number,
   network: string
-) {
+): Promise<string | undefined> {
   if (decoded.functionName === 'schedule') {
     consola.info('Timelock Schedule Details:')
     consola.info('-'.repeat(80))
@@ -271,7 +379,7 @@ async function decodeNestedTimelockCall(
       decoded.args.length < 6
     ) {
       consola.warn('Invalid decoded args for timelock schedule')
-      return
+      return undefined
     }
 
     const [target, value, data, predecessor, salt, delay] = decoded.args
@@ -326,6 +434,33 @@ async function decodeNestedTimelockCall(
                 data: data as Hex,
               })
 
+              // Safety check: If nested call is registerPeripheryContract(name,address), ensure it matches deployments/<network>.json
+              let peripheryArg1Suffix = ''
+              if (
+                nestedDecodedData.functionName ===
+                  'registerPeripheryContract' &&
+                nestedDecodedData.args &&
+                nestedDecodedData.args.length >= 2
+              ) {
+                const peripheryName = String(nestedDecodedData.args[0] ?? '')
+                const peripheryAddress = String(nestedDecodedData.args[1] ?? '')
+
+                const check = await checkPeripheryAddressMatchesDeployments(
+                  network,
+                  peripheryName,
+                  peripheryAddress
+                )
+
+                if (check.ok) {
+                  peripheryArg1Suffix = ` \u001b[32m( ✅ Periphery address matches deployments log ${network.toLowerCase()}.json)\u001b[0m`
+                } else {
+                  consola.error(
+                    `❌ SAFETY CHECK FAILED: ${check.reason}\nRefusing to sign/execute this transaction.`
+                  )
+                  return check.reason
+                }
+              }
+
               if (nestedDecodedData.args && nestedDecodedData.args.length > 0) {
                 if (
                   nestedDecodedData.functionName ===
@@ -346,7 +481,13 @@ async function decodeNestedTimelockCall(
                         displayValue = JSON.stringify(arg)
 
                       consola.info(
-                        `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
+                        `  [${index}]: \u001b[33m${displayValue}\u001b[0m${
+                          index === 1 &&
+                          nestedDecodedData.functionName ===
+                            'registerPeripheryContract'
+                            ? peripheryArg1Suffix
+                            : ''
+                        }`
                       )
                     }
                   )
@@ -375,6 +516,8 @@ async function decodeNestedTimelockCall(
         consola.info(`Raw nested data: ${data}`)
       }
   }
+
+  return undefined
 }
 
 /**
@@ -697,6 +840,7 @@ const processTxs = async (
     let abi
     let abiInterface: Abi
     let decoded
+    let safetyBlocker: string | undefined
 
     try {
       if (tx.safeTx.data) {
@@ -726,7 +870,7 @@ const processTxs = async (
       if (decoded && decoded.functionName === 'diamondCut')
         await decodeDiamondCut(decoded, chain.id)
       else if (decoded && decoded.functionName === 'schedule') {
-        await decodeNestedTimelockCall(
+        safetyBlocker = await decodeNestedTimelockCall(
           {
             functionName: decoded.functionName,
             args: decoded.args ? [...decoded.args] : undefined,
@@ -740,20 +884,29 @@ const processTxs = async (
           consola.info('Function Name:', decoded.functionName)
 
           // If this is a registerPeripheryContract call, show an explorer link for the periphery address.
+          let peripheryArg1Suffix = ''
           if (
             decoded.functionName === 'registerPeripheryContract' &&
             decoded.args &&
             decoded.args.length >= 2
           ) {
-            const peripheryAddress = decoded.args[1] as string
-            let peripheryLine = `Periphery Address: \u001b[34m${peripheryAddress}\u001b[0m`
-            const explorerUrl = buildExplorerContractPageUrl(
+            const peripheryName = String(decoded.args[0] ?? '')
+            const peripheryAddress = String(decoded.args[1] ?? '')
+
+            const check = await checkPeripheryAddressMatchesDeployments(
               network,
+              peripheryName,
               peripheryAddress
             )
-            if (explorerUrl)
-              peripheryLine += ` \u001b[36m${explorerUrl}\u001b[0m`
-            consola.info(peripheryLine)
+
+            if (check.ok) {
+              peripheryArg1Suffix = ` \u001b[32m( ✅ Periphery address matches deployments log ${network.toLowerCase()}.json))\u001b[0m`
+            } else {
+              consola.error(
+                `❌ SAFETY CHECK FAILED: ${check.reason}\nRefusing to sign/execute this transaction.`
+              )
+              safetyBlocker = check.reason
+            }
           }
 
           if (decoded.args && decoded.args.length > 0) {
@@ -768,7 +921,14 @@ const processTxs = async (
                 else if (typeof arg === 'object' && arg !== null)
                   displayValue = JSON.stringify(arg)
 
-                consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
+                consola.info(
+                  `  [${index}]: \u001b[33m${displayValue}\u001b[0m${
+                    index === 1 &&
+                    decoded.functionName === 'registerPeripheryContract'
+                      ? peripheryArg1Suffix
+                      : ''
+                  }`
+                )
               })
             }
           } else consola.info('No arguments or failed to decode arguments')
@@ -804,11 +964,16 @@ const processTxs = async (
       ? storedResponses[tx.safeTx.data.data]
       : undefined
 
+    if (safetyBlocker)
+      consola.error(
+        `BLOCKED: ${safetyBlocker}\nOnly 'Do Nothing' is allowed for this transaction.`
+      )
+
     // Determine available actions based on signature status
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
-      if (!tx.hasSignedAlready) {
+      if (!safetyBlocker && !tx.hasSignedAlready) {
         options.push('Sign')
 
         // Check if signing with current user + deployer (if needed) would meet threshold
@@ -830,7 +995,7 @@ const processTxs = async (
         }))
     } else {
       const options = ['Do Nothing']
-      if (!tx.hasSignedAlready) {
+      if (!safetyBlocker && !tx.hasSignedAlready) {
         options.push('Sign')
         if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
           options.push('Sign & Execute')
@@ -846,7 +1011,10 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
-      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
+      if (
+        !safetyBlocker &&
+        hasEnoughSignatures(tx.safeTransaction, tx.threshold)
+      )
         options.push('Execute')
 
       action =

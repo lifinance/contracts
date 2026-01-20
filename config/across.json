@@ -132,6 +132,11 @@
       "0xba9986d2381edf1da03b0b9c1f8b00dc4aacc369"
     ]
   },
+  "megaeth": {
+    "chainId": 4326,
+    "acrossSpokePool": "0x3Db06DA8F0a24A525f314eeC954fC5c6a973d40E",
+    "tokensToApprove": []
+  },
   "base": {
     "chainId": 8453,
     "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
