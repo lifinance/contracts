@@ -55,13 +55,10 @@ checkExecutorAndReceiver() {
     echo ""
     echo "[info] now check Executor and Receiver on network: $NETWORK"
 
-    # Execute forge script with stdout/stderr capture and JSON extraction
-    local RESULT
-    RESULT=$(executeCommandWithLogs \
+    # Execute, parse, and check return code
+    executeAndParse \
       "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK --json --skip-simulation --legacy --tc DeployScript" \
-      "true")
-    local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-    parseExecuteCommandResult "$RESULT"
+      "true"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then

@@ -42,17 +42,12 @@ deployUpgradesToSAFE() {
       PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
       echo "Calculating facet cuts for $script..."
       
-      # Execute forge script with stdout/stderr capture and JSON extraction
-      local RESULT
-      RESULT=$(executeCommandWithLogs \
+      # Execute, parse, and check return code
+      if ! executeAndParse \
         "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" -f $NETWORK --json --skip-simulation --legacy" \
-        "true")
-      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-      parseExecuteCommandResult "$RESULT"
-      
-      # Abort on non-zero return code before parsing cut data
-      if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
-        "forge script failed for $script on network $NETWORK" "continue"; then
+        "true" \
+        "forge script failed for $script on network $NETWORK" \
+        "continue"; then
         continue
       fi
       

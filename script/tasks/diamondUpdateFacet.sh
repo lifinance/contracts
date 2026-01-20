@@ -130,25 +130,21 @@ diamondUpdateFacet() {
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
 
-      # Execute forge script with stdout/stderr capture and JSON extraction
-      local RESULT
+      # Execute, parse, and check return code
+      local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        RESULT=$(executeCommandWithLogs \
-          "FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-          "true")
+        COMMAND="FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        RESULT=$(executeCommandWithLogs \
-          "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-          "true")
+        COMMAND="NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       fi
-      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-      parseExecuteCommandResult "$RESULT"
       
-      # Abort on non-zero return code before parsing JSON data
-      if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
-        "forge script failed for $CONTRACT_NAME on network $NETWORK" "continue"; then
+      if ! executeAndParse \
+        "$COMMAND" \
+        "true" \
+        "forge script failed for $CONTRACT_NAME on network $NETWORK" \
+        "continue"; then
         attempts=$((attempts + 1))
         sleep 1
         continue
@@ -258,23 +254,19 @@ diamondUpdateFacet() {
       # STAGING (or new network deployment): just deploy normally without further checks
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
-      # Execute forge script with stdout/stderr capture and JSON extraction
-      local RESULT
+      # Execute, parse, and check return code
+      local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
-        RESULT=$(executeCommandWithLogs \
-          "FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")" \
-          "true")
+        COMMAND="FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")"
       else
-        RESULT=$(executeCommandWithLogs \
-          "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG" \
-          "true")
+        COMMAND="NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG"
       fi
-      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-      parseExecuteCommandResult "$RESULT"
       
-      # Abort on non-zero return code before parsing JSON data
-      if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
-        "forge script failed for $CONTRACT_NAME on network $NETWORK" "return"; then
+      if ! executeAndParse \
+        "$COMMAND" \
+        "true" \
+        "forge script failed for $CONTRACT_NAME on network $NETWORK" \
+        "return"; then
         return 1
       fi
     fi

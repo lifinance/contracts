@@ -79,29 +79,19 @@ updateFacetConfig() {
       # Add skip simulation flag based on environment variable
       SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
       
-      # Execute forge script with stdout/stderr capture and JSON extraction
-      local RESULT
-      RESULT=$(executeCommandWithLogs \
+      # Execute, parse, and check return code
+      if ! executeAndParse \
         "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-        "true")
-      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-      parseExecuteCommandResult "$RESULT"
-      
-      # Abort on non-zero return code before proceeding
-      if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
-        "forge script failed for $SCRIPT on network $NETWORK" "continue"; then
+        "true" \
+        "forge script failed for $SCRIPT on network $NETWORK" \
+        "continue"; then
         ATTEMPTS=$(($ATTEMPTS + 1))
         sleep 1
         continue
       fi
       
-      # exit the loop if the operation was successful
-      if [ "$RETURN_CODE" -eq 0 ]; then
-        break
-      fi
-
-      ATTEMPTS=$(($ATTEMPTS + 1)) # increment attempts
-      sleep 1                    # wait for 1 second before trying the operation again
+      # If we reach here, execution was successful
+      break
     done
 
     # check if call was executed successfully or used all attempts

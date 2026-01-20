@@ -256,21 +256,18 @@ deploySingleContract() {
       MEGAETH_FLAGS=""
     fi
 
-    # Execute forge script with stdout/stderr capture and JSON extraction
-    local RESULT
+    # Execute, parse, and check return code
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RESULT=$(executeCommandWithLogs \
+      executeAndParse \
         "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
-        "true")
+        "true"
     else
       # try to execute call
-      RESULT=$(executeCommandWithLogs \
+      executeAndParse \
         "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $MEGAETH_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-        "true")
+        "true"
     fi
-    local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-    parseExecuteCommandResult "$RESULT"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then

@@ -4259,8 +4259,8 @@ function extractJsonFromForgeOutput() {
   return 1
 }
 
-# Function: executeCommandWithLogs
-# Description: Executes a command with separate stdout/stderr capture using temporary files.
+# Function: executeAndCapture
+# Description: Executes a command and captures stdout, stderr, and exit code using temporary files.
 #              Handles cleanup, debug output, and optional JSON extraction from forge output.
 #              Returns a JSON object with stdout, stderr, and return code (consistent with repo patterns).
 # Arguments:
@@ -4270,11 +4270,11 @@ function extractJsonFromForgeOutput() {
 #   Outputs JSON to stdout with structure: {"stdout": "...", "stderr": "...", "returnCode": 0}
 #   Returns the command's exit code
 # Example:
-#   RESULT=$(executeCommandWithLogs 'forge script ...' "true")
+#   RESULT=$(executeAndCapture 'forge script ...' "true")
 #   RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
 #   STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
 #   RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
-function executeCommandWithLogs() {
+function executeAndCapture() {
   local COMMAND="$1"
   local EXTRACT_JSON="${2:-false}"
   
@@ -4335,87 +4335,124 @@ function executeCommandWithLogs() {
 }
 
 # Function: parseExecuteCommandResult
-# Description: Parses JSON result from executeCommandWithLogs into variables
+# Description: Parses JSON result from executeAndCapture using jq, sets variables, and optionally checks return code.
+#              Uses jq to merge all variables into a single object for consistency.
+#              Sets global variables that always contain the output of the last execution.
 # Arguments:
-#   $1 - RESULT: JSON result from executeCommandWithLogs
-#   $2 - RAW_RETURN_DATA_VAR: Variable name to store stdout (default: "RAW_RETURN_DATA")
-#   $3 - STDERR_CONTENT_VAR: Variable name to store stderr (default: "STDERR_CONTENT")
-#   $4 - RETURN_CODE_VAR: Variable name to store return code (default: "RETURN_CODE")
+#   $1 - RESULT: JSON result from executeAndCapture
+#   $2 - ERROR_MESSAGE: Optional error message for return code check (if provided, will check return code)
+#   $3 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
 # Returns:
-#   Sets variables by name with parsed values
+#   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
+#   Returns 0 if RETURN_CODE is 0 (or if no error check requested), 1 otherwise
 # Example:
-#   parseExecuteCommandResult "$RESULT" "MY_STDOUT" "MY_STDERR" "MY_RC"
-#   echo "$MY_STDOUT"
+#   # Parse only (no error check)
+#   parseExecuteCommandResult "$RESULT"
+#   echo "$RAW_RETURN_DATA"
+#   
+#   # Parse and check return code
+#   if ! parseExecuteCommandResult "$RESULT" "forge script failed for $SCRIPT on network $NETWORK" "continue" >/dev/null; then
+#     continue
+#   fi
 function parseExecuteCommandResult() {
   local RESULT="$1"
-  local RAW_RETURN_DATA_VAR="${2:-RAW_RETURN_DATA}"
-  local STDERR_CONTENT_VAR="${3:-STDERR_CONTENT}"
-  local RETURN_CODE_VAR="${4:-RETURN_CODE}"
+  local ERROR_MESSAGE="${2:-}"
+  local ON_ERROR_ACTION="${3:-return}"
   
-  eval "$RAW_RETURN_DATA_VAR=\$(echo \"\$RESULT\" | jq -r '.stdout')"
-  eval "$STDERR_CONTENT_VAR=\$(echo \"\$RESULT\" | jq -r '.stderr')"
-  eval "$RETURN_CODE_VAR=\$(echo \"\$RESULT\" | jq -r '.returnCode')"
-}
-
-# Function: checkCommandResult
-# Description: Checks RETURN_CODE and displays error if non-zero, following DRY principle
-# Arguments:
-#   $1 - RETURN_CODE: The return code to check
-#   $2 - STDERR_CONTENT: stderr content to display on error
-#   $3 - RAW_RETURN_DATA: stdout content to display on error (optional, for debug)
-#   $4 - ERROR_MESSAGE: Custom error message (should include context like script name, network)
-#   $5 - ON_ERROR_ACTION: Action to take on error: "return" (default), "continue", or "exit"
-# Returns:
-#   Returns 0 if RETURN_CODE is 0, 1 otherwise
-#   Executes ON_ERROR_ACTION if RETURN_CODE is non-zero
-# Example:
-#   checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
-#     "forge script failed for $SCRIPT on network $NETWORK" "continue"
-function checkCommandResult() {
-  local RETURN_CODE="$1"
-  local STDERR_CONTENT="$2"
-  local RAW_RETURN_DATA="${3:-}"
-  local ERROR_MESSAGE="$4"
-  local ON_ERROR_ACTION="${5:-return}"
+  # Parse JSON result and merge into single object using jq
+  local PARSED
+  PARSED=$(echo "$RESULT" | jq -c '{stdout: .stdout, stderr: .stderr, returnCode: .returnCode}')
   
-  if [[ "$RETURN_CODE" -ne 0 ]]; then
-    error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
-    if [[ -n "$STDERR_CONTENT" ]]; then
-      error "stderr: $STDERR_CONTENT"
+  # Extract and set variables from merged JSON object
+  RAW_RETURN_DATA=$(echo "$PARSED" | jq -r '.stdout')
+  STDERR_CONTENT=$(echo "$PARSED" | jq -r '.stderr')
+  RETURN_CODE=$(echo "$PARSED" | jq -r '.returnCode')
+  
+  # If error message provided, check return code and handle errors
+  if [[ -n "$ERROR_MESSAGE" ]]; then
+    if [[ "$RETURN_CODE" -ne 0 ]]; then
+      error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
+      if [[ -n "$STDERR_CONTENT" ]]; then
+        error "stderr: $STDERR_CONTENT"
+      fi
+      if [[ -n "$RAW_RETURN_DATA" ]]; then
+        echoDebug "stdout: $RAW_RETURN_DATA"
+      fi
+      
+      case "$ON_ERROR_ACTION" in
+        "continue")
+          return 1  # Caller should handle continue
+          ;;
+        "exit")
+          exit 1
+          ;;
+        "return"|*)
+          return 1
+          ;;
+      esac
     fi
-    if [[ -n "$RAW_RETURN_DATA" ]]; then
-      echoDebug "stdout: $RAW_RETURN_DATA"
-    fi
-    
-    case "$ON_ERROR_ACTION" in
-      "continue")
-        return 1  # Caller should handle continue
-        ;;
-      "exit")
-        exit 1
-        ;;
-      "return"|*)
-        return 1
-        ;;
-    esac
   fi
   
+  return 0
+}
+
+# Function: executeAndParse
+# Description: Executes a command, captures output, and parses result into global variables.
+#              Combines executeAndCapture and parseExecuteCommandResult for simplified usage.
+#              Sets global variables that always contain the output of the last execution.
+# Arguments:
+#   $1 - COMMAND: The command to execute (as a string, will be eval'd)
+#   $2 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
+#   $3 - ERROR_MESSAGE: Optional error message for return code check (if provided, will check return code)
+#   $4 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
+# Returns:
+#   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
+#   Returns 0 if RETURN_CODE is 0 (or if no error check requested), 1 otherwise
+# Example:
+#   # Execute and parse (no error check)
+#   executeAndParse 'forge script ...' "true"
+#   echo "$RAW_RETURN_DATA"
+#   
+#   # Execute, parse, and check return code
+#   if ! executeAndParse 'forge script ...' "true" "forge script failed" "continue"; then
+#     continue
+#   fi
+function executeAndParse() {
+  local COMMAND="$1"
+  local EXTRACT_JSON="${2:-false}"
+  local ERROR_MESSAGE="${3:-}"
+  local ON_ERROR_ACTION="${4:-return}"
+  
+  # Execute command and capture output
+  local RESULT
+  RESULT=$(executeAndCapture "$COMMAND" "$EXTRACT_JSON")
+  local CAPTURE_EXIT_CODE=$?
+  
+  # Parse result and set global variables (RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE)
+  # If ERROR_MESSAGE is provided, parseExecuteCommandResult will handle error checking
+  if ! parseExecuteCommandResult "$RESULT" "$ERROR_MESSAGE" "$ON_ERROR_ACTION"; then
+    return $?
+  fi
+  
+  # If no error message provided, return the capture exit code
+  # (caller can check RETURN_CODE global variable if needed)
+  if [[ -z "$ERROR_MESSAGE" ]]; then
+    return $CAPTURE_EXIT_CODE
+  fi
+  
+  # If error message was provided and parseExecuteCommandResult succeeded,
+  # RETURN_CODE is 0 (already verified by parseExecuteCommandResult)
   return 0
 }
 # <<<<<< helpers for executing commands with stdout/stderr capture
 
 function deployCreate3FactoryToAnvil() {
-  # Execute forge script with stdout/stderr capture (no JSON extraction needed for this case)
-  local RESULT
-  RESULT=$(executeCommandWithLogs \
+  # Execute, parse, and check return code (no JSON extraction needed for this case)
+  if ! executeAndParse \
     "PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url \"$ETH_NODE_URI_LOCALANVIL\" --broadcast" \
-    "false")
-  local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-  parseExecuteCommandResult "$RESULT"
-  
-  # Abort on non-zero return code before parsing address
-  if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
-    "forge script failed for CREATE3Factory deployment to anvil" "return"; then
+    "false" \
+    "forge script failed for CREATE3Factory deployment to anvil" \
+    "return"; then
     return 1
   fi
 

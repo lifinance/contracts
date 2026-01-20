@@ -49,23 +49,18 @@ deployAndStoreCREATE3Factory() {
   # Add skip simulation flag based on environment variable
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-  # Execute forge script with stdout/stderr capture and JSON extraction
-  local RESULT
-  RESULT=$(executeCommandWithLogs \
+  # Execute, parse, and check return code
+  if ! executeAndParse \
     "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast $SKIP_SIMULATION_FLAG --slow --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-    "true")
-  local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-  parseExecuteCommandResult "$RESULT"
-  
-  unset PRIVATE_KEY
-
-  # Abort on non-zero return code before parsing deployment data
-  if ! checkCommandResult "$RETURN_CODE" "$STDERR_CONTENT" "$RAW_RETURN_DATA" \
-    "❌ Deployment of CREATE3Factory failed on network $NETWORK" "return"; then
+    "true" \
+    "❌ Deployment of CREATE3Factory failed on network $NETWORK" \
+    "return"; then
+    unset PRIVATE_KEY
     return 1
   fi
+  unset PRIVATE_KEY
 
-  # extract deployed-to address from return data
+  # Extract deployed-to address from parsed return data
   FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
 	if [[ $? -ne 0 ]]; then
 		error "❌ Could not extract deployed address from raw return data"
