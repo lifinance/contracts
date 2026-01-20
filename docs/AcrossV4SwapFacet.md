@@ -1,5 +1,16 @@
 # AcrossV4SwapFacet
 
+> **WARNING**
+>
+> **Do only use this facet if you trust the Across Swap API.**
+>
+> This facet relies on calldata provided by the Across Swap API, which may include **source-chain and/or destination-chain swap execution** routed through multiple Across contracts/components.
+> We do not (and cannot safely) validate all of this calldata in detail.
+>
+> **Why this matters**: In most LI.FI facets we can validate that the protocol-specific receiver matches `BridgeData.receiver`. With the Across Swap API flow, the API generates **dynamic destination calldata/recipient encoding** and we cannot safely validate on-chain that the funds will arrive at `BridgeData.receiver` in all cases. Use this facet only if you accept that trust assumption.
+
+For more information on the Across Swap API, see [Across docs](https://docs.across.to/developer-quickstart/introduction-to-swap-api).
+
 ## How it works
 
 The AcrossV4SwapFacet integrates with Across Protocol's SpokePoolPeriphery contract to enable swap-and-bridge functionality. Unlike the standard AcrossFacetV4 which calls the SpokePool directly, this facet delegates swap execution to Across's SpokePoolPeriphery, which uses an isolated SwapProxy contract for secure swap execution.

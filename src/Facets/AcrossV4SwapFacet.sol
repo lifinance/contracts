@@ -228,10 +228,13 @@ contract AcrossV4SwapFacet is
             params.destinationChainId
         );
 
+        // NOTE: Do only use this facet if you trust the Across Swap API.
+        // Across uses a receiver contract on dst chain to execute destination calldata.
+        // We cannot validate the final receiver address here since its somewhere encoded in DepositParams.message.
         _validateReceiverAndEmitNonEvmEvent(
             _bridgeData,
             params.recipient,
-            true
+            false // do not ensure that params.recipient matches bridgeData.receiver (would fail)
         );
 
         // Validate depositor/refund address to prevent lost funds
@@ -307,12 +310,13 @@ contract AcrossV4SwapFacet is
             swapAndDepositData.depositData.destinationChainId
         );
 
-        // Note: Destination calls are disallowed for this facet, so for EVM destinations we enforce that
-        // the recipient encoded in calldata matches bridgeData.receiver.
+        // NOTE: Do only use this facet if you trust the Across Swap API.
+        // Across uses a receiver contract on dst chain to execute destination calldata.
+        // We cannot validate the final receiver address here since its somewhere encoded in DepositParams.message.
         _validateReceiverAndEmitNonEvmEvent(
             _bridgeData,
             swapAndDepositData.depositData.recipient,
-            true
+            false // do not ensure that swapAndDepositData.depositData.recipient matches _bridgeData.receiver (would fail)
         );
 
         // Validate depositor/refund address to prevent lost funds
