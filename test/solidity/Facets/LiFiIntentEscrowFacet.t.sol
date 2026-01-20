@@ -540,6 +540,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             memory validLIFIIntentData = _validLIFIIntentData();
         // Setup: User swaps DAI -> USDC and bridges USDC
         vm.startPrank(USER_SENDER);
+        address refundAddress = makeAddr("refundAddress");
+        validLIFIIntentData.depositAndRefundAddress = refundAddress;
 
         // Prepare swap data DAI -> USDC
         address[] memory path = new address[](2);
@@ -584,9 +586,6 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         deal(ADDRESS_DAI, USER_SENDER, amountIn);
         dai.approve(address(lifiIntentEscrowFacet), amountIn);
 
-        // Record user's initial USDC balance
-        uint256 userUSDCBalanceBefore = usdc.balanceOf(USER_SENDER);
-
         // Simulate a scenario where the actual swap output is BETTER than expected
         // We'll manipulate this by dealing extra USDC to the facet during swap execution
         // In reality, this would happen due to favorable market conditions
@@ -601,14 +600,12 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // Get the actual output from the swap
         uint256 actualUSDCOut = usdc.balanceOf(address(lifiIntentEscrowFacet));
 
-        // Check that user received any positive slippage
-        uint256 userUSDCBalanceAfter = usdc.balanceOf(USER_SENDER);
-        uint256 positiveSlippage = userUSDCBalanceAfter -
-            userUSDCBalanceBefore;
+        // Check that refund address received any positive slippage
+        uint256 positiveSlippage = usdc.balanceOf(refundAddress);
 
         // Verify that:
         // 1. The order was created with the expected minimum amount (not the actual swap output)
-        // 2. Any excess USDC was returned to the user
+        // 2. Any excess USDC was returned to the refund address
         // Since we can't easily create positive slippage in this test environment,
         // we verify the logic works by checking balances
 

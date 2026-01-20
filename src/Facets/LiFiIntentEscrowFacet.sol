@@ -124,7 +124,7 @@ contract LiFiIntentEscrowFacet is
         if (swapOutcome > _bridgeData.minAmount) {
             LibAsset.transferAsset(
                 _bridgeData.sendingAssetId,
-                payable(msg.sender),
+                payable(_lifiIntentData.depositAndRefundAddress),
                 swapOutcome - _bridgeData.minAmount
             );
         }
