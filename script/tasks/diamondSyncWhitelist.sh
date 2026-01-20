@@ -41,72 +41,45 @@ function diamondSyncWhitelist {
     fi
   fi
 
-  # --- HELPER FUNCTIONS ---
 
-  # Convert comma-separated string to JSON array with quoted strings
-  # Usage: formatCommaToJsonArray "a,b,c" => ["a","b","c"]
-  function formatCommaToJsonArray {
-    local INPUT="$1"
-    local RESULT="["
-    local first=true
-    IFS=',' read -ra ITEMS <<< "$INPUT"
-    for item in "${ITEMS[@]}"; do
-      [[ "$first" == "true" ]] && first=false || RESULT+=","
-      RESULT+="\"$item\""
-    done
-    echo "${RESULT}]"
-  }
 
-  # Get whitelist file path based on environment
-  function getWhitelistFilePath {
-    local ENV="$1"
-    if [[ "$ENV" == "production" ]]; then
-      echo "config/whitelist.json"
-    else
-      echo "config/whitelist.staging.json"
+  # Read function arguments into variables
+  local NETWORK="$1"
+  local ENVIRONMENT="${2:-production}"  # Default to production if not specified
+  local DIAMOND_CONTRACT_NAME="$3"
+
+  # Temp file to track failed logs
+  FAILED_LOG_FILE=$(mktemp)
+
+  # if no NETWORK was passed to this function, ask user to select it
+  if [[ -z "$NETWORK" ]]; then
+    # find out if script should be executed for one network or for all networks
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+    echo ""
+    echo "Should the script be executed on one network or all networks?"
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
+    echo "[info] selected network: $NETWORK"
+    echo ""
+    echo ""
+
+    if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
+      checkRequiredVariablesInDotEnv "$NETWORK"
     fi
-  }
+  fi
 
-  # Determine timelock flag based on network and environment
-  function getTimelockFlag {
-    local NET="$1"
-    local ENV="$2"
-    if [[ "$ENV" == "production" ]] && ! isTronNetwork "$NET"; then
-      echo "true"
-    else
-      echo "false"
-    fi
-  }
+  # no need to distinguish between mutable and immutable anymore
+  DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
-  # Function to convert comma-separated base58 addresses to hex addresses for calldata generation
-  # This is needed because cast calldata expects hex addresses, but Tron uses base58
-  function convertTronAddressesToHex {
-    local ADDRESSES_STR="$1"
-    
-    # If empty, return empty
-    if [[ -z "$ADDRESSES_STR" ]]; then
-      echo ""
-      return
-    fi
-    
-    # Use troncast to convert addresses
-    local HEX_ADDRESSES
-    HEX_ADDRESSES=$(bun run script/troncast/index.ts address to-hex "$ADDRESSES_STR" 2>&1)
-    local conversion_exit_code=$?
-    
-    # Check if conversion was successful
-    # Valid output should be comma-separated hex addresses (each starting with 0x)
-    # Check that it doesn't contain error messages and contains at least one valid hex address
-    if [[ $conversion_exit_code -eq 0 && -n "$HEX_ADDRESSES" && ! "$HEX_ADDRESSES" =~ Error && "$HEX_ADDRESSES" =~ 0x ]]; then
-      echo "$HEX_ADDRESSES"
-    else
-      # Conversion failed - return empty to signal error
-      echo ""
-      return 1
-    fi
-  }
+  # Determine which networks to process
+  RUN_FOR_ALL_NETWORKS=false
+  if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
+    RUN_FOR_ALL_NETWORKS=true
+    NETWORKS=($(getIncludedNetworksArray))
+  else
+    NETWORKS=("$NETWORK")
+  fi
 
-  # Execute a whitelist batch operation (add or remove)
+    # Execute a whitelist batch operation (add or remove)
   # Handles both Tron staging (direct troncast) and EVM/Tron production (calldata + sendOrPropose)
   function executeWhitelistBatch {
     local BATCH_CONTRACTS="$1"    # comma-separated
@@ -205,42 +178,6 @@ function diamondSyncWhitelist {
     fi
   }
 
-  # Read function arguments into variables
-  local NETWORK="$1"
-  local ENVIRONMENT="${2:-production}"  # Default to production if not specified
-  local DIAMOND_CONTRACT_NAME="$3"
-
-  # Temp file to track failed logs
-  FAILED_LOG_FILE=$(mktemp)
-
-  # if no NETWORK was passed to this function, ask user to select it
-  if [[ -z "$NETWORK" ]]; then
-    # find out if script should be executed for one network or for all networks
-    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-    echo ""
-    echo "Should the script be executed on one network or all networks?"
-    NETWORK=$(echo -e "All (non-excluded) Networks\n$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")" | gum filter --placeholder "Network")
-    echo "[info] selected network: $NETWORK"
-    echo ""
-    echo ""
-
-    if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
-      checkRequiredVariablesInDotEnv "$NETWORK"
-    fi
-  fi
-
-  # no need to distinguish between mutable and immutable anymore
-  DIAMOND_CONTRACT_NAME="LiFiDiamond"
-
-  # Determine which networks to process
-  RUN_FOR_ALL_NETWORKS=false
-  if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
-    RUN_FOR_ALL_NETWORKS=true
-    NETWORKS=($(getIncludedNetworksArray))
-  else
-    NETWORKS=("$NETWORK")
-  fi
-
   # Function to check if an address is a token contract
   # tries to call decimals() function and returns true if a number value is returned
   function isTokenContract {
@@ -289,6 +226,68 @@ function diamondSyncWhitelist {
     done
   }
 
+    # Convert comma-separated string to JSON array with quoted strings
+  # Usage: formatCommaToJsonArray "a,b,c" => ["a","b","c"]
+  function formatCommaToJsonArray {
+    local INPUT="$1"
+    local RESULT="["
+    local first=true
+    IFS=',' read -ra ITEMS <<< "$INPUT"
+    for item in "${ITEMS[@]}"; do
+      [[ "$first" == "true" ]] && first=false || RESULT+=","
+      RESULT+="\"$item\""
+    done
+    echo "${RESULT}]"
+  }
+
+  # Get whitelist file path based on environment
+  function getWhitelistFilePath {
+    local ENV="$1"
+    if [[ "$ENV" == "production" ]]; then
+      echo "config/whitelist.json"
+    else
+      echo "config/whitelist.staging.json"
+    fi
+  }
+
+  # Determine timelock flag based on network and environment
+  function getTimelockFlag {
+    local NET="$1"
+    local ENV="$2"
+    if [[ "$ENV" == "production" ]] && ! isTronNetwork "$NET"; then
+      echo "true"
+    else
+      echo "false"
+    fi
+  }
+
+  # Function to convert comma-separated base58 addresses to hex addresses for calldata generation
+  # This is needed because cast calldata expects hex addresses, but Tron uses base58
+  function convertTronAddressesToHex {
+    local ADDRESSES_STR="$1"
+    
+    # If empty, return empty
+    if [[ -z "$ADDRESSES_STR" ]]; then
+      echo ""
+      return
+    fi
+    
+    # Use troncast to convert addresses
+    local HEX_ADDRESSES
+    HEX_ADDRESSES=$(bun run script/troncast/index.ts address to-hex "$ADDRESSES_STR" 2>&1)
+    local conversion_exit_code=$?
+    
+    # Check if conversion was successful
+    # Valid output should be comma-separated hex addresses (each starting with 0x)
+    # Check that it doesn't contain error messages and contains at least one valid hex address
+    if [[ $conversion_exit_code -eq 0 && -n "$HEX_ADDRESSES" && ! "$HEX_ADDRESSES" =~ Error && "$HEX_ADDRESSES" =~ 0x ]]; then
+      echo "$HEX_ADDRESSES"
+    else
+      # Conversion failed - return empty to signal error
+      echo ""
+      return 1
+    fi
+  }
   # Controlled debug logging for this script:
   # - When running against all networks, suppress noisy debug output
   # - When running against a single network, keep full debug logs for easier troubleshooting
