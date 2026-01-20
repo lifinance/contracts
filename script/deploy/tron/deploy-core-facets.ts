@@ -450,18 +450,6 @@ const deployCommand = defineCommand({
             )
           }
         }
-        // Then try environment variable (overrides command line if set)
-        const envDelay = getEnvVar('DELAY_SECONDS')
-        if (envDelay) {
-          const parsed = parseInt(envDelay, 10)
-          if (!isNaN(parsed) && parsed >= 0) {
-            delaySeconds = parsed
-          } else {
-            consola.warn(
-              `Invalid DELAY_SECONDS env var: ${envDelay}, using: ${delaySeconds}`
-            )
-          }
-        }
       } catch {
         // Use default value
       }

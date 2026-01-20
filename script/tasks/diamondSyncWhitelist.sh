@@ -41,6 +41,43 @@ function diamondSyncWhitelist {
     fi
   fi
 
+  # --- HELPER FUNCTIONS ---
+
+  # Convert comma-separated string to JSON array with quoted strings
+  # Usage: formatCommaToJsonArray "a,b,c" => ["a","b","c"]
+  function formatCommaToJsonArray {
+    local INPUT="$1"
+    local RESULT="["
+    local first=true
+    IFS=',' read -ra ITEMS <<< "$INPUT"
+    for item in "${ITEMS[@]}"; do
+      [[ "$first" == "true" ]] && first=false || RESULT+=","
+      RESULT+="\"$item\""
+    done
+    echo "${RESULT}]"
+  }
+
+  # Get whitelist file path based on environment
+  function getWhitelistFilePath {
+    local ENV="$1"
+    if [[ "$ENV" == "production" ]]; then
+      echo "config/whitelist.json"
+    else
+      echo "config/whitelist.staging.json"
+    fi
+  }
+
+  # Determine timelock flag based on network and environment
+  function getTimelockFlag {
+    local NET="$1"
+    local ENV="$2"
+    if [[ "$ENV" == "production" ]] && ! isTronNetwork "$NET"; then
+      echo "true"
+    else
+      echo "false"
+    fi
+  }
+
   # Function to convert comma-separated base58 addresses to hex addresses for calldata generation
   # This is needed because cast calldata expects hex addresses, but Tron uses base58
   function convertTronAddressesToHex {
@@ -65,6 +102,105 @@ function diamondSyncWhitelist {
     else
       # Conversion failed - return empty to signal error
       echo ""
+      return 1
+    fi
+  }
+
+  # Execute a whitelist batch operation (add or remove)
+  # Handles both Tron staging (direct troncast) and EVM/Tron production (calldata + sendOrPropose)
+  function executeWhitelistBatch {
+    local BATCH_CONTRACTS="$1"    # comma-separated
+    local BATCH_SELECTORS="$2"    # comma-separated
+    local IS_ADD="$3"             # "true" or "false"
+    local BATCH_COUNT="$4"
+    local NETWORK="$5"
+    local DIAMOND_ADDRESS="$6"
+    local IS_TRON="$7"
+    local TRON_ENV="$8"
+    
+    local ATTEMPTS=1
+    local BATCH_TX_SUCCESS=false
+
+    while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+      # Wait before retries (except first attempt)
+      if [ $ATTEMPTS -gt 1 ]; then
+        echoSyncDebug "Waiting 3 seconds before retry..."
+        sleep 3
+      fi
+
+      # Tron staging: use troncast send directly
+      if [[ "$IS_TRON" == "true" && "$ENVIRONMENT" != "production" ]]; then
+        local TRON_CONTRACTS_JSON=$(formatCommaToJsonArray "$BATCH_CONTRACTS")
+        local TRON_SELECTORS_JSON=$(formatCommaToJsonArray "$BATCH_SELECTORS")
+        
+        echoSyncDebug "Tron staging - Contracts: $TRON_CONTRACTS_JSON"
+        echoSyncDebug "Tron staging - Selectors: $TRON_SELECTORS_JSON"
+        echoSyncDebug "Tron staging - Full params: $TRON_CONTRACTS_JSON,$TRON_SELECTORS_JSON,$IS_ADD"
+        
+        local OUTPUT
+        OUTPUT=$(bun troncast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$TRON_CONTRACTS_JSON,$TRON_SELECTORS_JSON,$IS_ADD" --env "$TRON_ENV" --confirm 2>&1)
+        local EXIT_CODE=$?
+
+        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
+
+        if [[ $EXIT_CODE -eq 0 ]]; then
+          BATCH_TX_SUCCESS=true
+          break
+        fi
+      else
+        # EVM networks or Tron production: use calldata and sendOrPropose
+        local CONTRACTS_FOR_CALLDATA="$BATCH_CONTRACTS"
+        
+        # For Tron production, convert base58 addresses to hex
+        if [[ "$IS_TRON" == "true" ]]; then
+          if ! CONTRACTS_FOR_CALLDATA=$(convertTronAddressesToHex "$BATCH_CONTRACTS"); then
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex"
+            echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
+            return 1
+          fi
+          
+          if [[ -z "$CONTRACTS_FOR_CALLDATA" ]]; then
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Address conversion returned empty result"
+            echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
+            return 1
+          fi
+        fi
+        
+        # Generate calldata
+        local BATCH_CALLDATA
+        BATCH_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_FOR_CALLDATA]" "[$BATCH_SELECTORS]" "$IS_ADD" 2>&1)
+        local calldata_exit_code=$?
+
+        if [[ $calldata_exit_code -ne 0 ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to construct calldata"
+          echoSyncDebug "cast calldata error output: $BATCH_CALLDATA"
+          echoSyncDebug "CONTRACTS_FOR_CALLDATA: '$CONTRACTS_FOR_CALLDATA'"
+          echoSyncDebug "BATCH_SELECTORS: '$BATCH_SELECTORS'"
+          return 1
+        fi
+
+        local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
+        
+        echoSyncDebug "Calldata: $BATCH_CALLDATA"
+        
+        local OUTPUT
+        OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$BATCH_CALLDATA" "$TIMELOCK_FLAG" 2>&1)
+        local EXIT_CODE=$?
+
+        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
+
+        if [[ $EXIT_CODE -eq 0 ]]; then
+          BATCH_TX_SUCCESS=true
+          break
+        fi
+      fi
+
+      ATTEMPTS=$((ATTEMPTS + 1))
+    done
+
+    if [[ "$BATCH_TX_SUCCESS" == "true" ]]; then
+      return 0
+    else
       return 1
     fi
   }
@@ -197,6 +333,14 @@ function diamondSyncWhitelist {
       return
     fi
 
+    # Cache Tron checks once at the start (avoids 30+ repeated function calls)
+    local IS_TRON=false
+    local TRON_ENV=""
+    if isTronNetwork "$NETWORK"; then
+      IS_TRON=true
+      TRON_ENV=$(getTronEnv "$NETWORK")
+    fi
+
     # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
     local get_address_exit_code=$?
@@ -240,13 +384,8 @@ function diamondSyncWhitelist {
       local NETWORK=$1
       local CONTRACT_SELECTOR_PAIRS=()
 
-      # Determine the correct whitelist file based on environment
-      local WHITELIST_FILE
-      if [[ "$ENVIRONMENT" == "production" ]]; then
-        WHITELIST_FILE="config/whitelist.json"
-      else
-        WHITELIST_FILE="config/whitelist.staging.json"
-      fi
+      # Use helper to get whitelist file path
+      local WHITELIST_FILE=$(getWhitelistFilePath "$ENVIRONMENT")
 
       # Get DEX contracts
       echoSyncDebug "Getting DEX contracts..."
@@ -286,12 +425,9 @@ function diamondSyncWhitelist {
     }
 
     # Function to get current whitelisted contract-selector pairs from the diamond
+    # Uses IS_TRON and TRON_ENV from parent scope (processNetwork)
     function getCurrentWhitelistedPairs {
       local ATTEMPT=1
-      local IS_TRON=false
-      if isTronNetwork "$NETWORK"; then
-        IS_TRON=true
-      fi
 
       while [ $ATTEMPT -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; do
         echoSyncDebug "Attempt $ATTEMPT: Trying to get whitelisted pairs from diamond $DIAMOND_ADDRESS"
@@ -302,7 +438,6 @@ function diamondSyncWhitelist {
         local call_exit_code
         
         if [[ "$IS_TRON" == "true" ]]; then
-          local TRON_ENV=$(getTronEnv "$NETWORK")
           cast_output=$(bun troncast call "$DIAMOND_ADDRESS" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --env "$TRON_ENV" 2>&1)
           call_exit_code=$?
         else
@@ -511,7 +646,6 @@ function diamondSyncWhitelist {
         local addresses_exit_code
         
         if [[ "$IS_TRON" == "true" ]]; then
-          local TRON_ENV=$(getTronEnv "$NETWORK")
           addresses=$(bun troncast call "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])" --env "$TRON_ENV" 2>&1)
           addresses_exit_code=$?
         else
@@ -539,7 +673,6 @@ function diamondSyncWhitelist {
             local selectors_exit_code
             
             if [[ "$IS_TRON" == "true" ]]; then
-              local TRON_ENV=$(getTronEnv "$NETWORK")
               selectors=$(bun troncast call "$DIAMOND_ADDRESS" "getWhitelistedSelectorsForContract(address) returns (bytes4[])" "$addr" --env "$TRON_ENV" 2>&1)
               selectors_exit_code=$?
             else
