@@ -25,6 +25,29 @@ bun troncast --help
 # Show help for a specific command
 bun troncast call --help
 bun troncast send --help
+bun troncast address --help
+```
+
+### Address Command (Utilities)
+
+Convert between Tron base58 and EVM hex address formats.
+
+```bash
+# Convert base58 to hex (single address)
+bun troncast address to-hex TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw
+# Output: 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b
+
+# Convert multiple base58 addresses to hex (comma-separated)
+bun troncast address to-hex "TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw,TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+# Output: 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b,0xa614f803b6fd780986a42c78ec9c7f77e6ded13c
+
+# Convert hex to base58 (single address)
+bun troncast address to-base58 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b
+# Output: TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw
+
+# Convert multiple hex addresses to base58 (comma-separated)
+bun troncast address to-base58 "0x7252afce04856eaac8f8a8beb5ae29621a1ca49b,0xa614f803b6fd780986a42c78ec9c7f77e6ded13c"
+# Output: TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw,TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
 ```
 
 ### Call Command (Read-Only)
