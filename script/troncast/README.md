@@ -25,8 +25,41 @@ bun troncast --help
 # Show help for a specific command
 bun troncast call --help
 bun troncast send --help
+bun troncast code --help
 bun troncast address --help
 ```
+
+### Code Command (Contract Bytecode)
+
+Fetch contract bytecode from a Tron address. Similar to `cast code` in Foundry.
+
+```bash
+# Basic usage
+bun troncast code <address> [options]
+
+# Get bytecode from mainnet (default)
+bun troncast code TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw
+# Output: 0x608060405234801561001057600080fd5b50...
+
+# Get bytecode from testnet
+bun troncast code TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw --env testnet
+
+# Using hex address format (automatically converted to base58)
+bun troncast code 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b --env mainnet
+
+# Using custom RPC URL
+bun troncast code TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw --rpc-url https://api.trongrid.io // [pre-commit-checker: not a secret]
+```
+
+**Options:**
+
+- `--env` - Environment: "mainnet" or "testnet" (default: mainnet)
+- `--rpc-url` - Custom RPC URL (overrides environment-based URL)
+
+**Output:**
+
+- Returns the contract bytecode as a hex string (prefixed with `0x`)
+- Returns `0x` if the address is not a contract or has no bytecode
 
 ### Address Command (Utilities)
 
