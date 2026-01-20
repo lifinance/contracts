@@ -170,19 +170,24 @@ async function transferOwnership(options: {
       consola.success(`   ✅ Deployer address matches current owner!`)
     }
 
-    // Step 2: Validate new owner address
-    if (!tronWeb.isAddress(options.newOwner)) {
-      throw new Error(`Invalid new owner address: ${options.newOwner}`)
-    }
-
-    // Convert new owner to base58 if it's in hex format
+    // Step 2: Normalize and validate new owner address
+    // Normalize to base58 first, then validate (isAddress rejects 0x-prefixed hex)
     let newOwnerBase58 = options.newOwner
     if (
       options.newOwner.startsWith('0x') ||
       options.newOwner.startsWith('41')
     ) {
-      newOwnerBase58 = tronWeb.address.fromHex(options.newOwner)
+      // Remove 0x prefix if present before conversion (fromHex expects 41-prefixed hex)
+      const hexAddr = options.newOwner.startsWith('0x')
+        ? '41' + options.newOwner.substring(2)
+        : options.newOwner
+      newOwnerBase58 = tronWeb.address.fromHex(hexAddr)
       consola.info(`   Converted new owner to base58: ${newOwnerBase58}`)
+    }
+
+    // Validate the normalized address
+    if (!tronWeb.isAddress(newOwnerBase58)) {
+      throw new Error(`Invalid new owner address: ${options.newOwner}`)
     }
 
     if (currentOwnerBase58 === newOwnerBase58) {

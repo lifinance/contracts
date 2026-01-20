@@ -690,7 +690,12 @@ function diamondSyncWhitelist {
                 selector_list=$(echo "${selectors:1:${#selectors}-2}" | tr ',' ' ')
               fi
               for selector in $selector_list; do
-                pairs+=("$(echo "$addr" | tr '[:upper:]' '[:lower:]')|$selector")
+                if [[ "$IS_TRON" == "true" ]]; then
+                  # Tron: store as "normalized|original|selector" for consistency with primary path
+                  pairs+=("$(echo "$addr" | tr '[:upper:]' '[:lower:]')|$addr|$selector")
+                else
+                  pairs+=("$(echo "$addr" | tr '[:upper:]' '[:lower:]')|$selector")
+                fi
               done
             fi
           done
@@ -1092,7 +1097,7 @@ function diamondSyncWhitelist {
         local CONTRACTS_FOR_CALLDATA="$REMOVE_CONTRACTS_ARRAY"
         if isTronNetwork "$NETWORK"; then
           local TRON_ENV=$(getTronEnv "$NETWORK")
-          if ! CONTRACTS_FOR_CALLDATA=$(convertTronAddressesToHex "$REMOVE_CONTRACTS_ARRAY" "$TRON_ENV"); then
+          if ! CONTRACTS_FOR_CALLDATA=$(convertTronAddressesToHex "$REMOVE_CONTRACTS_ARRAY"); then
             printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex"
             echoSyncDebug "Original addresses: '$REMOVE_CONTRACTS_ARRAY'"
             return
@@ -1333,7 +1338,7 @@ function diamondSyncWhitelist {
           local CONTRACTS_FOR_CALLDATA="$BATCH_CONTRACTS_ARRAY"
           if isTronNetwork "$NETWORK"; then
             local TRON_ENV=$(getTronEnv "$NETWORK")
-            if ! CONTRACTS_FOR_CALLDATA=$(convertTronAddressesToHex "$BATCH_CONTRACTS_ARRAY" "$TRON_ENV"); then
+            if ! CONTRACTS_FOR_CALLDATA=$(convertTronAddressesToHex "$BATCH_CONTRACTS_ARRAY"); then
               printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex for batch $BATCH_NUM"
               echoSyncDebug "Original addresses: '$BATCH_CONTRACTS_ARRAY'"
               BATCH_SUCCESS=false
@@ -1454,14 +1459,24 @@ function diamondSyncWhitelist {
       local UPDATED_PAIRS_FILE=$(mktemp)
       
       # Write normalized arrays to temp files for fast comparison
-      # Normalize and sort NEW pairs
+      # Normalize and sort NEW pairs (format: "address|selector")
       for pair in "${NEW_PAIRS[@]}"; do
         echo "$pair" | tr '[:upper:]' '[:lower:]'
       done | sort > "$NEW_PAIRS_FILE"
 
       # Normalize and sort UPDATED pairs
+      # For Tron: format is "normalized|original|selector" -> extract "normalized|selector"
+      # For EVM: format is "address|selector" -> just lowercase
       for pair in "${UPDATED_PAIRS[@]}"; do
-        echo "$pair" | tr '[:upper:]' '[:lower:]'
+        if [[ "$IS_TRON" == "true" ]]; then
+          # Tron format: "normalized|original|selector" -> "normalized|selector"
+          local norm="${pair%%|*}"
+          local rest="${pair#*|}"
+          local sel="${rest#*|}"
+          echo "$norm|$sel"
+        else
+          echo "$pair" | tr '[:upper:]' '[:lower:]'
+        fi
       done | sort > "$UPDATED_PAIRS_FILE"
 
       # Find missing pairs (Lines in 'new' that are NOT in 'updated')

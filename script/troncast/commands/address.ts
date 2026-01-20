@@ -25,7 +25,7 @@ function tronAddressToHex(
   if (hex.length > 40) hex = hex.substring(0, 40)
   else if (hex.length < 40) hex = hex.padStart(40, '0')
 
-  return '0x' + hex
+  return '0x' + hex.toLowerCase()
 }
 
 /**
