@@ -244,6 +244,10 @@
       "0xD96859cD1C18b15B70F7B82f1F70478ddE4C04c7": {
         "Name": "AcrossV4SwapFacet",
         "Version": ""
+      },
+      "0x4094F1887ec45c6c82B0328ED7d7AE5EE329f4f3": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": ""
       }
     },
     "Periphery": {
