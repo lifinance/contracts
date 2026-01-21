@@ -1863,6 +1863,18 @@ function verifyContract() {
 
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD+=("--verifier" "blockscout")
+    # For Blockscout, API key is optional. If not set, export empty string to avoid Foundry errors
+    # Foundry reads foundry.toml and expects the variable to exist even if not used
+    if [[ -z "${!API_KEY}" ]]; then
+      echoDebug "BLOCKSCOUT_API_KEY not set, exporting empty string for Blockscout verification"
+      export BLOCKSCOUT_API_KEY=""
+    fi
+    # Some Foundry versions may incorrectly look for VERIFY_CONTRACT_API_KEY when reading foundry.toml
+    # Export empty string to prevent errors
+    if [[ -z "${VERIFY_CONTRACT_API_KEY:-}" ]]; then
+      echoDebug "VERIFY_CONTRACT_API_KEY not set, exporting empty string as fallback"
+      export VERIFY_CONTRACT_API_KEY=""
+    fi
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
@@ -1874,6 +1886,12 @@ function verifyContract() {
     if [ "$API_KEY" = "VERIFY_CONTRACT_API_KEY" ]; then
       # add API key to verification command"
       VERIFY_CMD+=("-e" "verifyContract")
+      # If VERIFY_CONTRACT_API_KEY is not set, export empty string to avoid Foundry errors
+      # Foundry reads foundry.toml and expects the variable to exist even if not used
+      if [[ -z "${!API_KEY}" ]]; then
+        echoDebug "VERIFY_CONTRACT_API_KEY not set, exporting empty string"
+        export VERIFY_CONTRACT_API_KEY=""
+      fi
     fi
   fi
 
@@ -1896,6 +1914,21 @@ function verifyContract() {
 
     # Check if command failed with non-zero exit code
     if [ $VERIFY_EXIT_CODE -ne 0 ]; then
+      # Check for specific error types that should trigger retry with longer delay
+      if echo "$VERIFY_OUTPUT" | grep -qi "504\|Gateway Time-out\|timeout\|Failed to obtain contract ABI"; then
+        warning "API timeout or gateway error detected. This may be temporary - will retry with longer delay..."
+        error "Verification command failed with exit code $VERIFY_EXIT_CODE (API timeout/gateway error)"
+        if [ -n "$VERIFY_OUTPUT" ]; then
+          error "Command output: $VERIFY_OUTPUT"
+        fi
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+          echo "[info] API timeout detected, waiting 30 seconds before retry..."
+          sleep 30
+        fi
+        continue
+      fi
+      
       error "Verification command failed with exit code $VERIFY_EXIT_CODE"
       if [ -z "$VERIFY_OUTPUT" ]; then
         error "No output from verification command. This may indicate a network error, invalid API key, or command syntax issue."
@@ -1917,34 +1950,69 @@ function verifyContract() {
       return 0
     fi
 
-    # Parse the final verification response from --watch output
-    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | tail -1 | awk '{print $2}' | tr -d '`')
-    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | tail -1 | cut -d'`' -f2)
+    # Parse the final verification response from --watch output more robustly
+    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep -i "Response:" | tail -1 | sed -E 's/.*Response:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'")
+    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep -i "Details:" | tail -1 | sed -E "s/.*Details:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1)
 
+    # Log parsed values for debugging
+    echoDebug "Parsed initial response - Response: '$RESPONSE', Details: '$DETAILS'"
+    
     # If no response found in output, display raw output for debugging
     if [ -z "$RESPONSE" ] && [ -z "$DETAILS" ]; then
       warning "Could not parse verification response from output. Raw output:"
       echo "$VERIFY_OUTPUT"
     fi
 
-    # Check if verification succeeded based on final response
-    if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+    # Always verify final status with verify-check, even if response seems successful
+    # This prevents false positives where API returns OK but contract isn't actually verified
+    echo "[info] Verifying final verification status with verify-check..."
+    sleep 5
+    
+    # Check final status
+    local CHECK_CMD=()
+    if isZkEvmNetwork "$NETWORK"; then
+      # For zkSync, use verifier-url to match the verification command
+      # This ensures consistency and prevents false positives
+      CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
+    else
+      # Use verifier URL instead of chain flag to match the verification command
+      CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
+    fi
+
+    local CHECK_EXIT_CODE=0
+    local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
+
+    if [ $CHECK_EXIT_CODE -ne 0 ]; then
+      error "Verification check command failed with exit code $CHECK_EXIT_CODE"
+      if [ -n "$CHECK_OUTPUT" ]; then
+        error "Check command output: $CHECK_OUTPUT"
+      fi
+      # Continue to next retry instead of returning immediately
+      RETRY_COUNT=$((RETRY_COUNT + 1))
+      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+        echo "[info] Verification check failed, waiting 15 seconds before retry..."
+        sleep 15
+      fi
+      continue
+    fi
+
+    # Parse response more robustly - handle different output formats
+    local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep -i "Response:" | tail -1 | sed -E 's/.*Response:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'")
+    local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep -i "Details:" | tail -1 | sed -E "s/.*Details:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1)
+
+    echoDebug "Final verification check - Response: $FINAL_RESPONSE, Details: $FINAL_DETAILS"
+    echoDebug "Full check output: $CHECK_OUTPUT"
+
+    # Check if verification actually succeeded based on final check
+    if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified (confirmed via verify-check)"
       return 0
-    elif [[ "$RESPONSE" == "OK" && "$DETAILS" == *"Pending"* ]]; then
-      # If still pending after --watch, wait a bit more and check again
-      echo "[info] Verification still pending after --watch, waiting 30 seconds before checking final status..."
+    elif [[ "$FINAL_RESPONSE" == "OK" && "$FINAL_DETAILS" == *"Pending"* ]]; then
+      # If still pending after initial check, wait a bit more and check again
+      echo "[info] Verification still pending, waiting 30 seconds before checking again..."
       sleep 30
 
-      # Check final status
-      local CHECK_CMD=()
-      if isZkEvmNetwork "$NETWORK"; then
-        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "$ADDRESS")
-      else
-        # Use verifier URL instead of chain flag to match the verification command
-        CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
-      fi
-
+      # Re-check final status using the same CHECK_CMD
       local CHECK_EXIT_CODE=0
       local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
 
@@ -1953,23 +2021,32 @@ function verifyContract() {
         if [ -n "$CHECK_OUTPUT" ]; then
           error "Check command output: $CHECK_OUTPUT"
         fi
+        # Continue to next retry instead of returning 1
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+          echo "[info] Verification check failed, waiting 15 seconds before retry..."
+          sleep 15
+        fi
+        continue
       fi
 
-      local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
-      local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+      # Parse response more robustly - handle different output formats
+      local RETRY_RESPONSE=$(echo "$CHECK_OUTPUT" | grep -i "Response:" | tail -1 | sed -E 's/.*Response:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'")
+      local RETRY_DETAILS=$(echo "$CHECK_OUTPUT" | grep -i "Details:" | tail -1 | sed -E "s/.*Details:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1)
 
-      if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
-        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after final check"
+      if [[ "$RETRY_RESPONSE" == "OK" && ("$RETRY_DETAILS" == *"Pass"* || "$RETRY_DETAILS" == *"Verified"* || "$RETRY_DETAILS" == *"Success"*) ]]; then
+        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after retry check"
         return 0
       else
-        warning "Verification failed after final check: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
+        warning "Verification still pending or failed after retry check: Response=$RETRY_RESPONSE, Details=$RETRY_DETAILS"
         # Continue to next retry instead of returning 1
       fi
-    elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
-      warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
+    elif [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Fail"* || "$FINAL_DETAILS" == *"Unable to verify"* || "$FINAL_DETAILS" == *"not verified"*) ]]; then
+      warning "Verification failed for $CONTRACT on $NETWORK: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
       # Continue to next retry instead of returning 1
     else
-      warning "Unexpected verification response: Response=$RESPONSE, Details=$DETAILS"
+      warning "Unexpected verification response: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
+      warning "Initial response was: Response=$RESPONSE, Details=$DETAILS"
       # Continue to next retry instead of returning 1
     fi
 
@@ -2007,8 +2084,9 @@ function verifyContract() {
   echo "[info] Checking Sourcify verification status..."
   local SOURCIFY_OUTPUT
   if isZkEvmNetwork "$NETWORK"; then
+    # For zkSync, verify-check doesn't accept --zksync flag, use --verifier-url instead
+    # Or use --chain flag if supported
     SOURCIFY_OUTPUT=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check "$ADDRESS" \
-      --zksync \
       --chain-id "$CHAIN_ID" \
       --verifier sourcify 2>&1)
   else
@@ -4311,14 +4389,28 @@ function executeCommandWithLogs() {
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
   fi
   
-  # Escape JSON strings properly for jq
-  # Use jq to create a properly escaped JSON object
+  # Use temporary files for jq to avoid "Argument list too long" error when content is very large
+  # This happens when Foundry outputs full traces in the JSON response
+  local STDOUT_TMP STDERR_TMP JSON_TMP
+  STDOUT_TMP=$(mktemp)
+  STDERR_TMP=$(mktemp)
+  JSON_TMP=$(mktemp)
+  
+  # Write stdout and stderr to temp files
+  printf '%s' "$RAW_RETURN_DATA" > "$STDOUT_TMP"
+  printf '%s' "$STDERR_CONTENT" > "$STDERR_TMP"
+  
+  # Use jq with --rawfile to read from files (avoids argument length limits)
+  # --rawfile reads the file as a raw string, not JSON
   local JSON_RESULT
   JSON_RESULT=$(jq -n \
-    --arg stdout "$RAW_RETURN_DATA" \
-    --arg stderr "$STDERR_CONTENT" \
+    --rawfile stdout "$STDOUT_TMP" \
+    --rawfile stderr "$STDERR_TMP" \
     --argjson returnCode "$RETURN_CODE" \
     '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
+  
+  # Cleanup temp files
+  rm -f "$STDOUT_TMP" "$STDERR_TMP" "$JSON_TMP" 2>/dev/null
   
   # Explicit cleanup + restore previous EXIT trap
   rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
