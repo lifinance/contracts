@@ -54,6 +54,7 @@ EXCLUDED_PATHS=(
   "safe/london/out/"
   "bun.lock"
   ".bun/"
+  ".cursor/commands/"
 )
 
 ENV_SECRET_KEYS=()
