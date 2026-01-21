@@ -1,5 +1,5 @@
 {
-  "according to docs all EVM networks should be using the same address": "https://docs.debridge.finance/dln-the-debridge-liquidity-network-protocol/deployed-contracts",
+  "according to docs all EVM networks should be using the same address": "https://docs.debridge.com/dln-details/overview/deployed-contracts",
   "networks": {
     "mainnet": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
@@ -28,6 +28,9 @@
     "linea": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
+    "megaeth": {
+      "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+    },
     "metis": {
       "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
     },
@@ -41,7 +44,7 @@
       "dlnSource": "src5qyZHqTqecJV4aY6Cb6zDZLMDzrDKKezs22MPHr4"
     }
   },
-  "find more chainId mappings here:": "https://docs.debridge.finance/dln-the-debridge-liquidity-network-protocol/fees-and-supported-chains",
+  "find more chainId mappings here:": "https://docs.debridge.com/dln-details/overview/fees-supported-chains",
   "mappings": [
     {
       "chainId": 1,
@@ -70,6 +73,10 @@
     {
       "chainId": 1088,
       "deBridgeChainId": 100000004
+    },
+    {
+      "chainId": 4326,
+      "deBridgeChainId": 100000031
     },
     {
       "chainId": 8453,
