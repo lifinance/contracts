@@ -61,7 +61,7 @@ deployAndStoreCREATE3Factory() {
   unset PRIVATE_KEY
 
   # Extract deployed-to address from parsed return data
-  FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+  FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
 	if [[ $? -ne 0 ]]; then
 		error "❌ Could not extract deployed address from raw return data"
 		return 1

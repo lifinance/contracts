@@ -270,11 +270,11 @@ deploySingleContract() {
     fi
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+    if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
       # try to extract error message and throw error
-      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+      ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
       if [[ $ERROR_MESSAGE == "" ]]; then
-        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
+        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
       else
         error "execution of deploy script failed with message: $ERROR_MESSAGE"
       fi
@@ -282,7 +282,7 @@ deploySingleContract() {
       sleep 1
       continue
     # Check for zksync-specific address collision (revert with specific error code)
-    elif isZkEvmNetwork "$NETWORK" && [[ $RAW_RETURN_DATA == *"\"status\":\"Revert\""* && $RAW_RETURN_DATA == *"0x9e4a3c8a"* ]]; then
+    elif isZkEvmNetwork "$NETWORK" && [[ "${RAW_RETURN_DATA:-}" == *"\"status\":\"Revert\""* && "${RAW_RETURN_DATA:-}" == *"0x9e4a3c8a"* ]]; then
       echo ""
       gum style \
         --foreground 196 --border-foreground 196 --border double \
@@ -303,9 +303,9 @@ deploySingleContract() {
       break
 
     # check the return code the last call
-    elif [ $RETURN_CODE -eq 0 ]; then
+    elif [ "${RETURN_CODE:-1}" -eq 0 ]; then
       # extract deployed-to address from return data
-      ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+      ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
       
       if [[ $? -ne 0 ]]; then
         warning "❌ Could not extract deployed address from raw return data (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
@@ -369,7 +369,7 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+  CONSTRUCTOR_ARGS=$(echo "${RAW_RETURN_DATA:-}" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already

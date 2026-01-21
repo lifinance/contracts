@@ -152,11 +152,11 @@ diamondUpdateFacet() {
       
       # Extract JSON from cleaned RAW_RETURN_DATA (may have leading/trailing characters). Use sed to handle multi-line JSON
       # (critical for large hex strings that cause forge to output multi-line JSON)
-      JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+      JSON_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
 
       # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
       if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
-        JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+        JSON_DATA=$(echo "${RAW_RETURN_DATA:-}" | grep -o '{"logs":.*}' | tail -1)
       fi
 
       # Validate that extracted JSON_DATA is valid JSON
@@ -167,10 +167,10 @@ diamondUpdateFacet() {
           echo "$JSON_DATA" >&2
           echo "" >&2
           echo "RAW_RETURN_DATA:" >&2
-          echo "$RAW_RETURN_DATA" >&2
+          echo "${RAW_RETURN_DATA:-}" >&2
           echo "" >&2
           echo "STDERR_CONTENT:" >&2
-          echo "$STDERR_CONTENT" >&2
+          echo "${STDERR_CONTENT:-}" >&2
         }
         return 1
       fi
@@ -272,11 +272,11 @@ diamondUpdateFacet() {
     fi
 
     # check the return code the last call
-    if [ "$RETURN_CODE" -eq 0 ]; then
+    if [ "${RETURN_CODE:-1}" -eq 0 ]; then
       # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
       if [[ "$ENVIRONMENT" != "production" ]]; then
         # extract the "returns" property directly from the JSON output
-        RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -r '.returns // empty' 2>/dev/null)
+        RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | jq -r '.returns // empty' 2>/dev/null)
         # echoDebug "RETURN_DATA: $RETURN_DATA"
 
         # get the facet addresses that are known to the diamond from the return data

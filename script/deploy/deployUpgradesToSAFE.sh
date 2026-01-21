@@ -51,7 +51,7 @@ deployUpgradesToSAFE() {
         continue
       fi
       
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      CLEAN_RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed 's/^.*{\"logs/{\"logs/')
       FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
       if [ "$FACET_CUT" != "0x" ]; then
         echo "Proposing facet cut for $script..."
