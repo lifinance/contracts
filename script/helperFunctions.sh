@@ -4301,8 +4301,6 @@ function executeAndCapture() {
   # Debug: Show what we captured
   echoDebug "=== RAW_RETURN_DATA (stdout) ==="
   echoDebug "$RAW_RETURN_DATA"
-  echoDebug "=== STDERR logs ==="
-  echoDebug "$STDERR_CONTENT"
   
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then

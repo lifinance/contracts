@@ -168,9 +168,6 @@ diamondUpdateFacet() {
           echo "" >&2
           echo "RAW_RETURN_DATA:" >&2
           echo "${RAW_RETURN_DATA:-}" >&2
-          echo "" >&2
-          echo "STDERR_CONTENT:" >&2
-          echo "${STDERR_CONTENT:-}" >&2
         }
         return 1
       fi
