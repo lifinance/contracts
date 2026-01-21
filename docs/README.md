@@ -64,3 +64,7 @@
 - [ReceiverChainflip](./ReceiverChainflip.md)
 - [RelayerCelerIM](./RelayerCelerIM.md)
 - [Permit2Proxy](./Permit2Proxy.md)
+
+# Tooling
+
+- [MCP (Cursor)](./MCP.md)

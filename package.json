@@ -18,6 +18,7 @@
   ],
   "devDependencies": {
     "@mayanfinance/swap-sdk": "^8.5.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.4",
     "@typechain/ethers-v5": "^10.2.0",
@@ -52,7 +53,8 @@
     "tsx": "4.21.0",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5",
-    "zksync-web3": "^0.14.3"
+    "zksync-web3": "^0.14.3",
+    "zod": "^4.3.5"
   },
   "overrides": {
     "web3": "4.16.0",
