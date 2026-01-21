@@ -2128,9 +2128,7 @@
         "AcrossFacetV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.2.0",
-        "LiFiIntentEscrowFacet": "1.0.0",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "LiFiIntentEscrowFacet": "1.0.0"
       }
     }
   },
