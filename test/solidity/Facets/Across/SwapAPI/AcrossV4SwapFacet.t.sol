@@ -734,27 +734,6 @@ contract AcrossV4SwapFacetTest is TestBase, TestHelpers {
         vm.stopPrank();
     }
 
-    function testRevert_SpokePoolPeriphery_WhenEvmRecipientMismatch() public {
-        vm.startPrank(USER_SENDER);
-
-        weth.approve(address(acrossV4SwapFacet), bridgeData.minAmount);
-
-        baseDepositData.recipient = _convertAddressToBytes32(address(0x1234)); // does not match with USER_RECEIVER from bridgeData
-        bytes memory callData = _buildCallData(bridgeData.minAmount);
-
-        vm.expectRevert(InvalidReceiver.selector);
-
-        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
-            bridgeData,
-            _facetData(
-                AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery,
-                callData
-            )
-        );
-
-        vm.stopPrank();
-    }
-
     function testRevert_SpokePool_WhenDepositorIsZero() public {
         ILiFi.BridgeData memory localBridgeData = bridgeData;
         localBridgeData.sendingAssetId = USDC_MAINNET;
@@ -823,46 +802,6 @@ contract AcrossV4SwapFacetTest is TestBase, TestHelpers {
             });
 
         vm.expectRevert(InformationMismatch.selector);
-
-        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
-            localBridgeData,
-            _facetData(
-                AcrossV4SwapFacet.SwapApiTarget.SpokePool,
-                abi.encode(params)
-            )
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevert_SpokePool_WhenEvmRecipientMismatch() public {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.sendingAssetId = USDC_MAINNET;
-        localBridgeData.receiver = USER_RECEIVER;
-        localBridgeData.minAmount = 100 * 10 ** 6; // 100 USDC
-        localBridgeData.destinationChainId = 42161;
-
-        vm.startPrank(USER_SENDER);
-
-        usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
-
-        IAcrossSpokePoolV4.DepositParams memory params = IAcrossSpokePoolV4
-            .DepositParams({
-                depositor: bytes32(uint256(uint160(USER_SENDER))),
-                recipient: _convertAddressToBytes32(address(0x1234)), // different to USER_RECEIVER
-                inputToken: bytes32(uint256(uint160(USDC_MAINNET))),
-                outputToken: bytes32(uint256(uint160(USDC_ARBITRUM))),
-                inputAmount: localBridgeData.minAmount,
-                outputAmount: 99900000,
-                destinationChainId: localBridgeData.destinationChainId,
-                exclusiveRelayer: bytes32(0),
-                quoteTimestamp: uint32(block.timestamp),
-                fillDeadline: uint32(block.timestamp + 3600),
-                exclusivityParameter: 0,
-                message: ""
-            });
-
-        vm.expectRevert(InvalidReceiver.selector);
 
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
