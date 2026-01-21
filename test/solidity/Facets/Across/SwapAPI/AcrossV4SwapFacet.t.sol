@@ -393,6 +393,111 @@ contract AcrossV4SwapFacetTest is TestBase, TestHelpers {
         );
     }
 
+    function test_SpokePool_NoPositiveSlippage_UsesZeroSentinelPath() public {
+        TestAcrossV4SwapFacet localFacet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
+            SPOKE_POOL,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY
+        );
+
+        uint256 preSwapAmount = 100 * 10 ** 6;
+        uint256 swapOutputAmount = preSwapAmount;
+
+        ILiFi.BridgeData memory localBridgeData = bridgeData;
+        localBridgeData.hasSourceSwaps = true;
+        localBridgeData.sendingAssetId = USDC_MAINNET;
+        localBridgeData.receiver = USER_RECEIVER;
+        localBridgeData.minAmount = preSwapAmount;
+
+        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
+            address(localFacet),
+            USDC_MAINNET,
+            swapOutputAmount,
+            0
+        );
+        localFacet.addAllowedContractSelector(
+            address(mockDEX),
+            mockDEX.swapExactTokensForTokens.selector
+        );
+
+        delete swapData;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = USDC_MAINNET;
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(mockDEX),
+                approveTo: address(mockDEX),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: USDC_MAINNET,
+                fromAmount: 100 * 10 ** 18,
+                callData: abi.encodeWithSelector(
+                    mockDEX.swapExactTokensForTokens.selector,
+                    100 * 10 ** 18,
+                    preSwapAmount,
+                    path,
+                    address(localFacet),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        IAcrossSpokePoolV4.DepositParams memory params = IAcrossSpokePoolV4
+            .DepositParams({
+                depositor: bytes32(uint256(uint160(USER_SENDER))),
+                recipient: _convertAddressToBytes32(USER_RECEIVER),
+                inputToken: bytes32(uint256(uint160(USDC_MAINNET))),
+                outputToken: bytes32(uint256(uint160(USDC_ARBITRUM))),
+                inputAmount: preSwapAmount,
+                outputAmount: 99 * 10 ** 6,
+                destinationChainId: localBridgeData.destinationChainId,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 3600),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(localFacet), swapData[0].fromAmount);
+
+        uint256 spokePoolBalanceBefore = usdc.balanceOf(SPOKE_POOL);
+
+        ILiFi.BridgeData memory expectedEventData = ILiFi.BridgeData({
+            transactionId: localBridgeData.transactionId,
+            bridge: localBridgeData.bridge,
+            integrator: localBridgeData.integrator,
+            referrer: localBridgeData.referrer,
+            sendingAssetId: localBridgeData.sendingAssetId,
+            receiver: localBridgeData.receiver,
+            minAmount: swapOutputAmount,
+            destinationChainId: localBridgeData.destinationChainId,
+            hasSourceSwaps: localBridgeData.hasSourceSwaps,
+            hasDestinationCall: localBridgeData.hasDestinationCall
+        });
+
+        vm.expectEmit(true, true, true, true, address(localFacet));
+        emit LiFiTransferStarted(expectedEventData);
+
+        localFacet.swapAndStartBridgeTokensViaAcrossV4Swap(
+            localBridgeData,
+            swapData,
+            _facetData(
+                AcrossV4SwapFacet.SwapApiTarget.SpokePool,
+                abi.encode(params)
+            )
+        );
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(SPOKE_POOL),
+            spokePoolBalanceBefore + swapOutputAmount
+        );
+    }
+
     function testRevert_SpokePool_WhenInputAmountMismatch() public {
         ILiFi.BridgeData memory localBridgeData = bridgeData;
         localBridgeData.sendingAssetId = USDC_MAINNET;

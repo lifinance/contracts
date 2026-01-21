@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBase } from "../../../utils/TestBase.sol";
+import { Test } from "forge-std/Test.sol";
+import { stdJson } from "forge-std/StdJson.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { DiamondTest } from "../../../utils/DiamondTest.sol";
 import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
-import { TestHelpers, MockUniswapDEX } from "../../../utils/TestHelpers.sol";
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ISpokePoolPeriphery } from "lifi/Interfaces/ISpokePoolPeriphery.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InvalidConfig, InformationMismatch, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { ISponsoredOFTSrcPeriphery } from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
+import { ISponsoredCCTPSrcPeriphery } from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
+import { InformationMismatch, InvalidCallData, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+
+using stdJson for string;
 
 // Minimal stub facet (for Diamond addFacet)
 contract TestAcrossV4SwapFacetSponsored is
@@ -30,326 +36,145 @@ contract TestAcrossV4SwapFacetSponsored is
     {}
 }
 
-/// @dev Exposes internal Sponsored CCTP logic to cover otherwise unreachable branches.
-contract TestAcrossV4SwapFacetSponsoredHarness is
-    AcrossV4SwapFacet,
-    TestWhitelistManagerBase
-{
-    constructor(
-        ISpokePoolPeriphery _spokePoolPeriphery,
-        address _spokePool,
-        address _sponsoredOftSrcPeriphery,
-        address _sponsoredCctpSrcPeriphery
-    )
-        AcrossV4SwapFacet(
-            _spokePoolPeriphery,
-            _spokePool,
-            _sponsoredOftSrcPeriphery,
-            _sponsoredCctpSrcPeriphery
-        )
-    {}
-
-    function exposed_callSponsoredCctpDepositForBurn(
-        ILiFi.BridgeData memory _bridgeData,
-        bytes calldata _callData
-    ) external payable {
-        _callSponsoredCctpDepositForBurn(_bridgeData, _callData, 0);
-    }
-}
-
-contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
-    function swapAndBridge(SwapAndDepositData calldata) external payable {}
-}
-
-/// @dev Accepts any calldata (so typed calls from the facet won't revert due to missing selectors).
-contract CalldataSink {
-    fallback() external payable {}
-    receive() external payable {}
-}
-
 /// @notice Sponsored-flow focused tests for AcrossV4SwapFacet
 /// @dev Split out to isolate stack-too-deep compilation issues in legacy pipeline
-contract AcrossV4SwapFacetSponsoredTest is TestBase, TestHelpers {
-    // Mainnet addresses used by the core suite
-    address internal constant SPOKE_POOL =
-        0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
-    address internal constant WETH =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant USDC_MAINNET =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant USDT_MAINNET =
-        0xdAC17F958D2ee523a2206206994597C13D831ec7;
+contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
+    // Arbitrum token addresses (USDC.e on Arbitrum One)
     address internal constant USDC_ARBITRUM =
         0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+    address internal constant USDT_ARBITRUM =
+        0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
 
-    // Hard-coded ABI-encoded callData for Sponsored OFT (Quote, signature) @ amount=100e6
-    function _sponsoredOftCallDataRefundRecipientUserRefund()
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return
-            hex"0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000026000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000abcdef28100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005f5e1000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abc654321000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010100000000000000000000000000000000000000000000000000000000000000";
-    }
+    // Accounts (mirrors TestBase)
+    address internal constant USER_SENDER = address(0xabc123456);
+    address internal constant USER_RECEIVER = address(0xabc654321);
+    address internal constant USER_PAUSER = address(0xdeadbeef);
+    address internal constant USER_DIAMOND_OWNER =
+        0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
 
-    function _sponsoredOftCallDataRefundRecipientZero()
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return
-            hex"000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000002600000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005f5e1000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abc654321000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010100000000000000000000000000000000000000000000000000000000000000";
-    }
+    // Across periphery callData (no selector), sourced from real Arbitrum transactions:
+    // - Sponsored CCTP depositForBurn: `0x58e7603e5e442ddc33f8cc78f20ca1193519589a5085b0233ed5ab069afcfbc5`
+    // - Sponsored OFT deposit: `0xebb4c5303972f84ac9bff42a106f23fe04773bee0119f6521f3a0fae8db60edb`
+    bytes internal constant SPONSORED_CCTP_CALLDATA =
+        hex"00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000260000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000130000000000000000000000001c709fd0db6a6b877ddb19ae3d485b7b4add879f000000000000000000000000000000000000000000000000000000040e225440000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e58310000000000000000000000001c709fd0db6a6b877ddb19ae3d485b7b4add879f0000000000000000000000000000000000000000000000000000000000228c9200000000000000000000000000000000000000000000000000000000000003e88c29807243f39dc62a658288c3da78b0f9f0491128a6d4ad8c6fb180000cd1440000000000000000000000000000000000000000000000000000000069681798000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000f961e5e6c5276164adb2865b7e80cf82dc04e920000000000000000000000000111111a1a0667d36bd57c0a9f569b98057111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004146c1b04bb28d876845ad77693b8854efcbae821becd2f3ee69ce7c1c99af34f75f2787bd8e94c33d2a779b3868a2f17acb4b11b8842a4561c8115471c7800d371b000000000000000000000000000000000000000000000000000000000000001dc0de007f73c0de";
+    bytes internal constant SPONSORED_OFT_CALLDATA =
+        hex"00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000260000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000000000759e000000000000000000000000000000000000000000000000000000000000769f000000000000000000000000c8786d517b4e224bb43985a38dbef8588d7354cd00000000000000000000000000000000000000000000000000000000004c4b40d68523e6dfa620bda28fce2092480828305416d2b5b091b9560985325e699570000000000000000000000000000000000000000000000000000000006967c89000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000404dc936b5ce2f01cd80ede9cd4e5809a483d32000000000000000000000000b8ce59fc3717ada4c02eadf9682a9e934f625ebb000000000000000000000000000000000000000000000000000000000002ab9800000000000000000000000000000000000000000000000000000000000493e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000411442fc1a5c7c2df5cbc0ff83364521cf33be93aea0e0881b4a1009bae8aba16d50ba7f74ba7605f0e4463af5fd7a129c60595baccca434b0ca4b07be626b2f6f1c000000000000000000000000000000000000000000000000000000000000001dc0de007f73c0de";
 
-    function _sponsoredOftCallDataRefundRecipientBeef()
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return
-            hex"000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000002600000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000beef00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005f5e1000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abc654321000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010100000000000000000000000000000000000000000000000000000000000000";
-    }
+    LiFiDiamond internal diamond;
+    AcrossV4SwapFacet internal acrossV4SwapFacet;
+    ERC20 internal usdc;
+    ERC20 internal usdt;
 
-    // Hard-coded ABI-encoded callData for Sponsored CCTP (Quote, signature) @ destinationDomain=6, amount=100e6, burnToken=USDC_MAINNET
-    function _sponsoredCctpCallDataDomain6BurnUsdc()
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return
-            hex"000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000002600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005f5e100000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abc654321000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010100000000000000000000000000000000000000000000000000000000000000";
-    }
-
-    function _sponsoredCctpCallDataDomain6BurnUsdt()
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return
-            hex"000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000002600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005f5e100000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abc654321000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010100000000000000000000000000000000000000000000000000000000000000";
-    }
-
-    function _callDataForDomain(
-        uint32 _destinationDomain
-    ) internal pure returns (bytes memory) {
-        bytes memory callData = _sponsoredCctpCallDataDomain6BurnUsdc();
-
-        // ABI layout for `abi.encode(quote, signature)`:
-        // - word0: offset to quote (0x40)
-        // - word1: offset to signature
-        // - quote starts at 0x40
-        // - quote.word0 = sourceDomain
-        // - quote.word1 = destinationDomain
-        //
-        // In bytes memory, data starts at +0x20, so destinationDomain is at:
-        // 0x20 + 0x40 + 0x20 = 0x80.
-        assembly {
-            mstore(add(callData, 0x80), _destinationDomain)
-        }
-
-        return callData;
-    }
-
-    TestAcrossV4SwapFacetSponsored internal acrossV4SwapFacet;
-    MockSpokePoolPeriphery internal mockPeriphery;
+    address internal spokePoolPeriphery;
+    address internal spokePool;
+    address internal sponsoredOftSrcPeriphery;
+    address internal sponsoredCctpSrcPeriphery;
 
     function setUp() public {
-        customBlockNumberForForking = 24067413;
-        initTestBase();
+        // Fork Arbitrum at (or before) both provided txs.
+        vm.createSelectFork(vm.envString("ETH_NODE_URI_ARBITRUM"), 421327371);
 
-        mockPeriphery = new MockSpokePoolPeriphery();
-        CalldataSink mockSponsoredOft = new CalldataSink();
-        CalldataSink mockSponsoredCctp = new CalldataSink();
+        usdc = ERC20(USDC_ARBITRUM);
+        usdt = ERC20(USDT_ARBITRUM);
 
-        acrossV4SwapFacet = new TestAcrossV4SwapFacetSponsored(
-            ISpokePoolPeriphery(address(mockPeriphery)),
-            SPOKE_POOL,
-            address(mockSponsoredOft),
-            address(mockSponsoredCctp)
+        // Ensure the test user can send value when needed.
+        vm.deal(USER_SENDER, 10 ether);
+
+        spokePoolPeriphery = _configAddress(
+            "acrossV4Swap.json",
+            ".arbitrum.spokePoolPeriphery"
+        );
+        spokePool = _configAddress("acrossV4Swap.json", ".arbitrum.spokePool");
+        sponsoredOftSrcPeriphery = _configAddress(
+            "acrossV4Swap.json",
+            ".arbitrum.sponsoredOftSrcPeriphery"
+        );
+        sponsoredCctpSrcPeriphery = _configAddress(
+            "acrossV4Swap.json",
+            ".arbitrum.sponsoredCctpSrcPeriphery"
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = acrossV4SwapFacet
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+
+        TestAcrossV4SwapFacetSponsored facetImpl = new TestAcrossV4SwapFacetSponsored(
+                ISpokePoolPeriphery(spokePoolPeriphery),
+                spokePool,
+                sponsoredOftSrcPeriphery,
+                sponsoredCctpSrcPeriphery
+            );
+
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = facetImpl
             .startBridgeTokensViaAcrossV4Swap
             .selector;
-        functionSelectors[1] = acrossV4SwapFacet
+        functionSelectors[1] = facetImpl
             .swapAndStartBridgeTokensViaAcrossV4Swap
             .selector;
-        functionSelectors[2] = acrossV4SwapFacet
-            .addAllowedContractSelector
-            .selector;
+        addFacet(diamond, address(facetImpl), functionSelectors);
 
-        addFacet(diamond, address(acrossV4SwapFacet), functionSelectors);
-        acrossV4SwapFacet = TestAcrossV4SwapFacetSponsored(address(diamond));
+        acrossV4SwapFacet = AcrossV4SwapFacet(address(diamond));
 
-        setFacetAddressInTestBase(
-            address(acrossV4SwapFacet),
-            "AcrossV4SwapFacetSponsored"
-        );
-
-        // Align bridgeData with mainnet -> Arbitrum scenario
-        bridgeData.bridge = "acrossV4Swap";
-        bridgeData.destinationChainId = 42161;
+        vm.label(address(diamond), "LiFiDiamond");
+        vm.label(address(acrossV4SwapFacet), "AcrossV4SwapFacet");
+        vm.label(spokePoolPeriphery, "SpokePoolPeriphery");
+        vm.label(spokePool, "SpokePool");
+        vm.label(sponsoredOftSrcPeriphery, "SponsoredOftSrcPeriphery");
+        vm.label(sponsoredCctpSrcPeriphery, "SponsoredCctpSrcPeriphery");
+        vm.label(USER_SENDER, "USER_SENDER");
+        vm.label(USER_RECEIVER, "USER_RECEIVER");
     }
 
-    function testRevert_WhenConstructedWithZeroConfig() public {
-        vm.expectRevert(InvalidConfig.selector);
-
-        new TestAcrossV4SwapFacetSponsored(
-            ISpokePoolPeriphery(address(0)),
-            address(0),
-            address(0),
-            address(0)
+    function _configAddress(
+        string memory configFileName,
+        string memory jsonPath
+    ) internal returns (address) {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/",
+            configFileName
         );
+        string memory json = vm.readFile(path);
+        return json.readAddress(jsonPath);
     }
 
-    function test_CanBridgeViaSponsoredOft() public {
-        vm.startPrank(USER_SENDER);
-        usdc.approve(address(acrossV4SwapFacet), bridgeData.minAmount);
-
-        vm.expectEmit(true, true, true, true, address(acrossV4SwapFacet));
-        emit LiFiTransferStarted(bridgeData);
-
-        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
-            bridgeData,
-            AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
-                callData: _sponsoredOftCallDataRefundRecipientUserRefund()
-            })
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevert_SponsoredOft_WhenRefundRecipientZero() public {
-        vm.startPrank(USER_SENDER);
-        usdc.approve(address(acrossV4SwapFacet), bridgeData.minAmount);
-
-        vm.expectRevert(InvalidCallData.selector);
-
-        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
-            bridgeData,
-            AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
-                callData: _sponsoredOftCallDataRefundRecipientZero()
-            })
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevert_SponsoredOft_WhenNativeAsset() public {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.sendingAssetId = address(0);
-
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(InvalidCallData.selector);
-
-        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{
-            value: localBridgeData.minAmount
-        }(
-            localBridgeData,
-            AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
-                callData: _sponsoredOftCallDataRefundRecipientUserRefund()
-            })
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_SponsoredOft_PositiveSlippageRefundsSurplusToRefundRecipient()
+    function test_CanBridgeViaSponsoredCctp_RealPeriphery_RealCalldata()
         public
     {
-        // set up swap to return +10% USDC
-        uint256 preSwapAmount = 100 * 10 ** 6;
-        uint256 swapOutputAmount = 110 * 10 ** 6;
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+            );
 
-        // mock DEX funded with USDC
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(acrossV4SwapFacet),
-            USDC_MAINNET,
-            swapOutputAmount,
-            0
-        );
-        acrossV4SwapFacet.addAllowedContractSelector(
-            address(mockDEX),
-            mockDEX.swapExactTokensForTokens.selector
-        );
+        // Domain 19 maps to chainId 999 (HyperEVM) in `_chainIdToCctpDomainId`.
+        assertEq(uint256(quote.destinationDomain), 19);
 
-        // swap: DAI -> USDC
-        delete swapData;
-        address[] memory path = new address[](2);
-        path[0] = ADDRESS_DAI;
-        path[1] = USDC_MAINNET;
+        address burnToken = address(uint160(uint256(quote.burnToken)));
+        assertEq(burnToken, USDC_ARBITRUM);
 
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(mockDEX),
-                approveTo: address(mockDEX),
-                sendingAssetId: ADDRESS_DAI,
-                receivingAssetId: USDC_MAINNET,
-                fromAmount: 100 * 10 ** 18,
-                callData: abi.encodeWithSelector(
-                    mockDEX.swapExactTokensForTokens.selector,
-                    100 * 10 ** 18,
-                    preSwapAmount,
-                    path,
-                    address(acrossV4SwapFacet),
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
+        uint256 amount = quote.amount;
 
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.hasSourceSwaps = true;
-        localBridgeData.sendingAssetId = USDC_MAINNET;
-        localBridgeData.minAmount = preSwapAmount;
+        deal(USDC_ARBITRUM, USER_SENDER, amount);
 
-        uint256 refundRecipientBalanceBefore = usdc.balanceOf(address(0xBEEF));
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: burnToken,
+            receiver: address(uint160(uint256(quote.finalRecipient))),
+            minAmount: amount,
+            destinationChainId: 999,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        uint256 senderBalBefore = usdc.balanceOf(USER_SENDER);
 
         vm.startPrank(USER_SENDER);
-        dai.approve(address(acrossV4SwapFacet), swapData[0].fromAmount);
-
-        // Event uses the originally signed amount (preSwapAmount)
-        ILiFi.BridgeData memory expectedEventData = localBridgeData;
-        expectedEventData.minAmount = preSwapAmount;
-
-        vm.expectEmit(true, true, true, true, address(acrossV4SwapFacet));
-        emit LiFiTransferStarted(expectedEventData);
-
-        acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap(
-            localBridgeData,
-            swapData,
-            AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
-                callData: _sponsoredOftCallDataRefundRecipientBeef()
-            })
-        );
-
-        vm.stopPrank();
-
-        assertEq(
-            usdc.balanceOf(address(0xBEEF)),
-            refundRecipientBalanceBefore + (swapOutputAmount - preSwapAmount)
-        );
-    }
-
-    function test_CanBridgeViaSponsoredCctp() public {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.destinationChainId = 8453; // Base -> domain 6
-
-        vm.startPrank(USER_SENDER);
-        usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
+        usdc.approve(address(acrossV4SwapFacet), amount);
 
         vm.expectEmit(true, true, true, true, address(acrossV4SwapFacet));
         emit LiFiTransferStarted(localBridgeData);
@@ -360,244 +185,398 @@ contract AcrossV4SwapFacetSponsoredTest is TestBase, TestHelpers {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: _sponsoredCctpCallDataDomain6BurnUsdc()
+                callData: abi.encode(quote, signature)
             })
         );
+        vm.stopPrank();
 
+        assertEq(usdc.balanceOf(USER_SENDER), senderBalBefore - amount);
+    }
+
+    function test_CanBridgeViaSponsoredCctp_RealPeriphery_RealCalldata_HyperCoreChainId()
+        public
+    {
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+            );
+
+        // Domain 19 maps to chainId 1337 (HyperCore via HyperEVM) in `_chainIdToCctpDomainId`.
+        assertEq(uint256(quote.destinationDomain), 19);
+
+        address burnToken = address(uint160(uint256(quote.burnToken)));
+        assertEq(burnToken, USDC_ARBITRUM);
+
+        uint256 amount = quote.amount;
+
+        deal(USDC_ARBITRUM, USER_SENDER, amount);
+
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: burnToken,
+            receiver: address(uint160(uint256(quote.finalRecipient))),
+            minAmount: amount,
+            destinationChainId: 1337,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        uint256 senderBalBefore = usdc.balanceOf(USER_SENDER);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossV4SwapFacet), amount);
+
+        vm.expectEmit(true, true, true, true, address(acrossV4SwapFacet));
+        emit LiFiTransferStarted(localBridgeData);
+
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
+            localBridgeData,
+            AcrossV4SwapFacet.AcrossV4SwapFacetData({
+                swapApiTarget: AcrossV4SwapFacet
+                    .SwapApiTarget
+                    .SponsoredCCTPSrcPeriphery,
+                callData: abi.encode(quote, signature)
+            })
+        );
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(USER_SENDER), senderBalBefore - amount);
+    }
+
+    function test_CanBridgeViaSponsoredOft_RealPeriphery_RealCalldata()
+        public
+    {
+        (
+            ISponsoredOFTSrcPeriphery.Quote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_OFT_CALLDATA,
+                (ISponsoredOFTSrcPeriphery.Quote, bytes)
+            );
+
+        // The stored callData may contain an unset refund recipient (unsigned param).
+        // Set it here so the facet's safety validation passes.
+        quote.unsignedParams.refundRecipient = USER_SENDER;
+
+        uint256 amount = quote.signedParams.amountLD;
+
+        // This real tx transferred USDT on Arbitrum into the Sponsored OFT periphery.
+        deal(USDT_ARBITRUM, USER_SENDER, amount);
+
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDT_ARBITRUM,
+            receiver: address(
+                uint160(uint256(quote.signedParams.finalRecipient))
+            ),
+            minAmount: amount,
+            destinationChainId: 1,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        uint256 senderBalBefore = usdt.balanceOf(USER_SENDER);
+
+        vm.startPrank(USER_SENDER);
+        usdt.approve(address(acrossV4SwapFacet), amount);
+
+        vm.expectEmit(true, true, true, true, address(acrossV4SwapFacet));
+        emit LiFiTransferStarted(localBridgeData);
+
+        // Sponsored OFT deposits are payable (LayerZero messaging fees).
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{
+            value: 0.01 ether
+        }(
+            localBridgeData,
+            AcrossV4SwapFacet.AcrossV4SwapFacetData({
+                swapApiTarget: AcrossV4SwapFacet
+                    .SwapApiTarget
+                    .SponsoredOFTSrcPeriphery,
+                callData: abi.encode(quote, signature)
+            })
+        );
+        vm.stopPrank();
+
+        assertEq(usdt.balanceOf(USER_SENDER), senderBalBefore - amount);
+    }
+
+    function testRevert_SponsoredOft_WhenRefundRecipientZero() public {
+        (
+            ISponsoredOFTSrcPeriphery.Quote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_OFT_CALLDATA,
+                (ISponsoredOFTSrcPeriphery.Quote, bytes)
+            );
+
+        quote.unsignedParams.refundRecipient = address(0);
+
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDT_ARBITRUM,
+            receiver: address(
+                uint160(uint256(quote.signedParams.finalRecipient))
+            ),
+            minAmount: quote.signedParams.amountLD,
+            destinationChainId: 1,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        deal(USDT_ARBITRUM, USER_SENDER, localBridgeData.minAmount);
+        vm.startPrank(USER_SENDER);
+        usdt.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
+            localBridgeData,
+            AcrossV4SwapFacet.AcrossV4SwapFacetData({
+                swapApiTarget: AcrossV4SwapFacet
+                    .SwapApiTarget
+                    .SponsoredOFTSrcPeriphery,
+                callData: abi.encode(quote, signature)
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_SponsoredOft_WhenNativeAsset() public {
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: address(0),
+            receiver: USER_RECEIVER,
+            minAmount: 1 ether,
+            destinationChainId: 1,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(InvalidCallData.selector);
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{
+            value: localBridgeData.minAmount
+        }(
+            localBridgeData,
+            AcrossV4SwapFacet.AcrossV4SwapFacetData({
+                swapApiTarget: AcrossV4SwapFacet
+                    .SwapApiTarget
+                    .SponsoredOFTSrcPeriphery,
+                callData: SPONSORED_OFT_CALLDATA
+            })
+        );
         vm.stopPrank();
     }
 
     function testRevert_SponsoredCctp_WhenMsgValueNonZero() public {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.destinationChainId = 8453;
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+            );
 
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDC_ARBITRUM,
+            receiver: address(uint160(uint256(quote.finalRecipient))),
+            minAmount: quote.amount,
+            destinationChainId: 999,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        deal(USDC_ARBITRUM, USER_SENDER, localBridgeData.minAmount);
         vm.startPrank(USER_SENDER);
         usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
 
         vm.expectRevert(InvalidCallData.selector);
-
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{ value: 1 }(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: _sponsoredCctpCallDataDomain6BurnUsdc()
+                callData: abi.encode(quote, signature)
             })
         );
-
         vm.stopPrank();
     }
 
-    function testRevert_SponsoredCctp_WhenBridgeDataAssetIsNative() public {
-        // This branch can't be reached via the normal external entrypoint because native-asset
-        // deposits require `msg.value`, but Sponsored CCTP is non-payable. We cover it via a harness.
-        TestAcrossV4SwapFacetSponsoredHarness harness = new TestAcrossV4SwapFacetSponsoredHarness(
-                ISpokePoolPeriphery(address(mockPeriphery)),
-                SPOKE_POOL,
-                address(new CalldataSink()),
-                address(new CalldataSink())
+    function testRevert_SponsoredCctp_WhenBurnTokenMismatch() public {
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
             );
 
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.destinationChainId = 8453; // Base -> domain 6
-        localBridgeData.sendingAssetId = address(0);
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDT_ARBITRUM,
+            receiver: address(uint160(uint256(quote.finalRecipient))),
+            minAmount: quote.amount,
+            destinationChainId: 999,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
 
-        vm.expectRevert(InvalidCallData.selector);
-        harness.exposed_callSponsoredCctpDepositForBurn(
-            localBridgeData,
-            _sponsoredCctpCallDataDomain6BurnUsdc()
-        );
-    }
-
-    function testRevert_SponsoredCctp_WhenBurnTokenMismatch() public {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.destinationChainId = 8453;
-
+        deal(USDT_ARBITRUM, USER_SENDER, localBridgeData.minAmount);
         vm.startPrank(USER_SENDER);
-        usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
+        usdt.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
 
         vm.expectRevert(InformationMismatch.selector);
-
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: _sponsoredCctpCallDataDomain6BurnUsdt()
+                callData: abi.encode(quote, signature)
             })
         );
-
         vm.stopPrank();
     }
 
     function testRevert_SponsoredCctp_WhenDestinationDomainMismatch() public {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.destinationChainId = 8453; // domain 6
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+            );
 
+        // Force a mismatch against chainId=999 (domain 19) while keeping signature bytes (will revert before signature is used).
+        quote.destinationDomain = 6;
+
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDC_ARBITRUM,
+            receiver: address(uint160(uint256(quote.finalRecipient))),
+            minAmount: quote.amount,
+            destinationChainId: 999,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        deal(USDC_ARBITRUM, USER_SENDER, localBridgeData.minAmount);
         vm.startPrank(USER_SENDER);
         usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
 
         vm.expectRevert(InformationMismatch.selector);
-
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: _callDataForDomain(7)
+                callData: abi.encode(quote, signature)
             })
         );
-
         vm.stopPrank();
     }
 
     function testRevert_SponsoredCctp_WhenChainIdNotMapped() public {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.destinationChainId = 9999999;
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+            );
 
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDC_ARBITRUM,
+            receiver: address(uint160(uint256(quote.finalRecipient))),
+            minAmount: quote.amount,
+            destinationChainId: 9999999,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        deal(USDC_ARBITRUM, USER_SENDER, localBridgeData.minAmount);
         vm.startPrank(USER_SENDER);
         usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
 
         vm.expectRevert(InvalidCallData.selector);
-
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: _callDataForDomain(6)
+                callData: abi.encode(quote, signature)
             })
         );
-
         vm.stopPrank();
     }
 
-    function test_SponsoredCctp_PositiveSlippageRefundsSurplusToCaller()
-        public
-    {
-        uint256 preSwapAmount = 100 * 10 ** 6;
-        uint256 swapOutputAmount = 110 * 10 ** 6;
+    function testRevert_SponsoredCctp_WhenReceiverMismatch() public {
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+            );
 
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(acrossV4SwapFacet),
-            USDC_MAINNET,
-            swapOutputAmount,
-            0
-        );
-        acrossV4SwapFacet.addAllowedContractSelector(
-            address(mockDEX),
-            mockDEX.swapExactTokensForTokens.selector
-        );
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDC_ARBITRUM,
+            receiver: address(0xdead),
+            minAmount: quote.amount,
+            destinationChainId: 999,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
 
-        delete swapData;
-        address[] memory path = new address[](2);
-        path[0] = ADDRESS_DAI;
-        path[1] = USDC_MAINNET;
-
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(mockDEX),
-                approveTo: address(mockDEX),
-                sendingAssetId: ADDRESS_DAI,
-                receivingAssetId: USDC_MAINNET,
-                fromAmount: 100 * 10 ** 18,
-                callData: abi.encodeWithSelector(
-                    mockDEX.swapExactTokensForTokens.selector,
-                    100 * 10 ** 18,
-                    preSwapAmount,
-                    path,
-                    address(acrossV4SwapFacet),
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
-
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.hasSourceSwaps = true;
-        localBridgeData.sendingAssetId = USDC_MAINNET;
-        localBridgeData.minAmount = preSwapAmount;
-        localBridgeData.destinationChainId = 8453; // domain 6
-
-        uint256 senderUsdcBalanceBefore = usdc.balanceOf(USER_SENDER);
-
+        deal(USDC_ARBITRUM, USER_SENDER, localBridgeData.minAmount);
         vm.startPrank(USER_SENDER);
-        dai.approve(address(acrossV4SwapFacet), swapData[0].fromAmount);
+        usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
 
-        ILiFi.BridgeData memory expectedEventData = localBridgeData;
-        expectedEventData.minAmount = preSwapAmount;
-
-        vm.expectEmit(true, true, true, true, address(acrossV4SwapFacet));
-        emit LiFiTransferStarted(expectedEventData);
-
-        acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap(
-            localBridgeData,
-            swapData,
-            AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
-                callData: _callDataForDomain(6)
-            })
-        );
-
-        vm.stopPrank();
-
-        assertEq(
-            usdc.balanceOf(USER_SENDER),
-            senderUsdcBalanceBefore + (swapOutputAmount - preSwapAmount)
-        );
-    }
-
-    function test_SponsoredCctp_CoversAllMappedDomains() public {
-        vm.chainId(999999);
-
-        deal(USDC_MAINNET, USER_SENDER, 10_000_000 * 10 ** 6);
-
-        vm.startPrank(USER_SENDER);
-        usdc.approve(address(acrossV4SwapFacet), type(uint256).max);
-
-        // chainId -> domain
-        _callSponsoredCctpMapped(1, 0);
-        _callSponsoredCctpMapped(43114, 1);
-        _callSponsoredCctpMapped(10, 2);
-        _callSponsoredCctpMapped(42161, 3);
-        _callSponsoredCctpMapped(1151111081099710, 5);
-        _callSponsoredCctpMapped(8453, 6);
-        _callSponsoredCctpMapped(137, 7);
-        _callSponsoredCctpMapped(130, 10);
-        _callSponsoredCctpMapped(59144, 11);
-        _callSponsoredCctpMapped(81224, 12);
-        _callSponsoredCctpMapped(146, 13);
-        _callSponsoredCctpMapped(480, 14);
-        _callSponsoredCctpMapped(1329, 16);
-        _callSponsoredCctpMapped(50, 18);
-        _callSponsoredCctpMapped(999, 19);
-        _callSponsoredCctpMapped(57073, 21);
-        _callSponsoredCctpMapped(98866, 22);
-
-        vm.stopPrank();
-    }
-
-    function _callSponsoredCctpMapped(
-        uint256 _destinationChainId,
-        uint32 _destinationDomain
-    ) internal {
-        ILiFi.BridgeData memory localBridgeData = bridgeData;
-        localBridgeData.destinationChainId = _destinationChainId;
-
+        vm.expectRevert(InvalidReceiver.selector);
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: _callDataForDomain(_destinationDomain)
+                callData: abi.encode(quote, signature)
             })
         );
+        vm.stopPrank();
     }
 }
