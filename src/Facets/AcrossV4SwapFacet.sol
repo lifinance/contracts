@@ -595,6 +595,7 @@ contract AcrossV4SwapFacet is
         if (_chainId == 1329) return 16; // Sei
         if (_chainId == 50) return 18; // XDC
         if (_chainId == 999) return 19; // HyperEVM
+        if (_chainId == 1337) return 19; // HyperCore (via HyperEVM)
         if (_chainId == 57073) return 21; // Ink
         if (_chainId == 98866) return 22; // Plume
         revert InvalidCallData();
