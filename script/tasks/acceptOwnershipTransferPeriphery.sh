@@ -73,6 +73,9 @@ acceptOwnershipTransferPeriphery() {
       elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
         break  # exit the loop if the operation was successful
       fi
+
+      attempts=$((attempts + 1))
+      sleep 1
     done
 
     # check if loop was ended because it ran out of attempts or because of success

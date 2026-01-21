@@ -369,7 +369,16 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  CONSTRUCTOR_ARGS=$(echo "${RAW_RETURN_DATA:-}" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+  # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
+  local JSON_DATA
+  JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+  
+  # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
+  if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+    JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+  fi
+  
+  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already
