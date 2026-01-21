@@ -106,9 +106,7 @@ function diamondSyncWhitelist {
         local TRON_CONTRACTS_JSON=$(formatCommaToJsonArray "$BATCH_CONTRACTS")
         local TRON_SELECTORS_JSON=$(formatCommaToJsonArray "$BATCH_SELECTORS")
         
-        echoSyncDebug "Tron staging - Contracts: $TRON_CONTRACTS_JSON"
-        echoSyncDebug "Tron staging - Selectors: $TRON_SELECTORS_JSON"
-        echoSyncDebug "Tron staging - Full params: $TRON_CONTRACTS_JSON,$TRON_SELECTORS_JSON,$IS_ADD"
+        echoSyncDebug "Tron staging - params: $TRON_CONTRACTS_JSON,$TRON_SELECTORS_JSON,$IS_ADD"
         
         local OUTPUT
         OUTPUT=$(bun troncast send "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$TRON_CONTRACTS_JSON,$TRON_SELECTORS_JSON,$IS_ADD" --env "$TRON_ENV" --confirm 2>&1)
