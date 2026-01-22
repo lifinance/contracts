@@ -28,10 +28,7 @@ test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
 out = "out/zksync"
-
-# zksolc needs to be defined here as foundry can't detect it if it's under [profile.zksync]
-[profile.default.zksync]
-zksolc = '1.5.15'
+zksync = { zksolc = '1.5.15' }
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"

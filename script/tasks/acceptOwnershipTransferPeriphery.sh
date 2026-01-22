@@ -54,30 +54,28 @@ acceptOwnershipTransferPeriphery() {
     attempts=1
 
     while [ $attempts -lt 11 ]; do
-      # Execute forge script with stdout/stderr capture and JSON extraction
-      local RESULT
-      RESULT=$(executeCommandWithLogs \
+      # Execute, parse, and check return code
+      executeAndParse \
         "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
-        "true")
-      local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-      RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-      STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-      RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+        "true"
 
       # check return data for error message (regardless of return code as this is not 100% reliable)
-      if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+      if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
         # try to extract error message and throw error
-        ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+        ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
         if [[ $ERROR_MESSAGE == "" ]]; then
-          error "execution of script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
+          error "execution of script failed. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
         else
           error "execution of script failed with message: $ERROR_MESSAGE"
         fi
 
       # check the return code the last call
-      elif [[ $RETURN_CODE -eq 0 && $RAW_RETURN_DATA != *"\"returns\":{}"* ]]; then
+      elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
         break  # exit the loop if the operation was successful
       fi
+
+      attempts=$((attempts + 1))
+      sleep 1
     done
 
     # check if loop was ended because it ran out of attempts or because of success

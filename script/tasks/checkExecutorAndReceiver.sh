@@ -55,22 +55,17 @@ checkExecutorAndReceiver() {
     echo ""
     echo "[info] now check Executor and Receiver on network: $NETWORK"
 
-    # Execute forge script with stdout/stderr capture and JSON extraction
-    local RESULT
-    RESULT=$(executeCommandWithLogs \
+    # Execute, parse, and check return code
+    executeAndParse \
       "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK --json --skip-simulation --legacy --tc DeployScript" \
-      "true")
-    local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-    RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-    STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-    RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+      "true"
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+    if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
       # try to extract error message and throw error
-      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+      ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
       if [[ $ERROR_MESSAGE == "" ]]; then
-        error "failed to check. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
+        error "failed to check. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
       else
         error "failed to check with message: $ERROR_MESSAGE"
       fi
@@ -78,9 +73,9 @@ checkExecutorAndReceiver() {
       FAILED_RESULTS="$FAILED_RESULTS\n[info] Failed to check on network: $NETWORK"
 
     # check the return code the last call
-    elif [[ $RETURN_CODE -eq 0 && $RAW_RETURN_DATA != *"\"returns\":{}"* ]]; then
+    elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
       # extract the "logs" property and its contents from return data
-      CLEAN_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | sed 's/^.*{\"logs/{\"logs/')
+      CLEAN_RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed 's/^.*{\"logs/{\"logs/')
 
       # extract the "returns" property and its contents from logs
       RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)

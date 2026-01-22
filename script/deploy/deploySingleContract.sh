@@ -256,30 +256,25 @@ deploySingleContract() {
       MEGAETH_FLAGS=""
     fi
 
-    # Execute forge script with stdout/stderr capture and JSON extraction
-    local RESULT
+    # Execute, parse, and check return code
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RESULT=$(executeCommandWithLogs \
+      executeAndParse \
         "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
-        "true")
+        "true"
     else
       # try to execute call
-      RESULT=$(executeCommandWithLogs \
+      executeAndParse \
         "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $MEGAETH_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
-        "true")
+        "true"
     fi
-    local RAW_RETURN_DATA STDERR_CONTENT RETURN_CODE
-    RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
-    STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
-    RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+    if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
       # try to extract error message and throw error
-      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+      ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
       if [[ $ERROR_MESSAGE == "" ]]; then
-        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
+        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
       else
         error "execution of deploy script failed with message: $ERROR_MESSAGE"
       fi
@@ -287,7 +282,7 @@ deploySingleContract() {
       sleep 1
       continue
     # Check for zksync-specific address collision (revert with specific error code)
-    elif isZkEvmNetwork "$NETWORK" && [[ $RAW_RETURN_DATA == *"\"status\":\"Revert\""* && $RAW_RETURN_DATA == *"0x9e4a3c8a"* ]]; then
+    elif isZkEvmNetwork "$NETWORK" && [[ "${RAW_RETURN_DATA:-}" == *"\"status\":\"Revert\""* && "${RAW_RETURN_DATA:-}" == *"0x9e4a3c8a"* ]]; then
       echo ""
       gum style \
         --foreground 196 --border-foreground 196 --border double \
@@ -310,10 +305,9 @@ deploySingleContract() {
     # check the return code the last call
     elif [[ -n "$RETURN_CODE" ]] && [[ "$RETURN_CODE" -eq 0 ]]; then
       # extract deployed-to address from return data
-      ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
-      EXTRACT_CODE=$?
+      ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
       
-      if [[ $EXTRACT_CODE -ne 0 ]]; then
+      if [[ $? -ne 0 ]]; then
         warning "❌ Could not extract deployed address from raw return data (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
         attempts=$((attempts + 1))
         sleep 1
@@ -375,7 +369,16 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+  # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
+  local JSON_DATA
+  JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+  
+  # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
+  if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+    JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+  fi
+  
+  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already
