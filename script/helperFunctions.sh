@@ -1182,9 +1182,9 @@ function checkRequiredVariablesInDotEnv() {
     # Individual API Key
     local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
 
-    # Some API keys are optional (e.g., BLOCKSCOUT_API_KEY, ZKSYNC_NATIVE_VERIFIER)
+    # Some API keys are optional (e.g., BLOCKSCOUT_API_KEY, ZKSYNC_NATIVE_VERIFIER, VERIFY_CONTRACT_API_KEY)
     # Allow empty string for these optional keys
-    if [[ -z "$BLOCKEXPLORER_API_KEY" ]] && [[ "$KEY_VAR" != "BLOCKSCOUT_API_KEY" ]] && [[ "$KEY_VAR" != "ZKSYNC_NATIVE_VERIFIER" ]]; then
+    if [[ -z "$BLOCKEXPLORER_API_KEY" ]] && [[ "$KEY_VAR" != "BLOCKSCOUT_API_KEY" ]] && [[ "$KEY_VAR" != "ZKSYNC_NATIVE_VERIFIER" ]] && [[ "$KEY_VAR" != "VERIFY_CONTRACT_API_KEY" ]]; then
       error "Network $NETWORK uses a custom API key ($KEY_VAR) which is missing in your .env file."
       return 1
     fi
