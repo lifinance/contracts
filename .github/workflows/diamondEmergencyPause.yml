@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       warning:
-        description: "By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
+        description: "By clicking the next button you are pausing all PRODUCTION diamonds. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
         required: true
 
 permissions:
