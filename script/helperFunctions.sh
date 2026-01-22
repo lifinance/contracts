@@ -1182,7 +1182,9 @@ function checkRequiredVariablesInDotEnv() {
     # Individual API Key
     local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
 
-    if [[ -z "$BLOCKEXPLORER_API_KEY" ]]; then
+    # Some API keys are optional (e.g., BLOCKSCOUT_API_KEY, ZKSYNC_NATIVE_VERIFIER)
+    # Allow empty string for these optional keys
+    if [[ -z "$BLOCKEXPLORER_API_KEY" ]] && [[ "$KEY_VAR" != "BLOCKSCOUT_API_KEY" ]] && [[ "$KEY_VAR" != "ZKSYNC_NATIVE_VERIFIER" ]]; then
       error "Network $NETWORK uses a custom API key ($KEY_VAR) which is missing in your .env file."
       return 1
     fi
@@ -1861,6 +1863,15 @@ function verifyContract() {
     VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
   fi
 
+  if [ "$API_KEY" = "ZKSYNC_NATIVE_VERIFIER" ]; then
+    VERIFY_CMD+=("--verifier" "zksync")
+    # For zkSync native verifier, API key is optional. If not set, export empty string to avoid Foundry errors
+    if [[ -z "${!API_KEY}" ]]; then
+      echoDebug "ZKSYNC_NATIVE_VERIFIER not set, exporting empty string for zkSync native verification"
+      export ZKSYNC_NATIVE_VERIFIER=""
+    fi
+  fi
+
   if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
     VERIFY_CMD+=("--verifier" "blockscout")
     # For Blockscout, API key is optional. If not set, export empty string to avoid Foundry errors
@@ -1869,12 +1880,7 @@ function verifyContract() {
       echoDebug "BLOCKSCOUT_API_KEY not set, exporting empty string for Blockscout verification"
       export BLOCKSCOUT_API_KEY=""
     fi
-    # Some Foundry versions may incorrectly look for VERIFY_CONTRACT_API_KEY when reading foundry.toml
-    # Export empty string to prevent errors
-    if [[ -z "${VERIFY_CONTRACT_API_KEY:-}" ]]; then
-      echoDebug "VERIFY_CONTRACT_API_KEY not set, exporting empty string as fallback"
-      export VERIFY_CONTRACT_API_KEY=""
-    fi
+
   elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
     # make sure API key is not empty
     if [ -z "$API_KEY" ]; then
@@ -1893,6 +1899,13 @@ function verifyContract() {
         export VERIFY_CONTRACT_API_KEY=""
       fi
     fi
+  fi
+
+  # Some Foundry versions may incorrectly look for VERIFY_CONTRACT_API_KEY when reading foundry.toml
+  # Export empty string to prevent errors
+  if [[ -z "${VERIFY_CONTRACT_API_KEY:-}" ]]; then
+    echoDebug "VERIFY_CONTRACT_API_KEY not set, exporting empty string as fallback"
+    export VERIFY_CONTRACT_API_KEY=""
   fi
 
   # Always add verifier URL since all networks have one configured in foundry.toml
