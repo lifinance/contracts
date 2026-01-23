@@ -5006,22 +5006,6 @@
               "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }
           }
-        ],
-        "bsc": [
-          {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
-            "functions": {
-              "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
-            }
-          }
-        ],
-        "megaeth": [
-          {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
-            "functions": {
-              "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
-            }
-          }
         ]
       }
     }
