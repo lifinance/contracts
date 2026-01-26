@@ -1,13 +1,15 @@
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
 import { consola } from 'consola'
 import {
   createPublicClient,
   getAddress,
   http,
   parseAbi,
+  formatEther,
   type Address,
 } from 'viem'
-import { readFileSync } from 'fs'
-import { join } from 'path'
 
 import 'dotenv/config'
 
@@ -17,6 +19,7 @@ import {
   type INetwork,
   type SupportedChain,
 } from '../../common/types'
+import { initTronWeb } from '../../troncast/utils/tronweb'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { getRPCEnvVarName } from '../../utils/network'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
@@ -60,6 +63,10 @@ interface IPauserWalletStatus {
     unpauseDiamond: boolean
     pauserWallet: boolean
   } | null
+  balance: string | null
+  formattedBalance: string | null
+  nativeCurrency: string | null
+  balanceError: string | null
   errors: string[]
 }
 
@@ -77,6 +84,42 @@ function getPauserWalletFromConfig(): Address {
     throw new Error('pauserWallet not found in config/global.json')
   }
   return getAddress(pauserWallet) as Address
+}
+
+// Helper function to get balance for EVM chains
+async function getEvmBalance(
+  publicClient: ReturnType<typeof createPublicClient>,
+  address: Address
+): Promise<{ balance: string; formattedBalance: string }> {
+  const balance = await publicClient.getBalance({ address })
+  const formattedBalance = formatEther(balance)
+  return {
+    balance: balance.toString(),
+    formattedBalance,
+  }
+}
+
+// Helper function to get balance for Tron chains
+async function getTronBalance(
+  networkName: string,
+  address: Address
+): Promise<{ balance: string; formattedBalance: string }> {
+  const env: 'mainnet' | 'testnet' = networkName === 'tron' ? 'mainnet' : 'testnet'
+  const tronWeb = initTronWeb(env, undefined)
+
+  // Convert EVM address to Tron address if needed
+  const tronAddress = address.startsWith('0x')
+    ? tronWeb.address.fromHex(address)
+    : address
+
+  // Get TRX balance (in SUN, 1 TRX = 1,000,000 SUN)
+  const balanceInSun = await tronWeb.trx.getBalance(tronAddress)
+  const balanceInTrx = balanceInSun / 1_000_000
+
+  return {
+    balance: balanceInSun.toString(),
+    formattedBalance: balanceInTrx.toFixed(6),
+  }
 }
 
 // Helper function to check if all EmergencyPauseFacet selectors are registered on the diamond
@@ -107,10 +150,11 @@ async function checkEmergencyPauseFacetRegistered(
         address: diamondAddress,
         abi: DIAMOND_LOUPE_ABI,
         functionName: 'facetAddress',
-        args: [selector],
+        args: [selector as `0x${string}`],
       })
       // If facetAddress is not zero address, the selector is registered
       const isRegistered =
+        facetAddress !== undefined &&
         facetAddress !== '0x0000000000000000000000000000000000000000'
 
       // Map selector to property name
@@ -158,6 +202,10 @@ async function checkNetworkPauserWallet(
     addressesMatch: null,
     hasEmergencyPauseFacet: null,
     registeredSelectors: null,
+    balance: null,
+    formattedBalance: null,
+    nativeCurrency: networkConfig.nativeCurrency || null,
+    balanceError: null,
     errors: [],
   }
 
@@ -268,6 +316,34 @@ async function checkNetworkPauserWallet(
           `  Config:   ${expectedPauserWallet}`
         )
       }
+
+      // Wait 3 seconds before checking balance
+      await sleep(3000)
+
+      // Check balance for the pauser wallet
+      try {
+        if (networkName === 'tron' || networkName === 'tronshasta') {
+          const balanceResult = await getTronBalance(
+            networkName,
+            status.pauserWalletOnChain
+          )
+          status.balance = balanceResult.balance
+          status.formattedBalance = balanceResult.formattedBalance
+        } else {
+          const balanceResult = await getEvmBalance(
+            publicClient,
+            status.pauserWalletOnChain
+          )
+          status.balance = balanceResult.balance
+          status.formattedBalance = balanceResult.formattedBalance
+        }
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        status.balanceError = errorMessage
+        status.balance = '0'
+        status.formattedBalance = '0'
+      }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -345,16 +421,24 @@ function printTable(results: IPauserWalletStatus[]) {
   const matchWidth = 8
   const facetWidth = 8
   const selectorsWidth = 50
+  const balanceWidth = Math.max(
+    'Balance'.length,
+    ...results.map((r) => {
+      if (!r.formattedBalance || !r.nativeCurrency) return 'N/A'.length
+      return `${r.formattedBalance} ${r.nativeCurrency}`.length
+    })
+  )
 
   // Header
   const headerLine = `${'Network'.padEnd(networkWidth)} | ${'Diamond Address'.padEnd(
     diamondWidth
-  )} | ${'Pauser Wallet'.padEnd(pauserWidth)} | ${'Match'.padEnd(matchWidth)} | ${'Facet'.padEnd(facetWidth)} | ${'Selectors'.padEnd(selectorsWidth)}`
+  )} | ${'Pauser Wallet'.padEnd(pauserWidth)} | ${'Match'.padEnd(matchWidth)} | ${'Facet'.padEnd(facetWidth)} | ${'Selectors'.padEnd(selectorsWidth)} | ${'Balance'.padEnd(balanceWidth)}`
   console.log('\n')
   console.log('Legend:')
   console.log('  Match: Pauser wallet matches config')
   console.log('  Facet: All EmergencyPauseFacet selectors are registered')
   console.log('  Selectors: pauseDiamond, removeFacet, unpauseDiamond, pauserWallet')
+  console.log('  Balance: Native token balance of pauser wallet')
   console.log('')
   console.log(headerLine)
   console.log('-'.repeat(headerLine.length))
@@ -387,9 +471,22 @@ function printTable(results: IPauserWalletStatus[]) {
     }
     const selectors = selectorsStatus.padEnd(selectorsWidth)
 
+    // Format balance
+    let balanceDisplay = 'N/A'
+    let balanceColor: 'red' | 'green' | 'yellow' | 'reset' = 'reset'
+    if (result.formattedBalance && result.nativeCurrency) {
+      const balance = parseFloat(result.formattedBalance)
+      balanceDisplay = `${result.formattedBalance} ${result.nativeCurrency}`
+      balanceColor = balance === 0 ? 'red' : 'green'
+    } else if (result.balanceError) {
+      balanceDisplay = 'Error'
+      balanceColor = 'red'
+    }
+    const balance = balanceDisplay.padEnd(balanceWidth)
+
     const line = `${getColorCode(networkColor)}${networkName}${getColorCode(
       'reset'
-    )} | ${diamondAddress} | ${pauserWallet} | ${match} | ${facet} | ${selectors}`
+    )} | ${diamondAddress} | ${pauserWallet} | ${match} | ${facet} | ${selectors} | ${getColorCode(balanceColor)}${balance}${getColorCode('reset')}`
 
     console.log(line)
   }
@@ -426,6 +523,29 @@ function printTable(results: IPauserWalletStatus[]) {
   )
   console.log(
     `  ${getColorCode('yellow')}⚠️  EmergencyPauseFacet missing: ${missingFacetCount}${getColorCode(
+      'reset'
+    )}`
+  )
+  console.log('')
+  const nonZeroBalances = results.filter(
+    (r) =>
+      r.formattedBalance &&
+      !r.balanceError &&
+      parseFloat(r.formattedBalance) > 0
+  )
+  const zeroBalances = results.filter(
+    (r) =>
+      r.formattedBalance &&
+      !r.balanceError &&
+      parseFloat(r.formattedBalance) === 0
+  )
+  console.log(
+    `  ${getColorCode('green')}✅ Pauser wallet with balance > 0: ${nonZeroBalances.length}${getColorCode(
+      'reset'
+    )}`
+  )
+  console.log(
+    `  ${getColorCode('yellow')}⚠️  Pauser wallet with balance = 0: ${zeroBalances.length}${getColorCode(
       'reset'
     )}`
   )
@@ -496,6 +616,51 @@ function printTable(results: IPauserWalletStatus[]) {
           console.log(`    Missing selectors: ${missing.join(', ')}`)
         }
       }
+    }
+  }
+
+  // Show networks with zero balances
+  const networksWithZeroBalance = results.filter(
+    (r) =>
+      r.formattedBalance &&
+      !r.balanceError &&
+      parseFloat(r.formattedBalance) === 0 &&
+      r.errors.length === 0
+  )
+  if (networksWithZeroBalance.length > 0) {
+    console.log('')
+    console.log('Networks with zero balance:')
+    for (const result of networksWithZeroBalance) {
+      console.log(
+        `  ${getColorCode('yellow')}${result.network} (${
+          result.environment
+        }):${getColorCode('reset')}`
+      )
+      console.log(
+        `    Pauser wallet: ${result.pauserWalletOnChain || 'N/A'}`
+      )
+      console.log(
+        `    Balance: ${result.formattedBalance} ${result.nativeCurrency || ''}`
+      )
+    }
+  }
+
+  // Show networks with balance errors
+  const networksWithBalanceErrors = results.filter(
+    (r) => r.balanceError && r.errors.length === 0
+  )
+  if (networksWithBalanceErrors.length > 0) {
+    console.log('')
+    console.log('Networks with balance check errors:')
+    for (const result of networksWithBalanceErrors) {
+      console.log(
+        `  ${getColorCode('red')}${result.network} (${
+          result.environment
+        }):${getColorCode('reset')}`
+      )
+      console.log(
+        `    Error: ${result.balanceError}`
+      )
     }
   }
 
