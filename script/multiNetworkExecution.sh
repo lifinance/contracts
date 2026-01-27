@@ -137,7 +137,7 @@ function executeNetworkActions() {
     #### MANAGE SAFE OWNERS #############
     # Remove an owner from Safe
     # manageSafeOwner "remove" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb"
-    manageSafeOwner "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
+    # manageSafeOwner "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
     # manageTimelockCanceller "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
 
     # removeAccessManagerPermission "$NETWORK" "0x1171c007" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
