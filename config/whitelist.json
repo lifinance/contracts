@@ -301,6 +301,14 @@
             }
           }
         ],
+        "megaeth": [
+          {
+            "address": "0x1172826a33c1b44e813edfda03ecc8b792db2b69",
+            "functions": {
+              "0xe3665a43": ""
+            }
+          }
+        ],
         "mantle": [
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
