@@ -127,6 +127,16 @@ function executeNetworkActions() {
         return $RETURN_CODE
     fi
 
+    # VERIFY - Verify proposal exists in MongoDB with pending status
+    echo "[$NETWORK] Waiting 2 seconds for MongoDB write propagation..."
+    sleep 2
+    script/deploy/safe/verify-proposal-exists.sh "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+    RETURN_CODE=$?
+    if [[ $RETURN_CODE -ne 0 ]]; then
+        echo "[$NETWORK] ERROR: Proposal verification failed - proposal was created but not found in database"
+        return $RETURN_CODE
+    fi
+
     # UPDATE DIAMOND - Update diamond log for the network
     updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
 
