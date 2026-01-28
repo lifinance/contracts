@@ -7413,7 +7413,7 @@
       },
       {
         "name": "GasZipPeriphery",
-        "address": "0xE34919F5982381368Bd9C640a0F81f3Aa28CE43a",
+        "address": "0xa8800ABdD6771dA7aAab2d09a5b97F4B8b19B58a",
         "selectors": [
           {
             "selector": "0x8b71ae6c",
