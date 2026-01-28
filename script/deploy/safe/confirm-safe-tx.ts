@@ -214,20 +214,32 @@ async function getTargetName(
           : (deploymentsUnknown as unknown)
 
       // Check diamond address
-      if (isRecord(deployments) && deployments.LiFiDiamond) {
-        const diamondAddress = getAddress(
-          deployments.LiFiDiamond as Address
-        ).toLowerCase()
-        if (diamondAddress === normalizedAddress) return '(LiFiDiamond)'
+      if (isRecord(deployments)) {
+        const diamond = deployments.LiFiDiamond
+        if (typeof diamond === 'string' && diamond.startsWith('0x')) {
+          try {
+            const diamondAddress = getAddress(diamond as Address).toLowerCase()
+            if (diamondAddress === normalizedAddress) return '(LiFiDiamond)'
+          } catch {
+            // ignore invalid address strings in deployments
+          }
+        }
       }
 
       // Check timelock address
-      if (isRecord(deployments) && deployments.LiFiTimelockController) {
-        const timelockAddress = getAddress(
-          deployments.LiFiTimelockController as Address
-        ).toLowerCase()
-        if (timelockAddress === normalizedAddress)
-          return '(LiFiTimelockController)'
+      if (isRecord(deployments)) {
+        const timelock = deployments.LiFiTimelockController
+        if (typeof timelock === 'string' && timelock.startsWith('0x')) {
+          try {
+            const timelockAddress = getAddress(
+              timelock as Address
+            ).toLowerCase()
+            if (timelockAddress === normalizedAddress)
+              return '(LiFiTimelockController)'
+          } catch {
+            // ignore invalid address strings in deployments
+          }
+        }
       }
 
       // Generic: resolve any deployment entry name by address match
