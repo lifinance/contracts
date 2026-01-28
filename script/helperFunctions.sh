@@ -1901,6 +1901,8 @@ function verifyContract() {
         echo "Error: Could not find API key for network $NETWORK"
         return 1
       fi
+      # Custom etherscan-compatible API key
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     fi
   fi
 
