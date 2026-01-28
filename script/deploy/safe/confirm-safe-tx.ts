@@ -1079,7 +1079,7 @@ const processTxs = async (
       if (
         !safetyBlocker &&
         hasEnoughSignatures(tx.safeTransaction, tx.threshold)
-      )
+      ) {
         options.push('Execute')
         if (!isDeployerCurrentSigner) options.push('Execute with Deployer')
       }
