@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 
 /**
- * Check Contract Registration Per Network
+ * Check Periphery Contract Registration Per Network
  *
- * This script checks if a contract (facet or periphery) is registered in the diamond
- * across all active networks. For facets, it checks if the facet is registered.
- * For periphery contracts, it checks if they're registered via PeripheryRegistryFacet.
+ * This script checks if a Periphery contract is registered in the diamond
+ * (via PeripheryRegistryFacet) and whitelisted across all active networks.
+ * It is only for Periphery contracts; use other tooling for facet registration checks.
  */
 
 import { existsSync, readFileSync } from 'fs'
@@ -35,12 +35,6 @@ import type { IConfig } from '../../deploy/shared/mongo-log-utils'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { getRPCEnvVarName } from '../../utils/network'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
-
-// ABI for Diamond Loupe (to check facet registration)
-const DIAMOND_LOUPE_ABI = parseAbi([
-  'function facetAddress(bytes4) view returns (address)',
-  'function facets() view returns ((address,bytes4[])[])',
-])
 
 // ABI for PeripheryRegistryFacet
 const PERIPHERY_REGISTRY_ABI = parseAbi([
@@ -80,16 +74,14 @@ interface IContractRegistrationStatus {
 const CUSTOM_VERSION_REGEX = /@custom:version\s+([\d.]+)/
 
 /**
- * Resolves contract source path: Periphery first, then Facets
+ * Resolves contract source path for Periphery contracts only (src/Periphery).
  */
 function getContractSourcePath(
   contractName: string,
   cwd: string
 ): string | null {
   const peripheryPath = join(cwd, 'src', 'Periphery', `${contractName}.sol`)
-  const facetPath = join(cwd, 'src', 'Facets', `${contractName}.sol`)
   if (existsSync(peripheryPath)) return peripheryPath
-  if (existsSync(facetPath)) return facetPath
   return null
 }
 
@@ -106,134 +98,6 @@ function getLatestSourceVersion(contractName: string): string | null {
     return match?.[1]?.trim() ?? null
   } catch {
     return null
-  }
-}
-
-/**
- * Gets function selectors for a facet contract
- */
-async function getFacetSelectors(
-  contractName: string
-): Promise<`0x${string}`[]> {
-  try {
-    const { execSync } = await import('child_process')
-    const { readFileSync } = await import('fs')
-    const { join } = await import('path')
-
-    // Try to get ABI from out directory
-    const abiPath = join(
-      process.cwd(),
-      'out',
-      `${contractName}.sol`,
-      `${contractName}.json`
-    )
-
-    if (!readFileSync(abiPath, 'utf8')) {
-      throw new Error(`ABI file not found: ${abiPath}`)
-    }
-
-    const artifact = JSON.parse(readFileSync(abiPath, 'utf8'))
-    const abi = artifact.abi
-
-    if (!abi) {
-      throw new Error(`No ABI found in artifact for ${contractName}`)
-    }
-
-    // Extract function selectors from ABI
-    const selectors: `0x${string}`[] = []
-    for (const item of abi) {
-      if (item.type === 'function' && item.name) {
-        // Calculate function selector
-        const signature = `${item.name}(${item.inputs
-          .map((input: { type: string }) => input.type)
-          .join(',')})`
-        const selector = execSync(`cast sig "${signature}"`, {
-          encoding: 'utf8',
-        })
-          .trim()
-          .slice(0, 10) as `0x${string}`
-        selectors.push(selector)
-      }
-    }
-
-    return selectors
-  } catch (error) {
-    consola.warn(
-      `Could not get selectors for ${contractName}: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    )
-    return []
-  }
-}
-
-/**
- * Checks if a facet is registered in the diamond by verifying ALL selectors are attached
- */
-async function checkFacetRegistration(
-  publicClient: PublicClient,
-  diamondAddress: Address,
-  contractName: string
-): Promise<{ isRegistered: boolean; registeredAddress: Address | null }> {
-  try {
-    const selectors = await getFacetSelectors(contractName)
-
-    if (selectors.length === 0) {
-      return { isRegistered: false, registeredAddress: null }
-    }
-
-    // Check if ALL selectors are registered (not just one)
-    const diamond = {
-      address: diamondAddress,
-      abi: DIAMOND_LOUPE_ABI,
-    }
-
-    let registeredAddress: Address | null = null
-    let allSelectorsRegistered = true
-
-    for (const selector of selectors) {
-      try {
-        const facetAddress = (await publicClient.readContract({
-          ...diamond,
-          functionName: 'facetAddress',
-          args: [selector],
-        })) as Address
-
-        if (
-          facetAddress &&
-          facetAddress !== '0x0000000000000000000000000000000000000000'
-        ) {
-          // Store the first valid address we find
-          if (!registeredAddress) {
-            registeredAddress = facetAddress
-          }
-          // Verify all selectors point to the same address
-          if (getAddress(facetAddress) !== getAddress(registeredAddress)) {
-            allSelectorsRegistered = false
-            break
-          }
-        } else {
-          // Selector not registered
-          allSelectorsRegistered = false
-          break
-        }
-      } catch (error) {
-        // Selector check failed
-        allSelectorsRegistered = false
-        break
-      }
-    }
-
-    return {
-      isRegistered: allSelectorsRegistered,
-      registeredAddress: allSelectorsRegistered ? registeredAddress : null,
-    }
-  } catch (error) {
-    throw new Error(
-      `Failed to check facet registration: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    )
   }
 }
 
@@ -433,27 +297,12 @@ async function checkNetworkContractRegistration(
       transport: http(rpcUrl),
     })
 
-    // Determine if it's a facet or periphery
-    const isFacet = contractName.includes('Facet')
-
-    let registrationResult: {
-      isRegistered: boolean
-      registeredAddress: Address | null
-    }
-
-    if (isFacet) {
-      registrationResult = await checkFacetRegistration(
-        publicClient,
-        diamondAddress,
-        contractName
-      )
-    } else {
-      registrationResult = await checkPeripheryRegistration(
-        publicClient,
-        diamondAddress,
-        contractName
-      )
-    }
+    // Check periphery registration via PeripheryRegistryFacet
+    const registrationResult = await checkPeripheryRegistration(
+      publicClient,
+      diamondAddress,
+      contractName
+    )
 
     status.onChainRegistered = registrationResult.isRegistered
     status.registeredAddress = registrationResult.registeredAddress
@@ -469,8 +318,8 @@ async function checkNetworkContractRegistration(
         getAddress(status.expectedAddress)
     }
 
-    // For periphery contracts, check if they're correctly whitelisted
-    if (!isFacet && status.onChainRegistered && status.registeredAddress) {
+    // Check if periphery contract is correctly whitelisted
+    if (status.onChainRegistered && status.registeredAddress) {
       try {
         const registeredAddr = getAddress(status.registeredAddress) as Address
         status.isWhitelisted = await checkPeripheryWhitelist(
@@ -504,25 +353,40 @@ async function main() {
 
   if (args.length < 1) {
     consola.error(
-      'Usage: bun checkContractRegistrationPerNetwork.ts <CONTRACT_NAME> [environment]'
+      'Usage: bun checkContractRegistrationPerNetwork.ts <PERIPHERY_CONTRACT_NAME> [environment]'
     )
     consola.error(
-      'Example: bun checkContractRegistrationPerNetwork.ts StargateFacet'
+      'Example: bun checkContractRegistrationPerNetwork.ts Executor'
     )
     consola.error(
       'Example: bun checkContractRegistrationPerNetwork.ts Executor staging'
+    )
+    consola.error(
+      'This script is only for Periphery contracts (e.g. Executor, ReceiverV2).'
     )
     process.exit(1)
   }
 
   const contractName = args[0]
   if (!contractName) {
-    consola.error('Contract name is required')
+    consola.error('Periphery contract name is required')
     process.exit(1)
   }
+
+  const cwd = process.cwd()
+  const peripheryPath = join(cwd, 'src', 'Periphery', `${contractName}.sol`)
+  if (!existsSync(peripheryPath)) {
+    consola.error(
+      `This script is only for Periphery contracts. "${contractName}" was not found in src/Periphery (expected: src/Periphery/${contractName}.sol).`
+    )
+    process.exit(1)
+  }
+
   const environment = (args[1] as 'production' | 'staging') || 'production'
 
-  consola.info(`Checking registration for ${contractName} on all networks...`)
+  consola.info(
+    `Checking Periphery registration for ${contractName} on all networks...`
+  )
   consola.info(`Environment: ${environment}`)
 
   const networks = networksConfig as Record<string, Partial<INetwork>>
@@ -654,7 +518,7 @@ async function main() {
 
   // Display results in column format
   consola.info('\n' + '='.repeat(100))
-  consola.info('CONTRACT REGISTRATION STATUS SUMMARY')
+  consola.info('PERIPHERY CONTRACT REGISTRATION STATUS SUMMARY')
   consola.info('='.repeat(100) + '\n')
 
   const sourceVersion =
@@ -662,14 +526,12 @@ async function main() {
   if (sourceVersion) {
     consola.info(`Source version (/// @custom:version): ${sourceVersion}`)
   } else {
-    consola.info(
-      'Source version: N/A (no @custom:version in Periphery/Facets source)'
-    )
+    consola.info('Source version: N/A (no @custom:version in Periphery source)')
   }
   consola.info('')
 
-  // Determine if this is a periphery contract (to show whitelist column)
-  const isPeripheryContract = !contractName.includes('Facet')
+  // This script is only for Periphery contracts; always show whitelist column
+  const isPeripheryContract = true
 
   // Version column widths
   const verCol = 8 // Source / Mongo / On-Chain version
