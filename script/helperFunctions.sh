@@ -3627,16 +3627,18 @@ function getPrivateKey() {
 # This function handles:
 # - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
 # - Staging: Sends directly using PRIVATE_KEY via cast send --data
-# Usage: sendOrPropose <network> <environment> <target> <calldata>
+# Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
 #   network: Network name (e.g., "mainnet")
 #   environment: "production" or "staging"
 #   target: Target contract address
 #   calldata: Transaction calldata (hex string starting with 0x)
+#   timelock: Optional flag to wrap transaction in timelock (production only)
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET="$3"
   local CALLDATA="$4"
+  local TIMELOCK="${5:-false}"
 
   # Validate required arguments
   if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$CALLDATA" ]]; then
@@ -3652,11 +3654,20 @@ function sendOrPropose() {
 
   if [[ "$ENVIRONMENT" == "production" ]]; then
     # Production: propose to Safe using propose-to-safe.ts
-    bunx tsx script/deploy/safe/propose-to-safe.ts \
-      --network "$NETWORK" \
-      --to "$TARGET" \
-      --calldata "$CALLDATA" \
+    local PROPOSE_CMD=(
+      bunx tsx script/deploy/safe/propose-to-safe.ts
+      --network "$NETWORK"
+      --to "$TARGET"
+      --calldata "$CALLDATA"
       --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
+    )
+    
+    # Add timelock flag if requested
+    if [[ "$TIMELOCK" == "true" ]]; then
+      PROPOSE_CMD+=(--timelock)
+    fi
+    
+    "${PROPOSE_CMD[@]}"
   else
     # Staging: send directly using cast send with --data flag for raw calldata
     # Get RPC URL

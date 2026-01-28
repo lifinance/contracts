@@ -23,7 +23,7 @@
       },
       "0x87158BfcC84E661ddb09b461d2F83e1313d7e3F9": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xc27D55C782E00B490e15f3DBacDfD8f06c626f46": {
         "Name": "PeripheryRegistryFacet",
@@ -45,8 +45,8 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xd132D79E5bf0365d85DD4e8f819D1f115e67Fa96": {
-        "Name": "Patcher",
+      "0xd39ad783e336d42410b916A87d852967F4C18082": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0x225e2aB2b9a51C24BE290E622Fd40B53B535cE9c": {
@@ -57,14 +57,6 @@
         "Name": "MayanFacet",
         "Version": "1.2.2"
       },
-      "0xA5b0446EFECBfee560a985139e232692C5AC44a1": {
-        "Name": "GardenFacet",
-        "Version": "1.0.0"
-      },
-      "0x1A3c27FC0abbf9AA53F9c5CA89dE46D6CD1e5C7c": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.0"
-      },
       "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
@@ -73,13 +65,17 @@
         "Name": "",
         "Version": ""
       },
+      "0xA5b0446EFECBfee560a985139e232692C5AC44a1": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
+      },
       "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
         "Name": "PolymerCCTPFacet",
         "Version": "1.0.0"
       },
-      "0xd39ad783e336d42410b916A87d852967F4C18082": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+      "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": "1.0.2"
       }
     },
     "Periphery": {
@@ -91,7 +87,7 @@
       "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "LidoWrapper": "",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
-      "Permit2Proxy": "",
+      "Permit2Proxy": "0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

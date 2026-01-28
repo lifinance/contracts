@@ -21,9 +21,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xb5a9740923C412185Bd7Da45C2AD2e256555dDe9": {
+      "0x6ab927f0766eE43418F508Fbad5Bd70D610fB281": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
@@ -193,61 +193,25 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.0"
       },
-      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
-        "Name": "",
-        "Version": ""
+      "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
       },
       "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
-        "Name": "",
+        "Name": "PolymerCCTPFacet",
         "Version": ""
       },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x2D732A56c10F33292484911C660C2F68F0615a89": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
-      },
-      "0x6ab927f0766eE43418F508Fbad5Bd70D610fB281": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.1.0"
-      },
-      "0xc924Ba9996b2eb3ed5562cccB47fc1Ed97A9dA04": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": ""
-      },
-      "0xd1371bd1Ca69E6CD1Ef2334A5497A02b22b89C35": {
-        "Name": "WhitelistRecoveryFacet",
-        "Version": "1.0.0"
-      },
-      "0xb15Ff78198291663A38b73794270FC160375339b": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": ""
-      },
-      "0x13Dab942D27D5E84584c163fE0D732901b4733E3": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": ""
-      },
-      "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
-        "Name": "EcoFacet",
-        "Version": "1.1.0"
-      },
-      "0xa606c44914FF57E431faCA4ff0F602D1b002D967": {
+      "0x4094F1887ec45c6c82B0328ED7d7AE5EE329f4f3": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
-      },
-      "0xD96859cD1C18b15B70F7B82f1F70478ddE4C04c7": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": ""
-      },
-      "0x4094F1887ec45c6c82B0328ED7d7AE5EE329f4f3": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": ""
       }
     },
     "Periphery": {

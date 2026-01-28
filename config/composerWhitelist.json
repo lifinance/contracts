@@ -87,17 +87,6 @@
       ]
     }
   ],
-  "ink": [
-    {
-      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
-      "functionSelectors": [
-        {
-          "selector": "0x00a32e6c",
-          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-        }
-      ]
-    }
-  ],
   "katana": [
     {
       "address": "0x40d037C6AaD6Df87D757195ef841B246B52F5103",
