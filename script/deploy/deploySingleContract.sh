@@ -113,6 +113,13 @@ deploySingleContract() {
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
+  # determine diamond type (default to LiFiDiamond unless contract is LiFiDiamondImmutable)
+  if [[ "$CONTRACT" == "LiFiDiamondImmutable" ]]; then
+    DIAMOND_TYPE="LiFiDiamondImmutable"
+  else
+    DIAMOND_TYPE="LiFiDiamond"
+  fi
+
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
   fi
@@ -240,12 +247,21 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
+    # Add network-specific flags for megaeth
+    if [[ "$NETWORK" == "megaeth" ]]; then
+      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
+      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
+      SKIP_SIMULATION_FLAG=""
+    else
+      MEGAETH_FLAGS=""
+    fi
+
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --gas-limit 50000000)
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" $MEGAETH_FLAGS --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
     fi
 
     RETURN_CODE=$?
@@ -345,13 +361,17 @@ deploySingleContract() {
   LOG_ENTRY_RETURN_CODE=$?
   echoDebug "existing log entry, may have a different address in case of a redeployment (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
 
+  # Initialize variables to avoid unbound variable errors
+  VERIFIED_LOG=""
+  ADDRESS_LOG=""
+
   if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
     VERIFIED_LOG=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
     ADDRESS_LOG=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS")
   fi
 
   # check if this was a redeployment (= if address does not match with what is already in log file)
-  if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$ADDRESS_LOG" | tr '[:upper:]' '[:lower:]')" ]]; then
+  if [[ -n "$ADDRESS_LOG" && "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$ADDRESS_LOG" | tr '[:upper:]' '[:lower:]')" ]]; then
     REDEPLOYMENT=false
   else
     REDEPLOYMENT=true

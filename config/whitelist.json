@@ -1607,6 +1607,51 @@
               "0xf78dc253": "unoswapTo(address,address,uint256,uint256,uint256[])"
             }
           }
+        ],
+        "unichain": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "linea": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "sonic": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
         ]
       }
     },
@@ -2113,6 +2158,15 @@
           }
         ],
         "ronin": [
+          {
+            "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+            "functions": {
+              "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+              "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
+            }
+          }
+        ],
+        "megaeth": [
           {
             "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
             "functions": {
@@ -4452,6 +4506,15 @@
             }
           }
         ],
+        "megaeth": [
+          {
+            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+            "functions": {
+              "0x73fc4457": "swapWithMagpieSignature(bytes)",
+              "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          }
+        ],
         "base": [
           {
             "address": "0x5e766616aabfb588e23a8ea854e9dbd1042affd3",
@@ -4808,6 +4871,28 @@
       }
     },
     {
+      "name": "Kumbaya",
+      "key": "kumbaya",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/kumbaya.svg",
+      "webUrl": "https://kumbaya.xyz/",
+      "contracts": {
+        "megaeth": [
+          {
+            "address": "0xe5bbef8de2db447a7432a47eba58924d94ee470e",
+            "functions": {
+              "0x5ae401dc": "multicall(uint256,bytes[])"
+            }
+          },
+          {
+            "address": "0xaab1c664cead881afbb58555e6a3a79523d3e4c0",
+            "functions": {
+              "0x3593564c": "execute(bytes,bytes[],uint256)"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "Superfluid",
       "key": "superfluid",
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/protocols/superfluid.svg",
@@ -4887,6 +4972,38 @@
               "0x2bf6e9ec": "",
               "0xcf81464b": "upgradeByETH()",
               "0x160e8be3": "downgradeToETH(uint256)"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "LI.FI Intents",
+      "key": "lifiintents",
+      "logoURI": "",
+      "webUrl": "",
+      "contracts": {
+        "mainnet": [
+          {
+            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "functions": {
+              "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
+            }
+          }
+        ],
+        "base": [
+          {
+            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "functions": {
+              "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
+            }
+          }
+        ],
+        "arbitrum": [
+          {
+            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "functions": {
+              "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }
           }
         ]
@@ -5204,60 +5321,6 @@
           {
             "selector": "0x00a32e6c",
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      }
-    ],
-    "aurora": [
-      {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       }
@@ -6144,74 +6207,6 @@
         ]
       }
     ],
-    "fantom": [
-      {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      }
-    ],
     "flare": [
       {
         "name": "FeeCollector",
@@ -6890,16 +6885,6 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "jovay": [
@@ -7380,6 +7365,74 @@
         ]
       }
     ],
+    "megaeth": [
+      {
+        "name": "FeeCollector",
+        "address": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xE34919F5982381368Bd9C640a0F81f3Aa28CE43a",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
     "metis": [
       {
         "name": "FeeCollector",
@@ -7595,60 +7648,6 @@
       }
     ],
     "moonbeam": [
-      {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      }
-    ],
-    "moonriver": [
       {
         "name": "FeeCollector",
         "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
@@ -8158,60 +8157,6 @@
           {
             "selector": "0x00a32e6c",
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      }
-    ],
-    "polygonzkevm": [
-      {
-        "name": "FeeCollector",
-        "address": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       }
@@ -8753,7 +8698,7 @@
       },
       {
         "name": "TokenWrapper",
-        "address": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+        "address": "0x16a43D7db650c2B4D40484e4Ef29ab54B934A1C9",
         "selectors": [
           {
             "selector": "0x3ccfd60b",

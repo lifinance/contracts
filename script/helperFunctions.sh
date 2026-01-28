@@ -27,10 +27,10 @@ function logContractDeploymentInfo {
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
   local VERIFIED="$9"
-  local SALT="${10}"
-  local SOLC_VERSION="${11}"
-  local EVM_VERSION="${12}"
-  local ZK_SOLC_VERSION="${13}"
+  local SALT="${10:-}"
+  local SOLC_VERSION="${11:-}"
+  local EVM_VERSION="${12:-}"
+  local ZK_SOLC_VERSION="${13:-}"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -194,6 +194,8 @@ function findContractInMasterLog() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION="$4"
+  local MAX_RETRIES=3
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -201,21 +203,31 @@ function findContractInMasterLog() {
     return 1
   fi
 
-  # Query MongoDB
+  # Query MongoDB with retry logic
   echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
-  MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
-  local MONGO_EXIT_CODE=$?
 
-  if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that the result is valid JSON before returning it
-    if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
-      echo "$MONGO_RESULT"
-      return 0
-    else
-      error "MongoDB returned invalid JSON for $CONTRACT on $NETWORK"
-      return 1
+  local attempt=1
+  while [[ $attempt -le $MAX_RETRIES ]]; do
+    MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    local MONGO_EXIT_CODE=$?
+
+    if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that the result is valid JSON before returning it
+      if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
+        echo "$MONGO_RESULT"
+        return 0
+      else
+        echoDebug "MongoDB returned invalid JSON for $CONTRACT on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+      fi
     fi
-  fi
+
+    if [[ $attempt -lt $MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
+    fi
+    attempt=$((attempt + 1))
+  done
 
   echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
   return 1
@@ -224,6 +236,8 @@ function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET_ADDRESS="$3"
+  local MAX_RETRIES=3
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -232,31 +246,41 @@ function findContractInMasterLogByAddress() {
   fi
 
   echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
-  local MONGO_RESULT
-  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-    --env "$ENVIRONMENT" \
-    --network "$NETWORK" \
-    --address "$TARGET_ADDRESS" 2>/dev/null)
-  local MONGO_EXIT=$?
 
-  if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that MONGO_RESULT is valid JSON
-    if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
-      error "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK"
-      return 1
+  local attempt=1
+  while [[ $attempt -le $MAX_RETRIES ]]; do
+    local MONGO_RESULT
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env "$ENVIRONMENT" \
+      --network "$NETWORK" \
+      --address "$TARGET_ADDRESS" 2>/dev/null)
+    local MONGO_EXIT=$?
+
+    if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Validate that MONGO_RESULT is valid JSON
+      if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+        # Convert MongoDB result to expected format
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+
+        if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
+          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+          echo "$JSON_ENTRY"
+          return 0
+        fi
+      else
+        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+      fi
     fi
 
-    # Convert MongoDB result to expected format
-    local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-    local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-    local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
-
-    if [[ "$CONTRACT_NAME" != "null" && "$VERSION" != "null" ]]; then
-      local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
-      echo "$JSON_ENTRY"
-      return 0
+    if [[ $attempt -lt $MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
-  fi
+    attempt=$((attempt + 1))
+  done
 
   echo "[info] address not found in MongoDB"
   return 1
@@ -317,9 +341,15 @@ function getHighestDeployedContractVersionFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK"
+      return 1
+    fi
+
     # Extract all versions and find the highest one using version sort
-    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
-    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" ]]; then
+    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' 2>/dev/null | sort -V | tail -1)
+    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" && "$HIGHEST_VERSION" != "" ]]; then
       echo "$HIGHEST_VERSION"
       return 0
     fi
@@ -628,7 +658,14 @@ function getConstructorArgsFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs')
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK"
+      echo ""
+      return 1
+    fi
+
+    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs' 2>/dev/null)
 
     if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
       echo "$CONSTRUCTOR_ARGS"
@@ -1730,89 +1767,6 @@ function getBytecodeFromArtifact() {
     exit 1
   fi
 }
-
-function addPeripheryToWhitelistJson() {
-  # read function arguments into variables
-  local NETWORK="$1"
-  local ENVIRONMENT="$2"
-
-  # Determine the correct whitelist file based on environment
-  local WHITELIST_FILE
-  if [[ "$ENVIRONMENT" == "production" ]]; then
-    WHITELIST_FILE="config/whitelist.json"
-  else
-    WHITELIST_FILE="config/whitelist.staging.json"
-  fi
-
-  echo "[info] now adding all contracts from config/global.json.whitelistPeripheryFunctions to $WHITELIST_FILE"
-
-  # Use file paths from config.sh
-  local FILEPATH_GLOBAL_CONFIG="$GLOBAL_FILE_PATH"
-  local FILEPATH_WHITELIST="$WHITELIST_FILE"
-
-  # Get all periphery contracts from global.json whitelistPeripheryFunctions section
-  WHITELIST_PERIPHERY=($(jq -r '.whitelistPeripheryFunctions | keys[]' "$FILEPATH_GLOBAL_CONFIG"))
-
-  # Get all contracts that need to be whitelisted
-  CONTRACTS=("${WHITELIST_PERIPHERY[@]}")
-
-  # get number of periphery contracts to be added
-  local ADD_COUNTER=${#CONTRACTS[@]}
-
-  # get number of existing periphery contracts in the file for the given network
-  local EXISTING_PERIPHERY_COUNT=$(jq --arg network "$NETWORK" '.PERIPHERY[$network] // [] | length' "$FILEPATH_WHITELIST")
-
-  # Iterate through all contracts
-  for CONTRACT in "${CONTRACTS[@]}"; do
-    # get contract address
-    local CONTRACT_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
-
-    if [[ -z "$CONTRACT_ADDRESS" ]]; then
-      error "Could not find contract address for contract $CONTRACT on network $NETWORK ($ENVIRONMENT) in deploy log."
-      error "Please manually whitelist this contract after this task has been completed."
-      # reduce add counter since we are not adding this contract
-      ((ADD_COUNTER--))
-      continue
-    fi
-
-    # check if address already exists in whitelist file PERIPHERY section for the given network
-    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '.PERIPHERY[$network] // [] | any(.address == $address)' "$FILEPATH_WHITELIST")
-
-    if [ "$EXISTS" == "true" ]; then
-      echo "The address $CONTRACT_ADDRESS is already part of the periphery contracts in network $NETWORK ($ENVIRONMENT)."
-
-      # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
-      ((ADD_COUNTER--)) # reduces by 1
-    else
-      # add the contract to whitelist file PERIPHERY section
-      local TMP_FILE="tmp.$$.json"
-      jq --arg address "$CONTRACT_ADDRESS" --arg name "$CONTRACT" --arg network "$NETWORK" '
-        (.PERIPHERY[$network] //= []) |
-        .PERIPHERY[$network] += [{
-          "name": $name,
-          "address": $address,
-          "selectors": []
-        }]
-      ' "$FILEPATH_WHITELIST" > "$TMP_FILE" && mv "$TMP_FILE" "$FILEPATH_WHITELIST"
-      rm -f "$TMP_FILE"
-
-      success "$CONTRACT address $CONTRACT_ADDRESS added to $WHITELIST_FILE PERIPHERY[$NETWORK]"
-    fi
-  done
-
-  # check how many periphery contracts are in the whitelist file now
-  local CURRENT_PERIPHERY_COUNT=$(jq --arg network "$NETWORK" '.PERIPHERY[$network] // [] | length' "$FILEPATH_WHITELIST")
-
-  EXPECTED_PERIPHERY_COUNT=$((EXISTING_PERIPHERY_COUNT + ADD_COUNTER))
-
-  # make sure whitelist file has been updated correctly
-  if [ $CURRENT_PERIPHERY_COUNT -eq $EXPECTED_PERIPHERY_COUNT ]; then
-    success "$ADD_COUNTER periphery contracts were added to $WHITELIST_FILE for $NETWORK ($ENVIRONMENT)"
-  else
-    error "The PERIPHERY array in $WHITELIST_FILE for network $NETWORK ($ENVIRONMENT) does not have the expected number of elements after executing this script (expected: $EXPECTED_PERIPHERY_COUNT, got: $CURRENT_PERIPHERY_COUNT)."
-    exit 1
-  fi
-}
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
@@ -1852,6 +1806,14 @@ function verifyContract() {
   # Build verification command as array for safe execution
   local VERIFY_CMD=()
 
+  # Get verifier URL - all networks in foundry.toml have one configured
+  local VERIFIER_URL
+  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$VERIFIER_URL" ]; then
+    error "No verifier URL found for network $NETWORK in foundry.toml"
+    return 1
+  fi
+
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
     # Set environment variable for zkEVM
@@ -1861,18 +1823,20 @@ function verifyContract() {
       "verify-contract"
       "--zksync"
       "--watch"
-      "--chain" "$CHAIN_ID"
+      # Omit --chain flag since we always provide --verifier-url
       # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "$ADDRESS"
       "$FULL_PATH"
     )
   else
+    # For all networks, we use --verifier-url from foundry.toml
+    # No need for --chain or --chain-id since verifier-url is always provided
     VERIFY_CMD=(
       "forge"
       "verify-contract"
       # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "--watch"
-      "--chain" "$CHAIN_ID"
+      # Omit --chain flag since we always provide --verifier-url
       "$ADDRESS"
       "$FULL_PATH"
     )
@@ -1913,12 +1877,8 @@ function verifyContract() {
     fi
   fi
 
-  # Add verifier URL if available (for custom verifiers like oklink)
-  local VERIFIER_URL
-  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
-  if [ $? -eq 0 ] && [ -n "$VERIFIER_URL" ]; then
-    VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
-  fi
+  # Always add verifier URL since all networks have one configured in foundry.toml
+  VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
 
   echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
@@ -1929,9 +1889,27 @@ function verifyContract() {
     echo "[info] ${VERIFY_CMD[*]}"
 
     # Execute verification command with --watch flag (will wait for completion)
-    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1)
+    local VERIFY_EXIT_CODE=0
+    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1) || VERIFY_EXIT_CODE=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Check if command failed with non-zero exit code
+    if [ $VERIFY_EXIT_CODE -ne 0 ]; then
+      error "Verification command failed with exit code $VERIFY_EXIT_CODE"
+      if [ -z "$VERIFY_OUTPUT" ]; then
+        error "No output from verification command. This may indicate a network error, invalid API key, or command syntax issue."
+      else
+        error "Command output: $VERIFY_OUTPUT"
+      fi
+      # Continue to next retry instead of returning immediately
+      RETRY_COUNT=$((RETRY_COUNT + 1))
+      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+        echo "[info] Verification attempt failed, waiting 15 seconds before retry..."
+        sleep 15
+      fi
+      continue
+    fi
 
     # Check if contract is already verified
     if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
@@ -1942,6 +1920,12 @@ function verifyContract() {
     # Parse the final verification response from --watch output
     local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | tail -1 | awk '{print $2}' | tr -d '`')
     local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | tail -1 | cut -d'`' -f2)
+
+    # If no response found in output, display raw output for debugging
+    if [ -z "$RESPONSE" ] && [ -z "$DETAILS" ]; then
+      warning "Could not parse verification response from output. Raw output:"
+      echo "$VERIFY_OUTPUT"
+    fi
 
     # Check if verification succeeded based on final response
     if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
@@ -1955,12 +1939,22 @@ function verifyContract() {
       # Check final status
       local CHECK_CMD=()
       if isZkEvmNetwork "$NETWORK"; then
-        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--chain" "$CHAIN_ID" "$ADDRESS")
+        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "$ADDRESS")
       else
-        CHECK_CMD=("forge" "verify-check" "--chain" "$CHAIN_ID" "$ADDRESS")
+        # Use verifier URL instead of chain flag to match the verification command
+        CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
       fi
 
-      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1)
+      local CHECK_EXIT_CODE=0
+      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
+
+      if [ $CHECK_EXIT_CODE -ne 0 ]; then
+        error "Verification check command failed with exit code $CHECK_EXIT_CODE"
+        if [ -n "$CHECK_OUTPUT" ]; then
+          error "Check command output: $CHECK_OUTPUT"
+        fi
+      fi
+
       local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
       local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep "Details:" | cut -d'`' -f2)
 
@@ -2163,6 +2157,11 @@ function verifyAllUnverifiedContractsInLogFile() {
           OPTIMIZER_RUNS=$(echo "$ENTRY" | awk -F'"' '/"OPTIMIZER_RUNS":/{print $4}')
           TIMESTAMP=$(echo "$ENTRY" | awk -F'"' '/"TIMESTAMP":/{print $4}')
           CONSTRUCTOR_ARGS=$(echo "$ENTRY" | awk -F'"' '/"CONSTRUCTOR_ARGS":/{print $4}')
+          local SALT SOLC_VERSION EVM_VERSION ZK_SOLC_VERSION
+          SALT=$(echo "$ENTRY" | jq -r '.SALT // empty')
+          SOLC_VERSION=$(echo "$ENTRY" | jq -r '.SOLC_VERSION // empty')
+          EVM_VERSION=$(echo "$ENTRY" | jq -r '.EVM_VERSION // empty')
+          ZK_SOLC_VERSION=$(echo "$ENTRY" | jq -r '.ZK_SOLC_VERSION // empty')
 
           # check if contract is verified
           if [[ "$VERIFIED" != "true" ]]; then
@@ -2177,7 +2176,7 @@ function verifyAllUnverifiedContractsInLogFile() {
             # check result
             if [ $? -eq 0 ]; then
               # update log file
-              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT"
+              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
 
               # increase COUNTER
               COUNTER=$((COUNTER + 1))
@@ -2628,8 +2627,10 @@ function getIncludedNetworksArray() {
     fi
   done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
-  # return ARRAY
-  printf '%s\n' "${ARRAY[@]}"
+  # return ARRAY (safely handle empty arrays)
+  if [[ ${#ARRAY[@]} -gt 0 ]]; then
+    printf '%s\n' "${ARRAY[@]}"
+  fi
 }
 
 function getIncludedNetworksByEvmVersionArray() {
@@ -2676,8 +2677,10 @@ function getIncludedNetworksByEvmVersionArray() {
     fi
   done < <(jq -r 'keys[]' "$FILE")
 
-  # return ARRAY
-  printf '%s\n' "${ARRAY[@]}"
+  # return ARRAY (safely handle empty arrays)
+  if [[ ${#ARRAY[@]} -gt 0 ]]; then
+    printf '%s\n' "${ARRAY[@]}"
+  fi
 }
 
 function getFileSuffix() {
@@ -3065,7 +3068,7 @@ function getContractAddressFromSalt() {
   ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
-  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "${!RPC_URL}")
+  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "$RPC_URL")
 
   # return address
   echo "$RESULT"
@@ -3556,6 +3559,83 @@ function getPrivateKey() {
     fi
   fi
 }
+
+# Send or propose transaction
+# This function handles:
+# - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
+# - Staging: Sends directly using PRIVATE_KEY via cast send --data
+# Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
+#   network: Network name (e.g., "mainnet")
+#   environment: "production" or "staging"
+#   target: Target contract address
+#   calldata: Transaction calldata (hex string starting with 0x)
+#   timelock: Optional flag to wrap transaction in timelock (production only)
+function sendOrPropose() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local TARGET="$3"
+  local CALLDATA="$4"
+  local TIMELOCK="${5:-false}"
+
+  # Validate required arguments
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$CALLDATA" ]]; then
+    error "sendOrPropose: Missing required arguments"
+    return 1
+  fi
+
+  # Validate calldata format
+  if [[ ! "$CALLDATA" =~ ^0x ]]; then
+    error "sendOrPropose: Calldata must start with 0x"
+    return 1
+  fi
+
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    # Production: propose to Safe using propose-to-safe.ts
+    local PROPOSE_CMD=(
+      bunx tsx script/deploy/safe/propose-to-safe.ts
+      --network "$NETWORK"
+      --to "$TARGET"
+      --calldata "$CALLDATA"
+      --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
+    )
+    
+    # Add timelock flag if requested
+    if [[ "$TIMELOCK" == "true" ]]; then
+      PROPOSE_CMD+=(--timelock)
+    fi
+    
+    "${PROPOSE_CMD[@]}"
+  else
+    # Staging: send directly using cast send with --data flag for raw calldata
+    # Get RPC URL
+    local RPC_URL
+    RPC_URL=$(getRPCUrl "$NETWORK") || {
+      error "sendOrPropose: Failed to get RPC URL for $NETWORK"
+      return 1
+    }
+
+    # Get private key
+    local PRIVATE_KEY
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+      return 1
+    }
+
+    # Send transaction using cast send with --data flag for raw calldata
+    # cast send will handle signing, gas estimation, and receipt waiting
+    cast send "$TARGET" \
+      --data "$CALLDATA" \
+      --rpc-url "$RPC_URL" \
+      --private-key "$PRIVATE_KEY" \
+      --legacy \
+      --confirmations 1
+
+    return $?
+  fi
+
+  return $?
+}
+
 function isZkEvmNetwork() {
   # read function arguments into variables
   local NETWORK="$1"

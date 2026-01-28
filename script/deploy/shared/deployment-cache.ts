@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmdirSync,
+  statSync,
+  writeFileSync,
+} from 'fs'
 import path from 'path'
 
 import { consola } from 'consola'
@@ -29,6 +36,26 @@ interface ICacheConfig {
   cacheDir: string
   ttl: number // Time-to-live in milliseconds
   mongoConfig: IConfig
+}
+
+/**
+ * Configuration for lock behavior
+ */
+interface ILockOptions {
+  timeout?: number // Max time to wait for lock in ms (default: 30000)
+  staleThreshold?: number // Age in ms after which lock is considered stale (default: 60000)
+}
+
+const DEFAULT_LOCK_OPTIONS: Required<ILockOptions> = {
+  timeout: 30000,
+  staleThreshold: 60000,
+}
+
+/**
+ * Sleeps for the specified duration
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
@@ -69,6 +96,120 @@ export class DeploymentCache {
     if (!existsSync(this.cacheDir)) {
       mkdirSync(this.cacheDir, { recursive: true })
       consola.debug(`Created cache directory: ${this.cacheDir}`)
+    }
+  }
+
+  /**
+   * Gets the lock directory path for a given environment
+   * @param environment - The deployment environment
+   * @returns Full path to the lock directory
+   * @private
+   */
+  private getLockPath(environment: keyof typeof EnvironmentEnum): string {
+    return path.join(this.cacheDir, `deployments_${environment}.lock`)
+  }
+
+  /**
+   * Checks if a lock is stale (older than threshold)
+   * @param lockPath - Path to the lock directory
+   * @param staleThreshold - Age in ms after which lock is considered stale
+   * @returns True if lock is stale
+   * @private
+   */
+  private isLockStale(lockPath: string, staleThreshold: number): boolean {
+    try {
+      const stats = statSync(lockPath)
+      const age = Date.now() - stats.mtimeMs
+      return age > staleThreshold
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Acquires an exclusive lock for cache operations
+   * Uses mkdir which is atomic on POSIX systems
+   * @param environment - The deployment environment
+   * @param options - Lock configuration options
+   * @returns True if lock acquired, false if timeout
+   * @private
+   */
+  private async acquireLock(
+    environment: keyof typeof EnvironmentEnum,
+    options: ILockOptions = {}
+  ): Promise<boolean> {
+    const { timeout, staleThreshold } = { ...DEFAULT_LOCK_OPTIONS, ...options }
+    const lockPath = this.getLockPath(environment)
+    const start = Date.now()
+
+    while (Date.now() - start < timeout) {
+      try {
+        mkdirSync(lockPath)
+        consola.debug(`Lock acquired for ${environment}`)
+        return true
+      } catch (error: unknown) {
+        // Check if lock exists and is stale
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'EEXIST'
+        ) {
+          if (this.isLockStale(lockPath, staleThreshold)) {
+            consola.warn(`Removing stale lock for ${environment}`)
+            try {
+              rmdirSync(lockPath)
+              continue // Retry immediately after removing stale lock
+            } catch {
+              // Another process may have removed it, continue waiting
+            }
+          }
+        }
+        // Wait before retrying
+        await sleep(100)
+      }
+    }
+
+    consola.error(`Timeout waiting for lock on ${environment}`)
+    return false
+  }
+
+  /**
+   * Releases the lock for cache operations
+   * @param environment - The deployment environment
+   * @private
+   */
+  private releaseLock(environment: keyof typeof EnvironmentEnum): void {
+    const lockPath = this.getLockPath(environment)
+    try {
+      rmdirSync(lockPath)
+      consola.debug(`Lock released for ${environment}`)
+    } catch (error) {
+      consola.warn(`Failed to release lock for ${environment}: ${error}`)
+    }
+  }
+
+  /**
+   * Executes a function with an exclusive lock
+   * @param environment - The deployment environment
+   * @param fn - Function to execute while holding the lock
+   * @param options - Lock configuration options
+   * @returns Result of the function
+   * @private
+   */
+  private async withLock<T>(
+    environment: keyof typeof EnvironmentEnum,
+    fn: () => Promise<T>,
+    options: ILockOptions = {}
+  ): Promise<T> {
+    const acquired = await this.acquireLock(environment, options)
+    if (!acquired) {
+      throw new Error(`Failed to acquire lock for ${environment} cache`)
+    }
+
+    try {
+      return await fn()
+    } finally {
+      this.releaseLock(environment)
     }
   }
 
@@ -283,37 +424,55 @@ export class DeploymentCache {
   public async refresh(
     environment: keyof typeof EnvironmentEnum
   ): Promise<IDeploymentRecord[]> {
-    consola.info(`Refreshing ${environment} cache from MongoDB...`)
-
-    const dbManager = DatabaseConnectionManager.getInstance(this.mongoConfig)
-
-    try {
-      await dbManager.connect()
-      const collection = dbManager.getCollection<IDeploymentRecord>(environment)
-
-      // Fetch all records from MongoDB
-      const records = await collection.find({}).toArray()
-
-      consola.info(`Fetched ${records.length} records from MongoDB`)
-
-      // Write to cache
-      this.writeCache(environment, records)
-
-      return records
-    } catch (error) {
-      consola.error(`Failed to refresh cache from MongoDB: ${error}`)
-
-      // Try to return stale cache data as fallback
-      const staleData = this.readCache(environment)
-      if (staleData) {
-        consola.warn(
-          `Using stale cache data (${staleData.length} records) as fallback`
-        )
-        return staleData
+    return this.withLock(environment, async () => {
+      // Double-check if cache is still stale after acquiring lock
+      // Another process may have refreshed it while we were waiting
+      const metadata = this.readMetadata(environment)
+      if (metadata && !this.isStale(metadata.lastRefresh)) {
+        const cachedRecords = this.readCache(environment)
+        if (cachedRecords && cachedRecords.length === metadata.recordCount) {
+          consola.debug(
+            `Cache was refreshed by another process, using cached data`
+          )
+          return cachedRecords
+        }
       }
 
-      throw error
-    }
+      consola.info(`Refreshing ${environment} cache from MongoDB...`)
+
+      const dbManager = DatabaseConnectionManager.getInstance(this.mongoConfig)
+
+      try {
+        await dbManager.connect()
+        const collection =
+          dbManager.getCollection<IDeploymentRecord>(environment)
+
+        // Fetch all records from MongoDB
+        const records = await collection.find({}).toArray()
+
+        consola.info(`Fetched ${records.length} records from MongoDB`)
+
+        // Write to cache
+        this.writeCache(environment, records)
+
+        return records
+      } catch (error) {
+        consola.error(`Failed to refresh cache from MongoDB: ${error}`)
+
+        // Try to return stale cache data as fallback
+        const staleData = this.readCache(environment)
+        if (staleData) {
+          consola.warn(
+            `Using stale cache data (${staleData.length} records) as fallback`
+          )
+          return staleData
+        }
+
+        throw error
+      } finally {
+        await dbManager.disconnect()
+      }
+    })
   }
 
   /**

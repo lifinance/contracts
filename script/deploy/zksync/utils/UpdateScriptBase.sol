@@ -274,49 +274,4 @@ contract UpdateScriptBase is ScriptBase {
             );
         }
     }
-
-    function approveDeployerWallet() internal {
-        // get global config file
-        path = string.concat(root, "/config/global.json");
-        json = vm.readFile(path);
-
-        // determine wallet address based on environment
-        // if fileSuffix is empty, we're in production (use deployerWallet)
-        // if fileSuffix is not empty (staging.), we're in staging (use devWallet)
-        address executor;
-        if (bytes(fileSuffix).length == 0) {
-            executor = json.readAddress(".deployerWallet");
-        } else {
-            executor = json.readAddress(".devWallet");
-        }
-
-        // get function selectors that should be approved for executor
-        bytes memory rawConfig = json.parseRaw(
-            ".approvedSelectorsForDeployerWallet"
-        );
-
-        emit log("executor: ");
-        emit log_address(executor);
-
-        // parse raw data from config into FunctionSelector array
-        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSelector[])
-        );
-
-        emit log("funcSelectorsToBeApproved: ");
-        emit log_uint(funcSelectorsToBeApproved.length);
-
-        // go through array with function selectors
-        for (uint256 i = 0; i < funcSelectorsToBeApproved.length; i++) {
-            emit log("funcSelectorsToBeApproved: ");
-            emit log(funcSelectorsToBeApproved[i].name);
-            // Register executor as authorized wallet to call these functions
-            AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSelectorsToBeApproved[i].selector),
-                executor,
-                true
-            );
-        }
-    }
 }

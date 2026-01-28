@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { stdJson } from "forge-std/Script.sol";
+import { InvalidContract } from "lifi/Errors/GenericErrors.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
@@ -29,6 +32,29 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wrappedNativeAddress")
         );
 
+        // Try to get converter address from tokenconverters.json, default to address(0) if not found
+        address converterAddress;
+        string memory convertersConfigPath = string.concat(
+            root,
+            "/config/tokenconverters.json"
+        );
+        try
+            vm.parseJsonAddress(
+                vm.readFile(convertersConfigPath),
+                string.concat(".", network, ".converterAddress")
+            )
+        returns (address addr) {
+            converterAddress = addr;
+        } catch {
+            converterAddress = address(0);
+        }
+
+        // Verify converter is a contract if address is non-zero
+        if (converterAddress != address(0)) {
+            if (!LibAsset.isContract(converterAddress))
+                revert InvalidContract();
+        }
+
         // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
@@ -43,6 +69,11 @@ contract DeployScript is DeployScriptBase {
             ".refundWallet"
         );
 
-        return abi.encode(wrappedNativeAddress, refundWalletAddress);
+        return
+            abi.encode(
+                wrappedNativeAddress,
+                converterAddress,
+                refundWalletAddress
+            );
     }
 }

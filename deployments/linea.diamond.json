@@ -153,9 +153,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x116E362e631b86b775a08A16c9CA2151706a6A2D": {
+      "0xb312fA96d1206998D815b4e243994DeE6E285d4C": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.1"
+        "Version": "2.1.2"
       }
     },
     "Periphery": {
@@ -171,6 +171,7 @@
       "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",
       "ReceiverAcrossV4": "0xbEb7c564FF9593634f04e4C39AAbe9a654798dfa",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0x6CA57d9846f9a1fd48368762b743a047eC4f81A6",
       "TokenWrapper": "0xf6C9605c6E231C1547b7a6545d93e7233f97322a"
     }
