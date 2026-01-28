@@ -249,7 +249,7 @@
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -257,7 +257,7 @@
           {
             "address": "0x126968af1c00a094f7eff5c0aa4b5bda97dc51b6",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -265,7 +265,7 @@
           {
             "address": "0xece5e77f9a9846c4d69555eb44e0cff8b5f03f1e",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -273,7 +273,7 @@
           {
             "address": "0x85efa14c12f5fe42ff9d7da460a71088b26bea31",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -281,7 +281,7 @@
           {
             "address": "0x2cef6a4cbbee140ed790d1cd0bb59d45a76a0754",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -289,7 +289,7 @@
           {
             "address": "0x8f4b0d551ef09ad492ae44bf7a12ab6c838c7976",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -297,7 +297,15 @@
           {
             "address": "0x7fb4822fc565bcacf0ab1fece1afeea787c07c37",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
+            }
+          }
+        ],
+        "megaeth": [
+          {
+            "address": "0x1172826a33c1b44e813edfda03ecc8b792db2b69",
+            "functions": {
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -305,7 +313,7 @@
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -313,7 +321,7 @@
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -321,7 +329,7 @@
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -329,7 +337,7 @@
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -337,7 +345,7 @@
           {
             "address": "0xedc5cbe5e657d9bb6beab4d743022198cf82d158",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -345,7 +353,7 @@
           {
             "address": "0xa091aed5265cadb389100096cbdd363683a867e5",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -353,7 +361,7 @@
           {
             "address": "0x25edc5db010235459ed61e2b5f9524a843c8a2a9",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -361,7 +369,7 @@
           {
             "address": "0x126968af1c00a094f7eff5c0aa4b5bda97dc51b6",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -369,7 +377,7 @@
           {
             "address": "0x85efa14c12f5fe42ff9d7da460a71088b26bea31",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -377,7 +385,7 @@
           {
             "address": "0xa091aed5265cadb389100096cbdd363683a867e5",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -385,7 +393,7 @@
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ],
@@ -393,7 +401,7 @@
           {
             "address": "0x3785a27b78ac23d797a36ac6b658495296a8bf35",
             "functions": {
-              "0xe3665a43": ""
+              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
             }
           }
         ]
