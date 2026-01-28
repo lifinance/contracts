@@ -52,6 +52,10 @@
       "0xC6C962950De5828B81De268224086912CC3dfAFD": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0x68669A909B91419191a4C80A96C8aFD391fDD64A": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": ""
       }
     },
     "Periphery": {
