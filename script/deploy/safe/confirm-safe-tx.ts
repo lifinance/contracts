@@ -202,13 +202,19 @@ async function getTargetName(
 
     // Check deployment addresses (diamond and timelock)
     try {
-      const deployments = await getDeployments(
+      const deploymentsUnknown = await getDeployments(
         networkKey,
         EnvironmentEnum.production
       )
 
+      // Be resilient to JSON import shape (direct object vs module default)
+      const deployments =
+        isRecord(deploymentsUnknown) && isRecord(deploymentsUnknown.default)
+          ? (deploymentsUnknown.default as Record<string, unknown>)
+          : (deploymentsUnknown as unknown)
+
       // Check diamond address
-      if (deployments.LiFiDiamond) {
+      if (isRecord(deployments) && deployments.LiFiDiamond) {
         const diamondAddress = getAddress(
           deployments.LiFiDiamond as Address
         ).toLowerCase()
@@ -216,12 +222,25 @@ async function getTargetName(
       }
 
       // Check timelock address
-      if (deployments.LiFiTimelockController) {
+      if (isRecord(deployments) && deployments.LiFiTimelockController) {
         const timelockAddress = getAddress(
           deployments.LiFiTimelockController as Address
         ).toLowerCase()
         if (timelockAddress === normalizedAddress)
           return '(LiFiTimelockController)'
+      }
+
+      // Generic: resolve any deployment entry name by address match
+      if (isRecord(deployments)) {
+        for (const [name, value] of Object.entries(deployments)) {
+          if (typeof value !== 'string' || !value.startsWith('0x')) continue
+          try {
+            const addr = getAddress(value as Address).toLowerCase()
+            if (addr === normalizedAddress) return `(${name})`
+          } catch {
+            // ignore invalid address strings in deployments
+          }
+        }
       }
     } catch (error) {
       // Deployment file might not exist for this network, continue silently
@@ -231,6 +250,78 @@ async function getTargetName(
   }
 
   return ''
+}
+
+async function getTargetSuffix(
+  network: string,
+  address: string
+): Promise<string> {
+  const name = await getTargetName(address as Address, network)
+  const explorerUrl = buildExplorerContractPageUrl(network, address)
+  const namePart = name ? ` \u001b[33m${name}\u001b[0m` : ''
+  const explorerPart = explorerUrl ? ` \u001b[36m${explorerUrl}\u001b[0m` : ''
+  return `${namePart}${explorerPart}`
+}
+
+async function formatDiamondCutSummary(
+  diamondCutArgs: readonly unknown[],
+  network: string
+) {
+  if (!diamondCutArgs || diamondCutArgs.length < 1) return
+
+  const facetCutsUnknown = diamondCutArgs[0]
+  if (!Array.isArray(facetCutsUnknown)) return
+
+  // EIP-2535: (facetAddress, action, selectors[])
+  consola.info('\u001b[35mDiamondCut summary:\u001b[0m')
+  for (const cut of facetCutsUnknown) {
+    let facetAddress: string | undefined
+    let action: number | undefined
+    let selectorsCount: number | undefined
+
+    if (Array.isArray(cut)) {
+      facetAddress = typeof cut[0] === 'string' ? cut[0] : undefined
+      const a = cut[1]
+      if (typeof a === 'number') action = a
+      else if (typeof a === 'bigint') action = Number(a)
+
+      const selectors = cut[2]
+      if (Array.isArray(selectors)) selectorsCount = selectors.length
+    } else if (isRecord(cut)) {
+      const fa =
+        typeof cut.facetAddress === 'string'
+          ? cut.facetAddress
+          : typeof cut[0] === 'string'
+          ? (cut[0] as string)
+          : undefined
+      facetAddress = fa
+
+      const a = cut.action ?? cut[1]
+      if (typeof a === 'number') action = a
+      else if (typeof a === 'bigint') action = Number(a)
+
+      const selectors = cut.functionSelectors ?? cut[2]
+      if (Array.isArray(selectors)) selectorsCount = selectors.length
+    }
+
+    if (!facetAddress || typeof facetAddress !== 'string') continue
+
+    const actionLabel =
+      action === 0
+        ? 'ADD'
+        : action === 1
+        ? 'REPLACE'
+        : action === 2
+        ? 'REMOVE'
+        : 'UNKNOWN'
+    const selectorInfo =
+      typeof selectorsCount === 'number' ? ` selectors=${selectorsCount}` : ''
+
+    const suffix = await getTargetSuffix(network, facetAddress)
+    consola.info(
+      `  - ${actionLabel}: \u001b[32m${facetAddress}\u001b[0m${suffix}${selectorInfo}`
+    )
+  }
 }
 
 // Global arrays to record execution failures and timeouts
@@ -309,6 +400,8 @@ async function decodeNestedTimelockCall(
 
             if (nestedDecodedData.functionName === 'diamondCut') {
               consola.info('Nested Diamond Cut detected - decoding...')
+              if (nestedDecodedData.args)
+                await formatDiamondCutSummary(nestedDecodedData.args, network)
               await decodeDiamondCut(nestedDecodedData, chainId)
             } else
               consola.info(
@@ -335,36 +428,39 @@ async function decodeNestedTimelockCall(
                     nestedDecodedData.args,
                     network
                   )
+                } else if (nestedDecodedData.functionName === 'scheduleBatch') {
+                  await formatTimelockScheduleBatch(
+                    nestedDecodedData.args,
+                    network
+                  )
                 } else if (
                   nestedDecodedData.functionName === 'registerPeripheryContract'
                 ) {
                   consola.info('Nested Decoded Arguments:')
-                  nestedDecodedData.args.forEach(
-                    (arg: unknown, index: number) => {
-                      // Handle different types of arguments
-                      let displayValue = arg
-                      if (typeof arg === 'bigint') displayValue = arg.toString()
-                      else if (typeof arg === 'object' && arg !== null)
-                        displayValue = JSON.stringify(arg)
+                  for (
+                    let index = 0;
+                    index < nestedDecodedData.args.length;
+                    index++
+                  ) {
+                    const arg = nestedDecodedData.args[index]
+                    // Handle different types of arguments
+                    let displayValue = arg
+                    if (typeof arg === 'bigint') displayValue = arg.toString()
+                    else if (typeof arg === 'object' && arg !== null)
+                      displayValue = JSON.stringify(arg)
 
-                      // Special handling for address argument (index 1)
-                      if (index === 1 && typeof arg === 'string') {
-                        const address = arg as string
-                        let addressLine = `  [${index}]: \u001b[33m${address}\u001b[0m`
-                        const explorerUrl = buildExplorerContractPageUrl(
-                          network,
-                          address
-                        )
-                        if (explorerUrl)
-                          addressLine += ` \u001b[36m${explorerUrl}\u001b[0m`
-                        consola.info(addressLine)
-                      } else {
-                        consola.info(
-                          `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
-                        )
-                      }
+                    // Special handling for address argument (index 1)
+                    if (index === 1 && typeof arg === 'string') {
+                      const address = arg as string
+                      let addressLine = `  [${index}]: \u001b[33m${address}\u001b[0m`
+                      addressLine += await getTargetSuffix(network, address)
+                      consola.info(addressLine)
+                    } else {
+                      consola.info(
+                        `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
+                      )
                     }
-                  )
+                  }
                 } else {
                   consola.info('Nested Decoded Arguments:')
                   nestedDecodedData.args.forEach(
@@ -511,6 +607,115 @@ function formatBatchSetContractSelectorWhitelist(
       )
     })
   })
+}
+
+/**
+ * Best-effort decoding for common diamond calls.
+ * Currently used to make scheduleBatch payloads readable (e.g. setDeBridgeChainId).
+ */
+function tryFormatDiamondPayload(payload: Hex): string | undefined {
+  if (!payload || payload === '0x') return undefined
+
+  // DeBridge DLN mapping updates: setDeBridgeChainId(uint256,uint256)
+  // selector: 0xf2455b71
+  if (payload.toLowerCase().startsWith('0xf2455b71')) {
+    try {
+      const abi = parseAbi([
+        'function setDeBridgeChainId(uint256 chainId, uint256 deBridgeChainId)',
+      ])
+      const decoded = decodeFunctionData({ abi, data: payload })
+      const chainId = decoded.args?.[0]
+      const deBridgeChainId = decoded.args?.[1]
+      if (typeof chainId === 'bigint' && typeof deBridgeChainId === 'bigint')
+        return `setDeBridgeChainId(chainId=${chainId.toString()}, deBridgeChainId=${deBridgeChainId.toString()})`
+    } catch {
+      return `setDeBridgeChainId(<failed to decode>)`
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Formats and displays TimelockController.scheduleBatch(...) arguments in a readable way.
+ *
+ * args: [targets: address[], values: uint256[], payloads: bytes[], predecessor: bytes32, salt: bytes32, delay: uint256]
+ */
+async function formatTimelockScheduleBatch(
+  args: readonly unknown[],
+  network: string
+) {
+  if (!args || args.length < 6) {
+    consola.warn('Invalid arguments for timelock scheduleBatch')
+    return
+  }
+
+  const targets = args[0] as readonly string[]
+  const values = args[1] as readonly unknown[]
+  const payloads = args[2] as readonly string[]
+  const predecessor = args[3]
+  const salt = args[4]
+  const delay = args[5]
+
+  if (
+    !Array.isArray(targets) ||
+    !Array.isArray(values) ||
+    !Array.isArray(payloads)
+  ) {
+    consola.warn(
+      'Invalid scheduleBatch arg types (expected targets/values/payloads arrays)'
+    )
+    return
+  }
+
+  const n = Math.max(targets.length, values.length, payloads.length)
+  const mismatch =
+    targets.length === values.length && values.length === payloads.length
+      ? ''
+      : ` \u001b[31m(length mismatch: targets=${targets.length}, values=${values.length}, payloads=${payloads.length})\u001b[0m`
+
+  consola.info('Timelock ScheduleBatch Details:')
+  consola.info('-'.repeat(80))
+  consola.info(`Operations:  \u001b[32m${n}\u001b[0m${mismatch}`)
+  consola.info(`Predecessor: \u001b[32m${String(predecessor)}\u001b[0m`)
+  consola.info(`Salt:        \u001b[32m${String(salt)}\u001b[0m`)
+  consola.info(`Delay:       \u001b[32m${String(delay)}\u001b[0m seconds`)
+  consola.info('-'.repeat(80))
+
+  for (let i = 0; i < n; i++) {
+    const target = targets[i]
+    const value = values[i]
+    const payload = payloads[i]
+
+    const idx = String(i).padStart(2, '0')
+
+    const targetDisplay = String(target ?? '')
+    let targetNameSuffix = ''
+    if (typeof target === 'string') {
+      targetNameSuffix = await getTargetSuffix(network, target)
+    }
+
+    const valueStr =
+      typeof value === 'bigint' ? value.toString() : String(value ?? '0')
+
+    const payloadStr =
+      typeof payload === 'string' ? (payload as Hex) : ('0x' as Hex)
+    const pretty = tryFormatDiamondPayload(payloadStr)
+    const selector =
+      payloadStr && payloadStr !== '0x' ? payloadStr.slice(0, 10) : '0x'
+
+    consola.info(
+      `[${idx}] target=\u001b[32m${targetDisplay}\u001b[0m${targetNameSuffix}`
+    )
+    consola.info(`     value=\u001b[32m${valueStr}\u001b[0m`)
+    consola.info(`     selector=\u001b[36m${selector}\u001b[0m`)
+    if (pretty) consola.info(`     call=\u001b[34m${pretty}\u001b[0m`)
+    else {
+      const preview =
+        payloadStr.length > 96 ? `${payloadStr.slice(0, 96)}…` : payloadStr
+      consola.info(`     payload=\u001b[90m${preview}\u001b[0m`)
+    }
+  }
 }
 
 /**
@@ -753,9 +958,10 @@ const processTxs = async (
     consola.info('-'.repeat(80))
 
     if (abi)
-      if (decoded && decoded.functionName === 'diamondCut')
+      if (decoded && decoded.functionName === 'diamondCut') {
+        if (decoded.args) await formatDiamondCutSummary(decoded.args, network)
         await decodeDiamondCut(decoded, chain.id)
-      else if (decoded && decoded.functionName === 'schedule') {
+      } else if (decoded && decoded.functionName === 'schedule') {
         await decodeNestedTimelockCall(
           {
             functionName: decoded.functionName,
@@ -764,6 +970,10 @@ const processTxs = async (
           chain.id,
           network
         )
+      } else if (decoded && decoded.functionName === 'scheduleBatch') {
+        // Timelock batch scheduling: show a readable per-operation view.
+        if (decoded.args)
+          await formatTimelockScheduleBatch(decoded.args, network)
       } else {
         consola.info('Method:', abi)
         if (decoded) {
@@ -777,12 +987,7 @@ const processTxs = async (
           ) {
             const peripheryAddress = decoded.args[1] as string
             let peripheryLine = `Periphery Address: \u001b[34m${peripheryAddress}\u001b[0m`
-            const explorerUrl = buildExplorerContractPageUrl(
-              network,
-              peripheryAddress
-            )
-            if (explorerUrl)
-              peripheryLine += ` \u001b[36m${explorerUrl}\u001b[0m`
+            peripheryLine += await getTargetSuffix(network, peripheryAddress)
             consola.info(peripheryLine)
           }
 
