@@ -470,6 +470,36 @@ async function decodeNestedTimelockCall(
                     nestedDecodedData.args,
                     network
                   )
+                } else if (
+                  nestedDecodedData.functionName === 'registerPeripheryContract'
+                ) {
+                  consola.info('Nested Decoded Arguments:')
+                  nestedDecodedData.args.forEach(
+                    (arg: unknown, index: number) => {
+                      // Handle different types of arguments
+                      let displayValue = arg
+                      if (typeof arg === 'bigint') displayValue = arg.toString()
+                      else if (typeof arg === 'object' && arg !== null)
+                        displayValue = JSON.stringify(arg)
+
+                      // Special handling for address argument (index 1)
+                      if (index === 1 && typeof arg === 'string') {
+                        const address = arg as string
+                        let addressLine = `  [${index}]: \u001b[33m${address}\u001b[0m`
+                        const explorerUrl = buildExplorerContractPageUrl(
+                          network,
+                          address
+                        )
+                        if (explorerUrl)
+                          addressLine += ` \u001b[36m${explorerUrl}\u001b[0m`
+                        consola.info(addressLine)
+                      } else {
+                        consola.info(
+                          `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
+                        )
+                      }
+                    }
+                  )
                 } else {
                   consola.info('Nested Decoded Arguments:')
                   nestedDecodedData.args.forEach(
