@@ -8,6 +8,9 @@
  * For periphery contracts, it checks if they're registered via PeripheryRegistryFacet.
  */
 
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
+
 import { consola } from 'consola'
 import {
   createPublicClient,
@@ -20,13 +23,17 @@ import {
 
 import 'dotenv/config'
 
+import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
 import {
   EnvironmentEnum,
   type INetwork,
   type SupportedChain,
 } from '../../common/types'
+import { CachedDeploymentQuerier } from '../../deploy/shared/cached-deployment-querier'
+import type { IConfig } from '../../deploy/shared/mongo-log-utils'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { getRPCEnvVarName } from '../../utils/network'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 // ABI for Diamond Loupe (to check facet registration)
@@ -51,11 +58,55 @@ interface IContractRegistrationStatus {
   environment: 'production' | 'staging'
   inDeploymentLog: boolean | null // Contract exists in deployment JSON file
   onChainRegistered: boolean | null // Contract is registered on-chain in diamond
-  isWhitelisted: boolean | null // For periphery: all selectors are whitelisted
+  isWhitelisted: boolean | null // For periphery: all selectors from global.json whitelistPeripheryFunctions whitelisted (or ≥1 if not in config)
   registeredAddress: string | null
   expectedAddress: string | null
   addressMatches: boolean | null
+  /** Version from /// @custom:version in contract source */
+  latestSourceVersion: string | null
+  /** Latest deployment version/address from MongoDB for this contract+network */
+  mongoLatestVersion: string | null
+  mongoLatestAddress: string | null
+  /** Version of the address currently registered on-chain (from MongoDB findByAddress) */
+  onChainVersion: string | null
+  /** MongoDB latest deployment version equals source @custom:version */
+  versionMatchesSource: boolean | null
+  /** On-chain registered address equals MongoDB latest deployment address */
+  onChainAddressMatchesMongoLatest: boolean | null
   errors: string[]
+}
+
+/** Regex to extract /// @custom:version X.Y.Z from Solidity Natspec */
+const CUSTOM_VERSION_REGEX = /@custom:version\s+([\d.]+)/
+
+/**
+ * Resolves contract source path: Periphery first, then Facets
+ */
+function getContractSourcePath(
+  contractName: string,
+  cwd: string
+): string | null {
+  const peripheryPath = join(cwd, 'src', 'Periphery', `${contractName}.sol`)
+  const facetPath = join(cwd, 'src', 'Facets', `${contractName}.sol`)
+  if (existsSync(peripheryPath)) return peripheryPath
+  if (existsSync(facetPath)) return facetPath
+  return null
+}
+
+/**
+ * Gets the latest contract version from /// @custom:version in the contract source
+ */
+function getLatestSourceVersion(contractName: string): string | null {
+  const cwd = process.cwd()
+  const sourcePath = getContractSourcePath(contractName, cwd)
+  if (!sourcePath) return null
+  try {
+    const content = readFileSync(sourcePath, 'utf8')
+    const match = content.match(CUSTOM_VERSION_REGEX)
+    return match?.[1]?.trim() ?? null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -226,8 +277,22 @@ async function checkPeripheryRegistration(
   }
 }
 
+/** Expected periphery whitelist entries from config/global.json */
+const whitelistPeripheryFunctions =
+  (
+    globalConfig as {
+      whitelistPeripheryFunctions?: Record<
+        string,
+        Array<{ selector: string; signature?: string }>
+      >
+    }
+  ).whitelistPeripheryFunctions ?? {}
+
 /**
- * Checks if a periphery contract is correctly whitelisted by verifying all selectors
+ * Checks if a periphery contract is whitelisted for use by the Diamond.
+ * Uses config/global.json whitelistPeripheryFunctions[contractName]: if present,
+ * every listed selector must be whitelisted on-chain. If the contract is not in
+ * config, falls back to "at least one selector" whitelisted.
  */
 async function checkPeripheryWhitelist(
   publicClient: PublicClient,
@@ -236,43 +301,37 @@ async function checkPeripheryWhitelist(
   contractName: string
 ): Promise<boolean> {
   try {
-    // Get all function selectors from the contract ABI
-    const selectors = await getFacetSelectors(contractName)
-
-    if (selectors.length === 0) {
-      // If we can't get selectors, we can't verify whitelist
-      return false
-    }
-
-    // Check if WhitelistManagerFacet is available
     const whitelistManager = {
       address: diamondAddress,
       abi: WHITELIST_MANAGER_ABI,
     }
 
-    // Check if ALL selectors are whitelisted
-    for (const selector of selectors) {
-      try {
+    const expectedEntries = whitelistPeripheryFunctions[contractName]
+
+    if (expectedEntries && expectedEntries.length > 0) {
+      for (const entry of expectedEntries) {
+        const selector = entry.selector.startsWith('0x')
+          ? (entry.selector as `0x${string}`)
+          : (`0x${entry.selector}` as `0x${string}`)
         const isWhitelisted = (await publicClient.readContract({
           ...whitelistManager,
           functionName: 'isContractSelectorWhitelisted',
           args: [contractAddress, selector],
         })) as boolean
-
-        if (!isWhitelisted) {
-          // At least one selector is not whitelisted
-          return false
-        }
-      } catch (error) {
-        // If call fails, assume not whitelisted
-        return false
+        if (!isWhitelisted) return false
       }
+      return true
     }
 
-    // All selectors are whitelisted
-    return true
+    const whitelistedSelectors = (await publicClient.readContract({
+      ...whitelistManager,
+      functionName: 'getWhitelistedSelectorsForContract',
+      args: [contractAddress],
+    })) as readonly `0x${string}`[]
+    return (
+      Array.isArray(whitelistedSelectors) && whitelistedSelectors.length > 0
+    )
   } catch (error) {
-    // If we can't check, return false
     return false
   }
 }
@@ -295,6 +354,12 @@ async function checkNetworkContractRegistration(
     registeredAddress: null,
     expectedAddress: null,
     addressMatches: null,
+    latestSourceVersion: null,
+    mongoLatestVersion: null,
+    mongoLatestAddress: null,
+    onChainVersion: null,
+    versionMatchesSource: null,
+    onChainAddressMatchesMongoLatest: null,
     errors: [],
   }
 
@@ -349,9 +414,13 @@ async function checkNetworkContractRegistration(
       return status
     }
 
-    // Get RPC URL
+    // Get RPC URL: prefer env (getRPCEnvVarName), then networks.json, then viem chain default
     const chain = getViemChainForNetworkName(networkName)
-    const rpcUrl = networkConfig.rpcUrl || chain.rpcUrls.default.http[0]
+    const rpcEnvVarName = getRPCEnvVarName(networkName)
+    const rpcUrl =
+      process.env[rpcEnvVarName] ||
+      networkConfig.rpcUrl ||
+      chain.rpcUrls.default.http[0]
 
     if (!rpcUrl) {
       status.errors.push('No RPC URL available')
@@ -493,6 +562,12 @@ async function main() {
           registeredAddress: null,
           expectedAddress: null,
           addressMatches: null,
+          latestSourceVersion: null,
+          mongoLatestVersion: null,
+          mongoLatestAddress: null,
+          onChainVersion: null,
+          versionMatchesSource: null,
+          onChainAddressMatchesMongoLatest: null,
           errors: ['Network config not found'],
         }
         return errorStatus
@@ -507,6 +582,65 @@ async function main() {
   )
 
   results.push(...networkResults)
+
+  // Resolve latest source version from /// @custom:version in contract source
+  const latestSourceVersion = getLatestSourceVersion(contractName)
+  for (const r of results) {
+    r.latestSourceVersion = latestSourceVersion
+  }
+
+  // Enrich with MongoDB deployment log (version + address) when MONGODB_URI is set
+  const mongoUri = process.env.MONGODB_URI
+  if (mongoUri) {
+    const mongoConfig: IConfig = {
+      mongoUri,
+      batchSize: 100,
+      databaseName: 'contract-deployments',
+    }
+    try {
+      const cachedQuerier = new CachedDeploymentQuerier(
+        mongoConfig,
+        environment as keyof typeof EnvironmentEnum
+      )
+      for (const r of results) {
+        try {
+          const mongoLatest = await cachedQuerier.getLatestDeployment(
+            contractName,
+            r.network
+          )
+          if (mongoLatest) {
+            r.mongoLatestVersion = mongoLatest.version
+            r.mongoLatestAddress = mongoLatest.address
+            r.versionMatchesSource =
+              latestSourceVersion !== null &&
+              mongoLatest.version === latestSourceVersion
+            r.onChainAddressMatchesMongoLatest =
+              r.registeredAddress !== null &&
+              getAddress(r.registeredAddress) ===
+                getAddress(mongoLatest.address)
+          }
+          if (r.registeredAddress) {
+            const onChainRecord = await cachedQuerier.findByAddress(
+              r.registeredAddress,
+              r.network
+            )
+            r.onChainVersion = onChainRecord?.version ?? null
+          }
+        } catch (err) {
+          r.errors.push(
+            `Mongo version check: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          )
+        }
+      }
+    } catch (err) {
+      consola.warn(
+        'MongoDB version check skipped:',
+        err instanceof Error ? err.message : String(err)
+      )
+    }
+  }
 
   // Sort results: both checks pass first, then by network name
   results.sort((a, b) => {
@@ -523,8 +657,26 @@ async function main() {
   consola.info('CONTRACT REGISTRATION STATUS SUMMARY')
   consola.info('='.repeat(100) + '\n')
 
+  const sourceVersion =
+    results[0]?.latestSourceVersion ?? getLatestSourceVersion(contractName)
+  if (sourceVersion) {
+    consola.info(`Source version (/// @custom:version): ${sourceVersion}`)
+  } else {
+    consola.info(
+      'Source version: N/A (no @custom:version in Periphery/Facets source)'
+    )
+  }
+  consola.info('')
+
   // Determine if this is a periphery contract (to show whitelist column)
   const isPeripheryContract = !contractName.includes('Facet')
+
+  // Version column widths
+  const verCol = 8 // Source / Mongo / On-Chain version
+  const latestCol = 8 // Latest? (✅/❌/—)
+  const versionHeader = ` ${'Src'.padEnd(verCol)} ${'Mongo'.padEnd(
+    verCol
+  )} ${'OnCh'.padEnd(verCol)} ${'Latest?'.padEnd(latestCol)}`
 
   // Print header
   const header = isPeripheryContract
@@ -532,14 +684,17 @@ async function main() {
         12
       )} ${'In Deployment Log'.padEnd(20)} ${'On-Chain Registered'.padEnd(
         20
-      )} ${'Whitelisted'.padEnd(15)} ${'Status'.padEnd(15)}`
+      )} ${'Whitelisted'.padEnd(15)}${versionHeader} ${'Status'.padEnd(15)}`
     : `${'Network'.padEnd(20)} ${'Environment'.padEnd(
         12
       )} ${'In Deployment Log'.padEnd(20)} ${'On-Chain Registered'.padEnd(
         20
-      )} ${'Status'.padEnd(15)}`
+      )}${versionHeader} ${'Status'.padEnd(15)}`
   consola.info(header)
-  consola.info('-'.repeat(isPeripheryContract ? 120 : 100))
+  const headerLen = isPeripheryContract
+    ? 120 + versionHeader.length
+    : 100 + versionHeader.length
+  consola.info('-'.repeat(headerLen))
 
   // Categorize results
   const bothPass = results.filter(
@@ -587,6 +742,28 @@ async function main() {
         : '❓ Unknown'
       : 'N/A'
 
+    // Version columns (from source @custom:version and MongoDB)
+    const srcVer = (result.latestSourceVersion ?? '—')
+      .slice(0, verCol)
+      .padEnd(verCol)
+    const mongoVer = (result.mongoLatestVersion ?? '—')
+      .slice(0, verCol)
+      .padEnd(verCol)
+    const onChainVer = (result.onChainVersion ?? '—')
+      .slice(0, verCol)
+      .padEnd(verCol)
+    const isLatest =
+      result.versionMatchesSource === true &&
+      result.onChainAddressMatchesMongoLatest === true
+    const latestStatus =
+      result.mongoLatestVersion !== undefined &&
+      result.mongoLatestVersion !== null
+        ? isLatest
+          ? '✅ Yes'.padEnd(latestCol)
+          : '❌ No'.padEnd(latestCol)
+        : '—'.padEnd(latestCol)
+    const versionBlock = ` ${srcVer} ${mongoVer} ${onChainVer} ${latestStatus}`
+
     let status = ''
     if (result.errors.length > 0) {
       status = '⚠️ Error'
@@ -599,6 +776,11 @@ async function main() {
         status = '⚠️ Not Whitelisted'
       } else if (result.addressMatches === false) {
         status = '⚠️ Address Mismatch'
+      } else if (
+        result.versionMatchesSource === false ||
+        result.onChainAddressMatchesMongoLatest === false
+      ) {
+        status = '⚠️ Outdated (not latest version)'
       } else {
         status = '✅ OK'
       }
@@ -617,13 +799,13 @@ async function main() {
       consola.info(
         `${networkName} ${inLogStatus.padEnd(20)} ${onChainStatus.padEnd(
           20
-        )} ${whitelistStatus.padEnd(15)} ${status}`
+        )} ${whitelistStatus.padEnd(15)}${versionBlock} ${status}`
       )
     } else {
       consola.info(
         `${networkName} ${inLogStatus.padEnd(20)} ${onChainStatus.padEnd(
           20
-        )} ${status}`
+        )}${versionBlock} ${status}`
       )
     }
 
@@ -637,6 +819,20 @@ async function main() {
         `    └─ Address mismatch: registered=${result.registeredAddress}, expected=${result.expectedAddress}`
       )
     }
+    // Show version mismatch when on-chain is not latest
+    if (
+      result.onChainAddressMatchesMongoLatest === false &&
+      result.mongoLatestAddress &&
+      result.registeredAddress
+    ) {
+      consola.warn(
+        `    └─ Version: on-chain=${result.onChainVersion ?? '?'} @ ${
+          result.registeredAddress
+        }, Mongo latest=${result.mongoLatestVersion} @ ${
+          result.mongoLatestAddress
+        }`
+      )
+    }
 
     // Show errors
     if (result.errors.length > 0) {
@@ -646,7 +842,20 @@ async function main() {
     }
   }
 
-  const separator = isPeripheryContract ? 120 : 100
+  const versionLatestCount = results.filter(
+    (r) =>
+      r.versionMatchesSource === true &&
+      r.onChainAddressMatchesMongoLatest === true
+  ).length
+  const versionOutdatedCount = results.filter(
+    (r) =>
+      r.mongoLatestVersion !== undefined &&
+      r.mongoLatestVersion !== null &&
+      (r.versionMatchesSource === false ||
+        r.onChainAddressMatchesMongoLatest === false)
+  ).length
+
+  const separator = Math.max(isPeripheryContract ? 120 : 100, headerLen ?? 140)
   consola.info('\n' + '='.repeat(separator))
   consola.info('SUMMARY:')
   consola.info(`  ✅ All checks pass: ${bothPass.length} networks`)
@@ -656,6 +865,14 @@ async function main() {
   if (isPeripheryContract) {
     consola.info(
       `  ⚠️  Registered but not whitelisted: ${notWhitelisted.length} networks`
+    )
+  }
+  if (sourceVersion) {
+    consola.info(
+      `  📦 Version: matches source & Mongo latest: ${versionLatestCount} networks`
+    )
+    consola.info(
+      `  📦 Version: outdated (on-chain ≠ latest): ${versionOutdatedCount} networks`
     )
   }
   consola.info(`  ❌ Not in deployment log: ${notInLog.length} networks`)
