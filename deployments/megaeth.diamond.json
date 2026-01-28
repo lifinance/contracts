@@ -72,6 +72,10 @@
       "0xA5f99BA883aeA2edEd4c6541242616D5F68a2bAB": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
+      },
+      "0xFe95e509A5AB8C633831183216b10DBc431F41Fa": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
