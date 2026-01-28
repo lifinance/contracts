@@ -59,7 +59,7 @@ NETWORKS=($(getIncludedNetworksArray))
 # NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT" "cancun"))
 
 # Option 5: Use whitelist filtering (uncomment and modify as needed)
-NETWORKS_WHITELIST=("celo" "fraxtal")
+# NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "zksync")
 # NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "bsc" "blast" "ink" "linea" "lisk" "mode" "optimism" "polygon" "scroll" "soneium" "unichain" "worldchain" "zksync")
 
 # Option 6: Use blacklist filtering (applied after network selection)
@@ -102,43 +102,43 @@ function executeNetworkActions() {
     # All commands will be executed, and the last command's exit code will be returned
 
     # DEPLOY & VERIFY CONTRACT
-    CURRENT_VERSION=$(getCurrentContractVersion "${CONTRACT:-}")
-    # # echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
-    deploySingleContract "${CONTRACT:-}" "$NETWORK" "${ENVIRONMENT:-}" "${CURRENT_VERSION:-}" false
-    RETURN_CODE=$?
-    echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
+    # CURRENT_VERSION=$(getCurrentContractVersion "${CONTRACT:-}")
+    # # # echo "[$NETWORK] CURRENT_VERSION of contract $CONTRACT: $CURRENT_VERSION"
+    # deploySingleContract "${CONTRACT:-}" "$NETWORK" "${ENVIRONMENT:-}" "${CURRENT_VERSION:-}" false
+    # RETURN_CODE=$?
+    # echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
 
 
 
 
     # VERIFY - Verify the contract on the network
-    getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-    RETURN_CODE=$?
-    if [[ $RETURN_CODE -ne 0 ]]; then
-        return $RETURN_CODE
-    fi
+    # getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+    # RETURN_CODE=$?
+    # if [[ $RETURN_CODE -ne 0 ]]; then
+    #     return $RETURN_CODE
+    # fi
 
     # SYNC WHITEL IST - Sync whitelist from whitelist.json to diamo
 
     # PROPOSE - Create multisig proposal for the contract
-    createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
-        RETURN_CODE=$?
-    if [[ $RETURN_CODE -ne 0 ]]; then
-        return $RETURN_CODE
-    fi
+    # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
+    #     RETURN_CODE=$?
+    # if [[ $RETURN_CODE -ne 0 ]]; then
+    #     return $RETURN_CODE
+    # fi
 
     # VERIFY - Verify proposal exists in MongoDB with pending status
-    echo "[$NETWORK] Waiting 2 seconds for MongoDB write propagation..."
-    sleep 2
-    verifyProposalExistsInMongo "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
-    RETURN_CODE=$?
-    if [[ $RETURN_CODE -ne 0 ]]; then
-        echo "[$NETWORK] ERROR: Proposal verification failed - proposal was created but not found in database"
-        return $RETURN_CODE
-    fi
+    # echo "[$NETWORK] Waiting 2 seconds for MongoDB write propagation..."
+    # sleep 2
+    # verifyProposalExistsInMongo "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+    # RETURN_CODE=$?
+    # if [[ $RETURN_CODE -ne 0 ]]; then
+    #     echo "[$NETWORK] ERROR: Proposal verification failed - proposal was created but not found in database"
+    #     return $RETURN_CODE
+    # fi
 
     # UPDATE DIAMOND - Update diamond log for the network
-    updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
+    # updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
 
     # CUSTOM ACTIONS - Add your custom actions here
     # CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
@@ -2669,13 +2669,13 @@ function iterateAllNetworksOriginal() {
     # local NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))   # to get networks with same evm version
     #####  GET ALL NETWORKS #####
 
-    # local NETWORKS=($(getIncludedNetworksArray)) # to get all included networks
+    local NETWORKS=($(getIncludedNetworksArray)) # to get all included networks
     # local NETWORKS=("arbitrum" "aurora" "base" "blast" "bob" "bsc" "cronos" "gravity" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
     # local NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "mainnet" "optimism" "polygon") # <<<<< AllBridgeFacet
     # local NETWORKS=("abstract" "fraxtal" "lens" "lisk" "sei" "sophon" "swellchain" "unichain")
     # local NETWORKS=("base" "arbitrum" "bsc" "corn" "katana" "bob" "etherlink" "plume" "gravity" "superposition" "cronos" "scroll" "blast" "apechain" "opbnb" "lens" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "boba" "swellchain")
     # local NETWORKS=("plume" "taiko" "xlayer" "zksync")
-    local NETWORKS=("avalanche", "nibiru", "viction")
+    # local NETWORKS=("vana" "fraxtal" "bob" "sophon")
 
     # local NETWORKS=("avalanche" "linea" "")
 

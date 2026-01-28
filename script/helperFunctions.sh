@@ -253,8 +253,7 @@ function findContractInMasterLogByAddress() {
     MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
       --env "$ENVIRONMENT" \
       --network "$NETWORK" \
-      --address "$TARGET_ADDRESS" \
-      --no-use-cache 2>/dev/null)
+      --address "$TARGET_ADDRESS" 2>/dev/null)
     local MONGO_EXIT=$?
 
     if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
@@ -338,8 +337,7 @@ function getHighestDeployedContractVersionFromMasterLog() {
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" \
-    --limit=50 \
-    --no-use-cache 2>/dev/null)
+    --limit=50 2>/dev/null)
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
@@ -380,8 +378,7 @@ function queryMongoDeployment() {
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
     --network "$NETWORK" \
-    --version "$VERSION" \
-    --no-use-cache 2>/dev/null
+    --version "$VERSION" 2>/dev/null
   return $?
 }
 
@@ -395,8 +392,7 @@ function checkMongoDeploymentExists() {
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" \
-    --version="$VERSION" \
-    --no-use-cache 2>/dev/null
+    --version="$VERSION" 2>/dev/null
   return $?
 }
 
@@ -408,8 +404,7 @@ function getLatestMongoDeployment() {
   bun script/deploy/query-deployment-logs.ts latest \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
-    --network="$NETWORK" \
-    --no-use-cache 2>/dev/null
+    --network="$NETWORK" 2>/dev/null
   return $?
 }
 
@@ -420,8 +415,7 @@ function getUnverifiedContractsFromMongo() {
   bun script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --verified=false \
-    --limit=1000 \
-    --no-use-cache 2>/dev/null
+    --limit=1000 2>/dev/null
   return $?
 }
 
@@ -660,8 +654,7 @@ function getConstructorArgsFromMasterLog() {
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
     --network "$NETWORK" \
-    --version "$VERSION" \
-    --no-use-cache 2>/dev/null)
+    --version "$VERSION" 2>/dev/null)
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then

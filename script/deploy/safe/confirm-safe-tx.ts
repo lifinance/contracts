@@ -1027,9 +1027,6 @@ const processTxs = async (
       )
 
     // Determine available actions based on signature status
-    const canExecuteNow = hasEnoughSignatures(tx.safeTransaction, tx.threshold)
-    const isDeployerCurrentSigner =
-      !useLedger && privKeyType === PrivateKeyTypeEnum.DEPLOYER
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
@@ -1045,11 +1042,6 @@ const processTxs = async (
           )
         )
           options.push('Sign and Execute With Deployer')
-      }
-
-      if (canExecuteNow) {
-        options.push('Execute')
-        options.push('Execute with Deployer')
       }
 
       action =
@@ -1079,10 +1071,8 @@ const processTxs = async (
       if (
         !safetyBlocker &&
         hasEnoughSignatures(tx.safeTransaction, tx.threshold)
-      ) {
+      )
         options.push('Execute')
-        if (!isDeployerCurrentSigner) options.push('Execute with Deployer')
-      }
 
       action =
         storedResponse ||
@@ -1212,24 +1202,6 @@ const processTxs = async (
         await executeTransaction(safeTransaction)
       } catch (error) {
         consola.error('Error executing transaction:', error)
-      }
-
-    if (action === 'Execute with Deployer')
-      try {
-        const safeTransaction = await initializeSafeTransaction(tx, safe)
-        consola.info('Initializing deployer wallet...')
-        const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-        const { safe: deployerSafe } = await initializeSafeClient(
-          network,
-          deployerPrivateKey,
-          rpcUrl,
-          false,
-          undefined,
-          txSafeAddress
-        )
-        await executeTransaction(safeTransaction, deployerSafe)
-      } catch (error) {
-        consola.error('Error executing transaction with deployer:', error)
       }
   }
   try {
