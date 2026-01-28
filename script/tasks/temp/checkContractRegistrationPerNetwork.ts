@@ -20,14 +20,14 @@ import {
 
 import 'dotenv/config'
 
-import networksConfig from '../../config/networks.json'
+import networksConfig from '../../../config/networks.json'
 import {
   EnvironmentEnum,
   type INetwork,
   type SupportedChain,
-} from '../common/types'
-import { getDeployments } from '../utils/deploymentHelpers'
-import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+} from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 // ABI for Diamond Loupe (to check facet registration)
 const DIAMOND_LOUPE_ABI = parseAbi([
@@ -40,11 +40,18 @@ const PERIPHERY_REGISTRY_ABI = parseAbi([
   'function getPeripheryContract(string) external view returns (address)',
 ])
 
+// ABI for WhitelistManagerFacet
+const WHITELIST_MANAGER_ABI = parseAbi([
+  'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+  'function getWhitelistedSelectorsForContract(address) external view returns (bytes4[])',
+])
+
 interface IContractRegistrationStatus {
   network: string
   environment: 'production' | 'staging'
   inDeploymentLog: boolean | null // Contract exists in deployment JSON file
   onChainRegistered: boolean | null // Contract is registered on-chain in diamond
+  isWhitelisted: boolean | null // For periphery: all selectors are whitelisted
   registeredAddress: string | null
   expectedAddress: string | null
   addressMatches: boolean | null
@@ -220,6 +227,57 @@ async function checkPeripheryRegistration(
 }
 
 /**
+ * Checks if a periphery contract is correctly whitelisted by verifying all selectors
+ */
+async function checkPeripheryWhitelist(
+  publicClient: PublicClient,
+  diamondAddress: Address,
+  contractAddress: Address,
+  contractName: string
+): Promise<boolean> {
+  try {
+    // Get all function selectors from the contract ABI
+    const selectors = await getFacetSelectors(contractName)
+
+    if (selectors.length === 0) {
+      // If we can't get selectors, we can't verify whitelist
+      return false
+    }
+
+    // Check if WhitelistManagerFacet is available
+    const whitelistManager = {
+      address: diamondAddress,
+      abi: WHITELIST_MANAGER_ABI,
+    }
+
+    // Check if ALL selectors are whitelisted
+    for (const selector of selectors) {
+      try {
+        const isWhitelisted = (await publicClient.readContract({
+          ...whitelistManager,
+          functionName: 'isContractSelectorWhitelisted',
+          args: [contractAddress, selector],
+        })) as boolean
+
+        if (!isWhitelisted) {
+          // At least one selector is not whitelisted
+          return false
+        }
+      } catch (error) {
+        // If call fails, assume not whitelisted
+        return false
+      }
+    }
+
+    // All selectors are whitelisted
+    return true
+  } catch (error) {
+    // If we can't check, return false
+    return false
+  }
+}
+
+/**
  * Checks contract registration status for a single network
  */
 async function checkNetworkContractRegistration(
@@ -233,6 +291,7 @@ async function checkNetworkContractRegistration(
     environment,
     inDeploymentLog: null,
     onChainRegistered: null,
+    isWhitelisted: null,
     registeredAddress: null,
     expectedAddress: null,
     addressMatches: null,
@@ -340,6 +399,27 @@ async function checkNetworkContractRegistration(
         getAddress(status.registeredAddress) ===
         getAddress(status.expectedAddress)
     }
+
+    // For periphery contracts, check if they're correctly whitelisted
+    if (!isFacet && status.onChainRegistered && status.registeredAddress) {
+      try {
+        const registeredAddr = getAddress(status.registeredAddress) as Address
+        status.isWhitelisted = await checkPeripheryWhitelist(
+          publicClient,
+          diamondAddress,
+          registeredAddr,
+          contractName
+        )
+      } catch (error) {
+        // If whitelist check fails, mark as null (unknown)
+        status.isWhitelisted = null
+        status.errors.push(
+          `Failed to check whitelist: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
+    }
   } catch (error) {
     status.errors.push(error instanceof Error ? error.message : String(error))
   }
@@ -409,6 +489,7 @@ async function main() {
           environment,
           inDeploymentLog: null,
           onChainRegistered: null,
+          isWhitelisted: null,
           registeredAddress: null,
           expectedAddress: null,
           addressMatches: null,
@@ -442,23 +523,42 @@ async function main() {
   consola.info('CONTRACT REGISTRATION STATUS SUMMARY')
   consola.info('='.repeat(100) + '\n')
 
+  // Determine if this is a periphery contract (to show whitelist column)
+  const isPeripheryContract = !contractName.includes('Facet')
+
   // Print header
-  consola.info(
-    `${'Network'.padEnd(20)} ${'Environment'.padEnd(
-      12
-    )} ${'In Deployment Log'.padEnd(20)} ${'On-Chain Registered'.padEnd(
-      20
-    )} ${'Status'.padEnd(15)}`
-  )
-  consola.info('-'.repeat(100))
+  const header = isPeripheryContract
+    ? `${'Network'.padEnd(20)} ${'Environment'.padEnd(
+        12
+      )} ${'In Deployment Log'.padEnd(20)} ${'On-Chain Registered'.padEnd(
+        20
+      )} ${'Whitelisted'.padEnd(15)} ${'Status'.padEnd(15)}`
+    : `${'Network'.padEnd(20)} ${'Environment'.padEnd(
+        12
+      )} ${'In Deployment Log'.padEnd(20)} ${'On-Chain Registered'.padEnd(
+        20
+      )} ${'Status'.padEnd(15)}`
+  consola.info(header)
+  consola.info('-'.repeat(isPeripheryContract ? 120 : 100))
 
   // Categorize results
   const bothPass = results.filter(
-    (r) => r.inDeploymentLog === true && r.onChainRegistered === true
+    (r) =>
+      r.inDeploymentLog === true &&
+      r.onChainRegistered === true &&
+      (!isPeripheryContract || r.isWhitelisted === true)
   )
   const inLogNotOnChain = results.filter(
     (r) => r.inDeploymentLog === true && r.onChainRegistered === false
   )
+  const notWhitelisted = isPeripheryContract
+    ? results.filter(
+        (r) =>
+          r.inDeploymentLog === true &&
+          r.onChainRegistered === true &&
+          r.isWhitelisted === false
+      )
+    : []
   const notInLog = results.filter((r) => r.inDeploymentLog === false)
   const errors = results.filter((r) => r.errors.length > 0)
 
@@ -478,6 +578,15 @@ async function main() {
         ? '❌ No'
         : '❓ Unknown'
 
+    // Whitelist status (only for periphery contracts)
+    const whitelistStatus = isPeripheryContract
+      ? result.isWhitelisted === true
+        ? '✅ Yes'
+        : result.isWhitelisted === false
+        ? '❌ No'
+        : '❓ Unknown'
+      : 'N/A'
+
     let status = ''
     if (result.errors.length > 0) {
       status = '⚠️ Error'
@@ -485,7 +594,10 @@ async function main() {
       result.inDeploymentLog === true &&
       result.onChainRegistered === true
     ) {
-      if (result.addressMatches === false) {
+      // For periphery contracts, also check whitelist
+      if (isPeripheryContract && result.isWhitelisted === false) {
+        status = '⚠️ Not Whitelisted'
+      } else if (result.addressMatches === false) {
         status = '⚠️ Address Mismatch'
       } else {
         status = '✅ OK'
@@ -501,11 +613,19 @@ async function main() {
       status = '❓ Unknown'
     }
 
-    consola.info(
-      `${networkName} ${inLogStatus.padEnd(20)} ${onChainStatus.padEnd(
-        20
-      )} ${status}`
-    )
+    if (isPeripheryContract) {
+      consola.info(
+        `${networkName} ${inLogStatus.padEnd(20)} ${onChainStatus.padEnd(
+          20
+        )} ${whitelistStatus.padEnd(15)} ${status}`
+      )
+    } else {
+      consola.info(
+        `${networkName} ${inLogStatus.padEnd(20)} ${onChainStatus.padEnd(
+          20
+        )} ${status}`
+      )
+    }
 
     // Show address mismatch details
     if (
@@ -526,19 +646,30 @@ async function main() {
     }
   }
 
-  consola.info('\n' + '='.repeat(100))
+  const separator = isPeripheryContract ? 120 : 100
+  consola.info('\n' + '='.repeat(separator))
   consola.info('SUMMARY:')
-  consola.info(`  ✅ Both checks pass: ${bothPass.length} networks`)
+  consola.info(`  ✅ All checks pass: ${bothPass.length} networks`)
   consola.info(
     `  ⚠️  In log but not on-chain: ${inLogNotOnChain.length} networks`
   )
+  if (isPeripheryContract) {
+    consola.info(
+      `  ⚠️  Registered but not whitelisted: ${notWhitelisted.length} networks`
+    )
+  }
   consola.info(`  ❌ Not in deployment log: ${notInLog.length} networks`)
   consola.info(`  ⚠️  Errors: ${errors.length} networks`)
   consola.info(`  Total: ${results.length} networks`)
-  consola.info('='.repeat(100) + '\n')
+  consola.info('='.repeat(separator) + '\n')
 
   // Exit with error code if any networks have issues
-  if (inLogNotOnChain.length > 0 || notInLog.length > 0 || errors.length > 0) {
+  if (
+    inLogNotOnChain.length > 0 ||
+    notInLog.length > 0 ||
+    (isPeripheryContract && notWhitelisted.length > 0) ||
+    errors.length > 0
+  ) {
     process.exit(1)
   }
 }
