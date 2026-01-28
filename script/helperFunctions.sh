@@ -4373,28 +4373,14 @@ function executeAndCapture() {
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
   fi
   
-  # Use temporary files for jq to avoid "Argument list too long" error when content is very large
-  # This happens when Foundry outputs full traces in the JSON response
-  local STDOUT_TMP STDERR_TMP JSON_TMP
-  STDOUT_TMP=$(mktemp)
-  STDERR_TMP=$(mktemp)
-  JSON_TMP=$(mktemp)
-  
-  # Write stdout and stderr to temp files
-  printf '%s' "$RAW_RETURN_DATA" > "$STDOUT_TMP"
-  printf '%s' "$STDERR_CONTENT" > "$STDERR_TMP"
-  
-  # Use jq with --rawfile to read from files (avoids argument length limits)
-  # --rawfile reads the file as a raw string, not JSON
+  # Escape JSON strings properly for jq
+  # Use jq to create a properly escaped JSON object
   local JSON_RESULT
   JSON_RESULT=$(jq -n \
-    --rawfile stdout "$STDOUT_TMP" \
-    --rawfile stderr "$STDERR_TMP" \
+    --arg stdout "$RAW_RETURN_DATA" \
+    --arg stderr "$STDERR_CONTENT" \
     --argjson returnCode "$RETURN_CODE" \
     '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
-  
-  # Cleanup temp files
-  rm -f "$STDOUT_TMP" "$STDERR_TMP" "$JSON_TMP" 2>/dev/null
   
   # Explicit cleanup + restore previous EXIT trap
   rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
