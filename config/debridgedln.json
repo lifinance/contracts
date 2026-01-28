@@ -1,4 +1,5 @@
 {
+  "IMPORTANT DEV NOTICE": "after adding a new network, run script script/tasks/proposeDeBridgeDlnChainIdMappings to update chainId mappings on all other chains",
   "according to docs all EVM networks should be using the same address": "https://docs.debridge.com/dln-details/overview/deployed-contracts",
   "networks": {
     "mainnet": {
