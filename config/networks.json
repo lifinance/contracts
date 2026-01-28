@@ -392,7 +392,7 @@
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://rpc.fuse.io",
-    "verificationType": "etherscan",
+    "verificationType": "blockscout",
     "explorerUrl": "https://explorer.fuse.io",
     "explorerApiUrl": "https://explorer.fuse.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",

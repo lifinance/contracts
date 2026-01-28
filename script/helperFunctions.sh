@@ -1912,12 +1912,18 @@ function verifyContract() {
   if [[ -n "$CUSTOM_FLAGS" ]] && [[ "$CUSTOM_FLAGS" != "null" ]] && [[ "$CUSTOM_FLAGS" != "{}" ]] && [[ "$CUSTOM_FLAGS" != "\"\"" ]]; then
     # Parse the JSON object and add each flag-value pair to VERIFY_CMD
     # Format: {"-e": "verifyContract"} -> VERIFY_CMD+=("-e" "verifyContract")
+    # Format: {"--skip-is-verified-check": null} -> VERIFY_CMD+=("--skip-is-verified-check")
     while IFS= read -r flag_entry; do
       local flag_name=$(echo "$flag_entry" | jq -r '.key')
       local flag_value=$(echo "$flag_entry" | jq -r '.value')
       if [[ -n "$flag_name" ]] && [[ "$flag_name" != "null" ]]; then
-        VERIFY_CMD+=("$flag_name" "$flag_value")
-        echoDebug "Added custom verification flag: $flag_name $flag_value"
+        if [[ -n "$flag_value" && "$flag_value" != "null" ]]; then
+          VERIFY_CMD+=("$flag_name" "$flag_value")
+          echoDebug "Added custom verification flag: $flag_name $flag_value"
+        else
+          VERIFY_CMD+=("$flag_name")
+          echoDebug "Added custom verification flag: $flag_name"
+        fi
       fi
     done < <(echo "$CUSTOM_FLAGS" | jq -c 'to_entries[]')
   fi
