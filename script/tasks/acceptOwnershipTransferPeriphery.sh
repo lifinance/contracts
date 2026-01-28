@@ -48,33 +48,37 @@ acceptOwnershipTransferPeriphery() {
   # go through all networks
   for CURRENT_NETWORK in "${NETWORKS[@]}"; do
     echo ""
-    echo "[info] now executing transfer ownership script in network: $NETWORK"
+    echo "[info] now executing transfer ownership script in network: $CURRENT_NETWORK"
 
     # execute script
     attempts=1
 
     while [ $attempts -lt 11 ]; do
-      # try to execute call
-      RAW_RETURN_DATA=$(NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $NETWORK -vvvvv --json --broadcast --verify --skip-simulation --legacy --tc DeployScript)
-      RETURN_CODE=$?
+      # Execute, parse, and check return code
+      executeAndParse \
+        "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
+        "true"
 
-      # print return data only if debug mode is activated
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-
+      # Check return code first - if non-zero, log error and retry
+      if [[ "${RETURN_CODE:-1}" -ne 0 ]]; then
+        error "execution failed on network $CURRENT_NETWORK (exit code: ${RETURN_CODE:-1}). stderr: ${STDERR_CONTENT:-}"
       # check return data for error message (regardless of return code as this is not 100% reliable)
-      if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+      elif [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
         # try to extract error message and throw error
-        ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+        ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
         if [[ $ERROR_MESSAGE == "" ]]; then
-          error "execution of script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
+          error "execution of script failed. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
         else
           error "execution of script failed with message: $ERROR_MESSAGE"
         fi
 
       # check the return code the last call
-      elif [[ $RETURN_CODE -eq 0 && $RAW_RETURN_DATA != *"\"returns\":{}"* ]]; then
+      elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
         break  # exit the loop if the operation was successful
       fi
+
+      attempts=$((attempts + 1))
+      sleep 1
     done
 
     # check if loop was ended because it ran out of attempts or because of success
@@ -82,7 +86,7 @@ acceptOwnershipTransferPeriphery() {
       error "ownership transfer was not successful on network $CURRENT_NETWORK. Script will continue with next network, if any."
       continue
     else
-      echo "ownership transfer successful on network $NETWORK"
+      echo "ownership transfer successful on network $CURRENT_NETWORK"
     fi
 
   done

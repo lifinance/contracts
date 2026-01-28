@@ -37,16 +37,20 @@ diamondUpdateSgConfig() {
 
   while [ $attempts -lt 11 ]; do
     echo "Trying to execute $SCRIPT now - attempt ${attempts}"
-    # try to execute call
-    NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/deploy/facets/$SCRIPT.s.sol -f $NETWORK -vvvvv --json --broadcast --skip-simulation --legacy
-
-    # check the return code the last call
-    if [ $? -eq 0 ]; then
-      break # exit the loop if the operation was successful
+    
+    # Execute, parse, and check return code
+    if ! executeAndParse \
+      "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/deploy/facets/$SCRIPT.s.sol -f $NETWORK --json --broadcast --skip-simulation --legacy" \
+      "true" \
+      "forge script failed for $SCRIPT on network $NETWORK" \
+      "continue"; then
+      attempts=$((attempts + 1))
+      sleep 1
+      continue
     fi
 
-    attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
+    # If we reach here, execution was successful
+    break
   done
 
   if [ $attempts -eq 11 ]; then

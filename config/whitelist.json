@@ -1665,14 +1665,7 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
-              "0x8980041a": "callUniswap(address,uint256,uint256,bytes32[])",
-              "0x6b58f2f0": "callUniswapTo(address,uint256,uint256,bytes32[],address)",
-              "0x22dca3d7": "callUniswapToWithPermit(address,uint256,uint256,bytes32[],bytes,address)",
-              "0xd57360fc": "callUniswapWithPermit(address,uint256,uint256,bytes32[],bytes)",
-              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -1680,14 +1673,7 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
-              "0x8980041a": "callUniswap(address,uint256,uint256,bytes32[])",
-              "0x6b58f2f0": "callUniswapTo(address,uint256,uint256,bytes32[],address)",
-              "0x22dca3d7": "callUniswapToWithPermit(address,uint256,uint256,bytes32[],bytes,address)",
-              "0xd57360fc": "callUniswapWithPermit(address,uint256,uint256,bytes32[],bytes)",
-              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -1708,6 +1694,14 @@
           }
         ],
         "rootstock": [
+          {
+            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
+            "functions": {
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+            }
+          }
+        ],
+        "telos": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
@@ -1855,14 +1849,7 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
-              "0x8980041a": "callUniswap(address,uint256,uint256,bytes32[])",
-              "0x6b58f2f0": "callUniswapTo(address,uint256,uint256,bytes32[],address)",
-              "0x22dca3d7": "callUniswapToWithPermit(address,uint256,uint256,bytes32[],bytes,address)",
-              "0xd57360fc": "callUniswapWithPermit(address,uint256,uint256,bytes32[],bytes)",
-              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -5356,7 +5343,7 @@
       },
       {
         "name": "GasZipPeriphery",
-        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
         "selectors": [
           {
             "selector": "0x8b71ae6c",
@@ -5769,6 +5756,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "TokenWrapper",
         "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
         "selectors": [
@@ -5965,6 +5966,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6373,6 +6388,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "TokenWrapper",
         "address": "0xA5f21f42de766a7183609F4798D211A1CD490a3d",
         "selectors": [
@@ -6423,6 +6452,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -6795,6 +6838,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "TokenWrapper",
         "address": "0x5C6Dd0170348666A3e07fD033C12D9D15c83e360",
         "selectors": [
@@ -6913,6 +6970,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x90Db26204afD5e127DDFe377462C1Fec1D22eef8",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -7342,7 +7413,7 @@
       },
       {
         "name": "GasZipPeriphery",
-        "address": "0xE34919F5982381368Bd9C640a0F81f3Aa28CE43a",
+        "address": "0xa8800ABdD6771dA7aAab2d09a5b97F4B8b19B58a",
         "selectors": [
           {
             "selector": "0x8b71ae6c",
@@ -7623,6 +7694,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "TokenWrapper",
         "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
         "selectors": [
@@ -7741,6 +7826,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8205,6 +8304,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "TokenWrapper",
         "address": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
         "selectors": [
@@ -8333,6 +8446,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -8562,7 +8689,7 @@
       },
       {
         "name": "GasZipPeriphery",
-        "address": "0xefC86E5D45A1Cca48C57d439159d60a0D78F5738",
+        "address": "0xEfA269B9405762E56ED0b35C428331ce4963dDFf",
         "selectors": [
           {
             "selector": "0x8b71ae6c",
@@ -9106,7 +9233,7 @@
       },
       {
         "name": "GasZipPeriphery",
-        "address": "0x0023b2e2534b011b4a99A5774b33d697F1566524",
+        "address": "0xCF7C4034025512EdeDAC9AFB77d0Bd03130222b8",
         "selectors": [
           {
             "selector": "0x8b71ae6c",
