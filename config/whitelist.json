@@ -8702,7 +8702,7 @@
       },
       {
         "name": "GasZipPeriphery",
-        "address": "0xefC86E5D45A1Cca48C57d439159d60a0D78F5738",
+        "address": "0xEfA269B9405762E56ED0b35C428331ce4963dDFf",
         "selectors": [
           {
             "selector": "0x8b71ae6c",
