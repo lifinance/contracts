@@ -341,6 +341,39 @@ async function checkPeripheryAddressMatchesDeployments(
   }
 }
 
+type PeripheryRegistrationSafetyCheckResult =
+  | {
+      ok: true
+      peripheryArg1Suffix: string
+    }
+  | {
+      ok: false
+      reason: string
+    }
+
+async function safetyCheckPeripheryRegistrationArgs(
+  network: string,
+  peripheryName: string,
+  peripheryAddress: string
+): Promise<PeripheryRegistrationSafetyCheckResult> {
+  const check = await checkPeripheryAddressMatchesDeployments(
+    network,
+    peripheryName,
+    peripheryAddress
+  )
+
+  if (check.ok)
+    return {
+      ok: true,
+      peripheryArg1Suffix: ` \u001b[32m( ✅ Periphery address matches deployments log ${network.toLowerCase()}.json)\u001b[0m`,
+    }
+
+  consola.error(
+    `❌ SAFETY CHECK FAILED: ${check.reason}\nRefusing to sign/execute this transaction.`
+  )
+  return { ok: false, reason: check.reason }
+}
+
 // Global arrays to record execution failures and timeouts
 const globalFailedExecutions: Array<{
   chain: string
@@ -445,18 +478,15 @@ async function decodeNestedTimelockCall(
                 const peripheryName = String(nestedDecodedData.args[0] ?? '')
                 const peripheryAddress = String(nestedDecodedData.args[1] ?? '')
 
-                const check = await checkPeripheryAddressMatchesDeployments(
+                const check = await safetyCheckPeripheryRegistrationArgs(
                   network,
                   peripheryName,
                   peripheryAddress
                 )
 
                 if (check.ok) {
-                  peripheryArg1Suffix = ` \u001b[32m( ✅ Periphery address matches deployments log ${network.toLowerCase()}.json)\u001b[0m`
+                  peripheryArg1Suffix = check.peripheryArg1Suffix
                 } else {
-                  consola.error(
-                    `❌ SAFETY CHECK FAILED: ${check.reason}\nRefusing to sign/execute this transaction.`
-                  )
                   return check.reason
                 }
               }
@@ -923,18 +953,15 @@ const processTxs = async (
             const peripheryName = String(decoded.args[0] ?? '')
             const peripheryAddress = String(decoded.args[1] ?? '')
 
-            const check = await checkPeripheryAddressMatchesDeployments(
+            const check = await safetyCheckPeripheryRegistrationArgs(
               network,
               peripheryName,
               peripheryAddress
             )
 
             if (check.ok) {
-              peripheryArg1Suffix = ` \u001b[32m( ✅ Periphery address matches deployments log ${network.toLowerCase()}.json))\u001b[0m`
+              peripheryArg1Suffix = check.peripheryArg1Suffix
             } else {
-              consola.error(
-                `❌ SAFETY CHECK FAILED: ${check.reason}\nRefusing to sign/execute this transaction.`
-              )
               safetyBlocker = check.reason
             }
           }
