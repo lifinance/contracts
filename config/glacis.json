@@ -1,4 +1,5 @@
 {
+  "LinkToDeployedToAddresses": "https://github.com/glacislabs/airlift-evm/blob/main/config/diamond/latest.json",
   "mainnet": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
   },
@@ -64,6 +65,9 @@
   },
   "mantle": {
     "airlift": "0x686893D73fA3817A13217E858652A4866B096dCa"
+  },
+  "megaeth": {
+    "airlift": "0xa908db975dCC10c41AF59572FD40AeE46942630E"
   },
   "mode": {
     "airlift": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7"
