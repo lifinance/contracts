@@ -127,6 +127,16 @@ function executeNetworkActions() {
     #     return $RETURN_CODE
     # fi
 
+    # VERIFY - Verify proposal exists in MongoDB with pending status
+    # echo "[$NETWORK] Waiting 2 seconds for MongoDB write propagation..."
+    # sleep 2
+    # verifyProposalExistsInMongo "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+    # RETURN_CODE=$?
+    # if [[ $RETURN_CODE -ne 0 ]]; then
+    #     echo "[$NETWORK] ERROR: Proposal verification failed - proposal was created but not found in database"
+    #     return $RETURN_CODE
+    # fi
+
     # UPDATE DIAMOND - Update diamond log for the network
     # updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
 
@@ -137,7 +147,7 @@ function executeNetworkActions() {
     #### MANAGE SAFE OWNERS #############
     # Remove an owner from Safe
     # manageSafeOwner "remove" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb"
-    manageSafeOwner "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
+    # manageSafeOwner "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
     # manageTimelockCanceller "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
 
     # removeAccessManagerPermission "$NETWORK" "0x1171c007" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
@@ -203,6 +213,83 @@ validateEnv() {
 # Validate dependencies and environment immediately
 requireTools
 validateEnv
+
+# =============================================================================
+# Safe proposal verification (MongoDB)
+# =============================================================================
+# Verifies that a Safe multisig proposal exists in MongoDB with pending status.
+# Returns 0 if found, 1 otherwise. Uses query-safe-proposals.ts check command.
+
+verifyProposalExistsInMongo() {
+  local NETWORK="${1:-}"
+  local ENVIRONMENT="${2:-}"
+  local CONTRACT="${3:-}"
+
+  if [[ -z "$NETWORK" ]]; then
+    error "verifyProposalExistsInMongo: Network parameter is required"
+    return 1
+  fi
+  if [[ -z "$ENVIRONMENT" ]]; then
+    error "verifyProposalExistsInMongo: Environment parameter is required"
+    return 1
+  fi
+  if [[ -z "$CONTRACT" ]]; then
+    error "verifyProposalExistsInMongo: Contract parameter is required"
+    return 1
+  fi
+  if [[ "$ENVIRONMENT" != "staging" && "$ENVIRONMENT" != "production" ]]; then
+    error "verifyProposalExistsInMongo: Environment must be either 'staging' or 'production'"
+    return 1
+  fi
+
+  echo "[info] [$NETWORK] Verifying proposal exists in MongoDB for $CONTRACT..."
+
+  set +e
+  local MONGO_RESULT
+  MONGO_RESULT=$(bun script/deploy/safe/query-safe-proposals.ts check \
+    --network "$NETWORK" \
+    --environment "$ENVIRONMENT" \
+    --contract "$CONTRACT" 2>&1)
+  local MONGO_EXIT=$?
+  set -e
+
+  if [[ $MONGO_EXIT -ne 0 ]]; then
+    if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+      local ERROR_MSG
+      ERROR_MSG=$(echo "$MONGO_RESULT" | jq -r '.error // empty')
+      if [[ -n "$ERROR_MSG" ]]; then
+        error "[$NETWORK] Failed to verify proposal: $ERROR_MSG"
+      else
+        error "[$NETWORK] Proposal for $CONTRACT was not found in MongoDB with pending status"
+        error "[$NETWORK] The proposal may not have been created yet or may be older than 5 minutes"
+      fi
+    else
+      error "[$NETWORK] Failed to verify proposal. Script output: $MONGO_RESULT"
+    fi
+    return 1
+  fi
+
+  if ! echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+    error "[$NETWORK] Invalid JSON response from query script: $MONGO_RESULT"
+    return 1
+  fi
+
+  local FOUND
+  FOUND=$(echo "$MONGO_RESULT" | jq -r '.found // false')
+  if [[ "$FOUND" != "true" ]]; then
+    error "[$NETWORK] Proposal for $CONTRACT was not found in MongoDB with pending status"
+    error "[$NETWORK] The proposal may not have been created successfully"
+    return 1
+  fi
+
+  local SAFE_TX_HASH TIMESTAMP
+  SAFE_TX_HASH=$(echo "$MONGO_RESULT" | jq -r '.safeTxHash // "unknown"')
+  TIMESTAMP=$(echo "$MONGO_RESULT" | jq -r '.timestamp // "unknown"')
+  success "[$NETWORK] Proposal verified in MongoDB for $CONTRACT"
+  echo "[info] [$NETWORK] Safe Tx Hash: $SAFE_TX_HASH"
+  echo "[info] [$NETWORK] Timestamp: $TIMESTAMP"
+  return 0
+}
 
 # =============================================================================
 # CONFIGURATION AND CONSTANTS
@@ -2847,7 +2934,9 @@ function generateSummaryOriginal() {
     fi
 
     # Show retry commands
-    local REMAINING_NETWORKS=("${FAILED_NETWORKS[@]}" "${IN_PROGRESS_NETWORKS[@]}")
+    local REMAINING_NETWORKS=()
+    [[ ${#FAILED_NETWORKS[@]} -gt 0 ]] && REMAINING_NETWORKS+=("${FAILED_NETWORKS[@]}")
+    [[ ${#IN_PROGRESS_NETWORKS[@]} -gt 0 ]] && REMAINING_NETWORKS+=("${IN_PROGRESS_NETWORKS[@]}")
     if [[ ${#REMAINING_NETWORKS[@]} -gt 0 ]]; then
         echo "🔄 REMAINING NETWORKS TO PROCESS:"
         echo "  # local NETWORKS=($(printf '"%s" ' "${REMAINING_NETWORKS[@]}" | sed 's/ $//'))"
