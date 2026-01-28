@@ -1673,14 +1673,7 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
-              "0x8980041a": "callUniswap(address,uint256,uint256,bytes32[])",
-              "0x6b58f2f0": "callUniswapTo(address,uint256,uint256,bytes32[],address)",
-              "0x22dca3d7": "callUniswapToWithPermit(address,uint256,uint256,bytes32[],bytes,address)",
-              "0xd57360fc": "callUniswapWithPermit(address,uint256,uint256,bytes32[],bytes)",
-              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -1688,14 +1681,7 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
-              "0x8980041a": "callUniswap(address,uint256,uint256,bytes32[])",
-              "0x6b58f2f0": "callUniswapTo(address,uint256,uint256,bytes32[],address)",
-              "0x22dca3d7": "callUniswapToWithPermit(address,uint256,uint256,bytes32[],bytes,address)",
-              "0xd57360fc": "callUniswapWithPermit(address,uint256,uint256,bytes32[],bytes)",
-              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -1716,6 +1702,14 @@
           }
         ],
         "rootstock": [
+          {
+            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
+            "functions": {
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+            }
+          }
+        ],
+        "telos": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
@@ -1863,14 +1857,7 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
-              "0x8980041a": "callUniswap(address,uint256,uint256,bytes32[])",
-              "0x6b58f2f0": "callUniswapTo(address,uint256,uint256,bytes32[],address)",
-              "0x22dca3d7": "callUniswapToWithPermit(address,uint256,uint256,bytes32[],bytes,address)",
-              "0xd57360fc": "callUniswapWithPermit(address,uint256,uint256,bytes32[],bytes)",
-              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
