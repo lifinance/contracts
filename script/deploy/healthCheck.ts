@@ -116,16 +116,18 @@ const main = defineCommand({
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
-      nonCoreFacets = Object.keys(
-        targetStateJson[networkLower]['production'].LiFiDiamond
-      ).filter((k) => {
-        return (
-          !coreFacetsToCheck.includes(k) &&
-          !corePeriphery.includes(k) &&
-          k !== 'LiFiDiamond' &&
-          k.includes('Facet')
-        )
-      })
+      if (targetStateJson[networkLower]?.production?.LiFiDiamond) {
+        nonCoreFacets = Object.keys(
+          targetStateJson[networkLower]['production'].LiFiDiamond
+        ).filter((k) => {
+          return (
+            !coreFacetsToCheck.includes(k) &&
+            !corePeriphery.includes(k) &&
+            k !== 'LiFiDiamond' &&
+            k.includes('Facet')
+          )
+        })
+      }
     }
 
     const globalConfig = await import('../../config/global.json')
