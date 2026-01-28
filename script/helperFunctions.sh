@@ -1896,9 +1896,9 @@ function verifyContract() {
     elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
       VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
-      # make sure API key is not empty
-      if [ -z "$API_KEY" ]; then
-        echo "Error: Could not find API key for network $NETWORK"
+      # make sure API key is not empty (check the actual value, not the variable name)
+      if [ -z "${!API_KEY}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
         return 1
       fi
       # Custom etherscan-compatible API key
