@@ -303,7 +303,7 @@ deploySingleContract() {
       break
 
     # check the return code the last call
-    elif [[ -n "$RETURN_CODE" ]] && [[ "$RETURN_CODE" -eq 0 ]]; then
+    elif [ "${RETURN_CODE:-1}" -eq 0 ]; then
       # extract deployed-to address from return data
       ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
       

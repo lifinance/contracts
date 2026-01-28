@@ -1189,9 +1189,12 @@ function checkRequiredVariablesInDotEnv() {
     # Individual API Key
     local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
 
-    # Some API keys are optional (e.g., BLOCKSCOUT_API_KEY, ZKSYNC_NATIVE_VERIFIER, VERIFY_CONTRACT_API_KEY)
+    # Some API keys are optional (e.g., NO_ETHERSCAN_API_KEY_REQUIRED)
     # Allow empty string for these optional keys
-    if [[ -z "$BLOCKEXPLORER_API_KEY" ]] && [[ "$KEY_VAR" != "BLOCKSCOUT_API_KEY" ]] && [[ "$KEY_VAR" != "ZKSYNC_NATIVE_VERIFIER" ]] && [[ "$KEY_VAR" != "VERIFY_CONTRACT_API_KEY" ]]; then
+    # Note: BLOCKSCOUT_API_KEY and ZKSYNC_NATIVE_VERIFIER are now replaced with NO_ETHERSCAN_API_KEY_REQUIRED
+    # and determined from networks.json (isZkEvm and verificationType)
+    # VERIFY_CONTRACT_API_KEY is replaced with customVerificationFlags in networks.json
+    if [[ -z "$BLOCKEXPLORER_API_KEY" ]] && [[ "$KEY_VAR" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]]; then
       error "Network $NETWORK uses a custom API key ($KEY_VAR) which is missing in your .env file."
       return 1
     fi
@@ -1865,54 +1868,73 @@ function verifyContract() {
     return 1
   fi
 
-  # Add verification method based on API key
-  if [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
-    VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+  # Ensure NO_ETHERSCAN_API_KEY_REQUIRED exists when used as key in foundry.toml,
+  # so Foundry doesn't error even if the user didn't define it in .env
+  if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
+    echoDebug "NO_ETHERSCAN_API_KEY_REQUIRED not set, exporting empty string to satisfy foundry.toml"
+    export NO_ETHERSCAN_API_KEY_REQUIRED=""
   fi
 
-  if [ "$API_KEY" = "ZKSYNC_NATIVE_VERIFIER" ]; then
+  # Determine verifier type from networks.json instead of using special API key names
+  # Check if network is zkEVM
+  if isZkEvmNetwork "$NETWORK"; then
     VERIFY_CMD+=("--verifier" "zksync")
-    # For zkSync native verifier, API key is optional. If not set, export empty string to avoid Foundry errors
-    if [[ -z "${!API_KEY}" ]]; then
-      echoDebug "ZKSYNC_NATIVE_VERIFIER not set, exporting empty string for zkSync native verification"
-      export ZKSYNC_NATIVE_VERIFIER=""
+    # For zkSync native verifier, API key is optional. Export empty string if not set to avoid Foundry errors
+    if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
+      export NO_ETHERSCAN_API_KEY_REQUIRED=""
     fi
-  fi
-
-  if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
-    VERIFY_CMD+=("--verifier" "blockscout")
-    # For Blockscout, API key is optional. If not set, export empty string to avoid Foundry errors
-    # Foundry reads foundry.toml and expects the variable to exist even if not used
-    if [[ -z "${!API_KEY}" ]]; then
-      echoDebug "BLOCKSCOUT_API_KEY not set, exporting empty string for Blockscout verification"
-      export BLOCKSCOUT_API_KEY=""
-    fi
-
-  elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
-    # make sure API key is not empty
-    if [ -z "$API_KEY" ]; then
-      echo "Error: Could not find API key for network $NETWORK"
-      return 1
-    fi
-
-    # some block explorers require to pass a string "verifyContract" instead of an API key (e.g. https://explorer.metis.io/documentation/recipes/foundry-verification)
-    if [ "$API_KEY" = "VERIFY_CONTRACT_API_KEY" ]; then
-      # add API key to verification command"
-      VERIFY_CMD+=("-e" "verifyContract")
-      # If VERIFY_CONTRACT_API_KEY is not set, export empty string to avoid Foundry errors
-      # Foundry reads foundry.toml and expects the variable to exist even if not used
-      if [[ -z "${!API_KEY}" ]]; then
-        echoDebug "VERIFY_CONTRACT_API_KEY not set, exporting empty string"
-        export VERIFY_CONTRACT_API_KEY=""
+  else
+    # Check verificationType from networks.json for Blockscout
+    local VERIFICATION_TYPE
+    VERIFICATION_TYPE=$(jq -r --arg network "$NETWORK" '.[$network].verificationType // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
+    
+    if [[ "$VERIFICATION_TYPE" = "blockscout" ]]; then
+      VERIFY_CMD+=("--verifier" "blockscout")
+      # For Blockscout, API key is optional. Export empty string if not set to avoid Foundry errors
+      if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
+        export NO_ETHERSCAN_API_KEY_REQUIRED=""
       fi
+    elif [[ "$VERIFICATION_TYPE" = "sourcify" ]]; then
+      VERIFY_CMD+=("--verifier" "sourcify")
+      # For Sourcify, API key is optional. Export empty string if not set to avoid Foundry errors
+      if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
+        export NO_ETHERSCAN_API_KEY_REQUIRED=""
+      fi
+    elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+    elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+      # make sure API key is not empty (check the actual value, not the variable name)
+      if [ -z "${!API_KEY}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+        return 1
+      fi
+      # Custom etherscan-compatible API key
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     fi
   fi
 
-  # Some Foundry versions may incorrectly look for VERIFY_CONTRACT_API_KEY when reading foundry.toml
-  # Export empty string to prevent errors
-  if [[ -z "${VERIFY_CONTRACT_API_KEY:-}" ]]; then
-    echoDebug "VERIFY_CONTRACT_API_KEY not set, exporting empty string as fallback"
-    export VERIFY_CONTRACT_API_KEY=""
+  # Apply custom verification flags from networks.json if present
+  # This allows networks to specify custom flags like "-e verifyContract" for block explorers
+  local CUSTOM_FLAGS
+  CUSTOM_FLAGS=$(jq -c --arg network "$NETWORK" '.[$network].customVerificationFlags // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
+  
+  if [[ -n "$CUSTOM_FLAGS" ]] && [[ "$CUSTOM_FLAGS" != "null" ]] && [[ "$CUSTOM_FLAGS" != "{}" ]] && [[ "$CUSTOM_FLAGS" != "\"\"" ]]; then
+    # Parse the JSON object and add each flag-value pair to VERIFY_CMD
+    # Format: {"-e": "verifyContract"} -> VERIFY_CMD+=("-e" "verifyContract")
+    # Format: {"--skip-is-verified-check": null} -> VERIFY_CMD+=("--skip-is-verified-check")
+    while IFS= read -r flag_entry; do
+      local flag_name=$(echo "$flag_entry" | jq -r '.key')
+      local flag_value=$(echo "$flag_entry" | jq -r '.value')
+      if [[ -n "$flag_name" ]] && [[ "$flag_name" != "null" ]]; then
+        if [[ -n "$flag_value" && "$flag_value" != "null" ]]; then
+          VERIFY_CMD+=("$flag_name" "$flag_value")
+          echoDebug "Added custom verification flag: $flag_name $flag_value"
+        else
+          VERIFY_CMD+=("$flag_name")
+          echoDebug "Added custom verification flag: $flag_name"
+        fi
+      fi
+    done < <(echo "$CUSTOM_FLAGS" | jq -c 'to_entries[]')
   fi
 
   # Always add verifier URL since all networks have one configured in foundry.toml
@@ -2082,51 +2104,6 @@ function verifyContract() {
 
   # If we get here, verification failed after all retries
   echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
-
-  # Fallback to Sourcify if primary verification fails
-  echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  if isZkEvmNetwork "$NETWORK"; then
-    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
-      "$ADDRESS" \
-      "$CONTRACT" \
-      --zksync \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify
-  else
-    forge verify-contract \
-      "$ADDRESS" \
-      "$CONTRACT" \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify
-  fi
-
-  # Check Sourcify verification
-  echo "[info] Checking Sourcify verification status..."
-  local SOURCIFY_OUTPUT
-  if isZkEvmNetwork "$NETWORK"; then
-    # For zkSync, verify-check doesn't accept --zksync flag, use --verifier-url instead
-    # Or use --chain flag if supported
-    SOURCIFY_OUTPUT=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check "$ADDRESS" \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify 2>&1)
-  else
-    SOURCIFY_OUTPUT=$(forge verify-check "$ADDRESS" \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify 2>&1)
-  fi
-
-  echoDebug "SOURCIFY_OUTPUT: $SOURCIFY_OUTPUT"
-
-  # Check if Sourcify verification actually succeeded by analyzing the output
-  if echo "$SOURCIFY_OUTPUT" | grep -q "Contract source code is not verified"; then
-    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify - contract not verified"
-  elif echo "$SOURCIFY_OUTPUT" | grep -q "Contract source code is verified" || echo "$SOURCIFY_OUTPUT" | grep -q "Successful"; then
-    success "$CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
-  else
-    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify - unknown status"
-  fi
-
-  # return 1 in any case to indicate that the (main) verification failed
   return 1
 }
 
@@ -4405,28 +4382,14 @@ function executeAndCapture() {
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
   fi
   
-  # Use temporary files for jq to avoid "Argument list too long" error when content is very large
-  # This happens when Foundry outputs full traces in the JSON response
-  local STDOUT_TMP STDERR_TMP JSON_TMP
-  STDOUT_TMP=$(mktemp)
-  STDERR_TMP=$(mktemp)
-  JSON_TMP=$(mktemp)
-  
-  # Write stdout and stderr to temp files
-  printf '%s' "$RAW_RETURN_DATA" > "$STDOUT_TMP"
-  printf '%s' "$STDERR_CONTENT" > "$STDERR_TMP"
-  
-  # Use jq with --rawfile to read from files (avoids argument length limits)
-  # --rawfile reads the file as a raw string, not JSON
+  # Escape JSON strings properly for jq
+  # Use jq to create a properly escaped JSON object
   local JSON_RESULT
   JSON_RESULT=$(jq -n \
-    --rawfile stdout "$STDOUT_TMP" \
-    --rawfile stderr "$STDERR_TMP" \
+    --arg stdout "$RAW_RETURN_DATA" \
+    --arg stderr "$STDERR_CONTENT" \
     --argjson returnCode "$RETURN_CODE" \
     '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
-  
-  # Cleanup temp files
-  rm -f "$STDOUT_TMP" "$STDERR_TMP" "$JSON_TMP" 2>/dev/null
   
   # Explicit cleanup + restore previous EXIT trap
   rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
