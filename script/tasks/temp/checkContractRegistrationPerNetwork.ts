@@ -164,40 +164,34 @@ async function checkPeripheryWhitelist(
   contractAddress: Address,
   contractName: string
 ): Promise<boolean> {
-  try {
-    const whitelistManager = {
-      address: diamondAddress,
-      abi: WHITELIST_MANAGER_ABI,
-    }
-
-    const expectedEntries = whitelistPeripheryFunctions[contractName]
-
-    if (expectedEntries && expectedEntries.length > 0) {
-      for (const entry of expectedEntries) {
-        const selector = entry.selector.startsWith('0x')
-          ? (entry.selector as `0x${string}`)
-          : (`0x${entry.selector}` as `0x${string}`)
-        const isWhitelisted = (await publicClient.readContract({
-          ...whitelistManager,
-          functionName: 'isContractSelectorWhitelisted',
-          args: [contractAddress, selector],
-        })) as boolean
-        if (!isWhitelisted) return false
-      }
-      return true
-    }
-
-    const whitelistedSelectors = (await publicClient.readContract({
-      ...whitelistManager,
-      functionName: 'getWhitelistedSelectorsForContract',
-      args: [contractAddress],
-    })) as readonly `0x${string}`[]
-    return (
-      Array.isArray(whitelistedSelectors) && whitelistedSelectors.length > 0
-    )
-  } catch (error) {
-    return false
+  const whitelistManager = {
+    address: diamondAddress,
+    abi: WHITELIST_MANAGER_ABI,
   }
+
+  const expectedEntries = whitelistPeripheryFunctions[contractName]
+
+  if (expectedEntries && expectedEntries.length > 0) {
+    for (const entry of expectedEntries) {
+      const selector = entry.selector.startsWith('0x')
+        ? (entry.selector as `0x${string}`)
+        : (`0x${entry.selector}` as `0x${string}`)
+      const isWhitelisted = (await publicClient.readContract({
+        ...whitelistManager,
+        functionName: 'isContractSelectorWhitelisted',
+        args: [contractAddress, selector],
+      })) as boolean
+      if (!isWhitelisted) return false
+    }
+    return true
+  }
+
+  const whitelistedSelectors = (await publicClient.readContract({
+    ...whitelistManager,
+    functionName: 'getWhitelistedSelectorsForContract',
+    args: [contractAddress],
+  })) as readonly `0x${string}`[]
+  return Array.isArray(whitelistedSelectors) && whitelistedSelectors.length > 0
 }
 
 /**
