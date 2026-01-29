@@ -18,9 +18,9 @@ import {
   encodeAbiParameters,
   encodeFunctionData,
   formatEther,
-  getFunctionSelector,
   keccak256,
   parseAbi,
+  toFunctionSelector,
 } from 'viem'
 
 import data from '../../../config/networks.json'
@@ -96,9 +96,11 @@ const SCHEDULE_BATCH_ABI = parseAbi([
   'function scheduleBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
 ])
 
-// Selectors for MongoDB query (schedule = 0x01d5062a; scheduleBatch computed)
-const SCHEDULE_SELECTOR = '0x01d5062a'
-const SCHEDULE_BATCH_SELECTOR = getFunctionSelector(
+// Selectors for MongoDB query (computed from signatures for consistency)
+const SCHEDULE_SELECTOR = toFunctionSelector(
+  'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
+)
+const SCHEDULE_BATCH_SELECTOR = toFunctionSelector(
   'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
 )
 
