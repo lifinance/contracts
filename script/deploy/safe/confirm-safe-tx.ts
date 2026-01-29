@@ -514,6 +514,7 @@ const main = defineCommand({
     ledger: {
       type: 'boolean',
       description: 'Use Ledger hardware wallet for signing',
+      default: true,
       required: false,
     },
     ledgerLive: {
@@ -536,7 +537,7 @@ const main = defineCommand({
     // Set up signing options
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
-    const useLedger = args.ledger || false
+    const useLedger = args.ledger ?? true
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
       accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
