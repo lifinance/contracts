@@ -212,6 +212,10 @@
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x9C820C1569ffE99DCF54BBDf3C54682E33a40379": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": ""
       }
     },
     "Periphery": {
