@@ -713,6 +713,24 @@ function tryFormatDiamondPayload(payload: Hex): string | undefined {
     }
   }
 
+  // MegaETH bridge registrations: registerMegaETHBridge(address,address)
+  try {
+    const megaEthAbi = parseAbi([
+      'function registerMegaETHBridge(address _assetId, address _bridge)',
+    ])
+    const decoded = decodeFunctionData({ abi: megaEthAbi, data: payload })
+    if (
+      decoded.functionName === 'registerMegaETHBridge' &&
+      decoded.args &&
+      decoded.args.length >= 2
+    )
+      return `registerMegaETHBridge(assetId=${String(
+        decoded.args[0]
+      )}, bridge=${String(decoded.args[1])})`
+  } catch {
+    // not registerMegaETHBridge or decode failed
+  }
+
   return undefined
 }
 
