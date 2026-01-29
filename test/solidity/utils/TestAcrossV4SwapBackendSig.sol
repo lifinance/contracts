@@ -16,7 +16,7 @@ abstract contract TestAcrossV4SwapBackendSig is TestEIP712 {
     // EIP-712 typehash for AcrossV4SwapPayload:
     // keccak256("AcrossV4SwapPayload(bytes32 transactionId,uint256 minAmount,address receiver,uint256 destinationChainId,address sendingAssetId,uint8 swapApiTarget,bytes32 callDataHash)");
     bytes32 private constant ACROSS_V4_SWAP_PAYLOAD_TYPEHASH =
-        0xb62acc761ee932340747d9b4a076ede3e00bcbc7b32d4d6c1ab72546e5e5b154;
+        0xb62acc761ee932340747d9b4a076ede3e00bcbc7b32d4d6c1ab72546e5e5b154; // [pre-commit-checker: not a secret]
 
     /// @dev Backend signer private key (tests typically configure in `setUp()` and derive `backendSigner`).
     uint256 internal backendSignerPk;
@@ -71,7 +71,7 @@ abstract contract TestAcrossV4SwapBackendSig is TestEIP712 {
         AcrossV4SwapFacet.SwapApiTarget _swapApiTarget,
         bytes memory _callData,
         address _verifyingContract
-    ) internal returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         bytes32 digestHash = _acrossV4SwapDigest(
             _bridgeData,
             _swapApiTarget,

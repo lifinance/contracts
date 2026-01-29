@@ -118,6 +118,11 @@
         "configFileName": "acrossV4Swap.json",
         "keyInConfigFile": ".<NETWORK>.sponsoredCctpSrcPeriphery",
         "allowToDeployWithZeroAddress": "true"
+      },
+      "_backendSigner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
@@ -742,8 +747,8 @@
   "NEARIntentsFacet": {
     "configData": {
       "_backendSigner": {
-        "configFileName": "nearintents.json",
-        "keyInConfigFile": ".<ENVIRONMENT>.backendSigner",
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
         "allowToDeployWithZeroAddress": "false"
       }
     }

@@ -10,6 +10,7 @@ globs:
 - Our own files: `// SPDX-License-Identifier: LGPL-3.0-only` immediately followed by the pragma statement with no blank line in between.
 - External copies retain original license + source note.
 - All contracts must use `pragma solidity ^0.8.17;`.
+- Do not mirror legacy `Unlicense` headers from older test utilities when creating new `.sol` files; new Solidity files in this repo must follow the LGPL+pragma convention above.
 
 ## Naming Conventions ([CONV:NAMING])
 

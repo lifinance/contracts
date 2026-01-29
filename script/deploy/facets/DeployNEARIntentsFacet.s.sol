@@ -35,9 +35,9 @@ contract DeployScript is DeployScriptBase {
             keccak256(abi.encodePacked(fileSuffix)) ==
             keccak256(abi.encodePacked("staging."))
         ) {
-            backendSigner = json.readAddress(".backendSignerStaging");
+            backendSigner = json.readAddress(".backendSigner.staging");
         } else {
-            backendSigner = json.readAddress(".backendSignerProduction");
+            backendSigner = json.readAddress(".backendSigner.production");
         }
 
         return abi.encode(backendSigner);
