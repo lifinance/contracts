@@ -2,18 +2,18 @@
 
 > **WARNING**
 >
-> **Do only use this facet if you trust the Across Swap API.**
+> **This facet consumes opaque calldata generated off-chain.**
 >
-> This facet relies on calldata provided by the Across Swap API, which may include **source-chain and/or destination-chain swap execution** routed through multiple Across contracts/components.
-> We do not (and cannot safely) validate all of this calldata in detail.
+> For `swapApiTarget = SpokePool` and `swapApiTarget = SpokePoolPeriphery`, the final receiver is encoded inside dynamic calldata that cannot be reliably validated on-chain against `BridgeData.receiver` (unlike most LI.FI facets).
+> To protect integrators/clients/partners, these two paths require a LI.FI backend signature over `BridgeData` and the calldata hash, which gates usage to backend-generated calldata and prevents arbitrary calldata injection via public entrypoints.
 >
-> **Why this matters**: In most LI.FI facets we can validate that the protocol-specific receiver matches `BridgeData.receiver`. With the Across Swap API flow, the API generates **dynamic destination calldata/recipient encoding** and we cannot safely validate on-chain that the funds will arrive at `BridgeData.receiver` in all cases. Use this facet only if you accept that trust assumption.
+> The sponsored paths (`swapApiTarget = SponsoredOFTSrcPeriphery` / `SponsoredCCTPSrcPeriphery`) already include receiver validation in the signed quote flow, so this additional facet-level signature is not required there.
 
 For more information on the Across Swap API, see [Across docs](https://docs.across.to/developer-quickstart/introduction-to-swap-api).
 
 ## How it works
 
-The AcrossV4SwapFacet integrates with Across Protocol's SpokePoolPeriphery contract to enable swap-and-bridge functionality. Unlike the standard AcrossFacetV4 which calls the SpokePool directly, this facet delegates swap execution to Across's SpokePoolPeriphery, which uses an isolated SwapProxy contract for secure swap execution.
+The AcrossV4SwapFacet integrates with Across Protocol's Swap API contracts to enable calldata-driven bridge (and optional swap) execution.
 
 ```mermaid
 graph LR;
@@ -26,74 +26,41 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaAcrossV4Swap(BridgeData calldata _bridgeData, AcrossV4SwapData calldata _acrossV4SwapData)`
-  - Bridges tokens using the Across Swap API (SpokePoolPeriphery)
-- `function swapAndStartBridgeTokensViaAcrossV4Swap(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AcrossV4SwapData calldata _acrossV4SwapData)`
-  - Performs LiFi internal swap(s) before bridging via Across Swap API
+- `function startBridgeTokensViaAcrossV4Swap(BridgeData calldata _bridgeData, AcrossV4SwapFacetData calldata _acrossV4SwapFacetData)`
+  - Bridges tokens via Across Swap API contracts using `swapApiTarget` + selector-less `callData`
+- `function swapAndStartBridgeTokensViaAcrossV4Swap(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AcrossV4SwapFacetData calldata _acrossV4SwapFacetData)`
+  - Performs LI.FI internal swap(s) before bridging (supports positive-slippage adjustments depending on target)
 
-## AcrossV4Swap Specific Parameters
+## AcrossV4SwapFacet Specific Parameters
 
-The methods listed above take a variable labeled `_acrossV4SwapData`. This data is specific to the Across Swap API and is represented as the following struct type:
+The methods listed above take `_acrossV4SwapFacetData`, represented as:
 
 ```solidity
-/// @param depositData Core deposit parameters for the Across bridge
-/// @param swapToken The token to swap from on the source chain
-/// @param exchange The DEX router address to execute the swap
-/// @param transferType How to transfer tokens to the exchange (Approval, Transfer, Permit2Approval)
-/// @param routerCalldata The calldata to execute on the DEX router
-/// @param minExpectedInputTokenAmount Minimum amount of bridgeable token expected after swap
-/// @param enableProportionalAdjustment If true, adjusts outputAmount proportionally based on swap results
-struct AcrossV4SwapData {
-  BaseDepositData depositData;
-  address swapToken;
-  address exchange;
-  TransferType transferType;
-  bytes routerCalldata;
-  uint256 minExpectedInputTokenAmount;
-  bool enableProportionalAdjustment;
+enum SwapApiTarget {
+  SpokePool,                // callData = abi.encode(IAcrossSpokePoolV4.DepositParams)
+  SpokePoolPeriphery,       // callData = abi.encode(ISpokePoolPeriphery.SwapAndDepositData)
+  SponsoredOFTSrcPeriphery, // callData = abi.encode(ISponsoredOFTSrcPeriphery.Quote, bytes signature)
+  SponsoredCCTPSrcPeriphery // callData = abi.encode(ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes signature)
 }
 
-/// @param inputToken Token deposited on origin chain (after swap)
-/// @param outputToken Token received on destination chain (bytes32 for non-EVM support)
-/// @param outputAmount Amount of output token to be received
-/// @param depositor Account credited with deposit (receives refunds)
-/// @param recipient Account receiving tokens on destination (bytes32 for non-EVM support)
-/// @param destinationChainId Destination chain ID
-/// @param exclusiveRelayer Exclusive relayer address (bytes32, zero for none)
-/// @param quoteTimestamp Timestamp for fee calculation
-/// @param fillDeadline Deadline for fill on destination
-/// @param exclusivityParameter Exclusivity deadline/offset
-/// @param message Message for destination call
-struct BaseDepositData {
-  address inputToken;
-  bytes32 outputToken;
-  uint256 outputAmount;
-  address depositor;
-  bytes32 recipient;
-  uint256 destinationChainId;
-  bytes32 exclusiveRelayer;
-  uint32 quoteTimestamp;
-  uint32 fillDeadline;
-  uint32 exclusivityParameter;
-  bytes message;
-}
-
-/// Transfer type determines how tokens are moved to the DEX
-enum TransferType {
-  Approval, // Exchange is approved to spend tokens from SwapProxy
-  Transfer, // Tokens are transferred directly to exchange
-  Permit2Approval // Permit2 is used to approve exchange
+/// @param swapApiTarget Which Across contract should be called
+/// @param callData Selector-less ABI-encoded calldata for the selected target
+/// @param signature Required only for `SpokePool` / `SpokePoolPeriphery` (EIP-712 signature produced by LI.FI backend)
+struct AcrossV4SwapFacetData {
+  SwapApiTarget swapApiTarget;
+  bytes callData;
+  bytes signature;
 }
 ```
 
-## Key Differences from AcrossFacetV4
+## Signature requirement (SpokePool / SpokePoolPeriphery)
 
-| Feature               | AcrossFacetV4             | AcrossV4SwapFacet                |
-| --------------------- | ------------------------- | -------------------------------- |
-| **Contract Called**   | SpokePool directly        | SpokePoolPeriphery               |
-| **Swap Execution**    | LiFi internal (SwapperV2) | Across SwapProxy (isolated)      |
-| **Output Adjustment** | outputAmountMultiplier    | enableProportionalAdjustment     |
-| **Use Case**          | Standard bridging         | DEX swap + bridge via Across API |
+For `swapApiTarget = SpokePool` and `swapApiTarget = SpokePoolPeriphery`, the facet requires an EIP-712 signature that commits to:
+- selected `BridgeData` fields (`transactionId`, `minAmount`, `receiver`, `destinationChainId`, `sendingAssetId`)
+- `swapApiTarget`
+- `callDataHash = keccak256(callData)`
+
+This signature is validated against a configured backend signer address, and exists because the receiver cannot be safely validated on-chain for these opaque calldata flows.
 
 ## Swap Data
 

@@ -41,12 +41,26 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".sponsoredCctpSrcPeriphery")
         );
 
+        // check if production or staging
+        string memory globalPath = string.concat(root, "/config/global.json");
+        string memory globalJson = vm.readFile(globalPath);
+        address backendSigner;
+        if (
+            keccak256(abi.encodePacked(fileSuffix)) ==
+            keccak256(abi.encodePacked("staging."))
+        ) {
+            backendSigner = globalJson.readAddress(".backendSignerStaging");
+        } else {
+            backendSigner = globalJson.readAddress(".backendSignerProduction");
+        }
+
         return
             abi.encode(
                 spokePoolPeriphery,
                 spokePool,
                 sponsoredOftSrcPeriphery,
-                sponsoredCctpSrcPeriphery
+                sponsoredCctpSrcPeriphery,
+                backendSigner
             );
     }
 }
