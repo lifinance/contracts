@@ -29,6 +29,35 @@ contract TestAcrossV4SwapFacet is AcrossV4SwapFacet, TestWhitelistManagerBase {
     {}
 }
 
+contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
+    uint256 public lastMsgValue;
+    address public lastSwapToken;
+    uint256 public lastSwapTokenAmount;
+    uint256 public lastMinExpectedInputTokenAmount;
+    address public lastDepositor;
+    bytes32 public lastRecipient;
+    uint256 public lastDestinationChainId;
+    uint256 public lastOutputAmount;
+    address public lastSpokePool;
+
+    function swapAndBridge(
+        SwapAndDepositData calldata swapAndDepositData
+    ) external payable {
+        lastMsgValue = msg.value;
+        lastSwapToken = swapAndDepositData.swapToken;
+        lastSwapTokenAmount = swapAndDepositData.swapTokenAmount;
+        lastMinExpectedInputTokenAmount = swapAndDepositData
+            .minExpectedInputTokenAmount;
+        lastDepositor = swapAndDepositData.depositData.depositor;
+        lastRecipient = swapAndDepositData.depositData.recipient;
+        lastDestinationChainId = swapAndDepositData
+            .depositData
+            .destinationChainId;
+        lastOutputAmount = swapAndDepositData.depositData.outputAmount;
+        lastSpokePool = swapAndDepositData.spokePool;
+    }
+}
+
 contract AcrossV4SwapFacetTest is TestBase, TestHelpers {
     /// @dev ABI-compatible with `AcrossV4SwapFacet.AcrossV4SwapFacetData` but uses `uint8` to
     ///      allow encoding out-of-range enum values for decoder panic tests.
@@ -90,6 +119,106 @@ contract AcrossV4SwapFacetTest is TestBase, TestHelpers {
     bytes internal routerCalldata;
     uint256 internal minExpectedInputTokenAmount;
     bool internal enableProportionalAdjustment;
+
+    function _setUpMockSwapDaiToUsdc(
+        TestAcrossV4SwapFacet facet,
+        uint256 preSwapAmount,
+        uint256 swapOutputAmount
+    ) internal {
+        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
+            address(facet),
+            USDC_MAINNET,
+            swapOutputAmount,
+            0
+        );
+        facet.addAllowedContractSelector(
+            address(mockDEX),
+            mockDEX.swapExactTokensForTokens.selector
+        );
+
+        delete swapData;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = USDC_MAINNET;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(mockDEX),
+                approveTo: address(mockDEX),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: USDC_MAINNET,
+                fromAmount: 100 * 10 ** 18,
+                callData: abi.encodeWithSelector(
+                    mockDEX.swapExactTokensForTokens.selector,
+                    100 * 10 ** 18,
+                    preSwapAmount,
+                    path,
+                    address(facet),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
+    function _buildPeripheryCallData(
+        address spokePool,
+        uint256 destinationChainId,
+        uint256 preSwapAmount,
+        uint256 quotedOutputAmount,
+        uint256 quotedMinExpectedInputTokenAmount
+    )
+        internal
+        view
+        returns (
+            bytes memory callData,
+            uint256 expectedOutputAmount,
+            uint256 expectedMinExpected
+        )
+    {
+        ISpokePoolPeriphery.BaseDepositData
+            memory depositData = ISpokePoolPeriphery.BaseDepositData({
+                inputToken: USDC_MAINNET,
+                outputToken: bytes32(uint256(uint160(USDC_ARBITRUM))),
+                outputAmount: quotedOutputAmount,
+                depositor: USER_SENDER,
+                recipient: bytes32(uint256(uint160(USER_RECEIVER))),
+                destinationChainId: destinationChainId,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 3600),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        ISpokePoolPeriphery.SwapAndDepositData
+            memory swapAndDepositData = ISpokePoolPeriphery
+                .SwapAndDepositData({
+                    submissionFees: ISpokePoolPeriphery.Fees({
+                        amount: 0,
+                        recipient: address(0)
+                    }),
+                    depositData: depositData,
+                    swapToken: USDC_MAINNET,
+                    exchange: address(0),
+                    transferType: ISpokePoolPeriphery.TransferType.Approval,
+                    swapTokenAmount: preSwapAmount,
+                    minExpectedInputTokenAmount: quotedMinExpectedInputTokenAmount,
+                    routerCalldata: "",
+                    enableProportionalAdjustment: false,
+                    spokePool: spokePool,
+                    nonce: 0
+                });
+
+        callData = abi.encode(swapAndDepositData);
+
+        // Mirrors facet logic (MULTIPLIER_BASE == 1e18).
+        uint256 outputAmountMultiplier = (quotedOutputAmount * 1e18) /
+            preSwapAmount;
+        // expectedOutputAmount computed later when post-swap amount is known.
+        // expectedMinExpected computed later when post-swap amount is known.
+        expectedOutputAmount = outputAmountMultiplier;
+        expectedMinExpected = 0;
+    }
 
     function setUp() public {
         // Updated to block 24237400 (2026-01-15) to match embedded Across Swap API calldata.
@@ -496,6 +625,156 @@ contract AcrossV4SwapFacetTest is TestBase, TestHelpers {
             usdc.balanceOf(SPOKE_POOL),
             spokePoolBalanceBefore + swapOutputAmount
         );
+    }
+
+    function test_SpokePoolPeriphery_PositiveSlippage_AdjustsPeripheryArgs()
+        public
+    {
+        MockSpokePoolPeriphery mockPeriphery = new MockSpokePoolPeriphery();
+        address mockSpokePool = address(0xB0B);
+
+        TestAcrossV4SwapFacet localFacet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(address(mockPeriphery)),
+            mockSpokePool,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY
+        );
+
+        // Setup swap to return +10% USDC (positive slippage).
+        uint256 preSwapAmount = 100 * 10 ** 6;
+        uint256 swapOutputAmount = 110 * 10 ** 6;
+
+        ILiFi.BridgeData memory localBridgeData = bridgeData;
+        localBridgeData.bridge = "acrossV4Swap";
+        localBridgeData.destinationChainId = 42161;
+        localBridgeData.hasSourceSwaps = true;
+        localBridgeData.sendingAssetId = USDC_MAINNET;
+        localBridgeData.receiver = USER_RECEIVER;
+        localBridgeData.minAmount = preSwapAmount;
+
+        // Build periphery calldata with a known quote output + known minExpected.
+        uint256 quotedOutputAmount = 99 * 10 ** 6;
+        uint256 quotedMinExpectedInputTokenAmount = 95 * 10 ** 6;
+
+        _setUpMockSwapDaiToUsdc(localFacet, preSwapAmount, swapOutputAmount);
+
+        (
+            bytes memory callData,
+            uint256 outputAmountMultiplier,
+
+        ) = _buildPeripheryCallData(
+                mockSpokePool,
+                localBridgeData.destinationChainId,
+                preSwapAmount,
+                quotedOutputAmount,
+                quotedMinExpectedInputTokenAmount
+            );
+
+        uint256 expectedOutputAmount = (swapOutputAmount *
+            outputAmountMultiplier) / 1e18;
+        uint256 expectedMinExpected = (quotedMinExpectedInputTokenAmount *
+            swapOutputAmount) / preSwapAmount;
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(localFacet), swapData[0].fromAmount);
+
+        localFacet.swapAndStartBridgeTokensViaAcrossV4Swap(
+            localBridgeData,
+            swapData,
+            _facetData(
+                AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery,
+                callData
+            )
+        );
+        vm.stopPrank();
+
+        assertEq(mockPeriphery.lastSwapTokenAmount(), swapOutputAmount);
+        assertEq(
+            mockPeriphery.lastMinExpectedInputTokenAmount(),
+            expectedMinExpected
+        );
+        assertEq(mockPeriphery.lastOutputAmount(), expectedOutputAmount);
+        assertEq(mockPeriphery.lastSpokePool(), mockSpokePool);
+        assertEq(
+            mockPeriphery.lastRecipient(),
+            _convertAddressToBytes32(USER_RECEIVER)
+        );
+    }
+
+    function test_SpokePoolPeriphery_NativeAsset_ForwardsMsgValue() public {
+        MockSpokePoolPeriphery mockPeriphery = new MockSpokePoolPeriphery();
+        address mockSpokePool = address(0xB0B);
+
+        TestAcrossV4SwapFacet localFacet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(address(mockPeriphery)),
+            mockSpokePool,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY
+        );
+
+        uint256 amount = 1 ether;
+
+        ILiFi.BridgeData memory localBridgeData = bridgeData;
+        localBridgeData.bridge = "acrossV4Swap";
+        localBridgeData.destinationChainId = 42161;
+        localBridgeData.hasSourceSwaps = false;
+        localBridgeData.sendingAssetId = address(0);
+        localBridgeData.receiver = USER_RECEIVER;
+        localBridgeData.minAmount = amount;
+
+        ISpokePoolPeriphery.BaseDepositData
+            memory depositData = ISpokePoolPeriphery.BaseDepositData({
+                inputToken: address(0),
+                outputToken: bytes32(0),
+                outputAmount: 0,
+                depositor: USER_SENDER,
+                recipient: _convertAddressToBytes32(USER_RECEIVER),
+                destinationChainId: localBridgeData.destinationChainId,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 3600),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        ISpokePoolPeriphery.SwapAndDepositData
+            memory swapAndDepositData = ISpokePoolPeriphery
+                .SwapAndDepositData({
+                    submissionFees: ISpokePoolPeriphery.Fees({
+                        amount: 0,
+                        recipient: address(0)
+                    }),
+                    depositData: depositData,
+                    swapToken: address(0),
+                    exchange: address(0),
+                    transferType: ISpokePoolPeriphery.TransferType.Approval,
+                    swapTokenAmount: amount,
+                    minExpectedInputTokenAmount: 0,
+                    routerCalldata: "",
+                    enableProportionalAdjustment: false,
+                    spokePool: mockSpokePool,
+                    nonce: 0
+                });
+
+        bytes memory callData = abi.encode(swapAndDepositData);
+
+        vm.deal(USER_SENDER, 10 ether);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectEmit(true, true, true, true, address(localFacet));
+        emit LiFiTransferStarted(localBridgeData);
+
+        localFacet.startBridgeTokensViaAcrossV4Swap{ value: amount }(
+            localBridgeData,
+            _facetData(
+                AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery,
+                callData
+            )
+        );
+        vm.stopPrank();
+
+        assertEq(mockPeriphery.lastMsgValue(), amount);
+        assertEq(mockPeriphery.lastSwapTokenAmount(), amount);
     }
 
     function testRevert_SpokePool_WhenInputAmountMismatch() public {

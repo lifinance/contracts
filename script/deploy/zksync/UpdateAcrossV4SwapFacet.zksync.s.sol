@@ -7,9 +7,12 @@ import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 contract DeployScript is UpdateScriptBase {
     function getExcludes() internal view override returns (bytes4[] memory) {
         AcrossV4SwapFacet acrossV4Swap;
-        bytes4[] memory excludes = new bytes4[](2);
+        // Exclude public immutable getters from the diamond cut
+        bytes4[] memory excludes = new bytes4[](4);
         excludes[0] = acrossV4Swap.SPOKE_POOL_PERIPHERY.selector;
         excludes[1] = acrossV4Swap.SPOKE_POOL.selector;
+        excludes[2] = acrossV4Swap.SPONSORED_OFT_SRC_PERIPHERY.selector;
+        excludes[3] = acrossV4Swap.SPONSORED_CCTP_SRC_PERIPHERY.selector;
 
         return excludes;
     }
