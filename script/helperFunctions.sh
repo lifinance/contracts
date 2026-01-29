@@ -742,7 +742,15 @@ function saveDiamondFacets() {
   # Remove brackets from FACETS string and split into array
   FACETS_ADJ="${4#\[}"
   FACETS_ADJ="${FACETS_ADJ%\]}"
-  IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  
+  # Handle different output formats: Tron uses space-separated, EVM uses comma-separated
+  if isTronNetwork "$NETWORK"; then
+    # Tron: space-separated format from troncast
+    IFS=' ' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  else
+    # EVM: comma-separated format from cast
+    IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  fi
 
   # Set up a temp directory to collect facet entries (avoid concurrent writes)
   local TEMP_DIR
@@ -3563,7 +3571,7 @@ function getPrivateKey() {
 # Send or propose transaction
 # This function handles:
 # - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
-# - Staging: Sends directly using PRIVATE_KEY via cast send --data
+# - Staging: Sends directly using PRIVATE_KEY via cast send with raw calldata
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
 #   network: Network name (e.g., "mainnet")
 #   environment: "production" or "staging"
@@ -3583,6 +3591,32 @@ function sendOrPropose() {
     return 1
   fi
 
+  # Check if Tron network
+  if isTronNetwork "$NETWORK"; then
+    # Tron-specific handling
+    # Tron doesn't have a timelock controller or Safe, so we always send directly
+    local TRON_ENV
+    TRON_ENV=$(getTronEnv "$NETWORK")
+
+    # Validate calldata format
+    if [[ ! "$CALLDATA" =~ ^0x ]]; then
+      error "sendOrPropose: Calldata must start with 0x"
+      return 1
+    fi
+
+    # Get private key
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+      return 1
+    }
+
+    # Call troncast send with raw calldata
+    # Note: signature parameter is optional when --calldata is provided, but we provide empty string to satisfy positional arg
+    bun troncast send "$TARGET" "" --calldata "$CALLDATA" --env "$TRON_ENV" --private-key "$PRIVATE_KEY" --confirm
+    return $?
+  fi
+
+  # EVM networks - existing logic
   # Validate calldata format
   if [[ ! "$CALLDATA" =~ ^0x ]]; then
     error "sendOrPropose: Calldata must start with 0x"
@@ -3615,16 +3649,15 @@ function sendOrPropose() {
     }
 
     # Get private key
-    local PRIVATE_KEY
     PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
       error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
       return 1
     }
 
-    # Send transaction using cast send with --data flag for raw calldata
+    # Send transaction using cast send with raw calldata
     # cast send will handle signing, gas estimation, and receipt waiting
-    cast send "$TARGET" \
-      --data "$CALLDATA" \
+    # For raw calldata, pass it as the function signature (first arg after target)
+    cast send "$TARGET" "$CALLDATA" \
       --rpc-url "$RPC_URL" \
       --private-key "$PRIVATE_KEY" \
       --legacy \
@@ -3681,6 +3714,129 @@ function isActiveMainnet() {
   else
     return 1 # false
   fi
+}
+
+function isTronNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+  if [[ "$NETWORK" == "tron" || "$NETWORK" == "tronshasta" ]]; then
+    return 0  # true
+  fi
+  return 1  # false
+}
+
+function getTronEnv() {
+  # read function arguments into variables
+  local NETWORK="$1"
+  if [[ "$NETWORK" == "tron" ]]; then
+    echo "mainnet"
+  elif [[ "$NETWORK" == "tronshasta" ]]; then
+    echo "testnet"
+  fi
+}
+
+# universalCall: Read-only contract calls for both Tron and EVM networks.
+# Abstracts the Tron vs EVM differentiation using isTronNetwork/getTronEnv helpers.
+#
+# Usage: universalCall NETWORK TARGET SIGNATURE [ARGS...]
+#   NETWORK   - Network name (e.g., "arbitrum", "tron", "tronshasta")
+#   TARGET    - Target contract address
+#   SIGNATURE - Function signature with return type (e.g., "balanceOf(address) returns (uint256)")
+#   ARGS      - Optional: Function arguments (variadic)
+#
+# Routing:
+#   - Tron: Uses troncast call with --env
+#   - EVM: Uses cast call with --rpc-url
+#
+# Returns: Output from cast/troncast call, exit code preserved
+# Example: universalCall "arbitrum" "$DIAMOND" "owner() returns (address)"
+# Example: universalCall "tron" "$DIAMOND" "facetAddress(bytes4) returns (address)" "0x12345678"
+function universalCall() {
+  local NETWORK="$1"
+  local TARGET="$2"
+  local SIGNATURE="$3"
+  shift 3
+  local ARGS=("$@")
+
+  if [[ -z "$NETWORK" || -z "$TARGET" || -z "$SIGNATURE" ]]; then
+    echo "Error: universalCall requires network, target, and signature" >&2
+    return 1
+  fi
+
+  if isTronNetwork "$NETWORK"; then
+    local TRON_ENV
+    TRON_ENV=$(getTronEnv "$NETWORK")
+    if [[ ${#ARGS[@]} -gt 0 ]]; then
+      bun troncast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --env "$TRON_ENV" 2>&1
+    else
+      bun troncast call "$TARGET" "$SIGNATURE" --env "$TRON_ENV" 2>&1
+    fi
+  else
+    local RPC_URL
+    RPC_URL=$(getRPCUrl "$NETWORK") || {
+      echo "Error: Failed to get RPC URL for $NETWORK" >&2
+      return 1
+    }
+    if [[ ${#ARGS[@]} -gt 0 ]]; then
+      cast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --rpc-url "$RPC_URL" 2>&1
+    else
+      cast call "$TARGET" "$SIGNATURE" --rpc-url "$RPC_URL" 2>&1
+    fi
+  fi
+  return $?
+}
+
+# universalSend: State-changing transactions for both Tron and EVM networks.
+# Generates calldata using `cast calldata` and delegates to sendOrPropose for all
+# network/environment routing (Tron vs EVM, staging vs production).
+#
+# Usage: universalSend NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK]
+#   NETWORK     - Network name (e.g., "arbitrum", "tron", "tronshasta")
+#   ENVIRONMENT - "production" or "staging"
+#   TARGET      - Contract address to call
+#   SIGNATURE   - Function signature (e.g., "transfer(address,uint256)")
+#   ARGS        - Optional: Arguments for cast calldata (space-separated, arrays in brackets)
+#   TIMELOCK    - Optional: "true" to wrap in timelock (EVM production only)
+#
+# Routing (handled by sendOrPropose):
+#   - Tron (any env): Direct send via troncast (no Safe/timelock support)
+#   - EVM production: Propose to Safe via propose-to-safe.ts (optional timelock)
+#   - EVM staging: Direct send via cast
+#
+# Example: universalSend "arbitrum" "staging" "$DIAMOND" "setFee(uint256)" "100"
+# Example: universalSend "arbitrum" "production" "$DIAMOND" "batchSet(address[],bytes4[],bool)" '[addr1,addr2] [0x1234] true' "true"
+function universalSend() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local TARGET="$3"
+  local SIGNATURE="$4"
+  local ARGS="$5"
+  local TIMELOCK="${6:-false}"
+
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$SIGNATURE" ]]; then
+    echo "Error: universalSend requires network, environment, target, and signature" >&2
+    return 1
+  fi
+
+  # Generate calldata from signature and args
+  local CALLDATA
+  if [[ -n "$ARGS" ]]; then
+    CALLDATA=$(cast calldata "$SIGNATURE" $ARGS 2>&1)
+  else
+    CALLDATA=$(cast calldata "$SIGNATURE" 2>&1)
+  fi
+  local CALLDATA_EXIT_CODE=$?
+
+  if [[ $CALLDATA_EXIT_CODE -ne 0 || ! "$CALLDATA" =~ ^0x ]]; then
+    echo "Error: Failed to generate calldata for $SIGNATURE" >&2
+    echo "Args: $ARGS" >&2
+    echo "Output: $CALLDATA" >&2
+    return 1
+  fi
+
+  # Delegate to sendOrPropose for all network/environment routing
+  sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$TIMELOCK"
+  return $?
 }
 
 function getChainId() {
@@ -4589,7 +4745,15 @@ function updateDiamondLogForNetwork() {
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
-    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+    local KNOWN_FACET_ADDRESSES
+    if isTronNetwork "$NETWORK"; then
+      # Tron: use troncast
+      local TRON_ENV=$(getTronEnv "$NETWORK")
+      KNOWN_FACET_ADDRESSES=$(bun troncast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --env "$TRON_ENV" 2>/dev/null)
+    else
+      # EVM: use cast
+      KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+    fi
 
     # check the return code the last call
     if [ $? -eq 0 ]; then

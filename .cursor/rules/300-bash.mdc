@@ -14,6 +14,83 @@ globs:
 - Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
 - Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
 
+## Key Helper Functions [CONV:BASH-HELPERS]
+
+### Network Abstraction Helpers
+
+Use these helpers to abstract Tron vs EVM network differences. **Never hardcode network checks** like `if [[ "$NETWORK" == "tron" ]]`; use the helpers instead.
+
+| Helper | Purpose |
+|--------|---------|
+| `isTronNetwork "$NETWORK"` | Returns 0 (true) if network is Tron-based |
+| `getTronEnv "$NETWORK"` | Returns "mainnet" or "testnet" for troncast --env |
+| `getRPCUrl "$NETWORK"` | Gets RPC URL for EVM networks |
+| `getPrivateKey "$NETWORK" "$ENVIRONMENT"` | Gets private key for network/environment |
+
+### Contract Interaction Helpers
+
+**For read-only calls**, use `universalCall`:
+```bash
+# universalCall NETWORK TARGET SIGNATURE [ARGS...]
+RESULT=$(universalCall "$NETWORK" "$DIAMOND" "owner() returns (address)")
+BALANCE=$(universalCall "$NETWORK" "$TOKEN" "balanceOf(address) returns (uint256)" "$USER")
+```
+
+**For state-changing transactions**, use `universalSend`:
+```bash
+# universalSend NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK]
+universalSend "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "setFee(uint256)" "100"
+universalSend "$NETWORK" "production" "$DIAMOND" "batchSet(address[],bool)" '[addr1,addr2] true' "true"
+```
+
+**For raw calldata transactions**, use `sendOrPropose`:
+```bash
+# sendOrPropose NETWORK ENVIRONMENT TARGET CALLDATA [TIMELOCK]
+CALLDATA=$(cast calldata "transfer(address,uint256)" "$TO" "$AMOUNT")
+sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "true"
+```
+
+### Routing Behavior
+
+| Function | Tron | EVM Production | EVM Staging |
+|----------|------|----------------|-------------|
+| `universalCall` | troncast call | cast call | cast call |
+| `universalSend` | Delegates to sendOrPropose | Delegates to sendOrPropose | Delegates to sendOrPropose |
+| `sendOrPropose` | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
+
+**Note**: Tron networks don't have Safe multisig or timelock support, so all Tron transactions are sent directly.
+
+### Function Documentation Format
+
+When adding or modifying helper functions, use this consistent documentation format:
+
+```bash
+# functionName: Brief description of what the function does.
+# Additional context or behavior notes if needed.
+#
+# Usage: functionName ARG1 ARG2 [OPTIONAL_ARG] [OPTIONAL_FLAG]
+#   ARG1          - Description of first argument
+#   ARG2          - Description of second argument
+#   OPTIONAL_ARG  - Optional: Description with default behavior
+#   OPTIONAL_FLAG - Optional: "true" to enable feature (default: false)
+#
+# Routing/Behavior (if applicable):
+#   - Case 1: What happens in this case
+#   - Case 2: What happens in this case
+#
+# Returns: Description of return value and exit code behavior
+# Example: functionName "value1" "value2"
+# Example: functionName "value1" "value2" "optional" "true"
+function functionName() {
+```
+
+**Key conventions**:
+- Parameter names in UPPERCASE in both documentation and code
+- Use `-` dash separator for parameter descriptions (not `:`)
+- Group optional parameters with `Optional:` prefix
+- Include routing/behavior section for functions with branching logic
+- Provide concrete examples
+
 ## Syntax Validation (CRITICAL)
 
 **All bash code must be validated before suggesting changes.**
@@ -41,3 +118,4 @@ globs:
 - Variables: `${VAR:-default}` when `set -u` enabled
 - Process substitution: `< <(...)` requires `#!/bin/bash` shebang
 - Conditionals: `[[ ]]` not `[ ]` for bash-specific features
+- Variable case: Use `UPPERCASE` for all variables, including `local` declarations and loop iterators

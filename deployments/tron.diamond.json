@@ -56,6 +56,10 @@
       "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
+      },
+      "TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
