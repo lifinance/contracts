@@ -1775,6 +1775,21 @@ function getBytecodeFromArtifact() {
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
+# Helper function to extract Response or Details from verification output
+# Usage: extractFromVerificationOutput "$OUTPUT" "Response" or extractFromVerificationOutput "$OUTPUT" "Details"
+function extractFromVerificationOutput() {
+  local OUTPUT="$1"
+  local KEY="$2"
+  
+  if [[ "$KEY" == "Response" ]]; then
+    echo "$OUTPUT" | grep -i "${KEY}:" | tail -1 | sed -E 's/.*'"${KEY}"':[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'"
+  elif [[ "$KEY" == "Details" ]]; then
+    echo "$OUTPUT" | grep -i "${KEY}:" | tail -1 | sed -E "s/.*${KEY}:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1
+  else
+    echo ""
+  fi
+}
+
 function verifyContract() {
   # read function arguments into variables
   local NETWORK=$1
@@ -1872,10 +1887,6 @@ function verifyContract() {
   # Check if network is zkEVM
   if isZkEvmNetwork "$NETWORK"; then
     VERIFY_CMD+=("--verifier" "zksync")
-    # For zkSync native verifier, API key is optional. Export empty string if not set to avoid Foundry errors
-    if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
-      export NO_ETHERSCAN_API_KEY_REQUIRED=""
-    fi
   else
     # Check verificationType from networks.json for Blockscout
     local VERIFICATION_TYPE
@@ -1883,15 +1894,18 @@ function verifyContract() {
     
     if [[ "$VERIFICATION_TYPE" = "blockscout" ]]; then
       VERIFY_CMD+=("--verifier" "blockscout")
-      # For Blockscout, API key is optional. Export empty string if not set to avoid Foundry errors
-      if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
-        export NO_ETHERSCAN_API_KEY_REQUIRED=""
-      fi
     elif [[ "$VERIFICATION_TYPE" = "sourcify" ]]; then
       VERIFY_CMD+=("--verifier" "sourcify")
-      # For Sourcify, API key is optional. Export empty string if not set to avoid Foundry errors
-      if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
-        export NO_ETHERSCAN_API_KEY_REQUIRED=""
+    elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
+      # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
+      VERIFY_CMD+=("--verifier" "custom")
+      if [[ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]]; then
+        # make sure API key is not empty (check the actual value, not the variable name)
+        if [ -z "${!API_KEY}" ]; then
+          echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+          return 1
+        fi
+        VERIFY_CMD+=("--verifier-api-key" "${!API_KEY}")
       fi
     elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
       VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
@@ -1907,14 +1921,16 @@ function verifyContract() {
   fi
 
   # Apply custom verification flags from networks.json if present
-  # This allows networks to specify custom flags like "-e verifyContract" for block explorers
+  # This allows networks to specify custom flags for block explorers
+  # Examples:
+  #   Single flag with value: {"-e": "verifyContract"} -> VERIFY_CMD+=("-e" "verifyContract")
+  #   Single flag without value: {"--skip-is-verified-check": null} -> VERIFY_CMD+=("--skip-is-verified-check")
+  #   Multiple flags: {"-e": "verifyContract", "--skip-is-verified-check": null} -> VERIFY_CMD+=("-e" "verifyContract" "--skip-is-verified-check")
   local CUSTOM_FLAGS
   CUSTOM_FLAGS=$(jq -c --arg network "$NETWORK" '.[$network].customVerificationFlags // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
   
   if [[ -n "$CUSTOM_FLAGS" ]] && [[ "$CUSTOM_FLAGS" != "null" ]] && [[ "$CUSTOM_FLAGS" != "{}" ]] && [[ "$CUSTOM_FLAGS" != "\"\"" ]]; then
     # Parse the JSON object and add each flag-value pair to VERIFY_CMD
-    # Format: {"-e": "verifyContract"} -> VERIFY_CMD+=("-e" "verifyContract")
-    # Format: {"--skip-is-verified-check": null} -> VERIFY_CMD+=("--skip-is-verified-check")
     while IFS= read -r flag_entry; do
       local flag_name=$(echo "$flag_entry" | jq -r '.key')
       local flag_value=$(echo "$flag_entry" | jq -r '.value')
@@ -1986,8 +2002,8 @@ function verifyContract() {
     fi
 
     # Parse the final verification response from --watch output more robustly
-    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep -i "Response:" | tail -1 | sed -E 's/.*Response:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'")
-    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep -i "Details:" | tail -1 | sed -E "s/.*Details:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1)
+    local RESPONSE=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Response")
+    local DETAILS=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Details")
 
     # Log parsed values for debugging
     echoDebug "Parsed initial response - Response: '$RESPONSE', Details: '$DETAILS'"
@@ -2032,8 +2048,8 @@ function verifyContract() {
     fi
 
     # Parse response more robustly - handle different output formats
-    local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep -i "Response:" | tail -1 | sed -E 's/.*Response:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'")
-    local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep -i "Details:" | tail -1 | sed -E "s/.*Details:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1)
+    local FINAL_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
+    local FINAL_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
 
     echoDebug "Final verification check - Response: $FINAL_RESPONSE, Details: $FINAL_DETAILS"
     echoDebug "Full check output: $CHECK_OUTPUT"
@@ -2066,8 +2082,8 @@ function verifyContract() {
       fi
 
       # Parse response more robustly - handle different output formats
-      local RETRY_RESPONSE=$(echo "$CHECK_OUTPUT" | grep -i "Response:" | tail -1 | sed -E 's/.*Response:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'")
-      local RETRY_DETAILS=$(echo "$CHECK_OUTPUT" | grep -i "Details:" | tail -1 | sed -E "s/.*Details:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1)
+      local RETRY_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
+      local RETRY_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
 
       if [[ "$RETRY_RESPONSE" == "OK" && ("$RETRY_DETAILS" == *"Pass"* || "$RETRY_DETAILS" == *"Verified"* || "$RETRY_DETAILS" == *"Success"*) ]]; then
         echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after retry check"
