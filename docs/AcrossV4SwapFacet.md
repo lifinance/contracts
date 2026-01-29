@@ -37,8 +37,8 @@ The methods listed above take `_acrossV4SwapFacetData`, represented as:
 
 ```solidity
 enum SwapApiTarget {
-  SpokePool,                // callData = abi.encode(IAcrossSpokePoolV4.DepositParams)
-  SpokePoolPeriphery,       // callData = abi.encode(ISpokePoolPeriphery.SwapAndDepositData)
+  SpokePool, // callData = abi.encode(IAcrossSpokePoolV4.DepositParams)
+  SpokePoolPeriphery, // callData = abi.encode(ISpokePoolPeriphery.SwapAndDepositData)
   SponsoredOFTSrcPeriphery, // callData = abi.encode(ISponsoredOFTSrcPeriphery.Quote, bytes signature)
   SponsoredCCTPSrcPeriphery // callData = abi.encode(ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes signature)
 }
@@ -56,6 +56,7 @@ struct AcrossV4SwapFacetData {
 ## Signature requirement (SpokePool / SpokePoolPeriphery)
 
 For `swapApiTarget = SpokePool` and `swapApiTarget = SpokePoolPeriphery`, the facet requires an EIP-712 signature that commits to:
+
 - selected `BridgeData` fields (`transactionId`, `minAmount`, `receiver`, `destinationChainId`, `sendingAssetId`)
 - `swapApiTarget`
 - `callDataHash = keccak256(callData)`

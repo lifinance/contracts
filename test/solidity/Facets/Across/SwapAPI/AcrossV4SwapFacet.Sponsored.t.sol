@@ -25,13 +25,15 @@ contract TestAcrossV4SwapFacetSponsored is
         ISpokePoolPeriphery _spokePoolPeriphery,
         address _spokePool,
         address _sponsoredOftSrcPeriphery,
-        address _sponsoredCctpSrcPeriphery
+        address _sponsoredCctpSrcPeriphery,
+        address _backendSigner
     )
         AcrossV4SwapFacet(
             _spokePoolPeriphery,
             _spokePool,
             _sponsoredOftSrcPeriphery,
-            _sponsoredCctpSrcPeriphery
+            _sponsoredCctpSrcPeriphery,
+            _backendSigner
         )
     {}
 }
@@ -69,6 +71,7 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
     address internal spokePool;
     address internal sponsoredOftSrcPeriphery;
     address internal sponsoredCctpSrcPeriphery;
+    address internal backendSigner;
 
     function setUp() public {
         // Fork Arbitrum at (or before) both provided txs.
@@ -94,13 +97,16 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ".arbitrum.sponsoredCctpSrcPeriphery"
         );
 
+        backendSigner = vm.addr(0xA11CE);
+
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 
         TestAcrossV4SwapFacetSponsored facetImpl = new TestAcrossV4SwapFacetSponsored(
                 ISpokePoolPeriphery(spokePoolPeriphery),
                 spokePool,
                 sponsoredOftSrcPeriphery,
-                sponsoredCctpSrcPeriphery
+                sponsoredCctpSrcPeriphery,
+                backendSigner
             );
 
         bytes4[] memory functionSelectors = new bytes4[](2);
@@ -185,7 +191,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -241,7 +248,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -301,7 +309,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredOFTSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -346,7 +355,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredOFTSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -376,7 +386,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredOFTSrcPeriphery,
-                callData: SPONSORED_OFT_CALLDATA
+                callData: SPONSORED_OFT_CALLDATA,
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -415,7 +426,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -454,7 +466,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -496,7 +509,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -535,7 +549,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();
@@ -574,7 +589,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
                 swapApiTarget: AcrossV4SwapFacet
                     .SwapApiTarget
                     .SponsoredCCTPSrcPeriphery,
-                callData: abi.encode(quote, signature)
+                callData: abi.encode(quote, signature),
+                signature: ""
             })
         );
         vm.stopPrank();

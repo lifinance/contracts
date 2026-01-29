@@ -22,13 +22,15 @@ contract TestAcrossV4SwapFacetSponsoredRefunds is
         ISpokePoolPeriphery _spokePoolPeriphery,
         address _spokePool,
         address _sponsoredOftSrcPeriphery,
-        address _sponsoredCctpSrcPeriphery
+        address _sponsoredCctpSrcPeriphery,
+        address _backendSigner
     )
         AcrossV4SwapFacet(
             _spokePoolPeriphery,
             _spokePool,
             _sponsoredOftSrcPeriphery,
-            _sponsoredCctpSrcPeriphery
+            _sponsoredCctpSrcPeriphery,
+            _backendSigner
         )
     {}
 }
@@ -49,11 +51,14 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
     AcrossV4SwapFacet internal acrossV4SwapFacet;
     address internal sponsoredOftSrcPeriphery;
     address internal sponsoredCctpSrcPeriphery;
+    address internal backendSigner;
 
     function setUp() public {
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
         customBlockNumberForForking = 421327371;
         initTestBase();
+
+        backendSigner = vm.addr(0xA11CE);
 
         address spokePoolPeriphery = getConfigAddressFromPath(
             "acrossV4Swap.json",
@@ -76,7 +81,8 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
                 ISpokePoolPeriphery(spokePoolPeriphery),
                 spokePool,
                 sponsoredOftSrcPeriphery,
-                sponsoredCctpSrcPeriphery
+                sponsoredCctpSrcPeriphery,
+                backendSigner
             );
 
         bytes4[] memory functionSelectors = new bytes4[](3);
@@ -204,6 +210,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
             .SwapApiTarget
             .SponsoredOFTSrcPeriphery;
         facetData.callData = peripheryCallData;
+        facetData.signature = "";
 
         uint256 refundAmount = swapOutputAmount - quotedAmount;
         uint256 refundBalanceBefore = usdt.balanceOf(refundRecipient);
@@ -270,6 +277,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
             .SwapApiTarget
             .SponsoredCCTPSrcPeriphery;
         facetData.callData = peripheryCallData;
+        facetData.signature = "";
 
         uint256 refundAmount = swapOutputAmount - quotedAmount;
         uint256 senderBalBefore = ERC20(USDC_ARBITRUM).balanceOf(USER_SENDER);
