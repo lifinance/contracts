@@ -32,6 +32,7 @@ import {
   type IProcessingStats,
 } from '../../utils/slack-notifier'
 
+import { formatDecodedTxDataForDisplay } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 
 // Define interfaces for network configuration
@@ -534,7 +535,9 @@ async function processNetwork(
           isDryRun,
           isInteractive,
           network.name,
-          slackNotifier
+          slackNotifier,
+          network.chainId,
+          network.name
         )
 
         // Log the result for interactive mode
@@ -864,13 +867,20 @@ async function executeOperation(
   isDryRun: boolean,
   interactive?: boolean,
   networkName?: string,
-  slackNotifier?: SlackNotifier
+  slackNotifier?: SlackNotifier,
+  chainId?: number,
+  network?: string
 ): Promise<'executed' | 'rejected' | 'skipped' | 'failed'> {
   const networkPrefix = networkName ? `[${networkName}]` : ''
   consola.info(`\n${networkPrefix} ⚡ Processing operation: ${operation.id}`)
   consola.info(`${networkPrefix}    Target: ${operation.target}`)
   consola.info(`${networkPrefix}    Value: ${formatEther(operation.value)} ETH`)
-  consola.info(`${networkPrefix}    Data: ${operation.data}`)
+  if (chainId !== undefined && network) {
+    consola.info(`${networkPrefix}    Decoded call:`)
+    await formatDecodedTxDataForDisplay(operation.data, { chainId, network })
+  } else {
+    consola.info(`${networkPrefix}    Data: ${operation.data}`)
+  }
 
   // If interactive mode, show choice prompt
   if (interactive) {
@@ -900,13 +910,6 @@ async function executeOperation(
   }
 
   try {
-    // Try to decode the function call
-    const functionName = await decodeFunctionCall(operation.data)
-    if (functionName) {
-      consola.info(`${networkPrefix}    Function: ${functionName}`)
-      operation.functionName = functionName
-    }
-
     // Use the salt from the operation if available, otherwise use default
     const salt =
       operation.salt ||
@@ -1154,27 +1157,19 @@ function formatTimeRemaining(seconds: bigint): string {
   return result
 }
 
-// Helper function to decode a function call
+// Helper to resolve function name by selector (used when building operation list)
 async function decodeFunctionCall(data: Hex): Promise<string | null> {
   if (!data || data === '0x') return null
-
   try {
     const selector = data.substring(0, 10)
     const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
     const response = await fetch(url)
     const responseData = await response.json()
-
-    if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
-    )
+    if (responseData.ok && responseData.result?.function?.[selector])
       return responseData.result.function[selector][0].name
-
     return null
   } catch (error) {
-    consola.warn(`Error decoding function call:`, error)
+    consola.warn('Error decoding function call:', error)
     return null
   }
 }
