@@ -50,3 +50,28 @@ globs:
 ## Post-Change Actions
 
 - After TS changes run lint/tests (or state which remain) to ensure eslint/type checks pass.
+
+### Hard gate: CLI validation required
+
+Editor diagnostics (and Cursor “lints”) are **not sufficient** to claim a TypeScript script is clean.
+
+If you edit any file matching this rule’s globs, you **MUST** do the following before finalizing:
+
+- **Run ESLint CLI on the changed file(s)**:
+  - `bunx eslint <changed-file-1> [<changed-file-2> ...]`
+  - If ESLint reports fixable issues, run: `bunx eslint --fix <changed-file(s)>`
+  - Re-run `bunx eslint <changed-file(s)>` and ensure it exits `0`.
+- **Run TypeScript typecheck on the changed file(s)**:
+  - `bunx tsc-files --noEmit <changed-file-1> [<changed-file-2> ...]`
+
+### Reporting requirement
+
+- In the final message, explicitly list the commands that were run and whether they passed.
+- **Never** state or imply “no linting errors” unless `bunx eslint ...` was executed and returned `0`.
+
+### Scope escalation (when needed)
+
+If changes touch shared helpers or wide surfaces (or you can’t easily isolate changed files), prefer running the broader checks:
+
+- `bun lint:js`
+- `bun lint`
