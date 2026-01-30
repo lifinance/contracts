@@ -195,7 +195,7 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 3 completed"
   fi
 
-  # Stage 4: Set approval for refund wallet)
+  # Stage 4: Set approvals (refund wallet and deployer wallet)
   if [[ $START_STAGE -le 4 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approval for refund wallet"
@@ -276,10 +276,15 @@ deployAllContracts() {
   # Stage 8: Execute whitelist script and update ERC20Proxy
   if [[ $START_STAGE -le 8 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Execute whitelist script and update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Update whitelist.json and execute sync whitelist script"
 
-    # update periphery section of whitelist.json or whitelist.staging.json
-    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment "$ENVIRONMENT"
+    # Update whitelist.json configuration files with periphery contract data
+    # This updates the off-chain whitelist configuration files that will be synced on-chain.
+    echo ""
+    echo "[info] Updating whitelist periphery and composer entries..."
+    bunx tsx script/tasks/updateWhitelistPeriphery.ts || checkFailure $? "update whitelist periphery"
+    echo "[info] Whitelist periphery update completed"
+    echo ""
 
     # run sync whitelist script
     echo ""

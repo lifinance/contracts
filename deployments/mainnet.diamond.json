@@ -97,9 +97,9 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0x4640AaaaB3E6f5bB9b4A16fb00EA0DBD6D98B397": {
+      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.1"
+        "Version": "2.1.2"
       },
       "0xfDB9a62a5f4F98A0C4e4B864eB22a9EEcB0BcE5F": {
         "Name": "HopFacetPacked",
@@ -184,6 +184,14 @@
       "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
         "Name": "CelerCircleBridgeFacet",
         "Version": "2.0.0"
+      },
+      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
+      },
+      "0x7d66a500bdab2aC94E3bAe44d44Ee63D7F613D8B": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -191,7 +199,7 @@
       "Executor": "0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88",
       "FeeCollector": "0x3Ef238c36035880EfbDfa239d218186b79Ad1d6F",
       "FeeForwarder": "0x685527c551Cc40ce1f1C9818cD8683307076E4eD",
-      "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
+      "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "LidoWrapper": "",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
@@ -199,6 +207,7 @@
       "ReceiverAcrossV3": "0x81F35E762B6792Eea8781fC52F72e62235A5C416",
       "ReceiverAcrossV4": "0x07Cc0a0b41641D349240e1988169Fa11b31FC24E",
       "ReceiverChainflip": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",
+      "ReceiverOIF": "0x761B0e8f6e80BBd23F3886663Cc071a554be37A3",
       "ReceiverStargateV2": "0xB539B40793171211DCA8834da044fC14bCe64BDC",
       "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6"
     }

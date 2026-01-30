@@ -11,5 +11,6 @@ alwaysApply: true
 - **Rules tracking**: Maintain active rules list (compact tags: `000-global-standards`, `100-solidity-basics`). List at task start/after context reset; only mention when rules change. If context stale/truncated, restate visible rules and ask for corrections.
 - **Conventions**: Follow repo patterns; reuse existing helpers/libraries; avoid interface/storage changes unless requested.
 - **Workflow**: Before edits: brief intent/scope/files/rules; plan → implement; update plan if scope changes.
+- **Rule activation**: Before editing any file (even if not explicitly mentioned by the user), load and follow all `.cursor/rules/*.mdc` whose `globs` match that file path.
 - **Design**: When multiple valid approaches exist, name ≥2 with tradeoffs; prefer minimal diffs unless conventions/security justify larger refactor.
 - **Uncertainty**: Flag assumptions/risky edges; don't guess; ask one concise question.

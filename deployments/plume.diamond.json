@@ -75,7 +75,7 @@
       "Executor": "0x406359505DB288bb884C1B9d068d167B851a0c83",
       "FeeCollector": "0x3e46137a80BB3c14906505d0f78ADbb2deDb9E3f",
       "FeeForwarder": "0x32ca3c43c2807EbB7d82212BeeC31c1b7BaaD146",
-      "GasZipPeriphery": "0x1665f83E6fBd6bd6C550fCbd81B652bcb1b5d9F2",
+      "GasZipPeriphery": "0xF6eE6152be29123e4E766f383257a49AC0678634",
       "LiFiDEXAggregator": "0x9d376fd8077fF2475FD635185723A4B274fcB61C",
       "LidoWrapper": "",
       "Patcher": "",
@@ -83,6 +83,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0x120794dae6F4A2aF50ABF83A524DD4Fe5F258Dd9",
       "TokenWrapper": "0x895eA96A8E1940463C40753CB472615fe215760A"
     }

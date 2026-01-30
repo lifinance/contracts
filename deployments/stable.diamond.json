@@ -75,16 +75,17 @@
       "Executor": "0x5603aF276bDCf73A859928ca3fbDaE7d4909Dd77",
       "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
-      "GasZipPeriphery": "0xE34919F5982381368Bd9C640a0F81f3Aa28CE43a",
-      "LidoWrapper": "",
+      "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
       "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "0x700f1874314A4dF3bb9A10f7B5eA187A39d8dE74",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "0x400410ce3632789c0eEDd050b10F61e20dF21970",
-      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
+      "TokenWrapper": "0x16a43D7db650c2B4D40484e4Ef29ab54B934A1C9"
     }
   }
 }

@@ -43,7 +43,7 @@ export ENVIRONMENT
 # This is the main place to adjust your network list for multi-execution
 
 # Option 1: Use all included networks (default)
-# NETWORKS=($(getIncludedNetworksArray))
+NETWORKS=($(getIncludedNetworksArray))
 
 # Option 2: Use specific networks (uncomment and modify as needed)
 # NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "gnosis" "lisk" "mainnet" "mantle" "optimism" "polygon" "scroll" "sonic" "worldchain" "berachain" "hyperevm" "ink" "soneium" "unichain" "katana" "plume")
@@ -55,7 +55,7 @@ export ENVIRONMENT
 # NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))
 
 # Option 4: Use networks where contract is deployed (uncomment as needed)
-NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
+# NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT"))
 # NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONMENT" "cancun"))
 
 # Option 5: Use whitelist filtering (uncomment and modify as needed)
@@ -65,8 +65,8 @@ NETWORKS=($(getNetworksByEvmVersionAndContractDeployment "$CONTRACT" "$ENVIRONME
 # Option 6: Use blacklist filtering (applied after network selection)
 # Networks in the blacklist will be excluded from the final network list
 # This is useful for excluding networks that need to be skipped (e.g. already done manually)
-# NETWORKS_BLACKLIST=("aurora" "moonriver" "xlayer" "corn" "superposition" "tron" "tronshasta")
-NETWORKS_BLACKLIST=("tron")
+# NETWORKS_BLACKLIST=("xlayer" "corn" "superposition" "tron" "tronshasta")
+NETWORKS_BLACKLIST=("tron" "tronshasta")
 
 # Foundry.toml backup file
 FOUNDRY_TOML_BACKUP="foundry.toml.backup"
@@ -109,6 +109,8 @@ function executeNetworkActions() {
     # echo "[$NETWORK] deploySingleContract completed with exit code: $RETURN_CODE"
 
 
+
+
     # VERIFY - Verify the contract on the network
     # getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
     # RETURN_CODE=$?
@@ -119,11 +121,11 @@ function executeNetworkActions() {
     # SYNC WHITEL IST - Sync whitelist from whitelist.json to diamo
 
     # PROPOSE - Create multisig proposal for the contract
-    createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
-        RETURN_CODE=$?
-    if [[ $RETURN_CODE -ne 0 ]]; then
-        return $RETURN_CODE
-    fi
+    # createMultisigProposalForContract "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$LOG_DIR"
+    #     RETURN_CODE=$?
+    # if [[ $RETURN_CODE -ne 0 ]]; then
+    #     return $RETURN_CODE
+    # fi
 
     # UPDATE DIAMOND - Update diamond log for the network
     # updateDiamondLogForNetwork "$NETWORK" "$ENVIRONMENT"
@@ -135,8 +137,18 @@ function executeNetworkActions() {
     #### MANAGE SAFE OWNERS #############
     # Remove an owner from Safe
     # manageSafeOwner "remove" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb"
-    # Replace an owner in Safe (remove old, add new)
-    # manageSafeOwner "replace" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb" "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
+    manageSafeOwner "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
+    # manageTimelockCanceller "replace" "$NETWORK" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
+
+    # removeAccessManagerPermission "$NETWORK" "0x1171c007" "0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
+    RETURN_CODE=$?
+
+
+    # # Replace an owner in Safe (remove old, add new)
+    # manageSafeOwner "replace" "$NETWORK" "0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb" "0xb137683965ADC470f140df1a1D05B0D25C14E269"
+    # if [[ $RETURN_CODE -ne 0 ]]; then
+    #   RETURN_CODE=$?
+    # fi
     # Add a new owner to Safe
     # manageSafeOwner "add" "$NETWORK" "" "0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62"
 
@@ -494,33 +506,6 @@ function updateFoundryTomlForGroup() {
     esac
 }
 
-function recompileForGroup() {
-    local group="${1:-}"
-
-    if [[ -z "$group" ]]; then
-        error "Group is required"
-        return 1
-    fi
-
-    case "$group" in
-        "$GROUP_ZKEVM")
-            # zkEVM networks use zksolc with zksync profile
-            logWithTimestamp "Running forge build --profile zksync for zkEVM group..."
-            if ! forge build --profile zksync; then
-                error "Failed to compile contracts with zksolc"
-                return 1
-            fi
-            ;;
-        *)
-            # All other groups use standard solc compilation
-            logWithTimestamp "Running forge build for $group group..."
-            if ! forge build; then
-                error "Failed to compile contracts"
-                return 1
-            fi
-            ;;
-    esac
-}
 
 # =============================================================================
 # ACTION DETECTION AND TRACKING
@@ -679,18 +664,60 @@ function initializeProgressTracking() {
                 logWithTimestamp "Cleaned up $invalid_count invalid network entry/entries from progress tracking file"
             fi
 
+            # Validate JSON before writing
+            if ! echo "$updated_data" | jq empty 2>/dev/null; then
+                error "Generated invalid JSON for progress tracking merge"
+                return 1
+            fi
+
             if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
                 error "Failed to write progress tracking data"
                 return 1
             fi
 
-            # Only move if temp file exists
+            # Validate temp file JSON before moving - ensure file exists first
+            if [[ ! -f "${PROGRESS_TRACKING_FILE}.tmp" ]] || [[ ! -s "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+                error "Temp file was not created or is empty"
+                rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                return 1
+            fi
+
+            # Re-check file existence right before validation to handle race conditions
+            if [[ ! -f "${PROGRESS_TRACKING_FILE}.tmp" ]] || [[ ! -r "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+                error "Temp file was removed before validation (race condition)"
+                rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                return 1
+            fi
+
+            local jq_error_output
+            jq_error_output=$(jq empty "${PROGRESS_TRACKING_FILE}.tmp" 2>&1)
+            local jq_exit_code=$?
+            if [[ $jq_exit_code -ne 0 ]]; then
+                # Check if the error is due to file not existing (race condition)
+                if [[ "$jq_error_output" == *"No such file or directory"* ]] || [[ "$jq_error_output" == *"Could not open file"* ]]; then
+                    error "Temp file was removed before validation (race condition)"
+                    rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                    return 1
+                fi
+                error "Temp file contains invalid JSON"
+                error "JSON validation error: ${jq_error_output:-Unknown error}"
+                rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                return 1
+            fi
+
+            # Only move if temp file exists and is valid
             if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
                 mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || {
                     error "Failed to move progress tracking temp file"
                     rm -f "${PROGRESS_TRACKING_FILE}.tmp"
                     return 1
                 }
+
+                # Final validation after move
+                if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+                    error "Final file contains invalid JSON after move"
+                    return 1
+                fi
             fi
             return 0
         else
@@ -761,18 +788,37 @@ function initializeProgressTracking() {
             networks: $networks
         }')
 
+    # Validate JSON before writing
+    if ! echo "$progress_data" | jq empty 2>/dev/null; then
+        error "Generated invalid JSON for progress tracking"
+        return 1
+    fi
+
     if ! echo "$progress_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
         error "Failed to write initial progress tracking data"
         return 1
     fi
 
-    # Only move if temp file exists
+    # Validate temp file JSON before moving
+    if ! jq empty "${PROGRESS_TRACKING_FILE}.tmp" 2>/dev/null; then
+        error "Temp file contains invalid JSON"
+        rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+        return 1
+    fi
+
+    # Only move if temp file exists and is valid
     if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
         mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || {
             error "Failed to move progress tracking temp file"
             rm -f "${PROGRESS_TRACKING_FILE}.tmp"
             return 1
         }
+
+        # Final validation after move
+        if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            error "Final file contains invalid JSON after move"
+            return 1
+        fi
     fi
 
     logWithTimestamp "Initialized progress tracking for $action_type action on $contract in $environment"
@@ -814,78 +860,243 @@ function updateNetworkProgress() {
                 networks: {}
             }')
 
+        # Validate JSON before writing
+        if ! echo "$initial_data" | jq empty 2>/dev/null; then
+            error "Generated invalid JSON for initial progress tracking"
+            return 1
+        fi
+
         if ! echo "$initial_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
             error "Failed to create progress tracking file"
             return 1
         fi
+
+        # Validate temp file JSON before moving - ensure file exists first
+        if [[ ! -f "${PROGRESS_TRACKING_FILE}.tmp" ]] || [[ ! -s "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+            error "Temp file was not created or is empty"
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            return 1
+        fi
+
+        # Re-check file existence right before validation to handle race conditions
+        if [[ ! -f "${PROGRESS_TRACKING_FILE}.tmp" ]] || [[ ! -r "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+            error "Temp file was removed before validation (race condition)"
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            return 1
+        fi
+
+        local jq_error_output
+        jq_error_output=$(jq empty "${PROGRESS_TRACKING_FILE}.tmp" 2>&1)
+        local jq_exit_code=$?
+        if [[ $jq_exit_code -ne 0 ]]; then
+            # Check if the error is due to file not existing (race condition)
+            if [[ "$jq_error_output" == *"No such file or directory"* ]] || [[ "$jq_error_output" == *"Could not open file"* ]]; then
+                error "Temp file was removed before validation (race condition)"
+                rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                return 1
+            fi
+            error "Temp file contains invalid JSON"
+            error "JSON validation error: ${jq_error_output:-Unknown error}"
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            return 1
+        fi
+
         mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || true
-    fi
 
-    # Use file locking to prevent race conditions in parallel execution
-    local lock_file="${PROGRESS_TRACKING_FILE}.lock"
-    local lock_timeout=120  # Increased to 120 seconds (2 minutes) for parallel execution
-    local lock_attempts=0
-    local max_lock_attempts=240  # 240 attempts * 0.5s = 120 seconds
-
-    # Wait for lock to be available - CRITICAL: We MUST get the lock, can't skip updates
-    while [[ -f "$lock_file" && $lock_attempts -lt $max_lock_attempts ]]; do
-        # Check if lock file is stale (older than 5 minutes) - might be from a crashed process
-        if [[ -f "$lock_file" ]]; then
-            local lock_age=$(($(date +%s) - $(stat -f %m "$lock_file" 2>/dev/null || echo 0)))
-            if [[ $lock_age -gt 300 ]]; then
-                # Lock is stale (older than 5 minutes), remove it
-                rm -f "$lock_file" 2>/dev/null || true
-                sleep 0.1
-                continue
+        # Final validation after move
+        if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
+            if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+                error "Final file contains invalid JSON after move"
+                return 1
             fi
         fi
-        sleep 0.5
-        lock_attempts=$((lock_attempts + 1))
-    done
+    fi
 
-    # If we still couldn't get the lock after waiting, this is CRITICAL - we must update status
-    # Try to force acquire by removing stale lock
-    if [[ -f "$lock_file" ]]; then
-        local lock_age=$(($(date +%s) - $(stat -f %m "$lock_file" 2>/dev/null || echo 0)))
-        if [[ $lock_age -gt 300 ]]; then
-            # Force remove stale lock
-            rm -f "$lock_file" 2>/dev/null || true
+    # Use file-based locking with flock if available, otherwise use directory-based locking
+    # flock is the most reliable method for file locking on Unix systems
+    local lock_file="${PROGRESS_TRACKING_FILE}.lock"
+    local lock_timeout=120  # 2 minutes for parallel execution
+    local lock_attempts=0
+    local max_lock_attempts=240  # 240 attempts * 0.5s = 120 seconds
+    local lock_fd=200  # File descriptor for flock
+    local lock_acquired=false
+
+    # Try to use flock if available (most reliable)
+    if command -v flock >/dev/null 2>&1; then
+        # Wait for lock to be available using flock
+        while [[ $lock_attempts -lt $max_lock_attempts ]]; do
+            # Try to acquire lock with flock (non-blocking)
+            if (eval "exec $lock_fd>$lock_file" && flock -n $lock_fd 2>/dev/null); then
+                lock_acquired=true
+                break
+            fi
+            # Check if lock file is stale (older than 5 minutes)
+            if [[ -f "$lock_file" ]]; then
+                local lock_age=$(($(date +%s) - $(stat -f %m "$lock_file" 2>/dev/null || stat -c %Y "$lock_file" 2>/dev/null || echo 0)))
+                if [[ $lock_age -gt 300 ]]; then
+                    # Lock is stale, remove it
+                    rm -f "$lock_file" 2>/dev/null || true
+                fi
+            fi
+            sleep 0.5
+            lock_attempts=$((lock_attempts + 1))
+        done
+
+        if [[ "$lock_acquired" == "true" ]]; then
+            # Store lock info for cleanup
+            local lock_type="flock"
+        fi
+    else
+        # Fallback to directory-based locking if flock not available
+        local lock_dir="${lock_file}.dir"
+        while [[ -d "$lock_dir" && $lock_attempts -lt $max_lock_attempts ]]; do
+            # Check if lock directory is stale
+            if [[ -d "$lock_dir" ]]; then
+                local lock_age=$(($(date +%s) - $(stat -f %m "$lock_dir" 2>/dev/null || stat -c %Y "$lock_dir" 2>/dev/null || echo 0)))
+                if [[ $lock_age -gt 300 ]]; then
+                    rm -rf "$lock_dir" 2>/dev/null || true
+                    sleep 0.1
+                    continue
+                fi
+            fi
+            sleep 0.5
+            lock_attempts=$((lock_attempts + 1))
+        done
+
+        # Try to create lock directory
+        for i in {1..10}; do
+            if mkdir "$lock_dir" 2>/dev/null; then
+                if [[ -d "$lock_dir" ]]; then
+                    echo "$$" > "${lock_dir}/pid" 2>/dev/null
+                    if [[ -f "${lock_dir}/pid" ]]; then
+                        lock_acquired=true
+                        break
+                    else
+                        rm -rf "$lock_dir" 2>/dev/null || true
+                    fi
+                fi
+            fi
             sleep 0.1
+        done
+
+        if [[ "$lock_acquired" == "true" ]]; then
+            local lock_type="directory"
+        fi
+    fi
+
+    # Helper function to release lock
+    # Use default values to handle unbound variables with set -u
+    releaseLock() {
+        local acquired="${lock_acquired:-false}"
+        local ltype="${lock_type:-}"
+        local lfd="${lock_fd:-}"
+        local ldir="${lock_dir:-}"
+        local lfile="${lock_file:-}"
+
+        if [[ "$acquired" == "true" ]]; then
+            if [[ "$ltype" == "flock" ]] && command -v flock >/dev/null 2>&1 && [[ -n "$lfd" ]]; then
+                flock -u $lfd 2>/dev/null || true
+                eval "exec $lfd>&-" 2>/dev/null || true
+            elif [[ "$ltype" == "directory" ]] && [[ -n "$ldir" ]]; then
+                rm -rf "$ldir" 2>/dev/null || true
+            fi
+            rm -f "$lfile" 2>/dev/null || true
+        fi
+    }
+
+    # Set up trap to release lock on exit
+    # Capture lock state in trap command to avoid unbound variable errors
+    local trap_lock_acquired="${lock_acquired:-false}"
+    local trap_lock_type="${lock_type:-}"
+    local trap_lock_fd="${lock_fd:-}"
+    local trap_lock_dir="${lock_dir:-}"
+    local trap_lock_file="${lock_file:-}"
+
+    if [[ "$trap_lock_acquired" == "true" ]]; then
+        # Create a trap that uses captured variables
+        if [[ "$trap_lock_type" == "flock" ]] && command -v flock >/dev/null 2>&1 && [[ -n "$trap_lock_fd" ]]; then
+            trap "flock -u $trap_lock_fd 2>/dev/null || true; eval 'exec $trap_lock_fd>&-' 2>/dev/null || true; rm -f '$trap_lock_file' 2>/dev/null || true" RETURN
+        elif [[ "$trap_lock_type" == "directory" ]] && [[ -n "$trap_lock_dir" ]]; then
+            trap "rm -rf '$trap_lock_dir' 2>/dev/null || true; rm -f '$trap_lock_file' 2>/dev/null || true" RETURN
         else
-            # Lock is still held by active process - this is a serious issue
-            # Silently try to update anyway (better than leaving status wrong)
-            # Don't log error - this is expected under heavy parallel load
-            :
+            trap "rm -f '$trap_lock_file' 2>/dev/null || true" RETURN
         fi
     fi
 
-    # Create lock file - retry if it fails
-    local lock_created=false
-    for i in {1..10}; do
-        if echo "$$" > "$lock_file" 2>/dev/null; then
-            lock_created=true
-            break
-        fi
-        sleep 0.1
-    done
-
-    if [[ "$lock_created" == "false" ]]; then
-        # Silently continue - will try to update without lock (better than nothing)
-        # Don't log error - this is expected under heavy parallel load
-        :
-    fi
-
-    # Ensure lock is released on exit (use full path to avoid unbound variable)
-    trap "rm -f '${PROGRESS_TRACKING_FILE}.lock' 2>/dev/null" RETURN
+    # If we couldn't acquire lock, continue anyway (better than hanging)
+    # The update will still work, just with potential race conditions
 
     # Re-read file in case it was updated by another process
     if [[ ! -f "$PROGRESS_TRACKING_FILE" ]]; then
-        rm -f "$lock_file"
+        releaseLock
         return 1
     fi
 
+    # Validate input JSON file is valid before processing
+    if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+        # File is corrupted - try to repair or recreate
+        releaseLock
+        error "[$network] Progress tracking file contains invalid JSON, attempting to repair..."
+
+        # Try to extract valid parts and recreate file
+        local contract=$(jq -r '.contract // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+        local environment=$(jq -r '.environment // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+        local action_type=$(jq -r '.actionType // "generic"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "generic")
+
+        # Create fresh file with just this network
+        local repaired_data=$(jq -n \
+            --arg contract "$contract" \
+            --arg environment "$environment" \
+            --arg actionType "$action_type" \
+            --arg network "$network" \
+            --arg status "$status" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg error "$(if [[ -n "$error_message" ]]; then echo "$error_message"; else echo ""; fi)" \
+            '{
+                contract: $contract,
+                environment: $environment,
+                actionType: $actionType,
+                startTime: $timestamp,
+                lastUpdate: $timestamp,
+                networks: {
+                    ($network): {
+                        status: $status,
+                        attempts: 1,
+                        lastAttempt: $timestamp,
+                        error: (if $error == "" then null else $error end)
+                    }
+                }
+            }')
+
+        if ! echo "$repaired_data" > "${PROGRESS_TRACKING_FILE}.tmp" 2>/dev/null; then
+            return 1
+        fi
+
+        # Validate repaired JSON before moving
+        if ! jq empty "${PROGRESS_TRACKING_FILE}.tmp" 2>/dev/null; then
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            return 1
+        fi
+
+        mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null || return 1
+        releaseLock
+        return 0
+    fi
+
     # Update progress - use --arg for error to handle quotes/backslashes safely
-    local updated_data=$(jq \
+    # First, ensure the file is valid JSON before reading
+    if ! jq empty "$PROGRESS_TRACKING_FILE" >/dev/null 2>&1; then
+        releaseLock
+        error "[$network] Progress tracking file is corrupted, cannot update"
+        return 1
+    fi
+
+    # Capture both stdout and stderr from jq, and check exit code
+    local updated_data
+    local jq_stderr_file
+    jq_stderr_file=$(mktemp)
+
+    updated_data=$(jq \
         --arg network "$network" \
         --arg status "$status" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -895,69 +1106,170 @@ function updateNetworkProgress() {
          .networks[$network].attempts += 1 |
          .networks[$network].error = ($error | if . == "null" then null else . end) |
          .lastUpdate = $timestamp' \
-        "$PROGRESS_TRACKING_FILE" 2>/dev/null)
+        "$PROGRESS_TRACKING_FILE" 2>"$jq_stderr_file")
+
+    local jq_exit_code=$?
+    local jq_error_msg
+    if [[ -f "$jq_stderr_file" ]]; then
+        jq_error_msg=$(cat "$jq_stderr_file" 2>/dev/null || echo "")
+        rm -f "$jq_stderr_file"
+    fi
+
+    if [[ $jq_exit_code -ne 0 ]]; then
+        releaseLock
+        error "[$network] Failed to generate updated JSON data (jq exit code: $jq_exit_code)"
+        if [[ -n "$jq_error_msg" ]]; then
+            error "[$network] jq error: $jq_error_msg"
+        fi
+        return 1
+    fi
 
     if [[ -z "$updated_data" ]]; then
-        rm -f "$lock_file"
+        releaseLock
+        error "[$network] Failed to generate updated JSON data (empty output from jq)"
+        if [[ -n "$jq_error_msg" ]]; then
+            error "[$network] jq stderr: $jq_error_msg"
+        fi
         return 1
     fi
 
+    # Validate the updated JSON is valid before writing
+    if ! echo "$updated_data" | jq empty >/dev/null 2>&1; then
+        releaseLock
+        error "[$network] Generated invalid JSON, skipping update"
+        return 1
+    fi
+
+    # Write to temp file - don't suppress errors so we can see if write fails
     if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
-        rm -f "$lock_file"
-        # Silently return failure - caller will retry
+        releaseLock
+        error "[$network] Failed to write temp file"
         return 1
     fi
 
-    # Only move if temp file exists and is valid
-    if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
-        if mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
-            # Verify the update actually happened by reading back the status
-            # Note: Under heavy parallel load, another process might have updated the status
-            # between our write and verification, so we check if status matches OR if it's been
-            # updated to a "later" state (pending -> in_progress -> success/failed)
-            local verify_status=$(jq -r --arg network "$network" '.networks[$network].status // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
-            if [[ "$verify_status" == "$status" ]]; then
-                # Update succeeded - remove lock and return success
-                rm -f "$lock_file"
-                return 0
-            else
-                # Status doesn't match - could be due to race condition with parallel updates
-                # Check if the current status is a "later" state (which is acceptable)
-                # Order: pending < in_progress < success/failed
-                local status_acceptable=false
-                if [[ "$status" == "pending" && ("$verify_status" == "in_progress" || "$verify_status" == "success" || "$verify_status" == "failed") ]]; then
-                    status_acceptable=true  # Status progressed forward, that's fine
-                elif [[ "$status" == "in_progress" && ("$verify_status" == "success" || "$verify_status" == "failed") ]]; then
-                    status_acceptable=true  # Status progressed forward, that's fine
-                elif [[ "$status" == "success" && "$verify_status" == "success" ]]; then
-                    status_acceptable=true  # Already success, that's fine
-                elif [[ "$status" == "failed" && "$verify_status" == "failed" ]]; then
-                    status_acceptable=true  # Already failed, that's fine
-                fi
+    # Validate temp file exists and has content - check immediately after write
+    if [[ ! -f "${PROGRESS_TRACKING_FILE}.tmp" ]] || [[ ! -s "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+        rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+        releaseLock
+        error "[$network] Temp file was not created or is empty"
+        return 1
+    fi
 
-                if [[ "$status_acceptable" == "true" ]]; then
-                    # Status is acceptable (progressed forward or already correct)
-                    rm -f "$lock_file"
-                    return 0
-                else
-                    # Status mismatch - silently return failure, caller will retry
-                    rm -f "$lock_file"
-                    return 1
-                fi
+    # Validate JSON - file exists at this point (checked above)
+    # Re-check file existence right before validation to handle race conditions in parallel execution
+    if [[ -f "${PROGRESS_TRACKING_FILE}.tmp" ]] && [[ -r "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+        local jq_error_output
+        jq_error_output=$(jq empty "${PROGRESS_TRACKING_FILE}.tmp" 2>&1)
+        local jq_exit_code=$?
+        if [[ $jq_exit_code -ne 0 ]]; then
+            # Check if the error is due to file not existing (race condition)
+            if [[ "$jq_error_output" == *"No such file or directory"* ]] || [[ "$jq_error_output" == *"Could not open file"* ]]; then
+                rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                releaseLock
+                error "[$network] Temp file was removed before validation (race condition), skipping update"
+                return 1
             fi
-        else
-            # Move failed - silently return failure, caller will retry
-            rm -f "$lock_file"
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            releaseLock
+            error "[$network] Temp file contains invalid JSON, skipping update"
+            error "[$network] JSON validation error: ${jq_error_output:-Unknown error}"
             return 1
         fi
     else
-        # Temp file doesn't exist - silently return failure, caller will retry
-        rm -f "$lock_file"
+        rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+        releaseLock
+        error "[$network] Temp file does not exist or is not readable for validation"
         return 1
     fi
 
-    # Remove lock file (should already be removed above, but just in case)
-    rm -f "$lock_file"
+    # Move temp file to final location - file exists and is valid at this point
+    # Retry move operation in case of race conditions
+    local move_success=false
+    for move_retry in {1..10}; do
+        if mv "${PROGRESS_TRACKING_FILE}.tmp" "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            move_success=true
+            break
+        fi
+        # Another process might be moving the file - wait and retry
+        sleep 0.1
+    done
+
+    if [[ "$move_success" == "true" ]]; then
+        # Validate the final file is valid JSON after move
+        local final_jq_error
+        final_jq_error=$(jq empty "$PROGRESS_TRACKING_FILE" 2>&1)
+        local final_jq_exit_code=$?
+        if [[ $final_jq_exit_code -ne 0 ]]; then
+            releaseLock
+            error "[$network] Final file contains invalid JSON after move, update failed"
+            error "[$network] JSON validation error: ${final_jq_error:-Unknown error}"
+            return 1
+        fi
+
+        # Verify the update actually happened by reading back the status
+        # Note: Under heavy parallel load, another process might have updated the status
+        # between our write and verification, so we check if status matches OR if it's been
+        # updated to a "later" state (pending -> in_progress -> success/failed)
+        local verify_status=$(jq -r --arg network "$network" '.networks[$network].status // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+        if [[ "$verify_status" == "$status" ]]; then
+            # Update succeeded - remove lock and return success
+            releaseLock
+            return 0
+        else
+            # Status doesn't match - could be due to race condition with parallel updates
+            # Check if the current status is a "later" state (which is acceptable)
+            # Order: pending < in_progress < success/failed
+            local status_acceptable=false
+            if [[ "$status" == "pending" && ("$verify_status" == "in_progress" || "$verify_status" == "success" || "$verify_status" == "failed") ]]; then
+                status_acceptable=true  # Status progressed forward, that's fine
+            elif [[ "$status" == "in_progress" && ("$verify_status" == "success" || "$verify_status" == "failed") ]]; then
+                status_acceptable=true  # Status progressed forward, that's fine
+            elif [[ "$status" == "success" && "$verify_status" == "success" ]]; then
+                status_acceptable=true  # Already success, that's fine
+            elif [[ "$status" == "failed" && "$verify_status" == "failed" ]]; then
+                status_acceptable=true  # Already failed, that's fine
+            fi
+
+            if [[ "$status_acceptable" == "true" ]]; then
+                # Status is acceptable (progressed forward or already correct)
+                releaseLock
+                return 0
+            else
+                # Status mismatch - silently return failure, caller will retry
+                releaseLock
+                return 1
+            fi
+        fi
+    else
+        # Move failed - try to recover by checking if file was moved by another process
+        # This can happen in parallel execution when multiple processes try to update simultaneously
+        if [[ -f "$PROGRESS_TRACKING_FILE" ]] && jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            # File exists and is valid - another process might have updated it
+            # Check if our update is already there or if we need to retry
+            local current_status=$(jq -r --arg network "$network" '.networks[$network].status // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+            if [[ "$current_status" == "$status" ]]; then
+                # Our update is already there - another process did it, that's fine
+                rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+                releaseLock
+                return 0
+            fi
+            # Status doesn't match - need to retry the update
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            releaseLock
+            # Retry once after a short delay
+            sleep 0.5
+            if updateNetworkProgress "$network" "$status" "$error_message"; then
+                return 0
+            fi
+        fi
+        # Move failed and file doesn't exist or is invalid - return failure, caller will retry
+        rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+        releaseLock
+        return 1
+    fi
+
+    # Remove lock (should already be removed above, but just in case)
+    releaseLock
 
     # Don't log status updates here - they're logged by the caller
     # This function only updates the progress file
@@ -1201,8 +1513,10 @@ killAllBackgroundProcesses() {
         fi
     fi
 
-    # Combine all PIDs
-    all_pids+=("${child_pids[@]}")
+    # Combine all PIDs (only if child_pids array has elements)
+    if [[ ${#child_pids[@]} -gt 0 ]]; then
+        all_pids+=("${child_pids[@]}")
+    fi
 
     # Remove duplicates
     local -a unique_pids=()
@@ -1390,41 +1704,9 @@ function executeNetworkInGroup() {
     # Note: INT/TERM are handled by global handler, but we still need EXIT for cleanup
     trap "_cleanup_network_status \"$network\"" EXIT
 
-    # Quick check: If executeNetworkActions has no actual actions (all commented out),
-    # mark as success immediately to avoid unnecessary processing
-    # This is a simple heuristic - check if the function body contains any uncommented action commands
-    local actions_body=$(declare -f executeNetworkActions 2>/dev/null || echo "")
-    if [[ -n "$actions_body" ]]; then
-        # Count uncommented lines that contain actual action commands (not just setup/return)
-        local action_lines=$(echo "$actions_body" | grep -vE '^\s*#' | grep -vE '^\s*(local|export|return|if|fi|\[\[|\]\]|then|else|elif|echo|printf)' | grep -E '(deploy|verify|propose|cast|bunx|tsx|forge|getContract|createMultisig|updateDiamond|send|call)' | wc -l | tr -d ' ')
-        if [[ "${action_lines:-0}" -eq 0 ]]; then
-            # No actions configured - mark as success immediately
-            # CRITICAL: Must ensure status update succeeds before returning
-            trap - EXIT  # Remove EXIT trap before updating (INT/TERM handled by global handler)
-            local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-            printf '\033[0;32m[%s] [%s] ✅ SUCCESS - No actions configured, marking as successful\033[0m\n' "$TIMESTAMP" "$network"
-            # Retry status update up to 5 times to ensure it succeeds
-            local update_success=false
-            for retry in {1..5}; do
-                if updateNetworkProgress "$network" "success"; then
-                    update_success=true
-                    printf '\033[0;32m[%s] [%s] ✅ Status updated to SUCCESS in tracking file\033[0m\n' "$TIMESTAMP" "$network"
-                    break
-                fi
-                sleep 0.2
-            done
-            if [[ "$update_success" == "false" ]]; then
-                # Try one final time - if it still fails, log warning but continue
-                if updateNetworkProgress "$network" "success"; then
-                    printf '\033[0;32m[%s] [%s] ✅ Status updated to SUCCESS in tracking file\033[0m\n' "$TIMESTAMP" "$network"
-                else
-                    printf '\033[33m[%s] [%s] ⚠️  Warning: Failed to update status to success, but execution succeeded\033[0m\n' "$TIMESTAMP" "$network"
-                fi
-                return 0
-            fi
-            return 0
-        fi
-    fi
+    # Note: Removed "no actions configured" check - this was too aggressive and incorrectly
+    # identified cases with actions as "no action". Instead, we always execute and let the
+    # action type detection fall back to "generic" if no specific action type is detected.
 
     # Get RPC URL (ENVIRONMENT is read from global variable)
     local rpc_url=$(getRPCUrl "$network" "$ENVIRONMENT")
@@ -1726,11 +2008,8 @@ function executeGroupSequentially() {
         return 1
     fi
 
-    # Recompile for this group
-    if ! recompileForGroup "$group"; then
-        error "Failed to recompile for group $group"
-        return 1
-    fi
+    # Note: Compilation is handled automatically by deploySingleContract when needed
+    # No need to pre-compile here as forge will compile automatically
 
     # Create log directory for this group
     local log_dir=$(mktemp -d)
@@ -1787,6 +2066,8 @@ function executeGroupSequentially() {
             # Each process runs independently and updates progress file atomically
             # Note: executeNetworkInGroup has its own timeout protection via EXIT trap
             # Use process groups for better signal handling
+            # Start network execution in background
+            # Each process runs independently and updates progress file atomically
             (set -m; executeNetworkInGroup "$network" "$log_dir") &
             local pid=$!
             # Track the PID globally for proper cleanup
@@ -1856,11 +2137,11 @@ function executeGroupSequentially() {
 
         # Wait for file operations to complete (race condition fix)
         # Give file locks time to be released and writes to complete
-        local lock_file="${PROGRESS_TRACKING_FILE}.lock"
+        local lock_dir="${PROGRESS_TRACKING_FILE}.lock"
         local wait_attempts=0
         local max_wait_attempts=40  # 20 seconds max wait
 
-        while [[ -f "$lock_file" && $wait_attempts -lt $max_wait_attempts ]]; do
+        while [[ -d "$lock_dir" && $wait_attempts -lt $max_wait_attempts ]]; do
             sleep 0.5
             wait_attempts=$((wait_attempts + 1))
         done
@@ -2145,11 +2426,11 @@ function executeNetworksByGroup() {
     rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null || true
 
     # Wait for any remaining file operations to complete
-    local lock_file="${PROGRESS_TRACKING_FILE}.lock"
+    local lock_dir="${PROGRESS_TRACKING_FILE}.lock"
     local wait_attempts=0
     local max_wait_attempts=40  # 20 seconds max wait
 
-    while [[ -f "$lock_file" && $wait_attempts -lt $max_wait_attempts ]]; do
+    while [[ -d "$lock_dir" && $wait_attempts -lt $max_wait_attempts ]]; do
         sleep 0.5
         wait_attempts=$((wait_attempts + 1))
     done
@@ -2305,7 +2586,7 @@ function iterateAllNetworksOriginal() {
     # local NETWORKS=("arbitrum" "aurora" "base" "blast" "bob" "bsc" "cronos" "gravity" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
     # local NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "mainnet" "optimism" "polygon") # <<<<< AllBridgeFacet
     # local NETWORKS=("abstract" "fraxtal" "lens" "lisk" "sei" "sophon" "swellchain" "unichain")
-    # local NETWORKS=("base" "arbitrum" "bsc" "corn" "katana" "bob" "etherlink" "plume" "gravity" "superposition" "cronos" "scroll" "blast" "apechain" "opbnb" "fantom" "lens" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "boba" "swellchain")
+    # local NETWORKS=("base" "arbitrum" "bsc" "corn" "katana" "bob" "etherlink" "plume" "gravity" "superposition" "cronos" "scroll" "blast" "apechain" "opbnb" "lens" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "boba" "swellchain")
     # local NETWORKS=("plume" "taiko" "xlayer" "zksync")
     # local NETWORKS=("vana" "fraxtal" "bob" "sophon")
 
@@ -2604,11 +2885,8 @@ function executeGroupWithHandleNetwork() {
         return 1
     fi
 
-    # Recompile for this group
-    if ! recompileForGroup "$group"; then
-        error "Failed to recompile for group $group"
-        return 1
-    fi
+    # Note: Compilation is handled automatically by deploySingleContract when needed
+    # No need to pre-compile here as forge will compile automatically
 
     # Create log directory for this group
     local log_dir=$(mktemp -d)
@@ -2854,9 +3132,45 @@ function resetNetworkStatuses() {
         return 0
     fi
 
+    # Validate JSON before writing
+    if ! echo "$updated_data" | jq empty 2>/dev/null; then
+        error "Generated invalid JSON for progress tracking reset"
+        return 1
+    fi
+
     # Write updated data
     if ! echo "$updated_data" > "${PROGRESS_TRACKING_FILE}.tmp"; then
         error "Failed to write updated progress tracking data"
+        return 1
+    fi
+
+    # Validate temp file JSON before moving - ensure file exists first
+    if [[ ! -f "${PROGRESS_TRACKING_FILE}.tmp" ]] || [[ ! -s "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+        error "Temp file was not created or is empty"
+        rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+        return 1
+    fi
+
+    # Re-check file existence right before validation to handle race conditions
+    if [[ ! -f "${PROGRESS_TRACKING_FILE}.tmp" ]] || [[ ! -r "${PROGRESS_TRACKING_FILE}.tmp" ]]; then
+        error "Temp file was removed before validation (race condition)"
+        rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+        return 1
+    fi
+
+    local jq_error_output
+    jq_error_output=$(jq empty "${PROGRESS_TRACKING_FILE}.tmp" 2>&1)
+    local jq_exit_code=$?
+    if [[ $jq_exit_code -ne 0 ]]; then
+        # Check if the error is due to file not existing (race condition)
+        if [[ "$jq_error_output" == *"No such file or directory"* ]] || [[ "$jq_error_output" == *"Could not open file"* ]]; then
+            error "Temp file was removed before validation (race condition)"
+            rm -f "${PROGRESS_TRACKING_FILE}.tmp"
+            return 1
+        fi
+        error "Temp file contains invalid JSON"
+        error "JSON validation error: ${jq_error_output:-Unknown error}"
+        rm -f "${PROGRESS_TRACKING_FILE}.tmp"
         return 1
     fi
 
@@ -2866,6 +3180,12 @@ function resetNetworkStatuses() {
             rm -f "${PROGRESS_TRACKING_FILE}.tmp"
             return 1
         }
+
+        # Final validation after move
+        if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+            error "Final file contains invalid JSON after move"
+            return 1
+        fi
     fi
 
     logWithTimestamp "Reset $reset_count network(s) to pending status"

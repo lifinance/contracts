@@ -9,23 +9,18 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
-import {
-  decodeFunctionData,
-  parseAbi,
-  type Abi,
-  type Account,
-  type Address,
-  type Hex,
-} from 'viem'
+import { type Collection } from 'mongodb'
+import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
-import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
-  PrivateKeyTypeEnum,
-  decodeDiamondCut,
-  decodeTransactionData,
+  formatDecodedTxDataForDisplay,
+  getTargetName,
+} from './safe-decode-utils'
+import {
+  getNetworksWithActionableTransactions,
   getNetworksWithPendingTransactions,
   getPendingTransactionsByNetwork,
   getPrivateKey,
@@ -36,11 +31,13 @@ import {
   isAddressASafeOwner,
   isSignedByCurrentSigner,
   isSignedByProductionWallet,
+  PrivateKeyTypeEnum,
   shouldShowSignAndExecuteWithDeployer,
   wouldMeetThreshold,
   type IAugmentedSafeTxDocument,
   type ISafeTransaction,
   type ISafeTxDocument,
+  type ViemSafe,
 } from './safe-utils'
 
 dotenv.config()
@@ -60,98 +57,8 @@ const globalTimeoutExecutions: Array<{
 }> = []
 
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
-;(BigInt.prototype as any).toJSON = function () {
+;(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
   return this.toString()
-}
-
-/**
- * Decodes nested timelock schedule calls that may contain diamondCut
- * @param decoded - The decoded schedule function data
- * @param chainId - Chain ID for ABI fetching
- */
-async function decodeNestedTimelockCall(decoded: any, chainId: number) {
-  if (decoded.functionName === 'schedule') {
-    consola.info('Timelock Schedule Details:')
-    consola.info('-'.repeat(80))
-
-    const [target, value, data, predecessor, salt, delay] = decoded.args
-
-    consola.info(`Target:      \u001b[32m${target}\u001b[0m`)
-    consola.info(`Value:       \u001b[32m${value}\u001b[0m`)
-    consola.info(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
-    consola.info(`Salt:        \u001b[32m${salt}\u001b[0m`)
-    consola.info(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
-    consola.info('-'.repeat(80))
-
-    // Try to decode the nested data
-    if (data && data !== '0x')
-      try {
-        const nestedDecoded = await decodeTransactionData(data as Hex)
-        if (nestedDecoded.functionName) {
-          consola.info(
-            `Nested Function: \u001b[34m${nestedDecoded.functionName}\u001b[0m`
-          )
-
-          // If the nested call is diamondCut, decode it further
-          if (nestedDecoded.functionName.includes('diamondCut')) {
-            const fullAbiString = `function ${nestedDecoded.functionName}`
-            const abiInterface = parseAbi([fullAbiString])
-            const nestedDecodedData = decodeFunctionData({
-              abi: abiInterface,
-              data: data as Hex,
-            })
-
-            if (nestedDecodedData.functionName === 'diamondCut') {
-              consola.info('Nested Diamond Cut detected - decoding...')
-              await decodeDiamondCut(nestedDecodedData, chainId)
-            } else
-              consola.info(
-                'Nested Data:',
-                JSON.stringify(nestedDecodedData, null, 2)
-              )
-          }
-          // Decode the nested function arguments properly
-          else
-            try {
-              const fullAbiString = `function ${nestedDecoded.functionName}`
-              const abiInterface = parseAbi([fullAbiString])
-              const nestedDecodedData = decodeFunctionData({
-                abi: abiInterface,
-                data: data as Hex,
-              })
-
-              if (nestedDecodedData.args && nestedDecodedData.args.length > 0) {
-                consola.info('Nested Decoded Arguments:')
-                nestedDecodedData.args.forEach((arg: any, index: number) => {
-                  // Handle different types of arguments
-                  let displayValue = arg
-                  if (typeof arg === 'bigint') displayValue = arg.toString()
-                  else if (typeof arg === 'object' && arg !== null)
-                    displayValue = JSON.stringify(arg)
-
-                  consola.info(
-                    `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
-                  )
-                })
-              } else
-                consola.info(
-                  'No nested arguments or failed to decode nested arguments'
-                )
-            } catch (decodeError: any) {
-              consola.warn(
-                `Failed to decode nested function arguments: ${decodeError.message}`
-              )
-              consola.info(
-                'Nested Data:',
-                JSON.stringify(nestedDecoded.decodedData, null, 2)
-              )
-            }
-        } else consola.info(`Nested Data: ${data}`)
-      } catch (error: any) {
-        consola.warn(`Failed to decode nested data: ${error.message}`)
-        consola.info(`Raw nested data: ${data}`)
-      }
-  }
 }
 
 /**
@@ -170,7 +77,7 @@ const processTxs = async (
   privateKey: string | undefined,
   privKeyType: PrivateKeyTypeEnum,
   pendingTxs: ISafeTxDocument[],
-  pendingTransactions: any,
+  pendingTransactions: Collection<ISafeTxDocument>,
   rpcUrl?: string,
   useLedger?: boolean,
   ledgerOptions?: {
@@ -211,8 +118,9 @@ const processTxs = async (
       consola.error('Cannot sign or execute transactions - exiting')
       return
     }
-  } catch (error: any) {
-    consola.error(`Failed to check if signer is an owner: ${error.message}`)
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    consola.error(`Failed to check if signer is an owner: ${errorMsg}`)
     consola.error('Skipping this network and moving to the next one')
     return
   }
@@ -228,9 +136,10 @@ const processTxs = async (
       const signedTx = await safe.signTransaction(safeTransaction)
       consola.success('Transaction signed')
       return signedTx
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error('Error signing transaction:', error)
-      throw new Error(`Failed to sign transaction: ${error.message}`)
+      throw new Error(`Failed to sign transaction: ${errorMsg}`)
     }
   }
 
@@ -241,7 +150,7 @@ const processTxs = async (
    */
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
-    safeClient: any = safe
+    safeClient: ViemSafe = safe
   ) {
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
@@ -275,10 +184,11 @@ const processTxs = async (
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
       consola.log(' ')
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error('❌ Error executing Safe transaction:')
-      consola.error(`   ${error.message}`)
-      if (error.message.includes('GS026')) {
+      consola.error(`   ${errorMsg}`)
+      if (errorMsg.includes('GS026')) {
         consola.error(
           '   This appears to be a signature validation error (GS026).'
         )
@@ -287,20 +197,20 @@ const processTxs = async (
         )
       }
       // Record error in global arrays
-      if (error.message.toLowerCase().includes('timeout'))
+      if (errorMsg.toLowerCase().includes('timeout'))
         globalTimeoutExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
-          error: error.message,
+          error: errorMsg,
         })
       else
         globalFailedExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
-          error: error.message,
+          error: errorMsg,
         })
 
-      throw new Error(`Transaction execution failed: ${error.message}`)
+      throw new Error(`Transaction execution failed: ${errorMsg}`)
     }
   }
 
@@ -308,8 +218,9 @@ const processTxs = async (
   let threshold
   try {
     threshold = Number(await safe.getThreshold())
-  } catch (error: any) {
-    consola.error(`Failed to get threshold: ${error.message}`)
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    consola.error(`Failed to get threshold: ${errorMsg}`)
     throw new Error(
       `Could not get threshold for Safe ${safeAddress} on ${network}`
     )
@@ -361,82 +272,25 @@ const processTxs = async (
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
     return 0
   })) {
-    let abi
-    let abiInterface: Abi
-    let decoded
-
-    try {
-      if (tx.safeTx.data) {
-        const { functionName } = await decodeTransactionData(
-          tx.safeTx.data.data as Hex
-        )
-        if (functionName) {
-          abi = functionName
-          const fullAbiString = `function ${abi}`
-          abiInterface = parseAbi([fullAbiString])
-          decoded = decodeFunctionData({
-            abi: abiInterface,
-            data: tx.safeTx.data.data as Hex,
-          })
-        }
-      }
-    } catch (error: any) {
-      consola.warn(`Failed to decode transaction data: ${error.message}`)
-    }
-
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
 
-    if (abi)
-      if (decoded && decoded.functionName === 'diamondCut')
-        await decodeDiamondCut(decoded, chain.id)
-      else if (decoded && decoded.functionName === 'schedule')
-        await decodeNestedTimelockCall(decoded, chain.id)
-      else {
-        consola.info('Method:', abi)
-        if (decoded) {
-          consola.info('Function Name:', decoded.functionName)
+    if (tx.safeTx.data?.data)
+      await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
+        chainId: chain.id,
+        network,
+      })
 
-          // If this is a registerPeripheryContract call, show an explorer link for the periphery address.
-          if (
-            decoded.functionName === 'registerPeripheryContract' &&
-            decoded.args &&
-            decoded.args.length >= 2
-          ) {
-            const peripheryAddress = decoded.args[1] as string
-            let peripheryLine = `Periphery Address: \u001b[34m${peripheryAddress}\u001b[0m`
-            const explorerUrl = buildExplorerContractPageUrl(
-              network,
-              peripheryAddress
-            )
-            if (explorerUrl)
-              peripheryLine += ` \u001b[36m${explorerUrl}\u001b[0m`
-            consola.info(peripheryLine)
-          }
-
-          if (decoded.args && decoded.args.length > 0) {
-            consola.info('Decoded Arguments:')
-            decoded.args.forEach((arg: any, index: number) => {
-              // Handle different types of arguments
-              let displayValue = arg
-              if (typeof arg === 'bigint') displayValue = arg.toString()
-              else if (typeof arg === 'object' && arg !== null)
-                displayValue = JSON.stringify(arg)
-
-              consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
-            })
-          } else consola.info('No arguments or failed to decode arguments')
-
-          // Only show full decoded data if it contains useful information beyond what we've already shown
-          if (decoded.args === undefined)
-            consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
-        }
-      }
+    // Get target name for display
+    const targetName = await getTargetName(tx.safeTx.data.to, network)
+    const toDisplay = targetName
+      ? `${tx.safeTx.data.to} \u001b[33m${targetName}\u001b[0m`
+      : tx.safeTx.data.to
 
     consola.info(`Safe Transaction Details:
     Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
-    To:              \u001b[32m${tx.safeTx.data.to}\u001b[0m
+    To:              \u001b[32m${toDisplay}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
@@ -660,6 +514,7 @@ const main = defineCommand({
     ledger: {
       type: 'boolean',
       description: 'Use Ledger hardware wallet for signing',
+      default: true,
       required: false,
     },
     ledgerLive: {
@@ -682,7 +537,7 @@ const main = defineCommand({
     // Set up signing options
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
-    const useLedger = args.ledger || false
+    const useLedger = args.ledger ?? true
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
       accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
@@ -733,8 +588,9 @@ const main = defineCommand({
         const { getLedgerAccount } = await import('./ledger')
         ledgerResult = await getLedgerAccount(ledgerOptions)
         consola.success('Ledger connected successfully for all networks')
-      } catch (error: any) {
-        consola.error(`Failed to connect to Ledger: ${error.message}`)
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        consola.error(`Failed to connect to Ledger: ${errorMsg}`)
         throw error
       }
 
@@ -742,6 +598,18 @@ const main = defineCommand({
       // Connect to MongoDB early to use it for network detection
       const { client: mongoClient, pendingTransactions } =
         await getSafeMongoCollection()
+
+      // Get signer address early (needed for filtering actionable networks)
+      let signerAddress: Address
+      if (useLedger && ledgerResult?.account) {
+        signerAddress = ledgerResult.account.address
+      } else if (privateKey) {
+        const { privateKeyToAccount } = await import('viem/accounts')
+        const account = privateKeyToAccount(`0x${privateKey}` as Hex)
+        signerAddress = account.address
+      } else {
+        throw new Error('No signer available (missing private key or Ledger)')
+      }
 
       let networks: string[]
 
@@ -757,10 +625,11 @@ const main = defineCommand({
 
         networks = [args.network]
       } else {
-        // Get only networks with pending transactions
-        networks = await getNetworksWithPendingTransactions(pendingTransactions)
+        // First, get all networks with pending transactions (for informational purposes)
+        const allNetworksWithPendingTxs =
+          await getNetworksWithPendingTransactions(pendingTransactions)
 
-        if (networks.length === 0) {
+        if (allNetworksWithPendingTxs.length === 0) {
           consola.info('No networks have pending transactions')
           await mongoClient.close(true)
           return
@@ -768,9 +637,53 @@ const main = defineCommand({
 
         consola.info(
           `Found pending transactions on ${
-            networks.length
-          } network(s): ${networks.join(', ')}`
+            allNetworksWithPendingTxs.length
+          } network(s): ${allNetworksWithPendingTxs.join(', ')}`
         )
+        consola.info(`Checking ownership for signer: ${signerAddress}`)
+
+        // Filter to only networks where the user can take action (is a Safe owner)
+        networks = await getNetworksWithActionableTransactions(
+          pendingTransactions,
+          signerAddress,
+          privateKey,
+          useLedger,
+          ledgerOptions,
+          ledgerResult?.account,
+          args.rpcUrl
+        )
+
+        if (networks.length === 0) {
+          consola.info(
+            'No networks found where you can take action. All pending transactions are either already signed by you or have enough signatures to execute.'
+          )
+          consola.info('Check the summary above for details on each network.')
+          await mongoClient.close(true)
+          return
+        }
+
+        // Show which networks are actionable
+        if (networks.length < allNetworksWithPendingTxs.length) {
+          const nonActionableNetworks = allNetworksWithPendingTxs.filter(
+            (n) => !networks.includes(n)
+          )
+          consola.info(
+            `You can take action on ${
+              networks.length
+            } network(s): ${networks.join(', ')}`
+          )
+          consola.info(
+            `Skipping ${
+              nonActionableNetworks.length
+            } network(s) where you are not a Safe owner: ${nonActionableNetworks.join(
+              ', '
+            )}`
+          )
+        } else {
+          consola.info(
+            `You can take action on all ${networks.length} network(s) with pending transactions`
+          )
+        }
       }
 
       // Fetch all pending transactions for the networks we're processing

@@ -357,9 +357,15 @@ function getHighestDeployedContractVersionFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK"
+      return 1
+    fi
+
     # Extract all versions and find the highest one using version sort
-    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' | sort -V | tail -1)
-    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" ]]; then
+    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' 2>/dev/null | sort -V | tail -1)
+    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" && "$HIGHEST_VERSION" != "" ]]; then
       echo "$HIGHEST_VERSION"
       return 0
     fi
@@ -668,7 +674,14 @@ function getConstructorArgsFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs')
+    # Validate that the result is valid JSON before parsing
+    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+      echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK"
+      echo ""
+      return 1
+    fi
+
+    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs' 2>/dev/null)
 
     if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
       echo "$CONSTRUCTOR_ARGS"
@@ -1809,6 +1822,14 @@ function verifyContract() {
   # Build verification command as array for safe execution
   local VERIFY_CMD=()
 
+  # Get verifier URL - all networks in foundry.toml have one configured
+  local VERIFIER_URL
+  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$VERIFIER_URL" ]; then
+    error "No verifier URL found for network $NETWORK in foundry.toml"
+    return 1
+  fi
+
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
     # Set environment variable for zkEVM
@@ -1818,18 +1839,20 @@ function verifyContract() {
       "verify-contract"
       "--zksync"
       "--watch"
-      "--chain" "$CHAIN_ID"
+      # Omit --chain flag since we always provide --verifier-url
       # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "$ADDRESS"
       "$FULL_PATH"
     )
   else
+    # For all networks, we use --verifier-url from foundry.toml
+    # No need for --chain or --chain-id since verifier-url is always provided
     VERIFY_CMD=(
       "forge"
       "verify-contract"
       # "--skip-is-verified-check"  // activate this to override automatic / partial verification
       "--watch"
-      "--chain" "$CHAIN_ID"
+      # Omit --chain flag since we always provide --verifier-url
       "$ADDRESS"
       "$FULL_PATH"
     )
@@ -1870,12 +1893,8 @@ function verifyContract() {
     fi
   fi
 
-  # Add verifier URL if available (for custom verifiers like oklink)
-  local VERIFIER_URL
-  VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null)
-  if [ $? -eq 0 ] && [ -n "$VERIFIER_URL" ]; then
-    VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
-  fi
+  # Always add verifier URL since all networks have one configured in foundry.toml
+  VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
 
   echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
@@ -1886,9 +1905,27 @@ function verifyContract() {
     echo "[info] ${VERIFY_CMD[*]}"
 
     # Execute verification command with --watch flag (will wait for completion)
-    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1)
+    local VERIFY_EXIT_CODE=0
+    VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1) || VERIFY_EXIT_CODE=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Check if command failed with non-zero exit code
+    if [ $VERIFY_EXIT_CODE -ne 0 ]; then
+      error "Verification command failed with exit code $VERIFY_EXIT_CODE"
+      if [ -z "$VERIFY_OUTPUT" ]; then
+        error "No output from verification command. This may indicate a network error, invalid API key, or command syntax issue."
+      else
+        error "Command output: $VERIFY_OUTPUT"
+      fi
+      # Continue to next retry instead of returning immediately
+      RETRY_COUNT=$((RETRY_COUNT + 1))
+      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+        echo "[info] Verification attempt failed, waiting 15 seconds before retry..."
+        sleep 15
+      fi
+      continue
+    fi
 
     # Check if contract is already verified
     if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
@@ -1899,6 +1936,12 @@ function verifyContract() {
     # Parse the final verification response from --watch output
     local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | tail -1 | awk '{print $2}' | tr -d '`')
     local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | tail -1 | cut -d'`' -f2)
+
+    # If no response found in output, display raw output for debugging
+    if [ -z "$RESPONSE" ] && [ -z "$DETAILS" ]; then
+      warning "Could not parse verification response from output. Raw output:"
+      echo "$VERIFY_OUTPUT"
+    fi
 
     # Check if verification succeeded based on final response
     if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
@@ -1912,12 +1955,22 @@ function verifyContract() {
       # Check final status
       local CHECK_CMD=()
       if isZkEvmNetwork "$NETWORK"; then
-        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--chain" "$CHAIN_ID" "$ADDRESS")
+        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "$ADDRESS")
       else
-        CHECK_CMD=("forge" "verify-check" "--chain" "$CHAIN_ID" "$ADDRESS")
+        # Use verifier URL instead of chain flag to match the verification command
+        CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
       fi
 
-      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1)
+      local CHECK_EXIT_CODE=0
+      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
+
+      if [ $CHECK_EXIT_CODE -ne 0 ]; then
+        error "Verification check command failed with exit code $CHECK_EXIT_CODE"
+        if [ -n "$CHECK_OUTPUT" ]; then
+          error "Check command output: $CHECK_OUTPUT"
+        fi
+      fi
+
       local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
       local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep "Details:" | cut -d'`' -f2)
 
@@ -3527,16 +3580,18 @@ function getPrivateKey() {
 # This function handles:
 # - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
 # - Staging: Sends directly using PRIVATE_KEY via cast send --data
-# Usage: sendOrPropose <network> <environment> <target> <calldata>
+# Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
 #   network: Network name (e.g., "mainnet")
 #   environment: "production" or "staging"
 #   target: Target contract address
 #   calldata: Transaction calldata (hex string starting with 0x)
+#   timelock: Optional flag to wrap transaction in timelock (production only)
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET="$3"
   local CALLDATA="$4"
+  local TIMELOCK="${5:-false}"
 
   # Validate required arguments
   if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$CALLDATA" ]]; then
@@ -3552,11 +3607,20 @@ function sendOrPropose() {
 
   if [[ "$ENVIRONMENT" == "production" ]]; then
     # Production: propose to Safe using propose-to-safe.ts
-    bunx tsx script/deploy/safe/propose-to-safe.ts \
-      --network "$NETWORK" \
-      --to "$TARGET" \
-      --calldata "$CALLDATA" \
+    local PROPOSE_CMD=(
+      bunx tsx script/deploy/safe/propose-to-safe.ts
+      --network "$NETWORK"
+      --to "$TARGET"
+      --calldata "$CALLDATA"
       --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
+    )
+    
+    # Add timelock flag if requested
+    if [[ "$TIMELOCK" == "true" ]]; then
+      PROPOSE_CMD+=(--timelock)
+    fi
+    
+    "${PROPOSE_CMD[@]}"
   else
     # Staging: send directly using cast send with --data flag for raw calldata
     # Get RPC URL
@@ -4170,9 +4234,239 @@ function isVersionTag() {
     return 1
   fi
 }
+
+# >>>>>> helpers for executing commands with stdout/stderr capture
+# Function: extractJsonFromForgeOutput
+# Description: Extracts valid JSON from forge script output, handling cases where output may contain non-JSON text
+# Arguments:
+#   $1 - RAW_RETURN_DATA: The raw output string to extract JSON from
+# Returns:
+#   Outputs the extracted JSON to stdout, or original string if no valid JSON found
+# Example:
+#   EXTRACTED=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
+function extractJsonFromForgeOutput() {
+  local RAW_RETURN_DATA="$1"
+  
+  # If already valid JSON, return as-is
+  if echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+    echo "$RAW_RETURN_DATA"
+    return 0
+  fi
+  
+  # Preserve original data for fallback
+  local ORIGINAL_RAW_RETURN_DATA="$RAW_RETURN_DATA"
+  
+  # Try to extract JSON object with "logs" key using grep
+  local TMP_RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
+  if [[ -n "$TMP_RAW_RETURN_DATA" ]] && echo "$TMP_RAW_RETURN_DATA" | jq empty 2>/dev/null; then
+    echo "$TMP_RAW_RETURN_DATA"
+    return 0
+  fi
+  
+  # Fallback: try jq extraction on original data
+  local EXTRACTED=$(echo "$ORIGINAL_RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
+  if [[ -n "$EXTRACTED" ]]; then
+    echo "$EXTRACTED"
+    return 0
+  fi
+  
+  # If all extraction attempts fail, return original
+  echo "$ORIGINAL_RAW_RETURN_DATA"
+  return 1
+}
+
+# Function: executeAndCapture
+# Description: Executes a command and captures stdout, stderr, and exit code using temporary files.
+#              Handles cleanup, debug output, and optional JSON extraction from forge output.
+#              Returns a JSON object with stdout, stderr, and return code (consistent with repo patterns).
+# Arguments:
+#   $1 - COMMAND: The command to execute (as a string, will be eval'd)
+#   $2 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
+# Returns:
+#   Outputs JSON to stdout with structure: {"stdout": "...", "stderr": "...", "returnCode": 0}
+#   Returns the command's exit code
+# Example:
+#   RESULT=$(executeAndCapture 'forge script ...' "true")
+#   RAW_RETURN_DATA=$(echo "$RESULT" | jq -r '.stdout')
+#   STDERR_CONTENT=$(echo "$RESULT" | jq -r '.stderr')
+#   RETURN_CODE=$(echo "$RESULT" | jq -r '.returnCode')
+function executeAndCapture() {
+  local COMMAND="$1"
+  local EXTRACT_JSON="${2:-false}"
+  
+  # Create temporary files to capture stdout and stderr separately
+  # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
+  local STDOUT_LOG
+  local STDERR_LOG
+  STDOUT_LOG="$(mktemp)"
+  STDERR_LOG="$(mktemp)"
+  
+  # Preserve caller EXIT trap (this file is sourced in many scripts)
+  local _OLD_EXIT_TRAP
+  _OLD_EXIT_TRAP="$(trap -p EXIT 2>/dev/null || true)"
+  trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null' EXIT
+  
+  # Execute command with redirection
+  eval "$COMMAND" >"$STDOUT_LOG" 2>"$STDERR_LOG"
+  local RETURN_CODE=$?
+  
+  # Read stdout (should contain JSON) and stderr (warnings/errors) separately
+  local RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
+  local STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
+  
+  # Debug: Show what we captured
+  echoDebug "=== RAW_RETURN_DATA (stdout) ==="
+  echoDebug "$RAW_RETURN_DATA"
+  
+  # Extract JSON if requested
+  if [[ "$EXTRACT_JSON" == "true" ]]; then
+    RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
+  fi
+  
+  # Escape JSON strings properly for jq
+  # Use jq to create a properly escaped JSON object
+  local JSON_RESULT
+  JSON_RESULT=$(jq -n \
+    --arg stdout "$RAW_RETURN_DATA" \
+    --arg stderr "$STDERR_CONTENT" \
+    --argjson returnCode "$RETURN_CODE" \
+    '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
+  
+  # Explicit cleanup + restore previous EXIT trap
+  rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
+  if [[ -n "$_OLD_EXIT_TRAP" ]]; then
+    eval "$_OLD_EXIT_TRAP"
+  else
+    trap - EXIT
+  fi
+  
+  # Output JSON to stdout
+  echo "$JSON_RESULT"
+  
+  return $RETURN_CODE
+}
+
+# Function: parseExecuteCommandResult
+# Description: Parses JSON result from executeAndCapture using jq, sets variables, and optionally checks return code.
+#              Uses jq to merge all variables into a single object for consistency.
+#              Sets global variables that always contain the output of the last execution.
+# Arguments:
+#   $1 - RESULT: JSON result from executeAndCapture
+#   $2 - ERROR_MESSAGE: Optional error message for return code check (if provided, will check return code)
+#   $3 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
+# Returns:
+#   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
+#   Returns 0 if RETURN_CODE is 0 (or if no error check requested), 1 otherwise
+# Example:
+#   # Parse only (no error check)
+#   parseExecuteCommandResult "$RESULT"
+#   echo "$RAW_RETURN_DATA"
+#   
+#   # Parse and check return code
+#   if ! parseExecuteCommandResult "$RESULT" "forge script failed for $SCRIPT on network $NETWORK" "continue" >/dev/null; then
+#     continue
+#   fi
+function parseExecuteCommandResult() {
+  local RESULT="$1"
+  local ERROR_MESSAGE="${2:-}"
+  local ON_ERROR_ACTION="${3:-return}"
+  
+  # Parse JSON result and merge into single object using jq
+  local PARSED
+  PARSED=$(echo "$RESULT" | jq -c '{stdout: .stdout, stderr: .stderr, returnCode: .returnCode}')
+  
+  # Extract and set variables from merged JSON object
+  RAW_RETURN_DATA=$(echo "$PARSED" | jq -r '.stdout')
+  STDERR_CONTENT=$(echo "$PARSED" | jq -r '.stderr')
+  RETURN_CODE=$(echo "$PARSED" | jq -r '.returnCode')
+  
+  # If error message provided, check return code and handle errors
+  if [[ -n "$ERROR_MESSAGE" ]]; then
+    if [[ "$RETURN_CODE" -ne 0 ]]; then
+      error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
+      if [[ -n "$STDERR_CONTENT" ]]; then
+        error "stderr: $STDERR_CONTENT"
+      fi
+      if [[ -n "$RAW_RETURN_DATA" ]]; then
+        echoDebug "stdout: $RAW_RETURN_DATA"
+      fi
+      
+      case "$ON_ERROR_ACTION" in
+        "continue")
+          return 1  # Caller should handle continue
+          ;;
+        "exit")
+          exit 1
+          ;;
+        "return"|*)
+          return 1
+          ;;
+      esac
+    fi
+  fi
+  
+  return 0
+}
+
+# Function: executeAndParse
+# Description: Executes a command, captures output, and parses result into global variables.
+#              Combines executeAndCapture and parseExecuteCommandResult for simplified usage.
+#              Sets global variables that always contain the output of the last execution.
+# Arguments:
+#   $1 - COMMAND: The command to execute (as a string, will be eval'd)
+#   $2 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
+#   $3 - ERROR_MESSAGE: Optional error message for return code check (if provided, will check return code)
+#   $4 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
+# Returns:
+#   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
+#   Returns 0 if RETURN_CODE is 0 (or if no error check requested), 1 otherwise
+# Example:
+#   # Execute and parse (no error check)
+#   executeAndParse 'forge script ...' "true"
+#   echo "$RAW_RETURN_DATA"
+#   
+#   # Execute, parse, and check return code
+#   if ! executeAndParse 'forge script ...' "true" "forge script failed" "continue"; then
+#     continue
+#   fi
+function executeAndParse() {
+  local COMMAND="$1"
+  local EXTRACT_JSON="${2:-false}"
+  local ERROR_MESSAGE="${3:-}"
+  local ON_ERROR_ACTION="${4:-return}"
+  
+  # Execute command and capture output
+  local RESULT
+  RESULT=$(executeAndCapture "$COMMAND" "$EXTRACT_JSON")
+  local CAPTURE_EXIT_CODE=$?
+  
+  # Parse result and set global variables (RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE)
+  # If ERROR_MESSAGE is provided, parseExecuteCommandResult will handle error checking
+  if ! parseExecuteCommandResult "$RESULT" "$ERROR_MESSAGE" "$ON_ERROR_ACTION"; then
+    return $?
+  fi
+  
+  # If no error message provided, return the capture exit code
+  # (caller can check RETURN_CODE global variable if needed)
+  if [[ -z "$ERROR_MESSAGE" ]]; then
+    return $CAPTURE_EXIT_CODE
+  fi
+  
+  # If error message was provided and parseExecuteCommandResult succeeded,
+  # RETURN_CODE is 0 (already verified by parseExecuteCommandResult)
+  return 0
+}
+# <<<<<< helpers for executing commands with stdout/stderr capture
+
 function deployCreate3FactoryToAnvil() {
-  # deploy create3Factory
-  RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url "$ETH_NODE_URI_LOCALANVIL" --broadcast --silent)
+  # Execute, parse, and check return code (no JSON extraction needed for this case)
+  if ! executeAndParse \
+    "PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url \"$ETH_NODE_URI_LOCALANVIL\" --broadcast" \
+    "false" \
+    "forge script failed for CREATE3Factory deployment to anvil" \
+    "return"; then
+    return 1
+  fi
 
   # extract address of deployed factory contract
   ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')
@@ -4785,3 +5079,4 @@ function removeNetworkFromTargetStateJSON() {
     return 1
   fi
 }
+

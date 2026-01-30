@@ -1,3 +1,38 @@
+/**
+ * Move Native Funds to New Wallet
+ *
+ * This script transfers native tokens (ETH, MATIC, etc.) from an old wallet to a new wallet
+ * across all supported networks in parallel.
+ *
+ * USAGE:
+ *   bun run script/tasks/moveNativeFundsToNewWallet.ts <newWalletAddress> [options]
+ *
+ * REQUIRED ARGUMENTS:
+ *   newWalletAddress    Address of the new wallet (where funds should be sent to)
+ *
+ * OPTIONAL ARGUMENTS:
+ *   --private-key <key>           Private key of the old wallet (hex string, with or without 0x prefix)
+ *   --private-key-env-key <key>  Environment variable key for private key (default: prompts for PRIVATE_KEY or PRIVATE_KEY_PRODUCTION)
+ *
+ * EXAMPLES:
+ *   # Basic usage - will prompt for which private key to use from .env
+ *   bun run script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890
+ *
+ *   # Using a specific private key from command line
+ *   bun run script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890 --private-key 0xabcdef...
+ *
+ *   # Using a specific environment variable for private key
+ *   bun run script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890 --private-key-env-key PRIVATE_KEY_OLD
+ *
+ * NOTES:
+ *   - The script will automatically derive the old wallet address from the provided private key
+ *   - Transfers are executed in parallel batches (controlled by MAX_CONCURRENT_JOBS)
+ *   - The script will skip networks with zero balance or insufficient balance to cover gas costs
+ *   - Each network transfer is retried up to 5 times on failure
+ *   - The script handles EIP-1559 and legacy gas pricing automatically
+ *   - For EIP-7702 delegated addresses, the script uses cast send instead of viem
+ */
+
 import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -69,6 +104,7 @@ interface ITransferResult {
   skipReason?: 'zero_balance' | 'insufficient_balance'
   errorDetails?: string
   attempts?: number
+  usedPremiumRpc?: boolean
 }
 
 interface INetworkTransferResult extends ITransferResult {
@@ -623,6 +659,10 @@ async function transferNativeTokensOnNetwork(
   const account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
   const rpcUrl = chain.rpcUrls.default.http[0] || network.rpcUrl
 
+  // Track which RPC is being used (premium from env or fallback from networks.json)
+  const envKey = `ETH_NODE_URI_${networkName.toUpperCase()}`
+  const usingPremiumRpc = !!process.env[envKey]
+
   const httpTransport = http(rpcUrl, {
     timeout: HTTP_TIMEOUT,
     retryCount: 1, // Reduced from 2 to 1 to prevent long delays
@@ -643,6 +683,7 @@ async function transferNativeTokensOnNetwork(
       success: false,
       error: `Private key does not match old wallet address. Expected ${oldWalletAddress}, got ${account.address}`,
       attempts: 1,
+      usedPremiumRpc: usingPremiumRpc,
     }
   }
 
@@ -669,6 +710,7 @@ async function transferNativeTokensOnNetwork(
             errorDetails:
               'RPC timeout when checking balance. Network may be slow or unresponsive.',
             attempts: attempt,
+            usedPremiumRpc: usingPremiumRpc,
           }
         }
         // Handle RPC errors (e.g., Flow network's unexpected response format)
@@ -683,6 +725,7 @@ async function transferNativeTokensOnNetwork(
             error: `RPC error when checking balance: ${errorMessage}`,
             errorDetails: extractErrorMessage(error, true),
             attempts: attempt,
+            usedPremiumRpc: usingPremiumRpc,
           }
         }
         throw error
@@ -699,6 +742,7 @@ async function transferNativeTokensOnNetwork(
           amount: 0n,
           skipReason: 'zero_balance',
           attempts: attempt,
+          usedPremiumRpc: usingPremiumRpc,
         }
       }
 
@@ -733,6 +777,7 @@ async function transferNativeTokensOnNetwork(
               amount: 0n,
               skipReason: 'insufficient_balance',
               attempts: attempt,
+              usedPremiumRpc: usingPremiumRpc,
             }
           }
 
@@ -845,7 +890,7 @@ async function transferNativeTokensOnNetwork(
               -8
             )} (TX: ${txHash})`
           )
-          return result
+          return { ...result, usedPremiumRpc: usingPremiumRpc }
         } catch (sendError) {
           lastSendError = sendError
           const errorText = extractErrorMessage(sendError, false)
@@ -868,6 +913,7 @@ async function transferNativeTokensOnNetwork(
               error: errorText,
               errorDetails: extractErrorMessage(sendError, true), // Full details for summary
               attempts: attempt,
+              usedPremiumRpc: usingPremiumRpc,
             }
           }
 
@@ -951,6 +997,7 @@ async function transferNativeTokensOnNetwork(
           errorDetails: extractErrorMessage(error, true),
           txHash,
           attempts: attempt,
+          usedPremiumRpc: usingPremiumRpc,
         }
       }
 
@@ -992,6 +1039,7 @@ async function transferNativeTokensOnNetwork(
             error: 'Gas estimation error persists after estimating',
             errorDetails: extractErrorMessage(error, true),
             attempts: attempt,
+            usedPremiumRpc: usingPremiumRpc,
           }
         }
       }
@@ -1022,6 +1070,7 @@ async function transferNativeTokensOnNetwork(
     error: extractErrorMessage(finalError, false),
     errorDetails: extractErrorMessage(finalError, true),
     attempts: MAX_RETRIES,
+    usedPremiumRpc: usingPremiumRpc,
   }
 }
 
@@ -1306,6 +1355,30 @@ const main = defineCommand({
           console.error(`  [${r.network}]`)
           console.error(`     ${errorMessage}`)
         })
+      }
+
+      // RPC Usage Summary
+      const premiumRpcNetworks = results.filter(
+        (r) => r.usedPremiumRpc === true
+      )
+      const fallbackRpcNetworks = results.filter(
+        (r) => r.usedPremiumRpc === false
+      )
+      if (premiumRpcNetworks.length > 0 || fallbackRpcNetworks.length > 0) {
+        consola.info(`\n📡 RPC Usage Summary:`)
+        if (premiumRpcNetworks.length > 0) {
+          consola.info(
+            `  ✅ Premium RPCs (from .env): ${premiumRpcNetworks.length} network(s)`
+          )
+        }
+        if (fallbackRpcNetworks.length > 0) {
+          consola.info(
+            `  ⚠️  Fallback RPCs (from networks.json): ${fallbackRpcNetworks.length} network(s)`
+          )
+          consola.info(
+            `     Consider adding ETH_NODE_URI_<NETWORK> to .env for better performance`
+          )
+        }
       }
 
       consola.info('\n' + '='.repeat(80))
