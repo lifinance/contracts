@@ -1108,7 +1108,7 @@
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x44c7101EB9bC7cA8f2F87DF8C371cd193afDc604",
-    "devNotes": "Contract verification: https://docs.telos.net/build/toolchains/foundry/"
+    "devNotes": "Contract verification currently not working, details here: https://docs.telos.net/build/toolchains/foundry/"
   },
   "unichain": {
     "name": "unichain",
