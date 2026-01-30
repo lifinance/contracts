@@ -50,7 +50,7 @@ jobs:
         with:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types
-          ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
+          ssh-key: ${{ secrets.TYPINGS_REPO_SSH_TOKEN }}
           ref: main
 
       # Step 9: Copy generated types and ABI into the lifi-contract-types repo
