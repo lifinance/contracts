@@ -52,7 +52,7 @@ deployAllContracts() {
     echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
     echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
     echo "Would you like to set it to true for this execution? (y/n)"
-    read -r response
+    read -r response || response=""
     if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
       export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
       echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
@@ -169,7 +169,10 @@ deployAllContracts() {
     echo ""
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now adding DiamondLoupeFacet to diamond"
-    diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateDiamondLoupeFacet" false
+    if ! diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateDiamondLoupeFacet" false; then
+      error "failed to update DiamondLoupeFacet (UpdateDiamondLoupeFacet) for network $NETWORK - aborting before core facets update"
+      exit 1
+    fi
 
     echo ""
     echo ""
@@ -290,30 +293,55 @@ deployAllContracts() {
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Fund PauserWallet"
     # get pauserWallet address
-    local PAUSER_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
+    local PAUSER_WALLET_ADDRESS
+    PAUSER_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
+    if [[ $? -ne 0 ]]; then
+      error "failed to read pauserWallet address from ./config/global.json"
+      exit 1
+    fi
     if [[ -z "$PAUSER_WALLET_ADDRESS" || "$PAUSER_WALLET_ADDRESS" == "null" ]]; then
       error "PauserWallet address not found. Cannot fund PauserWallet"
+      exit 1
     fi
 
     # get RPC URL
-    local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+    local RPC_URL
+    RPC_URL=$(getRPCUrl "$NETWORK")
+    if [[ $? -ne 0 ]]; then
+      error "failed to obtain RPC URL for network $NETWORK"
+      exit 1
+    fi
+    if [[ -z "$RPC_URL" ]]; then
+      error "RPC URL is empty for network $NETWORK"
+      exit 1
+    fi
 
     # get balance in current network
     BALANCE=$(cast balance "$PAUSER_WALLET_ADDRESS" --rpc-url "$RPC_URL")
+    checkFailure $? "get PauserWallet balance for $PAUSER_WALLET_ADDRESS on $NETWORK"
     echo "PauserWallet Balance: $BALANCE"
 
     if [[ "$BALANCE" == "0" ]]; then
       echo "PauserWallet balance is 0. How much wei would you like to send to $PAUSER_WALLET_ADDRESS?"
-      read -r FUNDING_AMOUNT
+      read -r FUNDING_AMOUNT || FUNDING_AMOUNT=""
 
       # Validate that FUNDING_AMOUNT is a non-empty numeric value
       if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
         error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
+        exit 1
+      fi
+
+      local PRIVATE_KEY_TO_USE
+      PRIVATE_KEY_TO_USE=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+      if [[ $? -ne 0 || -z "$PRIVATE_KEY_TO_USE" ]]; then
+        error "could not determine private key for network $NETWORK in $ENVIRONMENT environment"
+        exit 1
       fi
 
       echo "RPC_URL: $RPC_URL"
       echo "Funding PauserWallet $PAUSER_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
-      cast send "$PAUSER_WALLET_ADDRESS" --value "$FUNDING_AMOUNT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_PRODUCTION"
+      cast send "$PAUSER_WALLET_ADDRESS" --value "$FUNDING_AMOUNT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_TO_USE"
+      checkFailure $? "fund PauserWallet $PAUSER_WALLET_ADDRESS on $NETWORK"
     fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
