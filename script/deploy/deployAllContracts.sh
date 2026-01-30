@@ -186,7 +186,7 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 3 completed"
   fi
 
-  # Stage 4: Set approvals (refund wallet and deployer wallet)
+  # Stage 4: Set approvals (refund wallet)
   if [[ $START_STAGE -le 4 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approval for refund wallet"
