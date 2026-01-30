@@ -94,7 +94,8 @@ jobs:
           export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
           HEAD_REF="$(echo "${LEDGER_FORK}" | cut -d/ -f1):${SYNC_BRANCH}"
 
-          EXISTING_PR_URL="$(gh pr list --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --state open --json url -q '.[0].url' 2>/dev/null || true)"
+          ##### Prefer `pr view` since it errors if missing (better than list+filter)
+          EXISTING_PR_URL="$(gh pr view --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --json url -q '.url' 2>/dev/null || true)"
           if [ -n "${EXISTING_PR_URL}" ]; then
             gh pr edit "${EXISTING_PR_URL}" --title "${PR_TITLE}" >/dev/null
             echo -e "\033[32mPR already exists; updated title.\033[0m"
@@ -120,7 +121,7 @@ jobs:
           ##### Always print PR link to workflow logs (when there were changes)
           PR_URL="${EXISTING_PR_URL:-}"
           if [ -z "${PR_URL}" ]; then
-            PR_URL="$(gh pr list --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --state open --json url -q '.[0].url' 2>/dev/null || true)"
+            PR_URL="$(gh pr view --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --json url -q '.url' 2>/dev/null || true)"
           fi
           if [ -n "${PR_URL}" ]; then
             echo -e "\033[32mPR URL: ${PR_URL}\033[0m"
