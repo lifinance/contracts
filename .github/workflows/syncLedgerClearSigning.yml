@@ -1,7 +1,8 @@
 # Sync Ledger Clear Signing (ERC-7730)
 # - Purpose: Keep Ledger's `registry/lifi/calldata-LIFIDiamond.json` up to date with this repo's Diamond ABI + deployments
-# - Triggers: manual (`workflow_dispatch`), schedule (daily), and pushes to `main` affecting ABI/deployment sources
-# - Key behaviors: clones our fork of LedgerHQ registry, regenerates the JSON, pushes a branch, and creates/updates a PR
+# - Triggers: manual (`workflow_dispatch`), schedule (daily), and pushes affecting ABI/deployment sources
+# - Key behaviors: clones our fork of LedgerHQ registry, regenerates the JSON, and pushes a branch to the fork
+# - Testing behavior: PR creation is temporarily disabled; enable in a follow-up commit after push flow is verified
 # - Known limitations: `display.*` is preserved (hand-curated UX); only `context.contract.abi` and `deployments` are updated
 
 name: Sync Ledger Clear Signing (ERC-7730)
@@ -11,14 +12,13 @@ on:
   schedule:
     - cron: '0 3 * * *' # daily at 03:00 UTC
   push:
-    branches:
-      - main
     paths:
       - 'src/Facets/**'
       - 'src/Libraries/**'
       - 'deployments/**'
       - 'config/networks.json'
       - 'tasks/generateLedgerClearSigning.ts'
+      - '.github/workflows/syncLedgerClearSigning.yml'
 
 permissions:
   contents: read # required to fetch repository contents
@@ -48,7 +48,7 @@ jobs:
       - name: Build contracts (generate Foundry artifacts)
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
 
-      - name: Sync Ledger registry file via PR
+      - name: Sync Ledger registry file (push to fork)
         env:
           LEDGER_SYNC_TOKEN: ${{ secrets.LEDGER_SYNC_TOKEN }}
           LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
@@ -56,8 +56,12 @@ jobs:
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
           SYNC_BRANCH: sync/lifi-erc7730
           PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json'
+          CREATE_PR: 'false' # TODO: flip to 'true' after push-only testing
         run: |
           set -euo pipefail
+
+          ##### Push-only sync (requires token to push to fork)
+          echo -e "\033[32mCREATE_PR=${CREATE_PR} (ref=${GITHUB_REF})\033[0m"
 
           if [ -z "${LEDGER_SYNC_TOKEN:-}" ]; then
             echo -e "\033[31mError: LEDGER_SYNC_TOKEN secret missing\033[0m"
@@ -89,6 +93,11 @@ jobs:
 
           echo -e "\033[32mPushing branch to fork...\033[0m"
           git push -u origin HEAD
+
+          if [ "${CREATE_PR}" != "true" ]; then
+            echo -e "\033[32mSkipping PR creation (push-only mode).\033[0m"
+            exit 0
+          fi
 
           echo -e "\033[32mCreating/updating PR against upstream...\033[0m"
           export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
