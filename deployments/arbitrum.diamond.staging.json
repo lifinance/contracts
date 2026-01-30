@@ -199,19 +199,23 @@
       },
       "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x13Dab942D27D5E84584c163fE0D732901b4733E3": {
+      "0x4094F1887ec45c6c82B0328ED7d7AE5EE329f4f3": {
         "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.1"
+        "Version": "1.0.0"
       },
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x9C820C1569ffE99DCF54BBDf3C54682E33a40379": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -220,8 +224,8 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x6DfAFe261B5d489aeF52e9AfA6303c291F520902",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",

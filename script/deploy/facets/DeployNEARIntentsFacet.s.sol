@@ -26,7 +26,7 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/nearintents.json");
+        string memory path = string.concat(root, "/config/global.json");
         string memory json = vm.readFile(path);
 
         // check if production or staging
@@ -35,9 +35,9 @@ contract DeployScript is DeployScriptBase {
             keccak256(abi.encodePacked(fileSuffix)) ==
             keccak256(abi.encodePacked("staging."))
         ) {
-            backendSigner = json.readAddress(".staging.backendSigner");
+            backendSigner = json.readAddress(".backendSigner.staging");
         } else {
-            backendSigner = json.readAddress(".production.backendSigner");
+            backendSigner = json.readAddress(".backendSigner.production");
         }
 
         return abi.encode(backendSigner);
