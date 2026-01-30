@@ -22,12 +22,11 @@ on:
 permissions:
   contents: read # required to fetch repository contents
 
-concurrency:
-  group: sync-ledger-clear-signing
-  cancel-in-progress: true
-
 jobs:
   sync-ledger:
+    concurrency:
+      group: sync-ledger-clear-signing
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (with submodules)
