@@ -9,82 +9,109 @@ import {
   encodeAbiParameters,
   encodeFunctionData,
   erc20Abi,
-  formatUnits,
   getAddress,
   getContract,
+  isHex,
+  keccak256,
   parseAbi,
   parseUnits,
-  zeroAddress,
   type Abi,
   type Address,
   type Hex,
 } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
-import acrossV4SwapConfig from '../../config/acrossV4Swap.json'
 import networks from '../../config/networks.json'
-import arbitrumProductionDeployments from '../../deployments/arbitrum.json'
-import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
 import acrossV4SwapFacetArtifact from '../../out/AcrossV4SwapFacet.sol/AcrossV4SwapFacet.json'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 
 import {
   ADDRESS_USDC_ARB,
+  ADDRESS_USDC_BASE,
+  ADDRESS_USDC_ETH,
   ADDRESS_USDC_OPT,
-  ADDRESS_WETH_ARB,
+  ADDRESS_USDC_POL,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
-  getConfigElement,
+  getEnvVar,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
-
-// Import deployment files for FeeCollector addresses
 
 config()
 
 // ==========================================================================================================
-// CLI FLAGS
+// AcrossV4SwapFacet demo script (calldata-focused)
+//
+// ######### !!!!!!!!!!!!!!!! IMPORTANT INFORMATION !!!!!!!!!!!!!!!! #########
+// This script assumes that we get access to the backend STAGING signer private key for testing.
+// please add this to your .env with:
+// PRIVATE_KEY_BACKEND_SIGNER_STAGING=<private key>
+// ######### !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! #########
+//
+// Goal: demonstrate how to build the Diamond calldata for:
+// - swapApiTarget=SpokePool (0)                  -> requires backend EIP-712 signature
+// - swapApiTarget=SpokePoolPeriphery (1)         -> requires backend EIP-712 signature
+// - swapApiTarget=SponsoredOFTSrcPeriphery (2)   -> NO facet signature (quote is signed)
+// - swapApiTarget=SponsoredCCTPSrcPeriphery (3)  -> NO facet signature (quote is signed)
+//
+// IMPORTANT:
+// - AcrossV4SwapFacetData.callData must be without function selector
+//
+// How to run (examples):
+// - Print calldata for SpokePoolPeriphery (target 1, uses PRIVATE_KEY_BACKEND_SIGNER_STAGING by default):
+//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --print-calldata`
+// - Print calldata for SpokePool (target 0, uses PRIVATE_KEY_BACKEND_SIGNER_STAGING by default):
+//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePool --print-calldata`
+// - (Optional override) Provide an explicit backend key:
+//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --backendPrivateKey 0x... --print-calldata`
+// - Print calldata for Sponsored CCTP (target 3) from quote JSON + signature:
+//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredCctp --quoteJson ./quote.json --signatureHex 0x... --print-calldata`
+// - Print calldata for Sponsored OFT (target 2) from quote JSON + signature:
+//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredOft --quoteJson ./quote.json --signatureHex 0x... --sendingAssetId 0x... --msgValueWei 0 --print-calldata`
+//
+// Send transaction (optional, unsafe-by-default):
+// - Add `--send` to broadcast instead of only printing calldata.
 // ==========================================================================================================
-// --collect-fee: Enable fee collection via FeeCollector before bridging
-const COLLECT_FEE = process.argv.includes('--collect-fee')
-// --print-calldata: Print diamond calldata and exit without sending
-const PRINT_CALLDATA = process.argv.includes('--print-calldata')
-// --help: Print usage
-const SHOW_HELP = process.argv.includes('--help') || process.argv.includes('-h')
 
 type Mode =
   | 'spokePool'
   | 'spokePoolPeriphery'
   | 'sponsoredOft'
   | 'sponsoredCctp'
+type Entrypoint = 'start' | 'swapAndStart'
 
-const parseArgValue = (flag: string): string | undefined => {
+const SHOW_HELP = process.argv.includes('--help') || process.argv.includes('-h')
+const SEND_TX = process.argv.includes('--send')
+const PRINT_CALLDATA = process.argv.includes('--print-calldata') || !SEND_TX
+
+const arg = (flag: string): string | undefined => {
   const idx = process.argv.indexOf(flag)
   if (idx === -1) return undefined
   return process.argv[idx + 1]
 }
 
-const parseBigIntArg = (flag: string): bigint | undefined => {
-  const v = parseArgValue(flag)
+const argBigInt = (flag: string): bigint | undefined => {
+  const v = arg(flag)
   if (!v) return undefined
   if (!/^\d+$/.test(v)) throw new Error(`Invalid ${flag} value: '${v}'`)
   return BigInt(v)
 }
 
-const assertHex = (value: string, label: string): `0x${string}` => {
-  if (!/^0x[0-9a-fA-F]*$/.test(value)) throw new Error(`Invalid ${label}`)
-  return value as `0x${string}`
+const assertHex = (value: string, label: string): Hex => {
+  if (!isHex(value)) throw new Error(`Invalid ${label}`)
+  return value as Hex
 }
 
-const stripSelector = (calldata: `0x${string}`): `0x${string}` => {
-  // 4 bytes selector = 8 hex chars, plus "0x" => slice 10
+const stripSelector = (calldata: Hex): Hex => {
+  // 4 bytes selector = 8 hex chars, plus "0x" => slice(10)
   if (calldata.length < 10)
     throw new Error('Calldata too short to have selector')
-  return `0x${calldata.slice(10)}` as `0x${string}`
+  return `0x${calldata.slice(10)}` as Hex
 }
 
 const parseMode = (): Mode => {
-  const raw = (parseArgValue('--mode') ?? 'spokePoolPeriphery').trim()
+  const raw = (arg('--mode') ?? 'spokePoolPeriphery').trim()
   if (
     raw === 'spokePool' ||
     raw === 'spokePoolPeriphery' ||
@@ -93,220 +120,36 @@ const parseMode = (): Mode => {
   )
     return raw
   throw new Error(
-    `Invalid --mode '${raw}'. Expected one of: spokePool | spokePoolPeriphery | sponsoredOft | sponsoredCctp`
+    `Invalid --mode '${raw}'. Expected: spokePool | spokePoolPeriphery | sponsoredOft | sponsoredCctp`
   )
 }
 
-const MODE: Mode = SHOW_HELP ? 'spokePoolPeriphery' : parseMode()
-
-// FeeCollector ABI for encoding collectTokenFees call
-const FEE_COLLECTOR_ABI = parseAbi([
-  'function collectTokenFees(address tokenAddress, uint256 integratorFee, uint256 lifiFee, address integratorAddress)',
-])
-
-// ==========================================================================================================
-// ACROSS V4 SWAP FACET DEMO SCRIPT
-// ==========================================================================================================
-// How to run (examples):
-// - SpokePoolPeriphery (Across Swap API swapAndBridge):
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery`
-// - SpokePool (Across Swap API deposit):
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePool`
-// - Sponsored OFT (quote+sig required):
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredOft --quoteJson ./quote.json --signatureHex 0x... --sendingAssetId 0x... [--msgValueWei 0]`
-// - Sponsored CCTP (quote+sig required):
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredCctp --quoteJson ./quote.json --signatureHex 0x...`
-// - Dry-run (prints calldata only):
-//   add `--print-calldata`
-//
-// Important:
-// - The facet expects `AcrossV4SwapFacetData.callData` WITHOUT the function selector.
-// - Destination calls must be disabled (`BridgeData.hasDestinationCall = false`).
-// ==========================================================================================================
-
-/// TYPES
-
-interface IBridgeData {
-  transactionId: Hex
-  bridge: string
-  integrator: string
-  referrer: Address
-  sendingAssetId: Address
-  receiver: Address
-  minAmount: bigint
-  destinationChainId: number
-  hasSourceSwaps: boolean
-  hasDestinationCall: boolean
+const parseEntrypoint = (): Entrypoint => {
+  const raw = (arg('--entrypoint') ?? 'start').trim()
+  if (raw === 'start' || raw === 'swapAndStart') return raw
+  throw new Error(
+    `Invalid --entrypoint '${raw}'. Expected: start | swapAndStart`
+  )
 }
 
-interface ISwapData {
-  callTo: Address
-  approveTo: Address
-  sendingAssetId: Address
-  receivingAssetId: Address
-  fromAmount: bigint
-  callData: Hex
-  requiresDeposit: boolean
+const parseEnv = (): EnvironmentEnum => {
+  const raw = (arg('--env') ?? 'staging').trim()
+  if (raw === 'staging') return EnvironmentEnum.staging
+  if (raw === 'production') return EnvironmentEnum.production
+  throw new Error(`Invalid --env '${raw}'. Expected: staging | production`)
 }
 
-interface IAcrossV4SwapFacetData {
-  swapApiTarget: 0 | 1 | 2 | 3
-  callData: Hex
+const parseChain = (flag: string, fallback: SupportedChain): SupportedChain => {
+  const raw = (arg(flag) ?? fallback).trim() as SupportedChain
+  if (!networks[raw]) throw new Error(`Unknown chain '${raw}' for ${flag}`)
+  return raw
 }
 
-// Actual API response structure (based on empirical testing)
-interface IAcrossSwapApiResponse {
-  crossSwapType:
-    | 'bridgeableToAny'
-    | 'anyToBridgeable'
-    | 'anyToAny'
-    | 'bridgeableToBridgeable'
-  amountType: string
-  steps: {
-    originSwap?: {
-      inputAmount: string
-      expectedOutputAmount: string
-      minOutputAmount: string
-      tokenIn: {
-        address: string
-        symbol: string
-        decimals: number
-        chainId: number
-      }
-      tokenOut: {
-        address: string
-        symbol: string
-        decimals: number
-        chainId: number
-      }
-      provider: string
-      swapTxn: {
-        to: string
-        data: string
-        value: string
-      }
-    }
-    bridge: {
-      inputAmount: string
-      outputAmount: string
-      tokenIn: {
-        address: string
-        symbol: string
-        decimals: number
-        chainId: number
-      }
-      tokenOut: {
-        address: string
-        symbol: string
-        decimals: number
-        chainId: number
-      }
-      fees: {
-        amount: string
-        pct: string
-      }
-      provider: string
-    }
-    destinationSwap?: unknown
-  }
-  inputToken: {
-    address: string
-    symbol: string
-    decimals: number
-    chainId: number
-  }
-  outputToken: {
-    address: string
-    symbol: string
-    decimals: number
-    chainId: number
-  }
-  fees: {
-    total: { amount: string; pct: string }
-  }
-  depositTxn?: {
-    to: string
-    data: string
-    value: string
-  }
-  swapTxn?: {
-    to: string
-    data: string
-    value: string
-  }
-  // These are used when there's an origin swap (swapAndBridge call to periphery)
-  swapTx?: {
-    to: string
-    data: string
-    value: string
-  }
+const bytes32ToEvmAddress = (b32: Hex): Address => {
+  // bytes32(uint256(uint160(addr))) => addr in last 20 bytes
+  if (b32.length !== 66) throw new Error('Invalid bytes32 length')
+  return getAddress(`0x${b32.slice(26)}`) as Address
 }
-
-interface IAcrossSwapApiRequest {
-  originChainId: number
-  destinationChainId: number
-  inputToken: string
-  outputToken: string
-  amount: string
-  recipient: string
-  depositor: string // Should be the contract calling SpokePoolPeriphery (e.g., LiFi Diamond)
-  refundAddress?: string
-  refundOnOrigin?: boolean
-  slippageTolerance?: number // e.g., 1 for 1%
-  skipOriginTxEstimation?: boolean // Skip simulation - required when depositor is a contract
-}
-
-/// HELPER FUNCTIONS
-const logDebug = (msg: string) => {
-  consola.debug(msg)
-}
-
-/**
- * Fetches a swap quote from the Across Swap API
- * This API provides ready-to-execute router calldata for the SpokePoolPeriphery
- */
-const getAcrossSwapQuote = async (
-  request: IAcrossSwapApiRequest
-): Promise<IAcrossSwapApiResponse> => {
-  const baseUrl = 'https://app.across.to/api/swap/approval'
-
-  const params = new URLSearchParams({
-    originChainId: request.originChainId.toString(),
-    destinationChainId: request.destinationChainId.toString(),
-    inputToken: request.inputToken,
-    outputToken: request.outputToken,
-    amount: request.amount,
-    recipient: request.recipient,
-    depositor: request.depositor,
-    refundOnOrigin: (request.refundOnOrigin ?? true).toString(),
-    slippageTolerance: (request.slippageTolerance || 1).toString(), // 1 for 1%
-    // Skip origin tx estimation since the depositor (Diamond) won't have tokens at quote time
-    skipOriginTxEstimation: (request.skipOriginTxEstimation ?? true).toString(),
-  })
-
-  if (request.refundAddress) {
-    params.append('refundAddress', request.refundAddress)
-  }
-
-  const fullUrl = `${baseUrl}?${params.toString()}`
-  consola.info(`  API URL: ${fullUrl}`)
-
-  const response = await fetch(fullUrl)
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Across Swap API error (${response.status}): ${errorText}`)
-  }
-
-  const data: IAcrossSwapApiResponse = await response.json()
-  logDebug(`Across Swap API response: ${JSON.stringify(data, null, 2)}`)
-
-  return data
-}
-
-// ABI for decoding SpokePoolPeriphery.swapAndBridge calldata
-const swapAndBridgeAbi = parseAbi([
-  'function swapAndBridge((( uint256 amount, address recipient) submissionFees, (address inputToken, bytes32 outputToken, uint256 outputAmount, address depositor, bytes32 recipient, uint256 destinationChainId, bytes32 exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityParameter, bytes message) depositData, address swapToken, address exchange, uint8 transferType, uint256 swapTokenAmount, uint256 minExpectedInputTokenAmount, bytes routerCalldata, bool enableProportionalAdjustment, address spokePool, uint256 nonce) swapAndDepositData)',
-])
 
 // ABI parameter definitions for sponsored quote callData:
 // The facet expects `callData` = abi.encode(quote, signature) (no selector).
@@ -365,393 +208,327 @@ const SPONSORED_CCTP_QUOTE_PARAM = {
   ],
 } as const
 
-const bytes32ToEvmAddress = (b32: `0x${string}`): `0x${string}` => {
-  // bytes32(uint256(uint160(addr))) => addr in last 20 bytes
-  if (b32.length !== 66) throw new Error('Invalid bytes32 length')
-  return getAddress(`0x${b32.slice(26)}`) as `0x${string}`
+// ABI for decoding Swap API periphery calldata (swapAndBridge)
+const SPOKE_POOL_PERIPHERY_SWAP_AND_BRIDGE_ABI = parseAbi([
+  'function swapAndBridge((( uint256 amount, address recipient) submissionFees, (address inputToken, bytes32 outputToken, uint256 outputAmount, address depositor, bytes32 recipient, uint256 destinationChainId, bytes32 exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityParameter, bytes message) depositData, address swapToken, address exchange, uint8 transferType, uint256 swapTokenAmount, uint256 minExpectedInputTokenAmount, bytes routerCalldata, bool enableProportionalAdjustment, address spokePool, uint256 nonce) swapAndDepositData)',
+])
+
+interface IAcrossV4SwapFacetData {
+  swapApiTarget: 0 | 1 | 2 | 3
+  callData: Hex
+  signature: Hex
 }
 
-const chainIdToCctpDomainId = (chainId: number): number => {
-  // Must mirror `AcrossV4SwapFacet._chainIdToCctpDomainId`
-  switch (chainId) {
-    case 1:
-      return 0
-    case 43114:
-      return 1
-    case 10:
-      return 2
-    case 42161:
-      return 3
-    case 8453:
-      return 6
-    case 137:
-      return 7
-    case 130:
-      return 10
-    case 59144:
-      return 11
-    case 81224:
-      return 12
-    case 146:
-      return 13
-    case 480:
-      return 14
-    case 1329:
-      return 16
-    case 50:
-      return 18
-    case 999:
-    case 1337:
-      return 19
-    case 57073:
-      return 21
-    case 98866:
-      return 22
-    default:
-      throw new Error(
-        `Unsupported destinationChainId for sponsoredCctp: ${chainId}`
-      )
-  }
+interface IBridgeData {
+  transactionId: Hex
+  bridge: string
+  integrator: string
+  referrer: Address
+  sendingAssetId: Address
+  receiver: Address
+  minAmount: bigint
+  destinationChainId: number
+  hasSourceSwaps: boolean
+  hasDestinationCall: boolean
 }
 
-/**
- * Decodes the swapAndBridge calldata to extract swap parameters
- */
-const decodeSwapAndBridgeCalldata = (
-  calldata: string
-): {
-  swapToken: string
-  exchange: string
-  transferType: number
-  routerCalldata: string
-  minExpectedInputTokenAmount: string
-  depositData: {
-    inputToken: string
-    outputToken: string
-    outputAmount: string
-    depositor: string
-    recipient: string
-    destinationChainId: bigint
-    exclusiveRelayer: string
-    quoteTimestamp: number
-    fillDeadline: number
-    exclusivityParameter: number
-    message: string
-  }
-} => {
-  // The calldata is for SpokePoolPeriphery.swapAndBridge(SwapAndDepositData)
-  const decoded = decodeFunctionData({
-    abi: swapAndBridgeAbi,
-    data: calldata as `0x${string}`,
+interface ISwapData {
+  callTo: Address
+  approveTo: Address
+  sendingAssetId: Address
+  receivingAssetId: Address
+  fromAmount: bigint
+  callData: Hex
+  requiresDeposit: boolean
+}
+
+interface IAcrossSwapApiResponse {
+  depositTxn?: { to: string; data: string; value: string }
+  swapTx?: { to: string; data: string; value: string }
+}
+
+interface IAcrossSwapApiRequest {
+  originChainId: number
+  destinationChainId: number
+  inputToken: string
+  outputToken: string
+  amount: string
+  recipient: string
+  depositor: string
+  refundAddress?: string
+  refundOnOrigin?: boolean
+  slippageTolerance?: number
+  skipOriginTxEstimation?: boolean
+}
+
+const getAcrossSwapQuote = async (
+  request: IAcrossSwapApiRequest
+): Promise<IAcrossSwapApiResponse> => {
+  const baseUrl = 'https://app.across.to/api/swap/approval'
+  const params = new URLSearchParams({
+    originChainId: request.originChainId.toString(),
+    destinationChainId: request.destinationChainId.toString(),
+    inputToken: request.inputToken,
+    outputToken: request.outputToken,
+    amount: request.amount,
+    recipient: request.recipient,
+    depositor: request.depositor,
+    refundOnOrigin: (request.refundOnOrigin ?? true).toString(),
+    slippageTolerance: (request.slippageTolerance ?? 1).toString(),
+    skipOriginTxEstimation: (request.skipOriginTxEstimation ?? true).toString(),
   })
+  if (request.refundAddress)
+    params.append('refundAddress', request.refundAddress)
 
-  if (!decoded.args) {
-    throw new Error('Failed to decode swapAndBridge calldata')
+  const response = await fetch(`${baseUrl}?${params.toString()}`)
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Across Swap API error (${response.status}): ${errorText}`)
   }
-
-  const swapData = decoded.args[0] as unknown as {
-    swapToken: string
-    exchange: string
-    transferType: number
-    routerCalldata: string
-    minExpectedInputTokenAmount: bigint
-    depositData: {
-      inputToken: string
-      outputToken: string
-      outputAmount: bigint
-      depositor: string
-      recipient: string
-      destinationChainId: bigint
-      exclusiveRelayer: string
-      quoteTimestamp: number
-      fillDeadline: number
-      exclusivityParameter: number
-      message: string
-    }
-  }
-
-  return {
-    swapToken: swapData.swapToken,
-    exchange: swapData.exchange,
-    transferType: swapData.transferType,
-    routerCalldata: swapData.routerCalldata,
-    minExpectedInputTokenAmount:
-      swapData.minExpectedInputTokenAmount.toString(),
-    depositData: {
-      inputToken: swapData.depositData.inputToken,
-      outputToken: swapData.depositData.outputToken,
-      outputAmount: swapData.depositData.outputAmount.toString(),
-      depositor: swapData.depositData.depositor,
-      recipient: swapData.depositData.recipient,
-      destinationChainId: swapData.depositData.destinationChainId,
-      exclusiveRelayer: swapData.depositData.exclusiveRelayer,
-      quoteTimestamp: swapData.depositData.quoteTimestamp,
-      fillDeadline: swapData.depositData.fillDeadline,
-      exclusivityParameter: swapData.depositData.exclusivityParameter,
-      message: swapData.depositData.message,
-    },
-  }
+  return (await response.json()) as IAcrossSwapApiResponse
 }
 
-// ########################################## CONFIGURE SCRIPT HERE ##########################################
-// Chain configuration - use SupportedChain type from helpers
-const SRC_CHAIN: SupportedChain = 'arbitrum'
-const DST_CHAIN: SupportedChain = 'optimism'
+const buildFacetBackendSignature = async (args: {
+  backendPrivateKey: Hex
+  chainId: number
+  verifyingContract: Address
+  bridgeData: IBridgeData
+  swapApiTarget: 0 | 1
+  callDataNoSelector: Hex
+}): Promise<Hex> => {
+  const account = privateKeyToAccount(args.backendPrivateKey)
 
-// Get chain IDs from networks config
-const fromChainId = networks[SRC_CHAIN].chainId
-const toChainId = networks[DST_CHAIN].chainId
+  // Must match facet:
+  // name="LI.FI Across V4 Swap Facet", version="1"
+  const domain = {
+    name: 'LI.FI Across V4 Swap Facet',
+    version: '1',
+    chainId: BigInt(args.chainId),
+    verifyingContract: args.verifyingContract,
+  } as const
 
-const MODE_DEFAULTS: Record<
-  Mode,
-  {
-    inputToken?: string
-    outputToken?: string
-    fromAmount?: bigint
-    amountDecimals?: number
-    swapApiTarget: 0 | 1 | 2 | 3
-    configKey:
-      | 'spokePool'
-      | 'spokePoolPeriphery'
-      | 'sponsoredOftSrcPeriphery'
-      | 'sponsoredCctpSrcPeriphery'
-  }
-> = {
-  // Across Swap API -> SpokePoolPeriphery.swapAndBridge(SwapAndDepositData)
-  spokePoolPeriphery: {
-    inputToken: ADDRESS_WETH_ARB,
-    outputToken: ADDRESS_USDC_OPT,
-    fromAmount: 300000000000000n, // 0.0003 WETH
-    amountDecimals: 18,
-    swapApiTarget: 1,
-    configKey: 'spokePoolPeriphery',
-  },
-  // Across Swap API -> SpokePool.deposit(...)
-  spokePool: {
-    inputToken: ADDRESS_USDC_ARB,
-    outputToken: ADDRESS_USDC_OPT,
-    fromAmount: 6000000n, // 6 USDC (6 decimals)
-    amountDecimals: 6,
-    swapApiTarget: 0,
-    configKey: 'spokePool',
-  },
-  // User-supplied quote+signature
-  sponsoredOft: {
-    swapApiTarget: 2,
-    configKey: 'sponsoredOftSrcPeriphery',
-  },
-  // User-supplied quote+signature
-  sponsoredCctp: {
-    swapApiTarget: 3,
-    configKey: 'sponsoredCctpSrcPeriphery',
-  },
+  const types = {
+    AcrossV4SwapPayload: [
+      { name: 'transactionId', type: 'bytes32' },
+      { name: 'minAmount', type: 'uint256' },
+      { name: 'receiver', type: 'address' },
+      { name: 'destinationChainId', type: 'uint256' },
+      { name: 'sendingAssetId', type: 'address' },
+      { name: 'swapApiTarget', type: 'uint8' },
+      { name: 'callDataHash', type: 'bytes32' },
+    ],
+  } as const
+
+  const message = {
+    transactionId: args.bridgeData.transactionId,
+    minAmount: args.bridgeData.minAmount,
+    receiver: args.bridgeData.receiver,
+    destinationChainId: BigInt(args.bridgeData.destinationChainId),
+    sendingAssetId: args.bridgeData.sendingAssetId,
+    swapApiTarget: args.swapApiTarget,
+    callDataHash: keccak256(args.callDataNoSelector),
+  } as const
+
+  return (await account.signTypedData({
+    domain,
+    types,
+    primaryType: 'AcrossV4SwapPayload',
+    message,
+  })) as Hex
 }
-
-const INPUT_TOKEN = MODE_DEFAULTS[MODE].inputToken
-const OUTPUT_TOKEN = MODE_DEFAULTS[MODE].outputToken
-const fromAmount = MODE_DEFAULTS[MODE].fromAmount
-const AMOUNT_DECIMALS = MODE_DEFAULTS[MODE].amountDecimals
-
-// Environment: staging or production
-const ENVIRONMENT = EnvironmentEnum.staging
-
-// Fee collection configuration (only used when --collect-fee flag is passed)
-// Fees are split between integrator and LiFi protocol
-const INTEGRATOR_FEE = parseUnits('0.0001', 18) // 0.0001 WETH
-const LIFI_FEE = parseUnits('0.00005', 18) // 0.00005 WETH
-
-// Get FeeCollector address based on environment
-const getFeeCollectorAddress = (environment: EnvironmentEnum): string => {
-  if (environment === EnvironmentEnum.staging) {
-    return arbitrumStagingDeployments.FeeCollector
-  }
-  return arbitrumProductionDeployments.FeeCollector
-}
-
-// Get config elements using helper
-const SPOKE_POOL_PERIPHERY = getConfigElement(
-  acrossV4SwapConfig,
-  SRC_CHAIN,
-  'spokePoolPeriphery'
-)
-const SPOKE_POOL = getConfigElement(acrossV4SwapConfig, SRC_CHAIN, 'spokePool')
-const SPONSORED_OFT_SRC_PERIPHERY = getConfigElement(
-  acrossV4SwapConfig,
-  SRC_CHAIN,
-  'sponsoredOftSrcPeriphery'
-)
-const SPONSORED_CCTP_SRC_PERIPHERY = getConfigElement(
-  acrossV4SwapConfig,
-  SRC_CHAIN,
-  'sponsoredCctpSrcPeriphery'
-)
-
-// Get explorer URL from networks config
-const EXPLORER_BASE_URL = `${networks[SRC_CHAIN].explorerUrl}/tx/`
-// ############################################################################################################
 
 async function main() {
   if (SHOW_HELP) {
     console.log(`
-AcrossV4SwapFacet demo script
+AcrossV4SwapFacet calldata demo
 
-Usage:
-  bun run script/demoScripts/demoAcrossV4Swap.ts --mode <spokePool|spokePoolPeriphery|sponsoredOft|sponsoredCctp> [--collect-fee] [--print-calldata]
+Defaults:
+  - prints calldata (safe). Use --send to broadcast.
 
-Sponsored modes (provide one of):
-  --callDataHex <0x...>         (selector-less abi.encode(quote, signature))
-  --fullCalldataHex <0x...>     (full periphery calldata; selector stripped automatically)
-  --quoteJson <path> --signatureHex <0x...>
+Required:
+  --mode <spokePool|spokePoolPeriphery|sponsoredOft|sponsoredCctp>
 
-Sponsored OFT requires:
-  --sendingAssetId <0x...>      (ERC20 to approve + deposit into Diamond)
 Optional:
-  --msgValueWei <wei>           (only for sponsoredOft; payable value forwarded to Across periphery)
+  --src <chain>                (default: arbitrum)
+  --dst <chain>                (default: optimism)
+  --env <staging|production>   (default: staging)
+  --entrypoint <start|swapAndStart> (default: start)
+  --receiver <0x..>            (default: wallet address)
+  --amount <decimal>           (only for spokePool/spokePoolPeriphery; default depends on mode)
 
-Dry-run:
-  --print-calldata prints the diamond calldata and exits without sending.
+Supplying callData (all modes):
+  --callDataHex <0x..>          selector-less callData (used as-is)
+  --fullCalldataHex <0x..>      full calldata with selector (selector will be stripped)
+
+SpokePool / SpokePoolPeriphery (swapApiTarget 0/1):
+  - The facet REQUIRES a backend EIP-712 signature.
+  By default this script reads from .env:
+    - staging:    PRIVATE_KEY_BACKEND_SIGNER_STAGING
+    - production: PRIVATE_KEY_BACKEND_SIGNER_PRODUCTION
+  You can override with:
+    --backendPrivateKey <0x..32bytes>
+  If callData not supplied, the script fetches Across Swap API and builds callData automatically.
+
+Sponsored OFT (swapApiTarget 2):
+  Provide one of:
+    --callDataHex <0x..>  (selector-less abi.encode(quote, signature))
+    --quoteJson <path> --signatureHex <0x..>
+  Also required:
+    --sendingAssetId <0x..>     (token to approve+deposit into Diamond)
+  Optional:
+    --msgValueWei <wei>         (LayerZero fees forwarded to periphery)
+
+Sponsored CCTP (swapApiTarget 3):
+  Provide one of:
+    --callDataHex <0x..>  (selector-less abi.encode(quote, signature))
+    --quoteJson <path> --signatureHex <0x..>
+  Optional:
+    --sendingAssetId <0x..>     (if omitted, derived from quote.burnToken)
+
+Swap-and-start encoding (optional):
+  --entrypoint swapAndStart --swapDataJson <path>
+  swapDataJson must be an array of {callTo, approveTo, sendingAssetId, receivingAssetId, fromAmount, callData, requiresDeposit}
+
+Examples (print only):
+  bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --backendPrivateKey 0x...
+  bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePool --backendPrivateKey 0x...
+  bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredCctp --quoteJson ./quote.json --signatureHex 0x...
 `)
     process.exit(0)
   }
 
-  consola.info('==========================================')
-  consola.info('  Across V4 Swap Facet Demo Script')
-  consola.info('==========================================\n')
+  const MODE = parseMode()
+  const ENTRYPOINT = parseEntrypoint()
+  const ENVIRONMENT = parseEnv()
 
-  const ACROSS_V4_SWAP_FACET_ABI = acrossV4SwapFacetArtifact.abi as Abi
+  const SRC_CHAIN = parseChain('--src', 'arbitrum')
+  const DST_CHAIN = parseChain('--dst', 'optimism')
+  const fromChainId = networks[SRC_CHAIN].chainId
+  const toChainId = networks[DST_CHAIN].chainId
 
+  const FACET_ABI = acrossV4SwapFacetArtifact.abi as Abi
   const {
     publicClient,
     walletClient,
     walletAccount,
     lifiDiamondContract,
     lifiDiamondAddress,
-  } = await setupEnvironment(SRC_CHAIN, ACROSS_V4_SWAP_FACET_ABI, ENVIRONMENT)
+  } = await setupEnvironment(SRC_CHAIN, FACET_ABI, ENVIRONMENT)
 
-  if (!lifiDiamondContract || !lifiDiamondAddress) {
+  if (!lifiDiamondContract || !lifiDiamondAddress)
     throw new Error('Missing Diamond contract/address from setupEnvironment()')
-  }
 
   const walletAddress = getAddress(walletAccount.address)
+  const receiver = getAddress(arg('--receiver') ?? walletAddress)
 
-  const targetConfigKey = MODE_DEFAULTS[MODE].configKey
-  const targetAddress =
-    targetConfigKey === 'spokePoolPeriphery'
-      ? SPOKE_POOL_PERIPHERY
-      : targetConfigKey === 'spokePool'
-      ? SPOKE_POOL
-      : targetConfigKey === 'sponsoredOftSrcPeriphery'
-      ? SPONSORED_OFT_SRC_PERIPHERY
-      : SPONSORED_CCTP_SRC_PERIPHERY
+  // ----------------------------------------------------------------------------------------------
+  // Build AcrossV4SwapFacetData.callData (selector-less) + BridgeData fields needed for signature
+  // ----------------------------------------------------------------------------------------------
+  const callDataHexArg = arg('--callDataHex')
+  const fullCalldataHexArg = arg('--fullCalldataHex')
 
-  consola.info(`Wallet address: ${walletAddress}`)
-  consola.info(`Diamond address: ${lifiDiamondAddress}`)
-  consola.info(`Mode: ${MODE}`)
-  consola.info(
-    `Target contract from config (${targetConfigKey}): ${targetAddress}`
-  )
-  consola.info('')
-
-  consola.info('Route Details:')
-  consola.info(`  Source Chain: ${SRC_CHAIN} (Chain ID: ${fromChainId})`)
-  consola.info(`  Destination Chain: ${DST_CHAIN} (Chain ID: ${toChainId})`)
-  if (MODE === 'spokePool' || MODE === 'spokePoolPeriphery') {
-    consola.info(`  Input Token: ${INPUT_TOKEN}`)
-    consola.info(`  Output Token: ${OUTPUT_TOKEN}`)
-    consola.info(
-      `  Amount: ${formatUnits(
-        fromAmount as bigint,
-        AMOUNT_DECIMALS as number
-      )}`
-    )
-  } else {
-    consola.info('  Input/Output/Amount: derived from supplied sponsored quote')
-  }
-  consola.info('')
-
-  // ============================================================================================
-  // Build AcrossV4SwapFacetData.callData for selected mode
-  // ============================================================================================
+  let swapApiTarget: 0 | 1 | 2 | 3
   let callDataNoSelector: Hex
-  let bridgeDataSendingAssetId: Address
-  let bridgeDataMinAmount: bigint
-  let msgValueWei = 0n
+  let sendingAssetId: Address
+  let minAmount: bigint
+  let msgValueWei = argBigInt('--msgValueWei') ?? 0n
 
   if (MODE === 'spokePoolPeriphery' || MODE === 'spokePool') {
-    if (!INPUT_TOKEN || !OUTPUT_TOKEN || fromAmount === undefined) {
+    swapApiTarget = MODE === 'spokePool' ? 0 : 1
+
+    const USDC_BY_CHAIN: Partial<Record<SupportedChain, Address>> = {
+      arbitrum: ADDRESS_USDC_ARB,
+      optimism: ADDRESS_USDC_OPT,
+      base: ADDRESS_USDC_BASE,
+      mainnet: ADDRESS_USDC_ETH,
+      polygon: ADDRESS_USDC_POL,
+    }
+
+    const defaultInputToken =
+      MODE === 'spokePoolPeriphery'
+        ? networks[SRC_CHAIN].wrappedNativeAddress
+        : USDC_BY_CHAIN[SRC_CHAIN]
+    const defaultOutputToken = USDC_BY_CHAIN[DST_CHAIN]
+
+    const inputTokenRaw = arg('--inputToken') ?? defaultInputToken
+    if (!inputTokenRaw) {
       throw new Error(
-        'Missing mode defaults (inputToken/outputToken/fromAmount)'
+        `Missing input token for SRC_CHAIN=${SRC_CHAIN}. Provide --inputToken 0x...`
       )
     }
 
-    consola.info('Step 1: Fetching quote from Across Swap API...')
-
-    const swapApiRequest: IAcrossSwapApiRequest = {
-      originChainId: fromChainId,
-      destinationChainId: toChainId,
-      inputToken: INPUT_TOKEN,
-      outputToken: OUTPUT_TOKEN,
-      amount: fromAmount.toString(),
-      recipient: walletAddress,
-      depositor: walletAddress,
-      refundAddress: walletAddress,
-      refundOnOrigin: true,
-      slippageTolerance: 1,
-      skipOriginTxEstimation: true,
+    const outputTokenRaw = arg('--outputToken') ?? defaultOutputToken
+    if (!outputTokenRaw) {
+      throw new Error(
+        `Missing output token for DST_CHAIN=${DST_CHAIN}. Provide --outputToken 0x...`
+      )
     }
 
-    const swapQuote = await getAcrossSwapQuote(swapApiRequest)
-    consola.info('Quote received!')
-    consola.info(`  Cross Swap Type: ${swapQuote.crossSwapType}`)
-    consola.info('')
+    const inputToken = getAddress(inputTokenRaw)
+    const outputToken = getAddress(outputTokenRaw)
 
-    if (MODE === 'spokePoolPeriphery') {
-      const swapTx = swapQuote.swapTx
-      if (!swapTx)
-        throw new Error(
-          'Across Swap API did not return swapTx (expected for spokePoolPeriphery mode)'
-        )
+    const amountWei = argBigInt('--amountWei')
+    const amountDecimals = MODE === 'spokePoolPeriphery' ? 18 : 6
+    const defaultAmountWei =
+      MODE === 'spokePoolPeriphery' ? parseUnits('0.0003', 18) : 6000000n
+    const amount =
+      amountWei ??
+      (arg('--amount')
+        ? parseUnits(arg('--amount') as string, amountDecimals)
+        : defaultAmountWei)
 
-      consola.info('Step 2: Decoding swapAndBridge calldata...')
-      const decoded = decodeSwapAndBridgeCalldata(swapTx.data)
-      consola.info(`  swapTx.to: ${swapTx.to}`)
-      consola.info(`  swapToken: ${decoded.swapToken}`)
-      consola.info(`  exchange: ${decoded.exchange}`)
-      consola.info(`  outputAmount: ${decoded.depositData.outputAmount}`)
-      consola.info('')
+    sendingAssetId = inputToken
+    minAmount = amount
+    msgValueWei = 0n
 
-      callDataNoSelector = stripSelector(assertHex(swapTx.data, 'swapTx.data'))
+    if (fullCalldataHexArg) {
+      // sanity-check decode for SpokePoolPeriphery.swapAndBridge(...)
+      if (MODE === 'spokePoolPeriphery') {
+        decodeFunctionData({
+          abi: SPOKE_POOL_PERIPHERY_SWAP_AND_BRIDGE_ABI,
+          data: assertHex(fullCalldataHexArg, '--fullCalldataHex'),
+        })
+      }
+      callDataNoSelector = stripSelector(
+        assertHex(fullCalldataHexArg, '--fullCalldataHex')
+      )
+    } else if (callDataHexArg) {
+      callDataNoSelector = assertHex(callDataHexArg, '--callDataHex')
     } else {
-      const depositTxn = swapQuote.depositTxn
-      if (!depositTxn)
-        throw new Error(
-          'Across Swap API did not return depositTxn (expected for spokePool mode)'
-        )
+      // Fetch Across Swap API quote and extract the calldata we need.
+      const req: IAcrossSwapApiRequest = {
+        originChainId: fromChainId,
+        destinationChainId: toChainId,
+        inputToken,
+        outputToken,
+        amount: minAmount.toString(),
+        recipient: receiver,
+        depositor: lifiDiamondAddress,
+        refundAddress: receiver,
+        refundOnOrigin: true,
+        slippageTolerance: 1,
+        skipOriginTxEstimation: true,
+      }
 
-      consola.info(`Step 2: Using depositTxn.to: ${depositTxn.to}`)
-      consola.info('')
+      const quote = await getAcrossSwapQuote(req)
+
+      const tx = MODE === 'spokePoolPeriphery' ? quote.swapTx : quote.depositTxn
+      if (!tx?.data)
+        throw new Error(
+          `Across Swap API did not return expected calldata for mode=${MODE}`
+        )
 
       callDataNoSelector = stripSelector(
-        assertHex(depositTxn.data, 'depositTxn.data')
+        assertHex(tx.data, 'across.swapApi.data')
       )
     }
-
-    bridgeDataSendingAssetId = getAddress(INPUT_TOKEN)
-    bridgeDataMinAmount = fromAmount
-    msgValueWei = 0n
   } else if (MODE === 'sponsoredOft') {
-    const callDataHexArg = parseArgValue('--callDataHex')
-    const fullCalldataHexArg = parseArgValue('--fullCalldataHex')
-    const quoteJsonPath = parseArgValue('--quoteJson')
-    const signatureHex = parseArgValue('--signatureHex')
-    const sendingAssetIdArg = parseArgValue('--sendingAssetId')
-    const msgValueWeiArg = parseBigIntArg('--msgValueWei') ?? 0n
+    swapApiTarget = 2
 
-    if (!sendingAssetIdArg) {
-      throw new Error(
-        'Missing --sendingAssetId for sponsoredOft (required for safe approvals)'
-      )
-    }
+    const sendingAssetIdArg = arg('--sendingAssetId')
+    if (!sendingAssetIdArg)
+      throw new Error('Missing --sendingAssetId for sponsoredOft')
+    sendingAssetId = getAddress(sendingAssetIdArg)
 
     if (fullCalldataHexArg) {
       callDataNoSelector = stripSelector(
@@ -760,11 +537,12 @@ Dry-run:
     } else if (callDataHexArg) {
       callDataNoSelector = assertHex(callDataHexArg, '--callDataHex')
     } else {
-      if (!quoteJsonPath || !signatureHex) {
+      const quoteJsonPath = arg('--quoteJson')
+      const signatureHex = arg('--signatureHex')
+      if (!quoteJsonPath || !signatureHex)
         throw new Error(
           'sponsoredOft requires --callDataHex OR (--quoteJson and --signatureHex) OR --fullCalldataHex'
         )
-      }
       const quoteJsonRaw = await readFile(quoteJsonPath, 'utf8')
       const quote = JSON.parse(quoteJsonRaw)
       const sig = assertHex(signatureHex, '--signatureHex')
@@ -778,29 +556,25 @@ Dry-run:
       [SPONSORED_OFT_QUOTE_PARAM, { type: 'bytes' }],
       callDataNoSelector
     )
-
-    const sponsoredOftQuote = quoteDecoded as {
+    const oftQuote = quoteDecoded as {
       signedParams: { amountLD: bigint; finalRecipient: Hex }
     }
 
-    const amountLD = sponsoredOftQuote.signedParams.amountLD
-    const finalRecipient = sponsoredOftQuote.signedParams.finalRecipient
-    const finalRecipientAddr = bytes32ToEvmAddress(finalRecipient)
-    if (finalRecipientAddr !== getAddress(walletAddress)) {
+    // Default minAmount to quote amount (allow override via --minAmount)
+    minAmount = argBigInt('--minAmount') ?? oftQuote.signedParams.amountLD
+
+    // Keep receiver consistent with quote (integrator safety, mirrors on-chain checks)
+    const finalRecipientAddr = bytes32ToEvmAddress(
+      oftQuote.signedParams.finalRecipient
+    )
+    if (finalRecipientAddr !== receiver) {
       throw new Error(
-        `sponsoredOft finalRecipient mismatch. Quote.finalRecipient=${finalRecipientAddr} wallet=${walletAddress}`
+        `sponsoredOft receiver mismatch. quote.finalRecipient=${finalRecipientAddr} receiver=${receiver}`
       )
     }
-
-    bridgeDataSendingAssetId = getAddress(sendingAssetIdArg)
-    bridgeDataMinAmount = amountLD
-    msgValueWei = msgValueWeiArg
   } else {
     // sponsoredCctp
-    const callDataHexArg = parseArgValue('--callDataHex')
-    const fullCalldataHexArg = parseArgValue('--fullCalldataHex')
-    const quoteJsonPath = parseArgValue('--quoteJson')
-    const signatureHex = parseArgValue('--signatureHex')
+    swapApiTarget = 3
 
     if (fullCalldataHexArg) {
       callDataNoSelector = stripSelector(
@@ -809,11 +583,12 @@ Dry-run:
     } else if (callDataHexArg) {
       callDataNoSelector = assertHex(callDataHexArg, '--callDataHex')
     } else {
-      if (!quoteJsonPath || !signatureHex) {
+      const quoteJsonPath = arg('--quoteJson')
+      const signatureHex = arg('--signatureHex')
+      if (!quoteJsonPath || !signatureHex)
         throw new Error(
           'sponsoredCctp requires --callDataHex OR (--quoteJson and --signatureHex) OR --fullCalldataHex'
         )
-      }
       const quoteJsonRaw = await readFile(quoteJsonPath, 'utf8')
       const quote = JSON.parse(quoteJsonRaw)
       const sig = assertHex(signatureHex, '--signatureHex')
@@ -827,163 +602,139 @@ Dry-run:
       [SPONSORED_CCTP_QUOTE_PARAM, { type: 'bytes' }],
       callDataNoSelector
     )
-
-    const sponsoredCctpQuote = quoteDecoded as {
+    const cctpQuote = quoteDecoded as {
       amount: bigint
       burnToken: Hex
-      destinationDomain: number
       finalRecipient: Hex
     }
 
-    const amount = sponsoredCctpQuote.amount
-    const burnTokenBytes32 = sponsoredCctpQuote.burnToken
-    const destinationDomain = sponsoredCctpQuote.destinationDomain
-    const finalRecipient = sponsoredCctpQuote.finalRecipient
-    const finalRecipientAddr = bytes32ToEvmAddress(finalRecipient)
+    // Default minAmount to quote amount (allow override via --minAmount)
+    minAmount = argBigInt('--minAmount') ?? cctpQuote.amount
 
-    if (finalRecipientAddr !== getAddress(walletAddress)) {
+    // Default sendingAssetId to burnToken from quote (allow override via --sendingAssetId)
+    const derivedBurnToken = bytes32ToEvmAddress(cctpQuote.burnToken)
+    sendingAssetId = getAddress(arg('--sendingAssetId') ?? derivedBurnToken)
+
+    const finalRecipientAddr = bytes32ToEvmAddress(cctpQuote.finalRecipient)
+    if (finalRecipientAddr !== receiver) {
       throw new Error(
-        `sponsoredCctp finalRecipient mismatch. Quote.finalRecipient=${finalRecipientAddr} wallet=${walletAddress}`
+        `sponsoredCctp receiver mismatch. quote.finalRecipient=${finalRecipientAddr} receiver=${receiver}`
       )
     }
-
-    const expectedDomain = chainIdToCctpDomainId(toChainId)
-    if (destinationDomain !== expectedDomain) {
-      throw new Error(
-        `sponsoredCctp destinationDomain mismatch. Quote.destinationDomain=${destinationDomain} expected=${expectedDomain} (from destinationChainId=${toChainId})`
-      )
-    }
-
-    bridgeDataSendingAssetId = bytes32ToEvmAddress(burnTokenBytes32)
-    bridgeDataMinAmount = amount
-    msgValueWei = 0n // facet enforces 0
+    msgValueWei = 0n // facet enforces 0 for sponsored CCTP
   }
 
-  const transactionId = `0x${randomBytes(32).toString('hex')}` as `0x${string}`
+  const transactionId = (arg('--transactionId') ??
+    (`0x${randomBytes(32).toString('hex')}` as Hex)) as Hex
+
   const bridgeData: IBridgeData = {
     transactionId,
     bridge: 'acrossV4Swap',
-    integrator: 'lifi-demoScript',
-    referrer: zeroAddress,
-    sendingAssetId: getAddress(bridgeDataSendingAssetId),
-    receiver: walletAddress,
-    minAmount: bridgeDataMinAmount,
+    integrator: arg('--integrator') ?? 'lifi-demo',
+    referrer: getAddress(
+      arg('--referrer') ??
+        ('0x0000000000000000000000000000000000000000' as Address)
+    ),
+    sendingAssetId,
+    receiver,
+    minAmount,
     destinationChainId: toChainId,
-    hasSourceSwaps: false,
+    hasSourceSwaps: ENTRYPOINT === 'swapAndStart',
     hasDestinationCall: false,
   }
 
-  const acrossV4SwapFacetData: IAcrossV4SwapFacetData = {
-    swapApiTarget: MODE_DEFAULTS[MODE].swapApiTarget,
-    callData: callDataNoSelector,
-  }
+  let facetSignature: Hex = '0x'
+  if (swapApiTarget === 0 || swapApiTarget === 1) {
+    const backendPkCli = arg('--backendPrivateKey')
+    const envVarName =
+      ENVIRONMENT === EnvironmentEnum.staging
+        ? 'PRIVATE_KEY_BACKEND_SIGNER_STAGING'
+        : 'PRIVATE_KEY_BACKEND_SIGNER_PRODUCTION'
 
-  // Fee collection is only safe for the default WETH flow in this demo (fees configured in 18 decimals).
-  if (
-    COLLECT_FEE &&
-    bridgeData.sendingAssetId.toLowerCase() !== ADDRESS_WETH_ARB.toLowerCase()
-  ) {
-    throw new Error(
-      `--collect-fee is only supported in this demo when sendingAssetId is WETH (${ADDRESS_WETH_ARB}).`
+    const backendPrivateKey = assertHex(
+      backendPkCli ?? getEnvVar(envVarName),
+      backendPkCli ? '--backendPrivateKey' : envVarName
     )
+
+    facetSignature = await buildFacetBackendSignature({
+      backendPrivateKey,
+      chainId: fromChainId,
+      verifyingContract: lifiDiamondAddress,
+      bridgeData,
+      swapApiTarget,
+      callDataNoSelector,
+    })
   }
 
-  const totalFees = COLLECT_FEE ? INTEGRATOR_FEE + LIFI_FEE : 0n
-  const totalAmount = bridgeData.minAmount + totalFees
-
-  const feeCollectorAddress = getAddress(getFeeCollectorAddress(ENVIRONMENT))
-
-  let feeCollectionSwapData: ISwapData | undefined
-  if (COLLECT_FEE) {
-    feeCollectionSwapData = {
-      callTo: feeCollectorAddress,
-      approveTo: feeCollectorAddress,
-      sendingAssetId: bridgeData.sendingAssetId,
-      receivingAssetId: bridgeData.sendingAssetId,
-      fromAmount: totalAmount,
-      callData: encodeFunctionData({
-        abi: FEE_COLLECTOR_ABI,
-        functionName: 'collectTokenFees',
-        args: [
-          bridgeData.sendingAssetId,
-          INTEGRATOR_FEE,
-          LIFI_FEE,
-          walletAddress,
-        ],
-      }),
-      requiresDeposit: true,
-    }
+  const acrossV4SwapFacetData: IAcrossV4SwapFacetData = {
+    swapApiTarget,
+    callData: callDataNoSelector,
+    signature: facetSignature,
   }
 
-  const bridgeDataWithSwap: IBridgeData = {
-    ...bridgeData,
-    hasSourceSwaps: COLLECT_FEE,
+  // ----------------------------------------------------------------------------------------------
+  // Encode Diamond calldata
+  // ----------------------------------------------------------------------------------------------
+  let swapData: ISwapData[] = []
+  if (ENTRYPOINT === 'swapAndStart') {
+    const swapDataJson = arg('--swapDataJson')
+    if (!swapDataJson)
+      throw new Error('swapAndStart requires --swapDataJson <path>')
+    const raw = await readFile(swapDataJson, 'utf8')
+    // Expect direct array of SwapData-compatible objects.
+    swapData = JSON.parse(raw) as ISwapData[]
   }
 
-  const diamondCallData = COLLECT_FEE
-    ? encodeFunctionData({
-        abi: ACROSS_V4_SWAP_FACET_ABI,
-        functionName: 'swapAndStartBridgeTokensViaAcrossV4Swap',
-        args: [
-          bridgeDataWithSwap,
-          [feeCollectionSwapData],
-          acrossV4SwapFacetData,
-        ],
-      })
-    : encodeFunctionData({
-        abi: ACROSS_V4_SWAP_FACET_ABI,
-        functionName: 'startBridgeTokensViaAcrossV4Swap',
-        args: [bridgeData, acrossV4SwapFacetData],
-      })
+  const diamondCallData =
+    ENTRYPOINT === 'swapAndStart'
+      ? encodeFunctionData({
+          abi: FACET_ABI,
+          functionName: 'swapAndStartBridgeTokensViaAcrossV4Swap',
+          args: [bridgeData, swapData, acrossV4SwapFacetData],
+        })
+      : encodeFunctionData({
+          abi: FACET_ABI,
+          functionName: 'startBridgeTokensViaAcrossV4Swap',
+          args: [bridgeData, acrossV4SwapFacetData],
+        })
 
-  consola.info('==========================================')
-  consola.info('  Prepared Call')
-  consola.info('==========================================')
-  consola.info(`sendingAssetId:     ${bridgeData.sendingAssetId}`)
-  consola.info(`minAmount:          ${bridgeData.minAmount.toString()}`)
-  consola.info(`receiver:           ${bridgeData.receiver}`)
-  consola.info(`destinationChainId: ${bridgeData.destinationChainId}`)
-  consola.info(`swapApiTarget:      ${acrossV4SwapFacetData.swapApiTarget}`)
-  consola.info(
-    `callDataBytes:      ${(acrossV4SwapFacetData.callData.length - 2) / 2}`
-  )
-  consola.info('')
-  consola.info('Requirements:')
-  consola.info(`  Approval token:    ${bridgeData.sendingAssetId}`)
-  consola.info(`  Approval spender:  ${lifiDiamondAddress}`)
-  consola.info(`  Approval amount:   ${totalAmount.toString()}`)
-  consola.info(`  msg.value:         ${msgValueWei.toString()}`)
-  consola.info('==========================================\n')
+  // Minimal, effective output (primary goal: show calldata)
+  consola.info(`mode=${MODE} entrypoint=${ENTRYPOINT} env=${ENVIRONMENT}`)
+  consola.info(`to=${lifiDiamondAddress}`)
+  consola.info(`value=${msgValueWei.toString()}`)
+  consola.info(`data=${diamondCallData}`)
 
-  if (PRINT_CALLDATA) {
-    consola.info('--- print-calldata ---')
-    consola.info(`to: ${lifiDiamondAddress}`)
-    consola.info(`data: ${diamondCallData}`)
-    consola.info(`value: ${msgValueWei.toString()}`)
-    consola.info('----------------------\n')
-    return
-  }
+  if (PRINT_CALLDATA && !SEND_TX) return
 
-  // Balance + allowance (ERC20 only for these demo paths)
-  consola.info('Checking balance and allowance...')
+  // ----------------------------------------------------------------------------------------------
+  // Optional: send tx (best-effort helper; may still revert depending on quote validity/allowlists)
+  // ----------------------------------------------------------------------------------------------
   const tokenContract = getContract({
-    address: bridgeData.sendingAssetId as `0x${string}`,
+    address: bridgeData.sendingAssetId,
     abi: erc20Abi,
     client: { public: publicClient, wallet: walletClient },
   })
 
-  await ensureBalance(tokenContract, walletAddress, totalAmount, publicClient)
+  await ensureBalance(
+    tokenContract,
+    walletAddress,
+    bridgeData.minAmount,
+    publicClient
+  )
   await ensureAllowance(
     tokenContract,
     walletAddress,
     lifiDiamondAddress as string,
-    totalAmount,
+    bridgeData.minAmount,
     publicClient
   )
 
-  consola.info('Executing transaction...')
   const typedDiamond = lifiDiamondContract as unknown as {
     write: {
+      startBridgeTokensViaAcrossV4Swap: (
+        args: readonly [IBridgeData, IAcrossV4SwapFacetData],
+        options: { value: bigint }
+      ) => Promise<Hex>
       swapAndStartBridgeTokensViaAcrossV4Swap: (
         args: readonly [
           IBridgeData,
@@ -992,56 +743,38 @@ Dry-run:
         ],
         options: { value: bigint }
       ) => Promise<Hex>
-      startBridgeTokensViaAcrossV4Swap: (
-        args: readonly [IBridgeData, IAcrossV4SwapFacetData],
-        options: { value: bigint }
-      ) => Promise<Hex>
     }
   }
 
-  let txHash: string | null = null
+  const txHash =
+    ENTRYPOINT === 'swapAndStart'
+      ? await executeTransaction(
+          () =>
+            typedDiamond.write.swapAndStartBridgeTokensViaAcrossV4Swap(
+              [bridgeData, swapData, acrossV4SwapFacetData],
+              { value: msgValueWei }
+            ),
+          'AcrossV4SwapFacet swapAndStart',
+          publicClient,
+          true
+        )
+      : await executeTransaction(
+          () =>
+            typedDiamond.write.startBridgeTokensViaAcrossV4Swap(
+              [bridgeData, acrossV4SwapFacetData],
+              { value: msgValueWei }
+            ),
+          'AcrossV4SwapFacet start',
+          publicClient,
+          true
+        )
 
-  if (COLLECT_FEE) {
-    if (!feeCollectionSwapData) {
-      throw new Error(
-        'Fee collection enabled but feeCollectionSwapData missing'
-      )
-    }
-    txHash = await executeTransaction(
-      () =>
-        typedDiamond.write.swapAndStartBridgeTokensViaAcrossV4Swap(
-          [bridgeDataWithSwap, [feeCollectionSwapData], acrossV4SwapFacetData],
-          { value: msgValueWei }
-        ),
-      'Starting bridge with fee collection via AcrossV4Swap',
-      publicClient,
-      true
-    )
-  } else {
-    txHash = await executeTransaction(
-      () =>
-        typedDiamond.write.startBridgeTokensViaAcrossV4Swap(
-          [bridgeData, acrossV4SwapFacetData],
-          { value: msgValueWei }
-        ),
-      'Starting bridge tokens via AcrossV4Swap',
-      publicClient,
-      true
-    )
-  }
-
-  consola.info('\n==========================================')
-  consola.info('  TRANSACTION SUCCESSFUL!')
-  consola.info('==========================================')
-  consola.info(`Explorer: ${EXPLORER_BASE_URL}${txHash}\n`)
+  consola.info(`tx=${txHash}`)
 }
 
 main()
-  .then(() => {
-    consola.info('Script completed successfully')
-    process.exit(0)
-  })
+  .then(() => process.exit(0))
   .catch((error) => {
-    consola.error('Script failed:', error)
+    consola.error(error)
     process.exit(1)
   })
