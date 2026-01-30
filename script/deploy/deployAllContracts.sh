@@ -61,29 +61,17 @@ deployAllContracts() {
     fi
   fi
 
-  # Extract the stage number from the selection
-  if [[ "$START_FROM" == *"1)"* ]]; then
-    START_STAGE=1
-  elif [[ "$START_FROM" == *"2)"* ]]; then
-    START_STAGE=2
-  elif [[ "$START_FROM" == *"3)"* ]]; then
-    START_STAGE=3
-  elif [[ "$START_FROM" == *"4)"* ]]; then
-    START_STAGE=4
-  elif [[ "$START_FROM" == *"5)"* ]]; then
-    START_STAGE=5
-  elif [[ "$START_FROM" == *"6)"* ]]; then
-    START_STAGE=6
-  elif [[ "$START_FROM" == *"7)"* ]]; then
-    START_STAGE=7
-  elif [[ "$START_FROM" == *"8)"* ]]; then
-    START_STAGE=8
-  elif [[ "$START_FROM" == *"9)"* ]]; then
-    START_STAGE=9
-  elif [[ "$START_FROM" == *"10)"* ]]; then
-    START_STAGE=10
+  # Extract the stage number from the selection (e.g. "11) ...")
+  # Important: do NOT substring-match "1)" as it would also match "10)" and "11)".
+  if [[ "$START_FROM" =~ ^([0-9]+)\) ]]; then
+    START_STAGE="${BASH_REMATCH[1]}"
   else
     error "invalid selection: $START_FROM - exiting script now"
+    exit 1
+  fi
+
+  if [[ "$START_STAGE" -lt 1 || "$START_STAGE" -gt 11 ]]; then
+    error "invalid selection (stage out of range): $START_FROM - exiting script now"
     exit 1
   fi
 
@@ -341,8 +329,9 @@ deployAllContracts() {
 
 
 
-  # Pause and ask user if they want to continue with ownership transfer
-  if [[ "$ENVIRONMENT" == "production" ]]; then
+  # Pause and ask user if they want to continue with ownership transfer.
+  # If the user explicitly chose to start from stage 11, skip this prompt and proceed directly.
+  if [[ "$ENVIRONMENT" == "production" && "$START_STAGE" -le 10 ]]; then
     echo ""
     echo "All actions completed. Do you want to continue with ownership transfer to timelock?"
     echo "This should only be done if the health check shows only diamond ownership errors."
