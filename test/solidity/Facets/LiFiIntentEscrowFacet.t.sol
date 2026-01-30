@@ -358,9 +358,38 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // Set depositAndRefundAddress to address(0)
         validLIFIIntentData.depositAndRefundAddress = address(0);
 
-        vm.expectRevert(InvalidReceiver.selector);
+        vm.expectRevert(
+            LiFiIntentEscrowFacet.InvalidDepositAndRefundAddress.selector
+        );
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_LIFIIntentZeroDepositAndRefundAddressSwapAnd()
+        external
+    {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+        bridgeData.hasSourceSwaps = true;
+
+        // Set depositAndRefundAddress to address(0)
+        validLIFIIntentData.depositAndRefundAddress = address(0);
+
+        LibSwap.SwapData[] memory _swapData = new LibSwap.SwapData[](1);
+
+        vm.expectRevert(
+            LiFiIntentEscrowFacet.InvalidDepositAndRefundAddress.selector
+        );
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            _swapData,
             validLIFIIntentData
         );
         vm.stopPrank();

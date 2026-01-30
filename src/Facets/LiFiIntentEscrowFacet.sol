@@ -27,6 +27,10 @@ contract LiFiIntentEscrowFacet is
     Validatable,
     LiFiData
 {
+    /// Errors ///
+
+    error InvalidDepositAndRefundAddress();
+
     /// Storage ///
 
     /// @dev LIFI Intent Escrow Input Settler
@@ -89,6 +93,8 @@ contract LiFiIntentEscrowFacet is
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
+        if (_lifiIntentData.depositAndRefundAddress == address(0))
+            revert InvalidDepositAndRefundAddress();
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -113,18 +119,23 @@ contract LiFiIntentEscrowFacet is
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        address depositAndRefundAddress = _lifiIntentData
+            .depositAndRefundAddress;
+        if (depositAndRefundAddress == address(0))
+            revert InvalidDepositAndRefundAddress();
+
         uint256 swapOutcome = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(depositAndRefundAddress)
         );
 
         // Return positive slippage to user if any
         if (swapOutcome > _bridgeData.minAmount) {
             LibAsset.transferAsset(
                 _bridgeData.sendingAssetId,
-                payable(_lifiIntentData.depositAndRefundAddress),
+                payable(depositAndRefundAddress),
                 swapOutcome - _bridgeData.minAmount
             );
         }
@@ -146,8 +157,6 @@ contract LiFiIntentEscrowFacet is
         if ((dstCallSwapDataLength > 0) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
         }
-        if (_lifiIntentData.depositAndRefundAddress == address(0))
-            revert InvalidReceiver();
         if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
 
         // We wanna create a "canonical" recipient so we don't have to argue for which one (bridgeData/LIFIIntentData) to use.
