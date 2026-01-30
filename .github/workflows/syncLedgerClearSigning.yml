@@ -90,11 +90,16 @@ jobs:
           git push --force-with-lease -u origin HEAD
 
           echo -e "\033[32mCreating/updating PR against upstream...\033[0m"
-          export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
+          ##### Authenticate gh with custom PAT (do not rely on implicit GITHUB_TOKEN)
+          unset GITHUB_TOKEN
+          GH_PAT="${LEDGER_SYNC_TOKEN}"
+          export GH_TOKEN="${GH_PAT}"
+          printf '%s' "${GH_PAT}" | gh auth login --with-token
           HEAD_REF="$(echo "${LEDGER_FORK}" | cut -d/ -f1):${SYNC_BRANCH}"
 
-          if gh pr view --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" >/dev/null 2>&1; then
-            gh pr edit --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --title "${PR_TITLE}" >/dev/null
+          EXISTING_PR_URL="$(gh pr list --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --state open --json url -q '.[0].url' 2>/dev/null || true)"
+          if [ -n "${EXISTING_PR_URL}" ]; then
+            gh pr edit "${EXISTING_PR_URL}" --title "${PR_TITLE}" >/dev/null
             echo -e "\033[32mPR already exists; updated title.\033[0m"
           else
             PR_BODY="$(printf '%s\n' \
@@ -116,7 +121,10 @@ jobs:
           fi
 
           ##### Always print PR link to workflow logs (when there were changes)
-          PR_URL="$(gh pr view --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --json url -q '.url' 2>/dev/null || true)"
+          PR_URL="${EXISTING_PR_URL:-}"
+          if [ -z "${PR_URL}" ]; then
+            PR_URL="$(gh pr list --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --state open --json url -q '.[0].url' 2>/dev/null || true)"
+          fi
           if [ -n "${PR_URL}" ]; then
             echo -e "\033[32mPR URL: ${PR_URL}\033[0m"
           else
