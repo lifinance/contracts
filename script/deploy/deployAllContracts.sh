@@ -57,7 +57,8 @@ deployAllContracts() {
       export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
       echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
     else
-      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
+      error "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND must be true for production deployments"
+      exit 1
     fi
   fi
 
