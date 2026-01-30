@@ -87,7 +87,7 @@ jobs:
             commit -m "${PR_TITLE}" -m "Auto-generated from lifinance/contracts (facets ABI + deployments)."
 
           echo -e "\033[32mPushing branch to fork...\033[0m"
-          git push -u origin HEAD
+          git push --force-with-lease -u origin HEAD
 
           echo -e "\033[32mCreating/updating PR against upstream...\033[0m"
           export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
