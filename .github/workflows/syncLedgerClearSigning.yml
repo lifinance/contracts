@@ -91,9 +91,7 @@ jobs:
           echo -e "\033[32mCreating/updating PR against upstream...\033[0m"
           ##### Authenticate gh with custom PAT (do not rely on implicit GITHUB_TOKEN)
           unset GITHUB_TOKEN
-          GH_PAT="${LEDGER_SYNC_TOKEN}"
-          export GH_TOKEN="${GH_PAT}"
-          printf '%s' "${GH_PAT}" | gh auth login --with-token
+          export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
           HEAD_REF="$(echo "${LEDGER_FORK}" | cut -d/ -f1):${SYNC_BRANCH}"
 
           EXISTING_PR_URL="$(gh pr list --repo "${LEDGER_UPSTREAM}" --head "${HEAD_REF}" --state open --json url -q '.[0].url' 2>/dev/null || true)"
