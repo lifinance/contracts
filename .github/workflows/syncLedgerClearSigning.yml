@@ -1,8 +1,7 @@
 # Sync Ledger Clear Signing (ERC-7730)
 # - Purpose: Keep Ledger's `registry/lifi/calldata-LIFIDiamond.json` up to date with this repo's Diamond ABI + deployments
 # - Triggers: manual (`workflow_dispatch`), schedule (daily), and pushes affecting ABI/deployment sources
-# - Key behaviors: clones our fork of LedgerHQ registry, regenerates the JSON, and pushes a branch to the fork
-# - Testing behavior: PR creation is temporarily disabled; enable in a follow-up commit after push flow is verified
+# - Key behaviors: clones our fork of LedgerHQ registry, regenerates the JSON, pushes a branch to the fork, and creates/updates a PR upstream
 # - Known limitations: `display.*` is preserved (hand-curated UX); only `context.contract.abi` and `deployments` are updated
 
 name: Sync Ledger Clear Signing (ERC-7730)
@@ -56,12 +55,8 @@ jobs:
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
           SYNC_BRANCH: sync/lifi-erc7730
           PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json'
-          CREATE_PR: 'false' # TODO: flip to 'true' after push-only testing
         run: |
           set -euo pipefail
-
-          ##### Push-only sync (requires token to push to fork)
-          echo -e "\033[32mCREATE_PR=${CREATE_PR} (ref=${GITHUB_REF})\033[0m"
 
           if [ -z "${LEDGER_SYNC_TOKEN:-}" ]; then
             echo -e "\033[31mError: LEDGER_SYNC_TOKEN secret missing\033[0m"
@@ -93,11 +88,6 @@ jobs:
 
           echo -e "\033[32mPushing branch to fork...\033[0m"
           git push -u origin HEAD
-
-          if [ "${CREATE_PR}" != "true" ]; then
-            echo -e "\033[32mSkipping PR creation (push-only mode).\033[0m"
-            exit 0
-          fi
 
           echo -e "\033[32mCreating/updating PR against upstream...\033[0m"
           export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
