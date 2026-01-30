@@ -103,8 +103,12 @@ jobs:
 
           EXISTING_PR_URL="$(resolve_pr_url)"
           if [ -n "${EXISTING_PR_URL}" ]; then
-            gh pr edit "${EXISTING_PR_URL}" --title "${PR_TITLE}" >/dev/null
-            echo -e "\033[32mPR already exists; updated title.\033[0m"
+            ##### `gh pr edit` can fail if token lacks PR-update permissions; do not fail the sync run for that.
+            if gh pr edit "${EXISTING_PR_URL}" --title "${PR_TITLE}" >/dev/null; then
+              echo -e "\033[32mPR already exists; updated title.\033[0m"
+            else
+              echo -e "\033[33mWarning: unable to update PR title (insufficient permissions). Continuing.\033[0m"
+            fi
           else
             PR_BODY="$(printf '%s\n' \
               '## Summary' \
