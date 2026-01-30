@@ -95,8 +95,13 @@ jobs:
           HEAD_OWNER="$(echo "${LEDGER_FORK}" | cut -d/ -f1)"
           HEAD_REF="${HEAD_OWNER}:${SYNC_BRANCH}"
 
-          ##### Resolve existing PR (if any) by head ref
-          EXISTING_PR_URL="$(gh pr list --repo "${LEDGER_UPSTREAM}" --base master --head "${HEAD_REF}" --state open --json url -q '.[0].url' 2>/dev/null || true)"
+          ##### Resolve existing PR (if any) by head ref.
+          ##### Use API query since `gh pr list --head` can be inconsistent with OWNER:BRANCH.
+          resolve_pr_url() {
+            gh api "repos/${LEDGER_UPSTREAM}/pulls?state=open&head=${HEAD_REF}&base=master" --jq '.[0].html_url' 2>/dev/null || true
+          }
+
+          EXISTING_PR_URL="$(resolve_pr_url)"
           if [ -n "${EXISTING_PR_URL}" ]; then
             gh pr edit "${EXISTING_PR_URL}" --title "${PR_TITLE}" >/dev/null
             echo -e "\033[32mPR already exists; updated title.\033[0m"
@@ -126,7 +131,7 @@ jobs:
           ##### Always print PR link to workflow logs (when there were changes)
           PR_URL="${EXISTING_PR_URL:-}"
           if [ -z "${PR_URL}" ]; then
-            PR_URL="$(gh pr list --repo "${LEDGER_UPSTREAM}" --base master --head "${HEAD_REF}" --state open --json url -q '.[0].url' 2>/dev/null || true)"
+            PR_URL="$(resolve_pr_url)"
           fi
           if [ -n "${PR_URL}" ]; then
             echo -e "\033[32mPR URL: ${PR_URL}\033[0m"
