@@ -30,6 +30,13 @@ contract TestAcrossV4SwapFacet is AcrossV4SwapFacet, TestWhitelistManagerBase {
             _backendSigner
         )
     {}
+
+    /// @dev Exposes internal CCTP domain mapping for unit tests.
+    function exposed_chainIdToCctpDomainId(
+        uint256 _chainId
+    ) external pure returns (uint32) {
+        return _chainIdToCctpDomainId(_chainId);
+    }
 }
 
 contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
@@ -1338,6 +1345,79 @@ contract AcrossV4SwapFacetTest is
         );
 
         vm.stopPrank();
+    }
+
+    function test_chainIdToCctpDomainId_AllMappedChainIds() public {
+        TestAcrossV4SwapFacet facet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
+            SPOKE_POOL,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY,
+            backendSigner
+        );
+
+        // Keep this list aligned with `AcrossV4SwapFacet._chainIdToCctpDomainId`.
+        uint256[] memory chainIds = new uint256[](18);
+        uint32[] memory domains = new uint32[](18);
+
+        // Mainnet chain IDs
+        chainIds[0] = 1;
+        domains[0] = 0; // Ethereum
+        chainIds[1] = 43114;
+        domains[1] = 1; // Avalanche
+        chainIds[2] = 10;
+        domains[2] = 2; // OP Mainnet
+        chainIds[3] = 42161;
+        domains[3] = 3; // Arbitrum
+        chainIds[4] = 1151111081099710;
+        domains[4] = 5; // Solana (LI.FI internal chainId)
+        chainIds[5] = 8453;
+        domains[5] = 6; // Base
+        chainIds[6] = 137;
+        domains[6] = 7; // Polygon PoS
+        chainIds[7] = 130;
+        domains[7] = 10; // Unichain
+        chainIds[8] = 59144;
+        domains[8] = 11; // Linea
+        chainIds[9] = 81224;
+        domains[9] = 12; // Codex
+        chainIds[10] = 146;
+        domains[10] = 13; // Sonic
+        chainIds[11] = 480;
+        domains[11] = 14; // World Chain
+        chainIds[12] = 1329;
+        domains[12] = 16; // Sei
+        chainIds[13] = 50;
+        domains[13] = 18; // XDC
+        chainIds[14] = 999;
+        domains[14] = 19; // HyperEVM
+        chainIds[15] = 1337;
+        domains[15] = 19; // HyperCore (via HyperEVM)
+        chainIds[16] = 57073;
+        domains[16] = 21; // Ink
+        chainIds[17] = 98866;
+        domains[17] = 22; // Plume
+
+        for (uint256 i; i < chainIds.length; i++) {
+            assertEq(
+                uint256(facet.exposed_chainIdToCctpDomainId(chainIds[i])),
+                uint256(domains[i]),
+                "unexpected CCTP domain mapping"
+            );
+        }
+    }
+
+    function testRevert_chainIdToCctpDomainId_WhenChainIdNotMapped() public {
+        TestAcrossV4SwapFacet facet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
+            SPOKE_POOL,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY,
+            backendSigner
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        facet.exposed_chainIdToCctpDomainId(2);
     }
 
     /// Helper functions ///
