@@ -100,6 +100,8 @@ contract AcrossV4SwapFacet is
         address _sponsoredCctpSrcPeriphery,
         address _backendSigner
     ) {
+        // _sponsoredOftSrcPeriphery and _sponsoredCctpSrcPeriphery can be address(0) as
+        // they are not available on all chains
         if (
             address(_spokePoolPeriphery) == address(0) ||
             _spokePool == address(0) ||

@@ -229,8 +229,7 @@ contract AcrossV4SwapFacetTest is
         // Mirrors facet logic (MULTIPLIER_BASE == 1e18).
         uint256 outputAmountMultiplier = (quotedOutputAmount * 1e18) /
             preSwapAmount;
-        // expectedOutputAmount computed later when post-swap amount is known.
-        // expectedMinExpected computed later when post-swap amount is known.
+        // expectedOutputAmount and expectedMinExpected are computed later when post-swap amount is known.
         expectedOutputAmount = outputAmountMultiplier;
         expectedMinExpected = 0;
     }
@@ -1460,7 +1459,4 @@ contract AcrossV4SwapFacetTest is
 
         return abi.encode(swapAndDepositData);
     }
-
-    // Sponsored OFT/CCTP tests are in:
-    // `test/solidity/Facets/AcrossV4SwapFacet.Sponsored.t.sol`
 }
