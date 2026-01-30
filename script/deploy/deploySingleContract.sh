@@ -424,6 +424,13 @@ deploySingleContract() {
 
   # check if contract verification is enabled in config and contract not yet verified according to log file
   if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
+    # For zkEVM networks, add delay before verification to allow API to index the contract
+    # This helps avoid "504 Gateway Time-out" errors when API tries to fetch contract ABI
+    if isZkEvmNetwork "$NETWORK"; then
+      echo "[info] Waiting 60 seconds before verification to allow API indexing (zkEVM network)..."
+      sleep 60
+    fi
+    
     echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
     if [[ $DEBUG == "true" ]]; then
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
