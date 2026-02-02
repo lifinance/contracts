@@ -34,4 +34,14 @@ export interface INetwork {
   safeWebUrl?: string
   create3Factory?: string
   devNotes?: string
+  /**
+   * Custom verification flags to pass to forge verify-contract command.
+   * Format: JSON object where keys are flag names and values are flag values (or null for flags without values).
+   * Examples:
+   *   Single flag with value: {"-e": "verifyContract"}
+   *   Single flag without value: {"--skip-is-verified-check": null}
+   *   Multiple flags: {"-e": "verifyContract", "--skip-is-verified-check": null}
+   * These flags are appended to the verification command in the order specified.
+   */
+  customVerificationFlags?: Record<string, string | null>
 }
