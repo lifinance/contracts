@@ -593,8 +593,9 @@ function diamondSyncWhitelist {
                   PAIRS+=("$CONTRACT_NORMALIZED|$SELECTOR")
                 fi
               elif [[ -n "$SELECTOR" ]]; then
-                # Log invalid selector for debugging
-                echoSyncDebug "Skipping invalid selector: $SELECTOR"
+                # Invalid selector: abort and return so caller can retry/fail
+                echoSyncDebug "Invalid selector: $SELECTOR"
+                return 1
               fi
             done
           done
@@ -787,12 +788,6 @@ function diamondSyncWhitelist {
     if [[ ${#CURRENT_PAIRS[@]} -gt 0 ]]; then
       echoSyncDebug "Comparing ${#CURRENT_PAIRS[@]} current pairs against ${#NORMALIZED_REQUIRED_PAIRS[@]} required pairs"
       
-      # Debug: Show sample of current and required pairs for Tron networks
-      if isTronNetwork "$NETWORK" && [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-        echoSyncDebug "Sample CURRENT_PAIRS (first 3): ${CURRENT_PAIRS[*]:0:3}"
-        echoSyncDebug "Sample NORMALIZED_REQUIRED_PAIRS (first 3): ${NORMALIZED_REQUIRED_PAIRS[*]:0:3}"
-      fi
-      
       for CURRENT_PAIR in "${CURRENT_PAIRS[@]}"; do
         # Normalize current pair to lowercase for comparison
         # For Tron: pairs are "normalized|original|selector", extract normalized part
@@ -837,11 +832,6 @@ function diamondSyncWhitelist {
               continue
             fi
             CHECKSUMMED_ADDR=$(cast --to-checksum-address "$ADDRESS_PART")
-          fi
-          
-          # Debug output for Tron networks
-          if isTronNetwork "$NETWORK" && [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then
-            echoSyncDebug "Pair marked for removal: $CHECKSUMMED_ADDR|$SELECTOR_PART (normalized: $CURRENT_PAIR_LOWER)"
           fi
           
           REMOVED_PAIRS+=("$CHECKSUMMED_ADDR|$SELECTOR_PART")

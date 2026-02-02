@@ -4085,7 +4085,7 @@ transferContractOwnership() {
 
   # make sure OLD_OWNER is actually contract owner
   local CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$CONTRACT_ADDRESS" "owner() returns (address)")
-  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
+  if [[ "$CURRENT_OWNER" != "$ADDRESS_OLD_OWNER" ]]; then
     error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
     return 1
   fi
@@ -4150,7 +4150,7 @@ transferContractOwnership() {
   # make sure NEW_OWNER is actually contract owner
   CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$CONTRACT_ADDRESS" "owner() returns (address)")
   echo ""
-  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
+  if [[ "$CURRENT_OWNER" != "$ADDRESS_NEW_OWNER" ]]; then
     error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
     return 1
   else
