@@ -27,6 +27,14 @@ contract LiFiIntentEscrowFacet is
     Validatable,
     LiFiData
 {
+    modifier validateBridgeDataLiFiIntentEscrow(
+        ILiFi.BridgeData memory _bridgeData
+    ) {
+        if (_bridgeData.receiver == address(0)) revert InvalidReceiver();
+        if (_bridgeData.minAmount == 0) revert InvalidAmount();
+        _;
+    }
+
     /// Storage ///
 
     /// @dev LIFI Intent Escrow Input Settler
@@ -82,7 +90,7 @@ contract LiFiIntentEscrowFacet is
         external
         nonReentrant
         noNativeAsset(_bridgeData)
-        validateBridgeData(_bridgeData)
+        validateBridgeDataLiFiIntentEscrow(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
         LibAsset.depositAsset(
@@ -107,7 +115,7 @@ contract LiFiIntentEscrowFacet is
         noNativeAsset(_bridgeData)
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
-        validateBridgeData(_bridgeData)
+        validateBridgeDataLiFiIntentEscrow(_bridgeData)
     {
         uint256 swapOutcome = _depositAndSwap(
             _bridgeData.transactionId,
@@ -155,9 +163,10 @@ contract LiFiIntentEscrowFacet is
                 revert InvalidReceiver();
             }
         }
-        if (_lifiIntentData.depositAndRefundAddress == address(0)) revert InvalidReceiver();
-        if (_lifiIntentData.receiverAddress == bytes32(0)) revert InvalidReceiver();
-
+        if (_lifiIntentData.depositAndRefundAddress == address(0))
+            revert InvalidReceiver();
+        if (_lifiIntentData.receiverAddress == bytes32(0))
+            revert InvalidReceiver();
 
         // Check outputAmount
         if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();

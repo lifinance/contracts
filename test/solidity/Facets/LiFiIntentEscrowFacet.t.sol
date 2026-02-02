@@ -361,6 +361,14 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // facet does not support bridging of native assets
     }
 
+    function testBase_Revert_BridgeToSameChainId() public override {
+        // not applicable, this facet intentionally allows same-chain actions/intents
+    }
+
+    function testBase_Revert_SwapAndBridgeToSameChainId() public override {
+        // not applicable, this facet intentionally allows same-chain actions/intents
+    }
+
     function testRevert_MismatchedDestinationCallFlag() external {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
