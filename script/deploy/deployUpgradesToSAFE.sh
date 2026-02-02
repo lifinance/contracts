@@ -41,8 +41,17 @@ deployUpgradesToSAFE() {
       UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
       PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
       echo "Calculating facet cuts for $script..."
-      RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvvv --json --skip-simulation --legacy)
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      
+      # Execute, parse, and check return code
+      if ! executeAndParse \
+        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" -f $NETWORK --json --skip-simulation --legacy" \
+        "true" \
+        "forge script failed for $script on network $NETWORK" \
+        "continue"; then
+        continue
+      fi
+      
+      CLEAN_RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed 's/^.*{\"logs/{\"logs/')
       FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
       if [ "$FACET_CUT" != "0x" ]; then
         echo "Proposing facet cut for $script..."

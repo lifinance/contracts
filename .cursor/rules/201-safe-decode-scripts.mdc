@@ -1,0 +1,38 @@
+---
+name: Safe decode scripts
+description: Safe/timelock decode and display conventions for script/deploy/safe
+globs:
+  - 'script/deploy/safe/**/*.ts'
+---
+
+## Safe Decode and Display ([CONV:SAFE-DECODE])
+
+- **Single entry point for decoded tx display**: Human-readable decoded Safe/timelock transaction data MUST be produced via `formatDecodedTxDataForDisplay(data, context)` from [script/deploy/safe/safe-decode-utils.ts](script/deploy/safe/safe-decode-utils.ts). Scripts that show Safe or timelock calldata (e.g. `confirm-safe-tx.ts`, `execute-pending-timelock-tx.ts`) MUST call this function instead of duplicating decode/format logic.
+- **Context**: Pass `{ chainId: number, network: string }` so formatters can resolve target names and explorer links. When adding new callers (e.g. new scripts that display pending operations), pass the same context shape.
+
+## Shared Logic Location ([CONV:SAFE-DECODE-UTILS])
+
+- **Decode and formatters live in safe-decode-utils**: `decodeTransactionData`, display helpers (`getTargetName`, `getTargetSuffix`, `getPeripheryDeploymentCheckSuffix`), and formatters (`formatDiamondCutSummary`, `formatTimelockScheduleBatch`, `formatBatchSetContractSelectorWhitelist`, `tryFormatDiamondPayload`) are implemented in [script/deploy/safe/safe-decode-utils.ts](script/deploy/safe/safe-decode-utils.ts). Do NOT duplicate these in other Safe scripts; import from safe-decode-utils.
+- **decodeDiamondCut**: Remains in [script/deploy/safe/safe-utils.ts](script/deploy/safe/safe-utils.ts) (selector map, explorer links). safe-decode-utils imports and calls it; safe-utils MUST NOT import from safe-decode-utils (avoid circular dependency).
+- **Known ABIs**: Reliable decoding for common Safe/timelock calls (diamondCut, schedule, scheduleBatch, batchSetContractSelectorWhitelist, registerPeripheryContract) uses explicit ABIs in safe-decode-utils. When adding support for new top-level functions, add the ABI and a branch in `formatDecodedTxDataForDisplay`; keep ABIs in one place.
+
+## Adding or Changing Decode Behavior
+
+- **New function display**: Add an ABI constant (e.g. `ABI_*`), extend `getAbiForKnownFunction()` if needed, and add a branch in `formatDecodedTxDataForDisplay` that calls the appropriate formatter or prints decoded args. Prefer reusing existing formatters (e.g. diamondCut summary, scheduleBatch table) over ad-hoc logging.
+- **New formatter**: If the formatter only depends on `(args, network)` and consola, add it in safe-decode-utils and use the existing helpers (`getTargetSuffix`, etc.). If it needs whitelist or deployment data, use the existing helpers that read from `config/whitelist.json` and deployment helpers; keep paths explicit (e.g. `process.cwd()` or injected) so tests/callers can override.
+- **Logging**: `formatDecodedTxDataForDisplay` logs via consola without a network prefix. Callers (e.g. execute-pending-timelock-tx) may prefix other lines with `[networkName]`; do not add a prefix inside the shared formatter unless an optional parameter is introduced and documented.
+
+## Scripts That Display Decoded Data
+
+- **confirm-safe-tx.ts**: Uses `formatDecodedTxDataForDisplay(tx.safeTx.data.data, { chainId: chain.id, network })` for each Safe tx; uses `getTargetName` from safe-decode-utils for the "To:" line in Safe Transaction Details.
+- **execute-pending-timelock-tx.ts**: Calls `formatDecodedTxDataForDisplay(operation.data, { chainId, network })` before the Execute/Reject/Skip prompt when `chainId` and `network` are available; passes `network.chainId` and `network.name` into `executeOperation` so the decoded display runs. Do not log raw `Data:` hex when decoded display is shown; optional "Data (raw)" is acceptable if needed for debugging.
+
+## Conventions Summary
+
+| Concern | Location | Notes |
+|--------|----------|--------|
+| Decoded tx display | safe-decode-utils: `formatDecodedTxDataForDisplay` | Single entry point |
+| Selector → function name | safe-decode-utils: `decodeTransactionData` | Diamond ABI then openchain |
+| Target name / explorer | safe-decode-utils: `getTargetName`, `getTargetSuffix` | Used by formatters |
+| Diamond cut details | safe-utils: `decodeDiamondCut` | Called from safe-decode-utils |
+| Known ABIs | safe-decode-utils | One set for all callers |

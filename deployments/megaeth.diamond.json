@@ -64,6 +64,18 @@
       "0xfEAC5Eb2d620c23578b353B04248cd75734E7405": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
+      },
+      "0xA5f99BA883aeA2edEd4c6541242616D5F68a2bAB": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0xFe95e509A5AB8C633831183216b10DBc431F41Fa": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -71,13 +83,13 @@
       "Executor": "0x5603aF276bDCf73A859928ca3fbDaE7d4909Dd77",
       "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
-      "GasZipPeriphery": "0xE34919F5982381368Bd9C640a0F81f3Aa28CE43a",
-      "LidoWrapper": "",
+      "GasZipPeriphery": "0xa8800ABdD6771dA7aAab2d09a5b97F4B8b19B58a",
       "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "0x700f1874314A4dF3bb9A10f7B5eA187A39d8dE74",
       "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "",
+      "ReceiverAcrossV4": "0x8577a60AeACeCbe01b3375c5026Db9EFC88F68F1",
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "",
