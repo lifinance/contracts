@@ -19,7 +19,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 /// @title LiFiIntentEscrowFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
@@ -163,10 +163,12 @@ contract LiFiIntentEscrowFacet is
                 revert InvalidReceiver();
             }
         }
-        if (_lifiIntentData.depositAndRefundAddress == address(0))
+        if (_lifiIntentData.depositAndRefundAddress == address(0)) {
             revert InvalidReceiver();
-        if (_lifiIntentData.receiverAddress == bytes32(0))
+        }
+        if (_lifiIntentData.receiverAddress == bytes32(0)) {
             revert InvalidReceiver();
+        }
 
         // Check outputAmount
         if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
