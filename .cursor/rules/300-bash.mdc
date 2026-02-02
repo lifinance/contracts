@@ -27,23 +27,37 @@ Use these helpers to abstract Tron vs EVM network differences. **Never hardcode 
 | `getRPCUrl "$NETWORK"` | Gets RPC URL for EVM networks |
 | `getPrivateKey "$NETWORK" "$ENVIRONMENT"` | Gets private key for network/environment |
 
+### Validation Helpers (helperFunctions.sh)
+
+Reuse these instead of inline regex for selector/address checks:
+
+| Helper | Purpose |
+|--------|---------|
+| `isValidSelector VALUE` | Returns 0 if bytes4 selector (0x + 8 hex) |
+| `isValidEvmAddress VALUE` | Returns 0 if EVM address (0x + 40 hex) |
+| `isValidTronAddress VALUE` | Returns 0 if Tron Base58 (T + 33 alphanumeric) |
+| `isZeroAddress VALUE` | Returns 0 if zero address (0x0...0) |
+
 ### Contract Interaction Helpers
 
-**For read-only calls**, use `universalCall`:
+**Preferred**: use `universalCast ACTION NETWORK [rest...]` so all cast-like operations go through one entry point. New networks are handled inside the underlying helpers and `universalCast` supports them automatically.
+
 ```bash
-# universalCall NETWORK TARGET SIGNATURE [ARGS...]
-RESULT=$(universalCall "$NETWORK" "$DIAMOND" "owner() returns (address)")
-BALANCE=$(universalCall "$NETWORK" "$TOKEN" "balanceOf(address) returns (uint256)" "$USER")
+# universalCast "call" NETWORK TARGET SIGNATURE [ARGS...]
+RESULT=$(universalCast "call" "$NETWORK" "$DIAMOND" "owner() returns (address)")
+BALANCE=$(universalCast "call" "$NETWORK" "$TOKEN" "balanceOf(address) returns (uint256)" "$USER")
+
+# universalCast "send" NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK]
+universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "setFee(uint256)" "100"
+universalCast "send" "$NETWORK" "production" "$DIAMOND" "batchSet(address[],bool)" '[addr1,addr2] true' "true"
+
+# universalCast "code" NETWORK ADDRESS
+CODE=$(universalCast "code" "$NETWORK" "$ADDRESS" 2>/dev/null || echo "0x")
 ```
 
-**For state-changing transactions**, use `universalSend`:
-```bash
-# universalSend NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK]
-universalSend "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "setFee(uint256)" "100"
-universalSend "$NETWORK" "production" "$DIAMOND" "batchSet(address[],bool)" '[addr1,addr2] true' "true"
-```
+You can also call `universalCall`, `universalSend`, or `universalCode` directly (they are what `universalCast` dispatches to).
 
-**For raw calldata transactions**, use `sendOrPropose`:
+**For raw calldata transactions**, use `sendOrPropose` (all routing lives here):
 ```bash
 # sendOrPropose NETWORK ENVIRONMENT TARGET CALLDATA [TIMELOCK]
 CALLDATA=$(cast calldata "transfer(address,uint256)" "$TO" "$AMOUNT")
@@ -55,10 +69,9 @@ sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "true"
 | Function | Tron | EVM Production | EVM Staging |
 |----------|------|----------------|-------------|
 | `universalCall` | troncast call | cast call | cast call |
-| `universalSend` | Delegates to sendOrPropose | Delegates to sendOrPropose | Delegates to sendOrPropose |
-| `sendOrPropose` | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
+| `universalSend` | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
+| `universalCode` | troncast code | cast code | cast code |
 
-**Note**: Tron networks don't have Safe multisig or timelock support, so all Tron transactions are sent directly.
 
 ### Function Documentation Format
 

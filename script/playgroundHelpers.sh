@@ -1247,8 +1247,7 @@ function manageSafeOwner() {
       return 1
     fi
 
-    # Validate Ethereum address format
-    if [[ ! "$OWNER_TO_BE_ADDED" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    if ! isValidEvmAddress "$OWNER_TO_BE_ADDED"; then
       error "[$NETWORK] OWNER_TO_BE_ADDED must be a valid Ethereum address (format: 0x followed by 40 hex characters)"
       return 1
     fi
@@ -1507,15 +1506,13 @@ function removeAccessManagerPermission() {
     return 1
   fi
 
-  # Validate function selector format (should be 0x followed by 8 hex characters)
-  if [[ ! "$FUNCTION_SELECTOR" =~ ^0x[0-9a-fA-F]{8}$ ]]; then
+  if ! isValidSelector "$FUNCTION_SELECTOR"; then
     error "[$NETWORK] Invalid function selector format: $FUNCTION_SELECTOR"
     error "[$NETWORK] Function selector must be 0x followed by 8 hex characters (e.g., 0x1171c007)"
     return 1
   fi
 
-  # Validate address format
-  if [[ ! "$EXECUTOR_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+  if ! isValidEvmAddress "$EXECUTOR_ADDRESS"; then
     error "[$NETWORK] Invalid executor address format: $EXECUTOR_ADDRESS"
     return 1
   fi

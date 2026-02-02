@@ -137,7 +137,7 @@ function diamondSyncWhitelist {
       echoSyncDebug "Send args: $SEND_ARGS"
       
       local OUTPUT
-      OUTPUT=$(universalSend "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
+      OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
       local EXIT_CODE=$?
 
       if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
@@ -165,7 +165,7 @@ function diamondSyncWhitelist {
     local NETWORK=$3  # Add network parameter
     local RESULT
     
-    if RESULT=$(universalCall "$NETWORK" "$ADDRESS" "decimals() returns (uint8)" 2>/dev/null); then
+    if RESULT=$(universalCast "call" "$NETWORK" "$ADDRESS" "decimals() returns (uint8)" 2>/dev/null); then
       # Validate 0-255 strictly
       if [[ "$RESULT" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
         return 0
@@ -185,11 +185,8 @@ function diamondSyncWhitelist {
     for ADDRESS in "${ADDRESSES[@]}"; do
       if isTokenContract "$ADDRESS" "$RPC_URL" "$NETWORK"; then
         TOKEN_CONTRACTS+=("$ADDRESS")
+        echo "$ADDRESS"
       fi
-    done
-
-    for CONTRACT in "${TOKEN_CONTRACTS[@]}"; do
-      echo "$CONTRACT"
     done
   }
 
@@ -398,22 +395,23 @@ function diamondSyncWhitelist {
       while [ $ATTEMPT -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]; do
         echoSyncDebug "Attempt $ATTEMPT: Trying to get whitelisted pairs from diamond $DIAMOND_ADDRESS"
 
-        # Try the new efficient function first
         echoSyncDebug "Calling getAllContractSelectorPairs() on diamond..."
-        local cast_output
-        local call_exit_code
+        local CALL_OUTPUT
+        local CALL_EXIT_CODE
         
-        cast_output=$(universalCall "$NETWORK" "$DIAMOND_ADDRESS" "getAllContractSelectorPairs() returns (address[],bytes4[][])")
-        call_exit_code=$?
+        CALL_OUTPUT=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getAllContractSelectorPairs() returns (address[],bytes4[][])")
+        CALL_EXIT_CODE=$?
 
-        if [[ $call_exit_code -eq 0 && -n "$cast_output" ]]; then
+        if [[ $CALL_EXIT_CODE -eq 0 && -n "$CALL_OUTPUT" ]]; then
           echoSyncDebug "Successfully got result from getAllContractSelectorPairs"
 
           # Initialize empty arrays for pairs
           local PAIRS=()
 
-          # Handle empty result - check for both single empty array and two empty arrays
-          if [[ "$cast_output" == "()" ]] || [[ "$cast_output" == "[]" ]] || [[ "$cast_output" == "[]"$'\n'"[]" ]]; then
+          # Handle empty result - single/two empty arrays (EVM) and Tron-style "[[] []]"
+          local CALL_NORMALIZED
+          CALL_NORMALIZED=$(echo "$CALL_OUTPUT" | tr -d '\n' | xargs)
+          if [[ "$CALL_OUTPUT" == "()" ]] || [[ "$CALL_OUTPUT" == "[]" ]] || [[ "$CALL_OUTPUT" == "[]"$'\n'"[]" ]] || [[ "$CALL_NORMALIZED" == "[[] []]" ]]; then
             echoSyncDebug "Empty result from getAllContractSelectorPairs - no whitelisted pairs"
             for PAIR in "${PAIRS[@]}"; do
               echo "$PAIR"
@@ -422,7 +420,6 @@ function diamondSyncWhitelist {
           fi
 
           echoSyncDebug "Parsing result from getAllContractSelectorPairs..."
-          echoSyncDebug "Raw cast_output (first 200 chars): ${cast_output:0:200}"
 
           # Parse the output
           # Cast returns two lines (comma-separated): [0xAddr1, 0xAddr2, ...] and [[0xSel1, 0xSel2], [0xSel3], ...]
@@ -435,12 +432,12 @@ function diamondSyncWhitelist {
           if [[ "$IS_TRON" == "true" ]]; then
             # Tron: Extract the line that starts with [[ (the actual result)
             # Filter out lines starting with $ (command echo) or containing "bun run"
-            local RESULT_LINE=$(echo "$cast_output" | grep '^\[\[' | head -n 1)
+            local RESULT_LINE=$(echo "$CALL_OUTPUT" | grep '^\[\[' | head -n 1)
             
             if [[ -z "$RESULT_LINE" ]]; then
               echoSyncDebug "No result line found starting with [["
               # Fallback: try to find any line with Tron addresses
-              RESULT_LINE=$(echo "$cast_output" | grep -E '\[T[a-zA-Z0-9]{33}' | head -n 1)
+              RESULT_LINE=$(echo "$CALL_OUTPUT" | grep -E '\[T[a-zA-Z0-9]{33}' | head -n 1)
             fi
             
             if [[ -n "$RESULT_LINE" ]]; then
@@ -484,8 +481,8 @@ function diamondSyncWhitelist {
             fi
           else
             # EVM: Extract the two lines - filter out any lines that don't start with [
-            ADDRESSES_LINE=$(echo "$cast_output" | grep '^\[' | sed -n '1p')
-            SELECTORS_LINE=$(echo "$cast_output" | grep '^\[' | sed -n '2p')
+            ADDRESSES_LINE=$(echo "$CALL_OUTPUT" | grep '^\[' | sed -n '1p')
+            SELECTORS_LINE=$(echo "$CALL_OUTPUT" | grep '^\[' | sed -n '2p')
           fi
           
           echoSyncDebug "Addresses line: $ADDRESSES_LINE"
@@ -501,8 +498,7 @@ function diamondSyncWhitelist {
             for ADDR in $ADDRESSES_LINE; do
               # Trim whitespace
               ADDR=$(echo "$ADDR" | xargs)
-              # Check if it's a valid Tron Base58 address (starts with T, 34 chars)
-              if [[ -n "$ADDR" && "$ADDR" =~ ^T[a-zA-Z0-9]{33}$ ]]; then
+              if isValidTronAddress "$ADDR"; then
                 # Store both original and normalized versions
                 CONTRACT_LIST_original+=("$ADDR")
                 CONTRACT_LIST+=("$(echo "$ADDR" | tr '[:upper:]' '[:lower:]')")
@@ -573,8 +569,7 @@ function diamondSyncWhitelist {
             for SELECTOR in "${SELECTORS_ARR[@]}"; do
               # Trim whitespace and lowercase
               SELECTOR=$(echo "$SELECTOR" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
-              # Validate selector: must be 0x followed by 8 hex characters
-              if [[ -n "$SELECTOR" && "$SELECTOR" =~ ^0x[0-9a-f]{8}$ ]]; then
+              if isValidSelector "$SELECTOR"; then
                 # For Tron: store as "normalized_address|selector" but we'll use original for operations
                 # Store in format that allows us to recover original: "normalized|original|selector"
                 if [[ "$IS_TRON" == "true" ]]; then
@@ -597,72 +592,7 @@ function diamondSyncWhitelist {
             return 0
           fi
         else
-          # getAllContractSelectorPairs failed with exit code $call_exit_code
-          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: getAllContractSelectorPairs failed, falling back..."
-        fi
-
-        # Fallback to the original approach if the new function fails
-        echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Attempting fallback to getWhitelistedAddresses()"
-        local addresses
-        local addresses_exit_code
-        
-        addresses=$(universalCall "$NETWORK" "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])")
-        addresses_exit_code=$?
-
-        if [[ $addresses_exit_code -eq 0 && -n "$addresses" && "$addresses" != "[]" ]]; then
-          # Successfully got addresses from getWhitelistedAddresses
-          local PAIRS=()
-          local ADDRESS_LIST
-          if [[ "$IS_TRON" == "true" ]]; then
-            # Tron: space-separated (troncast output format)
-            ADDRESS_LIST=$(echo "${addresses:1:${#addresses}-2}" | tr -d '[]' | tr ' ' ' ')
-          else
-            # EVM: comma-separated
-            ADDRESS_LIST=$(echo "${addresses:1:${#addresses}-2}" | tr ',' ' ')
-          fi
-          
-          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Fallback processing $(echo "$ADDRESS_LIST" | wc -w) addresses"
-          local ADDR_COUNT=0
-          for ADDR in $ADDRESS_LIST; do
-            ((ADDR_COUNT++))
-            local SELECTORS_RESULT
-            local SELECTORS_EXIT_CODE
-            
-            SELECTORS_RESULT=$(universalCall "$NETWORK" "$DIAMOND_ADDRESS" "getWhitelistedSelectorsForContract(address) returns (bytes4[])" "$ADDR")
-            SELECTORS_EXIT_CODE=$?
-
-            if [[ $SELECTORS_EXIT_CODE -eq 0 && -n "$SELECTORS_RESULT" && "$SELECTORS_RESULT" != "[]" ]]; then
-              local SELECTOR_LIST
-              if [[ "$IS_TRON" == "true" ]]; then
-                # Tron: space-separated (troncast output format)
-                SELECTOR_LIST=$(echo "${SELECTORS_RESULT:1:${#SELECTORS_RESULT}-2}" | tr -d '[]' | tr ' ' ' ')
-              else
-                # EVM: comma-separated
-                SELECTOR_LIST=$(echo "${SELECTORS_RESULT:1:${#SELECTORS_RESULT}-2}" | tr ',' ' ')
-              fi
-              for SELECTOR in $SELECTOR_LIST; do
-                if [[ "$IS_TRON" == "true" ]]; then
-                  # Tron: store as "normalized|original|selector" for consistency with primary path
-                  PAIRS+=("$(echo "$ADDR" | tr '[:upper:]' '[:lower:]')|$ADDR|$SELECTOR")
-                else
-                  PAIRS+=("$(echo "$ADDR" | tr '[:upper:]' '[:lower:]')|$SELECTOR")
-                fi
-              done
-            fi
-          done
-
-          if [[ ${#PAIRS[@]} -gt 0 ]]; then
-            # Successfully got ${#PAIRS[@]} pairs using fallback method
-            for PAIR in "${PAIRS[@]}"; do
-              echo "$PAIR"
-            done
-            return 0
-          else
-            :
-          fi
-        else
-          # getWhitelistedAddresses also failed
-          :
+          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: getAllContractSelectorPairs failed (exit $CALL_EXIT_CODE) or returned no pairs - diamond must expose getAllContractSelectorPairs(), retrying..."
         fi
 
         # Attempt $ATTEMPT failed, waiting 3 seconds before retry...
@@ -729,8 +659,7 @@ function diamondSyncWhitelist {
       SELECTORS_STR="${REQUIRED_PAIR#*|}"
 
       # Check for address zero (forbidden)
-      ADDRESS_LOWER=$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')
-      if [[ "$ADDRESS_LOWER" == "0x0000000000000000000000000000000000000000" ]]; then
+      if isZeroAddress "$ADDRESS"; then
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Error: Whitelisting address zero is forbidden: $ADDRESS"
         {
           echo "[$NETWORK] Error: Whitelisting address zero is forbidden: $ADDRESS"
@@ -740,20 +669,14 @@ function diamondSyncWhitelist {
         return 1
       fi
 
-      # Check if address has code
+      # Check if address has code (universalCast routes Tron vs EVM internally)
+      CODE=$(universalCast "code" "$NETWORK" "$ADDRESS" 2>/dev/null || echo "0x")
       if isTronNetwork "$NETWORK"; then
-        # Tron: Use troncast code to check for contract bytecode
-        # Use original address (base58 format, not lowercased)
-        # Tron addresses start with 'T' and should not be lowercased
         CHECKSUMMED="$ADDRESS"
-        local TRON_ENV=$(getTronEnv "$NETWORK")
-        CODE=$(bun troncast code "$CHECKSUMMED" --env "$TRON_ENV" 2>/dev/null || echo "0x")
       else
-        # EVM: Use cast to check for code
         CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS_LOWER")
-        CODE=$(cast code "$CHECKSUMMED" --rpc-url "$RPC_URL")
       fi
-      
+
       if [[ "$CODE" == "0x" ]]; then
         # Determine the correct whitelist file to check for contract name
         local WHITELIST_FILE_CHECK
@@ -1022,7 +945,7 @@ function diamondSyncWhitelist {
         echoSyncDebug "Send args for removal: $SEND_ARGS"
         
         local REMOVE_OUTPUT
-        REMOVE_OUTPUT=$(universalSend "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
+        REMOVE_OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
         local REMOVE_EXIT_CODE=$?
 
         # Print output in verbose mode
@@ -1185,7 +1108,7 @@ function diamondSyncWhitelist {
           echoSyncDebug "Send args for batch addition: $SEND_ARGS"
           
           local OUTPUT
-          OUTPUT=$(universalSend "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
+          OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
           local EXIT_CODE=$?
 
           if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi

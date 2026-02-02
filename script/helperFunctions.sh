@@ -3735,6 +3735,52 @@ function getTronEnv() {
   fi
 }
 
+# isValidSelector: Returns 0 if VALUE is a valid bytes4 selector (0x + 8 hex chars).
+#
+# Usage: isValidSelector VALUE
+#   VALUE - String to check (e.g., "0x12345678" or "0xabcdef12")
+#
+# Returns: 0 if valid, 1 otherwise
+function isValidSelector() {
+  local VALUE="${1:-}"
+  [[ -n "$VALUE" && "$VALUE" =~ ^0x[0-9a-fA-F]{8}$ ]]
+}
+
+# isValidEvmAddress: Returns 0 if VALUE is a valid EVM address (0x + 40 hex chars).
+#
+# Usage: isValidEvmAddress VALUE
+#   VALUE - String to check
+#
+# Returns: 0 if valid, 1 otherwise
+function isValidEvmAddress() {
+  local VALUE="${1:-}"
+  [[ -n "$VALUE" && "$VALUE" =~ ^0x[0-9a-fA-F]{40}$ ]]
+}
+
+# isValidTronAddress: Returns 0 if VALUE is a valid Tron Base58 address (T + 33 alphanumeric).
+#
+# Usage: isValidTronAddress VALUE
+#   VALUE - String to check (e.g., "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby")
+#
+# Returns: 0 if valid, 1 otherwise
+function isValidTronAddress() {
+  local VALUE="${1:-}"
+  [[ -n "$VALUE" && "$VALUE" =~ ^T[a-zA-Z0-9]{33}$ ]]
+}
+
+# isZeroAddress: Returns 0 if VALUE is the zero address (0x0...0, 40 hex chars).
+#
+# Usage: isZeroAddress VALUE
+#   VALUE - String to check (any case)
+#
+# Returns: 0 if zero address, 1 otherwise
+function isZeroAddress() {
+  local VALUE="${1:-}"
+  local LOWER
+  LOWER=$(echo "$VALUE" | tr '[:upper:]' '[:lower:]')
+  [[ "$LOWER" == "0x0000000000000000000000000000000000000000" ]]
+}
+
 # universalCall: Read-only contract calls for both Tron and EVM networks.
 # Abstracts the Tron vs EVM differentiation using isTronNetwork/getTronEnv helpers.
 #
@@ -3839,6 +3885,86 @@ function universalSend() {
   return $?
 }
 
+# universalCode: Get bytecode at address for both Tron and EVM networks.
+#
+# Usage: universalCode NETWORK ADDRESS
+#   NETWORK  - Network name (e.g., "arbitrum", "tron", "tronshasta")
+#   ADDRESS  - Contract address (base58 for Tron, hex for EVM)
+#
+# Routing:
+#   - Tron: troncast code with --env (address as-is)
+#   - EVM: cast code with --rpc-url (checksum address)
+#
+# Returns: Bytecode on stdout, exit code preserved. Callers may use "|| echo \"0x\"" for default.
+# Example: CODE=$(universalCode "$NETWORK" "$ADDRESS" 2>/dev/null || echo "0x")
+function universalCode() {
+  local NETWORK="${1:-}"
+  local ADDRESS="${2:-}"
+
+  if [[ -z "$NETWORK" || -z "$ADDRESS" ]]; then
+    echo "Error: universalCode requires network and address" >&2
+    return 1
+  fi
+
+  if isTronNetwork "$NETWORK"; then
+    local TRON_ENV
+    TRON_ENV=$(getTronEnv "$NETWORK")
+    bun troncast code "$ADDRESS" --env "$TRON_ENV" 2>&1
+  else
+    local RPC_URL
+    RPC_URL=$(getRPCUrl "$NETWORK") || {
+      echo "Error: Failed to get RPC URL for $NETWORK" >&2
+      return 1
+    }
+    local CHECKSUMMED
+    CHECKSUMMED=$(cast --to-checksum-address "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" 2>/dev/null)
+    if [[ -z "$CHECKSUMMED" ]]; then
+      echo "Error: Invalid EVM address for universalCode: $ADDRESS" >&2
+      return 1
+    fi
+    cast code "$CHECKSUMMED" --rpc-url "$RPC_URL" 2>&1
+  fi
+  return $?
+}
+
+# universalCast: Dispatcher for cast-like operations (call, send, code). Routes to universalCall,
+# universalSend, or universalCode so network handling stays in one place.
+#
+# Usage: universalCast ACTION NETWORK [rest...]
+#   ACTION   - "call" | "send" | "code"
+#   NETWORK  - Network name
+#   rest     - Action-specific args (see universalCall, universalSend, universalCode)
+#
+# Examples:
+#   universalCast "call" NETWORK TARGET SIGNATURE [ARGS...]
+#   universalCast "send" NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK]
+#   universalCast "code" NETWORK ADDRESS
+#
+# Returns: Exit code of the underlying universalCall / universalSend / universalCode.
+function universalCast() {
+  local ACTION="${1:-}"
+  shift
+  if [[ -z "$ACTION" ]]; then
+    echo "Error: universalCast requires ACTION (call, send, code)" >&2
+    return 1
+  fi
+  case "$ACTION" in
+    call)
+      universalCall "$@"
+      ;;
+    send)
+      universalSend "$@"
+      ;;
+    code)
+      universalCode "$@"
+      ;;
+    *)
+      echo "Error: universalCast unknown action: $ACTION (use call, send, or code)" >&2
+      return 1
+      ;;
+  esac
+}
+
 function getChainId() {
   local NETWORK="$1"
 
@@ -3897,8 +4023,7 @@ function extractDeployedAddressFromRawReturnData() {
     ADDRESS=$(echo "$RAW_DATA" | grep -oE '0x[a-fA-F0-9]{40}' | head -n1)
   fi
 
-  # Validate the format of the extracted address
-  if [[ "$ADDRESS" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+  if isValidEvmAddress "$ADDRESS"; then
     # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
     local COUNT=0
     while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
@@ -4722,14 +4847,6 @@ function updateDiamondLogForNetwork() {
   local NETWORK=$1
   local ENVIRONMENT=$2
 
-  # get RPC URL
-  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-
-  if [[ -z $RPC_URL ]]; then
-    error "[$NETWORK] RPC URL is not set"
-    return 1
-  fi
-
   # get diamond address
   local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
 
@@ -4745,17 +4862,9 @@ function updateDiamondLogForNetwork() {
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
-    local KNOWN_FACET_ADDRESSES
-    if isTronNetwork "$NETWORK"; then
-      # Tron: use troncast
-      local TRON_ENV=$(getTronEnv "$NETWORK")
-      KNOWN_FACET_ADDRESSES=$(bun troncast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --env "$TRON_ENV" 2>/dev/null)
-    else
-      # EVM: use cast
-      KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
-    fi
+    local KNOWN_FACET_ADDRESSES=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" 2>/dev/null)
 
-    # check the return code the last call
+  # check the return code the last call
     if [ $? -eq 0 ]; then
       break # exit the loop if the operation was successful
     fi
