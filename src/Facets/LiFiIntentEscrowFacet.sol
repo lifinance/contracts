@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -30,7 +31,8 @@ contract LiFiIntentEscrowFacet is
     modifier validateBridgeDataLiFiIntentEscrow(
         ILiFi.BridgeData memory _bridgeData
     ) {
-        if (_bridgeData.receiver == address(0)) revert InvalidReceiver();
+        if (LibUtil.isZeroAddress(_bridgeData.receiver))
+            revert InvalidReceiver();
         if (_bridgeData.minAmount == 0) revert InvalidAmount();
         _;
     }
