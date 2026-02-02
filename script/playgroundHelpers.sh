@@ -908,10 +908,10 @@ function _createTimelockCancellerProposal() {
 
   # Verify Safe has PROPOSER_ROLE (required to call schedule())
   local PROPOSER_ROLE
-  PROPOSER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "PROPOSER_ROLE() returns (bytes32)" --rpc-url "$RPC_URL" 2>/dev/null | tr -d '[:space:]')
+  PROPOSER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "PROPOSER_ROLE() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
   if [[ -n "$PROPOSER_ROLE" ]]; then
     local SAFE_HAS_PROPOSER_ROLE
-    SAFE_HAS_PROPOSER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$PROPOSER_ROLE" "$SAFE_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    SAFE_HAS_PROPOSER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$PROPOSER_ROLE" "$SAFE_ADDRESS" 2>/dev/null)
     if [[ "$SAFE_HAS_PROPOSER_ROLE" != "true" ]]; then
       error "[$NETWORK] Safe address ($SAFE_ADDRESS) does not have PROPOSER_ROLE on timelock"
       error "[$NETWORK] Safe needs PROPOSER_ROLE to schedule operations"
@@ -1030,7 +1030,7 @@ function manageTimelockCanceller() {
 
   # Get CANCELLER_ROLE bytes value from contract
   local CANCELLER_ROLE
-  CANCELLER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "CANCELLER_ROLE() returns (bytes32)" --rpc-url "$RPC_URL" 2>/dev/null)
+  CANCELLER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "CANCELLER_ROLE() returns (bytes32)" 2>/dev/null)
   if [[ $? -ne 0 || -z "$CANCELLER_ROLE" ]]; then
     error "[$NETWORK] Failed to get CANCELLER_ROLE from timelock contract at $TIMELOCK_ADDRESS"
     return 1
@@ -1049,7 +1049,7 @@ function manageTimelockCanceller() {
   local OLD_ADDRESS_HAS_ROLE=false
   if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
     local HAS_ROLE
-    HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$REMOVE_ROLE_FROM_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$REMOVE_ROLE_FROM_ADDRESS" 2>/dev/null)
     if [[ $? -eq 0 && "$HAS_ROLE" == "true" ]]; then
       OLD_ADDRESS_HAS_ROLE=true
     fi
@@ -1069,7 +1069,7 @@ function manageTimelockCanceller() {
       # Note: TimelockController uses AccessControl (not AccessControlEnumerable), so we can't enumerate role members
       # We check if Safe has CANCELLER_ROLE as a safety measure
       local SAFE_HAS_ROLE
-      SAFE_HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$SAFE_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+      SAFE_HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$SAFE_ADDRESS" 2>/dev/null)
 
       if [[ "$MODE" == "remove" ]]; then
         # For remove mode: check if Safe has the role as backup
@@ -1102,7 +1102,7 @@ function manageTimelockCanceller() {
   local NEW_ADDRESS_HAS_ROLE=false
   if [[ "$MODE" == "add" || "$MODE" == "replace" ]]; then
     local HAS_ROLE
-    HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$GRANT_ROLE_TO_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$GRANT_ROLE_TO_ADDRESS" 2>/dev/null)
     if [[ $? -eq 0 && "$HAS_ROLE" == "true" ]]; then
       NEW_ADDRESS_HAS_ROLE=true
     fi
@@ -1272,7 +1272,7 @@ function manageSafeOwner() {
   # For add mode: check if address is already an owner (prevent duplicates)
   if [[ "$MODE" == "add" ]]; then
     local IS_ALREADY_OWNER
-    IS_ALREADY_OWNER=$(cast call "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_ADDED" --rpc-url "$RPC_URL" 2>/dev/null)
+    IS_ALREADY_OWNER=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_ADDED" 2>/dev/null)
     if [[ $? -ne 0 ]]; then
       error "[$NETWORK] Failed to check if address is already an owner"
       return 1
@@ -1288,7 +1288,7 @@ function manageSafeOwner() {
   if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
     # Check if owner is currently an owner
     local IS_OWNER
-    IS_OWNER=$(cast call "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_REMOVED" --rpc-url "$RPC_URL" 2>/dev/null)
+    IS_OWNER=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_REMOVED" 2>/dev/null)
     if [[ $? -ne 0 || "$IS_OWNER" != "true" ]]; then
       error "[$NETWORK] Address $OWNER_TO_BE_REMOVED is not an owner of the Safe"
       return 1
@@ -1296,7 +1296,7 @@ function manageSafeOwner() {
 
     # Get owners list
     local OWNERS_JSON
-    OWNERS_JSON=$(cast call "$SAFE_ADDRESS" "getOwners() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+    OWNERS_JSON=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "getOwners() returns (address[])" 2>/dev/null)
     if [[ $? -ne 0 || -z "$OWNERS_JSON" ]]; then
       error "[$NETWORK] Failed to get owners list"
       return 1
@@ -1341,7 +1341,7 @@ function manageSafeOwner() {
 
   # Get current threshold
   local THRESHOLD
-  THRESHOLD=$(cast call "$SAFE_ADDRESS" "getThreshold() returns (uint256)" --rpc-url "$RPC_URL" 2>/dev/null)
+  THRESHOLD=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "getThreshold() returns (uint256)" 2>/dev/null)
   if [[ $? -ne 0 || -z "$THRESHOLD" ]]; then
     error "[$NETWORK] Failed to get current threshold"
     return 1
@@ -1539,7 +1539,7 @@ function removeAccessManagerPermission() {
   # Check if the deployer wallet already has permission removed (can't execute)
   # If permission is already removed, skip proposal creation and mark as success
   local CAN_EXECUTE
-  CAN_EXECUTE=$(cast call "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address) returns (bool)" "$FUNCTION_SELECTOR" "$EXECUTOR_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null || echo "false")
+  CAN_EXECUTE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address) returns (bool)" "$FUNCTION_SELECTOR" "$EXECUTOR_ADDRESS" 2>/dev/null || echo "false")
 
   if [[ "$CAN_EXECUTE" == "false" ]]; then
     success "[$NETWORK] ✅ Permission already removed - deployer wallet ($EXECUTOR_ADDRESS) cannot execute function selector $FUNCTION_SELECTOR. Skipping proposal creation."
@@ -1729,7 +1729,7 @@ function transferStagingDiamondOwnership() {
 
   # Get current owner from the diamond
   local CURRENT_OWNER
-  CURRENT_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+  CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>/dev/null)
 
   if [[ -z "$CURRENT_OWNER" || "$CURRENT_OWNER" == "0x" ]]; then
     error "[$NETWORK] Failed to get current owner from diamond at $DIAMOND_ADDRESS"
@@ -1780,11 +1780,7 @@ function transferStagingDiamondOwnership() {
   # Step 2a: Initiate ownership transfer from old owner
   logWithTimestamp "[$NETWORK] Step 1: Initiating ownership transfer from old dev wallet..."
   local TRANSFER_OUTPUT
-  TRANSFER_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$NEW_DEV_WALLET" \
-    --private-key "$OLD_OWNER_PRIVATE_KEY" \
-    --rpc-url "$RPC_URL" \
-    --legacy \
-    2>&1)
+  TRANSFER_OUTPUT=$(universalCast "send" "$NETWORK" "staging" "$DIAMOND_ADDRESS" "transferOwnership(address)" "$NEW_DEV_WALLET" "false" "$OLD_OWNER_PRIVATE_KEY" 2>&1)
   local TRANSFER_EXIT_CODE=$?
 
   if [[ $TRANSFER_EXIT_CODE -ne 0 ]]; then
@@ -1832,11 +1828,7 @@ function transferStagingDiamondOwnership() {
   fi
 
   local CONFIRM_OUTPUT
-  CONFIRM_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" \
-    --private-key "$NEW_DEV_WALLET_PRIVATE_KEY" \
-    --rpc-url "$RPC_URL" \
-    --legacy \
-    2>&1)
+  CONFIRM_OUTPUT=$(universalCast "send" "$NETWORK" "staging" "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" "" "false" "$NEW_DEV_WALLET_PRIVATE_KEY" 2>&1)
   local CONFIRM_EXIT_CODE=$?
 
   if [[ $CONFIRM_EXIT_CODE -ne 0 ]]; then
@@ -1861,7 +1853,7 @@ function transferStagingDiamondOwnership() {
   # Step 4: Verify that owner of staging diamond is new dev wallet
   logWithTimestamp "[$NETWORK] Step 3: Verifying ownership transfer..."
   local VERIFIED_OWNER
-  VERIFIED_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+  VERIFIED_OWNER=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>/dev/null)
 
   if [[ -z "$VERIFIED_OWNER" || "$VERIFIED_OWNER" == "0x" ]]; then
     error "[$NETWORK] Failed to verify new owner"

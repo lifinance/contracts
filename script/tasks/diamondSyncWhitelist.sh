@@ -408,10 +408,14 @@ function diamondSyncWhitelist {
           # Initialize empty arrays for pairs
           local PAIRS=()
 
-          # Handle empty result - single/two empty arrays (EVM) and Tron-style "[[] []]"
+          # Handle empty result - single/two empty arrays (EVM) and Tron-style "[[] []]" / "[[]][]" / "[[],[]]"
           local CALL_NORMALIZED
           CALL_NORMALIZED=$(echo "$CALL_OUTPUT" | tr -d '\n' | xargs)
-          if [[ "$CALL_OUTPUT" == "()" ]] || [[ "$CALL_OUTPUT" == "[]" ]] || [[ "$CALL_OUTPUT" == "[]"$'\n'"[]" ]] || [[ "$CALL_NORMALIZED" == "[[] []]" ]]; then
+          local CALL_STRIP
+          CALL_STRIP=$(echo "$CALL_NORMALIZED" | tr -d ' \t')
+          if [[ "$CALL_OUTPUT" == "()" ]] || [[ "$CALL_OUTPUT" == "[]" ]] || [[ "$CALL_OUTPUT" == "[]"$'\n'"[]" ]] \
+             || [[ "$CALL_NORMALIZED" == "[[] []]" ]] || [[ "$CALL_STRIP" == "[[]][]" ]] || [[ "$CALL_STRIP" == "[[],[]]" ]] \
+             || [[ "$CALL_STRIP" == "[[]]" ]]; then
             echoSyncDebug "Empty result from getAllContractSelectorPairs - no whitelisted pairs"
             for PAIR in "${PAIRS[@]}"; do
               echo "$PAIR"
@@ -515,6 +519,17 @@ function diamondSyncWhitelist {
           fi
 
           echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Parsed ${#CONTRACT_LIST[@]} contract addresses"
+
+          # If we have 0 contracts and selectors line is empty or only brackets, treat as empty result (e.g. Tron "[[] []]" that slipped past the early check)
+          local SELECTORS_STRIP
+          SELECTORS_STRIP=$(echo "$SELECTORS_LINE" | tr -d ' \t[]')
+          if [[ ${#CONTRACT_LIST[@]} -eq 0 && ( -z "$SELECTORS_LINE" || -z "$SELECTORS_STRIP" ) ]]; then
+            echoSyncDebug "Empty result from getAllContractSelectorPairs (0 contracts, no selectors) - no whitelisted pairs"
+            for PAIR in "${PAIRS[@]}"; do
+              echo "$PAIR"
+            done
+            return 0
+          fi
 
           # Parse selectors line: [[0xSel1, 0xSel2], [0xSel3], ...] or [[0xSel1 0xSel2] [0xSel3] ...]
           # It's a 2D array. We need to maintain the correspondence: CONTRACT_LIST[i] has selectors from group i
@@ -657,6 +672,7 @@ function diamondSyncWhitelist {
       # Split the pair by '|' character using parameter expansion
       ADDRESS="${REQUIRED_PAIR%%|*}"
       SELECTORS_STR="${REQUIRED_PAIR#*|}"
+      ADDRESS_LOWER=$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')
 
       # Check for address zero (forbidden)
       if isZeroAddress "$ADDRESS"; then
@@ -708,35 +724,9 @@ function diamondSyncWhitelist {
         continue
       fi
 
-      # Parse selectors (comma-separated)
-      if [[ -n "$SELECTORS_STR" && "$SELECTORS_STR" != "" ]]; then
-        # Split selectors by comma (use tr for portability)
-        SELECTORS=($(echo "$SELECTORS_STR" | tr ',' ' '))
-
-        for SELECTOR in "${SELECTORS[@]}"; do
-          if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
-            # Normalize selector to lowercase for comparison
-            SELECTOR_LOWER=$(echo "$SELECTOR" | tr '[:upper:]' '[:lower:]')
-            PAIR_KEY="$ADDRESS_LOWER|$SELECTOR_LOWER"
-            NORMALIZED_REQUIRED_PAIRS+=("$PAIR_KEY")
-            
-            # Check if this pair is already whitelisted
-            FOUND_IN_CURRENT=false
-            for NORMALIZED_CURRENT in "${NORMALIZED_CURRENT_PAIRS[@]}"; do
-              if [[ "$PAIR_KEY" == "$NORMALIZED_CURRENT" ]]; then
-                FOUND_IN_CURRENT=true
-                break
-              fi
-            done
-            
-            if [[ "$FOUND_IN_CURRENT" == "false" ]]; then
-              NEW_PAIRS+=("$CHECKSUMMED|$SELECTOR")
-              NEW_ADDRESSES+=("$CHECKSUMMED")
-            fi
-          fi
-        done
-      else
-        # No selectors defined - add ApproveTo-Only Selector (0xffffffff) for backward compatibility
+      # Parse selectors: if selector is empty (e.g. pair "address|") use ApproveTo-Only; otherwise use comma-separated list
+      if [[ -z "$SELECTORS_STR" ]]; then
+        # No selectors defined (empty selector) - add ApproveTo-Only Selector (0xffffffff) for backward compatibility
         #
         # Context: During migration from DexManagerFacet to WhitelistManagerFacet, the old system
         # used simple address-based whitelisting (e.g., approve entire DEX contract). The new
@@ -757,11 +747,37 @@ function diamondSyncWhitelist {
             break
           fi
         done
-        
+
         if [[ "$FOUND_IN_CURRENT" == "false" ]]; then
           NEW_PAIRS+=("$CHECKSUMMED|$APPROVE_TO_SELECTOR")
           NEW_ADDRESSES+=("$CHECKSUMMED")
         fi
+      else
+        # Split selectors by comma (use tr for portability)
+        SELECTORS=($(echo "$SELECTORS_STR" | tr ',' ' '))
+
+        for SELECTOR in "${SELECTORS[@]}"; do
+          if [[ -n "$SELECTOR" && "$SELECTOR" != "" ]]; then
+            # Normalize selector to lowercase for comparison
+            SELECTOR_LOWER=$(echo "$SELECTOR" | tr '[:upper:]' '[:lower:]')
+            PAIR_KEY="$ADDRESS_LOWER|$SELECTOR_LOWER"
+            NORMALIZED_REQUIRED_PAIRS+=("$PAIR_KEY")
+
+            # Check if this pair is already whitelisted
+            FOUND_IN_CURRENT=false
+            for NORMALIZED_CURRENT in "${NORMALIZED_CURRENT_PAIRS[@]}"; do
+              if [[ "$PAIR_KEY" == "$NORMALIZED_CURRENT" ]]; then
+                FOUND_IN_CURRENT=true
+                break
+              fi
+            done
+
+            if [[ "$FOUND_IN_CURRENT" == "false" ]]; then
+              NEW_PAIRS+=("$CHECKSUMMED|$SELECTOR")
+              NEW_ADDRESSES+=("$CHECKSUMMED")
+            fi
+          fi
+        done
       fi
     done
 
@@ -815,6 +831,11 @@ function diamondSyncWhitelist {
             # EVM: Use lowercased address and convert to checksummed
             ADDRESS_PART="${CURRENT_PAIR_LOWER%%|*}"
             SELECTOR_PART="${CURRENT_PAIR_LOWER#*|}"
+            echoSyncDebug "[Stage 3 removal] CURRENT_PAIR='$CURRENT_PAIR' CURRENT_PAIR_LOWER='$CURRENT_PAIR_LOWER' ADDRESS_PART='$ADDRESS_PART' SELECTOR_PART='$SELECTOR_PART'"
+            if [[ -z "$ADDRESS_PART" ]]; then
+              echoSyncDebug "Skipping pair with empty address part: CURRENT_PAIR='$CURRENT_PAIR'"
+              continue
+            fi
             CHECKSUMMED_ADDR=$(cast --to-checksum-address "$ADDRESS_PART")
           fi
           

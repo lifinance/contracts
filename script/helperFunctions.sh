@@ -828,98 +828,7 @@ function saveDiamondFacets() {
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
   fi
 }
-function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
-  # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  USE_MUTABLE_DIAMOND=$3
 
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamond"
-  else
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamondImmutable"
-  fi
-  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
-
-  echo "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
-  echo "DEPLOYER_ADDRESS: $(getDeployerAddress "$NETWORK" "$ENVIRONMENT")"
-
-  if [[ -z "$DIAMOND_ADDRESS" ]]; then
-    error "could not find address for $DIAMOND_NAME in network-specific log file for network $NETWORK (ENVIRONMENT=$ENVIRONMENT)"
-    return 1
-  fi
-
-  # get a list of all periphery contracts
-  PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
-
-  MULTICALL_DATA="["
-
-  # loop through periphery contracts
-  for CONTRACT in $PERIPHERY_CONTRACTS; do
-    echo "CONTRACT: $CONTRACT"
-
-    # Build the function call for the contract
-    #DATA=$(echo -n "0x$(echo -n "getPeripheryContract()" | xxd -p -c 256)")
-    CALLDATA=$(cast calldata "getPeripheryContract(string)" "$CONTRACT")
-
-    echo "CALLDATA: $CALLDATA"
-
-    #target structure [(address,calldata),(address,calldata)]
-
-    # Add the call data and target address to the call array
-    MULTICALL_DATA=$MULTICALL_DATA"($DIAMOND_ADDRESS,$CALLDATA),"
-
-  done
-
-  # remove trailing comma and add trailing bracket
-  MULTICALL_DATA=${MULTICALL_DATA%?}"]"
-
-  echo "MULTICALL_DATA: $MULTICALL_DATA"
-
-  MULTICALL_ADDRESS="0xcA11bde05977b3631167028862bE2a173976CA11"
-
-  attempts=1
-
-  echo "before call"
-
-  while [ $attempts -lt 11 ]; do
-    echo "Trying to execute multicall now - attempt ${attempts}"
-    # try to execute call
-    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy) # [pre-commit-checker: not a secret]
-
-    # check the return code the last call
-    if [ $? -eq 0 ]; then
-      break # exit the loop if the operation was successful
-    fi
-
-    attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
-  done
-
-  if [ $attempts -eq 11 ]; then
-    echo "Failed to execute multicall"
-    exit 1
-  fi
-
-  #MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url  "https://opt-mainnet.g.alchemy.com/v2/4y-BIUvj_mTGWHrsHZncoJyNolNjJrsT" --legacy)
-  echo "after call"
-
-  echo ""
-  echo ""
-
-  echo "MULTICALL_RESULTS: $MULTICALL_RESULTS"
-
-  # check if diamond returns an address for this contract
-
-  #
-
-}
 function saveDiamondPeriphery() {
   # read function arguments into variables
   NETWORK=$1
@@ -985,7 +894,7 @@ function saveDiamondPeriphery() {
     done
 
     (
-      ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL" 2>/dev/null)
+      ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" 2>/dev/null)
       if [[ "$ADDRESS" == "$ZERO_ADDRESS" || -z "$ADDRESS" ]]; then
         ADDRESS=""
       fi
@@ -2260,11 +2169,9 @@ function removeFacetFromDiamond() {
 
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
-      # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
+      universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS"
     else
-      # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS" >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -2297,13 +2204,10 @@ function confirmOwnershipTransfer() {
 
   attempts=1 # initialize attempts to 0
 
-  # get RPC URL
-  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
-
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "Trying to confirm ownership transfer on contract with address ($address) - attempt ${attempts}"
-    # try to execute call
-    cast send "$address" "confirmOwnershipTransfer()" --rpc-url "$rpc_url" --private-key "$private_key" 2>/dev/null
+    # try to execute call (use "staging" so we always direct-send with the given key, not propose to Safe)
+    universalCast "send" "$network" "staging" "$address" "confirmOwnershipTransfer()" "" "false" "$private_key" 2>/dev/null
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
@@ -3076,7 +2980,7 @@ function getContractAddressFromSalt() {
   ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
-  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "$RPC_URL")
+  RESULT=$(universalCast "call" "$NETWORK" "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT")
 
   # return address
   echo "$RESULT"
@@ -3129,7 +3033,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
   checkFailure $? "retrieve core facets array from global.json"
 
   # get a list of all facets that the diamond knows
-  KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
+  KNOWN_FACET_ADDRESSES=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" 2>/dev/null)
   local CAST_EXIT_CODE=$?
   if [ $CAST_EXIT_CODE -ne 0 ]; then
     echoDebug "not all core facets are registered in the diamond"
@@ -3172,7 +3076,7 @@ function getPeripheryAddressFromDiamond() {
   RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # call diamond to check for periphery address
-  PERIPHERY_CONTRACT_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME" --rpc-url "${RPC_URL}")
+  PERIPHERY_CONTRACT_ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME")
 
   if [[ "$PERIPHERY_CONTRACT_ADDRESS" == "$ZERO_ADDRESS" ]]; then
     return 1
@@ -3211,11 +3115,11 @@ function getFacetFunctionSelectorsFromDiamond() {
 
   # search in DIAMOND_FILE_PATH for the given address
   if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then # << this does not yet reflect the new file structure !!!!!!
-    # get function selectors from diamond (function facetFunctionSelectors)
+      # get function selectors from diamond (function facetFunctionSelectors)
     local ATTEMPTS=1
     while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
       # get address of facet in diamond
-      local FUNCTION_SELECTORS=$(cast call "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS" --rpc-url "${!RPC}")
+      local FUNCTION_SELECTORS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS")
       ((ATTEMPTS++))
       sleep 1
     done
@@ -3249,7 +3153,7 @@ function getFacetAddressFromSelector() {
   local ATTEMPTS=1
   while [[ -z "$FACET_ADDRESS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
     # get address of facet in diamond
-    FACET_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR" --rpc-url "${!RPC}")
+    FACET_ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR")
     ((ATTEMPTS++))
     sleep 1
   done
@@ -3277,7 +3181,7 @@ function doesFacetExistInDiamond() {
   # loop through facet selectors and see if this selector is known by the diamond
   for SELECTOR in $SELECTORS; do
     # call diamond to get address of facet for given selector
-    local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
+    local RESULT=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR")
 
     # if result != address(0) >> facet selector is known
     if [[ "$RESULT" != "0x0000000000000000000000000000000000000000" ]]; then
@@ -3331,7 +3235,7 @@ function getFacetAddressFromDiamond() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-  local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
+  local RESULT=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR")
 
   echo "$RESULT"
 }
@@ -3366,7 +3270,7 @@ function getContractOwner() {
   fi
 
   # get owner
-  owner=$(cast call "$address" "owner()" --rpc-url "$rpc_url")
+  owner=$(universalCast "call" "$network" "$address" "owner() returns (address)")
 
   if [[ $? -ne 0 || -z $owner ]]; then
     echoDebug "unable to retrieve owner of $contract with address $address on network $network ($environment)"
@@ -3396,7 +3300,7 @@ function getPendingContractOwner() {
   fi
 
   # get owner
-  owner=$(cast call "$address" "pendingOwner()" --rpc-url "$rpc_url")
+  owner=$(universalCast "call" "$network" "$address" "pendingOwner() returns (address)")
 
   if [[ $? -ne 0 || -z $owner ]]; then
     echoDebug "unable to retrieve pending owner of $contract with address $address on network $network ($environment)"
@@ -3572,18 +3476,20 @@ function getPrivateKey() {
 # This function handles:
 # - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
 # - Staging: Sends directly using PRIVATE_KEY via cast send with raw calldata
-# Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
+# Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
 #   network: Network name (e.g., "mainnet")
 #   environment: "production" or "staging"
 #   target: Target contract address
 #   calldata: Transaction calldata (hex string starting with 0x)
 #   timelock: Optional flag to wrap transaction in timelock (production only)
+#   private_key_override: Optional hex key; when set, use instead of getPrivateKey(network, environment)
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET="$3"
   local CALLDATA="$4"
   local TIMELOCK="${5:-false}"
+  local PRIVATE_KEY_OVERRIDE="${6:-}"
 
   # Validate required arguments
   if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$CALLDATA" ]]; then
@@ -3591,81 +3497,46 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Check if Tron network
-  if isTronNetwork "$NETWORK"; then
-    # Tron-specific handling
-    # Tron doesn't have a timelock controller or Safe, so we always send directly
-    local TRON_ENV
-    TRON_ENV=$(getTronEnv "$NETWORK")
-
-    # Validate calldata format
-    if [[ ! "$CALLDATA" =~ ^0x ]]; then
-      error "sendOrPropose: Calldata must start with 0x"
-      return 1
-    fi
-
-    # Get private key
-    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
-      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
-      return 1
-    }
-
-    # Call troncast send with raw calldata
-    # Note: signature parameter is optional when --calldata is provided, but we provide empty string to satisfy positional arg
-    bun troncast send "$TARGET" "" --calldata "$CALLDATA" --env "$TRON_ENV" --private-key "$PRIVATE_KEY" --confirm
-    return $?
-  fi
-
-  # EVM networks - existing logic
   # Validate calldata format
   if [[ ! "$CALLDATA" =~ ^0x ]]; then
     error "sendOrPropose: Calldata must start with 0x"
     return 1
   fi
 
-  if [[ "$ENVIRONMENT" == "production" ]]; then
-    # Production: propose to Safe using propose-to-safe.ts
-    local PROPOSE_CMD=(
-      bunx tsx script/deploy/safe/propose-to-safe.ts
-      --network "$NETWORK"
-      --to "$TARGET"
-      --calldata "$CALLDATA"
-      --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
-    )
-    
-    # Add timelock flag if requested
-    if [[ "$TIMELOCK" == "true" ]]; then
-      PROPOSE_CMD+=(--timelock)
-    fi
-    
-    "${PROPOSE_CMD[@]}"
-  else
-    # Staging: send directly using cast send with --data flag for raw calldata
-    # Get RPC URL
-    local RPC_URL
-    RPC_URL=$(getRPCUrl "$NETWORK") || {
-      error "sendOrPropose: Failed to get RPC URL for $NETWORK"
-      return 1
-    }
-
-    # Get private key
-    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
-      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
-      return 1
-    }
-
-    # Send transaction using cast send with raw calldata
-    # cast send will handle signing, gas estimation, and receipt waiting
-    # For raw calldata, pass it as the function signature (first arg after target)
-    cast send "$TARGET" "$CALLDATA" \
-      --rpc-url "$RPC_URL" \
-      --private-key "$PRIVATE_KEY" \
-      --legacy \
-      --confirmations 1
-
+  # Tron or EVM staging: direct send via universalCast sendRaw
+  if isTronNetwork "$NETWORK"; then
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi
 
+  if [[ "$ENVIRONMENT" != "production" ]]; then
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
+    return $?
+  fi
+
+  # EVM production: propose to Safe using propose-to-safe.ts
+  local SAFE_SIGNER_KEY
+  if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
+    SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
+  else
+    SAFE_SIGNER_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+      return 1
+    }
+  fi
+  local PROPOSE_CMD=(
+    bunx tsx script/deploy/safe/propose-to-safe.ts
+    --network "$NETWORK"
+    --to "$TARGET"
+    --calldata "$CALLDATA"
+    --privateKey "$SAFE_SIGNER_KEY"
+  )
+
+  if [[ "$TIMELOCK" == "true" ]]; then
+    PROPOSE_CMD+=(--timelock)
+  fi
+
+  "${PROPOSE_CMD[@]}"
   return $?
 }
 
@@ -3836,13 +3707,14 @@ function universalCall() {
 # Generates calldata using `cast calldata` and delegates to sendOrPropose for all
 # network/environment routing (Tron vs EVM, staging vs production).
 #
-# Usage: universalSend NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK]
+# Usage: universalSend NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK] [PRIVATE_KEY_OVERRIDE]
 #   NETWORK     - Network name (e.g., "arbitrum", "tron", "tronshasta")
 #   ENVIRONMENT - "production" or "staging"
 #   TARGET      - Contract address to call
 #   SIGNATURE   - Function signature (e.g., "transfer(address,uint256)")
 #   ARGS        - Optional: Arguments for cast calldata (space-separated, arrays in brackets)
 #   TIMELOCK    - Optional: "true" to wrap in timelock (EVM production only)
+#   PRIVATE_KEY_OVERRIDE - Optional: hex key; when set, use instead of getPrivateKey(network, environment)
 #
 # Routing (handled by sendOrPropose):
 #   - Tron (any env): Direct send via troncast (no Safe/timelock support)
@@ -3851,6 +3723,7 @@ function universalCall() {
 #
 # Example: universalSend "arbitrum" "staging" "$DIAMOND" "setFee(uint256)" "100"
 # Example: universalSend "arbitrum" "production" "$DIAMOND" "batchSet(address[],bytes4[],bool)" '[addr1,addr2] [0x1234] true' "true"
+# Example: universalSend "mainnet" "production" "$DIAMOND" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET"
 function universalSend() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -3858,6 +3731,7 @@ function universalSend() {
   local SIGNATURE="$4"
   local ARGS="$5"
   local TIMELOCK="${6:-false}"
+  local PRIVATE_KEY_OVERRIDE="${7:-}"
 
   if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$SIGNATURE" ]]; then
     echo "Error: universalSend requires network, environment, target, and signature" >&2
@@ -3881,7 +3755,137 @@ function universalSend() {
   fi
 
   # Delegate to sendOrPropose for all network/environment routing
-  sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$TIMELOCK"
+  sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$TIMELOCK" "$PRIVATE_KEY_OVERRIDE"
+  return $?
+}
+
+# universalSendRaw: Direct send with pre-built calldata (Tron or EVM). Used by sendOrPropose
+# for Tron (any env) and EVM staging. Does not handle EVM production Safe proposal.
+#
+# Usage: universalSendRaw NETWORK ENVIRONMENT TARGET CALLDATA [PRIVATE_KEY_OVERRIDE]
+#   NETWORK     - Network name (e.g., "arbitrum", "tron")
+#   ENVIRONMENT - "production" or "staging" (for getPrivateKey when override not set)
+#   TARGET      - Contract address to call
+#   CALLDATA    - Hex calldata (must start with 0x)
+#   PRIVATE_KEY_OVERRIDE - Optional: hex key; when set, use instead of getPrivateKey(network, environment)
+#
+# Returns: Exit code of troncast send / cast send
+function universalSendRaw() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local TARGET="$3"
+  local CALLDATA="$4"
+  local PRIVATE_KEY_OVERRIDE="${5:-}"
+
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$CALLDATA" ]]; then
+    echo "Error: universalSendRaw requires network, environment, target, and calldata" >&2
+    return 1
+  fi
+  if [[ ! "$CALLDATA" =~ ^0x ]]; then
+    echo "Error: universalSendRaw calldata must start with 0x" >&2
+    return 1
+  fi
+
+  if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
+    PRIVATE_KEY="$PRIVATE_KEY_OVERRIDE"
+  else
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      echo "Error: universalSendRaw failed to get private key for $NETWORK and $ENVIRONMENT" >&2
+      return 1
+    }
+  fi
+
+  if isTronNetwork "$NETWORK"; then
+    local TRON_ENV
+    TRON_ENV=$(getTronEnv "$NETWORK")
+    bun troncast send "$TARGET" "" --calldata "$CALLDATA" --env "$TRON_ENV" --private-key "$PRIVATE_KEY" --confirm
+    return $?
+  fi
+
+  # EVM: cast send with raw calldata
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK") || {
+    echo "Error: universalSendRaw failed to get RPC URL for $NETWORK" >&2
+    return 1
+  }
+  # Use GAS_ESTIMATE_MULTIPLIER (default 100 from .env) so gas price stays above base fee on L2s
+  local MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-100}"
+  local GAS_PRICE
+  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
+  local GAS_PRICE_BUF=$(( GAS_PRICE * MULTIPLIER / 100 ))
+  [[ "$GAS_PRICE_BUF" -lt 1 ]] && GAS_PRICE_BUF=1
+  cast send "$TARGET" "$CALLDATA" \
+    --rpc-url "$RPC_URL" \
+    --private-key "$PRIVATE_KEY" \
+    --legacy \
+    --gas-price "$GAS_PRICE_BUF" \
+    --confirmations 1
+  return $?
+}
+
+# universalSendValue: Send native token (ETH/TRX) to an address. For EVM value is in wei; for Tron
+# value is converted from wei to sun (1e18 wei = 1 ether, 1e6 sun = 1 TRX; conversion: sun = wei/1e12).
+#
+# Usage: universalSendValue NETWORK ENVIRONMENT TARGET VALUE_WEI [PRIVATE_KEY_OVERRIDE]
+#   NETWORK     - Network name (e.g., "arbitrum", "tron")
+#   ENVIRONMENT - "production" or "staging"
+#   TARGET      - Recipient address (hex for EVM, base58 for Tron)
+#   VALUE_WEI   - Amount in wei (EVM); for Tron converted to sun internally
+#   PRIVATE_KEY_OVERRIDE - Optional: hex key; when set, use instead of getPrivateKey(network, environment)
+#
+# Returns: Exit code of troncast send / cast send
+function universalSendValue() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local TARGET="$3"
+  local VALUE_WEI="$4"
+  local PRIVATE_KEY_OVERRIDE="${5:-}"
+
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$VALUE_WEI" ]]; then
+    echo "Error: universalSendValue requires network, environment, target, and value_wei" >&2
+    return 1
+  fi
+
+  if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
+    PRIVATE_KEY="$PRIVATE_KEY_OVERRIDE"
+  else
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      echo "Error: universalSendValue failed to get private key for $NETWORK and $ENVIRONMENT" >&2
+      return 1
+    }
+  fi
+
+  if isTronNetwork "$NETWORK"; then
+    local TRON_ENV
+    TRON_ENV=$(getTronEnv "$NETWORK")
+    # Convert wei to sun: 1e18 wei = 1 ether, 1e6 sun = 1 TRX; sun = wei / 1e12
+    local VALUE_SUN
+    VALUE_SUN=$(echo "$VALUE_WEI / 1000000000000" | bc 2>/dev/null || echo "0")
+    if [[ -z "$VALUE_SUN" || "$VALUE_SUN" -le 0 ]]; then
+      echo "Error: universalSendValue invalid or zero value_wei for Tron: $VALUE_WEI" >&2
+      return 1
+    fi
+    bun troncast send "$TARGET" "" --value "${VALUE_SUN}sun" --env "$TRON_ENV" --private-key "$PRIVATE_KEY" --confirm
+    return $?
+  fi
+
+  # EVM: cast send with --value (wei)
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK") || {
+    echo "Error: universalSendValue failed to get RPC URL for $NETWORK" >&2
+    return 1
+  }
+  # Use GAS_ESTIMATE_MULTIPLIER (default 100 from .env) so gas price stays above base fee on L2s
+  local MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-100}"
+  local GAS_PRICE
+  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
+  local GAS_PRICE_BUF=$(( GAS_PRICE * MULTIPLIER / 100 ))
+  [[ "$GAS_PRICE_BUF" -lt 1 ]] && GAS_PRICE_BUF=1
+  cast send "$TARGET" --value "$VALUE_WEI" \
+    --rpc-url "$RPC_URL" \
+    --private-key "$PRIVATE_KEY" \
+    --legacy \
+    --gas-price "$GAS_PRICE_BUF"
   return $?
 }
 
@@ -3927,25 +3931,27 @@ function universalCode() {
   return $?
 }
 
-# universalCast: Dispatcher for cast-like operations (call, send, code). Routes to universalCall,
-# universalSend, or universalCode so network handling stays in one place.
+# universalCast: Dispatcher for cast-like operations (call, send, sendRaw, sendValue, code). Routes to
+# universalCall, universalSend, universalSendRaw, universalSendValue, or universalCode so network handling stays in one place.
 #
 # Usage: universalCast ACTION NETWORK [rest...]
-#   ACTION   - "call" | "send" | "code"
+#   ACTION   - "call" | "send" | "sendRaw" | "sendValue" | "code"
 #   NETWORK  - Network name
-#   rest     - Action-specific args (see universalCall, universalSend, universalCode)
+#   rest     - Action-specific args (see universalCall, universalSend, universalSendRaw, universalSendValue, universalCode)
 #
 # Examples:
 #   universalCast "call" NETWORK TARGET SIGNATURE [ARGS...]
-#   universalCast "send" NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK]
+#   universalCast "send" NETWORK ENVIRONMENT TARGET SIGNATURE [ARGS] [TIMELOCK] [PRIVATE_KEY_OVERRIDE]
+#   universalCast "sendRaw" NETWORK ENVIRONMENT TARGET CALLDATA [PRIVATE_KEY_OVERRIDE]
+#   universalCast "sendValue" NETWORK ENVIRONMENT TARGET VALUE_WEI [PRIVATE_KEY_OVERRIDE]
 #   universalCast "code" NETWORK ADDRESS
 #
-# Returns: Exit code of the underlying universalCall / universalSend / universalCode.
+# Returns: Exit code of the underlying helper.
 function universalCast() {
   local ACTION="${1:-}"
   shift
   if [[ -z "$ACTION" ]]; then
-    echo "Error: universalCast requires ACTION (call, send, code)" >&2
+    echo "Error: universalCast requires ACTION (call, send, sendRaw, sendValue, code)" >&2
     return 1
   fi
   case "$ACTION" in
@@ -3955,11 +3961,17 @@ function universalCast() {
     send)
       universalSend "$@"
       ;;
+    sendRaw)
+      universalSendRaw "$@"
+      ;;
+    sendValue)
+      universalSendValue "$@"
+      ;;
     code)
       universalCode "$@"
       ;;
     *)
-      echo "Error: universalCast unknown action: $ACTION (use call, send, or code)" >&2
+      echo "Error: universalCast unknown action: $ACTION (use call, send, sendRaw, sendValue, or code)" >&2
       return 1
       ;;
   esac
@@ -4072,7 +4084,7 @@ transferContractOwnership() {
   echo "Transferring ownership of contract $CONTRACT_ADDRESS on $NETWORK from $ADDRESS_OLD_OWNER to $ADDRESS_NEW_OWNER now"
 
   # make sure OLD_OWNER is actually contract owner
-  local CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  local CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$CONTRACT_ADDRESS" "owner() returns (address)")
   if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
     error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
     return 1
@@ -4094,7 +4106,7 @@ transferContractOwnership() {
     else
       echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
       # Send some funds from new to old wallet
-      cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
+      universalCast "sendValue" "$NETWORK" "staging" "$ADDRESS_OLD_OWNER" "$MIN_NATIVE_BALANCE" "$PRIV_KEY_NEW_OWNER"
 
       NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
       NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
@@ -4107,13 +4119,13 @@ transferContractOwnership() {
   # # transfer ownership to new owner
   echo ""
   echo "[info] calling transferOwnership() function from old owner wallet now"
-  cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+  universalCast "send" "$NETWORK" "staging" "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" "false" "$PRIV_KEY_OLD_OWNER"
   echo ""
 
   # # accept ownership transfer
   echo ""
   echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
-  cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
+  universalCast "send" "$NETWORK" "staging" "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" "" "false" "$PRIV_KEY_NEW_OWNER"
   echo ""
   echo ""
 
@@ -4123,7 +4135,7 @@ transferContractOwnership() {
   if [[ $SENDABLE_BALANCE -gt 0 ]]; then
     echo ""
     echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
-    cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+    universalCast "sendValue" "$NETWORK" "staging" "$ADDRESS_NEW_OWNER" "$SENDABLE_BALANCE" "$PRIV_KEY_OLD_OWNER"
   else
     echo "remaining native balance in old wallet is too low to send back to new wallet"
   fi
@@ -4135,8 +4147,8 @@ transferContractOwnership() {
   echo "native balance old owner: $NATIVE_BALANCE_OLD"
   echo "native balance new owner: $NATIVE_BALANCE_NEW"
 
-  # make sure NEW OWNER is actually contract owner
-  CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  # make sure NEW_OWNER is actually contract owner
+  CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$CONTRACT_ADDRESS" "owner() returns (address)")
   echo ""
   if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
     error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
