@@ -1356,8 +1356,8 @@ contract AcrossV4SwapFacetTest is
         );
 
         // Keep this list aligned with `AcrossV4SwapFacet._chainIdToCctpDomainId`.
-        uint256[] memory chainIds = new uint256[](18);
-        uint32[] memory domains = new uint32[](18);
+        uint256[] memory chainIds = new uint256[](19);
+        uint32[] memory domains = new uint32[](19);
 
         // Mainnet chain IDs
         chainIds[0] = 1;
@@ -1384,18 +1384,20 @@ contract AcrossV4SwapFacetTest is
         domains[10] = 13; // Sonic
         chainIds[11] = 480;
         domains[11] = 14; // World Chain
-        chainIds[12] = 1329;
-        domains[12] = 16; // Sei
-        chainIds[13] = 50;
-        domains[13] = 18; // XDC
-        chainIds[14] = 999;
-        domains[14] = 19; // HyperEVM
-        chainIds[15] = 1337;
-        domains[15] = 19; // HyperCore (via HyperEVM)
-        chainIds[16] = 57073;
-        domains[16] = 21; // Ink
-        chainIds[17] = 98866;
-        domains[17] = 22; // Plume
+        chainIds[12] = 143;
+        domains[12] = 15; // Monad
+        chainIds[13] = 1329;
+        domains[13] = 16; // Sei
+        chainIds[14] = 50;
+        domains[14] = 18; // XDC
+        chainIds[15] = 999;
+        domains[15] = 19; // HyperEVM
+        chainIds[16] = 1337;
+        domains[16] = 19; // HyperCore (via HyperEVM)
+        chainIds[17] = 57073;
+        domains[17] = 21; // Ink
+        chainIds[18] = 98866;
+        domains[18] = 22; // Plume
 
         for (uint256 i; i < chainIds.length; i++) {
             assertEq(

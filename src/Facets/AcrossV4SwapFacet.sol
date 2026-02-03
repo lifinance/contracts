@@ -664,6 +664,7 @@ contract AcrossV4SwapFacet is
         if (_chainId == 81224) return 12; // Codex
         if (_chainId == 146) return 13; // Sonic
         if (_chainId == 480) return 14; // World Chain
+        if (_chainId == 143) return 15; // Monad
         if (_chainId == 1329) return 16; // Sei
         if (_chainId == 50) return 18; // XDC
         if (_chainId == 999) return 19; // HyperEVM
