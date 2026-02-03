@@ -691,7 +691,7 @@ function diamondSyncWhitelist {
       if isTronNetwork "$NETWORK"; then
         CHECKSUMMED="$ADDRESS"
       else
-        CHECKSUMMED=$(cast --to-checksum-address "$ADDRESS_LOWER")
+        CHECKSUMMED=$(cast to-check-sum-address "$ADDRESS_LOWER")
       fi
 
       if [[ "$CODE" == "0x" ]]; then
@@ -831,7 +831,7 @@ function diamondSyncWhitelist {
               echoSyncDebug "Skipping pair with empty address part: CURRENT_PAIR='$CURRENT_PAIR'"
               continue
             fi
-            CHECKSUMMED_ADDR=$(cast --to-checksum-address "$ADDRESS_PART")
+            CHECKSUMMED_ADDR=$(cast to-check-sum-address "$ADDRESS_PART")
           fi
           
           REMOVED_PAIRS+=("$CHECKSUMMED_ADDR|$SELECTOR_PART")

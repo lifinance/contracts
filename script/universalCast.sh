@@ -273,7 +273,7 @@ function universalCode() {
       return 1
     }
     local CHECKSUMMED
-    CHECKSUMMED=$(cast --to-checksum-address "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" 2>/dev/null)
+    CHECKSUMMED=$(cast to-check-sum-address "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" 2>/dev/null)
     if [[ -z "$CHECKSUMMED" ]]; then
       echo "Error: Invalid EVM address for universalCode: $ADDRESS" >&2
       return 1
