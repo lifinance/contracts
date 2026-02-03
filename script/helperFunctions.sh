@@ -4631,18 +4631,16 @@ function updateDiamondLogForNetwork() {
   # execute script
   attempts=0 # initialize attempts to 0
 
+  local KNOWN_FACET_ADDRESSES
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
-    local KNOWN_FACET_ADDRESSES=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" 2>/dev/null)
-
-  # check the return code the last call
+    KNOWN_FACET_ADDRESSES=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" 2>/dev/null)
     if [ $? -eq 0 ]; then
       break # exit the loop if the operation was successful
     fi
-
     attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
+    sleep 1                   # wait for 1 second before trying the operation again
   done
 
   if [ $attempts -eq $((MAX_ATTEMPTS_PER_SCRIPT_EXECUTION + 1)) ]; then
