@@ -330,7 +330,11 @@ deploySingleContract() {
       fi
       if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
         warning "No JSON output received. This usually indicates a connection/RPC error."
-        warning "To debug, run the forge script manually without --json flag to see verbose output."
+      fi
+
+      DEPLOYER_BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT" 2>/dev/null) || true
+      if [[ -n "${DEPLOYER_BALANCE:-}" ]]; then
+        echo "[info] deployer wallet balance on $NETWORK: $DEPLOYER_BALANCE"
       fi
       attempts=$((attempts + 1))
       sleep 1
