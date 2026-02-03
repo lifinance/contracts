@@ -27,7 +27,7 @@ import {
   getWalletFromPrivateKeyInDotEnv,
   isNativeTX,
   sendTransaction,
-  TransactionTypeEnum,
+  ITransactionTypeEnum,
 } from './utils/demoScriptHelpers'
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
@@ -254,7 +254,7 @@ const createDestCallPayload = (
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
 const TRANSACTION_TYPE =
-  TransactionTypeEnum.ERC20_WITH_SRC as TransactionTypeEnum // define which type of transaction you want to send
+  ITransactionTypeEnum.ERC20_WITH_SRC as ITransactionTypeEnum // define which type of transaction you want to send
 const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 
@@ -267,8 +267,8 @@ const sendingAssetId = isNativeTX(TRANSACTION_TYPE)
 
 // Define sendingAssetIdSrc based on transaction type
 const sendingAssetIdSrc =
-  TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC ||
-  TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC
+  TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_SRC ||
+  TRANSACTION_TYPE === ITransactionTypeEnum.NATIVE_WITH_SRC
     ? ADDRESS_USDC_OPT
     : sendingAssetId
 
@@ -280,8 +280,8 @@ const fromAmount = isNativeTX(TRANSACTION_TYPE)
   ? '2000000000000000' // 0.002 (ETH)
   : '5100000' // 5.1 USDC (min send limit is just over 5 USD for this token)
 const WITH_DEST_CALL =
-  TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_DEST ||
-  TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_DEST
+  TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_DEST ||
+  TRANSACTION_TYPE === ITransactionTypeEnum.NATIVE_WITH_DEST
 const WITH_EXCLUSIVE_RELAYER = false
 const EXCLUSIVE_RELAYER = '0x07ae8551be970cb1cca11dd7a11f47ae82e70e67' // biggest across relayer
 const SRC_CHAIN = 'optimism'
@@ -337,8 +337,8 @@ async function main() {
     minAmount: fromAmount,
     destinationChainId: toChainId,
     hasSourceSwaps:
-      TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC ||
-      TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC,
+      TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_SRC ||
+      TRANSACTION_TYPE === ITransactionTypeEnum.NATIVE_WITH_SRC,
     hasDestinationCall: WITH_DEST_CALL,
   }
   console.log('bridgeData prepared')
@@ -350,7 +350,7 @@ async function main() {
   if (bridgeData.hasSourceSwaps)
     try {
       // Different handling for ERC20 vs Native source swaps
-      if (TRANSACTION_TYPE === TransactionTypeEnum.ERC20_WITH_SRC) {
+      if (TRANSACTION_TYPE === ITransactionTypeEnum.ERC20_WITH_SRC) {
         const srcSwap = await getUniswapDataERC20toExactERC20(
           ADDRESS_UNISWAP_OPT,
           fromChainId,
@@ -361,7 +361,7 @@ async function main() {
           true
         )
         srcSwapData.push(srcSwap)
-      } else if (TRANSACTION_TYPE === TransactionTypeEnum.NATIVE_WITH_SRC) {
+      } else if (TRANSACTION_TYPE === ITransactionTypeEnum.NATIVE_WITH_SRC) {
         const srcSwap = await getUniswapDataERC20toExactETH(
           ADDRESS_UNISWAP_OPT,
           fromChainId,
