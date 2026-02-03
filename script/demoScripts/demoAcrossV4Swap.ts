@@ -15,6 +15,7 @@ import {
   keccak256,
   parseAbi,
   parseUnits,
+  zeroAddress,
   type Abi,
   type Address,
   type Hex,
@@ -709,25 +710,32 @@ Examples (print only):
   // ----------------------------------------------------------------------------------------------
   // Optional: send tx (best-effort helper; may still revert depending on quote validity/allowlists)
   // ----------------------------------------------------------------------------------------------
-  const tokenContract = getContract({
-    address: bridgeData.sendingAssetId,
-    abi: erc20Abi,
-    client: { public: publicClient, wallet: walletClient },
-  })
+  const isNativeAsset = getAddress(bridgeData.sendingAssetId) === zeroAddress
+
+  const tokenContract = isNativeAsset
+    ? null
+    : getContract({
+        address: bridgeData.sendingAssetId,
+        abi: erc20Abi,
+        client: { public: publicClient, wallet: walletClient },
+      })
 
   await ensureBalance(
-    tokenContract,
+    isNativeAsset ? zeroAddress : tokenContract,
     walletAddress,
     bridgeData.minAmount,
     publicClient
   )
-  await ensureAllowance(
-    tokenContract,
-    walletAddress,
-    lifiDiamondAddress as string,
-    bridgeData.minAmount,
-    publicClient
-  )
+
+  if (!isNativeAsset && tokenContract) {
+    await ensureAllowance(
+      tokenContract,
+      walletAddress,
+      lifiDiamondAddress as string,
+      bridgeData.minAmount,
+      publicClient
+    )
+  }
 
   const typedDiamond = lifiDiamondContract as unknown as {
     write: {
