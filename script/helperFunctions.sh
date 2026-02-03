@@ -3682,12 +3682,12 @@ function sendOrPropose() {
       --calldata "$CALLDATA"
       --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
     )
-    
+
     # Add timelock flag if requested
     if [[ "$TIMELOCK" == "true" ]]; then
       PROPOSE_CMD+=(--timelock)
     fi
-    
+
     "${PROPOSE_CMD[@]}"
   else
     # Staging: send directly using cast send with --data flag for raw calldata
