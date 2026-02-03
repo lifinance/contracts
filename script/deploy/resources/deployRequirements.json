@@ -235,6 +235,15 @@
       }
     }
   },
+  "GlacisFacet": {
+    "configData": {
+      "_airlift": {
+        "configFileName": "glacis.json",
+        "keyInConfigFile": ".airlift.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "GnosisBridgeFacet": {
     "configData": {
       "_xDaiBridge": {
