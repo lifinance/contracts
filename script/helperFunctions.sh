@@ -3561,15 +3561,11 @@ function getPrivateKey() {
 }
 
 # Send or propose transaction
-# This function handles:
-# - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
-# - Staging: Sends directly using PRIVATE_KEY via cast send --data
+# - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
+# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts
+# - Staging: send directly (cast send). When sending directly, timelock is never used.
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
-#   network: Network name (e.g., "mainnet")
-#   environment: "production" or "staging"
-#   target: Target contract address
-#   calldata: Transaction calldata (hex string starting with 0x)
-#   timelock: Optional flag to wrap transaction in timelock (production only)
+#   network, environment, target, calldata: required. timelock: only when proposing; "true" = wrap in timelock, "false" = propose without; ignored when sending directly.
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -3589,8 +3585,8 @@ function sendOrPropose() {
     return 1
   fi
 
-  if [[ "$ENVIRONMENT" == "production" ]]; then
-    # Production: propose to Safe using propose-to-safe.ts
+  # Propose to Safe only when production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is not true
+  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" && "$ENVIRONMENT" == "production" ]]; then
     local PROPOSE_CMD=(
       bunx tsx script/deploy/safe/propose-to-safe.ts
       --network "$NETWORK"
@@ -3598,40 +3594,34 @@ function sendOrPropose() {
       --calldata "$CALLDATA"
       --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
     )
-    
-    # Add timelock flag if requested
+    # timelock: only used when proposing; add --timelock to wrap calldata in timelock schedule
     if [[ "$TIMELOCK" == "true" ]]; then
       PROPOSE_CMD+=(--timelock)
     fi
-    
+
     "${PROPOSE_CMD[@]}"
-  else
-    # Staging: send directly using cast send with --data flag for raw calldata
-    # Get RPC URL
-    local RPC_URL
-    RPC_URL=$(getRPCUrl "$NETWORK") || {
-      error "sendOrPropose: Failed to get RPC URL for $NETWORK"
-      return 1
-    }
-
-    # Get private key
-    local PRIVATE_KEY
-    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
-      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
-      return 1
-    }
-
-    # Send transaction using cast send with --data flag for raw calldata
-    # cast send will handle signing, gas estimation, and receipt waiting
-    cast send "$TARGET" \
-      --data "$CALLDATA" \
-      --rpc-url "$RPC_URL" \
-      --private-key "$PRIVATE_KEY" \
-      --legacy \
-      --confirmations 1
-
     return $?
   fi
+
+  # Send directly: SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true or staging (timelock not used)
+  local RPC_URL
+  RPC_URL=$(getRPCUrl "$NETWORK") || {
+    error "sendOrPropose: Failed to get RPC URL for $NETWORK"
+    return 1
+  }
+
+  local PRIVATE_KEY
+  PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+    error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+    return 1
+  }
+
+  # cast send: second positional arg is raw calldata (hex); do not use --data (not supported in this cast version)
+  cast send "$TARGET" "$CALLDATA" \
+    --rpc-url "$RPC_URL" \
+    --private-key "$PRIVATE_KEY" \
+    --legacy \
+    --confirmations 1
 
   return $?
 }
