@@ -66,31 +66,8 @@ deployAllContracts() {
       "12) Ownership transfer to timelock (production only)"
   )
 
-  # Extract the stage number from the selection
-  if [[ "$START_FROM" == *"1)"* ]]; then
-    START_STAGE=1
-  elif [[ "$START_FROM" == *"2)"* ]]; then
-    START_STAGE=2
-  elif [[ "$START_FROM" == *"3)"* ]]; then
-    START_STAGE=3
-  elif [[ "$START_FROM" == *"4)"* ]]; then
-    START_STAGE=4
-  elif [[ "$START_FROM" == *"5)"* ]]; then
-    START_STAGE=5
-  elif [[ "$START_FROM" == *"6)"* ]]; then
-    START_STAGE=6
-  elif [[ "$START_FROM" == *"7)"* ]]; then
-    START_STAGE=7
-  elif [[ "$START_FROM" == *"8)"* ]]; then
-    START_STAGE=8
-  elif [[ "$START_FROM" == *"9)"* ]]; then
-    START_STAGE=9
-  elif [[ "$START_FROM" == *"10)"* ]]; then
-    START_STAGE=10
-  elif [[ "$START_FROM" == *"11)"* ]]; then
-    START_STAGE=11
-  elif [[ "$START_FROM" == *"12)"* ]]; then
-    START_STAGE=12
+  if [[ "$START_FROM" =~ ^([0-9]+)\) ]]; then
+    START_STAGE="${BASH_REMATCH[1]}"
   else
     error "invalid selection: $START_FROM - exiting script now"
     exit 1
