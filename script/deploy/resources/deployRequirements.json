@@ -102,7 +102,7 @@
       "_spokePoolPeriphery": {
         "configFileName": "acrossV4Swap.json",
         "keyInConfigFile": ".<NETWORK>.spokePoolPeriphery",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "true"
       },
       "_spokePool": {
         "configFileName": "acrossV4Swap.json",

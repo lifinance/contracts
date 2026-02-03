@@ -339,15 +339,26 @@ contract AcrossV4SwapFacetTest is
         );
     }
 
-    function testRevert_WhenConstructedWithZeroPeripheryAddress() public {
-        vm.expectRevert(InvalidConfig.selector);
-
-        new TestAcrossV4SwapFacet(
-            ISpokePoolPeriphery(address(0)),
-            SPOKE_POOL,
-            address(0),
-            address(0),
-            backendSigner
+    function test_ConstructedWithZeroOptionalAddressesSucceeds() public {
+        TestAcrossV4SwapFacet facetWithZeroPeripheries = new TestAcrossV4SwapFacet(
+                ISpokePoolPeriphery(address(0)),
+                SPOKE_POOL,
+                address(0),
+                address(0),
+                backendSigner
+            );
+        assertEq(
+            address(facetWithZeroPeripheries.SPOKE_POOL_PERIPHERY()),
+            address(0)
+        );
+        assertEq(facetWithZeroPeripheries.SPOKE_POOL(), SPOKE_POOL);
+        assertEq(
+            facetWithZeroPeripheries.SPONSORED_OFT_SRC_PERIPHERY(),
+            address(0)
+        );
+        assertEq(
+            facetWithZeroPeripheries.SPONSORED_CCTP_SRC_PERIPHERY(),
+            address(0)
         );
     }
 

@@ -100,13 +100,9 @@ contract AcrossV4SwapFacet is
         address _sponsoredCctpSrcPeriphery,
         address _backendSigner
     ) {
-        // _sponsoredOftSrcPeriphery and _sponsoredCctpSrcPeriphery can be address(0) as
+        // _sponsoredOftSrcPeriphery, _sponsoredCctpSrcPeriphery and _spokePoolPeriphery can be address(0) as
         // they are not available on all chains
-        if (
-            address(_spokePoolPeriphery) == address(0) ||
-            _spokePool == address(0) ||
-            _backendSigner == address(0)
-        ) {
+        if (_spokePool == address(0) || _backendSigner == address(0)) {
             revert InvalidConfig();
         }
 
@@ -574,7 +570,7 @@ contract AcrossV4SwapFacet is
     /// @notice Converts LiFi internal (non-EVM) chain IDs to Across chain IDs
     ///         For EVM chainIds there is no need to convert, they will just returned as-is
     /// @param _destinationChainId The LiFi chain ID to convert
-    function _getAcrossChainId(
+    function _toAcrossChainId(
         uint256 _destinationChainId
     ) internal pure returns (uint256) {
         // currently only Solana has a custom chainId
@@ -635,7 +631,7 @@ contract AcrossV4SwapFacet is
     ) internal pure {
         if (
             _acrossDestinationChainId !=
-            _getAcrossChainId(_lifiDestinationChainId)
+            _toAcrossChainId(_lifiDestinationChainId)
         ) {
             revert InformationMismatch();
         }
