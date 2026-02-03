@@ -325,7 +325,13 @@ deploySingleContract() {
     else
       # RETURN_CODE != 0
       warning "forge script returned non-zero exit code: $RETURN_CODE (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
-      warning "To debug, run the forge script manually without --json flag to see verbose output."
+      if [[ -n "${STDERR_CONTENT:-}" ]]; then
+        error "stderr: ${STDERR_CONTENT}"
+      fi
+      if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
+        warning "No JSON output received. This usually indicates a connection/RPC error."
+        warning "To debug, run the forge script manually without --json flag to see verbose output."
+      fi
       attempts=$((attempts + 1))
       sleep 1
       continue

@@ -93,6 +93,17 @@ checkExecutorAndReceiver() {
       fi
 
       echo $RESULT
+
+    else
+      # RETURN_CODE != 0 (e.g. connection/RPC error)
+      warning "forge script returned non-zero exit code: ${RETURN_CODE:-1} on network: $NETWORK"
+      if [[ -n "${STDERR_CONTENT:-}" ]]; then
+        error "stderr: ${STDERR_CONTENT}"
+      fi
+      if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
+        warning "No JSON output received. This usually indicates a connection/RPC error."
+      fi
+      FAILED_RESULTS="$FAILED_RESULTS\n[info] Failed to check on network: $NETWORK"
     fi
   done
 
