@@ -69,7 +69,7 @@
   "megaeth": {
     "spokePoolPeriphery": "0xf0aBCe137a493185c5E768F275E7E931109f8981",
     "spokePool": "0x3db06da8f0a24a525f314eec954fc5c6a973d40e",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredOftSrcPeriphery": "0x5be9f2a2f00475406f09e5be82c06eff206721d9",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "mode": {
