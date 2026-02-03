@@ -15,6 +15,7 @@ globs:
 ## Code Quality
 
 - Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
+- When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
