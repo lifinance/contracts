@@ -538,7 +538,7 @@
     "explorerUrl": "https://explorer.jovay.io",
     "explorerApiUrl": "https://explorer.jovay.io/api",
     "multicallAddress": "",
-    "safeAddress": "0x4ca0bD9A8EE4001A34C20b8a7165438Cf00DA94c",
+    "safeAddress": "0xb53FAC3Ee98A98BB8f05630D7F3d396BbAcBb7Fd",
     "gasZipChainId": 507,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
