@@ -1021,8 +1021,8 @@
   "stable": {
     "name": "stable",
     "chainId": 988,
-    "nativeAddress": "0x0000000000000000000000000000000000001000",
-    "nativeCurrency": "gUSDT",
+    "nativeAddress": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+    "nativeCurrency": "USDT0",
     "wrappedNativeAddress": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
     "status": "active",
     "type": "mainnet",
