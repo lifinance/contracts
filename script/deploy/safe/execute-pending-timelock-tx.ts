@@ -257,25 +257,56 @@ const cmd = defineCommand({
     if (isDryRun)
       consola.info('Running in DRY RUN mode - no transactions will be sent')
 
-    // Process networks - sequentially for interactive mode, parallel for auto-execute mode
+    // Process networks: scan once (one RPC per network), then execute only for networks with ready ops, reusing the same connection.
     if (executeAll || rejectAll) {
-      consola.info('🚀 Processing networks in parallel for auto-execution mode')
+      consola.info('🚀 Checking all networks for pending operations...')
 
-      // Process all networks in parallel
-      const networkPromises = networksToProcess.map(async (network) => {
-        return processNetwork(
-          network,
-          isDryRun,
-          specificOperationId,
-          executeAll,
-          rejectAll,
-          rpcUrlOverride,
-          slackNotifier
+      const fetchResults = await Promise.all(
+        networksToProcess.map((network) =>
+          fetchPendingForNetwork(
+            network,
+            specificOperationId,
+            rejectAll,
+            rpcUrlOverride
+          )
         )
-      })
+      )
 
-      // Wait for all networks to complete
-      const results = await Promise.all(networkPromises)
+      const networksWithReady = fetchResults.filter(
+        (r) => r.readyOperations.length > 0
+      )
+
+      consola.info(
+        `Checked ${networksToProcess.length} network(s); ${
+          networksWithReady.length
+        } have ready operation(s)${
+          networksWithReady.length > 0
+            ? `: ${networksWithReady.map((r) => r.network.name).join(', ')}`
+            : ''
+        }`
+      )
+
+      if (networksWithReady.length === 0) {
+        consola.success('No networks with pending executable transactions.')
+        return
+      }
+
+      consola.info('Processing networks with ready operations in parallel.')
+
+      const results = await Promise.all(
+        networksWithReady.map((fetched) =>
+          processNetwork(
+            fetched.network,
+            isDryRun,
+            specificOperationId,
+            executeAll,
+            rejectAll,
+            rpcUrlOverride,
+            slackNotifier,
+            fetched
+          )
+        )
+      )
 
       // Log summary
       const successfulNetworks = results.filter((r) => r.success).length
@@ -607,6 +638,7 @@ async function processNetwork(
     let totalPendingCount: number
     let notScheduledOperations: IPendingFetchResult['notScheduledOperations']
 
+    // Reuse RPC clients from scan phase when provided (avoids opening a second connection for the same network).
     if (
       preFetched?.publicClient &&
       preFetched?.walletClient &&
