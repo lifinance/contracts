@@ -234,10 +234,10 @@ deploySingleContract() {
         echo "[info] Proceeding with deployment..."
       fi
   fi
-  # Show warning if balance wasn't displayed earlier (when NETWORK was provided as parameter)
-  # If NETWORK was selected interactively, balance was already shown, so skip warning to avoid redundancy
+  # Show reminder if balance wasn't displayed earlier (when NETWORK was provided as parameter)
+  # If NETWORK was selected interactively, balance was already shown, so skip reminder to avoid redundancy
   if [[ -n "$NETWORK" && -z "$BALANCE" ]]; then
-    warning "Make sure you have sufficient funds in the deployer wallet to perform the deployment operation"
+    echo "[info] Make sure you have sufficient funds in the deployer wallet to perform the deployment operation"
   fi
 
   # execute script

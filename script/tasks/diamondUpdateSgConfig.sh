@@ -32,7 +32,7 @@ diamondUpdateSgConfig() {
   # get user-selected script from list
 	SCRIPT="UpdateConfigForStargate"
 
-  warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
+  echo "[info] Make sure you have sufficient funds in the deployer wallet to perform the operation"
 
   # execute script
   attempts=1 # initialize attempts to 0
