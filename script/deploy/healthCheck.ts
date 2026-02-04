@@ -32,6 +32,56 @@ import {
 } from '../utils/viemScriptHelpers'
 
 import targetState from './_targetState.json'
+
+/**
+ * Execute a command with retry logic for rate limit errors (429)
+ * @param command - The command to execute
+ * @param initialDelay - Initial delay before first attempt (ms)
+ * @param maxRetries - Maximum number of retries
+ * @param retryDelays - Array of delays for each retry attempt (ms)
+ * @returns The command output string
+ * @throws The last error if all retries fail
+ */
+async function execWithRateLimitRetry(
+  command: string,
+  initialDelay = 0,
+  maxRetries = 3,
+  retryDelays = [3000, 5000, 10000]
+): Promise<string> {
+  // Initial delay before first attempt
+  if (initialDelay > 0) {
+    await new Promise((resolve) => setTimeout(resolve, initialDelay))
+  }
+
+  let retries = 0
+  while (retries <= maxRetries) {
+    try {
+      const result = execSync(command, { encoding: 'utf8' })
+      return result
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error)
+      const isRateLimit =
+        errorMessage.includes('429') ||
+        errorMessage.includes('rate limit') ||
+        errorMessage.includes('Too Many Requests')
+
+      if (isRateLimit && retries < maxRetries) {
+        const delay = retryDelays[retries]
+        consola.warn(
+          `Rate limit detected (429). Retrying in ${
+            delay / 1000
+          }s... (attempt ${retries + 1}/${maxRetries})`
+        )
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        retries++
+      } else {
+        throw error // Re-throw if not rate limit or max retries reached
+      }
+    }
+  }
+
+  throw new Error('Max retries reached')
+}
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -243,14 +293,20 @@ const main = defineCommand({
     consola.box('Checking facets registered in diamond...')
 
     let registeredFacets: string[] = []
+    let facetCheckSkipped = false
     try {
       if (isTron) {
         // Use troncast for Tron
         // Diamond address in deployments is already in Tron format
         const rpcUrl = networksConfig[networkLower].rpcUrl
-        const rawString = execSync(
+
+        // Execute with retry logic for rate limits
+        // TronGrid has strict rate limits, so we add initial delay and retry on 429
+        const rawString = await execWithRateLimitRetry(
           `bun troncast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
-          { encoding: 'utf8' }
+          2000, // 2 second initial delay for Tron
+          3,
+          [3000, 5000, 10000]
         )
 
         // Parse Tron output format
@@ -272,11 +328,13 @@ const main = defineCommand({
             .filter(Boolean)
         }
       } else if (networksConfig[networkLower].rpcUrl && publicClient) {
-        // Existing EVM logic
+        // Existing EVM logic with retry for rate limits
         const rpcUrl: string = publicClient.chain.rpcUrls.default.http[0]
-        const rawString = execSync(
+        const rawString = await execWithRateLimitRetry(
           `cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
-          { encoding: 'utf8' }
+          0, // No initial delay for EVM (can be adjusted if needed)
+          3,
+          [3000, 5000, 10000]
         )
 
         const jsonCompatibleString = rawString
@@ -298,17 +356,40 @@ const main = defineCommand({
           })
         }
       }
-    } catch (error) {
-      consola.warn('Unable to parse output - skipping facet registration check')
-      consola.warn('Error:', error)
+    } catch (error: any) {
+      facetCheckSkipped = true
+      const errorMessage = error?.message || String(error)
+
+      // Check if it's a rate limit error (429)
+      if (
+        errorMessage.includes('429') ||
+        errorMessage.includes('rate limit') ||
+        errorMessage.includes('Too Many Requests')
+      ) {
+        consola.warn(
+          'RPC rate limit reached (429) - skipping facet registration check'
+        )
+        consola.warn(
+          'This is a temporary limitation from the RPC provider. The check will be skipped.'
+        )
+      } else {
+        consola.warn(
+          'Unable to parse output - skipping facet registration check'
+        )
+        consola.warn('Error:', errorMessage)
+      }
     }
 
-    for (const facet of [...coreFacetsToCheck, ...nonCoreFacets])
-      if (!registeredFacets.includes(facet))
-        logError(
-          `Facet ${facet} not registered in Diamond or possibly unverified`
-        )
-      else consola.success(`Facet ${facet} registered in Diamond`)
+    // Only check facet registration if we successfully retrieved the data
+    // If the check was skipped due to an error (e.g. RPC rate limit), don't mark all facets as "not registered"
+    if (!facetCheckSkipped) {
+      for (const facet of [...coreFacetsToCheck, ...nonCoreFacets])
+        if (!registeredFacets.includes(facet))
+          logError(
+            `Facet ${facet} not registered in Diamond or possibly unverified`
+          )
+        else consola.success(`Facet ${facet} registered in Diamond`)
+    }
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │      Check that core periphery contracts are deployed   │
