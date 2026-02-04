@@ -49,6 +49,7 @@ acceptOwnershipTransferPeriphery() {
   for CURRENT_NETWORK in "${NETWORKS[@]}"; do
     echo ""
     echo "[info] now executing transfer ownership script in network: $CURRENT_NETWORK"
+    warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
 
     # execute script
     attempts=1

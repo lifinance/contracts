@@ -54,6 +54,7 @@ checkExecutorAndReceiver() {
   for NETWORK in "${NETWORKS[@]}"; do
     echo ""
     echo "[info] now check Executor and Receiver on network: $NETWORK"
+    warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
 
     # Execute, parse, and check return code
     executeAndParse \

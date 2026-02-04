@@ -29,8 +29,10 @@ diamondUpdateSgConfig() {
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network from list
 	NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
-	# get user-selected script from list
+  # get user-selected script from list
 	SCRIPT="UpdateConfigForStargate"
+
+  warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
 
   # execute script
   attempts=1 # initialize attempts to 0

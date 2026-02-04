@@ -234,6 +234,12 @@ deploySingleContract() {
         echo "[info] Proceeding with deployment..."
       fi
   fi
+  # Show warning if balance wasn't displayed earlier (when NETWORK was provided as parameter)
+  # If NETWORK was selected interactively, balance was already shown, so skip warning to avoid redundancy
+  if [[ -n "$NETWORK" && -z "$BALANCE" ]]; then
+    warning "Make sure you have sufficient funds in the deployer wallet to perform the deployment operation"
+  fi
+
   # execute script
   attempts=1
   ADDRESS_COLLISION_DETECTED=false
@@ -330,11 +336,6 @@ deploySingleContract() {
       fi
       if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
         warning "No JSON output received. This usually indicates a connection/RPC error."
-      fi
-
-      DEPLOYER_BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT" 2>/dev/null) || true
-      if [[ -n "${DEPLOYER_BALANCE:-}" ]]; then
-        echo "[info] deployer wallet balance on $NETWORK: $DEPLOYER_BALANCE"
       fi
       attempts=$((attempts + 1))
       sleep 1
