@@ -2132,7 +2132,6 @@
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
         "CalldataVerificationFacet": "1.3.1",
-        "DexManagerFacet": "1.0.2",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
@@ -2148,10 +2147,13 @@
         "Executor": "2.1.0",
         "FeeCollector": "1.0.1",
         "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.1",
+        "GasZipPeriphery": "1.0.2",
         "LiFiDEXAggregator": "1.12.0",
-        "TokenWrapper": "1.1.0",
+        "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
+        "AcrossFacetV4": "1.0.0",
+        "ReceiverAcrossV4": "1.0.0",
+        "GlacisFacet": "1.2.0",
         "LiFiIntentEscrowFacet": "1.0.0"
       }
     }
