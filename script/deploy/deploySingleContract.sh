@@ -234,11 +234,6 @@ deploySingleContract() {
         echo "[info] Proceeding with deployment..."
       fi
   fi
-  # Show reminder if balance wasn't displayed earlier (when NETWORK was provided as parameter)
-  # If NETWORK was selected interactively, balance was already shown, so skip reminder to avoid redundancy
-  if [[ -n "$NETWORK" && -z "$BALANCE" ]]; then
-    echo "[info] Make sure you have sufficient funds in the deployer wallet to perform the deployment operation"
-  fi
 
   # execute script
   attempts=1
@@ -337,6 +332,7 @@ deploySingleContract() {
       if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
         warning "No JSON output received. This usually indicates a connection/RPC error."
       fi
+      warning "Make sure you have sufficient funds in the deployer wallet to perform the deployment operation"
       attempts=$((attempts + 1))
       sleep 1
       continue

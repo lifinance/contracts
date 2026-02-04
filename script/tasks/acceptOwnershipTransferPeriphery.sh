@@ -49,7 +49,6 @@ acceptOwnershipTransferPeriphery() {
   for CURRENT_NETWORK in "${NETWORKS[@]}"; do
     echo ""
     echo "[info] now executing transfer ownership script in network: $CURRENT_NETWORK"
-    echo "[info] Make sure you have sufficient funds in the deployer wallet to perform the operation"
 
     # execute script
     attempts=1
@@ -69,6 +68,7 @@ acceptOwnershipTransferPeriphery() {
         else
           error "execution of script failed with message: $ERROR_MESSAGE"
         fi
+        warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
 
       # check the return code the last call
       elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
@@ -82,6 +82,7 @@ acceptOwnershipTransferPeriphery() {
         if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
           warning "No JSON output received. This usually indicates a connection/RPC error."
         fi
+        warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
       fi
 
       attempts=$((attempts + 1))
