@@ -165,7 +165,7 @@ contract LiFiIntentEscrowFacet is
                 revert InvalidReceiver();
             }
         }
-        if (_lifiIntentData.depositAndRefundAddress == address(0)) {
+        if (LibUtil.isZeroAddress(_lifiIntentData.depositAndRefundAddress)) {
             revert InvalidReceiver();
         }
         if (_lifiIntentData.receiverAddress == bytes32(0)) {
