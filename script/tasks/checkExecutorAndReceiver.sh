@@ -71,7 +71,7 @@ checkExecutorAndReceiver() {
       fi
       warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
 
-      FAILED_RESULTS="$FAILED_RESULTS\n[info] Failed to check on network: $NETWORK"
+      FAILED_RESULTS="${FAILED_RESULTS:-}"$'\n'"[info] Failed to check on network: ${NETWORK:-}"
 
     # check the return code the last call
     elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
@@ -97,14 +97,15 @@ checkExecutorAndReceiver() {
 
     else
       # RETURN_CODE != 0 (e.g. connection/RPC error)
-      warning "forge script returned non-zero exit code: ${RETURN_CODE:-1} on network: $NETWORK"
+      warning "forge script returned non-zero exit code: ${RETURN_CODE:-1} on network: ${NETWORK:-}"
       if [[ -n "${STDERR_CONTENT:-}" ]]; then
-        error "stderr: ${STDERR_CONTENT}"
+        error "stderr: ${STDERR_CONTENT:-}"
       fi
       if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
         warning "No JSON output received. This usually indicates a connection/RPC error."
       fi
-      FAILED_RESULTS="$FAILED_RESULTS\n[info] Failed to check on network: $NETWORK"
+      warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
+      FAILED_RESULTS="${FAILED_RESULTS:-}"$'\n'"[info] Failed to check on network: ${NETWORK:-}"
     fi
   done
 
