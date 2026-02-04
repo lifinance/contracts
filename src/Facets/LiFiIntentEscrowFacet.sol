@@ -76,7 +76,7 @@ contract LiFiIntentEscrowFacet is
 
     /// @param _inputSettler LIFIIntent Escrow / settlement implementation
     constructor(address _inputSettler) {
-        if (_inputSettler == address(0)) revert InvalidConfig();
+        if (LibUtil.isZeroAddress(_inputSettler)) revert InvalidConfig();
         LIFI_INTENT_ESCROW_SETTLER = _inputSettler;
     }
 
