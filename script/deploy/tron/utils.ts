@@ -91,14 +91,45 @@ export async function checkIsDeployedTron(
 ): Promise<boolean> {
   if (!deployedContracts[contract]) return false
 
-  try {
-    // For Tron, addresses in deployments are already in Tron format
-    const tronAddress = deployedContracts[contract]
-    const contractInfo = await tronWeb.trx.getContract(tronAddress)
-    return contractInfo && contractInfo.contract_address
-  } catch {
-    return false
+  // For Tron, addresses in deployments are already in Tron format
+  const tronAddress = deployedContracts[contract]
+
+  // Add retry logic with exponential backoff for rate limits
+  const maxRetries = 3
+  const retryDelays = [1000, 2000, 3000] // 1s, 2s, 3s delays
+
+  for (let retry = 0; retry <= maxRetries; retry++) {
+    try {
+      // Add small delay between calls to avoid rate limits (especially for healthCheck that checks many contracts)
+      if (retry > 0) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, retryDelays[retry - 1])
+        )
+      }
+
+      const contractInfo = await tronWeb.trx.getContract(tronAddress)
+      return contractInfo && contractInfo.contract_address ? true : false
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error)
+      const isRateLimit =
+        errorMessage.includes('429') ||
+        errorMessage.includes('rate limit') ||
+        errorMessage.includes('Too Many Requests') ||
+        errorMessage.includes('ECONNREFUSED') ||
+        errorMessage.includes('ETIMEDOUT')
+
+      // If it's a rate limit/connection error and we have retries left, retry
+      if (isRateLimit && retry < maxRetries) {
+        continue // Retry
+      }
+
+      // If it's not a rate limit error, or we've exhausted retries, return false
+      // This could mean the contract is not deployed, or there's a persistent RPC issue
+      return false
+    }
   }
+
+  return false
 }
 
 /**

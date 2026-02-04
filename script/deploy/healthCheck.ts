@@ -235,13 +235,15 @@ const main = defineCommand({
     consola.box('Checking Core Facets...')
     for (const facet of coreFacetsToCheck) {
       let isDeployed: boolean
-      if (isTron && tronWeb)
+      if (isTron && tronWeb) {
+        // Add small delay between Tron RPC calls to avoid rate limits
+        await new Promise((resolve) => setTimeout(resolve, 500)) // 500ms delay
         isDeployed = await checkIsDeployedTron(
           facet,
           deployedContracts,
           tronWeb
         )
-      else if (publicClient)
+      } else if (publicClient)
         isDeployed = await checkIsDeployed(
           facet,
           deployedContracts,
@@ -263,13 +265,15 @@ const main = defineCommand({
       consola.box('Checking Non-Core facets...')
       for (const facet of nonCoreFacets) {
         let isDeployed: boolean
-        if (isTron && tronWeb)
+        if (isTron && tronWeb) {
+          // Add small delay between Tron RPC calls to avoid rate limits
+          await new Promise((resolve) => setTimeout(resolve, 500)) // 500ms delay
           isDeployed = await checkIsDeployedTron(
             facet,
             deployedContracts,
             tronWeb
           )
-        else if (publicClient)
+        } else if (publicClient)
           isDeployed = await checkIsDeployed(
             facet,
             deployedContracts,
@@ -402,13 +406,15 @@ const main = defineCommand({
 
       for (const contract of peripheryToCheck) {
         let isDeployed: boolean
-        if (isTron && tronWeb)
+        if (isTron && tronWeb) {
+          // Add small delay between Tron RPC calls to avoid rate limits
+          await new Promise((resolve) => setTimeout(resolve, 500)) // 500ms delay
           isDeployed = await checkIsDeployedTron(
             contract,
             deployedContracts,
             tronWeb
           )
-        else if (publicClient)
+        } else if (publicClient)
           isDeployed = await checkIsDeployed(
             contract,
             deployedContracts,
