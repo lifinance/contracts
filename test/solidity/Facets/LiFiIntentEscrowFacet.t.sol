@@ -6,10 +6,16 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LiFiIntentEscrowFacet } from "lifi/Facets/LiFiIntentEscrowFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidReceiver, NativeAssetNotSupported, InvalidAmount, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { ReceiverOIF } from "lifi/Periphery/ReceiverOIF.sol";
+import { Executor } from "lifi/Periphery/Executor.sol";
+import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
+import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
+
+import { OUTPUT_SETTLER_COIN, OutputSettler } from "../Periphery/ReceiverOIF.t.sol";
 
 contract AlwaysYesOracle {
     function isProven(
@@ -64,7 +70,6 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
     event Open(bytes32 indexed orderId, StandardOrder order);
 
-    LiFiIntentEscrowFacet.LiFiIntentEscrowData internal validLIFIIntentData;
     TestLiFiIntentEscrowFacet internal lifiIntentEscrowFacet;
     TestLiFiIntentEscrowFacet internal baseLiFiIntentEscrowFacet;
 
@@ -72,10 +77,52 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
     address internal alwaysYesOracle;
 
+    address internal dstCallReceiver;
+
+    address payable internal tokenWrapper;
+
+    function _validLIFIIntentData()
+        internal
+        view
+        returns (LiFiIntentEscrowFacet.LiFiIntentEscrowData memory)
+    {
+        return
+            LiFiIntentEscrowFacet.LiFiIntentEscrowData({
+                recipient: bytes32(uint256(uint160(bridgeData.receiver))),
+                dstCallReceiver: bytes32(uint256(uint160(dstCallReceiver))),
+                depositAndRefundAddress: address(uint160(123123321321)),
+                nonce: uint256(100),
+                expires: type(uint32).max,
+                fillDeadline: type(uint32).max,
+                inputOracle: alwaysYesOracle, // Not used
+                outputOracle: bytes32(0), // not used
+                outputSettler: bytes32(uint256(uint160(OUTPUT_SETTLER_COIN))),
+                outputToken: bytes32(uint256(888999888)),
+                outputAmount: 999888999,
+                dstCallSwapData: new LibSwap.SwapData[](0),
+                outputContext: hex""
+            });
+    }
+
     function setUp() public {
         // Block after deployment.
         customBlockNumberForForking = 23695990;
         initTestBase();
+
+        // Instead of accessing the mainnet deployment, deploy here.
+        // This saves a lot of RPC calls and significantly speeds up testing suite.
+        ERC20Proxy erc20Proxy = new ERC20Proxy(address(this));
+        Executor executor = new Executor(address(erc20Proxy), address(this));
+        dstCallReceiver = address(
+            new ReceiverOIF(
+                address(this),
+                address(executor),
+                OUTPUT_SETTLER_COIN
+            )
+        );
+        tokenWrapper = payable(
+            address(new TokenWrapper(address(weth), address(0), address(this)))
+        );
 
         // deploy oracle & allocator
         alwaysYesOracle = address(new AlwaysYesOracle());
@@ -115,6 +162,14 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
+        lifiIntentEscrowFacet.addAllowedContractSelector(
+            tokenWrapper,
+            TokenWrapper.deposit.selector
+        );
+        lifiIntentEscrowFacet.addAllowedContractSelector(
+            tokenWrapper,
+            TokenWrapper.withdraw.selector
+        );
 
         setFacetAddressInTestBase(
             address(lifiIntentEscrowFacet),
@@ -124,22 +179,6 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // adjust bridgeData
         bridgeData.bridge = "LIFIIntent";
         bridgeData.destinationChainId = 137;
-
-        // produce valid LiFiIntentEscrowData
-        validLIFIIntentData = LiFiIntentEscrowFacet.LiFiIntentEscrowData({
-            receiverAddress: bytes32(uint256(uint160(bridgeData.receiver))),
-            depositAndRefundAddress: address(uint160(123123321321)),
-            nonce: uint256(100),
-            expires: type(uint32).max,
-            fillDeadline: type(uint32).max,
-            inputOracle: alwaysYesOracle, // Not used
-            outputOracle: bytes32(0), // not used
-            outputSettler: bytes32(0), // not used
-            outputToken: bytes32(uint256(888999888)),
-            outputAmount: 999888999,
-            outputCall: hex"",
-            outputContext: hex""
-        });
     }
 
     function testRevert_deployWith0Address() external {
@@ -156,6 +195,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
     function test_LIFIIntentDepositStatus() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
@@ -170,8 +211,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             chainId: bridgeData.destinationChainId,
             token: validLIFIIntentData.outputToken,
             amount: validLIFIIntentData.outputAmount,
-            recipient: validLIFIIntentData.receiverAddress,
-            callbackData: validLIFIIntentData.outputCall,
+            recipient: validLIFIIntentData.recipient,
+            callbackData: hex"",
             context: validLIFIIntentData.outputContext
         });
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
@@ -233,13 +274,15 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function test_LIFIIntentNonEvm() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
         bridgeData.sendingAssetId = address(usdc);
 
-        // Incorrectly modify the receiverAddress
-        validLIFIIntentData.receiverAddress = keccak256("");
+        // Incorrectly modify the recipient
+        validLIFIIntentData.recipient = keccak256("");
         bridgeData.receiver = LiFiData.NON_EVM_ADDRESS;
 
         // This call should not revert as the address comparision is skipped.
@@ -251,13 +294,15 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function testRevert_LIFIIntentNonEvmIsZeroAddress() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
         bridgeData.sendingAssetId = address(usdc);
 
-        // Incorrectly modify the receiverAddress
-        validLIFIIntentData.receiverAddress = bytes32(0);
+        // Incorrectly modify the recipient
+        validLIFIIntentData.recipient = bytes32(0);
         bridgeData.receiver = LiFiData.NON_EVM_ADDRESS;
 
         // This call should not revert as the address comparision is skipped.
@@ -270,13 +315,15 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function testRevert_LIFIIntentWrongReceiver() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
         bridgeData.sendingAssetId = address(usdc);
 
-        // Incorrectly modify the receiverAddress
-        validLIFIIntentData.receiverAddress = bytes32(
+        // Incorrectly modify the recipient
+        validLIFIIntentData.recipient = bytes32(
             uint256(uint160(bridgeData.receiver)) + 1
         );
 
@@ -289,6 +336,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function testRevert_LIFIIntentNativeNotSupported() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         bridgeData.sendingAssetId = address(0);
 
         vm.expectRevert(NativeAssetNotSupported.selector);
@@ -299,6 +348,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function testRevert_LIFIIntentZeroDepositAndRefundAddress() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
@@ -307,7 +358,9 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // Set depositAndRefundAddress to address(0)
         validLIFIIntentData.depositAndRefundAddress = address(0);
 
-        vm.expectRevert(InvalidReceiver.selector);
+        vm.expectRevert(
+            LiFiIntentEscrowFacet.InvalidDepositAndRefundAddress.selector
+        );
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             validLIFIIntentData
@@ -315,7 +368,36 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_LIFIIntentZeroDepositAndRefundAddressSwapAnd()
+        external
+    {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+        bridgeData.hasSourceSwaps = true;
+
+        // Set depositAndRefundAddress to address(0)
+        validLIFIIntentData.depositAndRefundAddress = address(0);
+
+        LibSwap.SwapData[] memory _swapData = new LibSwap.SwapData[](1);
+
+        vm.expectRevert(
+            LiFiIntentEscrowFacet.InvalidDepositAndRefundAddress.selector
+        );
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            _swapData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_LIFIIntentZeroOutputAmount() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
@@ -334,6 +416,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {} else {
+            LiFiIntentEscrowFacet.LiFiIntentEscrowData
+                memory validLIFIIntentData = _validLIFIIntentData();
             lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
                 bridgeData,
                 validLIFIIntentData
@@ -345,6 +429,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         bool isNative
     ) internal override {
         if (isNative) {} else {
+            LiFiIntentEscrowFacet.LiFiIntentEscrowData
+                memory validLIFIIntentData = _validLIFIIntentData();
             lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
                 bridgeData,
                 swapData,
@@ -362,12 +448,14 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function testRevert_MismatchedDestinationCallFlag() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
         bridgeData.sendingAssetId = address(usdc);
 
-        // Set hasDestinationCall to true but leave outputCall empty
+        // Set hasDestinationCall to true but leave dstCallSwapData empty
         bridgeData.hasDestinationCall = true;
 
         vm.expectRevert(InformationMismatch.selector);
@@ -379,14 +467,16 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function testRevert_MismatchedDestinationCallFlagReverse() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
         bridgeData.sendingAssetId = address(usdc);
 
-        // Set hasDestinationCall to false but provide outputCall data
+        // Set hasDestinationCall to false but provide dstCallSwapData data
         bridgeData.hasDestinationCall = false;
-        validLIFIIntentData.outputCall = hex"1234567890";
+        validLIFIIntentData.dstCallSwapData = new LibSwap.SwapData[](1);
 
         vm.expectRevert(InformationMismatch.selector);
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
@@ -396,7 +486,30 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_WithDestinationCall() external {
+    function testRevert_MismatchedDestinationCallNoReceiver() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Set hasDestinationCall to false but provide dstCallSwapData data
+        bridgeData.hasDestinationCall = true;
+        validLIFIIntentData.dstCallSwapData = new LibSwap.SwapData[](1);
+        validLIFIIntentData.dstCallReceiver = bytes32(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
+    function test_WithDestinationCallCheckOrderId() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
 
@@ -404,7 +517,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
         // Correctly set hasDestinationCall to true with outputCall data
         bridgeData.hasDestinationCall = true;
-        validLIFIIntentData.outputCall = hex"1234567890abcdef";
+        validLIFIIntentData.dstCallSwapData = new LibSwap.SwapData[](1);
 
         MandateOutput[] memory outputs = new MandateOutput[](1);
         outputs[0] = MandateOutput({
@@ -413,8 +526,12 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             chainId: bridgeData.destinationChainId,
             token: validLIFIIntentData.outputToken,
             amount: validLIFIIntentData.outputAmount,
-            recipient: validLIFIIntentData.receiverAddress,
-            callbackData: validLIFIIntentData.outputCall,
+            recipient: validLIFIIntentData.dstCallReceiver,
+            callbackData: abi.encode(
+                bridgeData.transactionId,
+                validLIFIIntentData.dstCallSwapData,
+                validLIFIIntentData.recipient
+            ),
             context: validLIFIIntentData.outputContext
         });
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
@@ -448,8 +565,12 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function test_PositiveSlippageReturnedToUser() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         // Setup: User swaps DAI -> USDC and bridges USDC
         vm.startPrank(USER_SENDER);
+        address refundAddress = makeAddr("refundAddress");
+        validLIFIIntentData.depositAndRefundAddress = refundAddress;
 
         // Prepare swap data DAI -> USDC
         address[] memory path = new address[](2);
@@ -494,9 +615,6 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         deal(ADDRESS_DAI, USER_SENDER, amountIn);
         dai.approve(address(lifiIntentEscrowFacet), amountIn);
 
-        // Record user's initial USDC balance
-        uint256 userUSDCBalanceBefore = usdc.balanceOf(USER_SENDER);
-
         // Simulate a scenario where the actual swap output is BETTER than expected
         // We'll manipulate this by dealing extra USDC to the facet during swap execution
         // In reality, this would happen due to favorable market conditions
@@ -511,14 +629,12 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // Get the actual output from the swap
         uint256 actualUSDCOut = usdc.balanceOf(address(lifiIntentEscrowFacet));
 
-        // Check that user received any positive slippage
-        uint256 userUSDCBalanceAfter = usdc.balanceOf(USER_SENDER);
-        uint256 positiveSlippage = userUSDCBalanceAfter -
-            userUSDCBalanceBefore;
+        // Check that refund address received any positive slippage
+        uint256 positiveSlippage = usdc.balanceOf(refundAddress);
 
         // Verify that:
         // 1. The order was created with the expected minimum amount (not the actual swap output)
-        // 2. Any excess USDC was returned to the user
+        // 2. Any excess USDC was returned to the refund address
         // Since we can't easily create positive slippage in this test environment,
         // we verify the logic works by checking balances
 
@@ -539,6 +655,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
     }
 
     function test_ExactSlippageNoExcessReturned() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         // Test that when swap output equals minimum, no excess is returned
         vm.startPrank(USER_SENDER);
 
@@ -598,5 +716,92 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         );
 
         vm.stopPrank();
+    }
+
+    function test_SwapNativeToNativeWithSwaps() external {
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
+
+        uint256 amount = defaultNativeAmount;
+
+        delete swapData;
+        // Set calldata for converting user native into wrapped.
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: tokenWrapper,
+                approveTo: address(0),
+                sendingAssetId: address(0),
+                receivingAssetId: address(weth),
+                fromAmount: amount,
+                callData: abi.encodeCall(TokenWrapper.deposit, ()),
+                requiresDeposit: false
+            })
+        );
+
+        // Make destination calldata for converting WETH into ETH. This is a common usecase for when solvers only provide WETH to WETH intents.
+        LibSwap.SwapData[] memory destinationSwapData = new LibSwap.SwapData[](
+            1
+        );
+        destinationSwapData[0] = LibSwap.SwapData({
+            callTo: tokenWrapper,
+            approveTo: tokenWrapper,
+            sendingAssetId: address(weth),
+            receivingAssetId: address(0),
+            fromAmount: amount,
+            callData: abi.encodeCall(TokenWrapper.withdraw, ()),
+            requiresDeposit: false
+        });
+
+        // Set the LI.FI data for the output swap.
+        validLIFIIntentData.outputToken = bytes32(
+            uint256(uint160(address(weth)))
+        );
+        validLIFIIntentData.dstCallSwapData = destinationSwapData;
+        validLIFIIntentData.outputAmount = amount;
+
+        // Set the bridge data for an input swap.
+        bridgeData.sendingAssetId = address(weth);
+        bridgeData.minAmount = amount;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.hasDestinationCall = true;
+
+        // Initiate the intent
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow{
+            value: amount
+        }(bridgeData, swapData, validLIFIIntentData);
+
+        // Construct the output that matches this intent.
+        MandateOutput memory output = MandateOutput({
+            oracle: validLIFIIntentData.outputOracle,
+            settler: validLIFIIntentData.outputSettler,
+            chainId: block.chainid,
+            token: validLIFIIntentData.outputToken,
+            amount: validLIFIIntentData.outputAmount,
+            recipient: validLIFIIntentData.dstCallReceiver,
+            callbackData: abi.encode(
+                bridgeData.transactionId,
+                validLIFIIntentData.dstCallSwapData,
+                validLIFIIntentData.recipient
+            ),
+            context: validLIFIIntentData.outputContext
+        });
+
+        uint256 beforeExecutionBalance = bridgeData.receiver.balance;
+
+        // Get us the fill tokens.
+        TokenWrapper(tokenWrapper).deposit{ value: amount }();
+        weth.approve(OUTPUT_SETTLER_COIN, type(uint256).max);
+
+        // Fill the output. We don't really care about whether the intent is filled properly, just that it is filled and trigger the execution.
+        OutputSettler(OUTPUT_SETTLER_COIN).fill(
+            bytes32(0),
+            output,
+            type(uint48).max,
+            abi.encode(address(this))
+        );
+
+        uint256 afterExecutionBalance = bridgeData.receiver.balance;
+
+        assertEq(afterExecutionBalance - beforeExecutionBalance, amount);
     }
 }

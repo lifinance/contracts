@@ -19,7 +19,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 /// @title LiFiIntentEscrowFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
@@ -27,6 +27,10 @@ contract LiFiIntentEscrowFacet is
     Validatable,
     LiFiData
 {
+    /// Errors ///
+
+    error InvalidDepositAndRefundAddress();
+
     /// Storage ///
 
     /// @dev LIFI Intent Escrow Input Settler
@@ -34,9 +38,10 @@ contract LiFiIntentEscrowFacet is
 
     /// Types ///
 
-    /// @param receiverAddress The destination account for the delivered assets and calldata
+    /// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored.
+    /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
     /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
-    /// @param nonce OrderId mixer. Used within the intent system to generate unqiue orderIds for each user. Should not be reused for `depositAndRefundAddress`
+    /// @param nonce OrderId mixer. Used within the intent system to generate unique orderIds for each user. Should not be reused for `depositAndRefundAddress`
     /// @param expires If the proof for the fill does not arrive before this time, the claim expires
     /// @param fillDeadline The fill has to happen before this time
     /// @param inputOracle Address of the validation layer used on the input chain
@@ -44,10 +49,13 @@ contract LiFiIntentEscrowFacet is
     /// @param outputSettler Address of the output settlement contract containing the fill logic
     /// @param outputToken The desired destination token
     /// @param outputAmount The amount of the desired token
-    /// @param outputCall Calldata to be executed after the token has been delivered. Is called on receiverAddress. if set to 0x / hex"" no call is made
+    /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
     /// @param outputContext Context for the outputSettler to identify the order type
     struct LiFiIntentEscrowData {
-        bytes32 receiverAddress; // StandardOrder.outputs.recipient
+        // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
+        bytes32 dstCallReceiver;
+        // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length == 0
+        bytes32 recipient;
         /// BatchClaim
         address depositAndRefundAddress; // StandardOrder.user
         uint256 nonce; // StandardOrder.nonce
@@ -58,7 +66,7 @@ contract LiFiIntentEscrowFacet is
         bytes32 outputSettler; // StandardOrder.outputs.settler
         bytes32 outputToken; // StandardOrder.outputs.token
         uint256 outputAmount; // StandardOrder.outputs.amount
-        bytes outputCall; // StandardOrder.outputs.callbackData
+        LibSwap.SwapData[] dstCallSwapData; // Goes into StandardOrder.outputs.callbackData
         bytes outputContext; // StandardOrder.outputs.context
     }
 
@@ -85,6 +93,8 @@ contract LiFiIntentEscrowFacet is
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
+        if (_lifiIntentData.depositAndRefundAddress == address(0))
+            revert InvalidDepositAndRefundAddress();
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -109,18 +119,23 @@ contract LiFiIntentEscrowFacet is
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        address depositAndRefundAddress = _lifiIntentData
+            .depositAndRefundAddress;
+        if (depositAndRefundAddress == address(0))
+            revert InvalidDepositAndRefundAddress();
+
         uint256 swapOutcome = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(depositAndRefundAddress)
         );
 
         // Return positive slippage to user if any
         if (swapOutcome > _bridgeData.minAmount) {
             LibAsset.transferAsset(
                 _bridgeData.sendingAssetId,
-                payable(msg.sender),
+                payable(depositAndRefundAddress),
                 swapOutcome - _bridgeData.minAmount
             );
         }
@@ -137,30 +152,31 @@ contract LiFiIntentEscrowFacet is
         ILiFi.BridgeData memory _bridgeData,
         LiFiIntentEscrowData calldata _lifiIntentData
     ) internal {
+        uint256 dstCallSwapDataLength = _lifiIntentData.dstCallSwapData.length;
         // Validate destination call flag matches actual behavior
-        if (
-            (_lifiIntentData.outputCall.length > 0) !=
-            _bridgeData.hasDestinationCall
-        ) {
+        if ((dstCallSwapDataLength > 0) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
         }
+        if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
 
-        // Check if the receiver is the same according to bridgeData and LIFIIntentData
-        address bridgeDataReceiver = _bridgeData.receiver;
-        if (bridgeDataReceiver != NON_EVM_ADDRESS) {
-            if (
-                _lifiIntentData.receiverAddress !=
-                bytes32(uint256(uint160(bridgeDataReceiver)))
-            ) {
+        // We wanna create a "canonical" recipient so we don't have to argue for which one (bridgeData/LIFIIntentData) to use.
+        bytes32 recipient = _lifiIntentData.recipient;
+        if (recipient == bytes32(0)) revert InvalidReceiver();
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            // In this case, _bridgeData.receiver is not useful.
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                recipient
+            );
+        } else {
+            // Check if the receiver is the same according to bridgeData and LIFIIntentData
+            // Note: We already know 0 <= _bridgeData.receiver < recipient != 0 thus _bridgeData.receiver != 0.
+            if (recipient != bytes32(uint256(uint160(_bridgeData.receiver)))) {
                 revert InvalidReceiver();
             }
         }
-        if (_lifiIntentData.depositAndRefundAddress == address(0)) revert InvalidReceiver();
-        if (_lifiIntentData.receiverAddress == bytes32(0)) revert InvalidReceiver();
 
-
-        // Check outputAmount
-        if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
         address sendingAsset = _bridgeData.sendingAssetId;
         // Set approval
         uint256 amount = _bridgeData.minAmount;
@@ -170,9 +186,20 @@ contract LiFiIntentEscrowFacet is
             amount
         );
 
-        // Convert given token and amount into a idsAndAmount array
-        uint256[2][] memory inputs = new uint256[2][](1);
-        inputs[0] = [uint256(uint160(sendingAsset)), amount];
+        bytes memory outputCall = hex"";
+        if (dstCallSwapDataLength != 0) {
+            // If we have external calldata, we need to swap out our recipient to the remote caller. We won't be using the recipient anymore so this is without side effects.
+            recipient = _lifiIntentData.dstCallReceiver;
+            // Check that _lifiIntentData.dstCallReceiver != 0.
+            if (recipient == bytes32(0)) revert InvalidReceiver();
+
+            // Add swap data to the output call.
+            outputCall = abi.encode(
+                _bridgeData.transactionId,
+                _lifiIntentData.dstCallSwapData,
+                _lifiIntentData.recipient
+            );
+        }
 
         MandateOutput[] memory outputs = new MandateOutput[](1);
         outputs[0] = MandateOutput({
@@ -181,10 +208,14 @@ contract LiFiIntentEscrowFacet is
             chainId: _bridgeData.destinationChainId,
             token: _lifiIntentData.outputToken,
             amount: _lifiIntentData.outputAmount,
-            recipient: _lifiIntentData.receiverAddress,
-            callbackData: _lifiIntentData.outputCall,
+            recipient: recipient,
+            callbackData: outputCall,
             context: _lifiIntentData.outputContext
         });
+
+        // Convert given token and amount into a idsAndAmount array
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [uint256(uint160(sendingAsset)), amount];
 
         // Make the deposit on behalf of the user
         IOriginSettler(LIFI_INTENT_ESCROW_SETTLER).open(
