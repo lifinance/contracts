@@ -4526,6 +4526,67 @@ function executeAndParse() {
 }
 # <<<<<< helpers for executing commands with stdout/stderr capture
 
+# Function: handleForgeScriptError
+# Description: Centralized error handling for forge script executions. Checks for execution errors,
+#              extracts error messages, and reports them with consistent formatting.
+#              This function consolidates repeated error handling patterns across deployment scripts.
+# Arguments:
+#   $1 - ERROR_CONTEXT: Context message for the error (e.g., "execution of script failed", "failed to check")
+#   $2 - ATTEMPT_NUM: Optional attempt number for retry loops (e.g., "attempt 3/10")
+#   $3 - NETWORK: Optional network name for context
+# Returns:
+#   Returns 0 if execution was successful (RETURN_CODE is 0 and RAW_RETURN_DATA has valid returns)
+#   Returns 1 if execution failed (error detected in RAW_RETURN_DATA or RETURN_CODE != 0)
+# Example:
+#   executeAndParse "forge script ..." "true"
+#   if ! handleForgeScriptError "execution of script failed" "attempt $attempts/10" "$NETWORK"; then
+#     # Handle error case
+#   fi
+function handleForgeScriptError() {
+  local ERROR_CONTEXT="${1:-execution failed}"
+  local ATTEMPT_NUM="${2:-}"
+  local NETWORK="${3:-}"
+  
+  # Check return data for error message (regardless of return code as this is not 100% reliable)
+  if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
+    # Try to extract error message and throw error
+    local ERROR_MESSAGE
+    ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+    if [[ -z "$ERROR_MESSAGE" ]]; then
+      error "${ERROR_CONTEXT}. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
+    else
+      error "${ERROR_CONTEXT} with message: $ERROR_MESSAGE"
+    fi
+    warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
+    return 1
+    
+  # Check the return code - success case
+  elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
+    return 0  # Success
+    
+  else
+    # RETURN_CODE != 0 (e.g. connection/RPC error)
+    local ATTEMPT_MSG=""
+    if [[ -n "$ATTEMPT_NUM" ]]; then
+      ATTEMPT_MSG=" ($ATTEMPT_NUM)"
+    fi
+    local NETWORK_MSG=""
+    if [[ -n "$NETWORK" ]]; then
+      NETWORK_MSG=" on network: ${NETWORK}"
+    fi
+    
+    warning "forge script returned non-zero exit code: ${RETURN_CODE:-1}${NETWORK_MSG}${ATTEMPT_MSG}"
+    if [[ -n "${STDERR_CONTENT:-}" ]]; then
+      error "stderr: ${STDERR_CONTENT}"
+    fi
+    if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
+      warning "No JSON output received. This usually indicates a connection/RPC error."
+    fi
+    warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
+    return 1
+  fi
+}
+
 function deployCreate3FactoryToAnvil() {
   # Execute, parse, and check return code (no JSON extraction needed for this case)
   if ! executeAndParse \

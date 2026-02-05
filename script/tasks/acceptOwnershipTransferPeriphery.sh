@@ -59,30 +59,9 @@ acceptOwnershipTransferPeriphery() {
         "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
         "true"
 
-      # check return data for error message (regardless of return code as this is not 100% reliable)
-      if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
-        # try to extract error message and throw error
-        ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-        if [[ $ERROR_MESSAGE == "" ]]; then
-          error "execution of script failed. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
-        else
-          error "execution of script failed with message: $ERROR_MESSAGE"
-        fi
-        warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
-
-      # check the return code the last call
-      elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
+      # Handle errors using centralized helper function
+      if handleForgeScriptError "execution of script failed" "attempt $attempts/10" "$CURRENT_NETWORK"; then
         break  # exit the loop if the operation was successful
-      else
-        # RETURN_CODE != 0 (e.g. connection/RPC error)
-        warning "forge script returned non-zero exit code: ${RETURN_CODE:-1} (attempt $attempts/10)"
-        if [[ -n "${STDERR_CONTENT:-}" ]]; then
-          error "stderr: ${STDERR_CONTENT}"
-        fi
-        if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
-          warning "No JSON output received. This usually indicates a connection/RPC error."
-        fi
-        warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
       fi
 
       attempts=$((attempts + 1))
