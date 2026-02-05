@@ -76,6 +76,10 @@
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x06A8fA5B326F663507FfF045B90351a9DCF3f9B1": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": ""
       }
     },
     "Periphery": {

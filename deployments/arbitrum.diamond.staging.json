@@ -199,7 +199,7 @@
       },
       "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
@@ -212,6 +212,14 @@
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x06A8fA5B326F663507FfF045B90351a9DCF3f9B1": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": ""
+      },
+      "0x9C820C1569ffE99DCF54BBDf3C54682E33a40379": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
