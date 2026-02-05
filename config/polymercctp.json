@@ -38,7 +38,7 @@
   "monad": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "optimism": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -63,7 +63,7 @@
   "sonic": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x29219dd400f2Bf60E5a23d13Be72B486D4038894",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "unichain": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
