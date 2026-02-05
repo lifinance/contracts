@@ -270,20 +270,9 @@ deploySingleContract() {
         "true"
     fi
 
-    # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
-      # try to extract error message and throw error
-      ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-      if [[ $ERROR_MESSAGE == "" ]]; then
-        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
-      else
-        error "execution of deploy script failed with message: $ERROR_MESSAGE"
-      fi
-      attempts=$((attempts + 1))
-      sleep 1
-      continue
     # Check for zksync-specific address collision (revert with specific error code)
-    elif isZkEvmNetwork "$NETWORK" && [[ "${RAW_RETURN_DATA:-}" == *"\"status\":\"Revert\""* && "${RAW_RETURN_DATA:-}" == *"0x9e4a3c8a"* ]]; then
+    # This must be checked first as it's a specific case that needs special handling
+    if isZkEvmNetwork "$NETWORK" && [[ "${RAW_RETURN_DATA:-}" == *"\"status\":\"Revert\""* && "${RAW_RETURN_DATA:-}" == *"0x9e4a3c8a"* ]]; then
       echo ""
       gum style \
         --foreground 196 --border-foreground 196 --border double \
@@ -303,7 +292,7 @@ deploySingleContract() {
       ADDRESS_COLLISION_DETECTED=true
       break
 
-    # check the return code the last call
+    # check the return code the last call - success case
     elif [ "${RETURN_CODE:-1}" -eq 0 ]; then
       # extract deployed-to address from return data
       ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
@@ -323,19 +312,15 @@ deploySingleContract() {
         sleep 1
         continue
       fi
+
+    # RETURN_CODE != 0 or error detected in RAW_RETURN_DATA
+    # Use handleForgeScriptError for consistent error handling
     else
-      # RETURN_CODE != 0
-      warning "forge script returned non-zero exit code: $RETURN_CODE (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
-      if [[ -n "${STDERR_CONTENT:-}" ]]; then
-        error "stderr: ${STDERR_CONTENT}"
+      if ! handleForgeScriptError "execution of deploy script failed" "attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" "$NETWORK"; then
+        attempts=$((attempts + 1))
+        sleep 1
+        continue
       fi
-      if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
-        warning "No JSON output received. This usually indicates a connection/RPC error."
-      fi
-      warning "Make sure you have sufficient funds in the deployer wallet to perform the deployment operation"
-      attempts=$((attempts + 1))
-      sleep 1
-      continue
     fi
   done
   
