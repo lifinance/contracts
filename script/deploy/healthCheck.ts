@@ -42,7 +42,7 @@ import targetState from './_targetState.json'
  * @returns The command output string
  * @throws The last error if all retries fail
  */
-async function execWithRateLimitRetry(
+export async function execWithRateLimitRetry(
   command: string,
   initialDelay = 0,
   maxRetries = 3,
@@ -1012,4 +1012,7 @@ const finish = () => {
   }
 }
 
-runMain(main)
+// Only run main if not in test environment
+if (process.env.NODE_ENV !== 'test' && !process.env.BUN_TEST) {
+  runMain(main)
+}
