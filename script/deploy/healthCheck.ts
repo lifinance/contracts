@@ -32,7 +32,14 @@ import {
   type Network,
 } from '../utils/viemScriptHelpers'
 
-import { hexToTronAddress, retryWithRateLimit } from './tron/utils'
+import {
+  checkIsDeployedTron,
+  getCoreFacets as getTronCoreFacets,
+  getTronCorePeriphery,
+  hexToTronAddress,
+  parseTroncastFacetsOutput,
+  retryWithRateLimit,
+} from './tron/utils'
 
 import targetState from './_targetState.json'
 
@@ -105,13 +112,6 @@ export async function execWithRateLimitRetry(
     false // Shell commands don't include connection errors in rate limit detection
   )
 }
-import {
-  checkIsDeployedTron,
-  getCoreFacets as getTronCoreFacets,
-  getTronCorePeriphery,
-  parseTroncastFacetsOutput,
-  retryWithRateLimit,
-} from './tron/utils'
 
 /**
  * Call a Tron contract function using troncast and parse the result
