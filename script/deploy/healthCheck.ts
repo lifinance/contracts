@@ -79,8 +79,6 @@ export async function execWithRateLimitRetry(
       }
     }
   }
-
-  throw new Error('Max retries reached')
 }
 import {
   checkIsDeployedTron,

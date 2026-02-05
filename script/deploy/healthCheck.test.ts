@@ -3,7 +3,7 @@
  * Achieves 100% coverage by testing all code paths including:
  * - Success on first attempt
  * - Retry logic with rate limit detection (429)
- * - Max retries reached
+ * - Max retries exhausted (throws original error)
  * - Non-rate-limit errors (should throw immediately)
  * - Initial delay functionality
  * - Different rate limit error message formats
