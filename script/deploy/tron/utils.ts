@@ -1,13 +1,17 @@
 import { resolve } from 'path'
 
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
+import type { TronWeb } from 'tronweb'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import {
+  getEnvVar,
+  getPrivateKeyForEnvironment,
+} from '../../demoScripts/utils/demoScriptHelpers'
+import { getRPCEnvVarName } from '../../utils/network'
 
 import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
@@ -312,6 +316,119 @@ export function getNetworkConfig(networkName: string): any {
     throw new Error(`Network configuration not found for: ${networkName}`)
 
   return networkConfig
+}
+
+/**
+ * Get TronGrid API key from environment variables.
+ *
+ * Official Tron RPC (TronGrid) requires the API key to be sent in HTTP headers
+ * (specifically as 'TRON-PRO-API-KEY' header), NOT in the URI/URL itself.
+ *
+ * This function checks for the TRONGRID_API_KEY environment variable.
+ *
+ * @param verbose Whether to log debug information about API key source
+ * @returns The API key string, or undefined if not set
+ */
+export function getTronGridAPIKey(verbose = false): string | undefined {
+  const envVarName = 'TRONGRID_API_KEY'
+
+  // First try using getEnvVar (which handles .env files properly)
+  try {
+    const apiKey = getEnvVar(envVarName)
+    if (apiKey && apiKey.trim() !== '') {
+      if (verbose)
+        consola.debug(
+          `Using TronGrid API key from environment variable: ${envVarName}`
+        )
+      return apiKey
+    }
+  } catch {
+    // Continue to check process.env directly
+  }
+
+  // Also check process.env directly
+  const apiKey = process.env[envVarName]
+  if (apiKey && apiKey.trim() !== '') {
+    if (verbose)
+      consola.debug(`Using TronGrid API key from process.env: ${envVarName}`)
+    return apiKey
+  }
+
+  if (verbose)
+    consola.debug('TronGrid API key not found in environment variables')
+
+  return undefined
+}
+
+/**
+ * Get Tron RPC URL and API key configuration.
+ *
+ * This function retrieves the RPC URL for Tron network with the following priority:
+ * 1. Environment variable (e.g., TRON_RPC_URL, TRONSHASTA_RPC_URL) - highest priority
+ * 2. networks.json configuration - fallback
+ *
+ * If the RPC URL is TronGrid (contains 'trongrid.io'), it automatically retrieves
+ * the API key from environment variables and includes it in the headers.
+ *
+ * The API key is sent in HTTP headers as 'TRON-PRO-API-KEY', NOT in the URI/URL itself.
+ *
+ * @param networkName The network name (e.g., 'tron', 'tronshasta')
+ * @param verbose Whether to log debug information about RPC URL and API key source
+ * @returns Object containing rpcUrl and headers (with API key if using TronGrid)
+ * @throws Error if RPC URL is empty or invalid
+ */
+export function getTronRPCConfig(
+  networkName: string,
+  verbose = false
+): { rpcUrl: string; headers?: Record<string, string> } {
+  const networkConfig = getNetworkConfig(networkName)
+
+  // Get RPC URL from environment variable first, fallback to networks.json
+  let rpcUrl: string
+  try {
+    const envVarName = getRPCEnvVarName(networkName)
+    rpcUrl = getEnvVar(envVarName)
+    if (verbose)
+      consola.debug(`Using RPC URL from environment variable: ${envVarName}`)
+  } catch (error: unknown) {
+    // Fallback to networks.json if env var not set
+    rpcUrl = networkConfig.rpcUrl || networkConfig.rpc
+    if (verbose) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      consola.debug(
+        `RPC URL environment variable not set (${errorMessage}), using value from networks.json: ${rpcUrl}`
+      )
+    }
+  }
+
+  // Validate RPC URL format
+  if (!rpcUrl || rpcUrl.trim() === '') {
+    throw new Error(`RPC URL is empty or invalid for network: ${networkName}`)
+  }
+
+  // Check if using TronGrid and automatically get API key
+  const isTronGrid =
+    rpcUrl.includes('trongrid.io') || rpcUrl.includes('trongrid')
+  let headers: Record<string, string> | undefined
+
+  if (isTronGrid) {
+    const apiKey = getTronGridAPIKey(verbose)
+    if (apiKey) {
+      headers = { 'TRON-PRO-API-KEY': apiKey }
+      if (verbose)
+        consola.debug(
+          'TronGrid API key will be set as header: TRON-PRO-API-KEY'
+        )
+    } else if (verbose) {
+      consola.warn(
+        '⚠️  Using TronGrid RPC but no API key found. ' +
+          'Set TRONGRID_API_KEY in .env to avoid rate limiting.'
+      )
+    }
+  }
+
+  return { rpcUrl, headers }
 }
 
 /**
@@ -704,12 +821,17 @@ export async function checkExistingDeployment(
 }> {
   const existingAddress = await getContractAddress(network, contractName)
 
-  if (existingAddress && !dryRun) {
+  if (existingAddress) {
+    // Always prompt user whether to redeploy (same behavior in both dryRun and non-dryRun)
     consola.warn(`${contractName} is already deployed at: ${existingAddress}`)
-    const shouldRedeploy = await consola.prompt(`Redeploy ${contractName}?`, {
-      type: 'confirm',
-      initial: false,
-    })
+    const dryRunSuffix = dryRun ? ' (DRY RUN - will simulate)' : ''
+    const shouldRedeploy = await consola.prompt(
+      `Redeploy ${contractName}?${dryRunSuffix}`,
+      {
+        type: 'confirm',
+        initial: false,
+      }
+    )
 
     return {
       exists: true,
@@ -724,6 +846,80 @@ export async function checkExistingDeployment(
     shouldRedeploy: true,
   }
 }
+
+/**
+ * Wait between deployments using TronGrid RPC calls
+ * Uses lightweight RPC calls (getNowBlock) to wait, which naturally respects rate limits
+ * @param seconds Number of seconds to wait
+ * @param verbose Whether to log the wait message
+ * @param tronWeb Optional TronWeb instance (if not provided, will create a minimal one)
+ * @param fullHost Optional RPC host URL (if not provided, will use default)
+ * @param headers Optional headers for API key authentication
+ */
+export async function waitBetweenDeployments(
+  seconds: number,
+  verbose = false,
+  tronWeb?: any,
+  fullHost?: string,
+  headers?: Record<string, string>
+): Promise<void> {
+  if (seconds <= 0) return
+
+  if (verbose) {
+    consola.debug(
+      `Waiting ${seconds} second(s) using TronGrid RPC calls to avoid rate limits...`
+    )
+  }
+
+  // Calculate number of RPC calls to make (one per second)
+  const numCalls = Math.ceil(seconds)
+  const delayPerCall = Math.max(1000, Math.floor((seconds * 1000) / numCalls))
+
+  // Use provided TronWeb or create a minimal one for RPC calls
+  let rpcTronWeb = tronWeb
+  if (!rpcTronWeb && fullHost) {
+    const TronWeb = (await import('tronweb')).TronWeb
+    const config: any = { fullHost }
+    if (headers) {
+      config.headers = headers
+    }
+    rpcTronWeb = new TronWeb(config)
+  } else if (!rpcTronWeb) {
+    // Fallback to default TronGrid if nothing provided
+    const TronWeb = (await import('tronweb')).TronWeb
+    const fallbackRpcUrl = 'https://api.trongrid.io' // [pre-commit-checker: not a secret]
+    const config: any = { fullHost: fallbackRpcUrl }
+    // Try to get API key for fallback case
+    const apiKey = getTronGridAPIKey(verbose)
+    if (apiKey) {
+      config.headers = { 'TRON-PRO-API-KEY': apiKey }
+    }
+    rpcTronWeb = new TronWeb(config)
+  }
+
+  // Make lightweight RPC calls to wait (getNowBlock is a lightweight call)
+  for (let i = 0; i < numCalls; i++) {
+    try {
+      // Use getNowBlock as a lightweight RPC call to wait
+      // This naturally respects rate limits and provides actual network interaction
+      await rpcTronWeb.trx.getNowBlock()
+
+      if (i < numCalls - 1) {
+        // Wait between calls (except for the last one)
+        await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+      }
+    } catch (error) {
+      // If RPC call fails, fall back to simple timeout
+      if (verbose) {
+        consola.debug(
+          `RPC call failed during wait, using timeout fallback: ${error}`
+        )
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+    }
+  }
+}
+
 /**
  * Deploy a contract with standard error handling and logging
  */
@@ -754,7 +950,7 @@ export async function deployContractWithLogging(
       // Encode constructor args
       const constructorArgsHex =
         constructorArgs.length > 0
-          ? encodeConstructorArgs(constructorArgs)
+          ? await encodeConstructorArgs(constructorArgs)
           : '0x'
 
       await logDeployment(
@@ -786,14 +982,20 @@ export async function deployContractWithLogging(
 /**
  * Encode constructor arguments to hex
  */
-export function encodeConstructorArgs(args: any[]): string {
+export async function encodeConstructorArgs(args: any[]): Promise<string> {
   // Return empty hex for no arguments
   if (args.length === 0) return '0x'
 
   try {
-    const tronWeb = new TronWeb({
-      fullHost: 'https://api.trongrid.io', // [pre-commit-checker: not a secret]
-    })
+    const TronWeb = (await import('tronweb')).TronWeb
+    const rpcUrl = 'https://api.trongrid.io' // [pre-commit-checker: not a secret]
+    const config: any = { fullHost: rpcUrl }
+    // Get API key for TronGrid (though not needed for encoding, following pattern)
+    const apiKey = getTronGridAPIKey(false)
+    if (apiKey) {
+      config.headers = { 'TRON-PRO-API-KEY': apiKey }
+    }
+    const tronWeb = new TronWeb(config)
 
     // Determine types based on argument values
     const types: string[] = args.map((arg) => {
@@ -1146,10 +1348,49 @@ export function hexToTronAddress(hexAddress: string, tronWeb: any): string {
 }
 
 /**
- * Convert Tron base58 address to hex format
+ * Convert Tron base58 address to hex format for EVM-style contract calls
+ *
+ * Tron addresses in hex format start with '41' (Tron's address prefix), but for
+ * EVM-style contract calls we need a standard 20-byte address (40 hex chars).
+ * This function removes the '41' prefix and ensures the result is exactly 42
+ * characters: '0x' + 40 hex characters.
+ *
+ * @param tronAddress - Tron address in base58 format (e.g., "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ")
+ * @param tronWeb - TronWeb instance
+ * @returns Hex address in EVM format (e.g., "0xde3e18dcd11a6a7721cf3b5bad46eb47e0b88b82")
  */
 export function tronAddressToHex(tronAddress: string, tronWeb: any): string {
-  return '0x' + tronWeb.address.toHex(tronAddress).substring(2)
+  let hex = tronWeb.address.toHex(tronAddress)
+
+  // Remove '0x' prefix if present
+  if (hex.startsWith('0x')) {
+    hex = hex.substring(2)
+  }
+
+  // Remove '41' prefix (Tron address prefix) if present
+  // Tron addresses in hex format start with '41', but EVM-style calls need 20-byte addresses
+  if (hex.startsWith('41')) {
+    hex = hex.substring(2)
+  }
+
+  // Ensure exactly 40 hex characters (20 bytes)
+  if (hex.length > 40) {
+    hex = hex.substring(0, 40)
+  } else if (hex.length < 40) {
+    hex = hex.padStart(40, '0')
+  }
+
+  const result = '0x' + hex
+
+  // Final validation: must be exactly 42 characters
+  if (result.length !== 42) {
+    throw new Error(
+      `Invalid address conversion: expected 42 characters, got ${result.length}. ` +
+        `Input: ${tronAddress}, Output: ${result}`
+    )
+  }
+
+  return result
 }
 
 /**

@@ -58,7 +58,7 @@ function handleNetwork() {
   fi
 
   # check if the diamond is already paused by calling owner() function and analyzing the response
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
@@ -84,7 +84,7 @@ function handleNetwork() {
   fi
 
   # this fails currently since the EmergencyPauseFacet is not yet deployed to all diamonds
-  DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
+  DIAMOND_PAUSER_WALLET=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "pauserWallet() returns (address)")
 
   # compare addresses in lowercase format
   if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
@@ -101,7 +101,7 @@ function handleNetwork() {
     echo ""
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PRIV_KEY_ADDRESS (attempt: $ATTEMPTS)"
     echo ""
-    cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
+    universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET"
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
@@ -120,7 +120,7 @@ function handleNetwork() {
   fi
 
   # try to call the diamond
-  OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() external returns (address)" --rpc-url "$RPC_URL")
+  OWNER=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)")
 
   # check if last call was successful and throw error if it was (it should not be successful, we expect the diamond to be paused now)
   if [ $? -eq 0 ]; then
@@ -154,7 +154,7 @@ function printStatus() {
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
 
   # check if the diamond is paused by calling owner() function and analyzing the response
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
