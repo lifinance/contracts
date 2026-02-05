@@ -4560,8 +4560,11 @@ function handleForgeScriptError() {
     warning "Make sure you have sufficient funds in the deployer wallet to perform the operation"
     return 1
     
-  # Check the return code - success case
-  elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
+  # Check the return code - success case (require non-empty payload and valid "returns" key)
+  elif [[ "${RETURN_CODE:-1}" -eq 0 \
+          && -n "${RAW_RETURN_DATA:-}" \
+          && "${RAW_RETURN_DATA:-}" == *\"returns\":* \
+          && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
     return 0  # Success
     
   else
