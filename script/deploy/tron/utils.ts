@@ -31,6 +31,81 @@ import type {
 export { DEFAULT_SAFETY_MARGIN } from './constants'
 
 /**
+ * Default retry configuration for rate limit errors
+ */
+const DEFAULT_MAX_RETRIES = 3
+const DEFAULT_RETRY_DELAYS = [1000, 2000, 3000] // 1s, 2s, 3s delays
+
+/**
+ * Check if an error is a rate limit or connection error
+ * @param error - The error to check
+ * @param includeConnectionErrors - Whether to include connection errors (ECONNREFUSED, ETIMEDOUT)
+ * @returns True if the error is a rate limit or connection error
+ */
+function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
+  const errorMessage = error?.message || String(error)
+  const rateLimitPatterns = [
+    '429',
+    'rate limit',
+    'Too Many Requests',
+  ]
+  
+  if (includeConnectionErrors) {
+    rateLimitPatterns.push('ECONNREFUSED', 'ETIMEDOUT')
+  }
+
+  return rateLimitPatterns.some((pattern) =>
+    errorMessage.includes(pattern)
+  )
+}
+
+/**
+ * Generic retry function with rate limit handling
+ * @param operation - Async function to retry
+ * @param maxRetries - Maximum number of retries (default: 3)
+ * @param retryDelays - Array of delays for each retry attempt in ms (default: [1000, 2000, 3000])
+ * @param onRetry - Optional callback called before each retry
+ * @param includeConnectionErrors - Whether to include connection errors in rate limit detection (default: true)
+ * @returns Result of the operation
+ * @throws The last error if all retries fail
+ */
+export async function retryWithRateLimit<T>(
+  operation: () => Promise<T>,
+  maxRetries = DEFAULT_MAX_RETRIES,
+  retryDelays = DEFAULT_RETRY_DELAYS,
+  onRetry?: (attempt: number, delay: number) => void,
+  includeConnectionErrors = true
+): Promise<T> {
+  for (let retry = 0; retry <= maxRetries; retry++) {
+    try {
+      // Add delay before retry (not before first attempt)
+      if (retry > 0) {
+        const delay = retryDelays[retry - 1] || retryDelays[retryDelays.length - 1]
+        if (onRetry) {
+          onRetry(retry, delay)
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+
+      return await operation()
+    } catch (error: any) {
+      const isRateLimit = isRateLimitError(error, includeConnectionErrors)
+
+      // If it's a rate limit error and we have retries left, continue
+      if (isRateLimit && retry < maxRetries) {
+        continue
+      }
+
+      // If it's not a rate limit error, or we've exhausted retries, throw
+      throw error
+    }
+  }
+
+  // This should never be reached, but TypeScript requires it
+  throw new Error('Max retries exceeded')
+}
+
+/**
  * Load compiled contract artifact from Forge output
  */
 export async function loadForgeArtifact(
@@ -98,42 +173,18 @@ export async function checkIsDeployedTron(
   // For Tron, addresses in deployments are already in Tron format
   const tronAddress = deployedContracts[contract]
 
-  // Add retry logic with exponential backoff for rate limits
-  const maxRetries = 3
-  const retryDelays = [1000, 2000, 3000] // 1s, 2s, 3s delays
-
-  for (let retry = 0; retry <= maxRetries; retry++) {
-    try {
-      // Add small delay between calls to avoid rate limits (especially for healthCheck that checks many contracts)
-      if (retry > 0) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, retryDelays[retry - 1])
-        )
-      }
-
-      const contractInfo = await tronWeb.trx.getContract(tronAddress)
-      return contractInfo && contractInfo.contract_address ? true : false
-    } catch (error: any) {
-      const errorMessage = error?.message || String(error)
-      const isRateLimit =
-        errorMessage.includes('429') ||
-        errorMessage.includes('rate limit') ||
-        errorMessage.includes('Too Many Requests') ||
-        errorMessage.includes('ECONNREFUSED') ||
-        errorMessage.includes('ETIMEDOUT')
-
-      // If it's a rate limit/connection error and we have retries left, retry
-      if (isRateLimit && retry < maxRetries) {
-        continue // Retry
-      }
-
-      // If it's not a rate limit error, or we've exhausted retries, return false
-      // This could mean the contract is not deployed, or there's a persistent RPC issue
-      return false
-    }
+  try {
+    const contractInfo = await retryWithRateLimit(
+      () => tronWeb.trx.getContract(tronAddress),
+      DEFAULT_MAX_RETRIES,
+      DEFAULT_RETRY_DELAYS
+    )
+    return contractInfo && contractInfo.contract_address ? true : false
+  } catch {
+    // If all retries fail, return false
+    // This could mean the contract is not deployed, or there's a persistent RPC issue
+    return false
   }
-
-  return false
 }
 
 /**
