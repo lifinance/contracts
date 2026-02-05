@@ -196,6 +196,17 @@ const processTxs = async (
           '   Possible causes: invalid signature format or incorrect signer.'
         )
       }
+      if (errorMsg.includes('GS013')) {
+        consola.error(
+          '   GS013 means the inner call (e.g. Timelock.schedule) failed and Safe was executed with safeTxGas=0.'
+        )
+        consola.error(
+          `   Likely cause: safeAddress for this network (${safeAddress} from config/networks.json for "${network}") does not have TIMELOCK_PROPOSER_ROLE on the LiFiTimelockController.`
+        )
+        consola.error(
+          '   Grant TIMELOCK_PROPOSER_ROLE (0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1) to this Safe on the timelock for this network.'
+        )
+      }
       // Record error in global arrays
       if (errorMsg.toLowerCase().includes('timeout'))
         globalTimeoutExecutions.push({
