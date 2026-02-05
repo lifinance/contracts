@@ -4565,7 +4565,7 @@ function handleForgeScriptError() {
     return 0  # Success
     
   else
-    # RETURN_CODE != 0 (e.g. connection/RPC error)
+    # RETURN_CODE != 0 or RETURN_CODE == 0 but RAW_RETURN_DATA indicates failure
     local ATTEMPT_MSG=""
     if [[ -n "$ATTEMPT_NUM" ]]; then
       ATTEMPT_MSG=" ($ATTEMPT_NUM)"
@@ -4575,7 +4575,11 @@ function handleForgeScriptError() {
       NETWORK_MSG=" on network: ${NETWORK}"
     fi
     
-    warning "forge script returned non-zero exit code: ${RETURN_CODE:-1}${NETWORK_MSG}${ATTEMPT_MSG}"
+    if [[ "${RETURN_CODE:-1}" -ne 0 ]]; then
+      warning "forge script returned non-zero exit code: ${RETURN_CODE:-1}${NETWORK_MSG}${ATTEMPT_MSG}"
+    else
+      warning "forge script returned exit code 0 but with unexpected/empty return data${NETWORK_MSG}${ATTEMPT_MSG}"
+    fi
     if [[ -n "${STDERR_CONTENT:-}" ]]; then
       error "stderr: ${STDERR_CONTENT}"
     fi
