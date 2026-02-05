@@ -80,7 +80,10 @@ export async function retryWithRateLimit<T>(
     try {
       // Add delay before retry (not before first attempt)
       if (retry > 0) {
-        const delay = retryDelays[retry - 1] || retryDelays[retryDelays.length - 1]
+        const delay: number =
+          retryDelays[retry - 1] ??
+          retryDelays[retryDelays.length - 1] ??
+          0
         if (onRetry) {
           onRetry(retry, delay)
         }

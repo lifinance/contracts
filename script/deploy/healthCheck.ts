@@ -996,7 +996,6 @@ const main = defineCommand({
 
     if (isTron && tronWeb) {
       const diamondAddress = deployedContracts['LiFiDiamond']
-      const rpcUrl = networksConfig[networkLower].rpcUrl
 
       // Convert refund wallet to Tron format if needed
       const refundTronAddress = ensureTronAddress(refundWallet, tronWeb)
@@ -1371,6 +1370,40 @@ const getExpectedPairs = async (
   }
 }
 
+/**
+ * Parse a string representation of a nested array (e.g. troncast output) into [array, endIndex].
+ * Used when JSON.parse fails on getAllContractSelectorPairs-style output.
+ */
+function parseArray(str: string, start: number): [unknown[], number] {
+  const result: unknown[] = []
+  let i = start + 1
+  let current = ''
+  while (i < str.length) {
+    const char = str[i]
+    if (char === '[') {
+      if (current.trim()) {
+        result.push(current.trim())
+        current = ''
+      }
+      const [nested, newPos] = parseArray(str, i)
+      result.push(nested)
+      i = newPos
+    } else if (char === ']') {
+      if (current.trim()) result.push(current.trim())
+      return [result, i + 1]
+    } else if (char === ' ' || char === '\n' || char === '\t') {
+      if (current.trim()) {
+        result.push(current.trim())
+        current = ''
+      }
+      i++
+    } else {
+      current += char
+      i++
+    }
+  }
+  return [result, i]
+}
 
 /**
  * Check whitelist integrity for Tron network using troncast and TronWeb
@@ -1433,36 +1466,6 @@ const checkWhitelistIntegrityTron = async (
       const trimmed = onChainDataOutput.trim()
       if (!trimmed.startsWith('[')) {
         throw new Error('Expected array format')
-      }
-      function parseArray(str: string, start: number): [unknown[], number] {
-        const result: unknown[] = []
-        let i = start + 1
-        let current = ''
-        while (i < str.length) {
-          const char = str[i]
-          if (char === '[') {
-            if (current.trim()) {
-              result.push(current.trim())
-              current = ''
-            }
-            const [nested, newPos] = parseArray(str, i)
-            result.push(nested)
-            i = newPos
-          } else if (char === ']') {
-            if (current.trim()) result.push(current.trim())
-            return [result, i + 1]
-          } else if (char === ' ' || char === '\n' || char === '\t') {
-            if (current.trim()) {
-              result.push(current.trim())
-              current = ''
-            }
-            i++
-          } else {
-            current += char
-            i++
-          }
-        }
-        return [result, i]
       }
       const [parsedArray] = parseArray(trimmed, 0)
       parsed = parsedArray as unknown[]
