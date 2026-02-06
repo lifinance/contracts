@@ -1,0 +1,347 @@
+name: Update Louper Viem
+
+# - automatically creates a PR in Louper repository when new networks are added
+# - detects new networks by comparing config/networks.json with main branch
+# - clones Louper repo, updates viem to latest version, and creates PR
+# - ensures new networks become available in Louper after deployment
+# - runs on push to main branch (after PR merge) or when networks.json changes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'config/networks.json'
+  pull_request:
+    types: [closed]
+    paths:
+      - 'config/networks.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to read repository contents
+  pull-requests: write # required to create PR in Louper repo
+
+jobs:
+  update-louper-viem:
+    runs-on: ubuntu-latest
+    # Only run if PR was merged (not closed without merge)
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Newly Added Networks
+        id: detect-changes
+        run: |
+          echo "Comparing config/networks.json with previous state..."
+          
+          # For PR events, compare with base branch
+          # For push events, compare with previous commit
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            git fetch origin "$BASE_SHA" --depth=1 || echo "Could not fetch base SHA"
+            
+            if git show "$BASE_SHA:config/networks.json" > /dev/null 2>&1; then
+              OLD_NETWORKS=$(git show "$BASE_SHA:config/networks.json" | jq 'keys')
+            else
+              echo "⚠️ No previous networks.json found in base branch. Checking main..."
+              git fetch origin main --depth=1 || true
+              if git show origin/main:config/networks.json > /dev/null 2>&1; then
+                OLD_NETWORKS=$(git show origin/main:config/networks.json | jq 'keys')
+              else
+                echo "❌ Error: Could not find previous networks.json"
+                exit 1
+              fi
+            fi
+          else
+            # Push event - compare with previous commit
+            git fetch origin main --depth=2 || true
+            PREV_COMMIT=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+            
+            if [ -n "$PREV_COMMIT" ] && git show "$PREV_COMMIT:config/networks.json" > /dev/null 2>&1; then
+              OLD_NETWORKS=$(git show "$PREV_COMMIT:config/networks.json" | jq 'keys')
+            elif git show origin/main:config/networks.json > /dev/null 2>&1; then
+              OLD_NETWORKS=$(git show origin/main:config/networks.json | jq 'keys')
+            else
+              echo "❌ Error: Could not find previous networks.json"
+              exit 1
+            fi
+          fi
+
+          NEW_NETWORKS=$(jq 'keys' config/networks.json)
+          ADDED_NETWORKS=$(jq -n --argjson old "$OLD_NETWORKS" --argjson new "$NEW_NETWORKS" '$new - $old')
+
+          echo "Previous networks: $OLD_NETWORKS"
+          echo "Current networks: $NEW_NETWORKS"
+          echo "Added networks: $ADDED_NETWORKS"
+
+          if [[ "$ADDED_NETWORKS" == "[]" ]]; then
+            echo "No new networks detected. Skipping Louper update."
+            echo "SKIP_UPDATE=true" >> $GITHUB_ENV
+          else
+            echo "New networks detected: $ADDED_NETWORKS"
+            echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
+            echo "SKIP_UPDATE=false" >> $GITHUB_ENV
+            
+            # Extract network names and chainIds for PR description
+            NETWORK_DETAILS=$(jq -n --argjson networks "$ADDED_NETWORKS" --argjson all "$(cat config/networks.json)" \
+              '$networks | map(. as $name | $all[$name] | {name: $name, chainId: .chainId})')
+            echo "network_details=$(echo $NETWORK_DETAILS | jq -c .)" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Node.js
+        if: env.SKIP_UPDATE != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Checkout Louper repository
+        if: env.SKIP_UPDATE != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: mark3labs/louper
+          path: louper
+          token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          fetch-depth: 0
+
+      - name: Check if PR already exists
+        if: env.SKIP_UPDATE != 'true'
+        id: check-existing-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          cd louper
+          
+          # Check for existing open PRs with our title pattern
+          EXISTING_PR=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/mark3labs/louper/pulls?state=open" | \
+            jq -r '.[] | select(.title | startswith("chore: Update viem")) | .number' | head -1)
+          
+          if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+            echo "Found existing PR: #$EXISTING_PR"
+            echo "EXISTING_PR_NUMBER=$EXISTING_PR" >> $GITHUB_ENV
+            echo "PR_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "No existing PR found"
+            echo "PR_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Update viem to latest version
+        if: env.SKIP_UPDATE != 'true' && env.PR_EXISTS != 'true'
+        id: update-viem
+        run: |
+          cd louper
+          
+          # Get current viem version
+          CURRENT_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem // "not found"' package.json)
+          echo "Current viem version: $CURRENT_VIEM"
+          
+          # Get latest viem version from npm
+          LATEST_VIEM=$(npm view viem version)
+          echo "Latest viem version: $LATEST_VIEM"
+          
+          # Check if update is needed
+          if [ "$CURRENT_VIEM" == "$LATEST_VIEM" ]; then
+            echo "viem is already at latest version ($LATEST_VIEM). No update needed."
+            echo "UPDATE_NEEDED=false" >> $GITHUB_ENV
+          else
+            echo "Update needed: $CURRENT_VIEM -> $LATEST_VIEM"
+            echo "UPDATE_NEEDED=true" >> $GITHUB_ENV
+            echo "CURRENT_VIEM=$CURRENT_VIEM" >> $GITHUB_ENV
+            echo "LATEST_VIEM=$LATEST_VIEM" >> $GITHUB_ENV
+            
+            # Configure git for Louper repo
+            git config user.name "lifi-action-bot"
+            git config user.email "lifi-action-bot@users.noreply.github.com"
+            
+            # Create branch name with timestamp
+            BRANCH_NAME="chore/update-viem-$(date +%Y%m%d-%H%M%S)"
+            echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+            
+            # Checkout new branch
+            git checkout -b "$BRANCH_NAME"
+            
+            # Update viem using npm-check-updates or npm install
+            # Try npm-check-updates first, fallback to manual update
+            if command -v npx &> /dev/null; then
+              echo "Using npm-check-updates to update viem..."
+              npx -y npm-check-updates -u viem || {
+                echo "npm-check-updates failed, trying manual update..."
+                npm install viem@latest --save-exact
+              }
+            else
+              echo "Using npm install to update viem..."
+              npm install viem@latest --save-exact
+            fi
+            
+            # Install dependencies to update lock file
+            if [ -f "package-lock.json" ]; then
+              npm install
+            elif [ -f "pnpm-lock.yaml" ]; then
+              npm install -g pnpm
+              pnpm install
+            elif [ -f "yarn.lock" ]; then
+              npm install -g yarn
+              yarn install
+            fi
+            
+            # Verify update
+            UPDATED_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem' package.json)
+            echo "Updated viem version: $UPDATED_VIEM"
+            
+            if [ "$UPDATED_VIEM" != "$LATEST_VIEM" ]; then
+              echo "⚠️ Warning: Version mismatch. Expected $LATEST_VIEM, got $UPDATED_VIEM"
+            fi
+            
+            # Commit changes (add all lock files that exist)
+            git add package.json
+            [ -f "package-lock.json" ] && git add package-lock.json || true
+            [ -f "pnpm-lock.yaml" ] && git add pnpm-lock.yaml || true
+            [ -f "yarn.lock" ] && git add yarn.lock || true
+            git commit -m "chore: Update viem to $LATEST_VIEM
+
+This update ensures new networks added to LiFi contracts are available in Louper.
+
+New networks detected:
+$(echo '${{ env.added_networks }}' | jq -r '.[]' | sed 's/^/- /')
+
+Related PR: ${{ github.event.pull_request.html_url || github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+            
+            # Push branch
+            git push origin "$BRANCH_NAME" || {
+              echo "❌ Failed to push branch. Checking if branch already exists..."
+              exit 1
+            }
+          fi
+
+      - name: Create Pull Request in Louper
+        if: env.SKIP_UPDATE != 'true' && env.PR_EXISTS != 'true' && env.UPDATE_NEEDED == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          cd louper
+          
+          # Prepare PR body with network details
+          NETWORK_LIST=$(echo '${{ env.added_networks }}' | jq -r '.[]' | sed 's/^/- /' | tr '\n' '\n')
+          NETWORK_DETAILS=$(echo '${{ env.network_details }}' | jq -r '.[] | "- **\(.name)**: Chain ID \(.chainId)"' | tr '\n' '\n')
+          
+          PR_BODY=$(cat <<EOF
+This PR updates \`viem\` to the latest version (\`${{ env.LATEST_VIEM }}\`) to ensure new networks added to LiFi contracts are available in Louper.
+
+## New Networks Detected
+
+The following networks were added to [LiFi contracts](https://github.com/${{ github.repository }}):
+
+$NETWORK_DETAILS
+
+## Changes
+
+- Updated \`viem\` from \`${{ env.CURRENT_VIEM }}\` to \`${{ env.LATEST_VIEM }}\`
+
+## Related
+
+- LiFi contracts commit: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+$([ -n "${{ github.event.pull_request.html_url }}" ] && echo "- LiFi contracts PR: ${{ github.event.pull_request.html_url }}")
+
+## Verification
+
+After merging this PR, please verify that the new networks are available in Louper by checking:
+1. Network selection dropdown includes the new networks
+2. Diamond inspection works correctly for contracts deployed on these networks
+
+---
+
+*This PR was automatically created by [LiFi contracts workflow](https://github.com/${{ github.repository }}/actions/workflows/updateLouperViem.yml)*
+EOF
+)
+          
+          # Create PR using GitHub CLI or API
+          if command -v gh &> /dev/null; then
+            echo "$GITHUB_TOKEN" | gh auth login --with-token
+            gh pr create \
+              --repo mark3labs/louper \
+              --title "chore: Update viem to ${{ env.LATEST_VIEM }}" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "${{ env.BRANCH_NAME }}"
+          else
+            # Fallback to API
+            PR_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/mark3labs/louper/pulls" \
+              -d "{
+                \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }}\",
+                \"body\": $(echo "$PR_BODY" | jq -Rs .),
+                \"head\": \"${{ env.BRANCH_NAME }}\",
+                \"base\": \"main\"
+              }")
+            
+            PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url // empty')
+            PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.number // empty')
+            
+            if [ -n "$PR_URL" ] && [ "$PR_URL" != "null" ]; then
+              echo "✅ PR created successfully: $PR_URL"
+              echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+              echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+            else
+              echo "❌ Failed to create PR"
+              echo "Response: $PR_RESPONSE"
+              exit 1
+            fi
+          fi
+
+      - name: Comment on existing PR
+        if: env.SKIP_UPDATE != 'true' && env.PR_EXISTS == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          # Add comment to existing PR about new networks
+          NETWORK_DETAILS=$(echo '${{ env.network_details }}' | jq -r '.[] | "- **\(.name)**: Chain ID \(.chainId)"' | tr '\n' '\n')
+          
+          COMMENT_BODY=$(cat <<EOF
+## New Networks Detected
+
+The following networks were added to [LiFi contracts](https://github.com/${{ github.repository }}):
+
+$NETWORK_DETAILS
+
+This PR should already include support for these networks once viem is updated.
+
+Related commit: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+
+---
+
+*This comment was automatically added by [LiFi contracts workflow](https://github.com/${{ github.repository }}/actions/workflows/updateLouperViem.yml)*
+EOF
+)
+          
+          curl -s -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/mark3labs/louper/issues/${{ env.EXISTING_PR_NUMBER }}/comments" \
+            -d "{\"body\": $(echo "$COMMENT_BODY" | jq -Rs .)}"
+          
+          echo "✅ Comment added to existing PR #${{ env.EXISTING_PR_NUMBER }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Summary"
+          echo ""
+          if [ "${{ env.SKIP_UPDATE }}" == "true" ]; then
+            echo "✅ No new networks detected. Skipped Louper update."
+          elif [ "${{ env.PR_EXISTS }}" == "true" ]; then
+            echo "✅ Found existing PR #${{ env.EXISTING_PR_NUMBER }}. Added comment with new network details."
+          elif [ "${{ env.UPDATE_NEEDED }}" == "true" ]; then
+            echo "✅ Created PR in Louper repository to update viem to ${{ env.LATEST_VIEM }}"
+            echo "PR: ${{ env.PR_URL }}"
+          else
+            echo "✅ viem is already at latest version. No update needed."
+          fi
