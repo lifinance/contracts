@@ -381,10 +381,11 @@ Sponsored OFT (swapApiTarget 2):
 
 Sponsored CCTP (swapApiTarget 3):
   Provide one of:
-    --callDataHex <0x..>  (selector-less abi.encode(quote, signature))
+    --callDataHex <0x..>  (selector-less abi.encode(quote, signature, refundRecipient))
     --quoteJson <path> --signatureHex <0x..>
   Optional:
     --sendingAssetId <0x..>     (if omitted, derived from quote.burnToken)
+    --refundRecipient <0x..>    (if omitted when using quoteJson, defaults to wallet address)
 
 Swap-and-start encoding (optional):
   --entrypoint swapAndStart --swapDataJson <path>
@@ -593,14 +594,17 @@ Examples (print only):
       const quoteJsonRaw = await readFile(quoteJsonPath, 'utf8')
       const quote = JSON.parse(quoteJsonRaw)
       const sig = assertHex(signatureHex, '--signatureHex')
+      const refundRecipient = getAddress(
+        arg('--refundRecipient') ?? walletAddress
+      )
       callDataNoSelector = encodeAbiParameters(
-        [SPONSORED_CCTP_QUOTE_PARAM, { type: 'bytes' }],
-        [quote, sig]
+        [SPONSORED_CCTP_QUOTE_PARAM, { type: 'bytes' }, { type: 'address' }],
+        [quote, sig, refundRecipient]
       )
     }
 
     const [quoteDecoded] = decodeAbiParameters(
-      [SPONSORED_CCTP_QUOTE_PARAM, { type: 'bytes' }],
+      [SPONSORED_CCTP_QUOTE_PARAM, { type: 'bytes' }, { type: 'address' }],
       callDataNoSelector
     )
     const cctpQuote = quoteDecoded as {

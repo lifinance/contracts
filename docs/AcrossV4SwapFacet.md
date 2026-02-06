@@ -40,7 +40,7 @@ enum SwapApiTarget {
   SpokePool, // callData = abi.encode(IAcrossSpokePoolV4.DepositParams)
   SpokePoolPeriphery, // callData = abi.encode(ISpokePoolPeriphery.SwapAndDepositData)
   SponsoredOFTSrcPeriphery, // callData = abi.encode(ISponsoredOFTSrcPeriphery.Quote, bytes signature)
-  SponsoredCCTPSrcPeriphery // callData = abi.encode(ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes signature)
+  SponsoredCCTPSrcPeriphery // callData = abi.encode(ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes signature, address refundRecipient)
 }
 
 /// @param swapApiTarget Which Across contract should be called

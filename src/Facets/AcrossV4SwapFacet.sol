@@ -475,9 +475,9 @@ contract AcrossV4SwapFacet is
         }(quote, signature);
     }
 
-    /// @dev Decodes and executes a Sponsored CCTP source periphery depositForBurn using ABI-encoded quote+signature.
+    /// @dev Decodes and executes a Sponsored CCTP source periphery depositForBurn using ABI-encoded quote+signature+refundRecipient.
     /// @param _bridgeData The core information needed for bridging
-    /// @param _callData ABI-encoded (SponsoredCCTPQuote, signature) tuple (no selector)
+    /// @param _callData ABI-encoded (SponsoredCCTPQuote, signature, refundRecipient) tuple (no selector)
     function _callSponsoredCctpDepositForBurn(
         ILiFi.BridgeData memory _bridgeData,
         bytes calldata _callData,
@@ -485,20 +485,20 @@ contract AcrossV4SwapFacet is
     ) internal {
         (
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
-            bytes memory signature
+            bytes memory signature,
+            address refundRecipient
         ) = abi.decode(
                 _callData,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes, address)
             );
 
         // If this is the positive-slippage path, refund any surplus and bridge the originally quoted amount.
         // We MUST NOT change the signed quote amount, otherwise the signature would become invalid.
         if (_preSwapAmount != 0) {
             uint256 refundAmount = _bridgeData.minAmount - _preSwapAmount;
-            // Sponsored CCTP quote does not include a refund recipient; refund to the caller.
             LibAsset.transferERC20(
                 _bridgeData.sendingAssetId,
-                msg.sender,
+                refundRecipient,
                 refundAmount
             );
             _bridgeData.minAmount = _preSwapAmount;

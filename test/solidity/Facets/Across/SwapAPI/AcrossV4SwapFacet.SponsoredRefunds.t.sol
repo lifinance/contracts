@@ -118,7 +118,10 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         callData = abi.encode(quote, signature);
     }
 
-    function _decodeSponsoredCctp()
+    /// @param _refundRecipient Address to receive positive-slippage refunds (used in facet callData).
+    function _decodeSponsoredCctp(
+        address _refundRecipient
+    )
         internal
         pure
         returns (
@@ -131,7 +134,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
             SPONSORED_CCTP_CALLDATA,
             (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
         );
-        callData = abi.encode(quote, signature);
+        callData = abi.encode(quote, signature, _refundRecipient);
     }
 
     function _setSwapDataDaiToTokenAndDeployMockDex(
@@ -239,12 +242,15 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         );
     }
 
-    function test_SponsoredCctp_PositiveSlippage_RefundsToMsgSender() public {
+    function test_SponsoredCctp_PositiveSlippage_RefundsToRefundRecipient()
+        public
+    {
+        address refundRecipient = USER_RECEIVER;
         (
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature,
             bytes memory peripheryCallData
-        ) = _decodeSponsoredCctp();
+        ) = _decodeSponsoredCctp(refundRecipient);
 
         // Quote amount is what must be bridged; any surplus will be refunded to msg.sender.
         uint256 quotedAmount = quote.amount;
@@ -280,7 +286,9 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         facetData.signature = "";
 
         uint256 refundAmount = swapOutputAmount - quotedAmount;
-        uint256 senderBalBefore = ERC20(USDC_ARBITRUM).balanceOf(USER_SENDER);
+        uint256 refundRecipientBalBefore = ERC20(USDC_ARBITRUM).balanceOf(
+            refundRecipient
+        );
 
         vm.startPrank(USER_SENDER);
         dai.approve(address(diamond), swapData[0].fromAmount);
@@ -302,8 +310,8 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         vm.stopPrank();
 
         assertEq(
-            ERC20(USDC_ARBITRUM).balanceOf(USER_SENDER),
-            senderBalBefore + refundAmount
+            ERC20(USDC_ARBITRUM).balanceOf(refundRecipient),
+            refundRecipientBalBefore + refundAmount
         );
     }
 }
