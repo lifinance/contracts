@@ -1,0 +1,432 @@
+name: Conventions Review
+
+# - generates an AI-powered report/todo list for PRs to verify adherence to project conventions
+# - analyzes changed files against all rules in .cursor/rules/
+# - checks for common violations: DRY violations, missing helpers reuse, naming conventions, import organization, etc.
+# - posts findings as a PR comment with actionable todo items
+# - runs on PR opened, synchronized, or ready for review
+# - uses Claude (Anthropic) API for code analysis (best for convention checking) with OpenAI as fallback
+# - complements CodeRabbit GitHub App reviews with project-specific convention analysis
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - ready_for_review
+    paths:
+      - 'src/**'
+      - 'script/**'
+      - 'test/**'
+      - '.cursor/rules/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents and rules
+  pull-requests: write # required to post PR comments
+  issues: write # required to post comments via GitHub Issues API
+
+jobs:
+  conventions-review:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.draft == false }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history for diff analysis
+
+      - uses: jwalton/gh-find-current-pr@master
+        id: findPr
+
+      - name: Validate and set PR Number
+        id: fetch_pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          if [ -z "${{ steps.findPr.outputs.number }}" ]; then
+            echo "Error: No pull request found for this push." >&2
+            exit 1
+          fi
+          echo "Found PR number: ${{ steps.findPr.outputs.number }}"
+          PR_NUMBER=${{ steps.findPr.outputs.number }}
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "Pull Request Number is: $PR_NUMBER"
+
+      - name: Fetch PR diff and changed files
+        id: fetch_diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          echo "Fetching PR diff for PR #${PR_NUMBER}..."
+          
+          # Fetch actual diff content
+          DIFF_CONTENT=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://patch-diff.githubusercontent.com/raw/${{ github.repository }}/pull/${PR_NUMBER}.diff")
+          
+          # Get list of changed files with metadata
+          FILES_JSON=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/files")
+          
+          # Extract filenames (only non-removed files)
+          CHANGED_FILES=$(echo "$FILES_JSON" | jq -r '.[] | select(.status != "removed") | .filename')
+          
+          # Extract file types for rule filtering
+          SOLIDITY_FILES=$(echo "$CHANGED_FILES" | grep -E '\.sol$' || true)
+          TYPESCRIPT_FILES=$(echo "$CHANGED_FILES" | grep -E '\.ts$' || true)
+          BASH_FILES=$(echo "$CHANGED_FILES" | grep -E '\.sh$' || true)
+          
+          # Limit diff size to avoid token limits (keep first 15000 lines)
+          DIFF_CONTENT_LIMITED=$(echo "$DIFF_CONTENT" | head -15000)
+          
+          # Save to files for processing
+          echo "$DIFF_CONTENT_LIMITED" > pr_diff.txt
+          echo "$CHANGED_FILES" > changed_files.txt
+          echo "$SOLIDITY_FILES" > solidity_files.txt
+          echo "$TYPESCRIPT_FILES" > typescript_files.txt
+          echo "$BASH_FILES" > bash_files.txt
+          
+          FILES_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+          DIFF_LENGTH=${#DIFF_CONTENT_LIMITED}
+          
+          echo "Fetched diff (${DIFF_LENGTH} chars, limited to 15000 lines) and ${FILES_COUNT} changed files"
+          echo "DIFF_LENGTH=${DIFF_LENGTH}" >> $GITHUB_ENV
+          echo "CHANGED_FILES_COUNT=${FILES_COUNT}" >> $GITHUB_ENV
+          echo "SOLIDITY_COUNT=$(echo "$SOLIDITY_FILES" | wc -l | tr -d ' ')" >> $GITHUB_ENV
+          echo "TYPESCRIPT_COUNT=$(echo "$TYPESCRIPT_FILES" | wc -l | tr -d ' ')" >> $GITHUB_ENV
+          echo "BASH_COUNT=$(echo "$BASH_FILES" | wc -l | tr -d ' ')" >> $GITHUB_ENV
+
+      - name: Load project conventions and rules
+        id: load_rules
+        run: |
+          echo "Loading relevant rules from .cursor/rules/ based on changed files..."
+          
+          # Determine which rule categories are relevant
+          HAS_SOLIDITY=$([ -s solidity_files.txt ] && echo "true" || echo "false")
+          HAS_TYPESCRIPT=$([ -s typescript_files.txt ] && echo "true" || echo "false")
+          HAS_BASH=$([ -s bash_files.txt ] && echo "true" || echo "false")
+          
+          # Always load global rules (000-099)
+          # Load specific rules based on file types
+          RULES_CONTENT=""
+          RULE_COUNT=0
+          
+          for rule_file in .cursor/rules/*.mdc; do
+            if [ ! -f "$rule_file" ]; then
+              continue
+            fi
+            
+            RULE_NAME=$(basename "$rule_file")
+            RULE_NUM=$(echo "$RULE_NAME" | cut -d'-' -f1)
+            
+            # Always include global rules (000-099)
+            if [ "$RULE_NUM" -lt 100 ]; then
+              echo "Loading global rule: $RULE_NAME"
+              RULES_CONTENT="${RULES_CONTENT}\n\n=== ${RULE_NAME} ===\n"
+              RULES_CONTENT="${RULES_CONTENT}$(cat "$rule_file")"
+              RULE_COUNT=$((RULE_COUNT + 1))
+            # Include Solidity rules (100-199) if Solidity files changed
+            elif [ "$RULE_NUM" -ge 100 ] && [ "$RULE_NUM" -lt 200 ] && [ "$HAS_SOLIDITY" = "true" ]; then
+              echo "Loading Solidity rule: $RULE_NAME"
+              RULES_CONTENT="${RULES_CONTENT}\n\n=== ${RULE_NAME} ===\n"
+              RULES_CONTENT="${RULES_CONTENT}$(cat "$rule_file")"
+              RULE_COUNT=$((RULE_COUNT + 1))
+            # Include TypeScript rules (200-299) if TypeScript files changed
+            elif [ "$RULE_NUM" -ge 200 ] && [ "$RULE_NUM" -lt 300 ] && [ "$HAS_TYPESCRIPT" = "true" ]; then
+              echo "Loading TypeScript rule: $RULE_NAME"
+              RULES_CONTENT="${RULES_CONTENT}\n\n=== ${RULE_NAME} ===\n"
+              RULES_CONTENT="${RULES_CONTENT}$(cat "$rule_file")"
+              RULE_COUNT=$((RULE_COUNT + 1))
+            # Include Bash rules (300-399) if Bash files changed
+            elif [ "$RULE_NUM" -ge 300 ] && [ "$RULE_NUM" -lt 400 ] && [ "$HAS_BASH" = "true" ]; then
+              echo "Loading Bash rule: $RULE_NAME"
+              RULES_CONTENT="${RULES_CONTENT}\n\n=== ${RULE_NAME} ===\n"
+              RULES_CONTENT="${RULES_CONTENT}$(cat "$rule_file")"
+              RULE_COUNT=$((RULE_COUNT + 1))
+            # Include testing rules (400-499) if test files changed
+            elif [ "$RULE_NUM" -ge 400 ] && [ "$RULE_NUM" -lt 500 ]; then
+              echo "Loading testing rule: $RULE_NAME"
+              RULES_CONTENT="${RULES_CONTENT}\n\n=== ${RULE_NAME} ===\n"
+              RULES_CONTENT="${RULES_CONTENT}$(cat "$rule_file")"
+              RULE_COUNT=$((RULE_COUNT + 1))
+            # Include GitHub Actions rules (500-599) if workflow files changed
+            elif [ "$RULE_NUM" -ge 500 ] && [ "$RULE_NUM" -lt 600 ]; then
+              echo "Loading GitHub Actions rule: $RULE_NAME"
+              RULES_CONTENT="${RULES_CONTENT}\n\n=== ${RULE_NAME} ===\n"
+              RULES_CONTENT="${RULES_CONTENT}$(cat "$rule_file")"
+              RULE_COUNT=$((RULE_COUNT + 1))
+            fi
+          done
+          
+          # Save rules to file
+          echo -e "$RULES_CONTENT" > rules_content.txt
+          
+          echo "Loaded $RULE_COUNT relevant rule files"
+          echo "RULE_COUNT=$RULE_COUNT" >> $GITHUB_ENV
+          echo "RULES_LENGTH=${#RULES_CONTENT}" >> $GITHUB_ENV
+
+      - name: Generate AI conventions report
+        id: generate_report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Fallback option if Anthropic not available
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "Generating AI-powered conventions review report..."
+          
+          # Read diff and rules
+          DIFF_CONTENT=$(cat pr_diff.txt)
+          RULES_CONTENT=$(cat rules_content.txt)
+          CHANGED_FILES=$(cat changed_files.txt | head -30) # Limit to first 30 files for context
+          
+          # Prepare file type summary
+          FILE_TYPES_SUMMARY=""
+          if [ -s solidity_files.txt ]; then
+            SOLIDITY_COUNT=$(cat solidity_files.txt | wc -l | tr -d ' ')
+            FILE_TYPES_SUMMARY="${FILE_TYPES_SUMMARY}\n- Solidity files: ${SOLIDITY_COUNT}"
+          fi
+          if [ -s typescript_files.txt ]; then
+            TYPESCRIPT_COUNT=$(cat typescript_files.txt | wc -l | tr -d ' ')
+            FILE_TYPES_SUMMARY="${FILE_TYPES_SUMMARY}\n- TypeScript files: ${TYPESCRIPT_COUNT}"
+          fi
+          if [ -s bash_files.txt ]; then
+            BASH_COUNT=$(cat bash_files.txt | wc -l | tr -d ' ')
+            FILE_TYPES_SUMMARY="${FILE_TYPES_SUMMARY}\n- Bash files: ${BASH_COUNT}"
+          fi
+          
+          # Prepare prompt for AI
+          PROMPT=$(cat <<'PROMPT_EOF'
+You are a senior smart contract engineer reviewing a PR for adherence to project conventions and guidelines.
+
+## Project Context
+This is a Solidity smart contract project using:
+- Diamond pattern (EIP-2535) with facets
+- Foundry for testing and deployment
+- TypeScript/Bun for scripts
+- Bash for deployment automation
+
+## Changed Files Summary
+$FILE_TYPES_SUMMARY
+
+## Changed File List
+$(echo "$CHANGED_FILES" | head -30)
+
+## PR Diff (truncated if large)
+\`\`\`diff
+$(echo "$DIFF_CONTENT" | head -12000)
+\`\`\`
+
+**Note**: Diff may be truncated. Focus on the most critical violations first.
+
+## Project Conventions and Rules
+$RULES_CONTENT
+
+## Task
+Analyze the PR diff against ALL the conventions and rules provided above. Generate a structured report with:
+
+1. **Critical Issues** (must fix before merge):
+   - Violations of architectural principles (Diamond, separation of concerns)
+   - Security issues
+   - Storage/interface changes without approval
+   - Missing required tests for new TypeScript helpers
+
+2. **DRY Violations** (refactor opportunities):
+   - Duplicate code that should use existing helpers
+   - Missing reuse of existing libraries/functions
+   - Code that could be extracted to helpers
+
+3. **Convention Violations**:
+   - Naming conventions ([CONV:NAMING])
+   - Import organization
+   - NatSpec requirements ([CONV:NATSPEC])
+   - Blank lines ([CONV:BLANKLINES])
+   - License headers ([CONV:LICENSE])
+   - File placement (wrong directory)
+
+4. **Best Practices**:
+   - Suggestions for improvement
+   - Missing error handling
+   - Type safety improvements
+   - Documentation gaps
+
+5. **Testing & Linting**:
+   - Missing test coverage
+   - Lint violations to fix
+   - Required test commands not run
+
+Format the output as a markdown report with:
+- Clear sections with emojis (🚨 Critical, 🔄 DRY, 📋 Conventions, 💡 Best Practices, ✅ Testing)
+- Specific file paths and line numbers where applicable
+- Actionable todo items
+- Code examples when helpful
+
+Be concise but thorough. Focus on actionable items that improve code quality and adherence to conventions.
+PROMPT_EOF
+)
+          
+          # Use Claude (Anthropic) first - best for code analysis and convention checking
+          # CodeRabbit GitHub App already provides automated reviews; this workflow complements
+          # with project-specific convention analysis from .cursor/rules/
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "Using Claude (Anthropic) API for code analysis..."
+            REPORT=$(curl -s https://api.anthropic.com/v1/messages \
+              -H "Content-Type: application/json" \
+              -H "x-api-key: $ANTHROPIC_API_KEY" \
+              -H "anthropic-version: 2023-06-01" \
+              -d "{
+                \"model\": \"claude-3-5-sonnet-20241022\",
+                \"max_tokens\": 8000,
+                \"system\": \"You are a senior smart contract engineer specializing in Solidity, TypeScript scripts, and deployment automation. You have deep knowledge of Diamond patterns (EIP-2535), Foundry, and project conventions. Analyze code against project conventions and provide actionable, specific feedback with file paths and line numbers.\",
+                \"messages\": [
+                  {\"role\": \"user\", \"content\": $(echo "$PROMPT" | jq -Rs .)}
+                ]
+              }" | jq -r '.content[0].text // empty')
+            
+            # Validate response
+            if [ -z "$REPORT" ] || [ "$REPORT" = "null" ]; then
+              echo "⚠️ Claude API response empty, trying fallback..."
+              REPORT=""
+            fi
+          fi
+          
+          # Fallback to OpenAI if Anthropic not available
+          if [ -z "$REPORT" ] && [ -n "$OPENAI_API_KEY" ]; then
+            echo "Using OpenAI API as fallback..."
+            REPORT=$(curl -s https://api.openai.com/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $OPENAI_API_KEY" \
+              -d "{
+                \"model\": \"gpt-4o\",
+                \"messages\": [
+                  {\"role\": \"system\", \"content\": \"You are a code review assistant specializing in Solidity smart contracts, TypeScript scripts, and deployment automation. You analyze code against project conventions and provide actionable feedback.\"},
+                  {\"role\": \"user\", \"content\": $(echo "$PROMPT" | jq -Rs .)}
+                ],
+                \"temperature\": 0.3,
+                \"max_tokens\": 8000
+              }" | jq -r '.choices[0].message.content // empty')
+          fi
+          
+          # Final fallback: manual checklist
+          if [ -z "$REPORT" ]; then
+            echo "⚠️ No AI API key configured. Generating fallback checklist..."
+            
+            # Generate basic checklist based on file types
+            CHECKLIST="## 🤖 Conventions Review Report\n\n"
+            CHECKLIST="${CHECKLIST}⚠️ **Note**: AI analysis unavailable (no API key configured). "
+            CHECKLIST="${CHECKLIST}Please configure \`ANTHROPIC_API_KEY\` (recommended) or \`OPENAI_API_KEY\` secret for automated analysis.\n\n"
+            CHECKLIST="${CHECKLIST}**Note**: CodeRabbit GitHub App is already providing automated reviews on this PR. This workflow complements those reviews with project-specific convention analysis from \`.cursor/rules/\`.\n\n"
+            CHECKLIST="${CHECKLIST}### 📋 Manual Review Checklist\n\n"
+            
+            if [ -s solidity_files.txt ]; then
+              CHECKLIST="${CHECKLIST}#### Solidity Files ($(cat solidity_files.txt | wc -l | tr -d ' ') files)\n"
+              CHECKLIST="${CHECKLIST}- [ ] Verify license header: \`// SPDX-License-Identifier: LGPL-3.0-only\`\n"
+              CHECKLIST="${CHECKLIST}- [ ] Check pragma: \`pragma solidity ^0.8.17;\`\n"
+              CHECKLIST="${CHECKLIST}- [ ] Verify NatSpec headers (\`@title\`, \`@author\`, \`@notice\`, \`@custom:version\`)\n"
+              CHECKLIST="${CHECKLIST}- [ ] Check naming: camelCase functions/vars, CONSTANT_CASE constants\n"
+              CHECKLIST="${CHECKLIST}- [ ] Verify blank lines between functions ([CONV:BLANKLINES])\n"
+              CHECKLIST="${CHECKLIST}- [ ] Use custom errors from \`src/Errors/GenericErrors.sol\` when possible\n"
+              CHECKLIST="${CHECKLIST}- [ ] Check if existing libraries (\`LibAsset\`, \`LibSwap\`, etc.) can be reused\n"
+              CHECKLIST="${CHECKLIST}- [ ] Run \`forge test\` and verify all tests pass\n\n"
+            fi
+            
+            if [ -s typescript_files.txt ]; then
+              CHECKLIST="${CHECKLIST}#### TypeScript Files ($(cat typescript_files.txt | wc -l | tr -d ' ') files)\n"
+              CHECKLIST="${CHECKLIST}- [ ] Check import organization: external libs → types → config → internal utils\n"
+              CHECKLIST="${CHECKLIST}- [ ] Verify no \`any\` types (use proper types from TypeChain/viem)\n"
+              CHECKLIST="${CHECKLIST}- [ ] Check if existing helpers in \`script/utils/\`, \`script/common/\`, \`script/demoScripts/utils/\` can be reused\n"
+              CHECKLIST="${CHECKLIST}- [ ] For new helpers: add \`*.test.ts\` with 100% coverage\n"
+              CHECKLIST="${CHECKLIST}- [ ] Run \`bunx eslint <file(s)>\` and fix all issues\n"
+              CHECKLIST="${CHECKLIST}- [ ] Run \`bunx tsc-files --noEmit <file(s)>\` for type checking\n"
+              CHECKLIST="${CHECKLIST}- [ ] Verify interfaces start with \`I\` prefix\n"
+              CHECKLIST="${CHECKLIST}- [ ] Use viem (not ethers.js) for contract interactions\n\n"
+            fi
+            
+            if [ -s bash_files.txt ]; then
+              CHECKLIST="${CHECKLIST}#### Bash Files ($(cat bash_files.txt | wc -l | tr -d ' ') files)\n"
+              CHECKLIST="${CHECKLIST}- [ ] Verify \`#!/bin/bash\` shebang\n"
+              CHECKLIST="${CHECKLIST}- [ ] Check if existing helpers from \`script/helperFunctions.sh\` can be reused\n"
+              CHECKLIST="${CHECKLIST}- [ ] Use \`universalCast\` for network abstraction (not hardcoded network checks)\n"
+              CHECKLIST="${CHECKLIST}- [ ] Verify variable names are UPPERCASE\n"
+              CHECKLIST="${CHECKLIST}- [ ] Run \`bash -n <script>\` for syntax validation\n"
+              CHECKLIST="${CHECKLIST}- [ ] Check for proper error handling with \`checkFailure\`\n\n"
+            fi
+            
+            CHECKLIST="${CHECKLIST}#### General Checks\n"
+            CHECKLIST="${CHECKLIST}- [ ] Review diff for DRY violations (duplicate code)\n"
+            CHECKLIST="${CHECKLIST}- [ ] Verify file placement matches project structure\n"
+            CHECKLIST="${CHECKLIST}- [ ] Check for architectural violations (Diamond pattern, separation of concerns)\n"
+            CHECKLIST="${CHECKLIST}- [ ] Ensure no storage/interface changes without approval\n\n"
+            CHECKLIST="${CHECKLIST}**To enable AI analysis**: Add \`ANTHROPIC_API_KEY\` (recommended for code analysis) or \`OPENAI_API_KEY\` to repository secrets.\n"
+            CHECKLIST="${CHECKLIST}\n**Note**: CodeRabbit GitHub App is already installed and provides automated reviews. This workflow focuses specifically on project conventions from \`.cursor/rules/\` to complement CodeRabbit's analysis.\n"
+            
+            REPORT="$CHECKLIST"
+          fi
+          
+          # Validate report was generated
+          if [ -z "$REPORT" ] || [ "${#REPORT}" -lt 50 ]; then
+            echo "⚠️ Report generation failed or too short. Using minimal fallback."
+            REPORT="## 🤖 Conventions Review Report\n\n⚠️ Report generation encountered an issue. Please review the PR manually against project conventions in \`.cursor/rules/\`.\n"
+          fi
+          
+          # Save report
+          echo "$REPORT" > conventions_report.md
+          echo "Report generated (${#REPORT} chars)"
+
+      - name: Find existing PR comment
+        id: find_comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          echo "Searching for existing conventions review comment..."
+          
+          COMMENT_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" | \
+            jq -r '.[] | select(.body | startswith("### 🤖 Conventions Review Report")) | .id' | head -1)
+          
+          if [[ -n "$COMMENT_ID" && "$COMMENT_ID" != "null" ]]; then
+            echo "EXISTING_COMMENT_ID=$COMMENT_ID" >> $GITHUB_ENV
+            echo "Found existing comment ID: $COMMENT_ID"
+          else
+            echo "No existing comment found"
+          fi
+
+      - name: Post or update PR comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          echo "Posting conventions review report to PR..."
+          
+          # Read report
+          REPORT=$(cat conventions_report.md)
+          
+          # Add header and metadata
+          COMMENT_BODY="### 🤖 Conventions Review Report 📋\n\n"
+          COMMENT_BODY="${COMMENT_BODY}This report analyzes the PR against all project conventions and guidelines from \`.cursor/rules/\`.\n\n"
+          COMMENT_BODY="${COMMENT_BODY}---\n\n"
+          COMMENT_BODY="${COMMENT_BODY}${REPORT}\n\n"
+          COMMENT_BODY="${COMMENT_BODY}---\n\n"
+          COMMENT_BODY="${COMMENT_BODY}*Generated by [Conventions Review workflow](https://github.com/${{ github.repository }}/actions/workflows/conventionsReview.yml)*\n"
+          
+          # Create JSON payload
+          JSON_PAYLOAD=$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')
+          
+          # Update existing comment or post new one
+          if [[ -n "$EXISTING_COMMENT_ID" ]]; then
+            echo "Updating existing comment ID: $EXISTING_COMMENT_ID"
+            curl -s -X PATCH \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$JSON_PAYLOAD" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}"
+          else
+            echo "Posting new comment to PR #${PR_NUMBER}..."
+            curl -s -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$JSON_PAYLOAD" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+          fi
+          
+          echo "✅ Report posted successfully"
