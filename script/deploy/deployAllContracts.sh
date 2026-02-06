@@ -360,7 +360,7 @@ deployAllContracts() {
 
       # initiate ownership transfer
       echo "Initiating ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS)"
-      cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS" --private-key "$PRIVATE_KEY_PRODUCTION" --rpc-url "$(getRPCUrl "$NETWORK")"  --legacy
+      universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS"
       echo "Ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
       echo ""
 
