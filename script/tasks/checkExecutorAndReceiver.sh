@@ -61,7 +61,7 @@ checkExecutorAndReceiver() {
       "true"
 
     # Handle errors using centralized helper function
-    if ! handleForgeScriptError "failed to check" "" "$NETWORK"; then
+    if ! handleForgeScriptError "forge script failed for CheckExecutorAndReceiver" "" "$NETWORK"; then
       FAILED_RESULTS="${FAILED_RESULTS:-}"$'\n'"[info] Failed to check on network: ${NETWORK:-}"
       continue
     fi

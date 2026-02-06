@@ -60,7 +60,7 @@ acceptOwnershipTransferPeriphery() {
         "true"
 
       # Handle errors using centralized helper function
-      if handleForgeScriptError "execution of script failed" "attempt $attempts/10" "$CURRENT_NETWORK"; then
+      if handleForgeScriptError "forge script failed for AcceptOwnershipTransferPeriphery" "attempt $attempts/10" "$CURRENT_NETWORK"; then
         break  # exit the loop if the operation was successful
       fi
 
