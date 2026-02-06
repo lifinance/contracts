@@ -961,6 +961,8 @@ function saveDiamondPeriphery() {
   if [[ "$OUTPUT_MODE" == "periphery-only" && -n "$OUTPUT_PATH" ]]; then
     # write properly formatted JSON to output path
     echo "$PERIPHERY_JSON" | jq . >"$OUTPUT_PATH" 2>/dev/null || echo '{}' >"$OUTPUT_PATH"
+    # cleanup temp dir so it is always removed in this branch (same as shared cleanup below)
+    rm -rf "$TEMP_DIR"
   else
     # ensure diamond file exists and is valid JSON
     if [[ ! -e $DIAMOND_FILE ]]; then
