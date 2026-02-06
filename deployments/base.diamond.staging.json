@@ -57,9 +57,9 @@
         "Name": "MayanFacet",
         "Version": "1.2.2"
       },
-      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+      "0x06A8fA5B326F663507FfF045B90351a9DCF3f9B1": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
         "Name": "",
@@ -76,10 +76,6 @@
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
-      },
-      "0x06A8fA5B326F663507FfF045B90351a9DCF3f9B1": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": ""
       }
     },
     "Periphery": {
