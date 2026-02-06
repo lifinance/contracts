@@ -199,7 +199,7 @@
       },
       "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
         "Name": "PolymerCCTPFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
