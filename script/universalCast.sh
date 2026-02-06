@@ -32,18 +32,14 @@ function universalCall() {
     return 1
   fi
 
-  local OUTPUT
-  local EXIT_CODE
-
   if isTronNetwork "$NETWORK"; then
     local TRON_ENV
     TRON_ENV=$(getTronEnv "$NETWORK")
     if [[ ${#ARGS[@]} -gt 0 ]]; then
-      OUTPUT=$(bun troncast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --env "$TRON_ENV" 2>&1)
+      bun troncast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --env "$TRON_ENV" 2>&1
     else
-      OUTPUT=$(bun troncast call "$TARGET" "$SIGNATURE" --env "$TRON_ENV" 2>&1)
+      bun troncast call "$TARGET" "$SIGNATURE" --env "$TRON_ENV" 2>&1
     fi
-    EXIT_CODE=$?
   else
     local RPC_URL
     RPC_URL=$(getRPCUrl "$NETWORK") || {
@@ -51,19 +47,12 @@ function universalCall() {
       return 1
     }
     if [[ ${#ARGS[@]} -gt 0 ]]; then
-      OUTPUT=$(cast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --rpc-url "$RPC_URL" 2>&1)
+      cast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --rpc-url "$RPC_URL" 2>&1
     else
-      OUTPUT=$(cast call "$TARGET" "$SIGNATURE" --rpc-url "$RPC_URL" 2>&1)
+      cast call "$TARGET" "$SIGNATURE" --rpc-url "$RPC_URL" 2>&1
     fi
-    EXIT_CODE=$?
   fi
-
-  if [[ $EXIT_CODE -ne 0 ]]; then
-    echo "$OUTPUT" >&2
-    return 1
-  fi
-  printf '%s' "$OUTPUT"
-  return 0
+  return $?
 }
 
 # universalSend: State-changing transactions for both Tron and EVM networks.
@@ -313,99 +302,29 @@ function universalCode() {
 # Dispatches to universal<Action> (e.g. universalCall, universalSend). Add new actions by
 # defining a function universal<Action>; no need to touch universalCast.
 function universalCast() {
-  local ACTION="${1-}"
+  local action="${1-}"
   shift || true
 
-  if [[ -z "$ACTION" ]]; then
+  if [[ -z "$action" ]]; then
     echo "Error: universalCast requires ACTION" >&2
     return 1
   fi
 
   # Safety: allow only simple identifiers (no spaces, no $(), no ``, etc.)
-  if [[ ! "$ACTION" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
-    echo "Error: invalid action name: $ACTION" >&2
+  if [[ ! "$action" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    echo "Error: invalid action name: $action" >&2
     return 1
   fi
 
   # Build target function name: universal<Action> (portable first-char uppercase)
-  local FIRST="${ACTION:0:1}"
-  local REST="${ACTION:1}"
-  local TARGET_FUNC="universal$(echo "$FIRST" | tr '[:lower:]' '[:upper:]')$REST"
+  local first="${action:0:1}"
+  local rest="${action:1}"
+  local target="universal$(echo "$first" | tr '[:lower:]' '[:upper:]')$rest"
 
-  if ! declare -F "$TARGET_FUNC" >/dev/null; then
-    echo "Error: unknown action: $ACTION (no function $TARGET_FUNC)" >&2
+  if ! declare -F "$target" >/dev/null; then
+    echo "Error: unknown action: $action (no function $target)" >&2
     return 1
   fi
 
-  "$TARGET_FUNC" "$@"
-}
-
-# universalCastWithRetries: Same as universalCast but for "call" retries on retryable RPC errors (429, rate limit, max retries).
-# Use for read-only calls where transient RPC failures should be retried.
-#
-# Usage: universalCastWithRetries ACTION NETWORK [rest...]  (same as universalCast)
-#   For ACTION "call": retries up to RPC_CALL_MAX_RETRIES (default 3) with RPC_CALL_RETRY_DELAY_SEC (default 5) between attempts.
-#   Other actions: forwards to universalCast once (no retry).
-#
-# Returns: Same as universalCall on success (value on stdout, 0); on failure after retries: nothing on stdout, error on stderr, 1.
-function universalCastWithRetries() {
-  local ACTION="${1-}"
-  if [[ -z "$ACTION" ]]; then
-    echo "Error: universalCastWithRetries requires ACTION" >&2
-    return 1
-  fi
-
-  if [[ "$ACTION" != "call" ]]; then
-    universalCast "$@"
-    return $?
-  fi
-
-  shift || true
-  local NETWORK="${1-}"
-  local TARGET="${2-}"
-  local SIGNATURE="${3-}"
-  shift 3 || true
-  local ARGS=("$@")
-
-  if [[ -z "$NETWORK" || -z "$TARGET" || -z "$SIGNATURE" ]]; then
-    echo "Error: universalCastWithRetries call requires NETWORK, TARGET, SIGNATURE" >&2
-    return 1
-  fi
-
-  local MAX_RETRIES="${RPC_CALL_MAX_RETRIES:-0}"
-  local RETRY_DELAY="${RPC_CALL_RETRY_DELAY_SEC:-0}"
-  local ERR_FILE
-  ERR_FILE=$(mktemp)
-
-  local ATTEMPT=1
-  local OUT
-  local EXIT
-  local ERR_MSG
-
-  while [[ $ATTEMPT -le $MAX_RETRIES ]]; do
-    [[ "${DEBUG:-}" == "true" ]] && echo "[universalCastWithRetries] attempt $ATTEMPT/$MAX_RETRIES" >&2
-    OUT=$(universalCall "$NETWORK" "$TARGET" "$SIGNATURE" "${ARGS[@]}" 2> "$ERR_FILE")
-    EXIT=$?
-    if [[ $EXIT -eq 0 ]]; then
-      rm -f "$ERR_FILE"
-      printf '%s' "$OUT"
-      return 0
-    fi
-    ERR_MSG=$(cat "$ERR_FILE" 2>/dev/null)
-    if [[ "$ERR_MSG" != *"429"* && "$ERR_MSG" != *"rate limit"* && "$ERR_MSG" != *"Max retries"* && "$ERR_MSG" != *"retries exceeded"* ]]; then
-      echo "$ERR_MSG" >&2
-      rm -f "$ERR_FILE"
-      return 1
-    fi
-    if [[ $ATTEMPT -eq $MAX_RETRIES ]]; then
-      echo "$ERR_MSG" >&2
-      rm -f "$ERR_FILE"
-      return 1
-    fi
-    sleep "$RETRY_DELAY"
-    ATTEMPT=$((ATTEMPT + 1))
-  done
-
-  rm -f "$ERR_FILE"
-  return 1
+  "$target" "$@"
 }
