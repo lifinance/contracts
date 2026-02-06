@@ -316,7 +316,7 @@ deploySingleContract() {
     # RETURN_CODE != 0 or error detected in RAW_RETURN_DATA
     # Use handleForgeScriptError for consistent error handling
     else
-      if ! handleForgeScriptError "execution of deploy script failed" "attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" "$NETWORK"; then
+      if ! handleForgeScriptError "forge script failed for $SCRIPT" "attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" "$NETWORK"; then
         attempts=$((attempts + 1))
         sleep 1
         continue
