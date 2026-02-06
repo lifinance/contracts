@@ -361,6 +361,14 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         // facet does not support bridging of native assets
     }
 
+    function testBase_Revert_BridgeToSameChainId() public override {
+        // not applicable, this facet intentionally allows same-chain actions/intents
+    }
+
+    function testBase_Revert_SwapAndBridgeToSameChainId() public override {
+        // not applicable, this facet intentionally allows same-chain actions/intents
+    }
+
     function testRevert_MismatchedDestinationCallFlag() external {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
@@ -464,10 +472,11 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             path
         );
         uint256 expectedUSDCOut = expectedAmounts[1];
+        uint256 minAmount = expectedUSDCOut - 1;
 
         // Setup bridge data to use USDC (output of swap)
         bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = expectedUSDCOut; // Minimum USDC expected from swap
+        bridgeData.minAmount = minAmount; // Minimum USDC expected from swap
         bridgeData.hasSourceSwaps = true;
 
         delete swapData;
@@ -481,7 +490,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
                 callData: abi.encodeWithSelector(
                     uniswap.swapExactTokensForTokens.selector,
                     amountIn,
-                    expectedUSDCOut,
+                    minAmount,
                     path,
                     address(lifiIntentEscrowFacet),
                     block.timestamp + 20 minutes
@@ -508,32 +517,15 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             validLIFIIntentData
         );
 
-        // Get the actual output from the swap
-        uint256 actualUSDCOut = usdc.balanceOf(address(lifiIntentEscrowFacet));
-
         // Check that user received any positive slippage
         uint256 userUSDCBalanceAfter = usdc.balanceOf(USER_SENDER);
         uint256 positiveSlippage = userUSDCBalanceAfter -
             userUSDCBalanceBefore;
-
-        // Verify that:
-        // 1. The order was created with the expected minimum amount (not the actual swap output)
-        // 2. Any excess USDC was returned to the user
-        // Since we can't easily create positive slippage in this test environment,
-        // we verify the logic works by checking balances
-
-        // The escrow should have received exactly bridgeData.minAmount
-        // Any excess should have been returned to USER_SENDER
-
-        // Note: In this test, actualUSDCOut will likely equal expectedUSDCOut
-        // but the code path is tested for when actualUSDCOut > expectedUSDCOut
-        if (actualUSDCOut > expectedUSDCOut) {
-            assertEq(
-                positiveSlippage,
-                actualUSDCOut - expectedUSDCOut,
-                "Positive slippage not returned to user"
-            );
-        }
+        assertEq(
+            positiveSlippage,
+            expectedUSDCOut - minAmount,
+            "Positive slippage not returned to user"
+        );
 
         vm.stopPrank();
     }

@@ -9,6 +9,7 @@ export interface ITronDeploymentConfig {
   confirmationTimeout?: number
   verbose?: boolean
   dryRun?: boolean
+  headers?: Record<string, string>
 }
 
 export interface ITronCostEstimate {
