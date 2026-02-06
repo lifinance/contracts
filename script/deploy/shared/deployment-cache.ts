@@ -8,7 +8,7 @@ import {
 } from 'fs'
 import path from 'path'
 
-import { consola } from 'consola'
+import { createConsola } from 'consola'
 
 import type { EnvironmentEnum } from '../../common/types'
 
@@ -17,6 +17,14 @@ import {
   DatabaseConnectionManager,
   type IConfig,
 } from './mongo-log-utils'
+
+// Use a consola that writes all output to stderr so scripts capturing stdout
+// (e.g. query-deployment-logs.ts find) only receive JSON and don't get
+// "Refreshing..."/"Fetched N records..." mixed in (which breaks jq).
+const consola = createConsola({
+  stdout: process.stderr,
+  stderr: process.stderr,
+})
 
 /**
  * Metadata for the deployment cache
