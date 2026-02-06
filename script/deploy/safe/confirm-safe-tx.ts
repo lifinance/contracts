@@ -336,6 +336,11 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
+      if (tx.canExecute) {
+        options.push('Execute')
+        options.push('Execute with Deployer')
+      }
+
       action =
         storedResponse ||
         (await consola.prompt('Select action:', {
@@ -360,8 +365,10 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
-      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
+      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
         options.push('Execute')
+        options.push('Execute with Deployer')
+      }
 
       action =
         storedResponse ||
@@ -491,6 +498,25 @@ const processTxs = async (
         await executeTransaction(safeTransaction)
       } catch (error) {
         consola.error('Error executing transaction:', error)
+      }
+
+    if (action === 'Execute with Deployer')
+      try {
+        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        consola.info('Initializing deployer wallet...')
+        const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
+        const { safe: deployerSafe } = await initializeSafeClient(
+          network,
+          deployerPrivateKey,
+          rpcUrl,
+          false,
+          undefined,
+          txSafeAddress
+        )
+        consola.info('Executing transaction with deployer wallet...')
+        await executeTransaction(safeTransaction, deployerSafe)
+      } catch (error) {
+        consola.error('Error executing with deployer:', error)
       }
   }
   try {

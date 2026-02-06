@@ -493,6 +493,26 @@ const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
 const ABI_REGISTER_PERIPHERY_CONTRACT = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
+const ABI_GRANT_ROLE = parseAbi(['function grantRole(bytes32,address)'])
+
+// OpenZeppelin TimelockController / AccessControl role names (keccak256 of role string)
+const KNOWN_ROLE_NAMES: Record<string, string> = {}
+for (const name of [
+  'TIMELOCK_ADMIN_ROLE',
+  'PROPOSER_ROLE',
+  'EXECUTOR_ROLE',
+  'CANCELLER_ROLE',
+]) {
+  const hash = keccak256(stringToHex(name))
+  KNOWN_ROLE_NAMES[hash.toLowerCase()] = name
+}
+
+function getRoleName(roleHash: string): string {
+  const normalized = roleHash.startsWith('0x')
+    ? roleHash.toLowerCase()
+    : `0x${roleHash}`.toLowerCase()
+  return KNOWN_ROLE_NAMES[normalized] ?? ''
+}
 
 /**
  * Decodes a transaction's function call using diamond ABI
@@ -592,9 +612,29 @@ function getAbiForKnownFunction(functionName: string): Abi | null {
       return ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST
     case 'registerPeripheryContract':
       return ABI_REGISTER_PERIPHERY_CONTRACT
+    case 'grantRole':
+      return ABI_GRANT_ROLE
     default:
       return null
   }
+}
+
+async function formatGrantRole(
+  args: readonly unknown[],
+  network: string
+): Promise<void> {
+  if (!args || args.length < 2) return
+  const role = args[0]
+  const account = args[1]
+  const roleStr = typeof role === 'string' ? role : String(role ?? '')
+  const accountStr =
+    typeof account === 'string' ? account : String(account ?? '')
+  const roleName = getRoleName(roleStr)
+  const roleLabel = roleName ? ` \u001b[33m(${roleName})\u001b[0m` : ''
+  consola.info(`Function: \u001b[34mgrantRole\u001b[0m`)
+  consola.info(`  Role:   \u001b[32m${roleStr}\u001b[0m${roleLabel}`)
+  const accountSuffix = await getTargetSuffix(network, accountStr)
+  consola.info(`  Account: \u001b[32m${accountStr}\u001b[0m${accountSuffix}`)
 }
 
 /**
@@ -693,6 +733,15 @@ export async function formatDecodedTxDataForDisplay(
       peripheryLine += await getTargetSuffix(network, peripheryAddress)
       peripheryLine += deploymentSuffix
       consola.info(peripheryLine)
+      return
+    }
+
+    if (
+      decoded?.functionName === 'grantRole' &&
+      decoded.args &&
+      decoded.args.length >= 2
+    ) {
+      await formatGrantRole(decoded.args, network)
       return
     }
 
