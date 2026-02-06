@@ -314,7 +314,8 @@ contract AcrossV4SwapFacet is
         _validateAmount(params.inputAmount, _bridgeData.minAmount);
 
         // Validate asset matches for ERC20 flows
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+        if (!isNative) {
             address decodedInputToken = address(
                 uint160(uint256(params.inputToken))
             );
@@ -329,9 +330,7 @@ contract AcrossV4SwapFacet is
             );
         }
 
-        uint256 msgValue = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
-            ? _bridgeData.minAmount
-            : 0;
+        uint256 msgValue = isNative ? _bridgeData.minAmount : 0;
         // NOTE: Single-use helper to avoid "stack too deep" in `_callSpokePoolDeposit` (deposit has many args).
         _depositToSpokePool(params, msgValue);
     }
