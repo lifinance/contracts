@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBase } from "../../../utils/TestBase.sol";
+import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
 import { TestHelpers, MockUniswapDEX } from "../../../utils/TestHelpers.sol";
 import { TestAcrossV4SwapBackendSig } from "../../../utils/TestAcrossV4SwapBackendSig.sol";
@@ -68,7 +68,7 @@ contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
 }
 
 contract AcrossV4SwapFacetTest is
-    TestBase,
+    TestBaseFacet,
     TestHelpers,
     TestAcrossV4SwapBackendSig
 {
@@ -1441,6 +1441,53 @@ contract AcrossV4SwapFacetTest is
 
         vm.expectRevert(InvalidCallData.selector);
         facet.exposed_chainIdToCctpDomainId(2);
+    }
+
+    /// Abstract function implementations ///
+
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+        bytes memory callData = _buildCallData(bridgeData.minAmount);
+        AcrossV4SwapFacet.AcrossV4SwapFacetData memory facetData = _facetData(
+            bridgeData,
+            AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery,
+            callData,
+            address(acrossV4SwapFacet)
+        );
+
+        if (isNative) {
+            acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{
+                value: bridgeData.minAmount
+            }(bridgeData, facetData);
+        } else {
+            acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
+                bridgeData,
+                facetData
+            );
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
+        bytes memory callData = _buildCallData(bridgeData.minAmount);
+        AcrossV4SwapFacet.AcrossV4SwapFacetData memory facetData = _facetData(
+            bridgeData,
+            AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery,
+            callData,
+            address(acrossV4SwapFacet)
+        );
+
+        if (isNative) {
+            acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, facetData);
+        } else {
+            acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap(
+                bridgeData,
+                swapData,
+                facetData
+            );
+        }
     }
 
     /// Helper functions ///
