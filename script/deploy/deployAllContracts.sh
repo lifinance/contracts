@@ -278,7 +278,7 @@ deployAllContracts() {
     # Always update both production and staging to keep them in sync
     echo ""
     echo "[info] Updating whitelist periphery and composer entries for both production and staging..."
-    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment "$ENVIRONMENT" || checkFailure $? "update whitelist periphery"
+    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment both || checkFailure $? "update whitelist periphery"
     echo "[info] Whitelist periphery update completed"
     echo ""
 
@@ -340,9 +340,8 @@ deployAllContracts() {
         exit 1
       fi
 
-      echo "RPC_URL: $RPC_URL"
       echo "Funding PauserWallet $PAUSER_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
-      cast send "$PAUSER_WALLET_ADDRESS" --value "$FUNDING_AMOUNT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_TO_USE"
+      universalCast "sendValue" "$NETWORK" "$ENVIRONMENT" "$PAUSER_WALLET_ADDRESS" "$FUNDING_AMOUNT" "$PRIVATE_KEY_TO_USE"
       checkFailure $? "fund PauserWallet $PAUSER_WALLET_ADDRESS on $NETWORK"
     fi
 
