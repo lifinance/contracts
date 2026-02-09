@@ -844,7 +844,8 @@ const main = defineCommand({
           'ERC20Proxy',
           deployerWallet,
           deployedContracts,
-          rpcUrl
+          rpcUrl,
+          tronWeb
         )
       } else {
         consola.info(
@@ -860,7 +861,8 @@ const main = defineCommand({
             'LiFiDiamond',
             timelockAddress,
             deployedContracts,
-            rpcUrl
+            rpcUrl,
+            tronWeb
           )
         } else {
           consola.error(
@@ -876,7 +878,8 @@ const main = defineCommand({
         'FeeCollector',
         feeCollectorOwner,
         deployedContracts,
-        rpcUrl
+        rpcUrl,
+        tronWeb
       )
 
       // Receiver
@@ -884,7 +887,8 @@ const main = defineCommand({
         'Receiver',
         refundWallet,
         deployedContracts,
-        rpcUrl
+        rpcUrl,
+        tronWeb
       )
     } else if (publicClient) {
       // EVM implementation
@@ -1251,7 +1255,8 @@ const checkOwnershipTron = async (
   name: string,
   expectedOwner: string,
   deployedContracts: Record<string, string>,
-  rpcUrl: string
+  rpcUrl: string,
+  tronWeb: TronWeb
 ) => {
   if (deployedContracts[name]) {
     try {
@@ -1266,12 +1271,16 @@ const checkOwnershipTron = async (
       )
 
       const ownerAddress = parseTronAddressOutput(ownerOutput)
-      const expectedOwnerLower = expectedOwner.toLowerCase()
+      
+      // Convert expectedOwner to Tron format if it's in EVM format (0x...)
+      // This handles cases where getTronWallet falls back to EVM address
+      const expectedOwnerTron = ensureTronAddress(expectedOwner, tronWeb)
+      const expectedOwnerLower = expectedOwnerTron.toLowerCase()
       const actualOwnerLower = ownerAddress.toLowerCase()
 
       if (actualOwnerLower !== expectedOwnerLower) {
         logError(
-          `${name} owner is ${ownerAddress}, expected ${expectedOwner}`
+          `${name} owner is ${ownerAddress}, expected ${expectedOwnerTron}`
         )
       } else {
         consola.success(`${name} owner is correct`)
