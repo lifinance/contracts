@@ -32,6 +32,7 @@ import {
   type Network,
 } from '../utils/viemScriptHelpers'
 
+import targetState from './_targetState.json'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -40,8 +41,6 @@ import {
   parseTroncastFacetsOutput,
   retryWithRateLimit,
 } from './tron/utils'
-
-import targetState from './_targetState.json'
 
 /**
  * Execute a command with retry logic for rate limit errors (429)
@@ -428,7 +427,7 @@ const main = defineCommand({
           ],
           2000, // 2 second initial delay for Tron
           3,
-          [3000, 5000, 10000]
+          [1000, 2000, 3000]
         )
 
         // Parse Tron output format
@@ -463,7 +462,7 @@ const main = defineCommand({
           ],
           0, // No initial delay for EVM (can be adjusted if needed)
           3,
-          [3000, 5000, 10000]
+          [1000, 2000, 3000]
         )
 
         const jsonCompatibleString = rawString
