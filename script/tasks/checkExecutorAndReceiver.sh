@@ -78,21 +78,21 @@ checkExecutorAndReceiver() {
 
     if [[ $MATCH == "true" ]]; then
       RESULT="[info] Executor and Receiver match on network: $NETWORK"
-      MATCH_RESULTS="$MATCH_RESULTS\n$RESULT"
+      MATCH_RESULTS="${MATCH_RESULTS:-}\n$RESULT"
     else
       RESULT="[warning] Executor and Receiver don't match on network: $NETWORK"
-      DISMATCH_RESULTS="$DISMATCH_RESULTS\n$RESULT"
+      DISMATCH_RESULTS="${DISMATCH_RESULTS:-}\n$RESULT"
     fi
 
-    echo $RESULT
+    echo "$RESULT"
   done
 
   echo "Executor and Receiver checks completed"
   echo ""
   echo "========================== Results =========================="
-  echo -e $MATCH_RESULTS
-  echo -e $DISMATCH_RESULTS
-  echo -e $FAILED_RESULTS
+  echo -e "${MATCH_RESULTS:-}"
+  echo -e "${DISMATCH_RESULTS:-}"
+  echo -e "${FAILED_RESULTS:-}"
 }
 
 
