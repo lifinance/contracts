@@ -3558,16 +3558,13 @@ function getPrivateKey() {
 }
 
 # Send or propose transaction
-# This function handles:
-# - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
-# - Staging: Sends directly using PRIVATE_KEY via cast send with raw calldata
+# - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
+# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts
+# - Staging / Tron: send directly via universalCast sendRaw. When sending directly, timelock is never used.
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
-#   network: Network name (e.g., "mainnet")
-#   environment: "production" or "staging"
-#   target: Target contract address
-#   calldata: Transaction calldata (hex string starting with 0x)
-#   timelock: Optional flag to wrap transaction in timelock (production only)
-#   private_key_override: Optional hex key; when set, use instead of getPrivateKey(network, environment)
+#   network, environment, target, calldata: required
+#   timelock: only when proposing; "true" = wrap in timelock, "false" = propose without; ignored when sending directly
+#   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -3599,7 +3596,12 @@ function sendOrPropose() {
     return $?
   fi
 
-  # EVM production: propose to Safe using propose-to-safe.ts
+  # EVM production: SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true sends directly; otherwise propose to Safe
+  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
+    return $?
+  fi
+
   local SAFE_SIGNER_KEY
   if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
     SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"

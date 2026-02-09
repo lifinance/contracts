@@ -28,6 +28,12 @@ test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
 out = "out/zksync"
+
+[lint]
+lint_on_build = false
+
+# zksolc needs to be defined here as foundry can't detect it if it's under [profile.zksync]
+[profile.default.zksync]
 zksync = { zksolc = '1.5.15' }
 
 [rpc_endpoints]
@@ -58,6 +64,7 @@ gnosis = "${ETH_NODE_URI_GNOSIS}"
 gravity = "${ETH_NODE_URI_GRAVITY}"
 etherlink = "${ETH_NODE_URI_ETHERLINK}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
+jovay = "${ETH_NODE_URI_JOVAY}"
 ink = "${ETH_NODE_URI_INK}"
 kaia = "${ETH_NODE_URI_KAIA}"
 katana = "${ETH_NODE_URI_KATANA}"
@@ -127,6 +134,7 @@ hemi = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.hemi.
 hyperevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=999", chain = "999" }
 etherlink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
 ink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.inkonchain.com/api", verifier = "blockscout", chain = "57073"}
+jovay = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.jovay.io/api", chain = "5734951"}
 immutablezkevm = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
 kaia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/kaia", chain = "8217", verifier = "oklink" }
 katana = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=747474", chain = "747474" }
