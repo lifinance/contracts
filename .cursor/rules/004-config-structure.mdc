@@ -1,0 +1,60 @@
+---
+name: Config file structure
+description: How to structure JSON config files in config/ for deployments and deploy scripts
+globs:
+  - 'config/**/*.json'
+  - 'script/deploy/**/*.s.sol'
+  - 'script/deploy/resources/deployRequirements.json'
+alwaysApply: false
+---
+
+## Config File Structure ([CONV:CONFIG-STRUCTURE])
+
+Config files in `config/` (e.g. `garden.json`, `glacis.json`) feed deploy scripts and are validated via `script/deploy/resources/deployRequirements.json` using `configFileName` and `keyInConfigFile`.
+
+### Single parameter for all chains (same key name)
+
+When **one parameter** is used across all networks with the **same key name** (e.g. `htlcRegistry`, `airlift`):
+
+- **Structure: key first, then networks.** Use one top-level key (the parameter name); under it, use network names as keys and their values (e.g. addresses) as values.
+- **Order:** List `mainnet` first, then all other networks **alphabetically**.
+- **Deploy path:** Scripts and `deployRequirements.json` must use `.<key>.<NETWORK>` (e.g. `.htlcRegistry.mainnet`, `.airlift.zksync`).
+
+Example:
+
+```json
+{
+  "htlcRegistry": {
+    "mainnet": "0x...",
+    "arbitrum": "0x...",
+    "base": "0x..."
+  }
+}
+```
+
+### Multiple parameters per network
+
+When there are **several parameters per network** (different or multiple keys per network):
+
+- **Structure: network first, then parameters.** Use network names as top-level keys; each network’s value is an object with parameter names and their values.
+- **Order:** List `mainnet` first, then all other networks **alphabetically**.
+- **Deploy path:** Scripts and `deployRequirements.json` must use `.<NETWORK>.<key>` (e.g. `.mainnet.cBridge`, `.arbitrum.gateway`).
+
+Example:
+
+```json
+{
+  "mainnet": {
+    "cBridge": "0x...",
+    "gateway": "0x..."
+  },
+  "arbitrum": {
+    "cBridge": "0x...",
+    "gateway": "0x..."
+  }
+}
+```
+
+### Consistency
+
+- When adding or restructuring a config file, update the corresponding deploy script(s) (including `script/deploy/zksync/` when present) and the relevant contract entry in `deployRequirements.json` so `keyInConfigFile` matches the chosen structure (`.<key>.<NETWORK>` vs `.<NETWORK>.<key>`).

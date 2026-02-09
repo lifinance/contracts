@@ -4,8 +4,8 @@
  * Purpose:
  *   - Remove facet(s) or unregister periphery contract(s) from the LiFiDiamond contract
  *   - Supports both interactive and headless CLI modes
- *   - In production, or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND==false in .env, it proposes timelock-wrapped calldata to our Safe (using SAFE_SIGNER_PRIVATE_KEY from .env)
- *   - In staging or when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND==true, it sends the transaction directly to the diamond (using PRIVATE_KEY from .env), no wrapping in timelock calldata
+ *   - Production with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false: proposes to Safe (timelock wrapping via USE_TIMELOCK_CONTROLLER)
+ *   - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true or staging: sends transaction directly to diamond (no proposal, no timelock)
  *
  * Usage without parameters:
  *  bun script/tasks/cleanUpProdDiamond.ts
