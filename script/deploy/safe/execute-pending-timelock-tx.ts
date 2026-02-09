@@ -74,6 +74,8 @@ interface IPendingFetchResult {
   walletClient?: WalletClient
   timelockAddress?: Address
   deploymentData?: IDeploymentData
+  /** Set when prefetch failed; callers must not treat as "no ready ops" without checking. */
+  fetchError?: unknown
 }
 
 // TimelockController ABI for the functions we need
@@ -275,6 +277,7 @@ const cmd = defineCommand({
       const networksWithReady = fetchResults.filter(
         (r) => r.readyOperations.length > 0
       )
+      const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
 
       consola.info(
         `Checked ${networksToProcess.length} network(s); ${
@@ -285,8 +288,23 @@ const cmd = defineCommand({
             : ''
         }`
       )
+      if (networksWithFetchError.length > 0) {
+        consola.warn(
+          `Prefetch failed for ${
+            networksWithFetchError.length
+          } network(s) (ready ops may have been skipped): ${networksWithFetchError
+            .map((r) => r.network.name)
+            .join(', ')}`
+        )
+      }
 
       if (networksWithReady.length === 0) {
+        if (networksWithFetchError.length > 0) {
+          consola.error(
+            'No networks with ready operations; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
+          )
+          process.exit(1)
+        }
         consola.success('No networks with pending executable transactions.')
         return
       }
@@ -369,6 +387,7 @@ const cmd = defineCommand({
       const networksWithReady = fetchResults.filter(
         (r) => r.readyOperations.length > 0
       )
+      const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
 
       consola.info(
         `Checked ${networksToProcess.length} network(s); ${
@@ -379,8 +398,23 @@ const cmd = defineCommand({
             : ''
         }`
       )
+      if (networksWithFetchError.length > 0) {
+        consola.warn(
+          `Prefetch failed for ${
+            networksWithFetchError.length
+          } network(s) (ready ops may have been skipped): ${networksWithFetchError
+            .map((r) => r.network.name)
+            .join(', ')}`
+        )
+      }
 
       if (networksWithReady.length === 0) {
+        if (networksWithFetchError.length > 0) {
+          consola.error(
+            'No networks with ready operations; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
+          )
+          process.exit(1)
+        }
         consola.success('No networks with pending executable transactions.')
         return
       }
@@ -607,8 +641,12 @@ async function fetchPendingForNetwork(
       timelockAddress,
       deploymentData,
     }
-  } catch {
-    return empty
+  } catch (err) {
+    consola.error(
+      `[${network.name}] Prefetch failed (ready ops may have been skipped):`,
+      err
+    )
+    return { ...empty, fetchError: err }
   }
 }
 
@@ -946,6 +984,15 @@ async function getPendingOperations(
           ) {
             consola.warn(
               `[${networkName}] Transaction ${tx._id} scheduleBatch has empty arrays; skipping.`
+            )
+            continue
+          }
+          if (
+            targetsArr.length !== valuesArr.length ||
+            valuesArr.length !== payloadsArr.length
+          ) {
+            consola.warn(
+              `[${networkName}] Transaction ${tx._id} scheduleBatch has inconsistent array lengths (targets=${targetsArr.length}, values=${valuesArr.length}, payloads=${payloadsArr.length}); skipping.`
             )
             continue
           }
