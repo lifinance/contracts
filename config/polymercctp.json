@@ -23,22 +23,22 @@
   "hyperevm": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "ink": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x2D270e6886d130D724215A266106e6832161EAEd",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "linea": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "monad": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "optimism": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -48,7 +48,7 @@
   "plume": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x222365EF19F7947e5484218551B56bb3965Aa7aF",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "polygon": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -58,12 +58,12 @@
   "sei": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xe15fC38F6D8c56aF07bbCBe3BAf5708A2Bf42392",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "sonic": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x29219dd400f2Bf60E5a23d13Be72B486D4038894",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "unichain": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -73,7 +73,7 @@
   "worldchain": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x79A02482A880bCe3F13E09da970dC34dB4cD24D1",
-    "polymerFeeReceiver": ""
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "xdc": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
