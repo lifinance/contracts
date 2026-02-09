@@ -763,7 +763,7 @@
     "wrappedNativeAddress": "0xacc15dc74880c9944775448304b263d191c6077f",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://moonbeam.public.blastapi.io",
+    "rpcUrl": "https://moonbeam-rpc.publicnode.com",
     "verificationType": "etherscan",
     "explorerUrl": "https://moonscan.io",
     "explorerApiUrl": "https://api-moonbeam.moonscan.io/api",
