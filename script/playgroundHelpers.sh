@@ -2085,6 +2085,7 @@ export -f removeDeployerWhitelistPermission
 export -f manageTimelockCanceller
 export -f manageSafeOwner
 export -f proposeTimelockAdminTransfer
+export -f grantTimelockRole
 
 # Utility functions
 export -f validateDependencies
