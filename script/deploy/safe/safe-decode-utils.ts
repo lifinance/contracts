@@ -392,23 +392,77 @@ function formatBatchSetContractSelectorWhitelist(
   })
 }
 
-function tryFormatDiamondPayload(payload: Hex): string | undefined {
-  if (!payload || payload === '0x') return undefined
-  if (payload.toLowerCase().startsWith('0xf2455b71')) {
+let diamondAbiCache: Abi | undefined
+function getDiamondAbi(): Abi | undefined {
+  if (diamondAbiCache !== undefined) return diamondAbiCache
+  try {
+    const diamondPath = path.join(process.cwd(), 'diamond.json')
+    if (!fs.existsSync(diamondPath)) return undefined
+    const raw = fs.readFileSync(diamondPath, 'utf8')
+    const parsed = JSON.parse(raw) as unknown
+    diamondAbiCache = Array.isArray(parsed) ? (parsed as Abi) : undefined
+    return diamondAbiCache
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Resolves a function selector to the matching ABI item from diamond.json (Diamond ABI).
+ * Used to decode payloads dynamically instead of hardcoding selectors.
+ */
+function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
+  const abi = getDiamondAbi()
+  if (!abi) return null
+  const normalizedSelector = selector.toLowerCase()
+  for (const item of abi) {
+    if (item.type !== 'function') continue
     try {
-      const abi = parseAbi([
-        'function setDeBridgeChainId(uint256 chainId, uint256 deBridgeChainId)',
-      ])
-      const decoded = decodeFunctionData({ abi, data: payload })
-      const chainId = decoded.args?.[0]
-      const deBridgeChainId = decoded.args?.[1]
-      if (typeof chainId === 'bigint' && typeof deBridgeChainId === 'bigint')
-        return `setDeBridgeChainId(chainId=${chainId.toString()}, deBridgeChainId=${deBridgeChainId.toString()})`
+      const itemSelector = toFunctionSelector(item).toLowerCase()
+      if (itemSelector === normalizedSelector) return item
     } catch {
-      return `setDeBridgeChainId(<failed to decode>)`
+      continue
     }
   }
-  return undefined
+  return null
+}
+
+function formatDecodedArg(arg: unknown): string {
+  if (arg === undefined || arg === null) return String(arg)
+  if (typeof arg === 'bigint') return arg.toString()
+  if (typeof arg === 'object') return JSON.stringify(arg)
+  return String(arg)
+}
+
+/**
+ * pretty-format for a Diamond call payload using the Diamond ABI.
+ * Resolves selector via diamond.json and decodes
+ */
+function tryFormatDiamondPayload(payload: Hex): string | undefined {
+  if (!payload || payload === '0x') return undefined
+  const selector = payload.slice(0, 10).toLowerCase()
+  const abiItem = getDiamondAbiItemForSelector(selector)
+  if (!abiItem || abiItem.type !== 'function') return undefined
+  const name = abiItem.name
+  try {
+    const decoded = decodeFunctionData({
+      abi: [abiItem],
+      data: payload,
+    })
+    if (!decoded.args || decoded.args.length === 0) return `${name}()`
+    const inputs =
+      'inputs' in abiItem && Array.isArray(abiItem.inputs) ? abiItem.inputs : []
+    const parts = decoded.args.map((arg: unknown, i: number) => {
+      const paramName =
+        (inputs[i] && typeof inputs[i] === 'object' && 'name' in inputs[i]
+          ? (inputs[i] as { name: string }).name
+          : undefined) ?? `arg${i}`
+      return `${paramName}=${formatDecodedArg(arg)}`
+    })
+    return `${name}(${parts.join(', ')})`
+  } catch {
+    return `${name}(<failed to decode>)`
+  }
 }
 
 async function formatTimelockScheduleBatch(
@@ -638,7 +692,7 @@ export async function formatDecodedTxDataForDisplay(
 
     if (decoded?.functionName === 'diamondCut' && decoded.args) {
       await formatDiamondCutSummary(decoded.args, network)
-      await decodeDiamondCut(decoded, chainId)
+      await decodeDiamondCut(decoded, chainId, network)
       return
     }
 

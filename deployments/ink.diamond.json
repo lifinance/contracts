@@ -92,6 +92,10 @@
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x1Ff6389e8307E3d1246cBcd0b6E1Cd23d58c37b1": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
