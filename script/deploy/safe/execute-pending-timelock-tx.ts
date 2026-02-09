@@ -59,7 +59,7 @@ interface IDeploymentData {
   [key: string]: string | undefined
 }
 
-/** Result of fetching pending operations for a network (used when pre-checking all networks in parallel). */
+/** Result of fetching pending operations for a network (used when pre-checking all networks in parallel). Clients are not stored so we open a fresh RPC when processing. */
 interface IPendingFetchResult {
   network: INetworkConfig
   readyOperations: ITimelockOperation[]
@@ -70,8 +70,6 @@ interface IPendingFetchResult {
     safeTxHash: string
     executionHash?: string
   }>
-  publicClient?: PublicClient
-  walletClient?: WalletClient
   timelockAddress?: Address
   deploymentData?: IDeploymentData
   /** Set when prefetch failed; callers must not treat as "no ready ops" without checking. */
@@ -259,7 +257,7 @@ const cmd = defineCommand({
     if (isDryRun)
       consola.info('Running in DRY RUN mode - no transactions will be sent')
 
-    // Process networks: scan once (one RPC per network), then execute only for networks with ready ops, reusing the same connection.
+    // Process networks: scan once (one RPC per network), then process only networks with ready ops. We do not reuse prefetch RPC clients so execution always uses a fresh connection.
     if (executeAll || rejectAll) {
       consola.info('🚀 Checking all networks for pending operations...')
 
@@ -590,7 +588,7 @@ async function fetchPendingTimelockTransactions(
 
 /**
  * Fetches pending operations for a single network (used when pre-checking all networks in parallel).
- * Returns a result that can be passed to processNetwork as preFetched when readyOperations.length > 0.
+ * Returns data only (no RPC clients); processNetwork opens a fresh connection when executing.
  */
 async function fetchPendingForNetwork(
   network: INetworkConfig,
@@ -613,7 +611,7 @@ async function fetchPendingForNetwork(
     if (!deploymentData.LiFiTimelockController) return empty
 
     const timelockAddress = deploymentData.LiFiTimelockController as Address
-    const { publicClient, walletClient } = await setupEnvironment(
+    const { publicClient } = await setupEnvironment(
       network.name as SupportedChain,
       null,
       EnvironmentEnum.production,
@@ -636,8 +634,6 @@ async function fetchPendingForNetwork(
       readyOperations,
       totalPendingCount,
       notScheduledOperations,
-      publicClient,
-      walletClient,
       timelockAddress,
       deploymentData,
     }
@@ -676,21 +672,25 @@ async function processNetwork(
     let totalPendingCount: number
     let notScheduledOperations: IPendingFetchResult['notScheduledOperations']
 
-    // Reuse RPC clients from scan phase when provided (avoids opening a second connection for the same network).
+    // Use prefetched data when available; always open a fresh RPC for execution so the connection is not stale (e.g. after long interactive pause).
     if (
-      preFetched?.publicClient &&
-      preFetched?.walletClient &&
       preFetched?.timelockAddress &&
       preFetched?.deploymentData &&
       preFetched.readyOperations.length > 0
     ) {
       deploymentData = preFetched.deploymentData
-      publicClient = preFetched.publicClient
-      walletClient = preFetched.walletClient
       timelockAddress = preFetched.timelockAddress
       readyOperations = preFetched.readyOperations
       totalPendingCount = preFetched.totalPendingCount
       notScheduledOperations = preFetched.notScheduledOperations
+      const { publicClient: pc, walletClient: wc } = await setupEnvironment(
+        network.name as SupportedChain,
+        null,
+        EnvironmentEnum.production,
+        rpcUrlOverride
+      )
+      publicClient = pc
+      walletClient = wc
     } else {
       // Load deployment data for the network using getDeployments
       deploymentData = (await getDeployments(
