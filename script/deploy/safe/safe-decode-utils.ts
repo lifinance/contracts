@@ -638,7 +638,7 @@ export async function formatDecodedTxDataForDisplay(
 
     if (decoded?.functionName === 'diamondCut' && decoded.args) {
       await formatDiamondCutSummary(decoded.args, network)
-      await decodeDiamondCut(decoded, chainId)
+      await decodeDiamondCut(decoded, chainId, network)
       return
     }
 

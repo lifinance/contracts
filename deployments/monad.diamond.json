@@ -84,6 +84,10 @@
       "0xb86FaE3FB05841d84377c2eD0f1606784300445e": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
+      },
+      "0xbe1a7bF226D8cB013808eC4001aD4D50d833d102": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
