@@ -998,7 +998,7 @@ function grantTimelockRole() {
   # 2) Who can grant? Only TIMELOCK_ADMIN_ROLE can grant. Check network Safe first, then deployer.
   local SAFE_ADDRESS
   SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress" 2>/dev/null || true)
-  if [[ $? -ne 0 || -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+  if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
     SAFE_ADDRESS=""
   fi
   local SAFE_HAS_ADMIN_ROLE="false"
@@ -2084,6 +2084,7 @@ export -f removeAccessManagerPermission
 export -f removeDeployerWhitelistPermission
 export -f manageTimelockCanceller
 export -f manageSafeOwner
+export -f proposeTimelockAdminTransfer
 
 # Utility functions
 export -f validateDependencies
@@ -2091,5 +2092,3 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f transferStagingDiamondOwnership
-export -f manageTimelockCanceller
-export -f manageSafeOwner
