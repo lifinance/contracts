@@ -22,11 +22,15 @@ deployAllContracts() {
   # load env variables
   source .env
 
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
   # logging for debug purposes
   echo ""
   echoDebug "in function deployAllContracts"
   echoDebug "NETWORK=$NETWORK"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
 
   # Ask user where to start the deployment process
@@ -39,13 +43,13 @@ deployAllContracts() {
       "4) Set approval for refund wallet" \
       "5) Deploy non-core facets and add to diamond" \
       "6) Deploy periphery contracts" \
-      "7) Add periphery to diamond and update whitelist.json" \
-      "8) Execute whitelisted addresses and selectors scripts and update ERC20Proxy" \
+      "7) Add periphery to diamond" \
+      "8) Update whitelist.json and execute sync whitelist script" \
       "9) Fund PauserWallet" \
-      "10) Run health check only" \
-      "11) Ownership transfer to timelock (production only)"
+      "10) Update ERC20Proxy" \
+      "11) Run health check only" \
+      "12) Ownership transfer to timelock (production only)"
   )
-
 
   # make sure that proposals are sent to diamond directly (for production deployments)
   if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
@@ -62,8 +66,8 @@ deployAllContracts() {
     fi
   fi
 
-  # Extract the stage number from the selection (e.g. "11) ...")
-  # Important: do NOT substring-match "1)" as it would also match "10)" and "11)".
+  # Extract the stage number from the selection (e.g. "12) ...")
+  # Important: do NOT substring-match "1)" as it would also match "10)", "11)", "12)".
   if [[ "$START_FROM" =~ ^([0-9]+)\) ]]; then
     START_STAGE="${BASH_REMATCH[1]}"
   else
@@ -71,7 +75,7 @@ deployAllContracts() {
     exit 1
   fi
 
-  if [[ "$START_STAGE" -lt 1 || "$START_STAGE" -gt 11 ]]; then
+  if [[ "$START_STAGE" -lt 1 || "$START_STAGE" -gt 12 ]]; then
     error "invalid selection (stage out of range): $START_FROM - exiting script now"
     exit 1
   fi
@@ -169,12 +173,12 @@ deployAllContracts() {
     # update diamond with core facets
     echo ""
     echo ""
+    # we do deploy this first since in some networks it failed to have several deploy operations in one deploy script
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now adding DiamondLoupeFacet to diamond"
     if ! diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateDiamondLoupeFacet" false; then
       error "failed to update DiamondLoupeFacet (UpdateDiamondLoupeFacet) for network $NETWORK - aborting before core facets update"
       exit 1
     fi
-
     echo ""
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
@@ -187,7 +191,7 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 3 completed"
   fi
 
-  # Stage 4: Set approvals (refund wallet)
+  # Stage 4: Set approval for refund wallet
   if [[ $START_STAGE -le 4 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approval for refund wallet"
@@ -251,40 +255,37 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
   fi
 
-  # Stage 7: Add periphery to diamond and update whitelist.json
+  # Stage 7: Add periphery to diamond
   if [[ $START_STAGE -le 7 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond and update whitelist.json"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond"
 
-    # update periphery registry
+    # Register periphery contracts in the diamond's PeripheryRegistryFacet
+    # This stores the contract name -> address mapping on-chain in the diamond contract.
+    # The diamond can then look up periphery contract addresses by name using getPeripheryContract().
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
-    checkFailure $? "diamond update periphery"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
   fi
 
-  # Stage 8: Execute whitelist script and update ERC20Proxy
+  # Stage 8: Update whitelist.json and execute sync whitelist script
   if [[ $START_STAGE -le 8 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Update whitelist.json and execute sync whitelist script"
 
     # Update whitelist.json configuration files with periphery contract data
     # This updates the off-chain whitelist configuration files that will be synced on-chain.
+    # Always update both production and staging to keep them in sync
     echo ""
-    echo "[info] Updating whitelist periphery and composer entries..."
+    echo "[info] Updating whitelist periphery and composer entries for both production and staging..."
     bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment "$ENVIRONMENT" || checkFailure $? "update whitelist periphery"
     echo "[info] Whitelist periphery update completed"
     echo ""
 
-    # run sync whitelist script
+    # Sync whitelist data from config files to the diamond contract on-chain
+    # This whitelists contracts and their function selectors in the WhitelistManagerFacet
     echo ""
     diamondSyncWhitelist "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-    checkFailure $? "sync whitelist"
-
-    # register Executor as authorized caller in ERC20Proxy
-    echo ""
-    updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
-    checkFailure $? "update ERC20Proxy"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 8 completed"
   fi
@@ -348,39 +349,47 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
   fi
 
-  # Stage 10: Run health check only
+  # Stage 10: Update ERC20Proxy
   if [[ $START_STAGE -le 10 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Run health check only"
-    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Update ERC20Proxy"
+
+    # Register Executor as authorized caller in ERC20Proxy
+    # This allows the Executor contract to transfer tokens on behalf of users
+    updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
   fi
 
-
-
-  # Pause and ask user if they want to continue with ownership transfer.
-  # If the user explicitly chose to start from stage 11, skip this prompt and proceed directly.
-  if [[ "$ENVIRONMENT" == "production" && "$START_STAGE" -le 10 ]]; then
+  # Stage 11: Run health check only
+  if [[ $START_STAGE -le 11 ]]; then
     echo ""
-    echo "All actions completed. Do you want to continue with ownership transfer to timelock?"
-    echo "This should only be done if the health check shows only diamond ownership errors."
-    warning "For DAY 1 chains we usually transfer ownership after day 1 for faster response times in case of changes required"
-    echo "Continue with stage 11 (ownership transfer)? (y/n)"
-    read -r response
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      echo "Proceeding with stage 11..."
-    else
-      echo "Skipping stage 11 - ownership transfer cancelled by user"
-      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
-      return
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Run health check only"
+    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
+
+    # Pause and ask user if they want to continue with ownership transfer
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      echo ""
+      echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
+      echo "This should only be done if the health check shows only diamond ownership errors."
+      echo "Continue with stage 12 (ownership transfer)? (y/n)"
+      read -r response
+      if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo "Proceeding with stage 12..."
+      else
+        echo "Skipping stage 12 - ownership transfer cancelled by user"
+        echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
+        return
+      fi
     fi
   fi
 
-  # Stage 11: Ownership transfer to timelock (production only)
-  if [[ $START_STAGE -le 11 ]]; then
+  # Stage 12: Ownership transfer to timelock (production only)
+  if [[ $START_STAGE -le 12 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Ownership transfer to timelock (production only)"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 12: Ownership transfer to timelock (production only)"
 
       # make sure SAFE_ADDRESS is available (if starting in stage 11 it's not available yet)
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
@@ -404,24 +413,32 @@ deployAllContracts() {
         exit 1
       fi
 
-      # initiate ownership transfer
-      echo "Initiating ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS)"
-      universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "transferOwnership(address)" "$TIMELOCK_ADDRESS"
+      # Step 1: Initiate ownership transfer (must be sent directly by current owner = deployer, not proposed)
+      echo "Sending transferOwnership(timelock) from deployer wallet (current diamond owner)..."
+      local TRANSFER_CALLDATA
+      TRANSFER_CALLDATA=$(cast calldata "transferOwnership(address)" "$TIMELOCK_ADDRESS")
+      PRIVATE_KEY_DEPLOYER=$(getPrivateKey "$NETWORK" "production") || {
+        error "Failed to get deployer private key for $NETWORK"
+        exit 1
+      }
+      universalCast "sendRaw" "$NETWORK" "production" "$DIAMOND_ADDRESS" "$TRANSFER_CALLDATA" "$PRIVATE_KEY_DEPLOYER"
+      checkFailure $? "transferOwnership to LiFiTimelockController ($TIMELOCK_ADDRESS)"
       echo "Ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
       echo ""
 
-      echo ""
-      echo "Proposing ownership transfer acceptance tx to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS) "
-      # propose tx with calldata 0x7200b829 = acceptOwnershipTransfer() to diamond (propose to multisig and wrap in timeloc calldata with --timelock flag)
-      bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata 0x7200b829 --network "$NETWORK" --rpcUrl "$(getRPCUrl "$NETWORK")" --privateKey "$PRIVATE_KEY_PRODUCTION" --timelock
-      echo "Ownership transfer acceptance proposed to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)"
+      # Step 2: acceptOwnershipTransfer() — always propose on EVM (Tron: direct send, no Safe).
+      # Bash sendOrPropose (used by universalCast "send") does NOT check SEND_PROPOSALS_DIRECTLY_TO_DIAMOND; for EVM production it always calls propose-to-safe.ts.
+      echo "Proposing acceptOwnershipTransfer() to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)..."
+      universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "acceptOwnershipTransfer()" "" "true" "$PRIVATE_KEY_PRODUCTION"
+      checkFailure $? "propose acceptOwnershipTransfer to Safe"
+      echo "Acceptance of ownership transfer proposed to multisig ($SAFE_ADDRESS)"
       echo ""
       # ------------------------------------------------------------
     else
-      echo "Stage 11 skipped - ownership transfer to timelock is only for production environment"
+      echo "Stage 12 skipped - ownership transfer to timelock is only for production environment"
     fi
 
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 12 completed"
   fi
 
 
