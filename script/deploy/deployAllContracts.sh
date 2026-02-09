@@ -33,6 +33,21 @@ deployAllContracts() {
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
 
+  # make sure that proposals are sent to diamond directly (for production deployments)
+  # this must run even when starting from later stages
+  if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+    echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
+    echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
+    echo "Would you like to set it to true for this execution? (y/n)"
+    read -r response
+    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
+      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
+    else
+      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
+    fi
+  fi
+
   # Ask user where to start the deployment process
   echo "Which stage would you like to start from?"
   START_FROM=$(
@@ -46,33 +61,13 @@ deployAllContracts() {
       "7) Add periphery to diamond" \
       "8) Update whitelist.json and execute sync whitelist script" \
       "9) Update ERC20Proxy" \
-      "10) Run health check only" \
-      "11) Ownership transfer to timelock (production only)"
+      "10) Fund PauserWallet" \
+      "11) Run health check only" \
+      "12) Ownership transfer to timelock (production only)"
   )
 
-  # Extract the stage number from the selection
-  if [[ "$START_FROM" == *"1)"* ]]; then
-    START_STAGE=1
-  elif [[ "$START_FROM" == *"2)"* ]]; then
-    START_STAGE=2
-  elif [[ "$START_FROM" == *"3)"* ]]; then
-    START_STAGE=3
-  elif [[ "$START_FROM" == *"4)"* ]]; then
-    START_STAGE=4
-  elif [[ "$START_FROM" == *"5)"* ]]; then
-    START_STAGE=5
-  elif [[ "$START_FROM" == *"6)"* ]]; then
-    START_STAGE=6
-  elif [[ "$START_FROM" == *"7)"* ]]; then
-    START_STAGE=7
-  elif [[ "$START_FROM" == *"8)"* ]]; then
-    START_STAGE=8
-  elif [[ "$START_FROM" == *"9)"* ]]; then
-    START_STAGE=9
-  elif [[ "$START_FROM" == *"10)"* ]]; then
-    START_STAGE=10
-  elif [[ "$START_FROM" == *"11)"* ]]; then
-    START_STAGE=11
+  if [[ "$START_FROM" =~ ^([0-9]+)\) ]]; then
+    START_STAGE="${BASH_REMATCH[1]}"
   else
     error "invalid selection: $START_FROM - exiting script now"
     exit 1
@@ -87,20 +82,6 @@ deployAllContracts() {
   # Stage 1: Initial setup and CREATE3Factory deployment
   if [[ $START_STAGE -le 1 ]]; then
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 1: Initial setup and CREATE3Factory deployment"
-
-    # make sure that proposals are sent to diamond directly (for production deployments)
-    if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "false" ]]; then
-      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to false in your .env file"
-      echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
-      echo "Would you like to set it to true for this execution? (y/n)"
-      read -r response
-      if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
-        echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
-      else
-        echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
-      fi
-    fi
 
     # add RPC URL to MongoDB
     # only add the RPC URL if no CREATE3Factory is deployed yet (if a CREATE3Factory is deployed that means we added an RPC already before)
@@ -183,6 +164,12 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
 
     # update diamond with core facets
+    echo ""
+    echo ""
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now adding DiamondLoupeFacet to diamond"
+    diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateDiamondLoupeFacet" false
+    checkFailure $? "add DiamondLoupeFacet to $DIAMOND_CONTRACT_NAME on network $NETWORK"
+
     echo ""
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
@@ -277,15 +264,6 @@ deployAllContracts() {
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Update whitelist.json and execute sync whitelist script"
 
-    # Update whitelist.json configuration files with periphery contract data
-    # This updates the off-chain whitelist configuration files that will be synced on-chain.
-    # Always update both production and staging to keep them in sync
-    echo ""
-    echo "[info] Updating whitelist periphery and composer entries for both production and staging..."
-    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment both || checkFailure $? "update whitelist periphery"
-    echo "[info] Whitelist periphery update completed"
-    echo ""
-
     # Sync whitelist data from config files to the diamond contract on-chain
     # This whitelists contracts and their function selectors in the WhitelistManagerFacet
     echo ""
@@ -306,37 +284,93 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
   fi
 
-  # Stage 10: Run health check only
+  # Stage 10: Fund PauserWallet
   if [[ $START_STAGE -le 10 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Run health check only"
-    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Fund PauserWallet"
+
+    # get pauserWallet address
+    local PAUSER_WALLET_ADDRESS
+    PAUSER_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
+    if [[ -z "$PAUSER_WALLET_ADDRESS" || "$PAUSER_WALLET_ADDRESS" == "null" ]]; then
+      error "PauserWallet address not found. Cannot fund PauserWallet"
+      exit 1
+    fi
+
+    # get RPC URL
+    local RPC_URL
+    RPC_URL=$(getRPCUrl "$NETWORK")
+    checkFailure $? "get rpc url for network $NETWORK"
+
+    # get balance in current network
+    BALANCE=$(cast balance "$PAUSER_WALLET_ADDRESS" --rpc-url "$RPC_URL")
+    checkFailure $? "get PauserWallet balance for $PAUSER_WALLET_ADDRESS on $NETWORK"
+    if [[ -z "$BALANCE" ]]; then
+      error "Could not determine PauserWallet balance"
+      exit 1
+    fi
+
+    echo "PauserWallet Balance: $BALANCE"
+
+    if [[ "$BALANCE" == "0" ]]; then
+      echo "PauserWallet balance is 0. How much wei would you like to send to $PAUSER_WALLET_ADDRESS?"
+      read -r FUNDING_AMOUNT
+
+      # Validate that FUNDING_AMOUNT is a non-empty numeric value
+      if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+        error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
+        exit 1
+      fi
+
+      local FUNDING_PRIVATE_KEY
+      FUNDING_PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+      checkFailure $? "get funding private key"
+
+      echo "Funding PauserWallet $PAUSER_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
+      cast send "$PAUSER_WALLET_ADDRESS" \
+        --value "$FUNDING_AMOUNT" \
+        --rpc-url "$RPC_URL" \
+        --private-key "$FUNDING_PRIVATE_KEY" \
+        --legacy
+      checkFailure $? "fund PauserWallet on $NETWORK"
+    else
+      echo "PauserWallet already funded, skipping."
+    fi
+
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
+  fi
+
+  # Stage 11: Run health check only
+  if [[ $START_STAGE -le 11 ]]; then
+    echo ""
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Run health check only"
+    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
 
     # Pause and ask user if they want to continue with ownership transfer
     if [[ "$ENVIRONMENT" == "production" ]]; then
       echo ""
       echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
       echo "This should only be done if the health check shows only diamond ownership errors."
-      echo "Continue with stage 11 (ownership transfer)? (y/n)"
+      echo "Continue with stage 12 (ownership transfer)? (y/n)"
       read -r response
       if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        echo "Proceeding with stage 11..."
+        echo "Proceeding with stage 12..."
       else
-        echo "Skipping stage 11 - ownership transfer cancelled by user"
+        echo "Skipping stage 12 - ownership transfer cancelled by user"
         echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
         return
       fi
     fi
   fi
 
-  # Stage 11: Ownership transfer to timelock (production only)
-  if [[ $START_STAGE -le 11 ]]; then
+  # Stage 12: Ownership transfer to timelock (production only)
+  if [[ $START_STAGE -le 12 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]]; then
-    echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Ownership transfer to timelock (production only)"
+      echo ""
+      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 12: Ownership transfer to timelock (production only)"
 
-      # make sure SAFE_ADDRESS is available (if starting in stage 11 it's not available yet)
+      # make sure SAFE_ADDRESS is available (if starting in stage 12 it's not available yet)
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
         SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
       fi
@@ -372,10 +406,10 @@ deployAllContracts() {
       echo ""
       # ------------------------------------------------------------
     else
-      echo "Stage 10 skipped - ownership transfer to timelock is only for production environment"
+      echo "Stage 12 skipped - ownership transfer to timelock is only for production environment"
     fi
 
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
+    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 12 completed"
   fi
 
 

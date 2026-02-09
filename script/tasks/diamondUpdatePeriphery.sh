@@ -233,12 +233,12 @@ register() {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
           universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
         else
-          # propose registerPeripheryContract transaction to multisig safe
+          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
 
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
@@ -267,12 +267,12 @@ register() {
     else
       # do not print output to console
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
           universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
         else
-          # propose registerPeripheryContract transaction to multisig safe
+          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
           echoDebug "Calldata: $CALLDATA"
 
