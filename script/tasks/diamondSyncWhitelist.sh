@@ -318,7 +318,7 @@ function diamondSyncWhitelist {
         FILE_SUFFIX="staging."
       fi
       local EXPECTED_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
-      
+
       if [[ ! -f "$EXPECTED_FILE" ]]; then
         printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Deployment file not found: $EXPECTED_FILE - skipping whitelist sync"
       else
@@ -608,7 +608,47 @@ function diamondSyncWhitelist {
             return 0
           fi
         else
-          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: getAllContractSelectorPairs failed (exit $CALL_EXIT_CODE) or returned no pairs - diamond must expose getAllContractSelectorPairs(), retrying..."
+          # getAllContractSelectorPairs failed with exit code $call_exit_code
+          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: getAllContractSelectorPairs failed, falling back..."
+        fi
+
+        # Fallback to the original approach if the new function fails
+        echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Attempting fallback to getWhitelistedAddresses()"
+        local addresses=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])" 2>&1)
+        local addresses_exit_code=$?
+
+        if [[ $addresses_exit_code -eq 0 && -n "$addresses" && "$addresses" != "[]" ]]; then
+          # Successfully got addresses from getWhitelistedAddresses
+          local pairs=()
+          local address_list=$(echo "${addresses:1:${#addresses}-2}" | tr ',' ' ')
+
+          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Fallback processing $(echo "$address_list" | wc -w) addresses"
+          local addr_count=0
+          for addr in $address_list; do
+            ((addr_count++))
+            local selectors=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getWhitelistedSelectorsForContract(address) returns (bytes4[])" "$addr" 2>&1)
+            local selectors_exit_code=$?
+
+            if [[ $selectors_exit_code -eq 0 && -n "$selectors" && "$selectors" != "[]" ]]; then
+              local selector_list=$(echo "${selectors:1:${#selectors}-2}" | tr ',' ' ')
+              for selector in $selector_list; do
+                pairs+=("$(echo "$addr" | tr '[:upper:]' '[:lower:]')|$selector")
+              done
+            fi
+          done
+
+          if [[ ${#pairs[@]} -gt 0 ]]; then
+            # Successfully got ${#pairs[@]} pairs using fallback method
+            for pair in "${pairs[@]}"; do
+              echo "$pair"
+            done
+            return 0
+          else
+            :
+          fi
+        else
+          # getWhitelistedAddresses also failed
+          :
         fi
 
         # Attempt $ATTEMPT failed, waiting 3 seconds before retry...
@@ -702,25 +742,25 @@ function diamondSyncWhitelist {
         else
           WHITELIST_FILE_CHECK="config/whitelist.staging.json"
         fi
-        
+
         # Check if this is a Composer contract
         local IS_COMPOSER=false
         local CONTRACT_NAME
         CONTRACT_NAME=$(jq -r --arg network "$NETWORK" --arg address "$CHECKSUMMED" '.PERIPHERY[$network] // [] | .[] | select(.address == $address) | .name' "$WHITELIST_FILE_CHECK" 2>/dev/null)
-        
+
         if [[ "$CONTRACT_NAME" == "Composer" ]]; then
           IS_COMPOSER=true
         fi
-        
+
         # Print warning about address with no code
         printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Address has no code: $CHECKSUMMED"
-        
+
         if [[ "$IS_COMPOSER" == "true" ]]; then
           printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] This is a Composer contract. Please reach out to Leo."
         else
           printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Please reach out to the backend team about this address."
         fi
-        
+
         echoSyncDebug "Skipping address with no code: $CHECKSUMMED"
         continue
       fi
@@ -801,7 +841,7 @@ function diamondSyncWhitelist {
         else
           CURRENT_PAIR_LOWER=$(echo "$CURRENT_PAIR" | tr '[:upper:]' '[:lower:]')
         fi
-        
+
         # Check if this pair is in the required pairs
         FOUND_IN_REQUIRED=false
         for REQUIRED_PAIR_NORM in "${NORMALIZED_REQUIRED_PAIRS[@]}"; do
@@ -810,7 +850,7 @@ function diamondSyncWhitelist {
             break
           fi
         done
-        
+
         # If not found in required pairs, mark for removal
         if [[ "$FOUND_IN_REQUIRED" == "false" ]]; then
           if isTronNetwork "$NETWORK"; then
@@ -870,7 +910,7 @@ function diamondSyncWhitelist {
       echoSyncStage "----- [$NETWORK] Stage 4a: Removing obsolete contract-selector pairs -----"
       printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#REMOVED_PAIRS[@]} pairs to remove"
       echoSyncStep "🔍 [$NETWORK] Preparing removal of ${#REMOVED_PAIRS[@]} pairs"
-      
+
       # Build comma-separated strings directly in cast format
       local REMOVE_CONTRACTS_ARRAY=""
       local REMOVE_SELECTORS_ARRAY=""
@@ -944,7 +984,7 @@ function diamondSyncWhitelist {
       echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
       local REMOVE_ATTEMPTS=1
       local REMOVE_SUCCESS=false
-      
+
       while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
         printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
 
@@ -953,8 +993,14 @@ function diamondSyncWhitelist {
           sleep 3
         fi
 
+        # sendOrPropose: propose vs send is decided by SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only used when proposing (wrap in timelock).
+        local TIMELOCK_FLAG="false"
+        if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+          TIMELOCK_FLAG="true"
+        fi
+
         echoSyncDebug "Send args for removal: $SEND_ARGS"
-        
+
         local REMOVE_OUTPUT
         REMOVE_OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
         local REMOVE_EXIT_CODE=$?
@@ -995,7 +1041,7 @@ function diamondSyncWhitelist {
       fi
       printf '\033[0;36m%s\033[0m\n' "📊 [$NETWORK] Found ${#NEW_PAIRS[@]} new pairs to add (out of ${#REQUIRED_PAIRS[@]} required)"
       echoSyncStep "🔍 [$NETWORK] Entering batch send section with ${#NEW_PAIRS[@]} pairs"
-      
+
       # First, expand all pairs into flat arrays (contract, selector pairs)
       # batchSetContractSelectorWhitelist expects: address[], bytes4[], bool
       local ALL_CONTRACTS=()
@@ -1030,23 +1076,23 @@ function diamondSyncWhitelist {
 
       echoSyncStep ""
       echoSyncStep "🚀 [$NETWORK] Starting batch execution..."
-      
+
       local BATCH_NUM=0
       local BATCH_SUCCESS=true
-      
+
       for ((i=0; i<${#ALL_CONTRACTS[@]}; i+=BATCH_SIZE)); do
         BATCH_NUM=$((BATCH_NUM + 1))
         local BATCH_END=$((i + BATCH_SIZE))
         if [[ $BATCH_END -gt ${#ALL_CONTRACTS[@]} ]]; then
           BATCH_END=${#ALL_CONTRACTS[@]}
         fi
-        
+
         # Build batch arrays
         local BATCH_CONTRACTS_ARRAY=""
         local BATCH_SELECTORS_ARRAY=""
         local BATCH_COUNT=$((BATCH_END - i))
         local FIRST=true
-        
+
         for ((j=i; j<BATCH_END; j++)); do
           if [[ "$FIRST" == "true" ]]; then
             FIRST=false
@@ -1108,7 +1154,7 @@ function diamondSyncWhitelist {
 
         local ATTEMPTS=1
         local BATCH_TX_SUCCESS=false
-        
+
         while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
           # Wait before retries to allow base fee to stabilize (except first attempt)
           if [ $ATTEMPTS -gt 1 ]; then
@@ -1116,8 +1162,14 @@ function diamondSyncWhitelist {
             sleep 3
           fi
 
+          # sendOrPropose: propose vs send from SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only when proposing (wrap in timelock).
+          local TIMELOCK_FLAG="false"
+          if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+            TIMELOCK_FLAG="true"
+          fi
+
           echoSyncDebug "Send args for batch addition: $SEND_ARGS"
-          
+
           local OUTPUT
           OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
           local EXIT_CODE=$?
@@ -1131,7 +1183,7 @@ function diamondSyncWhitelist {
           else
             printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES failed (attempt $ATTEMPTS)"
           fi
-          
+
           ATTEMPTS=$((ATTEMPTS + 1))
         done
 
@@ -1158,9 +1210,9 @@ function diamondSyncWhitelist {
       # All batches succeeded - verify final state
       printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batches completed successfully!"
 
-      # Skip verification for production (proposals) - state won't change until proposal is executed
-      # Only verify for staging (direct execution) where transactions are executed immediately
-      if [[ "$ENVIRONMENT" == "production" ]]; then
+      # Skip verification when we proposed (production, SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true): state changes only after proposal is executed
+      # Run verification when we sent directly (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)
+      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
         printf '\033[0;36m%s\033[0m\n' "ℹ️  [$NETWORK] Skipping verification - proposals require signing and execution before state changes"
         return 0
       fi
@@ -1182,7 +1234,7 @@ function diamondSyncWhitelist {
       # Use file-based grep/comm comparison instead of loops
       local NEW_PAIRS_FILE=$(mktemp)
       local UPDATED_PAIRS_FILE=$(mktemp)
-      
+
       # Write normalized arrays to temp files for fast comparison
       # Normalize and sort NEW pairs (format: "address|selector")
       for PAIR in "${NEW_PAIRS[@]}"; do
@@ -1211,7 +1263,7 @@ function diamondSyncWhitelist {
       # -f: Read patterns from file
       local MISSING_PAIRS_LIST
       MISSING_PAIRS_LIST=$(grep -F -x -v -f "$UPDATED_PAIRS_FILE" "$NEW_PAIRS_FILE")
-      
+
       # Count lines (grep -c might count 0 as 1 empty line sometimes, wc -l is safer with empty output check)
       local MISSING_COUNT=0
       if [[ -n "$MISSING_PAIRS_LIST" ]]; then
@@ -1221,7 +1273,7 @@ function diamondSyncWhitelist {
       # Calculate verified count
       local TOTAL_NEW_COUNT=${#NEW_PAIRS[@]}
       local VERIFIED_COUNT=$((TOTAL_NEW_COUNT - MISSING_COUNT))
-      
+
       # Cleanup temp files
       rm -f "$NEW_PAIRS_FILE" "$UPDATED_PAIRS_FILE"
 

@@ -29,6 +29,10 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
+      "0x2B3CE1Ee07De57C09EC9B8A600C9E4Ffdb5464d0": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.5"
+      },
       "0x59Eb62be779329954e0bac80D5F1B1c35D1f41A5": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
@@ -49,37 +53,13 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x2B3CE1Ee07De57C09EC9B8A600C9E4Ffdb5464d0": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.5"
-      },
-      "0x709a9915c0D0EF8c42a87dc9E1A41b72fAfF81b2": {
+      "0x68669A909B91419191a4C80A96C8aFD391fDD64A": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
-      },
-      "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
-        "Name": "RelayFacet",
-        "Version": "1.0.1"
-      },
-      "0xfEAC5Eb2d620c23578b353B04248cd75734E7405": {
-        "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
       "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
-      },
-      "0xA5f99BA883aeA2edEd4c6541242616D5F68a2bAB": {
-        "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0xFe95e509A5AB8C633831183216b10DBc431F41Fa": {
-        "Name": "DeBridgeDlnFacet",
-        "Version": "1.0.1"
-      },
-      "0x85582Fa7578F719959934EC6844EA5f43BBFE703": {
-        "Name": "GardenFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -87,13 +67,13 @@
       "Executor": "0x5603aF276bDCf73A859928ca3fbDaE7d4909Dd77",
       "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
-      "GasZipPeriphery": "0xa8800ABdD6771dA7aAab2d09a5b97F4B8b19B58a",
+      "GasZipPeriphery": "0x9E4146C44f00e6b74A1e8eeF7a3Df3036A32De6D",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
       "Patcher": "",
-      "Permit2Proxy": "0x700f1874314A4dF3bb9A10f7B5eA187A39d8dE74",
+      "Permit2Proxy": "0x4F6be713467F6122b40Ec881A0bA44fd0fC52989",
       "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "0x8577a60AeACeCbe01b3375c5026Db9EFC88F68F1",
+      "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "",
