@@ -29,7 +29,7 @@ diamondUpdateSgConfig() {
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   # get user-selected network from list
 	NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network...")
-	# get user-selected script from list
+  # get user-selected script from list
 	SCRIPT="UpdateConfigForStargate"
 
   # execute script
@@ -39,22 +39,22 @@ diamondUpdateSgConfig() {
     echo "Trying to execute $SCRIPT now - attempt ${attempts}"
     
     # Execute, parse, and check return code
-    if ! executeAndParse \
+    executeAndParse \
       "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/deploy/facets/$SCRIPT.s.sol -f $NETWORK --json --broadcast --skip-simulation --legacy" \
-      "true" \
-      "forge script failed for $SCRIPT on network $NETWORK" \
-      "continue"; then
-      attempts=$((attempts + 1))
-      sleep 1
-      continue
+      "true"
+
+    # Handle errors using centralized helper function
+    if handleForgeScriptError "forge script failed for $SCRIPT" "attempt $attempts/10" "$NETWORK"; then
+      # If we reach here, execution was successful
+      break
     fi
 
-    # If we reach here, execution was successful
-    break
+    attempts=$((attempts + 1))
+    sleep 1
   done
 
   if [ $attempts -eq 11 ]; then
-    echo "Failed to execute $SCRIPT"
+    error "Failed to execute $SCRIPT on network $NETWORK after 10 attempts"
     exit 1
   fi
 
