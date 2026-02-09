@@ -33,6 +33,21 @@ deployAllContracts() {
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
 
+  # make sure that proposals are sent to diamond directly (for production deployments)
+  # this must run even when starting from later stages
+  if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+    echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
+    echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
+    echo "Would you like to set it to true for this execution? (y/n)"
+    read -r response
+    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
+      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
+    else
+      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
+    fi
+  fi
+
   # Ask user where to start the deployment process
   echo "Which stage would you like to start from?"
   START_FROM=$(
@@ -61,8 +76,7 @@ deployAllContracts() {
       export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
       echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
     else
-      error "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND must be true for production deployments"
-      exit 1
+      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
     fi
   fi
 
@@ -173,14 +187,6 @@ deployAllContracts() {
     # update diamond with core facets
     echo ""
     echo ""
-    # we do deploy this first since in some networks it failed to have several deploy operations in one deploy script
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now adding DiamondLoupeFacet to diamond"
-    if ! diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateDiamondLoupeFacet" false; then
-      error "failed to update DiamondLoupeFacet (UpdateDiamondLoupeFacet) for network $NETWORK - aborting before core facets update"
-      exit 1
-    fi
-    echo ""
-    echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
     diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
 
@@ -272,15 +278,6 @@ deployAllContracts() {
   if [[ $START_STAGE -le 8 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Update whitelist.json and execute sync whitelist script"
-
-    # Update whitelist.json configuration files with periphery contract data
-    # This updates the off-chain whitelist configuration files that will be synced on-chain.
-    # Always update both production and staging to keep them in sync
-    echo ""
-    echo "[info] Updating whitelist periphery and composer entries for both production and staging..."
-    bunx tsx script/tasks/updateWhitelistPeriphery.ts --environment both || checkFailure $? "update whitelist periphery"
-    echo "[info] Whitelist periphery update completed"
-    echo ""
 
     # Sync whitelist data from config files to the diamond contract on-chain
     # This whitelists contracts and their function selectors in the WhitelistManagerFacet
@@ -387,10 +384,10 @@ deployAllContracts() {
   # Stage 12: Ownership transfer to timelock (production only)
   if [[ $START_STAGE -le 12 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]]; then
-    echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 12: Ownership transfer to timelock (production only)"
+      echo ""
+      echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 12: Ownership transfer to timelock (production only)"
 
-      # make sure SAFE_ADDRESS is available (if starting in stage 11 it's not available yet)
+      # make sure SAFE_ADDRESS is available (if starting in stage 12 it's not available yet)
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
         SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
       fi

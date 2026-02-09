@@ -24,7 +24,7 @@ contract DeployScript is DeployScriptBase {
 
         address airlift = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".airlift")
+            string.concat(".airlift.", network)
         );
 
         return abi.encode(airlift);
