@@ -1,3 +1,5 @@
+import { execSync } from 'child_process'
+
 import { consola } from 'consola'
 import {
   concat,
@@ -60,7 +62,7 @@ function normalizePair(pair: string): string {
 
 // Helper function to parse getAllContractSelectorPairs result
 function parseContractSelectorPairs(
-  addresses: Address[],
+  addresses: (Address | string)[],
   selectors: `0x${string}`[][]
 ): string[] {
   const pairs: string[] = []
@@ -95,6 +97,9 @@ async function getConfigPairs(
   const whitelistData = JSON.parse(fs.readFileSync(whitelistFile, 'utf8'))
   const pairs: string[] = []
 
+  // Tron networks use base58 addresses, not hex - skip getAddress() conversion
+  const isTron = networkName === 'tron' || networkName === 'tronshasta'
+
   // Get DEX contracts
   // Matches bash script: .DEXS[] | select(.contracts[$network] != null) | .contracts[$network][] | select(.address != null) | "\(.address)|\(.functions | keys | join(","))"
   if (whitelistData.DEXS) {
@@ -107,7 +112,10 @@ async function getConfigPairs(
             if (addressLower === '0x0000000000000000000000000000000000000000') {
               continue
             }
-            const address = getAddress(contract.address).toLowerCase()
+            // For Tron, use address as-is (base58); for others, normalize with getAddress
+            const address = isTron
+              ? contract.address.toLowerCase()
+              : getAddress(contract.address).toLowerCase()
             if (
               contract.functions &&
               Object.keys(contract.functions).length > 0
@@ -136,7 +144,10 @@ async function getConfigPairs(
         if (addressLower === '0x0000000000000000000000000000000000000000') {
           continue
         }
-        const address = getAddress(periphery.address).toLowerCase()
+        // For Tron, use address as-is (base58); for others, normalize with getAddress
+        const address = isTron
+          ? periphery.address.toLowerCase()
+          : getAddress(periphery.address).toLowerCase()
         if (periphery.selectors && Array.isArray(periphery.selectors)) {
           for (const sel of periphery.selectors) {
             if (sel.selector) {
@@ -300,6 +311,104 @@ async function checkWhitelistManagerFacetRegistered(
   }
 }
 
+// Helper function to parse troncast output format
+// Troncast outputs arrays in format: [[value1 value2] [value3 value4]]
+// This is NOT valid JSON (no quotes, spaces instead of commas)
+// Format: nested arrays with space-separated values, no quotes around strings
+function parseTroncastOutput(output: string): unknown[] {
+  const trimmed = output.trim()
+
+  // Simple recursive parser for the array format
+  // Format: [item1 item2 item3] where items can be arrays or strings
+  function parseArray(str: string, start: number): [unknown[], number] {
+    const result: unknown[] = []
+    let i = start + 1 // Skip opening bracket
+    let current = ''
+
+    while (i < str.length) {
+      const char = str[i]
+
+      if (char === '[') {
+        // Nested array
+        if (current.trim()) {
+          result.push(current.trim())
+          current = ''
+        }
+        const [nested, newPos] = parseArray(str, i)
+        result.push(nested)
+        i = newPos
+      } else if (char === ']') {
+        // End of array
+        if (current.trim()) {
+          result.push(current.trim())
+        }
+        return [result, i + 1]
+      } else if (char === ' ' || char === '\n' || char === '\t') {
+        // Whitespace - end of current item
+        if (current.trim()) {
+          result.push(current.trim())
+          current = ''
+        }
+        i++
+      } else {
+        current += char
+        i++
+      }
+    }
+
+    return [result, i]
+  }
+
+  if (!trimmed.startsWith('[')) {
+    throw new Error('Expected array format')
+  }
+
+  const [parsed] = parseArray(trimmed, 0)
+  return parsed as unknown[]
+}
+
+// Helper function to get getAllContractSelectorPairs from Tron using troncast
+async function getTronContractSelectorPairs(
+  diamondAddress: string,
+  environment: 'production' | 'staging'
+): Promise<[string[], `0x${string}`[][]]> {
+  const tronEnv = environment === 'production' ? 'mainnet' : 'testnet'
+  // Note: troncast doesn't support --json flag, outputs custom format
+  const command = `bun troncast call "${diamondAddress}" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --env ${tronEnv}`
+
+  try {
+    const output = execSync(command, { encoding: 'utf-8', stdio: 'pipe' })
+    const result = parseTroncastOutput(output.trim())
+
+    // Parse the result - troncast returns nested arrays
+    // Tron addresses are base58 strings, not hex - keep them as strings
+    if (Array.isArray(result) && result.length === 2) {
+      const [addressesRaw, selectorsArraysRaw] = result
+
+      // Type assertions - we know the structure from the function signature
+      if (!Array.isArray(addressesRaw) || !Array.isArray(selectorsArraysRaw)) {
+        throw new Error(
+          'Unexpected troncast output format: expected nested arrays'
+        )
+      }
+
+      const addresses = addressesRaw as string[]
+      const selectorsArrays = selectorsArraysRaw as string[][]
+
+      return [
+        addresses.map((addr: string) => addr.toLowerCase()),
+        selectorsArrays.map((arr: string[]) =>
+          arr.map((sel: string) => sel.toLowerCase() as `0x${string}`)
+        ),
+      ]
+    }
+    throw new Error('Unexpected troncast output format')
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    throw new Error(`Troncast call failed: ${errorMessage}`)
+  }
+}
+
 // Helper function to read selectorAllowList mapping directly from raw storage
 async function readV1SelectorsFromMapping(
   publicClient: ReturnType<typeof createPublicClient>,
@@ -369,6 +478,7 @@ async function checkNetworkWhitelistStatus(
 
     // Get deployment addresses
     let diamondAddress: Address | null = null
+    let diamondAddressRaw: string | null = null
 
     try {
       const deployments = await getDeployments(
@@ -377,18 +487,143 @@ async function checkNetworkWhitelistStatus(
           ? EnvironmentEnum.production
           : EnvironmentEnum.staging
       )
-      diamondAddress = deployments.LiFiDiamond
-        ? (getAddress(deployments.LiFiDiamond) as Address)
-        : null
+      diamondAddressRaw = deployments.LiFiDiamond || null
+
+      // Special handling for Tron - addresses are base58, not hex
+      if (networkName === 'tron' || networkName === 'tronshasta') {
+        // For Tron, use raw address (base58 string)
+        diamondAddress = diamondAddressRaw as Address
+      } else {
+        // For other networks, convert to checksummed address
+        diamondAddress = diamondAddressRaw
+          ? (getAddress(diamondAddressRaw) as Address)
+          : null
+      }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       status.errors.push(`Failed to load deployments: ${errorMessage}`)
     }
 
-    if (!diamondAddress) {
+    if (!diamondAddress || !diamondAddressRaw) {
       // Skip networks without deployed diamond - return null to filter out
       return null
+    }
+
+    // Special handling for Tron networks - use troncast
+    if (networkName === 'tron' || networkName === 'tronshasta') {
+      // Get config pairs
+      const configPairs = await getConfigPairs(networkName, environment)
+
+      // Get V2 pairs from diamond using troncast
+      try {
+        console.log(
+          `[${networkName} (${environment})] 🔷 Using troncast to get getAllContractSelectorPairs...`
+        )
+        const [v2Addresses, v2SelectorsArrays] =
+          await getTronContractSelectorPairs(diamondAddressRaw, environment)
+
+        // Compare getAllContractSelectorPairs with config pairs
+        console.log(
+          `[${networkName} (${environment})] ⚖️  Comparing getAllContractSelectorPairs with config pairs...`
+        )
+        const v2Pairs = parseContractSelectorPairs(
+          v2Addresses,
+          v2SelectorsArrays
+        )
+        const normalizedV2Pairs = v2Pairs.map(normalizePair)
+        const normalizedConfigPairs = configPairs.map(normalizePair)
+
+        // Check if V2 pairs match config pairs (same length and same elements)
+        const configMatches =
+          normalizedV2Pairs.length === normalizedConfigPairs.length &&
+          normalizedV2Pairs.every((pair) =>
+            normalizedConfigPairs.includes(pair)
+          ) &&
+          normalizedConfigPairs.every((pair) =>
+            normalizedV2Pairs.includes(pair)
+          )
+        status.configMatches = configMatches
+
+        if (configMatches) {
+          console.log(
+            `[${networkName} (${environment})] ✅ getAllContractSelectorPairs MATCHES config (${normalizedV2Pairs.length} pairs)`
+          )
+        } else {
+          console.log(
+            `[${networkName} (${environment})] ⚠️  getAllContractSelectorPairs DOES NOT MATCH config (V2: ${normalizedV2Pairs.length}, Config: ${normalizedConfigPairs.length})`
+          )
+
+          // Show detailed comparison
+          console.log(
+            `\n[${networkName} (${environment})] 📋 Detailed Comparison:`
+          )
+          console.log(
+            `\n[${networkName} (${environment})] getAllContractSelectorPairs pairs (${normalizedV2Pairs.length}):`
+          )
+
+          // Sort both arrays for consistent display
+          const sortedV2Pairs = [...normalizedV2Pairs].sort()
+          const sortedConfigPairs = [...normalizedConfigPairs].sort()
+          const configPairsSet = new Set(sortedConfigPairs)
+
+          // Show V2 pairs with status
+          for (const pair of sortedV2Pairs) {
+            const inConfig = configPairsSet.has(pair)
+            const status = inConfig ? '✅' : '❌'
+            console.log(`  ${status} ${pair}`)
+          }
+
+          console.log(
+            `\n[${networkName} (${environment})] Config pairs (${normalizedConfigPairs.length}):`
+          )
+
+          // Show config pairs with status
+          const v2PairsSet = new Set(sortedV2Pairs)
+          for (const pair of sortedConfigPairs) {
+            const inV2 = v2PairsSet.has(pair)
+            const status = inV2 ? '✅' : '❌'
+            console.log(`  ${status} ${pair}`)
+          }
+
+          // Summary of mismatches
+          const v2NotInConfig = sortedV2Pairs.filter(
+            (p) => !configPairsSet.has(p)
+          )
+          const configNotInV2 = sortedConfigPairs.filter(
+            (p) => !v2PairsSet.has(p)
+          )
+
+          if (v2NotInConfig.length > 0) {
+            console.log(
+              `\n[${networkName} (${environment})] ❌ V2 pairs NOT in config (${v2NotInConfig.length}):`
+            )
+            for (const pair of v2NotInConfig) {
+              console.log(`  ${pair}`)
+            }
+          }
+
+          if (configNotInV2.length > 0) {
+            console.log(
+              `\n[${networkName} (${environment})] ❌ Config pairs NOT in V2 (${configNotInV2.length}):`
+            )
+            for (const pair of configNotInV2) {
+              console.log(`  ${pair}`)
+            }
+          }
+        }
+        console.log('') // Empty line for readability
+
+        // For Tron, only check Config Matches - set other checks to null
+        status.isFullySynced = status.configMatches === true
+        return status
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        const conciseError = extractConciseError(errorMessage)
+        status.errors.push(`Tron whitelist check: ${conciseError}`)
+        return status
+      }
     }
 
     // Get RPC URL

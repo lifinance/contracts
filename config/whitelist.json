@@ -7524,6 +7524,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x875Bd979B56605aE2c5Ea8CAb53e064F832b6C34",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "metis": [

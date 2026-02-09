@@ -18,6 +18,7 @@ import {
   saveDiamondDeployment,
   getContractVersion,
   getEnvironment,
+  getTronRPCConfig,
   checkExistingDeployment,
   deployContractWithLogging,
   confirmDeployment,
@@ -25,6 +26,7 @@ import {
   validateBalance,
   displayNetworkInfo,
   updateDiamondJsonBatch,
+  waitBetweenDeployments,
 } from './utils.js'
 
 /**
@@ -94,6 +96,7 @@ async function getConstructorArgs(
 async function deployCoreFacetsImpl(options: {
   dryRun: boolean
   verbose: boolean
+  delaySeconds: number
 }) {
   consola.start('TRON Core Facets Deployment')
 
@@ -118,7 +121,12 @@ async function deployCoreFacetsImpl(options: {
   }
 
   const network = networkName as SupportedChain // Use network name, not RPC URL
-  const rpcUrl = tronConfig.rpcUrl // Keep RPC URL for TronWeb initialization
+
+  // Get RPC URL and API key configuration (automatically handles TronGrid API key)
+  const { rpcUrl, headers } = getTronRPCConfig(networkName, options.verbose)
+  const apiKey = headers?.['TRON-PRO-API-KEY']
+
+  consola.info(`RPC URL: ${rpcUrl}`)
 
   // Get the correct private key based on environment
   let privateKey: string
@@ -146,6 +154,7 @@ async function deployCoreFacetsImpl(options: {
     safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
+    headers,
   }
 
   const deployer = new TronContractDeployer(config)
@@ -154,12 +163,16 @@ async function deployCoreFacetsImpl(options: {
   const networkInfo = await deployer.getNetworkInfo()
   displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-  // Initialize TronWeb for balance validation
+  // Initialize TronWeb for balance validation with API key header if provided
   const { TronWeb } = await import('tronweb')
-  const tronWeb = new TronWeb({
+  const tronWebConfig: any = {
     fullHost: rpcUrl,
     privateKey,
-  })
+  }
+  if (apiKey) {
+    tronWebConfig.headers = { 'TRON-PRO-API-KEY': apiKey }
+  }
+  const tronWeb = new TronWeb(tronWebConfig)
 
   // Validate balance
   await validateBalance(tronWeb, MIN_BALANCE_WARNING)
@@ -254,6 +267,9 @@ async function deployCoreFacetsImpl(options: {
 
       deploymentResults.push(result)
 
+      // Add delay between deployments to avoid rate limiting
+      await waitBetweenDeployments(options.delaySeconds, options.verbose)
+
       if (result.status === 'success' && result.address)
         facetAddresses[facet] = {
           address: result.address,
@@ -272,6 +288,9 @@ async function deployCoreFacetsImpl(options: {
         cost: 0,
         status: 'failed',
       })
+
+      // Add delay even after failures to avoid rate limiting
+      await waitBetweenDeployments(options.delaySeconds, options.verbose)
     }
   }
 
@@ -393,6 +412,11 @@ const deployCommand = defineCommand({
       description: 'Enable verbose logging',
       default: true,
     },
+    delaySeconds: {
+      type: 'string',
+      description: 'Number of seconds to wait between deployments (default: 5)',
+      default: '5',
+    },
   },
   async run({ args }) {
     try {
@@ -412,9 +436,28 @@ const deployCommand = defineCommand({
         // Use default value
       }
 
+      // Parse delaySeconds from string to number
+      let delaySeconds = 5 // default
+      try {
+        // First try command line argument
+        if (args.delaySeconds) {
+          const parsed = parseInt(args.delaySeconds, 10)
+          if (!isNaN(parsed) && parsed >= 0) {
+            delaySeconds = parsed
+          } else {
+            consola.warn(
+              `Invalid delaySeconds value: ${args.delaySeconds}, using default: 5`
+            )
+          }
+        }
+      } catch {
+        // Use default value
+      }
+
       await deployCoreFacetsImpl({
         dryRun,
         verbose,
+        delaySeconds,
       })
     } catch (error: unknown) {
       const errorMessage =
