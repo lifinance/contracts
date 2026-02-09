@@ -12,6 +12,8 @@ import {
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { getRPCEnvVarName } from '../../utils/network'
+import { sleep } from '../../utils/delay'
+import { RETRY_DELAY } from '../../utils/delayConstants'
 
 import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
@@ -34,7 +36,7 @@ export { DEFAULT_SAFETY_MARGIN } from './constants'
  * Default retry configuration for rate limit errors
  */
 const DEFAULT_MAX_RETRIES = 3
-const DEFAULT_RETRY_DELAYS = [1000, 2000, 3000] // 1s, 2s, 3s delays
+const DEFAULT_RETRY_DELAY = RETRY_DELAY
 
 /**
  * Check if an error is a rate limit or connection error
@@ -63,7 +65,7 @@ function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
  * Generic retry function with rate limit handling
  * @param operation - Async function to retry
  * @param maxRetries - Maximum number of retries (default: 3)
- * @param retryDelays - Array of delays for each retry attempt in ms (default: [1000, 2000, 3000])
+ * @param retryDelay - Delay in ms for all retry attempts (default: 2000). Can be a number or array for backward compatibility
  * @param onRetry - Optional callback called before each retry
  * @param includeConnectionErrors - Whether to include connection errors in rate limit detection (default: true)
  * @returns Result of the operation
@@ -72,10 +74,15 @@ function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
 export async function retryWithRateLimit<T>(
   operation: () => Promise<T>,
   maxRetries = DEFAULT_MAX_RETRIES,
-  retryDelays = DEFAULT_RETRY_DELAYS,
+  retryDelay: number | number[] = DEFAULT_RETRY_DELAY,
   onRetry?: (attempt: number, delay: number) => void,
   includeConnectionErrors = true
 ): Promise<T> {
+  // Normalize retryDelay: if it's a number, use it for all retries
+  const retryDelays: number[] = Array.isArray(retryDelay)
+    ? retryDelay
+    : Array(maxRetries).fill(retryDelay)
+
   for (let retry = 0; retry <= maxRetries; retry++) {
     try {
       // Add delay before retry (not before first attempt)
@@ -83,11 +90,11 @@ export async function retryWithRateLimit<T>(
         const delay: number =
           retryDelays[retry - 1] ??
           retryDelays[retryDelays.length - 1] ??
-          0
+          DEFAULT_RETRY_DELAY
         if (onRetry) {
           onRetry(retry, delay)
         }
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await sleep(delay)
       }
 
       return await operation()
@@ -180,7 +187,7 @@ export async function checkIsDeployedTron(
     const contractInfo = await retryWithRateLimit(
       () => tronWeb.trx.getContract(tronAddress),
       DEFAULT_MAX_RETRIES,
-      DEFAULT_RETRY_DELAYS
+      DEFAULT_RETRY_DELAY
     )
     return contractInfo && contractInfo.contract_address ? true : false
   } catch {
@@ -960,7 +967,7 @@ export async function waitBetweenDeployments(
 
       if (i < numCalls - 1) {
         // Wait between calls (except for the last one)
-        await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+        await sleep(delayPerCall)
       }
     } catch (error) {
       // If RPC call fails, fall back to simple timeout
@@ -969,7 +976,7 @@ export async function waitBetweenDeployments(
           `RPC call failed during wait, using timeout fallback: ${error}`
         )
       }
-      await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+      await sleep(delayPerCall)
     }
   }
 }

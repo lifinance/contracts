@@ -31,15 +31,28 @@ import {
   networks,
   type Network,
 } from '../utils/viemScriptHelpers'
+import { sleep } from '../utils/delay'
+import {
+  INITIAL_CALL_DELAY,
+  INTER_CALL_DELAY,
+  RETRY_DELAY,
+} from '../utils/delayConstants'
 
 import targetState from './_targetState.json'
+import {
+  callTronContract,
+  callTronContractBoolean,
+  ensureTronAddress,
+  getTronWallet,
+  normalizeSelector,
+  parseTronAddressOutput,
+  parseTroncastNestedArray,
+} from './healthCheckTronUtils'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
-  hexToTronAddress,
   parseTroncastFacetsOutput,
-  retryWithRateLimit,
 } from './tron/utils'
 
 /**
@@ -48,7 +61,7 @@ import {
  * @param commandParts - Array of command parts (e.g., ['bun', 'troncast', 'call', ...])
  * @param initialDelay - Initial delay before first attempt (ms)
  * @param maxRetries - Maximum number of retries
- * @param retryDelays - Array of delays for each retry attempt (ms)
+ * @param retryDelay - Delay in ms for all retry attempts (default: RETRY_DELAY)
  * @returns The command output string
  * @throws The last error if all retries fail
  */
@@ -56,11 +69,11 @@ export async function execWithRateLimitRetry(
   commandParts: string[],
   initialDelay = 0,
   maxRetries = 3,
-  retryDelays = [1000, 2000, 3000]
+  retryDelay = RETRY_DELAY
 ): Promise<string> {
   // Initial delay before first attempt
   if (initialDelay > 0) {
-    await new Promise((resolve) => setTimeout(resolve, initialDelay))
+    await sleep(initialDelay)
   }
 
   return retryWithRateLimit(
@@ -100,7 +113,7 @@ export async function execWithRateLimitRetry(
       })
     },
     maxRetries,
-    retryDelays,
+    retryDelay,
     (attempt, delay) => {
       consola.warn(
         `Rate limit detected (429). Retrying in ${
@@ -121,79 +134,6 @@ export async function execWithRateLimitRetry(
  * @param rpcUrl - Tron RPC URL
  * @returns Parsed result
  */
-async function callTronContract(
-  contractAddress: string,
-  functionSignature: string,
-  params: string[],
-  returnType: string,
-  rpcUrl: string
-): Promise<string> {
-  // Build troncast command arguments
-  // Use spawn-style arguments to avoid shell interpretation issues with commas
-  const args = [
-    'run',
-    'script/troncast/index.ts',
-    'call',
-    contractAddress,
-    `${functionSignature} returns (${returnType})`,
-    ...(params.length > 0 ? [params.join(',')] : []),
-    '--rpc-url',
-    rpcUrl,
-  ]
-
-  // Add initial delay for Tron to avoid rate limits
-  await new Promise((resolve) => setTimeout(resolve, 2000))
-
-  // Execute with retry logic for rate limits using spawn to avoid shell issues
-  const result = await retryWithRateLimit(
-    () => {
-      return new Promise<string>((resolve, reject) => {
-        const child = spawn('bun', args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
-        })
-
-        let stdout = ''
-        let stderr = ''
-
-        child.stdout.on('data', (data) => {
-          stdout += data.toString()
-        })
-
-        child.stderr.on('data', (data) => {
-          stderr += data.toString()
-        })
-
-        child.on('close', (code) => {
-          if (code !== 0) {
-            const error = new Error(
-              `Command failed with exit code ${code}: ${stderr || stdout}`
-            )
-            ;(error as any).message = stderr || stdout || `Exit code ${code}`
-            reject(error)
-          } else {
-            resolve(stdout)
-          }
-        })
-
-        child.on('error', (error) => {
-          reject(error)
-        })
-      })
-    },
-    3,
-    [1000, 2000, 3000],
-    (attempt, delay) => {
-      consola.warn(
-        `Rate limit detected (429). Retrying in ${
-          delay / 1000
-        }s... (attempt ${attempt}/3)`
-      )
-    },
-    false
-  )
-
-  return result.trim()
-}
 
 
 
@@ -345,7 +285,7 @@ const main = defineCommand({
       let isDeployed: boolean
       if (isTron && tronWeb) {
         // Add small delay between Tron RPC calls to avoid rate limits
-        await delayTron() // 500ms delay
+        await sleep(INTER_CALL_DELAY) // Delay between calls to avoid rate limits
         isDeployed = await checkIsDeployedTron(
           facet,
           deployedContracts,
@@ -375,7 +315,7 @@ const main = defineCommand({
         let isDeployed: boolean
         if (isTron && tronWeb) {
           // Add small delay between Tron RPC calls to avoid rate limits
-          await delayTron() // 500ms delay
+          await sleep(INTER_CALL_DELAY) // Delay between calls to avoid rate limits
           isDeployed = await checkIsDeployedTron(
             facet,
             deployedContracts,
@@ -418,16 +358,16 @@ const main = defineCommand({
           [
             'bun',
             'run',
-            'script/troncast/index.ts',
+            'troncast',
             'call',
             diamondAddress,
             'facets() returns ((address,bytes4[])[])',
             '--rpc-url',
             rpcUrl,
           ],
-          2000, // 2 second initial delay for Tron
+          INITIAL_CALL_DELAY, // Initial delay before Tron calls to avoid rate limits
           3,
-          [1000, 2000, 3000]
+          RETRY_DELAY
         )
 
         // Parse Tron output format
@@ -462,7 +402,7 @@ const main = defineCommand({
           ],
           0, // No initial delay for EVM (can be adjusted if needed)
           3,
-          [1000, 2000, 3000]
+          RETRY_DELAY
         )
 
         const jsonCompatibleString = rawString
@@ -532,7 +472,7 @@ const main = defineCommand({
         let isDeployed: boolean
         if (isTron && tronWeb) {
           // Add small delay between Tron RPC calls to avoid rate limits
-          await delayTron() // 500ms delay
+          await sleep(INTER_CALL_DELAY) // Delay between calls to avoid rate limits
           isDeployed = await checkIsDeployedTron(
             contract,
             deployedContracts,
@@ -573,7 +513,7 @@ const main = defineCommand({
           const erc20ProxyAddress = deployedContracts['ERC20Proxy']
           const executorAddress = deployedContracts['Executor']
 
-          await delayTron()
+          await sleep(INTER_CALL_DELAY)
           const isAuthorizedOutput = await callTronContract(
             erc20ProxyAddress,
             'authorizedCallers(address)',
@@ -658,7 +598,7 @@ const main = defineCommand({
 
             try {
               // Add delay to avoid rate limits
-              await delayTron()
+              await sleep(INTER_CALL_DELAY)
 
               // Call getPeripheryContract using troncast
               const registeredAddressOutput = await callTronContract(
@@ -1005,7 +945,7 @@ const main = defineCommand({
 
       for (const selector of refundSelectors) {
         try {
-          await delayTron()
+          await sleep(INTER_CALL_DELAY)
           const normalizedSelector = normalizeSelector(selector.selector)
 
           const canExecute = await callTronContractBoolean(
@@ -1135,96 +1075,6 @@ const getOwnableContract = (address: Address, client: PublicClient) => {
   })
 }
 
-/**
- * Get Tron wallet address from globalConfig, falling back to EVM format if Tron version doesn't exist
- */
-const getTronWallet = (
-  globalConfig: any,
-  walletName: string
-): string => {
-  const tronKey = `${walletName}Tron`
-  return (globalConfig as any)[tronKey] || globalConfig[walletName]
-}
-
-/**
- * Convert address to Tron format if it's in EVM format (0x...)
- */
-const ensureTronAddress = (
-  address: string,
-  tronWeb: TronWeb
-): string => {
-  if (address.startsWith('0x')) {
-    return hexToTronAddress(address, tronWeb)
-  }
-  return address
-}
-
-/**
- * Parse address result from callTronContract output
- */
-const parseTronAddressOutput = (output: string): string => {
-  return output.trim().replace(/^["']|["']$/g, '')
-}
-
-/**
- * Delay helper for Tron rate limit avoidance
- */
-const delayTron = (ms = 500): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-/**
- * Normalize selector to Hex format (ensure 0x prefix)
- */
-const normalizeSelector = (selector: string): Hex => {
-  return selector.startsWith('0x') ? (selector as Hex) : (`0x${selector}` as Hex)
-}
-
-/**
- * Call Tron contract function using TronWeb and decode boolean result
- */
-const callTronContractBoolean = async (
-  tronWeb: TronWeb,
-  contractAddress: string,
-  functionSignature: string,
-  params: Array<{ type: string; value: string }>,
-  abiFunction: string
-): Promise<boolean> => {
-  const result = await retryWithRateLimit(
-    () =>
-      tronWeb.transactionBuilder.triggerConstantContract(
-        contractAddress,
-        functionSignature,
-        {},
-        params,
-        tronWeb.defaultAddress?.base58 || tronWeb.defaultAddress?.hex || ''
-      ),
-    3,
-    [1000, 2000, 3000]
-  )
-
-  // Check if call was successful
-  if (!result?.result?.result) {
-    const errorMsg = result?.constant_result?.[0]
-      ? tronWeb.toUtf8(result.constant_result[0])
-      : 'Unknown error'
-    throw new Error(`Call failed: ${errorMsg}`)
-  }
-
-  // Decode boolean result using viem's decodeFunctionResult
-  const constantResult = result.constant_result?.[0]
-  if (!constantResult) {
-    throw new Error('No result returned from contract call')
-  }
-
-  const decodedResult = decodeFunctionResult({
-    abi: parseAbi([abiFunction]),
-    functionName: functionSignature.split('(')[0],
-    data: `0x${constantResult}`,
-  })
-
-  return decodedResult === true
-}
 
 const checkOwnership = async (
   name: string,
@@ -1260,7 +1110,7 @@ const checkOwnershipTron = async (
 ) => {
   if (deployedContracts[name]) {
     try {
-      await delayTron()
+              await sleep(INTER_CALL_DELAY)
       const contractAddress = deployedContracts[name]
       const ownerOutput = await callTronContract(
         contractAddress,
@@ -1378,40 +1228,6 @@ const getExpectedPairs = async (
   }
 }
 
-/**
- * Parse a string representation of a nested array (e.g. troncast output) into [array, endIndex].
- * Used when JSON.parse fails on getAllContractSelectorPairs-style output.
- */
-function parseArray(str: string, start: number): [unknown[], number] {
-  const result: unknown[] = []
-  let i = start + 1
-  let current = ''
-  while (i < str.length) {
-    const char = str[i]
-    if (char === '[') {
-      if (current.trim()) {
-        result.push(current.trim())
-        current = ''
-      }
-      const [nested, newPos] = parseArray(str, i)
-      result.push(nested)
-      i = newPos
-    } else if (char === ']') {
-      if (current.trim()) result.push(current.trim())
-      return [result, i + 1]
-    } else if (char === ' ' || char === '\n' || char === '\t') {
-      if (current.trim()) {
-        result.push(current.trim())
-        current = ''
-      }
-      i++
-    } else {
-      current += char
-      i++
-    }
-  }
-  return [result, i]
-}
 
 /**
  * Check whitelist integrity for Tron network using troncast and TronWeb
@@ -1475,7 +1291,7 @@ const checkWhitelistIntegrityTron = async (
       if (!trimmed.startsWith('[')) {
         throw new Error('Expected array format')
       }
-      const [parsedArray] = parseArray(trimmed, 0)
+      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
       parsed = parsedArray as unknown[]
     }
 
@@ -1516,7 +1332,7 @@ const checkWhitelistIntegrityTron = async (
     for (const expectedPair of expectedPairs) {
       try {
         // Add delay to avoid rate limits
-        await delayTron()
+              await sleep(INTER_CALL_DELAY)
 
         // Use TronWeb directly instead of troncast to avoid parameter parsing issues
         // expectedPair.contract is already in original base58 format (not lowercase) for Tron
