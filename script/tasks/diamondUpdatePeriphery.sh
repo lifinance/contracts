@@ -208,7 +208,7 @@ register() {
       # Multiply by multiplier (130 = 1.3x, 200 = 2x, etc.)
       echo $((ESTIMATED_GAS * GAS_ESTIMATE_MULTIPLIER / 100))
     else
-      # If estimation fails, return empty (cast send will estimate automatically)
+      # If estimation fails, return empty (universalCast send will estimate automatically)
       echo ""
     fi
   }
@@ -221,7 +221,7 @@ register() {
       GAS_LIMIT_ARGS=("--gas-limit" "$GAS_LIMIT")
       echoDebug "Using gas limit: $GAS_LIMIT (estimated gas * $GAS_ESTIMATE_MULTIPLIER / 100)"
     else
-      echoDebug "Gas estimation failed or returned invalid value, cast send will estimate automatically"
+      echoDebug "Gas estimation failed or returned invalid value, universalCast send will estimate automatically"
     fi
 
     # try to execute call
@@ -233,12 +233,12 @@ register() {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}"
+          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
         else
-          # propose registerPeripheryContract transaction to multisig safe
+          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
 
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
@@ -260,19 +260,19 @@ register() {
         fi
       else
         # just register the diamond (no multisig required)
-        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}"
+        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
       fi
 
       #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url $RPC_URL" --legacy
     else
       # do not print output to console
       if [[ "$ENVIRONMENT" == "production" ]]; then
-        # set SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to true when deploying a new network so that transactions are not proposed to SAFE (since deployer is still the diamond contract owner during deployment)
+        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}"
+          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
         else
-          # propose registerPeripheryContract transaction to multisig safe
+          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
           echoDebug "Calldata: $CALLDATA"
 
@@ -297,7 +297,7 @@ register() {
         fi
       else
         # just register the diamond (no multisig required)
-        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy "${GAS_LIMIT_ARGS[@]}" >/dev/null 2>&1
+        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR" >/dev/null 2>&1
       fi
     fi
 

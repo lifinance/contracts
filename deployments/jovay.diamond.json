@@ -1,0 +1,83 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x94a7dDFEB0CD13026F732703cF5596fd44A2a385": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x816F9a54E0A352dDc2043Fed40a6361497f190f7": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0xA04F2594949d50bCca175a2E40c4B9363FB3143A": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xABde3E5cDDc3267B033E7DeFd27cD19424c24DC6": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
+      },
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x759D3cdfFD753F6e057e09CA23FF3a4D07A31469": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.2"
+      },
+      "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0x2B3CE1Ee07De57C09EC9B8A600C9E4Ffdb5464d0": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.5"
+      },
+      "0x59Eb62be779329954e0bac80D5F1B1c35D1f41A5": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x17A1a3a8f4D77F330a53D852497d65ddcf065898": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.2"
+      },
+      "0x2fdF34490a969F1D040b937ce551325F679ef6b8": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x8Cb5CE8B0E9677c35a5178ED71a927d8B6848C0a": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0xC6C962950De5828B81De268224086912CC3dfAFD": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x68669A909B91419191a4C80A96C8aFD391fDD64A": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.0.0"
+      },
+      "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0x6779c514999667B371d70844BAe96Cf782A3c54f",
+      "Executor": "0x5603aF276bDCf73A859928ca3fbDaE7d4909Dd77",
+      "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
+      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+      "GasZipPeriphery": "0x9E4146C44f00e6b74A1e8eeF7a3Df3036A32De6D",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
+      "Patcher": "",
+      "Permit2Proxy": "0x4F6be713467F6122b40Ec881A0bA44fd0fC52989",
+      "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
+      "ReceiverChainflip": "",
+      "ReceiverOIF": "",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
+    }
+  }
+}

@@ -6,34 +6,20 @@
  * and provides options to sign and/or execute them.
  */
 
-import * as fs from 'fs'
-import * as path from 'path'
-
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import {
-  decodeFunctionData,
-  getAddress,
-  keccak256,
-  parseAbi,
-  stringToHex,
-  type Abi,
-  type Account,
-  type Address,
-  type Hex,
-} from 'viem'
+import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
-import { EnvironmentEnum, type SupportedChain } from '../../common/types'
-import { getDeployments } from '../../utils/deploymentHelpers'
-import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
-  decodeDiamondCut,
-  decodeTransactionData,
+  formatDecodedTxDataForDisplay,
+  getTargetName,
+} from './safe-decode-utils'
+import {
   getNetworksWithActionableTransactions,
   getNetworksWithPendingTransactions,
   getPendingTransactionsByNetwork,
@@ -58,322 +44,6 @@ dotenv.config()
 
 const storedResponses: Record<string, string> = {}
 
-interface IWhitelistContractSelectorMeta {
-  contractLabel?: string
-  signature?: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-let whitelistCache: unknown | undefined
-function getWhitelistJson(): unknown {
-  if (whitelistCache) return whitelistCache
-
-  // Read from repo root so script works regardless of TS JSON settings
-  const whitelistPath = path.join(process.cwd(), 'config', 'whitelist.json')
-  const raw = fs.readFileSync(whitelistPath, 'utf8')
-  whitelistCache = JSON.parse(raw)
-  return whitelistCache
-}
-
-function safeNormalizeAddress(address: string): string {
-  try {
-    return getAddress(address as Address).toLowerCase()
-  } catch {
-    return address.toLowerCase()
-  }
-}
-
-function computeSelectorFromSignature(signature: string): string {
-  const hash = keccak256(stringToHex(signature))
-  return `0x${hash.slice(2, 10)}`
-}
-
-function lookupWhitelistMetaForContractSelector(
-  network: string,
-  contractAddress: string,
-  selector: string
-): IWhitelistContractSelectorMeta {
-  const whitelist = getWhitelistJson()
-  if (!isRecord(whitelist)) return {}
-
-  const networkKey = network.toLowerCase()
-  const addr = safeNormalizeAddress(contractAddress)
-  const sel = selector.toLowerCase()
-
-  // 1) PERIPHERY has explicit name + selectors[] entries.
-  const peripheryRoot = whitelist['PERIPHERY']
-  if (isRecord(peripheryRoot)) {
-    const peripheryNetwork = peripheryRoot[networkKey]
-    if (Array.isArray(peripheryNetwork)) {
-      const entry = peripheryNetwork.find((e) => {
-        if (!isRecord(e)) return false
-        const address = typeof e.address === 'string' ? e.address : ''
-        return safeNormalizeAddress(address) === addr
-      })
-
-      if (isRecord(entry)) {
-        const entryName =
-          typeof entry.name === 'string' ? entry.name : undefined
-        const selectorsArr = entry.selectors
-
-        let signature: string | undefined
-        if (Array.isArray(selectorsArr)) {
-          const selectorEntry = selectorsArr.find((s) => {
-            if (!isRecord(s)) return false
-            const sSel = typeof s.selector === 'string' ? s.selector : ''
-            return sSel.toLowerCase() === sel
-          })
-          if (isRecord(selectorEntry)) {
-            const sig = selectorEntry.signature
-            if (typeof sig === 'string') signature = sig
-          }
-        }
-
-        return {
-          contractLabel: entryName ? `PERIPHERY/${entryName}` : 'PERIPHERY',
-          signature: signature ? String(signature) : undefined,
-        }
-      }
-    }
-  }
-
-  // 2) Generic: any top-level array section with items that have `.contracts[networkKey]`
-  //    mapping to [{ address, functions: { [selector]: signature } }].
-  for (const [sectionKey, sectionVal] of Object.entries(whitelist)) {
-    if (!Array.isArray(sectionVal)) continue
-
-    for (const item of sectionVal) {
-      if (!isRecord(item)) continue
-
-      const contracts = item.contracts
-      if (!isRecord(contracts)) continue
-
-      const contractsByNetwork = contracts[networkKey]
-      if (!Array.isArray(contractsByNetwork)) continue
-
-      const contractEntry = contractsByNetwork.find((c) => {
-        if (!isRecord(c)) return false
-        const address = typeof c.address === 'string' ? c.address : ''
-        return safeNormalizeAddress(address) === addr
-      })
-      if (!isRecord(contractEntry)) continue
-
-      let signature: string | undefined
-      const functions = contractEntry.functions
-      if (isRecord(functions)) {
-        const sig = functions[sel]
-        if (typeof sig === 'string') signature = sig
-      }
-
-      const itemName = typeof item.name === 'string' ? item.name : undefined
-      return {
-        contractLabel: itemName ? `${sectionKey}/${itemName}` : sectionKey,
-        signature: signature ? String(signature) : undefined,
-      }
-    }
-  }
-
-  return {}
-}
-
-/**
- * Gets the name of a target address by matching it against known contracts
- * @param address - The address to look up
- * @param network - The network name
- * @returns The contract name or empty string if not found
- */
-async function getTargetName(
-  address: Address,
-  network: string
-): Promise<string> {
-  try {
-    const normalizedAddress = getAddress(address).toLowerCase()
-    const networkKey = network.toLowerCase() as SupportedChain
-
-    // Check safe address from networks.json
-    const networkConfig = networksData[networkKey as keyof typeof networksData]
-    if (networkConfig?.safeAddress) {
-      const safeAddress = getAddress(networkConfig.safeAddress).toLowerCase()
-      if (safeAddress === normalizedAddress) return '(Multisig Safe)'
-    }
-
-    // Check deployment addresses (diamond and timelock)
-    try {
-      const deployments = await getDeployments(
-        networkKey,
-        EnvironmentEnum.production
-      )
-
-      // Check diamond address
-      if (deployments.LiFiDiamond) {
-        const diamondAddress = getAddress(
-          deployments.LiFiDiamond as Address
-        ).toLowerCase()
-        if (diamondAddress === normalizedAddress) return '(LiFiDiamond)'
-      }
-
-      // Check timelock address
-      if (deployments.LiFiTimelockController) {
-        const timelockAddress = getAddress(
-          deployments.LiFiTimelockController as Address
-        ).toLowerCase()
-        if (timelockAddress === normalizedAddress)
-          return '(LiFiTimelockController)'
-      }
-    } catch (error) {
-      // Deployment file might not exist for this network, continue silently
-    }
-  } catch (error) {
-    // If address normalization fails, return empty string
-  }
-
-  return ''
-}
-
-type PeripheryDeploymentCheckResult =
-  | {
-      ok: true
-      peripheryName: string
-      providedAddress: Address
-      expectedAddress: Address
-    }
-  | {
-      ok: false
-      peripheryName: string
-      providedAddress: Address
-      expectedAddress?: Address
-      reason: string
-    }
-
-async function checkPeripheryAddressMatchesDeployments(
-  network: string,
-  peripheryName: string,
-  peripheryAddress: string
-): Promise<PeripheryDeploymentCheckResult> {
-  let providedAddress: Address
-  try {
-    providedAddress = getAddress(peripheryAddress as Address)
-  } catch {
-    return {
-      ok: false,
-      peripheryName,
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-      providedAddress: peripheryAddress as Address,
-      reason: `Invalid periphery address provided for '${peripheryName}': ${String(
-        peripheryAddress
-      )}`,
-    }
-  }
-  const networkKey = network.toLowerCase() as SupportedChain
-
-  let deploymentsUnknown: unknown
-  try {
-    deploymentsUnknown = await getDeployments(
-      networkKey,
-      EnvironmentEnum.production
-    )
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return {
-      ok: false,
-      peripheryName,
-      providedAddress,
-      reason: `Could not load production deployments for '${networkKey}': ${msg}`,
-    }
-  }
-
-  // Be resilient to either JSON import shape:
-  // - direct object (tsx/tsconfig resolveJsonModule)
-  // - module with .default (Node JSON modules)
-  const deployments =
-    isRecord(deploymentsUnknown) && isRecord(deploymentsUnknown.default)
-      ? deploymentsUnknown.default
-      : deploymentsUnknown
-
-  if (!isRecord(deployments))
-    return {
-      ok: false,
-      peripheryName,
-      providedAddress,
-      reason: `Invalid deployments file format for '${networkKey}'`,
-    }
-
-  const expectedRaw = deployments[peripheryName]
-  if (typeof expectedRaw !== 'string' || !expectedRaw)
-    return {
-      ok: false,
-      peripheryName,
-      providedAddress,
-      reason: `No deployment entry found for '${peripheryName}' in 'deployments/${networkKey}.json'`,
-    }
-
-  let expectedAddress: Address
-  try {
-    expectedAddress = getAddress(expectedRaw as Address)
-  } catch {
-    return {
-      ok: false,
-      peripheryName,
-      providedAddress,
-      reason: `Invalid address for '${peripheryName}' in 'deployments/${networkKey}.json': ${String(
-        expectedRaw
-      )}`,
-    }
-  }
-
-  if (expectedAddress.toLowerCase() !== providedAddress.toLowerCase())
-    return {
-      ok: false,
-      peripheryName,
-      providedAddress,
-      expectedAddress,
-      reason: `Address mismatch for '${peripheryName}' on '${networkKey}': provided ${providedAddress}, expected ${expectedAddress}`,
-    }
-
-  return {
-    ok: true,
-    peripheryName,
-    providedAddress,
-    expectedAddress,
-  }
-}
-
-type PeripheryRegistrationSafetyCheckResult =
-  | {
-      ok: true
-      peripheryArg1Suffix: string
-    }
-  | {
-      ok: false
-      reason: string
-    }
-
-async function safetyCheckPeripheryRegistrationArgs(
-  network: string,
-  peripheryName: string,
-  peripheryAddress: string
-): Promise<PeripheryRegistrationSafetyCheckResult> {
-  const check = await checkPeripheryAddressMatchesDeployments(
-    network,
-    peripheryName,
-    peripheryAddress
-  )
-
-  if (check.ok)
-    return {
-      ok: true,
-      peripheryArg1Suffix: ` \u001b[32m( ✅ Periphery address matches deployments log ${network.toLowerCase()}.json)\u001b[0m`,
-    }
-
-  consola.error(
-    `❌ SAFETY CHECK FAILED: ${check.reason}\nRefusing to sign/execute this transaction.`
-  )
-  return { ok: false, reason: check.reason }
-}
-
 // Global arrays to record execution failures and timeouts
 const globalFailedExecutions: Array<{
   chain: string
@@ -389,301 +59,6 @@ const globalTimeoutExecutions: Array<{
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
   return this.toString()
-}
-
-/**
- * Decodes nested timelock schedule calls that may contain diamondCut
- * @param decoded - The decoded schedule function data
- * @param chainId - Chain ID for ABI fetching
- * @param network - Network name for address lookup
- */
-async function decodeNestedTimelockCall(
-  decoded: { functionName?: string; args?: unknown[] },
-  chainId: number,
-  network: string
-): Promise<string | undefined> {
-  if (decoded.functionName === 'schedule') {
-    consola.info('Timelock Schedule Details:')
-    consola.info('-'.repeat(80))
-
-    if (
-      !decoded.args ||
-      !Array.isArray(decoded.args) ||
-      decoded.args.length < 6
-    ) {
-      consola.warn('Invalid decoded args for timelock schedule')
-      return undefined
-    }
-
-    const [target, value, data, predecessor, salt, delay] = decoded.args
-
-    // Get target name for display (network is available from chain context)
-    const targetName = await getTargetName(target as Address, network)
-    const targetDisplay = targetName
-      ? `${target} \u001b[33m${targetName}\u001b[0m`
-      : target
-
-    consola.info(`Target:      \u001b[32m${targetDisplay}\u001b[0m`)
-    consola.info(`Value:       \u001b[32m${value}\u001b[0m`)
-    consola.info(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
-    consola.info(`Salt:        \u001b[32m${salt}\u001b[0m`)
-    consola.info(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
-    consola.info('-'.repeat(80))
-
-    // Try to decode the nested data
-    if (data && data !== '0x')
-      try {
-        const nestedDecoded = await decodeTransactionData(data as Hex)
-        if (nestedDecoded.functionName) {
-          consola.info(
-            `Nested Function: \u001b[34m${nestedDecoded.functionName}\u001b[0m`
-          )
-
-          // If the nested call is diamondCut, decode it further
-          if (nestedDecoded.functionName.includes('diamondCut')) {
-            const fullAbiString = `function ${nestedDecoded.functionName}`
-            const abiInterface = parseAbi([fullAbiString])
-            const nestedDecodedData = decodeFunctionData({
-              abi: abiInterface,
-              data: data as Hex,
-            })
-
-            if (nestedDecodedData.functionName === 'diamondCut') {
-              consola.info('Nested Diamond Cut detected - decoding...')
-              await decodeDiamondCut(nestedDecodedData, chainId)
-            } else
-              consola.info(
-                'Nested Data:',
-                JSON.stringify(nestedDecodedData, null, 2)
-              )
-          }
-          // Decode the nested function arguments properly
-          else
-            try {
-              const fullAbiString = `function ${nestedDecoded.functionName}`
-              const abiInterface = parseAbi([fullAbiString])
-              const nestedDecodedData = decodeFunctionData({
-                abi: abiInterface,
-                data: data as Hex,
-              })
-
-              // Safety check: If nested call is registerPeripheryContract(name,address), ensure it matches deployments/<network>.json
-              let peripheryArg1Suffix = ''
-              if (
-                nestedDecodedData.functionName ===
-                  'registerPeripheryContract' &&
-                nestedDecodedData.args &&
-                nestedDecodedData.args.length >= 2
-              ) {
-                const peripheryName = String(nestedDecodedData.args[0] ?? '')
-                const peripheryAddress = String(nestedDecodedData.args[1] ?? '')
-
-                const check = await safetyCheckPeripheryRegistrationArgs(
-                  network,
-                  peripheryName,
-                  peripheryAddress
-                )
-
-                if (check.ok) {
-                  peripheryArg1Suffix = check.peripheryArg1Suffix
-                } else {
-                  return check.reason
-                }
-              }
-
-              if (nestedDecodedData.args && nestedDecodedData.args.length > 0) {
-                if (
-                  nestedDecodedData.functionName ===
-                  'batchSetContractSelectorWhitelist'
-                ) {
-                  formatBatchSetContractSelectorWhitelist(
-                    nestedDecodedData.args,
-                    network
-                  )
-                } else if (
-                  nestedDecodedData.functionName === 'registerPeripheryContract'
-                ) {
-                  consola.info('Nested Decoded Arguments:')
-                  nestedDecodedData.args.forEach(
-                    (arg: unknown, index: number) => {
-                      // Handle different types of arguments
-                      let displayValue = arg
-                      if (typeof arg === 'bigint') displayValue = arg.toString()
-                      else if (typeof arg === 'object' && arg !== null)
-                        displayValue = JSON.stringify(arg)
-
-                      // Special handling for address argument (index 1)
-                      if (index === 1 && typeof arg === 'string') {
-                        const address = arg as string
-                        let addressLine = `  [${index}]: \u001b[33m${address}\u001b[0m`
-                        const explorerUrl = buildExplorerContractPageUrl(
-                          network,
-                          address
-                        )
-                        if (explorerUrl)
-                          addressLine += ` \u001b[36m${explorerUrl}\u001b[0m`
-                        consola.info(addressLine)
-                      } else {
-                        consola.info(
-                          `  [${index}]: \u001b[33m${displayValue}\u001b[0m`
-                        )
-                      }
-                    }
-                  )
-                } else {
-                  consola.info('Nested Decoded Arguments:')
-                  nestedDecodedData.args.forEach(
-                    (arg: unknown, index: number) => {
-                      // Handle different types of arguments
-                      let displayValue = arg
-                      if (typeof arg === 'bigint') displayValue = arg.toString()
-                      else if (typeof arg === 'object' && arg !== null)
-                        displayValue = JSON.stringify(arg)
-
-                      consola.info(
-                        `  [${index}]: \u001b[33m${displayValue}\u001b[0m${
-                          index === 1 &&
-                          nestedDecodedData.functionName ===
-                            'registerPeripheryContract'
-                            ? peripheryArg1Suffix
-                            : ''
-                        }`
-                      )
-                    }
-                  )
-                }
-              } else
-                consola.info(
-                  'No nested arguments or failed to decode nested arguments'
-                )
-            } catch (decodeError: unknown) {
-              const errorMsg =
-                decodeError instanceof Error
-                  ? decodeError.message
-                  : String(decodeError)
-              consola.warn(
-                `Failed to decode nested function arguments: ${errorMsg}`
-              )
-              consola.info(
-                'Nested Data:',
-                JSON.stringify(nestedDecoded.decodedData, null, 2)
-              )
-            }
-        } else consola.info(`Nested Data: ${data}`)
-      } catch (error: unknown) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        consola.warn(`Failed to decode nested data: ${errorMsg}`)
-        consola.info(`Raw nested data: ${data}`)
-      }
-  }
-
-  return undefined
-}
-
-/**
- * Formats and displays batchSetContractSelectorWhitelist arguments in a readable, grouped format
- * @param args - Decoded function arguments: [contracts: address[], selectors: bytes4[], whitelisted: bool]
- */
-function formatBatchSetContractSelectorWhitelist(
-  args: readonly unknown[],
-  network?: string
-) {
-  if (!args || args.length < 3) {
-    consola.warn('Invalid arguments for batchSetContractSelectorWhitelist')
-    return
-  }
-
-  const contracts = args[0] as readonly string[]
-  const selectors = args[1] as readonly string[]
-  const whitelisted = args[2] as boolean
-
-  // Validate arrays have same length
-  if (contracts.length !== selectors.length) {
-    consola.warn(
-      `Mismatch: contracts array length (${contracts.length}) != selectors array length (${selectors.length})`
-    )
-    return
-  }
-
-  // Group selectors by contract address
-  const contractToSelectors = new Map<string, string[]>()
-  for (let i = 0; i < contracts.length; i++) {
-    const contract = contracts[i]?.toLowerCase()
-    const selector = selectors[i]
-
-    if (!contract || !selector) continue
-
-    if (!contractToSelectors.has(contract)) {
-      contractToSelectors.set(contract, [])
-    }
-    const selectorList = contractToSelectors.get(contract)
-    if (selectorList) {
-      selectorList.push(selector)
-    }
-  }
-
-  // Display action type
-  const actionText = whitelisted ? 'Adding pairs' : 'Removing pairs'
-  const actionColor = whitelisted ? '\u001b[32m' : '\u001b[33m' // Green for adding, yellow for removing
-  consola.info(`Action: ${actionColor}${actionText}\u001b[0m`)
-  consola.info(`Total pairs: ${contracts.length}`)
-  consola.info('Pairs:')
-
-  // Display grouped pairs
-  contractToSelectors.forEach((selectorList, contract) => {
-    // Find original case for contract address (use first occurrence)
-    const originalContract =
-      contracts.find((c) => c.toLowerCase() === contract) || contract
-
-    let contractLabel = ''
-    if (network) {
-      const meta = lookupWhitelistMetaForContractSelector(
-        network,
-        originalContract,
-        selectorList[0] ?? ''
-      )
-      if (meta.contractLabel)
-        contractLabel = ` \u001b[35m(${meta.contractLabel})\u001b[0m`
-    }
-
-    let contractLine = `  Contract: \u001b[34m${originalContract}\u001b[0m${contractLabel}`
-    if (network) {
-      const explorerUrl = buildExplorerContractPageUrl(
-        network,
-        originalContract
-      )
-      if (explorerUrl) contractLine += ` \u001b[36m${explorerUrl}\u001b[0m`
-    }
-    consola.info(contractLine)
-    consola.info('    Selectors:')
-    selectorList.forEach((selector) => {
-      if (!network) {
-        consola.info(`      - \u001b[33m${selector}\u001b[0m`)
-        return
-      }
-
-      const meta = lookupWhitelistMetaForContractSelector(
-        network,
-        originalContract,
-        selector
-      )
-      const signature = meta.signature?.trim()
-      if (!signature) {
-        consola.info(
-          `      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown in whitelist)\u001b[0m`
-        )
-        return
-      }
-
-      const expected = computeSelectorFromSignature(signature)
-      const ok = expected.toLowerCase() === selector.toLowerCase()
-      const status = ok ? '\u001b[32m✓\u001b[0m' : '\u001b[31m✗\u001b[0m'
-      const mismatch = ok ? '' : ` \u001b[31m(expected ${expected})\u001b[0m`
-      consola.info(
-        `      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
-      )
-    })
-  })
 }
 
 /**
@@ -897,104 +272,15 @@ const processTxs = async (
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
     return 0
   })) {
-    let abi
-    let abiInterface: Abi
-    let decoded
-    let safetyBlocker: string | undefined
-
-    try {
-      if (tx.safeTx.data) {
-        const { functionName } = await decodeTransactionData(
-          tx.safeTx.data.data as Hex
-        )
-        if (functionName) {
-          abi = functionName
-          const fullAbiString = `function ${abi}`
-          abiInterface = parseAbi([fullAbiString])
-          decoded = decodeFunctionData({
-            abi: abiInterface,
-            data: tx.safeTx.data.data as Hex,
-          })
-        }
-      }
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.warn(`Failed to decode transaction data: ${errorMsg}`)
-    }
-
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
 
-    if (abi)
-      if (decoded && decoded.functionName === 'diamondCut')
-        await decodeDiamondCut(decoded, chain.id)
-      else if (decoded && decoded.functionName === 'schedule') {
-        safetyBlocker = await decodeNestedTimelockCall(
-          {
-            functionName: decoded.functionName,
-            args: decoded.args ? [...decoded.args] : undefined,
-          },
-          chain.id,
-          network
-        )
-      } else {
-        consola.info('Method:', abi)
-        if (decoded) {
-          consola.info('Function Name:', decoded.functionName)
-
-          // If this is a registerPeripheryContract call, show an explorer link for the periphery address.
-          let peripheryArg1Suffix = ''
-          if (
-            decoded.functionName === 'registerPeripheryContract' &&
-            decoded.args &&
-            decoded.args.length >= 2
-          ) {
-            const peripheryName = String(decoded.args[0] ?? '')
-            const peripheryAddress = String(decoded.args[1] ?? '')
-
-            const check = await safetyCheckPeripheryRegistrationArgs(
-              network,
-              peripheryName,
-              peripheryAddress
-            )
-
-            if (check.ok) {
-              peripheryArg1Suffix = check.peripheryArg1Suffix
-            } else {
-              safetyBlocker = check.reason
-            }
-          }
-
-          if (decoded.args && decoded.args.length > 0) {
-            if (decoded.functionName === 'batchSetContractSelectorWhitelist') {
-              formatBatchSetContractSelectorWhitelist(decoded.args, network)
-            } else {
-              consola.info('Decoded Arguments:')
-              decoded.args.forEach((arg: unknown, index: number) => {
-                // Handle different types of arguments
-                let displayValue = arg
-                if (typeof arg === 'bigint') displayValue = arg.toString()
-                else if (typeof arg === 'object' && arg !== null)
-                  displayValue = JSON.stringify(arg)
-
-                consola.info(
-                  `  [${index}]: \u001b[33m${displayValue}\u001b[0m${
-                    index === 1 &&
-                    decoded.functionName === 'registerPeripheryContract'
-                      ? peripheryArg1Suffix
-                      : ''
-                  }`
-                )
-              })
-            }
-          } else consola.info('No arguments or failed to decode arguments')
-
-          // Only show full decoded data if it contains useful information beyond what we've already shown
-          if (decoded.args === undefined)
-            consola.info('Full Decoded Data:', JSON.stringify(decoded, null, 2))
-        }
-      }
+    if (tx.safeTx.data?.data)
+      await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
+        chainId: chain.id,
+        network,
+      })
 
     // Get target name for display
     const targetName = await getTargetName(tx.safeTx.data.to, network)
@@ -1021,16 +307,11 @@ const processTxs = async (
       ? storedResponses[tx.safeTx.data.data]
       : undefined
 
-    if (safetyBlocker)
-      consola.error(
-        `BLOCKED: ${safetyBlocker}\nOnly 'Do Nothing' is allowed for this transaction.`
-      )
-
     // Determine available actions based on signature status
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
-      if (!safetyBlocker && !tx.hasSignedAlready) {
+      if (!tx.hasSignedAlready) {
         options.push('Sign')
 
         // Check if signing with current user + deployer (if needed) would meet threshold
@@ -1052,7 +333,7 @@ const processTxs = async (
         }))
     } else {
       const options = ['Do Nothing']
-      if (!safetyBlocker && !tx.hasSignedAlready) {
+      if (!tx.hasSignedAlready) {
         options.push('Sign')
         if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
           options.push('Sign & Execute')
@@ -1068,10 +349,7 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
-      if (
-        !safetyBlocker &&
-        hasEnoughSignatures(tx.safeTransaction, tx.threshold)
-      )
+      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold))
         options.push('Execute')
 
       action =
@@ -1236,6 +514,7 @@ const main = defineCommand({
     ledger: {
       type: 'boolean',
       description: 'Use Ledger hardware wallet for signing',
+      default: true,
       required: false,
     },
     ledgerLive: {
@@ -1258,7 +537,7 @@ const main = defineCommand({
     // Set up signing options
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
-    const useLedger = args.ledger || false
+    const useLedger = args.ledger ?? true
     const ledgerOptions = {
       ledgerLive: args.ledgerLive || false,
       accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,

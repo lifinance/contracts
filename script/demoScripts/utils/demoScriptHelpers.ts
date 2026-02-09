@@ -792,19 +792,36 @@ export const setupEnvironment = async (
 }
 
 /**
- * Retrieves a specific element from the configuration for a given blockchain chain.
+ * Retrieves a config value for a chain from a map keyed by chain (e.g. glacis airlift addresses).
  */
-export const getConfigElement = (
+export function getConfigElement(
+  configKeyedByChain: Record<string, unknown>,
+  chain: SupportedChain
+): unknown
+/**
+ * Retrieves a specific element from the configuration for a given blockchain chain (config[chain][elementKey]).
+ */
+export function getConfigElement(
   config: Record<string, any>,
   chain: SupportedChain,
   elementKey: string
-) => {
+): any
+export function getConfigElement(
+  config: Record<string, any>,
+  chain: SupportedChain,
+  elementKey?: string
+): any {
+  if (elementKey === undefined) {
+    const value = config[chain]
+    if (value === undefined || value === null)
+      throw new Error(`No config found for chain '${chain}' in the config.`)
+    return value
+  }
   const chainConfig = config[chain]
   if (!chainConfig || !chainConfig[elementKey])
     throw new Error(
       `Element '${elementKey}' not found for chain '${chain}' in the config.`
     )
-
   return chainConfig[elementKey]
 }
 

@@ -169,9 +169,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x66FD4424bc4E24b6183e95DD74A3f3857725457F": {
+      "0x2290f918c21D64aC8b1D7cE725E320EfB75271d4": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x989a7eFaBb9bE76ac3424B940862d9cf55334873": {
         "Name": "UnitFacet",

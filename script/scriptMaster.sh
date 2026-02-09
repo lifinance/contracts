@@ -50,11 +50,11 @@ scriptMaster() {
     forge build
   fi
 
-  # warn if SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true and this should only be activated for new network deployments
+  # Warn when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: scripts will send directly to diamond instead of proposing to Safe; use only for new production networks before ownership transfer
   if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
     echo ""
     echo ""
-    warning "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true. This should only be activated for new network deployments."
+    warning "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true (send directly to diamond; use only for new production networks before ownership transfer)."
     echo ""
     echo ""
   fi
@@ -290,7 +290,10 @@ scriptMaster() {
   # use case 5: Execute a script
   elif [[ "$SELECTION" == "5)"* ]]; then
     echo ""
-    SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | sed -e 's/\.sh$//' | gum filter --placeholder "Please select the script you would like to execute: ")
+    # Task scripts come in two flavors:
+    # - *.sh: sourced functions (called via eval <functionName>)
+    # - *.ts: TypeScript scripts (run via bun <file> ...)
+    SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | gum filter --placeholder "Please select the script you would like to execute: ")
     if [[ -z "$SCRIPT" ]]; then
       error "invalid value selected - exiting script now"
       exit 1
@@ -299,7 +302,16 @@ scriptMaster() {
     echo "[info] selected script: $SCRIPT"
 
     # execute the selected script
-    eval "$SCRIPT" '""' "$ENVIRONMENT"
+    if [[ "$SCRIPT" == *.sh ]]; then
+      # bash tasks are functions named like the file (without .sh)
+      local FUNCTION_NAME="${SCRIPT%.sh}"
+      eval "$FUNCTION_NAME" '""' "$ENVIRONMENT"
+    elif [[ "$SCRIPT" == *.ts ]]; then
+      bun "${TASKS_SCRIPT_DIRECTORY}${SCRIPT}" --environment "$ENVIRONMENT"
+    else
+      error "unsupported script type selected: $SCRIPT"
+      exit 1
+    fi
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 6: EMERGENCY >> Remove a facet or pause the whole diamond

@@ -142,7 +142,7 @@ function executeNetworkActions() {
 
     # CUSTOM ACTIONS - Add your custom actions here
     # CALLDATA=$(cast calldata "batchSetFunctionApprovalBySignature(bytes4[],bool)" [0x23b872dd] false)
-    # cast send "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "$CALLDATA" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_PRODUCTION"
+    # universalCast "sendRaw" "$NETWORK" "production" "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "$CALLDATA" "$PRIVATE_KEY_PRODUCTION"
 
     #### MANAGE SAFE OWNERS #############
     # Remove an owner from Safe
@@ -165,7 +165,7 @@ function executeNetworkActions() {
 
     # bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --ledger
 
-    # RESPONSE=$(cast call "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "isFunctionApproved(bytes4) returns (bool)" 0x23b872dd --rpc-url "$RPC_URL")
+    # RESPONSE=$(universalCast "call" "$NETWORK" "$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")" "isFunctionApproved(bytes4) returns (bool)" "0x23b872dd")
     # echo "[$NETWORK] function 0x23b872dd is approved: $RESPONSE"
 
     # Return the exit code of the last executed command (defaults to 0 if no commands executed)
