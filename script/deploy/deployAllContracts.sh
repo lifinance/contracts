@@ -259,9 +259,6 @@ deployAllContracts() {
     # update periphery registry
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
-    # add core periphery addresses to whitelist.json for whitelisting in subsequent steps
-    addPeripheryToWhitelistJson "$NETWORK" "$ENVIRONMENT"
-
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
   fi
 
