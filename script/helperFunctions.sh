@@ -6,6 +6,7 @@ source .env
 
 # load script
 source script/config.sh
+source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 RED='\033[0;31m'   # Red color
@@ -758,7 +759,15 @@ function saveDiamondFacets() {
   # Remove brackets from FACETS string and split into array
   FACETS_ADJ="${4#\[}"
   FACETS_ADJ="${FACETS_ADJ%\]}"
-  IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  
+  # Handle different output formats: Tron uses space-separated, EVM uses comma-separated
+  if isTronNetwork "$NETWORK"; then
+    # Tron: space-separated format from troncast
+    IFS=' ' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  else
+    # EVM: comma-separated format from cast
+    IFS=',' read -ra FACET_ADDRESSES <<<"$FACETS_ADJ"
+  fi
 
   # Set up a temp directory to collect facet entries (avoid concurrent writes)
   local TEMP_DIR
@@ -836,98 +845,7 @@ function saveDiamondFacets() {
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
   fi
 }
-function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
-  # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  USE_MUTABLE_DIAMOND=$3
 
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamond"
-  else
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-    DIAMOND_NAME="LiFiDiamondImmutable"
-  fi
-  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
-
-  echo "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
-  echo "DEPLOYER_ADDRESS: $(getDeployerAddress "$NETWORK" "$ENVIRONMENT")"
-
-  if [[ -z "$DIAMOND_ADDRESS" ]]; then
-    error "could not find address for $DIAMOND_NAME in network-specific log file for network $NETWORK (ENVIRONMENT=$ENVIRONMENT)"
-    return 1
-  fi
-
-  # get a list of all periphery contracts
-  PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
-
-  MULTICALL_DATA="["
-
-  # loop through periphery contracts
-  for CONTRACT in $PERIPHERY_CONTRACTS; do
-    echo "CONTRACT: $CONTRACT"
-
-    # Build the function call for the contract
-    #DATA=$(echo -n "0x$(echo -n "getPeripheryContract()" | xxd -p -c 256)")
-    CALLDATA=$(cast calldata "getPeripheryContract(string)" "$CONTRACT")
-
-    echo "CALLDATA: $CALLDATA"
-
-    #target structure [(address,calldata),(address,calldata)]
-
-    # Add the call data and target address to the call array
-    MULTICALL_DATA=$MULTICALL_DATA"($DIAMOND_ADDRESS,$CALLDATA),"
-
-  done
-
-  # remove trailing comma and add trailing bracket
-  MULTICALL_DATA=${MULTICALL_DATA%?}"]"
-
-  echo "MULTICALL_DATA: $MULTICALL_DATA"
-
-  MULTICALL_ADDRESS="0xcA11bde05977b3631167028862bE2a173976CA11"
-
-  attempts=1
-
-  echo "before call"
-
-  while [ $attempts -lt 11 ]; do
-    echo "Trying to execute multicall now - attempt ${attempts}"
-    # try to execute call
-    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy) # [pre-commit-checker: not a secret]
-
-    # check the return code the last call
-    if [ $? -eq 0 ]; then
-      break # exit the loop if the operation was successful
-    fi
-
-    attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
-  done
-
-  if [ $attempts -eq 11 ]; then
-    echo "Failed to execute multicall"
-    exit 1
-  fi
-
-  #MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url  "https://opt-mainnet.g.alchemy.com/v2/4y-BIUvj_mTGWHrsHZncoJyNolNjJrsT" --legacy)
-  echo "after call"
-
-  echo ""
-  echo ""
-
-  echo "MULTICALL_RESULTS: $MULTICALL_RESULTS"
-
-  # check if diamond returns an address for this contract
-
-  #
-
-}
 function saveDiamondPeriphery() {
   # read function arguments into variables
   NETWORK=$1
@@ -993,7 +911,7 @@ function saveDiamondPeriphery() {
     done
 
     (
-      ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL" 2>/dev/null)
+      ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" 2>/dev/null)
       if [[ "$ADDRESS" == "$ZERO_ADDRESS" || -z "$ADDRESS" ]]; then
         ADDRESS=""
       fi
@@ -1198,7 +1116,12 @@ function checkRequiredVariablesInDotEnv() {
     # Individual API Key
     local BLOCKEXPLORER_API_KEY="${!KEY_VAR}"
 
-    if [[ -z "$BLOCKEXPLORER_API_KEY" ]]; then
+    # Some API keys are optional (e.g., NO_ETHERSCAN_API_KEY_REQUIRED)
+    # Allow empty string for these optional keys
+    # Note: BLOCKSCOUT_API_KEY and ZKSYNC_NATIVE_VERIFIER are now replaced with NO_ETHERSCAN_API_KEY_REQUIRED
+    # and determined from networks.json (isZkEvm and verificationType)
+    # VERIFY_CONTRACT_API_KEY is replaced with customVerificationFlags in networks.json
+    if [[ -z "$BLOCKEXPLORER_API_KEY" ]] && [[ "$KEY_VAR" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]]; then
       error "Network $NETWORK uses a custom API key ($KEY_VAR) which is missing in your .env file."
       return 1
     fi
@@ -1786,6 +1709,21 @@ function getBytecodeFromArtifact() {
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
+# Helper function to extract Response or Details from verification output
+# Usage: extractFromVerificationOutput "$OUTPUT" "Response" or extractFromVerificationOutput "$OUTPUT" "Details"
+function extractFromVerificationOutput() {
+  local OUTPUT="$1"
+  local KEY="$2"
+  
+  if [[ "$KEY" == "Response" ]]; then
+    echo "$OUTPUT" | grep -i "${KEY}:" | tail -1 | sed -E 's/.*'"${KEY}"':[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'"
+  elif [[ "$KEY" == "Details" ]]; then
+    echo "$OUTPUT" | grep -i "${KEY}:" | tail -1 | sed -E "s/.*${KEY}:[[:space:]]*['\`]?([^'\`]+)['\`]?.*/\1/" | head -1
+  else
+    echo ""
+  fi
+}
+
 function verifyContract() {
   # read function arguments into variables
   local NETWORK=$1
@@ -1872,25 +1810,74 @@ function verifyContract() {
     return 1
   fi
 
-  # Add verification method based on API key
-  if [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
-    VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+  # Ensure NO_ETHERSCAN_API_KEY_REQUIRED exists when used as key in foundry.toml,
+  # so Foundry doesn't error even if the user didn't define it in .env
+  if [[ "$API_KEY" = "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [[ -z "${NO_ETHERSCAN_API_KEY_REQUIRED:-}" ]]; then
+    echoDebug "NO_ETHERSCAN_API_KEY_REQUIRED not set, exporting empty string to satisfy foundry.toml"
+    export NO_ETHERSCAN_API_KEY_REQUIRED=""
   fi
 
-  if [ "$API_KEY" = "BLOCKSCOUT_API_KEY" ]; then
-    VERIFY_CMD+=("--verifier" "blockscout")
-  elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
-    # make sure API key is not empty
-    if [ -z "$API_KEY" ]; then
-      echo "Error: Could not find API key for network $NETWORK"
-      return 1
+  # Determine verifier type from networks.json instead of using special API key names
+  # Check if network is zkEVM
+  if isZkEvmNetwork "$NETWORK"; then
+    VERIFY_CMD+=("--verifier" "zksync")
+  else
+    # Check verificationType from networks.json for Blockscout
+    local VERIFICATION_TYPE
+    VERIFICATION_TYPE=$(jq -r --arg network "$NETWORK" '.[$network].verificationType // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
+    
+    if [[ "$VERIFICATION_TYPE" = "blockscout" ]]; then
+      VERIFY_CMD+=("--verifier" "blockscout")
+    elif [[ "$VERIFICATION_TYPE" = "sourcify" ]]; then
+      VERIFY_CMD+=("--verifier" "sourcify")
+    elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
+      # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
+      VERIFY_CMD+=("--verifier" "custom")
+      if [[ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]]; then
+        # make sure API key is not empty (check the actual value, not the variable name)
+        if [ -z "${!API_KEY}" ]; then
+          echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+          return 1
+        fi
+        VERIFY_CMD+=("--verifier-api-key" "${!API_KEY}")
+      fi
+    elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+    elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
+      # make sure API key is not empty (check the actual value, not the variable name)
+      if [ -z "${!API_KEY}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+        return 1
+      fi
+      # Custom etherscan-compatible API key
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     fi
+  fi
 
-    # some block explorers require to pass a string "verifyContract" instead of an API key (e.g. https://explorer.metis.io/documentation/recipes/foundry-verification)
-    if [ "$API_KEY" = "VERIFY_CONTRACT_API_KEY" ]; then
-      # add API key to verification command"
-      VERIFY_CMD+=("-e" "verifyContract")
-    fi
+  # Apply custom verification flags from networks.json if present
+  # This allows networks to specify custom flags for block explorers
+  # Examples:
+  #   Single flag with value: {"-e": "verifyContract"} -> VERIFY_CMD+=("-e" "verifyContract")
+  #   Single flag without value: {"--skip-is-verified-check": null} -> VERIFY_CMD+=("--skip-is-verified-check")
+  #   Multiple flags: {"-e": "verifyContract", "--skip-is-verified-check": null} -> VERIFY_CMD+=("-e" "verifyContract" "--skip-is-verified-check")
+  local CUSTOM_FLAGS
+  CUSTOM_FLAGS=$(jq -c --arg network "$NETWORK" '.[$network].customVerificationFlags // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
+  
+  if [[ -n "$CUSTOM_FLAGS" ]] && [[ "$CUSTOM_FLAGS" != "null" ]] && [[ "$CUSTOM_FLAGS" != "{}" ]] && [[ "$CUSTOM_FLAGS" != "\"\"" ]]; then
+    # Parse the JSON object and add each flag-value pair to VERIFY_CMD
+    while IFS= read -r flag_entry; do
+      local flag_name=$(echo "$flag_entry" | jq -r '.key')
+      local flag_value=$(echo "$flag_entry" | jq -r '.value')
+      if [[ -n "$flag_name" ]] && [[ "$flag_name" != "null" ]]; then
+        if [[ -n "$flag_value" && "$flag_value" != "null" ]]; then
+          VERIFY_CMD+=("$flag_name" "$flag_value")
+          echoDebug "Added custom verification flag: $flag_name $flag_value"
+        else
+          VERIFY_CMD+=("$flag_name")
+          echoDebug "Added custom verification flag: $flag_name"
+        fi
+      fi
+    done < <(echo "$CUSTOM_FLAGS" | jq -c 'to_entries[]')
   fi
 
   # Always add verifier URL since all networks have one configured in foundry.toml
@@ -1912,6 +1899,21 @@ function verifyContract() {
 
     # Check if command failed with non-zero exit code
     if [ $VERIFY_EXIT_CODE -ne 0 ]; then
+      # Check for specific error types that should trigger retry with longer delay
+      if echo "$VERIFY_OUTPUT" | grep -qi "504\|Gateway Time-out\|timeout\|Failed to obtain contract ABI"; then
+        warning "API timeout or gateway error detected. This may be temporary - will retry with longer delay..."
+        error "Verification command failed with exit code $VERIFY_EXIT_CODE (API timeout/gateway error)"
+        if [ -n "$VERIFY_OUTPUT" ]; then
+          error "Command output: $VERIFY_OUTPUT"
+        fi
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+          echo "[info] API timeout detected, waiting 30 seconds before retry..."
+          sleep 30
+        fi
+        continue
+      fi
+      
       error "Verification command failed with exit code $VERIFY_EXIT_CODE"
       if [ -z "$VERIFY_OUTPUT" ]; then
         error "No output from verification command. This may indicate a network error, invalid API key, or command syntax issue."
@@ -1933,34 +1935,69 @@ function verifyContract() {
       return 0
     fi
 
-    # Parse the final verification response from --watch output
-    local RESPONSE=$(echo "$VERIFY_OUTPUT" | grep "Response:" | tail -1 | awk '{print $2}' | tr -d '`')
-    local DETAILS=$(echo "$VERIFY_OUTPUT" | grep "Details:" | tail -1 | cut -d'`' -f2)
+    # Parse the final verification response from --watch output more robustly
+    local RESPONSE=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Response")
+    local DETAILS=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Details")
 
+    # Log parsed values for debugging
+    echoDebug "Parsed initial response - Response: '$RESPONSE', Details: '$DETAILS'"
+    
     # If no response found in output, display raw output for debugging
     if [ -z "$RESPONSE" ] && [ -z "$DETAILS" ]; then
       warning "Could not parse verification response from output. Raw output:"
       echo "$VERIFY_OUTPUT"
     fi
 
-    # Check if verification succeeded based on final response
-    if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+    # Always verify final status with verify-check, even if response seems successful
+    # This prevents false positives where API returns OK but contract isn't actually verified
+    echo "[info] Verifying final verification status with verify-check..."
+    sleep 5
+    
+    # Check final status
+    local CHECK_CMD=()
+    if isZkEvmNetwork "$NETWORK"; then
+      # For zkSync, use verifier-url to match the verification command
+      # This ensures consistency and prevents false positives
+      CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
+    else
+      # Use verifier URL instead of chain flag to match the verification command
+      CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
+    fi
+
+    local CHECK_EXIT_CODE=0
+    local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
+
+    if [ $CHECK_EXIT_CODE -ne 0 ]; then
+      error "Verification check command failed with exit code $CHECK_EXIT_CODE"
+      if [ -n "$CHECK_OUTPUT" ]; then
+        error "Check command output: $CHECK_OUTPUT"
+      fi
+      # Continue to next retry instead of returning immediately
+      RETRY_COUNT=$((RETRY_COUNT + 1))
+      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+        echo "[info] Verification check failed, waiting 15 seconds before retry..."
+        sleep 15
+      fi
+      continue
+    fi
+
+    # Parse response more robustly - handle different output formats
+    local FINAL_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
+    local FINAL_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
+
+    echoDebug "Final verification check - Response: $FINAL_RESPONSE, Details: $FINAL_DETAILS"
+    echoDebug "Full check output: $CHECK_OUTPUT"
+
+    # Check if verification actually succeeded based on final check
+    if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified (confirmed via verify-check)"
       return 0
-    elif [[ "$RESPONSE" == "OK" && "$DETAILS" == *"Pending"* ]]; then
-      # If still pending after --watch, wait a bit more and check again
-      echo "[info] Verification still pending after --watch, waiting 30 seconds before checking final status..."
+    elif [[ "$FINAL_RESPONSE" == "OK" && "$FINAL_DETAILS" == *"Pending"* ]]; then
+      # If still pending after initial check, wait a bit more and check again
+      echo "[info] Verification still pending, waiting 30 seconds before checking again..."
       sleep 30
 
-      # Check final status
-      local CHECK_CMD=()
-      if isZkEvmNetwork "$NETWORK"; then
-        CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "$ADDRESS")
-      else
-        # Use verifier URL instead of chain flag to match the verification command
-        CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
-      fi
-
+      # Re-check final status using the same CHECK_CMD
       local CHECK_EXIT_CODE=0
       local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
 
@@ -1969,23 +2006,32 @@ function verifyContract() {
         if [ -n "$CHECK_OUTPUT" ]; then
           error "Check command output: $CHECK_OUTPUT"
         fi
+        # Continue to next retry instead of returning 1
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
+          echo "[info] Verification check failed, waiting 15 seconds before retry..."
+          sleep 15
+        fi
+        continue
       fi
 
-      local FINAL_RESPONSE=$(echo "$CHECK_OUTPUT" | grep "Response:" | awk '{print $2}' | tr -d '`')
-      local FINAL_DETAILS=$(echo "$CHECK_OUTPUT" | grep "Details:" | cut -d'`' -f2)
+      # Parse response more robustly - handle different output formats
+      local RETRY_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
+      local RETRY_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
 
-      if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
-        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after final check"
+      if [[ "$RETRY_RESPONSE" == "OK" && ("$RETRY_DETAILS" == *"Pass"* || "$RETRY_DETAILS" == *"Verified"* || "$RETRY_DETAILS" == *"Success"*) ]]; then
+        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after retry check"
         return 0
       else
-        warning "Verification failed after final check: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
+        warning "Verification still pending or failed after retry check: Response=$RETRY_RESPONSE, Details=$RETRY_DETAILS"
         # Continue to next retry instead of returning 1
       fi
-    elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"*) ]]; then
-      warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
+    elif [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Fail"* || "$FINAL_DETAILS" == *"Unable to verify"* || "$FINAL_DETAILS" == *"not verified"*) ]]; then
+      warning "Verification failed for $CONTRACT on $NETWORK: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
       # Continue to next retry instead of returning 1
     else
-      warning "Unexpected verification response: Response=$RESPONSE, Details=$DETAILS"
+      warning "Unexpected verification response: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
+      warning "Initial response was: Response=$RESPONSE, Details=$DETAILS"
       # Continue to next retry instead of returning 1
     fi
 
@@ -2001,50 +2047,6 @@ function verifyContract() {
 
   # If we get here, verification failed after all retries
   echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
-
-  # Fallback to Sourcify if primary verification fails
-  echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  if isZkEvmNetwork "$NETWORK"; then
-    FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-contract \
-      "$ADDRESS" \
-      "$CONTRACT" \
-      --zksync \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify
-  else
-    forge verify-contract \
-      "$ADDRESS" \
-      "$CONTRACT" \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify
-  fi
-
-  # Check Sourcify verification
-  echo "[info] Checking Sourcify verification status..."
-  local SOURCIFY_OUTPUT
-  if isZkEvmNetwork "$NETWORK"; then
-    SOURCIFY_OUTPUT=$(FOUNDRY_PROFILE=zksync ./foundry-zksync/forge verify-check "$ADDRESS" \
-      --zksync \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify 2>&1)
-  else
-    SOURCIFY_OUTPUT=$(forge verify-check "$ADDRESS" \
-      --chain-id "$CHAIN_ID" \
-      --verifier sourcify 2>&1)
-  fi
-
-  echoDebug "SOURCIFY_OUTPUT: $SOURCIFY_OUTPUT"
-
-  # Check if Sourcify verification actually succeeded by analyzing the output
-  if echo "$SOURCIFY_OUTPUT" | grep -q "Contract source code is not verified"; then
-    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify - contract not verified"
-  elif echo "$SOURCIFY_OUTPUT" | grep -q "Contract source code is verified" || echo "$SOURCIFY_OUTPUT" | grep -q "Successful"; then
-    success "$CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
-  else
-    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify - unknown status"
-  fi
-
-  # return 1 in any case to indicate that the (main) verification failed
   return 1
 }
 
@@ -2268,11 +2270,9 @@ function removeFacetFromDiamond() {
 
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
-      # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
+      universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS"
     else
-      # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS" >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -2305,13 +2305,10 @@ function confirmOwnershipTransfer() {
 
   attempts=1 # initialize attempts to 0
 
-  # get RPC URL
-  rpc_url=$(getRPCUrl "$network") || checkFailure $? "get rpc url"
-
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "Trying to confirm ownership transfer on contract with address ($address) - attempt ${attempts}"
-    # try to execute call
-    cast send "$address" "confirmOwnershipTransfer()" --rpc-url "$rpc_url" --private-key "$private_key" 2>/dev/null
+    # try to execute call (use "staging" so we always direct-send with the given key, not propose to Safe)
+    universalCast "send" "$network" "staging" "$address" "confirmOwnershipTransfer()" "" "false" "$private_key" 2>/dev/null
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
@@ -3084,7 +3081,7 @@ function getContractAddressFromSalt() {
   ACTUAL_SALT=$(cast keccak "0x$(echo -n "$SALT$CONTRACT_NAME" | xxd -p -c 256)")
 
   # call create3 factory to obtain contract address
-  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "$RPC_URL")
+  RESULT=$(universalCast "call" "$NETWORK" "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT")
 
   # return address
   echo "$RESULT"
@@ -3137,7 +3134,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
   checkFailure $? "retrieve core facets array from global.json"
 
   # get a list of all facets that the diamond knows
-  KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
+  KNOWN_FACET_ADDRESSES=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" 2>/dev/null)
   local CAST_EXIT_CODE=$?
   if [ $CAST_EXIT_CODE -ne 0 ]; then
     echoDebug "not all core facets are registered in the diamond"
@@ -3180,7 +3177,7 @@ function getPeripheryAddressFromDiamond() {
   RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
   # call diamond to check for periphery address
-  PERIPHERY_CONTRACT_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME" --rpc-url "${RPC_URL}")
+  PERIPHERY_CONTRACT_ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME")
 
   if [[ "$PERIPHERY_CONTRACT_ADDRESS" == "$ZERO_ADDRESS" ]]; then
     return 1
@@ -3219,11 +3216,11 @@ function getFacetFunctionSelectorsFromDiamond() {
 
   # search in DIAMOND_FILE_PATH for the given address
   if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then # << this does not yet reflect the new file structure !!!!!!
-    # get function selectors from diamond (function facetFunctionSelectors)
+      # get function selectors from diamond (function facetFunctionSelectors)
     local ATTEMPTS=1
     while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
       # get address of facet in diamond
-      local FUNCTION_SELECTORS=$(cast call "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS" --rpc-url "${!RPC}")
+      local FUNCTION_SELECTORS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS")
       ((ATTEMPTS++))
       sleep 1
     done
@@ -3257,7 +3254,7 @@ function getFacetAddressFromSelector() {
   local ATTEMPTS=1
   while [[ -z "$FACET_ADDRESS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
     # get address of facet in diamond
-    FACET_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR" --rpc-url "${!RPC}")
+    FACET_ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR")
     ((ATTEMPTS++))
     sleep 1
   done
@@ -3285,7 +3282,7 @@ function doesFacetExistInDiamond() {
   # loop through facet selectors and see if this selector is known by the diamond
   for SELECTOR in $SELECTORS; do
     # call diamond to get address of facet for given selector
-    local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
+    local RESULT=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR")
 
     # if result != address(0) >> facet selector is known
     if [[ "$RESULT" != "0x0000000000000000000000000000000000000000" ]]; then
@@ -3339,7 +3336,7 @@ function getFacetAddressFromDiamond() {
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-  local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
+  local RESULT=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR")
 
   echo "$RESULT"
 }
@@ -3374,7 +3371,7 @@ function getContractOwner() {
   fi
 
   # get owner
-  owner=$(cast call "$address" "owner()" --rpc-url "$rpc_url")
+  owner=$(universalCast "call" "$network" "$address" "owner() returns (address)")
 
   if [[ $? -ne 0 || -z $owner ]]; then
     echoDebug "unable to retrieve owner of $contract with address $address on network $network ($environment)"
@@ -3404,7 +3401,7 @@ function getPendingContractOwner() {
   fi
 
   # get owner
-  owner=$(cast call "$address" "pendingOwner()" --rpc-url "$rpc_url")
+  owner=$(universalCast "call" "$network" "$address" "pendingOwner() returns (address)")
 
   if [[ $? -ne 0 || -z $owner ]]; then
     echoDebug "unable to retrieve pending owner of $contract with address $address on network $network ($environment)"
@@ -3579,19 +3576,21 @@ function getPrivateKey() {
 # Send or propose transaction
 # This function handles:
 # - Production: Proposes to Safe using PRIVATE_KEY_PRODUCTION via propose-to-safe.ts
-# - Staging: Sends directly using PRIVATE_KEY via cast send --data
-# Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock]
+# - Staging: Sends directly using PRIVATE_KEY via cast send with raw calldata
+# Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
 #   network: Network name (e.g., "mainnet")
 #   environment: "production" or "staging"
 #   target: Target contract address
 #   calldata: Transaction calldata (hex string starting with 0x)
 #   timelock: Optional flag to wrap transaction in timelock (production only)
+#   private_key_override: Optional hex key; when set, use instead of getPrivateKey(network, environment)
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET="$3"
   local CALLDATA="$4"
   local TIMELOCK="${5:-false}"
+  local PRIVATE_KEY_OVERRIDE="${6:-}"
 
   # Validate required arguments
   if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$TARGET" || -z "$CALLDATA" ]]; then
@@ -3605,50 +3604,40 @@ function sendOrPropose() {
     return 1
   fi
 
-  if [[ "$ENVIRONMENT" == "production" ]]; then
-    # Production: propose to Safe using propose-to-safe.ts
-    local PROPOSE_CMD=(
-      bunx tsx script/deploy/safe/propose-to-safe.ts
-      --network "$NETWORK"
-      --to "$TARGET"
-      --calldata "$CALLDATA"
-      --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
-    )
-    
-    # Add timelock flag if requested
-    if [[ "$TIMELOCK" == "true" ]]; then
-      PROPOSE_CMD+=(--timelock)
-    fi
-    
-    "${PROPOSE_CMD[@]}"
-  else
-    # Staging: send directly using cast send with --data flag for raw calldata
-    # Get RPC URL
-    local RPC_URL
-    RPC_URL=$(getRPCUrl "$NETWORK") || {
-      error "sendOrPropose: Failed to get RPC URL for $NETWORK"
-      return 1
-    }
-
-    # Get private key
-    local PRIVATE_KEY
-    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
-      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
-      return 1
-    }
-
-    # Send transaction using cast send with --data flag for raw calldata
-    # cast send will handle signing, gas estimation, and receipt waiting
-    cast send "$TARGET" \
-      --data "$CALLDATA" \
-      --rpc-url "$RPC_URL" \
-      --private-key "$PRIVATE_KEY" \
-      --legacy \
-      --confirmations 1
-
+  # Tron or EVM staging: direct send via universalCast sendRaw
+  if isTronNetwork "$NETWORK"; then
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi
 
+  if [[ "$ENVIRONMENT" != "production" ]]; then
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
+    return $?
+  fi
+
+  # EVM production: propose to Safe using propose-to-safe.ts
+  local SAFE_SIGNER_KEY
+  if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
+    SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
+  else
+    SAFE_SIGNER_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+      error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+      return 1
+    }
+  fi
+  local PROPOSE_CMD=(
+    bunx tsx script/deploy/safe/propose-to-safe.ts
+    --network "$NETWORK"
+    --to "$TARGET"
+    --calldata "$CALLDATA"
+    --privateKey "$SAFE_SIGNER_KEY"
+  )
+
+  if [[ "$TIMELOCK" == "true" ]]; then
+    PROPOSE_CMD+=(--timelock)
+  fi
+
+  "${PROPOSE_CMD[@]}"
   return $?
 }
 
@@ -3697,6 +3686,71 @@ function isActiveMainnet() {
   else
     return 1 # false
   fi
+}
+
+function isTronNetwork() {
+  # read function arguments into variables
+  local NETWORK="$1"
+  if [[ "$NETWORK" == "tron" || "$NETWORK" == "tronshasta" ]]; then
+    return 0  # true
+  fi
+  return 1  # false
+}
+
+function getTronEnv() {
+  # read function arguments into variables
+  local NETWORK="$1"
+  if [[ "$NETWORK" == "tron" ]]; then
+    echo "mainnet"
+  elif [[ "$NETWORK" == "tronshasta" ]]; then
+    echo "testnet"
+  fi
+}
+
+# isValidSelector: Returns 0 if VALUE is a valid bytes4 selector (0x + 8 hex chars).
+#
+# Usage: isValidSelector VALUE
+#   VALUE - String to check (e.g., "0x12345678" or "0xabcdef12")
+#
+# Returns: 0 if valid, 1 otherwise
+function isValidSelector() {
+  local VALUE="${1:-}"
+  [[ -n "$VALUE" && "$VALUE" =~ ^0x[0-9a-fA-F]{8}$ ]]
+}
+
+# isValidEvmAddress: Returns 0 if VALUE is a valid EVM address (0x + 40 hex chars).
+#
+# Usage: isValidEvmAddress VALUE
+#   VALUE - String to check
+#
+# Returns: 0 if valid, 1 otherwise
+function isValidEvmAddress() {
+  local VALUE="${1:-}"
+  [[ -n "$VALUE" && "$VALUE" =~ ^0x[0-9a-fA-F]{40}$ ]]
+}
+
+# isValidTronAddress: Returns 0 if VALUE is a valid Tron Base58 address (T + 33 alphanumeric).
+#
+# Usage: isValidTronAddress VALUE
+#   VALUE - String to check (e.g., "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby")
+#
+# Returns: 0 if valid, 1 otherwise
+function isValidTronAddress() {
+  local VALUE="${1:-}"
+  [[ -n "$VALUE" && "$VALUE" =~ ^T[a-zA-Z0-9]{33}$ ]]
+}
+
+# isZeroAddress: Returns 0 if VALUE is the zero address (0x0...0, 40 hex chars).
+#
+# Usage: isZeroAddress VALUE
+#   VALUE - String to check (any case)
+#
+# Returns: 0 if zero address, 1 otherwise
+function isZeroAddress() {
+  local VALUE="${1:-}"
+  local LOWER
+  LOWER=$(echo "$VALUE" | tr '[:upper:]' '[:lower:]')
+  [[ "$LOWER" == "0x0000000000000000000000000000000000000000" ]]
 }
 
 function getChainId() {
@@ -3757,8 +3811,7 @@ function extractDeployedAddressFromRawReturnData() {
     ADDRESS=$(echo "$RAW_DATA" | grep -oE '0x[a-fA-F0-9]{40}' | head -n1)
   fi
 
-  # Validate the format of the extracted address
-  if [[ "$ADDRESS" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+  if isValidEvmAddress "$ADDRESS"; then
     # check every 10 seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC
     local COUNT=0
     while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
@@ -3807,8 +3860,8 @@ transferContractOwnership() {
   echo "Transferring ownership of contract $CONTRACT_ADDRESS on $NETWORK from $ADDRESS_OLD_OWNER to $ADDRESS_NEW_OWNER now"
 
   # make sure OLD_OWNER is actually contract owner
-  local CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
-  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
+  local CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$CONTRACT_ADDRESS" "owner() returns (address)")
+  if [[ "$CURRENT_OWNER" != "$ADDRESS_OLD_OWNER" ]]; then
     error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
     return 1
   fi
@@ -3829,7 +3882,7 @@ transferContractOwnership() {
     else
       echo "sending ""$MIN_NATIVE_BALANCE"" native tokens from new (""$ADDRESS_NEW_OWNER"") to old wallet (""$ADDRESS_OLD_OWNER"") now"
       # Send some funds from new to old wallet
-      cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
+      universalCast "sendValue" "$NETWORK" "staging" "$ADDRESS_OLD_OWNER" "$MIN_NATIVE_BALANCE" "$PRIV_KEY_NEW_OWNER"
 
       NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
       NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
@@ -3842,13 +3895,13 @@ transferContractOwnership() {
   # # transfer ownership to new owner
   echo ""
   echo "[info] calling transferOwnership() function from old owner wallet now"
-  cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+  universalCast "send" "$NETWORK" "staging" "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" "false" "$PRIV_KEY_OLD_OWNER"
   echo ""
 
   # # accept ownership transfer
   echo ""
   echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
-  cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
+  universalCast "send" "$NETWORK" "staging" "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" "" "false" "$PRIV_KEY_NEW_OWNER"
   echo ""
   echo ""
 
@@ -3858,7 +3911,7 @@ transferContractOwnership() {
   if [[ $SENDABLE_BALANCE -gt 0 ]]; then
     echo ""
     echo "sending ""$SENDABLE_BALANCE"" native tokens from old (""$ADDRESS_OLD_OWNER"") to new wallet (""$ADDRESS_NEW_OWNER"") now"
-    cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+    universalCast "sendValue" "$NETWORK" "staging" "$ADDRESS_NEW_OWNER" "$SENDABLE_BALANCE" "$PRIV_KEY_OLD_OWNER"
   else
     echo "remaining native balance in old wallet is too low to send back to new wallet"
   fi
@@ -3870,10 +3923,10 @@ transferContractOwnership() {
   echo "native balance old owner: $NATIVE_BALANCE_OLD"
   echo "native balance new owner: $NATIVE_BALANCE_NEW"
 
-  # make sure NEW OWNER is actually contract owner
-  CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+  # make sure NEW_OWNER is actually contract owner
+  CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$CONTRACT_ADDRESS" "owner() returns (address)")
   echo ""
-  if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
+  if [[ "$CURRENT_OWNER" != "$ADDRESS_NEW_OWNER" ]]; then
     error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
     return 1
   else
@@ -4582,14 +4635,6 @@ function updateDiamondLogForNetwork() {
   local NETWORK=$1
   local ENVIRONMENT=$2
 
-  # get RPC URL
-  local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-
-  if [[ -z $RPC_URL ]]; then
-    error "[$NETWORK] RPC URL is not set"
-    return 1
-  fi
-
   # get diamond address
   local DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "LiFiDiamond")
 
@@ -4602,18 +4647,16 @@ function updateDiamondLogForNetwork() {
   # execute script
   attempts=0 # initialize attempts to 0
 
+  local KNOWN_FACET_ADDRESSES
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[$NETWORK] Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt $((attempts + 1))"
     # try to execute call
-    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
-
-    # check the return code the last call
+    KNOWN_FACET_ADDRESSES=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" 2>/dev/null)
     if [ $? -eq 0 ]; then
       break # exit the loop if the operation was successful
     fi
-
     attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
+    sleep 1                   # wait for 1 second before trying the operation again
   done
 
   if [ $attempts -eq $((MAX_ATTEMPTS_PER_SCRIPT_EXECUTION + 1)) ]; then
