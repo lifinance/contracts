@@ -691,7 +691,7 @@
     "configData": {
       "_htlcRegistry": {
         "configFileName": "garden.json",
-        "keyInConfigFile": ".<NETWORK>.htlcRegistry",
+        "keyInConfigFile": ".htlcRegistry.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
     }
