@@ -947,24 +947,29 @@ function _createTimelockCancellerProposal() {
   return $PROPOSAL_STATUS
 }
 
-# _grantTimelockProposalRole: If Safe lacks PROPOSER_ROLE, grant it. Uses Safe if Safe is timelock admin,
-# otherwise uses deployer wallet (private key from getPrivateKey) if deployer is timelock admin.
-# Usage: _grantTimelockProposalRole NETWORK TIMELOCK_ADDRESS SAFE_ADDRESS RPC_URL [ENVIRONMENT]
+# grantTimelockRole: Grant a role on the timelock controller to an address (Safe or wallet).
+# If the grantee already has the role, returns 0. Otherwise uses network Safe if Safe has
+# TIMELOCK_ADMIN_ROLE (proposes tx), or deployer wallet if deployer has TIMELOCK_ADMIN_ROLE.
+#
+# Usage: grantTimelockRole NETWORK TIMELOCK_ADDRESS ROLE_NAME GRANT_ROLE_TO RPC_URL [ENVIRONMENT]
 #   NETWORK          - Network name
 #   TIMELOCK_ADDRESS - LiFiTimelockController address
-#   SAFE_ADDRESS     - Safe multisig address (from config/networks.json)
+#   ROLE_NAME        - Role getter name on timelock (e.g. PROPOSER_ROLE, CANCELLER_ROLE, EXECUTOR_ROLE)
+#   GRANT_ROLE_TO    - Address to grant the role to (Safe or EOA)
 #   RPC_URL          - RPC URL for the network
 #   ENVIRONMENT      - Optional, default "production"
+#
 # Returns: 0 on success (already has role, or proposal sent, or deployer sent), 1 on failure
-function _grantTimelockProposalRole() {
+function grantTimelockRole() {
   local NETWORK="$1"
   local TIMELOCK_ADDRESS="$2"
-  local SAFE_ADDRESS="$3"
-  local RPC_URL="$4"
-  local ENVIRONMENT="${5:-production}"
+  local ROLE_NAME="$3"
+  local GRANT_ROLE_TO="$4"
+  local RPC_URL="$5"
+  local ENVIRONMENT="${6:-production}"
 
-  if [[ -z "$NETWORK" || -z "$TIMELOCK_ADDRESS" || -z "$SAFE_ADDRESS" || -z "$RPC_URL" ]]; then
-    error "[$NETWORK] _grantTimelockProposalRole: missing required args (NETWORK TIMELOCK_ADDRESS SAFE_ADDRESS RPC_URL)"
+  if [[ -z "$NETWORK" || -z "$TIMELOCK_ADDRESS" || -z "$ROLE_NAME" || -z "$GRANT_ROLE_TO" || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] grantTimelockRole: missing required args (NETWORK TIMELOCK_ADDRESS ROLE_NAME GRANT_ROLE_TO RPC_URL)"
     return 1
   fi
 
@@ -975,24 +980,31 @@ function _grantTimelockProposalRole() {
     return 1
   fi
 
-  local PROPOSER_ROLE
-  PROPOSER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "PROPOSER_ROLE() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
-  if [[ -z "$PROPOSER_ROLE" ]]; then
-    error "[$NETWORK] Failed to read PROPOSER_ROLE from timelock $TIMELOCK_ADDRESS"
+  local ROLE_BYTES
+  ROLE_BYTES=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "${ROLE_NAME}() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
+  if [[ -z "$ROLE_BYTES" ]]; then
+    error "[$NETWORK] Failed to read $ROLE_NAME from timelock $TIMELOCK_ADDRESS"
     return 1
   fi
 
-  # 1) Check if Safe already has PROPOSER_ROLE
-  local SAFE_HAS_PROPOSER_ROLE
-  SAFE_HAS_PROPOSER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$PROPOSER_ROLE" "$SAFE_ADDRESS" 2>/dev/null)
-  if [[ "$SAFE_HAS_PROPOSER_ROLE" == "true" ]]; then
-    echo "[$NETWORK] Safe $SAFE_ADDRESS already has PROPOSER_ROLE on timelock $TIMELOCK_ADDRESS"
+  # 1) Check if grantee already has the role
+  local GRANTEE_HAS_ROLE
+  GRANTEE_HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$ROLE_BYTES" "$GRANT_ROLE_TO" 2>/dev/null)
+  if [[ "$GRANTEE_HAS_ROLE" == "true" ]]; then
+    echo "[$NETWORK] $GRANT_ROLE_TO already has $ROLE_NAME on timelock $TIMELOCK_ADDRESS"
     return 0
   fi
 
-  # 2) Who can grant? Only TIMELOCK_ADMIN_ROLE can grant PROPOSER_ROLE. Check Safe first, then deployer.
-  local SAFE_HAS_ADMIN_ROLE
-  SAFE_HAS_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$SAFE_ADDRESS" 2>/dev/null)
+  # 2) Who can grant? Only TIMELOCK_ADMIN_ROLE can grant. Check network Safe first, then deployer.
+  local SAFE_ADDRESS
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress" 2>/dev/null || true)
+  if [[ $? -ne 0 || -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+    SAFE_ADDRESS=""
+  fi
+  local SAFE_HAS_ADMIN_ROLE="false"
+  if [[ -n "$SAFE_ADDRESS" ]]; then
+    SAFE_HAS_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$SAFE_ADDRESS" 2>/dev/null || echo "false")
+  fi
 
   local DEPLOYER_ADDRESS
   DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
@@ -1002,12 +1014,12 @@ function _grantTimelockProposalRole() {
   fi
 
   if [[ "$SAFE_HAS_ADMIN_ROLE" != "true" && "$DEPLOYER_HAS_ADMIN_ROLE" != "true" ]]; then
-    error "[$NETWORK] Neither Safe ($SAFE_ADDRESS) nor deployer ($DEPLOYER_ADDRESS) has TIMELOCK_ADMIN_ROLE on timelock $TIMELOCK_ADDRESS. Cannot grant PROPOSER_ROLE."
+    error "[$NETWORK] Neither Safe (${SAFE_ADDRESS:-none}) nor deployer ($DEPLOYER_ADDRESS) has TIMELOCK_ADMIN_ROLE on timelock $TIMELOCK_ADDRESS. Cannot grant $ROLE_NAME."
     return 1
   fi
 
   local CALLDATA
-  CALLDATA=$(cast calldata "grantRole(bytes32,address)" "$PROPOSER_ROLE" "$SAFE_ADDRESS" 2>&1)
+  CALLDATA=$(cast calldata "grantRole(bytes32,address)" "$ROLE_BYTES" "$GRANT_ROLE_TO" 2>&1)
   if [[ $? -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
     error "[$NETWORK] Failed to build grantRole calldata: $CALLDATA"
     return 1
@@ -1019,17 +1031,17 @@ function _grantTimelockProposalRole() {
 
   # 3a) Safe is admin → propose Safe tx so Safe executes grantRole
   if [[ "$SAFE_HAS_ADMIN_ROLE" == "true" ]]; then
-    echo "[$NETWORK] Safe is timelock admin. Proposing Safe tx to grant PROPOSER_ROLE to Safe..."
+    echo "[$NETWORK] Safe is timelock admin. Proposing Safe tx to grant $ROLE_NAME to $GRANT_ROLE_TO..."
     if ! sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TIMELOCK_ADDRESS" "$CALLDATA" ""; then
-      error "[$NETWORK] Failed to propose grantRole(PROPOSER_ROLE, Safe)"
+      error "[$NETWORK] Failed to propose grantRole($ROLE_NAME, $GRANT_ROLE_TO)"
       return 1
     fi
-    echo "[$NETWORK] Proposal to grant PROPOSER_ROLE to Safe created successfully"
+    echo "[$NETWORK] Proposal to grant $ROLE_NAME to $GRANT_ROLE_TO created successfully"
     return 0
   fi
 
   # 3b) Deployer is admin → send directly from deployer wallet
-  echo "[$NETWORK] Deployer is timelock admin. Sending grantRole(PROPOSER_ROLE, Safe) from deployer..."
+  echo "[$NETWORK] Deployer is timelock admin. Sending grantRole($ROLE_NAME, $GRANT_ROLE_TO) from deployer..."
   local DEPLOYER_PRIVATE_KEY
   DEPLOYER_PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
     error "[$NETWORK] Failed to get deployer private key"
@@ -1039,7 +1051,7 @@ function _grantTimelockProposalRole() {
     error "[$NETWORK] Failed to send grantRole from deployer"
     return 1
   fi
-  echo "[$NETWORK] PROPOSER_ROLE granted to Safe successfully (sent from deployer)"
+  echo "[$NETWORK] $ROLE_NAME granted to $GRANT_ROLE_TO successfully (sent from deployer)"
   return 0
 }
 
