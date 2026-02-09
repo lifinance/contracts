@@ -1582,49 +1582,29 @@ export async function getNetworksWithActionableTransactions(
 }
 
 /**
- * Gets contract name from deployment log file by address
+ * Gets contract name from per-network production deployment file by address.
+ * Only reads production deployments (e.g. deployments/{network}.json); used by confirm-safe-tx for production contracts.
+ * @param network - Network name (e.g. hyperevm, ink)
  * @param address - Contract address
- * @returns Contract name or "Unknown"
+ * @returns Contract name if found, otherwise "Unknown"
  */
-function getContractNameFromDeploymentLog(address: string): string {
+function getContractNameFromNetworkDeployments(
+  network: string,
+  address: string
+): string {
+  const projectRoot = process.cwd()
+  const filePath = path.join(projectRoot, 'deployments', `${network}.json`)
   try {
-    const projectRoot = process.cwd()
-    const deploymentLogPath = path.join(
-      projectRoot,
-      'deployments',
-      '_deployments_log_file.json'
-    )
-
-    if (!fs.existsSync(deploymentLogPath)) return 'Unknown'
-
-    const logData = JSON.parse(fs.readFileSync(deploymentLogPath, 'utf8'))
+    if (!fs.existsSync(filePath)) return 'Unknown'
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    const data =
+      raw && typeof raw === 'object' && raw.default ? raw.default : raw
+    if (typeof data !== 'object' || data === null) return 'Unknown'
     const normalizedAddress = address.toLowerCase()
-
-    // Search through the nested structure: ContractName -> network -> environment -> version -> deployments[]
-    for (const [contractName, networks] of Object.entries(logData))
-      if (typeof networks === 'object' && networks !== null)
-        for (const [_networkName, environments] of Object.entries(
-          networks as Record<string, unknown>
-        ))
-          if (typeof environments === 'object' && environments !== null)
-            for (const [_envName, versions] of Object.entries(
-              environments as Record<string, unknown>
-            ))
-              if (typeof versions === 'object' && versions !== null)
-                for (const [_version, deployments] of Object.entries(
-                  versions as Record<string, unknown>
-                ))
-                  if (Array.isArray(deployments))
-                    for (const deployment of deployments)
-                      if (
-                        deployment.ADDRESS &&
-                        deployment.ADDRESS.toLowerCase() === normalizedAddress
-                      )
-                        return contractName
-
+    for (const [name, addr] of Object.entries(data))
+      if (addr && String(addr).toLowerCase() === normalizedAddress) return name
     return 'Unknown'
-  } catch (error) {
-    consola.warn(`Error reading deployment log: ${error}`)
+  } catch {
     return 'Unknown'
   }
 }
@@ -1679,10 +1659,12 @@ async function createSelectorMap(): Promise<Map<
  * Decodes a diamond cut transaction and displays its details
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
+ * @param network - Optional network name (e.g. hyperevm) to resolve contract names from per-network deployment files
  */
 export async function decodeDiamondCut(
   diamondCutData: { functionName: string; args?: readonly unknown[] },
-  chainId: number
+  chainId: number,
+  network?: string
 ) {
   const actionMap: Record<number, string> = {
     0: 'Add',
@@ -1739,7 +1721,9 @@ export async function decodeDiamondCut(
 
       // Use selector map for efficient lookup
       if (selectorMap) {
-        const contractName = getContractNameFromDeploymentLog(facetAddress)
+        const contractName = network
+          ? getContractNameFromNetworkDeployments(network, facetAddress)
+          : 'Unknown'
         consola.info(`Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
         for (const selector of selectors) {
