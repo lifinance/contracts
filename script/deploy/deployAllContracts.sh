@@ -278,10 +278,12 @@ deployAllContracts() {
     # run sync whitelist script
     echo ""
     diamondSyncWhitelist "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+    checkFailure $? "sync whitelist"
 
     # register Executor as authorized caller in ERC20Proxy
     echo ""
     updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+    checkFailure $? "update ERC20Proxy"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 8 completed"
   fi
