@@ -39,7 +39,8 @@ function fatalOperation() {
 // Violation: Poor error messages
 function badFunction() {
   try {
-    // Operation
+    // Operation that can fail
+    JSON.parse('invalid json') // This will throw
   } catch {
     // Violation: No error message, should provide meaningful message
     throw new Error('Error') // Violation: Generic error message
