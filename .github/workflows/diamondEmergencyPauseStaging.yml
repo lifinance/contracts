@@ -29,15 +29,16 @@ jobs:
           echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
           exit 1
 
-      - name: Authenticate git user (check membership in 'DiamondPauser' group)
-        if: ${{ inputs.warning == 'UNDERSTOOD' }}
-        id: authenticate-user
-        uses: tspascoal/get-user-teams-membership@v3
-        with:
-          username: ${{ github.actor }}
-          organization: lifinance
-          team: diamondpauser
-          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+      # Commented out to skip authentication for staging pauser. For production github account has to be added to DiamondPauser team.
+      # - name: Authenticate git user (check membership in 'DiamondPauser' group)
+      #   if: ${{ inputs.warning == 'UNDERSTOOD' }}
+      #   id: authenticate-user
+      #   uses: tspascoal/get-user-teams-membership@v3
+      #   with:
+      #     username: ${{ github.actor }}
+      #     organization: lifinance
+      #     team: diamondpauser
+      #     GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
 
       - name: Check team membership
         if: ${{ inputs.warning == 'UNDERSTOOD' }}
