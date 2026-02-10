@@ -59,20 +59,12 @@ interface IDeploymentData {
   [key: string]: string | undefined
 }
 
-/** Result of fetching pending operations for a network (used when pre-checking all networks in parallel). Clients are not stored so we open a fresh RPC when processing. */
+/** Result of pre-checking a network (MongoDB only, no RPC). Used to decide which networks to process; processNetwork always opens a fresh RPC and fetches pending ops on-chain. */
 interface IPendingFetchResult {
   network: INetworkConfig
-  readyOperations: ITimelockOperation[]
-  totalPendingCount: number
-  notScheduledOperations: Array<{
-    operationId: string
-    transactionId: string
-    safeTxHash: string
-    executionHash?: string
-  }>
-  timelockAddress?: Address
-  deploymentData?: IDeploymentData
-  /** Set when prefetch failed; callers must not treat as "no ready ops" without checking. */
+  /** Number of pending timelock txs in MongoDB (on-chain ready count unknown until processNetwork runs). */
+  pendingInMongoCount: number
+  /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
   fetchError?: unknown
 }
 
@@ -262,27 +254,20 @@ const cmd = defineCommand({
       consola.info('🚀 Checking all networks for pending operations...')
 
       const fetchResults = await Promise.all(
-        networksToProcess.map((network) =>
-          fetchPendingForNetwork(
-            network,
-            specificOperationId,
-            rejectAll,
-            rpcUrlOverride
-          )
-        )
+        networksToProcess.map((network) => fetchPendingForNetwork(network))
       )
 
-      const networksWithReady = fetchResults.filter(
-        (r) => r.readyOperations.length > 0
+      const networksWithPending = fetchResults.filter(
+        (r) => r.pendingInMongoCount > 0
       )
       const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
 
       consola.info(
-        `Checked ${networksToProcess.length} network(s); ${
-          networksWithReady.length
-        } have ready operation(s)${
-          networksWithReady.length > 0
-            ? `: ${networksWithReady.map((r) => r.network.name).join(', ')}`
+        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
+          networksWithPending.length
+        } have pending timelock tx(s)${
+          networksWithPending.length > 0
+            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
             : ''
         }`
       )
@@ -290,27 +275,29 @@ const cmd = defineCommand({
         consola.warn(
           `Prefetch failed for ${
             networksWithFetchError.length
-          } network(s) (ready ops may have been skipped): ${networksWithFetchError
+          } network(s): ${networksWithFetchError
             .map((r) => r.network.name)
             .join(', ')}`
         )
       }
 
-      if (networksWithReady.length === 0) {
+      if (networksWithPending.length === 0) {
         if (networksWithFetchError.length > 0) {
           consola.error(
-            'No networks with ready operations; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
+            'No networks with pending timelock txs; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
           )
           process.exit(1)
         }
-        consola.success('No networks with pending executable transactions.')
+        consola.success('No networks with pending timelock transactions.')
         return
       }
 
-      consola.info('Processing networks with ready operations in parallel.')
+      consola.info(
+        'Processing networks with pending txs (fresh RPC per network).'
+      )
 
       const results = await Promise.all(
-        networksWithReady.map((fetched) =>
+        networksWithPending.map((fetched) =>
           processNetwork(
             fetched.network,
             isDryRun,
@@ -318,8 +305,7 @@ const cmd = defineCommand({
             executeAll,
             rejectAll,
             rpcUrlOverride,
-            slackNotifier,
-            fetched
+            slackNotifier
           )
         )
       )
@@ -372,27 +358,20 @@ const cmd = defineCommand({
 
       // Pre-check all networks in parallel; only process those with ready operations
       const fetchResults = await Promise.all(
-        networksToProcess.map((network) =>
-          fetchPendingForNetwork(
-            network,
-            specificOperationId,
-            rejectAll ?? false,
-            rpcUrlOverride
-          )
-        )
+        networksToProcess.map((network) => fetchPendingForNetwork(network))
       )
 
-      const networksWithReady = fetchResults.filter(
-        (r) => r.readyOperations.length > 0
+      const networksWithPending = fetchResults.filter(
+        (r) => r.pendingInMongoCount > 0
       )
       const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
 
       consola.info(
-        `Checked ${networksToProcess.length} network(s); ${
-          networksWithReady.length
-        } have ready operation(s)${
-          networksWithReady.length > 0
-            ? `: ${networksWithReady.map((r) => r.network.name).join(', ')}`
+        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
+          networksWithPending.length
+        } have pending timelock tx(s)${
+          networksWithPending.length > 0
+            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
             : ''
         }`
       )
@@ -400,29 +379,31 @@ const cmd = defineCommand({
         consola.warn(
           `Prefetch failed for ${
             networksWithFetchError.length
-          } network(s) (ready ops may have been skipped): ${networksWithFetchError
+          } network(s): ${networksWithFetchError
             .map((r) => r.network.name)
             .join(', ')}`
         )
       }
 
-      if (networksWithReady.length === 0) {
+      if (networksWithPending.length === 0) {
         if (networksWithFetchError.length > 0) {
           consola.error(
-            'No networks with ready operations; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
+            'No networks with pending timelock txs; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
           )
           process.exit(1)
         }
-        consola.success('No networks with pending executable transactions.')
+        consola.success('No networks with pending timelock transactions.')
         return
       }
 
-      consola.info('Processing networks with ready operations sequentially.')
+      consola.info(
+        'Processing networks with pending txs sequentially (fresh RPC per network).'
+      )
 
       let totalFailed = 0
       let totalSucceeded = 0
 
-      for (const fetched of networksWithReady)
+      for (const fetched of networksWithPending)
         try {
           const result = await processNetwork(
             fetched.network,
@@ -431,8 +412,7 @@ const cmd = defineCommand({
             executeAll,
             rejectAll,
             rpcUrlOverride,
-            undefined, // No Slack notifier in sequential mode
-            fetched
+            undefined // No Slack notifier in sequential mode
           )
 
           if (result.success) totalSucceeded++
@@ -440,7 +420,7 @@ const cmd = defineCommand({
 
           if (result.operationsFailed && result.operationsFailed > 0)
             consola.error(
-              `[${fetched.network.name}] ❌ ${result.operationsFailed} operation(s) failed`
+              `[${result.network}] ❌ ${result.operationsFailed} operation(s) failed`
             )
         } catch (error) {
           consola.error(
@@ -587,20 +567,15 @@ async function fetchPendingTimelockTransactions(
 }
 
 /**
- * Fetches pending operations for a single network (used when pre-checking all networks in parallel).
- * Returns data only (no RPC clients); processNetwork opens a fresh connection when executing.
+ * Pre-checks a single network using MongoDB only (no RPC). Returns how many pending timelock txs exist in MongoDB.
+ * processNetwork always opens a fresh RPC and fetches on-chain ready state so we never reuse a stale connection.
  */
 async function fetchPendingForNetwork(
-  network: INetworkConfig,
-  specificOperationId: Hex | undefined,
-  rejectAll: boolean,
-  rpcUrlOverride: string | undefined
+  network: INetworkConfig
 ): Promise<IPendingFetchResult> {
   const empty: IPendingFetchResult = {
     network,
-    readyOperations: [],
-    totalPendingCount: 0,
-    notScheduledOperations: [],
+    pendingInMongoCount: 0,
   }
   try {
     const deploymentData = (await getDeployments(
@@ -610,36 +585,14 @@ async function fetchPendingForNetwork(
 
     if (!deploymentData.LiFiTimelockController) return empty
 
-    const timelockAddress = deploymentData.LiFiTimelockController as Address
-    const { publicClient } = await setupEnvironment(
-      network.name as SupportedChain,
-      null,
-      EnvironmentEnum.production,
-      rpcUrlOverride
-    )
-
-    const { readyOperations, totalPendingCount, notScheduledOperations } =
-      await getPendingOperations(
-        publicClient,
-        timelockAddress,
-        network.name,
-        specificOperationId,
-        rejectAll,
-        undefined, // no Slack in batch check
-        { quiet: true }
-      )
-
+    const txs = await fetchPendingTimelockTransactions(network.name)
     return {
       network,
-      readyOperations,
-      totalPendingCount,
-      notScheduledOperations,
-      timelockAddress,
-      deploymentData,
+      pendingInMongoCount: txs.length,
     }
   } catch (err) {
     consola.error(
-      `[${network.name}] Prefetch failed (ready ops may have been skipped):`,
+      `[${network.name}] Prefetch failed (pending count may have been skipped):`,
       err
     )
     return { ...empty, fetchError: err }
@@ -653,8 +606,7 @@ async function processNetwork(
   executeAll?: boolean,
   rejectAll?: boolean,
   rpcUrlOverride?: string,
-  slackNotifier?: SlackNotifier,
-  preFetched?: IPendingFetchResult
+  slackNotifier?: SlackNotifier
 ): Promise<INetworkResult> {
   // Only show network header in sequential mode (when not using auto-execute flags)
   const isSequentialMode = !executeAll && !rejectAll
@@ -664,67 +616,35 @@ async function processNetwork(
     )
 
   try {
-    let deploymentData: IDeploymentData
-    let publicClient: PublicClient
-    let walletClient: WalletClient
-    let timelockAddress: Address
-    let readyOperations: ITimelockOperation[]
-    let totalPendingCount: number
-    let notScheduledOperations: IPendingFetchResult['notScheduledOperations']
+    // Always load deployment and open a fresh RPC so the connection is never stale (e.g. after long interactive pause or 60+ parallel prefetches).
+    const deploymentData = (await getDeployments(
+      network.name as SupportedChain,
+      EnvironmentEnum.production
+    )) as IDeploymentData
 
-    // Use prefetched data when available; always open a fresh RPC for execution so the connection is not stale (e.g. after long interactive pause).
-    if (
-      preFetched?.timelockAddress &&
-      preFetched?.deploymentData &&
-      preFetched.readyOperations.length > 0
-    ) {
-      deploymentData = preFetched.deploymentData
-      timelockAddress = preFetched.timelockAddress
-      readyOperations = preFetched.readyOperations
-      totalPendingCount = preFetched.totalPendingCount
-      notScheduledOperations = preFetched.notScheduledOperations
-      const { publicClient: pc, walletClient: wc } = await setupEnvironment(
-        network.name as SupportedChain,
-        null,
-        EnvironmentEnum.production,
-        rpcUrlOverride
+    if (!deploymentData.LiFiTimelockController) {
+      consola.warn(
+        `[${network.name}] ⚠️  No timelock controller deployed on ${network.name}`
       )
-      publicClient = pc
-      walletClient = wc
-    } else {
-      // Load deployment data for the network using getDeployments
-      deploymentData = (await getDeployments(
-        network.name as SupportedChain,
-        EnvironmentEnum.production
-      )) as IDeploymentData
 
-      // Check if LiFiTimelockController is deployed
-      if (!deploymentData.LiFiTimelockController) {
-        consola.warn(
-          `[${network.name}] ⚠️  No timelock controller deployed on ${network.name}`
-        )
-
-        return {
-          network: network.name,
-          success: true,
-          operationsProcessed: 0,
-        }
+      return {
+        network: network.name,
+        success: true,
+        operationsProcessed: 0,
       }
+    }
 
-      timelockAddress = deploymentData.LiFiTimelockController as Address
+    const timelockAddress = deploymentData.LiFiTimelockController as Address
 
-      // Setup environment for viem clients using setupEnvironment
-      const { publicClient: pc, walletClient: wc } = await setupEnvironment(
-        network.name as SupportedChain,
-        null,
-        EnvironmentEnum.production,
-        rpcUrlOverride
-      )
-      publicClient = pc
-      walletClient = wc
+    const { publicClient, walletClient } = await setupEnvironment(
+      network.name as SupportedChain,
+      null,
+      EnvironmentEnum.production,
+      rpcUrlOverride
+    )
 
-      // Get pending operations
-      const pending = await getPendingOperations(
+    const { readyOperations, totalPendingCount, notScheduledOperations } =
+      await getPendingOperations(
         publicClient,
         timelockAddress,
         network.name,
@@ -732,10 +652,6 @@ async function processNetwork(
         rejectAll,
         slackNotifier
       )
-      readyOperations = pending.readyOperations
-      totalPendingCount = pending.totalPendingCount
-      notScheduledOperations = pending.notScheduledOperations
-    }
 
     if (readyOperations.length === 0) {
       if (totalPendingCount === 0)
