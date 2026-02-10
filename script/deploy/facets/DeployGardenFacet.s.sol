@@ -29,7 +29,7 @@ contract DeployScript is DeployScriptBase {
         // Read the htlcRegistry address from config
         address htlcRegistry = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".htlcRegistry")
+            string.concat(".htlcRegistry.", network)
         );
 
         return abi.encode(htlcRegistry);
