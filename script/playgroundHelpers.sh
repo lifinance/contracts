@@ -908,10 +908,10 @@ function _createTimelockCancellerProposal() {
 
   # Verify Safe has PROPOSER_ROLE (required to call schedule())
   local PROPOSER_ROLE
-  PROPOSER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "PROPOSER_ROLE() returns (bytes32)" --rpc-url "$RPC_URL" 2>/dev/null | tr -d '[:space:]')
+  PROPOSER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "PROPOSER_ROLE() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
   if [[ -n "$PROPOSER_ROLE" ]]; then
     local SAFE_HAS_PROPOSER_ROLE
-    SAFE_HAS_PROPOSER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$PROPOSER_ROLE" "$SAFE_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    SAFE_HAS_PROPOSER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$PROPOSER_ROLE" "$SAFE_ADDRESS" 2>/dev/null)
     if [[ "$SAFE_HAS_PROPOSER_ROLE" != "true" ]]; then
       error "[$NETWORK] Safe address ($SAFE_ADDRESS) does not have PROPOSER_ROLE on timelock"
       error "[$NETWORK] Safe needs PROPOSER_ROLE to schedule operations"
@@ -945,6 +945,189 @@ function _createTimelockCancellerProposal() {
   set -e  # Re-enable exit on error
 
   return $PROPOSAL_STATUS
+}
+
+# grantTimelockRole: Grant a role on the timelock controller to an address (Safe or wallet).
+# If the grantee already has the role, returns 0. Otherwise uses network Safe if Safe has
+# TIMELOCK_ADMIN_ROLE (proposes tx), or deployer wallet if deployer has TIMELOCK_ADMIN_ROLE.
+#
+# Usage: grantTimelockRole NETWORK TIMELOCK_ADDRESS ROLE_NAME GRANT_ROLE_TO RPC_URL [ENVIRONMENT]
+#   NETWORK          - Network name
+#   TIMELOCK_ADDRESS - LiFiTimelockController address
+#   ROLE_NAME        - Role getter name on timelock (e.g. PROPOSER_ROLE, CANCELLER_ROLE, EXECUTOR_ROLE)
+#   GRANT_ROLE_TO    - Address to grant the role to (Safe or EOA)
+#   RPC_URL          - RPC URL for the network
+#   ENVIRONMENT      - Optional, default "production"
+#
+# Returns: 0 on success (already has role, or proposal sent, or deployer sent), 1 on failure
+function grantTimelockRole() {
+  local NETWORK="$1"
+  local TIMELOCK_ADDRESS="$2"
+  local ROLE_NAME="$3"
+  local GRANT_ROLE_TO="$4"
+  local RPC_URL="$5"
+  local ENVIRONMENT="${6:-production}"
+
+  if [[ -z "$NETWORK" || -z "$TIMELOCK_ADDRESS" || -z "$ROLE_NAME" || -z "$GRANT_ROLE_TO" || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] grantTimelockRole: missing required args (NETWORK TIMELOCK_ADDRESS ROLE_NAME GRANT_ROLE_TO RPC_URL)"
+    return 1
+  fi
+
+  local TIMELOCK_ADMIN_ROLE
+  TIMELOCK_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "TIMELOCK_ADMIN_ROLE() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
+  if [[ -z "$TIMELOCK_ADMIN_ROLE" ]]; then
+    error "[$NETWORK] Failed to read TIMELOCK_ADMIN_ROLE from timelock $TIMELOCK_ADDRESS"
+    return 1
+  fi
+
+  local ROLE_BYTES
+  ROLE_BYTES=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "${ROLE_NAME}() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
+  if [[ -z "$ROLE_BYTES" ]]; then
+    error "[$NETWORK] Failed to read $ROLE_NAME from timelock $TIMELOCK_ADDRESS"
+    return 1
+  fi
+
+  # 1) Check if grantee already has the role
+  local GRANTEE_HAS_ROLE
+  GRANTEE_HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$ROLE_BYTES" "$GRANT_ROLE_TO" 2>/dev/null)
+  if [[ "$GRANTEE_HAS_ROLE" == "true" ]]; then
+    echo "[$NETWORK] $GRANT_ROLE_TO already has $ROLE_NAME on timelock $TIMELOCK_ADDRESS"
+    return 0
+  fi
+
+  # 2) Who can grant? Only TIMELOCK_ADMIN_ROLE can grant. Check network Safe first, then deployer.
+  local SAFE_ADDRESS
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress" 2>/dev/null || true)
+  if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+    SAFE_ADDRESS=""
+  fi
+  local SAFE_HAS_ADMIN_ROLE="false"
+  if [[ -n "$SAFE_ADDRESS" ]]; then
+    SAFE_HAS_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$SAFE_ADDRESS" 2>/dev/null || echo "false")
+  fi
+
+  local DEPLOYER_ADDRESS
+  DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  local DEPLOYER_HAS_ADMIN_ROLE="false"
+  if [[ -n "$DEPLOYER_ADDRESS" ]]; then
+    DEPLOYER_HAS_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$DEPLOYER_ADDRESS" 2>/dev/null || echo "false")
+  fi
+
+  if [[ "$SAFE_HAS_ADMIN_ROLE" != "true" && "$DEPLOYER_HAS_ADMIN_ROLE" != "true" ]]; then
+    error "[$NETWORK] Neither Safe (${SAFE_ADDRESS:-none}) nor deployer ($DEPLOYER_ADDRESS) has TIMELOCK_ADMIN_ROLE on timelock $TIMELOCK_ADDRESS. Cannot grant $ROLE_NAME."
+    return 1
+  fi
+
+  local CALLDATA
+  CALLDATA=$(cast calldata "grantRole(bytes32,address)" "$ROLE_BYTES" "$GRANT_ROLE_TO" 2>&1)
+  if [[ $? -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
+    error "[$NETWORK] Failed to build grantRole calldata: $CALLDATA"
+    return 1
+  fi
+  if [[ ! "$CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]] || [[ ${#CALLDATA} -lt 10 ]]; then
+    error "[$NETWORK] Invalid grantRole calldata: $CALLDATA"
+    return 1
+  fi
+
+  # 3a) Safe is admin → propose Safe tx so Safe executes grantRole
+  if [[ "$SAFE_HAS_ADMIN_ROLE" == "true" ]]; then
+    echo "[$NETWORK] Safe is timelock admin. Proposing Safe tx to grant $ROLE_NAME to $GRANT_ROLE_TO..."
+    if ! sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TIMELOCK_ADDRESS" "$CALLDATA" ""; then
+      error "[$NETWORK] Failed to propose grantRole($ROLE_NAME, $GRANT_ROLE_TO)"
+      return 1
+    fi
+    echo "[$NETWORK] Proposal to grant $ROLE_NAME to $GRANT_ROLE_TO created successfully"
+    return 0
+  fi
+
+  # 3b) Deployer is admin → send directly from deployer wallet
+  echo "[$NETWORK] Deployer is timelock admin. Sending grantRole($ROLE_NAME, $GRANT_ROLE_TO) from deployer..."
+  local DEPLOYER_PRIVATE_KEY
+  DEPLOYER_PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+    error "[$NETWORK] Failed to get deployer private key"
+    return 1
+  }
+  if ! universalSendRaw "$NETWORK" "$ENVIRONMENT" "$TIMELOCK_ADDRESS" "$CALLDATA" "$DEPLOYER_PRIVATE_KEY"; then
+    error "[$NETWORK] Failed to send grantRole from deployer"
+    return 1
+  fi
+  echo "[$NETWORK] $ROLE_NAME granted to $GRANT_ROLE_TO successfully (sent from deployer)"
+  return 0
+}
+
+# proposeTimelockAdminTransfer: Creates a proposal on the OLD Safe to grant TIMELOCK_ADMIN_ROLE to the NEW Safe.
+# Does not revoke the old Safe; both will have admin until old Safe revokes itself. Proposal must be executed by old Safe.
+# Usage: proposeTimelockAdminTransfer NETWORK TIMELOCK_ADDRESS OLD_SAFE_ADDRESS NEW_SAFE_ADDRESS RPC_URL [ENVIRONMENT]
+#   NETWORK           - Network name
+#   TIMELOCK_ADDRESS  - LiFiTimelockController address
+#   OLD_SAFE_ADDRESS  - Current timelock admin Safe (proposal is created for this Safe so it can execute)
+#   NEW_SAFE_ADDRESS  - Safe to grant TIMELOCK_ADMIN_ROLE (e.g. Safe from config)
+#   RPC_URL           - RPC URL for the network
+#   ENVIRONMENT       - Optional, default "production"
+# Returns: 0 on success, 1 on failure
+function proposeTimelockAdminTransfer() {
+  local NETWORK="$1"
+  local TIMELOCK_ADDRESS="$2"
+  local OLD_SAFE_ADDRESS="$3"
+  local NEW_SAFE_ADDRESS="$4"
+  local RPC_URL="$5"
+  local ENVIRONMENT="${6:-production}"
+
+  if [[ -z "$NETWORK" || -z "$TIMELOCK_ADDRESS" || -z "$OLD_SAFE_ADDRESS" || -z "$NEW_SAFE_ADDRESS" || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] proposeTimelockAdminTransfer: missing required args (NETWORK TIMELOCK_ADDRESS OLD_SAFE NEW_SAFE RPC_URL)"
+    return 1
+  fi
+
+  local TIMELOCK_ADMIN_ROLE
+  TIMELOCK_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "TIMELOCK_ADMIN_ROLE() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
+  if [[ -z "$TIMELOCK_ADMIN_ROLE" ]]; then
+    error "[$NETWORK] Failed to read TIMELOCK_ADMIN_ROLE from timelock $TIMELOCK_ADDRESS"
+    return 1
+  fi
+
+  local CALLDATA
+  CALLDATA=$(cast calldata "grantRole(bytes32,address)" "$TIMELOCK_ADMIN_ROLE" "$NEW_SAFE_ADDRESS" 2>&1)
+  if [[ $? -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
+    error "[$NETWORK] Failed to build grantRole calldata: $CALLDATA"
+    return 1
+  fi
+  if [[ ! "$CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]] || [[ ${#CALLDATA} -lt 10 ]]; then
+    error "[$NETWORK] Invalid grantRole calldata: $CALLDATA"
+    return 1
+  fi
+
+  echo "[$NETWORK] Creating proposal on OLD Safe ($OLD_SAFE_ADDRESS) to grant TIMELOCK_ADMIN_ROLE to NEW Safe ($NEW_SAFE_ADDRESS)..."
+  echo "[$NETWORK] Transaction: timelock.grantRole(TIMELOCK_ADMIN_ROLE, $NEW_SAFE_ADDRESS). Execute via old Safe (do not revoke old Safe yet)."
+
+  local contracts_dir
+  contracts_dir=$(getContractsDirectory)
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Could not determine contracts directory"
+    return 1
+  fi
+
+  # Trim private key (echo in getPrivateKey adds newline; trailing newline would corrupt key and change derived address)
+  local PRIV_KEY
+  PRIV_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT" | tr -d '\n\r')
+  set +e
+  (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+    --to "$TIMELOCK_ADDRESS" \
+    --calldata "$CALLDATA" \
+    --network "$NETWORK" \
+    --rpcUrl "$RPC_URL" \
+    --safeAddress "$OLD_SAFE_ADDRESS" \
+    --privateKey "$PRIV_KEY" \
+    2>&1)
+  local PROPOSAL_STATUS=$?
+  set -e
+
+  if [[ $PROPOSAL_STATUS -ne 0 ]]; then
+    error "[$NETWORK] Failed to create proposal on old Safe. Signer (from PRIVATE_KEY_PRODUCTION) must be an owner of old Safe ($OLD_SAFE_ADDRESS). Check output above for signer vs owners."
+    return 1
+  fi
+
+  echo "[$NETWORK] Proposal created on old Safe. Confirm and execute it via the old Safe to grant admin role to new Safe."
+  return 0
 }
 
 function manageTimelockCanceller() {
@@ -1030,7 +1213,7 @@ function manageTimelockCanceller() {
 
   # Get CANCELLER_ROLE bytes value from contract
   local CANCELLER_ROLE
-  CANCELLER_ROLE=$(cast call "$TIMELOCK_ADDRESS" "CANCELLER_ROLE() returns (bytes32)" --rpc-url "$RPC_URL" 2>/dev/null)
+  CANCELLER_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "CANCELLER_ROLE() returns (bytes32)" 2>/dev/null)
   if [[ $? -ne 0 || -z "$CANCELLER_ROLE" ]]; then
     error "[$NETWORK] Failed to get CANCELLER_ROLE from timelock contract at $TIMELOCK_ADDRESS"
     return 1
@@ -1049,7 +1232,7 @@ function manageTimelockCanceller() {
   local OLD_ADDRESS_HAS_ROLE=false
   if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
     local HAS_ROLE
-    HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$REMOVE_ROLE_FROM_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$REMOVE_ROLE_FROM_ADDRESS" 2>/dev/null)
     if [[ $? -eq 0 && "$HAS_ROLE" == "true" ]]; then
       OLD_ADDRESS_HAS_ROLE=true
     fi
@@ -1069,7 +1252,7 @@ function manageTimelockCanceller() {
       # Note: TimelockController uses AccessControl (not AccessControlEnumerable), so we can't enumerate role members
       # We check if Safe has CANCELLER_ROLE as a safety measure
       local SAFE_HAS_ROLE
-      SAFE_HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$SAFE_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+      SAFE_HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$SAFE_ADDRESS" 2>/dev/null)
 
       if [[ "$MODE" == "remove" ]]; then
         # For remove mode: check if Safe has the role as backup
@@ -1102,7 +1285,7 @@ function manageTimelockCanceller() {
   local NEW_ADDRESS_HAS_ROLE=false
   if [[ "$MODE" == "add" || "$MODE" == "replace" ]]; then
     local HAS_ROLE
-    HAS_ROLE=$(cast call "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$GRANT_ROLE_TO_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null)
+    HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$CANCELLER_ROLE" "$GRANT_ROLE_TO_ADDRESS" 2>/dev/null)
     if [[ $? -eq 0 && "$HAS_ROLE" == "true" ]]; then
       NEW_ADDRESS_HAS_ROLE=true
     fi
@@ -1247,8 +1430,7 @@ function manageSafeOwner() {
       return 1
     fi
 
-    # Validate Ethereum address format
-    if [[ ! "$OWNER_TO_BE_ADDED" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    if ! isValidEvmAddress "$OWNER_TO_BE_ADDED"; then
       error "[$NETWORK] OWNER_TO_BE_ADDED must be a valid Ethereum address (format: 0x followed by 40 hex characters)"
       return 1
     fi
@@ -1273,7 +1455,7 @@ function manageSafeOwner() {
   # For add mode: check if address is already an owner (prevent duplicates)
   if [[ "$MODE" == "add" ]]; then
     local IS_ALREADY_OWNER
-    IS_ALREADY_OWNER=$(cast call "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_ADDED" --rpc-url "$RPC_URL" 2>/dev/null)
+    IS_ALREADY_OWNER=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_ADDED" 2>/dev/null)
     if [[ $? -ne 0 ]]; then
       error "[$NETWORK] Failed to check if address is already an owner"
       return 1
@@ -1289,7 +1471,7 @@ function manageSafeOwner() {
   if [[ "$MODE" == "remove" || "$MODE" == "replace" ]]; then
     # Check if owner is currently an owner
     local IS_OWNER
-    IS_OWNER=$(cast call "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_REMOVED" --rpc-url "$RPC_URL" 2>/dev/null)
+    IS_OWNER=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "isOwner(address) returns (bool)" "$OWNER_TO_BE_REMOVED" 2>/dev/null)
     if [[ $? -ne 0 || "$IS_OWNER" != "true" ]]; then
       error "[$NETWORK] Address $OWNER_TO_BE_REMOVED is not an owner of the Safe"
       return 1
@@ -1297,7 +1479,7 @@ function manageSafeOwner() {
 
     # Get owners list
     local OWNERS_JSON
-    OWNERS_JSON=$(cast call "$SAFE_ADDRESS" "getOwners() returns (address[])" --rpc-url "$RPC_URL" 2>/dev/null)
+    OWNERS_JSON=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "getOwners() returns (address[])" 2>/dev/null)
     if [[ $? -ne 0 || -z "$OWNERS_JSON" ]]; then
       error "[$NETWORK] Failed to get owners list"
       return 1
@@ -1342,7 +1524,7 @@ function manageSafeOwner() {
 
   # Get current threshold
   local THRESHOLD
-  THRESHOLD=$(cast call "$SAFE_ADDRESS" "getThreshold() returns (uint256)" --rpc-url "$RPC_URL" 2>/dev/null)
+  THRESHOLD=$(universalCast "call" "$NETWORK" "$SAFE_ADDRESS" "getThreshold() returns (uint256)" 2>/dev/null)
   if [[ $? -ne 0 || -z "$THRESHOLD" ]]; then
     error "[$NETWORK] Failed to get current threshold"
     return 1
@@ -1507,15 +1689,13 @@ function removeAccessManagerPermission() {
     return 1
   fi
 
-  # Validate function selector format (should be 0x followed by 8 hex characters)
-  if [[ ! "$FUNCTION_SELECTOR" =~ ^0x[0-9a-fA-F]{8}$ ]]; then
+  if ! isValidSelector "$FUNCTION_SELECTOR"; then
     error "[$NETWORK] Invalid function selector format: $FUNCTION_SELECTOR"
     error "[$NETWORK] Function selector must be 0x followed by 8 hex characters (e.g., 0x1171c007)"
     return 1
   fi
 
-  # Validate address format
-  if [[ ! "$EXECUTOR_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+  if ! isValidEvmAddress "$EXECUTOR_ADDRESS"; then
     error "[$NETWORK] Invalid executor address format: $EXECUTOR_ADDRESS"
     return 1
   fi
@@ -1542,7 +1722,7 @@ function removeAccessManagerPermission() {
   # Check if the deployer wallet already has permission removed (can't execute)
   # If permission is already removed, skip proposal creation and mark as success
   local CAN_EXECUTE
-  CAN_EXECUTE=$(cast call "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address) returns (bool)" "$FUNCTION_SELECTOR" "$EXECUTOR_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null || echo "false")
+  CAN_EXECUTE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address) returns (bool)" "$FUNCTION_SELECTOR" "$EXECUTOR_ADDRESS" 2>/dev/null || echo "false")
 
   if [[ "$CAN_EXECUTE" == "false" ]]; then
     success "[$NETWORK] ✅ Permission already removed - deployer wallet ($EXECUTOR_ADDRESS) cannot execute function selector $FUNCTION_SELECTOR. Skipping proposal creation."
@@ -1732,7 +1912,7 @@ function transferStagingDiamondOwnership() {
 
   # Get current owner from the diamond
   local CURRENT_OWNER
-  CURRENT_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+  CURRENT_OWNER=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>/dev/null)
 
   if [[ -z "$CURRENT_OWNER" || "$CURRENT_OWNER" == "0x" ]]; then
     error "[$NETWORK] Failed to get current owner from diamond at $DIAMOND_ADDRESS"
@@ -1783,11 +1963,7 @@ function transferStagingDiamondOwnership() {
   # Step 2a: Initiate ownership transfer from old owner
   logWithTimestamp "[$NETWORK] Step 1: Initiating ownership transfer from old dev wallet..."
   local TRANSFER_OUTPUT
-  TRANSFER_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "transferOwnership(address)" "$NEW_DEV_WALLET" \
-    --private-key "$OLD_OWNER_PRIVATE_KEY" \
-    --rpc-url "$RPC_URL" \
-    --legacy \
-    2>&1)
+  TRANSFER_OUTPUT=$(universalCast "send" "$NETWORK" "staging" "$DIAMOND_ADDRESS" "transferOwnership(address)" "$NEW_DEV_WALLET" "false" "$OLD_OWNER_PRIVATE_KEY" 2>&1)
   local TRANSFER_EXIT_CODE=$?
 
   if [[ $TRANSFER_EXIT_CODE -ne 0 ]]; then
@@ -1835,11 +2011,7 @@ function transferStagingDiamondOwnership() {
   fi
 
   local CONFIRM_OUTPUT
-  CONFIRM_OUTPUT=$(cast send "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" \
-    --private-key "$NEW_DEV_WALLET_PRIVATE_KEY" \
-    --rpc-url "$RPC_URL" \
-    --legacy \
-    2>&1)
+  CONFIRM_OUTPUT=$(universalCast "send" "$NETWORK" "staging" "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" "" "false" "$NEW_DEV_WALLET_PRIVATE_KEY" 2>&1)
   local CONFIRM_EXIT_CODE=$?
 
   if [[ $CONFIRM_EXIT_CODE -ne 0 ]]; then
@@ -1864,7 +2036,7 @@ function transferStagingDiamondOwnership() {
   # Step 4: Verify that owner of staging diamond is new dev wallet
   logWithTimestamp "[$NETWORK] Step 3: Verifying ownership transfer..."
   local VERIFIED_OWNER
-  VERIFIED_OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL" 2>/dev/null)
+  VERIFIED_OWNER=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>/dev/null)
 
   if [[ -z "$VERIFIED_OWNER" || "$VERIFIED_OWNER" == "0x" ]]; then
     error "[$NETWORK] Failed to verify new owner"
@@ -1912,6 +2084,8 @@ export -f removeAccessManagerPermission
 export -f removeDeployerWhitelistPermission
 export -f manageTimelockCanceller
 export -f manageSafeOwner
+export -f proposeTimelockAdminTransfer
+export -f grantTimelockRole
 
 # Utility functions
 export -f validateDependencies
@@ -1919,5 +2093,3 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f transferStagingDiamondOwnership
-export -f manageTimelockCanceller
-export -f manageSafeOwner

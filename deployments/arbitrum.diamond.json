@@ -185,9 +185,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x66FD4424bc4E24b6183e95DD74A3f3857725457F": {
+      "0x2290f918c21D64aC8b1D7cE725E320EfB75271d4": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xB2d2D9e94B8C690aE642c71B3Cc080E5893CE839": {
         "Name": "GardenFacet",
@@ -211,7 +211,7 @@
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-      "GasZipPeriphery": "0x7339d0d71DD79FE3Bc4A2650F7E025ffeac170FA",
+      "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "LidoWrapper": "",
       "Patcher": "",

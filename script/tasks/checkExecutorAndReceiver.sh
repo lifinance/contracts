@@ -5,9 +5,6 @@ checkExecutorAndReceiver() {
   # load env variables
 	source .env
 
-  # load config & helper functions
-  source script/helperFunctions.sh
-
   # ask user if check Executor and Receiver for one network or for all networks
   echo "Would you like to check Executor and Receiver on all networks or on one specific network?"
   SELECTION_NETWORK=$(
@@ -58,55 +55,47 @@ checkExecutorAndReceiver() {
     echo ""
     echo "[info] now check Executor and Receiver on network: $NETWORK"
 
-    # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK -vvvvv --json --skip-simulation --legacy --tc DeployScript)
-    RETURN_CODE=$?
+    # Execute, parse, and check return code
+    executeAndParse \
+      "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK --json --skip-simulation --legacy --tc DeployScript" \
+      "true"
 
-    # print return data only if debug mode is activated
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-
-    # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
-      # try to extract error message and throw error
-      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-      if [[ $ERROR_MESSAGE == "" ]]; then
-        error "failed to check. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
-      else
-        error "failed to check with message: $ERROR_MESSAGE"
-      fi
-
-      FAILED_RESULTS="$FAILED_RESULTS\n[info] Failed to check on network: $NETWORK"
-
-    # check the return code the last call
-    elif [[ $RETURN_CODE -eq 0 && $RAW_RETURN_DATA != *"\"returns\":{}"* ]]; then
-      # extract the "logs" property and its contents from return data
-      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-
-      # extract the "returns" property and its contents from logs
-      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
-      #echoDebug "RETURN_DATA: $RETURN_DATA"
-
-      # get the status from the return data
-      MATCH=$(echo $RETURN_DATA | jq -r '."0".value')
-
-      if [[ $MATCH == "true" ]]; then
-        RESULT="[info] Executor and Receiver match on network: $NETWORK"
-        MATCH_RESULTS="$MATCH_RESULTS\n$RESULT"
-      else
-        RESULT="[warning] Executor and Receiver don't match on network: $NETWORK"
-        DISMATCH_RESULTS="$DISMATCH_RESULTS\n$RESULT"
-      fi
-
-      echo $RESULT
+    # Handle errors using centralized helper function
+    if ! handleForgeScriptError "forge script failed for CheckExecutorAndReceiver" "" "$NETWORK"; then
+      FAILED_RESULTS="${FAILED_RESULTS:-}"$'\n'"[info] Failed to check on network: ${NETWORK:-}"
+      continue
     fi
+
+    # Extract the "logs" property and its contents from return data
+    CLEAN_RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed 's/^.*{\"logs/{\"logs/')
+
+    # Extract the "returns" property and its contents from logs
+    RETURN_DATA=$(echo "$CLEAN_RETURN_DATA" | jq -r '.returns' 2>/dev/null)
+    #echoDebug "RETURN_DATA: $RETURN_DATA"
+
+    # Get the status from the return data
+    MATCH=$(echo "$RETURN_DATA" | jq -r '."0".value')
+
+    if [[ "$MATCH" != "true" && "$MATCH" != "false" ]]; then
+      RESULT="[warning] Could not parse result on network: $NETWORK"
+      FAILED_RESULTS="${FAILED_RESULTS:-}"$'\n'"$RESULT"
+    elif [[ "$MATCH" == "true" ]]; then
+      RESULT="[info] Executor and Receiver match on network: $NETWORK"
+      MATCH_RESULTS="${MATCH_RESULTS:-}\n$RESULT"
+    else
+      RESULT="[warning] Executor and Receiver don't match on network: $NETWORK"
+      DISMATCH_RESULTS="${DISMATCH_RESULTS:-}\n$RESULT"
+    fi
+
+    echo "$RESULT"
   done
 
   echo "Executor and Receiver checks completed"
   echo ""
   echo "========================== Results =========================="
-  echo -e $MATCH_RESULTS
-  echo -e $DISMATCH_RESULTS
-  echo -e $FAILED_RESULTS
+  echo -e "${MATCH_RESULTS:-}"
+  echo -e "${DISMATCH_RESULTS:-}"
+  echo -e "${FAILED_RESULTS:-}"
 }
 
 

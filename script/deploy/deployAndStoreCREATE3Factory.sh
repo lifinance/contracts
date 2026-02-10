@@ -49,21 +49,19 @@ deployAndStoreCREATE3Factory() {
   # Add skip simulation flag based on environment variable
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-	RAW_RETURN_DATA=$(PRIVATE_KEY="$PRIVATE_KEY" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f "$NETWORK" -vvv --json --broadcast "$SKIP_SIMULATION_FLAG" --slow --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" 2>&1)
-  echo ""
-  echo "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-  echo ""
-	RETURN_CODE=$?
+  # Execute, parse, and check return code
+  if ! executeAndParse \
+    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast $SKIP_SIMULATION_FLAG --slow --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+    "true" \
+    "❌ Deployment of CREATE3Factory failed on network $NETWORK" \
+    "return"; then
+    unset PRIVATE_KEY
+    return 1
+  fi
   unset PRIVATE_KEY
 
-  # check if deployment was successful
-	if [[ $RETURN_CODE -ne 0 ]]; then
-		error "❌ Deployment of CREATE3Factory failed"
-		return 1
-	fi
-
-  # extract deployed-to address from return data
-  FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
+  # Extract deployed-to address from parsed return data
+  FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
 	if [[ $? -ne 0 ]]; then
 		error "❌ Could not extract deployed address from raw return data"
 		return 1
