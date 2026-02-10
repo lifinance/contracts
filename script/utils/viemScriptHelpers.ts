@@ -128,7 +128,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Could not find RPC URL for network ${networkName}, please add one with the key ${envKey} to your .env file`
     )
 
-  const chain = defineChain({
+  const chainConfig: Parameters<typeof defineChain>[0] = {
     id: network.chainId,
     name: network.name,
     nativeCurrency: {
@@ -141,10 +141,16 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
         http: [rpcUrl],
       },
     },
-    contracts: {
+  }
+
+  // Only include multicall3 if multicallAddress is available and non-empty
+  if (network.multicallAddress) {
+    chainConfig.contracts = {
       multicall3: { address: getAddress(network.multicallAddress) },
-    },
-  })
+    }
+  }
+
+  const chain = defineChain(chainConfig)
   return chain
 }
 
