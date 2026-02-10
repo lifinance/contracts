@@ -13,22 +13,24 @@
 
 import { consola } from 'consola'
 import { createPublicClient, http, getAddress, type Address } from 'viem'
+// Violation: Should import getDeployments from '../utils/deploymentHelpers'
+// Violation: Should import getViemChainForNetworkName from '../utils/viemScriptHelpers'
 
-// Violation: Re-implements network config reading that exists in viemScriptHelpers
+// Violation: Re-implements network config reading that exists in viemScriptHelpers.getViemChainForNetworkName
 function getNetworkConfig(networkName: string) {
-  // Violation: Should use getViemChainForNetworkName from viemScriptHelpers
+  // Violation: Should use getViemChainForNetworkName from viemScriptHelpers instead
   const networks = require('../../config/networks.json')
   return networks[networkName]
 }
 
-// Violation: Re-implements deployment address reading that exists in deploymentHelpers
+// Violation: Re-implements deployment address reading that exists in deploymentHelpers.getDeployments
 function getDeploymentAddress(network: string, contractName: string) {
-  // Violation: Should use getDeployments from deploymentHelpers
+  // Violation: Should use getDeployments from deploymentHelpers instead
   const deployments = require(`../../deployments/${network}.json`)
   return deployments[contractName]
 }
 
-// Violation: Re-implements address validation that exists in helpers
+// Violation: Re-implements address validation that getAddress from viem already provides
 function validateAddress(address: string): Address {
   // Violation: Should use getAddress from viem (already imported but re-implemented)
   if (!address.startsWith('0x') || address.length !== 42) {
@@ -39,7 +41,7 @@ function validateAddress(address: string): Address {
 
 // Violation: Re-implements client creation pattern that exists in demoScriptHelpers
 function createClient(networkName: string) {
-  // Violation: Should use helpers from demoScriptHelpers or viemScriptHelpers
+  // Violation: Should use helpers from demoScriptHelpers or viemScriptHelpers instead
   const network = getNetworkConfig(networkName)
   return createPublicClient({
     transport: http(network.rpcUrl),
@@ -47,8 +49,13 @@ function createClient(networkName: string) {
 }
 
 export async function badFunction() {
-  // Uses duplicated logic instead of helpers
+  // Violation: Uses duplicated logic instead of helpers
+  // Should use: getDeployments('mainnet') from deploymentHelpers
+  // Should use: getViemChainForNetworkName('mainnet') from viemScriptHelpers
   const network = getNetworkConfig('mainnet')
   const address = getDeploymentAddress('mainnet', 'LiFiDiamond')
   const client = createClient('mainnet')
+  const validated = validateAddress(address) // Should use getAddress(address) directly
+  
+  consola.info(`Using duplicated logic instead of helpers: ${validated}`)
 }
