@@ -36,6 +36,7 @@ contract TestAcrossV4SwapFacet is AcrossV4SwapFacet, TestWhitelistManagerBase {
     ) external pure returns (uint32) {
         return _chainIdToCctpDomainId(_chainId);
     }
+
 }
 
 contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
@@ -418,6 +419,38 @@ contract AcrossV4SwapFacetTest is
                     .SpokePoolPeriphery,
                 callData: callData,
                 signature: hex"1234"
+            });
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(InvalidSignature.selector);
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
+            bridgeData,
+            facetData
+        );
+        vm.stopPrank();
+    }
+
+    /// @dev Covers `revert InvalidSignature()` when the signature is well-formed but from a
+    ///      different signer. Short/garbage signatures cause ECDSA.recover to revert before
+    ///      we reach the comparison; a valid signature from another key reaches the check.
+    function testRevert_SpokePoolPeriphery_WhenSignatureFromWrongSigner() public {
+        bytes memory callData = _buildCallData(bridgeData.minAmount);
+        bytes32 digest = _acrossV4SwapDigest(
+            bridgeData,
+            AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery,
+            callData,
+            address(acrossV4SwapFacet)
+        );
+        uint256 wrongSignerPk = 0xBEEF;
+        bytes memory wrongSignature = _signDigest(wrongSignerPk, digest);
+
+        AcrossV4SwapFacet.AcrossV4SwapFacetData
+            memory facetData = AcrossV4SwapFacet.AcrossV4SwapFacetData({
+                swapApiTarget: AcrossV4SwapFacet
+                    .SwapApiTarget
+                    .SpokePoolPeriphery,
+                callData: callData,
+                signature: wrongSignature
             });
 
         vm.startPrank(USER_SENDER);
@@ -1112,6 +1145,40 @@ contract AcrossV4SwapFacetTest is
                 "revert data should be InvalidCallData when present"
             );
         }
+
+        vm.stopPrank();
+    }
+
+    /// @dev Covers the else-branch `revert InvalidCallData()` (line 217) by calling a
+    ///      standalone facet with raw ABI-encoded data and an out-of-range swapApiTarget (5).
+    ///      Calling the facet directly (not via Diamond) gives the best chance for coverage
+    ///      to attribute the revert to the facet; via Diamond, execution is delegatecall
+    ///      and coverage may attribute to the proxy.
+    function testRevert_WhenSwapApiTargetIsInvalid_StandaloneFacet() public {
+        TestAcrossV4SwapFacet standaloneFacet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
+            SPOKE_POOL,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY,
+            backendSigner
+        );
+
+        vm.startPrank(USER_SENDER);
+        weth.approve(address(standaloneFacet), bridgeData.minAmount);
+
+        bytes memory encoded = abi.encodeWithSelector(
+            acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap.selector,
+            bridgeData,
+            AcrossV4SwapFacetDataRaw({
+                swapApiTarget: 5,
+                callData: _buildCallData(bridgeData.minAmount),
+                signature: ""
+            })
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        (bool success,) = address(standaloneFacet).call(encoded);
+        assertFalse(success, "expected InvalidCallData revert");
 
         vm.stopPrank();
     }
