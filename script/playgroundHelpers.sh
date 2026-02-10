@@ -947,6 +947,189 @@ function _createTimelockCancellerProposal() {
   return $PROPOSAL_STATUS
 }
 
+# grantTimelockRole: Grant a role on the timelock controller to an address (Safe or wallet).
+# If the grantee already has the role, returns 0. Otherwise uses network Safe if Safe has
+# TIMELOCK_ADMIN_ROLE (proposes tx), or deployer wallet if deployer has TIMELOCK_ADMIN_ROLE.
+#
+# Usage: grantTimelockRole NETWORK TIMELOCK_ADDRESS ROLE_NAME GRANT_ROLE_TO RPC_URL [ENVIRONMENT]
+#   NETWORK          - Network name
+#   TIMELOCK_ADDRESS - LiFiTimelockController address
+#   ROLE_NAME        - Role getter name on timelock (e.g. PROPOSER_ROLE, CANCELLER_ROLE, EXECUTOR_ROLE)
+#   GRANT_ROLE_TO    - Address to grant the role to (Safe or EOA)
+#   RPC_URL          - RPC URL for the network
+#   ENVIRONMENT      - Optional, default "production"
+#
+# Returns: 0 on success (already has role, or proposal sent, or deployer sent), 1 on failure
+function grantTimelockRole() {
+  local NETWORK="$1"
+  local TIMELOCK_ADDRESS="$2"
+  local ROLE_NAME="$3"
+  local GRANT_ROLE_TO="$4"
+  local RPC_URL="$5"
+  local ENVIRONMENT="${6:-production}"
+
+  if [[ -z "$NETWORK" || -z "$TIMELOCK_ADDRESS" || -z "$ROLE_NAME" || -z "$GRANT_ROLE_TO" || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] grantTimelockRole: missing required args (NETWORK TIMELOCK_ADDRESS ROLE_NAME GRANT_ROLE_TO RPC_URL)"
+    return 1
+  fi
+
+  local TIMELOCK_ADMIN_ROLE
+  TIMELOCK_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "TIMELOCK_ADMIN_ROLE() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
+  if [[ -z "$TIMELOCK_ADMIN_ROLE" ]]; then
+    error "[$NETWORK] Failed to read TIMELOCK_ADMIN_ROLE from timelock $TIMELOCK_ADDRESS"
+    return 1
+  fi
+
+  local ROLE_BYTES
+  ROLE_BYTES=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "${ROLE_NAME}() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
+  if [[ -z "$ROLE_BYTES" ]]; then
+    error "[$NETWORK] Failed to read $ROLE_NAME from timelock $TIMELOCK_ADDRESS"
+    return 1
+  fi
+
+  # 1) Check if grantee already has the role
+  local GRANTEE_HAS_ROLE
+  GRANTEE_HAS_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$ROLE_BYTES" "$GRANT_ROLE_TO" 2>/dev/null)
+  if [[ "$GRANTEE_HAS_ROLE" == "true" ]]; then
+    echo "[$NETWORK] $GRANT_ROLE_TO already has $ROLE_NAME on timelock $TIMELOCK_ADDRESS"
+    return 0
+  fi
+
+  # 2) Who can grant? Only TIMELOCK_ADMIN_ROLE can grant. Check network Safe first, then deployer.
+  local SAFE_ADDRESS
+  SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress" 2>/dev/null || true)
+  if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+    SAFE_ADDRESS=""
+  fi
+  local SAFE_HAS_ADMIN_ROLE="false"
+  if [[ -n "$SAFE_ADDRESS" ]]; then
+    SAFE_HAS_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$SAFE_ADDRESS" 2>/dev/null || echo "false")
+  fi
+
+  local DEPLOYER_ADDRESS
+  DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  local DEPLOYER_HAS_ADMIN_ROLE="false"
+  if [[ -n "$DEPLOYER_ADDRESS" ]]; then
+    DEPLOYER_HAS_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$DEPLOYER_ADDRESS" 2>/dev/null || echo "false")
+  fi
+
+  if [[ "$SAFE_HAS_ADMIN_ROLE" != "true" && "$DEPLOYER_HAS_ADMIN_ROLE" != "true" ]]; then
+    error "[$NETWORK] Neither Safe (${SAFE_ADDRESS:-none}) nor deployer ($DEPLOYER_ADDRESS) has TIMELOCK_ADMIN_ROLE on timelock $TIMELOCK_ADDRESS. Cannot grant $ROLE_NAME."
+    return 1
+  fi
+
+  local CALLDATA
+  CALLDATA=$(cast calldata "grantRole(bytes32,address)" "$ROLE_BYTES" "$GRANT_ROLE_TO" 2>&1)
+  if [[ $? -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
+    error "[$NETWORK] Failed to build grantRole calldata: $CALLDATA"
+    return 1
+  fi
+  if [[ ! "$CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]] || [[ ${#CALLDATA} -lt 10 ]]; then
+    error "[$NETWORK] Invalid grantRole calldata: $CALLDATA"
+    return 1
+  fi
+
+  # 3a) Safe is admin → propose Safe tx so Safe executes grantRole
+  if [[ "$SAFE_HAS_ADMIN_ROLE" == "true" ]]; then
+    echo "[$NETWORK] Safe is timelock admin. Proposing Safe tx to grant $ROLE_NAME to $GRANT_ROLE_TO..."
+    if ! sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TIMELOCK_ADDRESS" "$CALLDATA" ""; then
+      error "[$NETWORK] Failed to propose grantRole($ROLE_NAME, $GRANT_ROLE_TO)"
+      return 1
+    fi
+    echo "[$NETWORK] Proposal to grant $ROLE_NAME to $GRANT_ROLE_TO created successfully"
+    return 0
+  fi
+
+  # 3b) Deployer is admin → send directly from deployer wallet
+  echo "[$NETWORK] Deployer is timelock admin. Sending grantRole($ROLE_NAME, $GRANT_ROLE_TO) from deployer..."
+  local DEPLOYER_PRIVATE_KEY
+  DEPLOYER_PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+    error "[$NETWORK] Failed to get deployer private key"
+    return 1
+  }
+  if ! universalSendRaw "$NETWORK" "$ENVIRONMENT" "$TIMELOCK_ADDRESS" "$CALLDATA" "$DEPLOYER_PRIVATE_KEY"; then
+    error "[$NETWORK] Failed to send grantRole from deployer"
+    return 1
+  fi
+  echo "[$NETWORK] $ROLE_NAME granted to $GRANT_ROLE_TO successfully (sent from deployer)"
+  return 0
+}
+
+# proposeTimelockAdminTransfer: Creates a proposal on the OLD Safe to grant TIMELOCK_ADMIN_ROLE to the NEW Safe.
+# Does not revoke the old Safe; both will have admin until old Safe revokes itself. Proposal must be executed by old Safe.
+# Usage: proposeTimelockAdminTransfer NETWORK TIMELOCK_ADDRESS OLD_SAFE_ADDRESS NEW_SAFE_ADDRESS RPC_URL [ENVIRONMENT]
+#   NETWORK           - Network name
+#   TIMELOCK_ADDRESS  - LiFiTimelockController address
+#   OLD_SAFE_ADDRESS  - Current timelock admin Safe (proposal is created for this Safe so it can execute)
+#   NEW_SAFE_ADDRESS  - Safe to grant TIMELOCK_ADMIN_ROLE (e.g. Safe from config)
+#   RPC_URL           - RPC URL for the network
+#   ENVIRONMENT       - Optional, default "production"
+# Returns: 0 on success, 1 on failure
+function proposeTimelockAdminTransfer() {
+  local NETWORK="$1"
+  local TIMELOCK_ADDRESS="$2"
+  local OLD_SAFE_ADDRESS="$3"
+  local NEW_SAFE_ADDRESS="$4"
+  local RPC_URL="$5"
+  local ENVIRONMENT="${6:-production}"
+
+  if [[ -z "$NETWORK" || -z "$TIMELOCK_ADDRESS" || -z "$OLD_SAFE_ADDRESS" || -z "$NEW_SAFE_ADDRESS" || -z "$RPC_URL" ]]; then
+    error "[$NETWORK] proposeTimelockAdminTransfer: missing required args (NETWORK TIMELOCK_ADDRESS OLD_SAFE NEW_SAFE RPC_URL)"
+    return 1
+  fi
+
+  local TIMELOCK_ADMIN_ROLE
+  TIMELOCK_ADMIN_ROLE=$(universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "TIMELOCK_ADMIN_ROLE() returns (bytes32)" 2>/dev/null | tr -d '[:space:]')
+  if [[ -z "$TIMELOCK_ADMIN_ROLE" ]]; then
+    error "[$NETWORK] Failed to read TIMELOCK_ADMIN_ROLE from timelock $TIMELOCK_ADDRESS"
+    return 1
+  fi
+
+  local CALLDATA
+  CALLDATA=$(cast calldata "grantRole(bytes32,address)" "$TIMELOCK_ADMIN_ROLE" "$NEW_SAFE_ADDRESS" 2>&1)
+  if [[ $? -ne 0 || -z "$CALLDATA" || "$CALLDATA" =~ ^Error ]]; then
+    error "[$NETWORK] Failed to build grantRole calldata: $CALLDATA"
+    return 1
+  fi
+  if [[ ! "$CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]] || [[ ${#CALLDATA} -lt 10 ]]; then
+    error "[$NETWORK] Invalid grantRole calldata: $CALLDATA"
+    return 1
+  fi
+
+  echo "[$NETWORK] Creating proposal on OLD Safe ($OLD_SAFE_ADDRESS) to grant TIMELOCK_ADMIN_ROLE to NEW Safe ($NEW_SAFE_ADDRESS)..."
+  echo "[$NETWORK] Transaction: timelock.grantRole(TIMELOCK_ADMIN_ROLE, $NEW_SAFE_ADDRESS). Execute via old Safe (do not revoke old Safe yet)."
+
+  local contracts_dir
+  contracts_dir=$(getContractsDirectory)
+  if [[ $? -ne 0 ]]; then
+    error "[$NETWORK] Could not determine contracts directory"
+    return 1
+  fi
+
+  # Trim private key (echo in getPrivateKey adds newline; trailing newline would corrupt key and change derived address)
+  local PRIV_KEY
+  PRIV_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT" | tr -d '\n\r')
+  set +e
+  (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts \
+    --to "$TIMELOCK_ADDRESS" \
+    --calldata "$CALLDATA" \
+    --network "$NETWORK" \
+    --rpcUrl "$RPC_URL" \
+    --safeAddress "$OLD_SAFE_ADDRESS" \
+    --privateKey "$PRIV_KEY" \
+    2>&1)
+  local PROPOSAL_STATUS=$?
+  set -e
+
+  if [[ $PROPOSAL_STATUS -ne 0 ]]; then
+    error "[$NETWORK] Failed to create proposal on old Safe. Signer (from PRIVATE_KEY_PRODUCTION) must be an owner of old Safe ($OLD_SAFE_ADDRESS). Check output above for signer vs owners."
+    return 1
+  fi
+
+  echo "[$NETWORK] Proposal created on old Safe. Confirm and execute it via the old Safe to grant admin role to new Safe."
+  return 0
+}
+
 function manageTimelockCanceller() {
   # Function: manageTimelockCanceller
   # Description: Creates a multisig proposal to add, remove, or replace a CANCELLER_ROLE in LiFiTimelockController
@@ -1901,6 +2084,8 @@ export -f removeAccessManagerPermission
 export -f removeDeployerWhitelistPermission
 export -f manageTimelockCanceller
 export -f manageSafeOwner
+export -f proposeTimelockAdminTransfer
+export -f grantTimelockRole
 
 # Utility functions
 export -f validateDependencies
@@ -1908,5 +2093,3 @@ export -f logWithTimestamp
 export -f logNetworkResult
 export -f analyzeFailingTx
 export -f transferStagingDiamondOwnership
-export -f manageTimelockCanceller
-export -f manageSafeOwner
