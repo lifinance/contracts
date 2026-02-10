@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-// Violación: Receiver no hereda de ILiFi y WithdrawablePeriphery
+// Violation: Receiver does not inherit from ILiFi and WithdrawablePeriphery
 contract BadReceiver {
-    // Violación: executor no es immutable
+    // Violation: executor is not immutable
     address public executor;
     
-    // Violación: Constructor no valida address(0)
+    // Violation: constructor does not validate address(0)
     constructor(address _executor) {
         executor = _executor;
     }
     
-    // Violación: Emite LiFiTransferStarted (reservado para facets)
+    // Violation: emits LiFiTransferStarted (should only be emitted in bridge facets)
     function handleMessage(bytes memory data) external {
         emit LiFiTransferStarted(bytes32(0), address(0), address(0), 0, 0);
     }
     
-    // Violación: Emite LiFiTransferCompleted (reservado para Executor)
+    // Violation: emits LiFiTransferCompleted (should only be emitted in Executor)
     function complete() external {
         emit LiFiTransferCompleted(bytes32(0), address(0), address(0), 0);
     }
     
-    // Violación: Falta receive() external payable {}
+    // Violation: missing receive() external payable {}
 }
