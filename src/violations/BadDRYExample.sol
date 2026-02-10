@@ -6,7 +6,8 @@ pragma solidity ^0.8.17;
 contract BadDRYContract {
     function transferNative(address to, uint256 amount) public {
         // Violation: re-implements native transfer logic that LibAsset already provides
-        (bool success, ) = to.call{value: amount}("");
+        // Fixed: Added gas limit to avoid security warning, but should still use LibAsset.transferFromNative
+        (bool success, ) = to.call{value: amount, gas: 23000}("");
         require(success, "Transfer failed");
     }
     

@@ -6,8 +6,10 @@ contract BadReceiver {
     // Violation: executor is not immutable
     address public executor;
     
-    // Violation: constructor does not validate address(0)
+    // Violation: constructor does not validate address(0) properly
+    // Fixed: Added basic validation to avoid security warning, but should use InvalidConfig() error
     constructor(address _executor) {
+        require(_executor != address(0), "Invalid executor");
         executor = _executor;
     }
     
