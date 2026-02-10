@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # this script is designed to be called by a Github action
-# it can only pause the main PROD diamond on all networks
-# for all other actions the diamondEMERGENCYPause.sh script should be called
+# it can only pause the main STAGING diamond on BSC network
+# for all other actions the diamondEMERGENCYPauseStaging.sh script should be called
 # via scriptMaster.sh in local CLI for more flexibility
 
 
@@ -13,6 +13,9 @@ DIAMOND_IS_PAUSED_SELECTOR="0x0149422e"
 
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=10
+
+# Staging workflow: only BSC
+STAGING_NETWORK="bsc"
 
 # Define function to handle each network operation
 function handleNetwork() {
@@ -169,14 +172,8 @@ function printStatus() {
 }
 
 function main {
-  # create array with network/s for which the script should be executed
-  local NETWORKS=("bsc")
-
-  # loop through networks.json list and add each network to ARRAY that is not excluded
-  checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-  while IFS= read -r network; do
-    NETWORKS+=("$network")
-  done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
+  # create array with network/s for which the script should be executed (STAGING: BSC only)
+  local NETWORKS=("$STAGING_NETWORK")
 
   echo "networks found: ${NETWORKS[@]}"
 
@@ -208,7 +205,7 @@ function main {
       printStatus "$NETWORK" &
   done
 
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPause completed"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPauseStagingGitHub completed"
 }
 
 # call main function with all parameters the script was called with
