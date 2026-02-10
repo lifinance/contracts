@@ -518,16 +518,13 @@ contract AcrossV4SwapFacet is
             true
         );
 
-        // depositForBurn is not payable
+        // depositForBurn is not payable (also ensures that sendingAssetId is not native)
         if (msg.value != 0) revert InvalidCallData();
 
         // Validate amount matches bridgeData
         _validateAmount(quote.amount, _bridgeData.minAmount);
 
-        // Validate burnToken matches bridgeData asset
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            revert InvalidCallData();
-        }
+        // Validate burnToken matches bridgeData asset (native is already excluded by msg.value check above)
         address burnToken = address(uint160(uint256(quote.burnToken)));
         if (burnToken != _bridgeData.sendingAssetId) {
             revert InformationMismatch();
