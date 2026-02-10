@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import {LiFiDiamond} from "../src/LiFiDiamond.sol";
+import {LiFiDiamond} from "lifi/LiFiDiamond.sol";
 
 // Violation: Facet does not include the \"Facet\" suffix in its name
 // Violation: Missing required internal _startBridge function
