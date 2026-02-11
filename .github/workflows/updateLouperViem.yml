@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - main
+      - 'SMAR-104-Automate-Louper-support-when-adding-new-network-viem-update-PR' # TEMPORARY: For testing
     paths:
       - 'config/networks.json'
   pull_request:
@@ -26,6 +27,7 @@ jobs:
   update-louper-viem:
     runs-on: ubuntu-latest
     # Only run if PR was merged (not closed without merge)
+    # TEMPORARY: Allow running on test branch for validation
     if: |
       github.event_name == 'push' || 
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
@@ -266,10 +268,11 @@ EOF
             echo "$GITHUB_TOKEN" | gh auth login --with-token
             gh pr create \
               --repo mark3labs/louper \
-              --title "chore: Update viem to ${{ env.LATEST_VIEM }}" \
+              --title "chore: Update viem to ${{ env.LATEST_VIEM }} [TEST]" \
               --body "$PR_BODY" \
               --base main \
-              --head "${{ env.BRANCH_NAME }}"
+              --head "${{ env.BRANCH_NAME }}" \
+              --draft # TEMPORARY: Create as draft for testing
           else
             # Fallback to API
             PR_RESPONSE=$(curl -s -X POST \
@@ -277,10 +280,11 @@ EOF
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/mark3labs/louper/pulls" \
               -d "{
-                \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }}\",
+                \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }} [TEST]\",
                 \"body\": $(echo "$PR_BODY" | jq -Rs .),
                 \"head\": \"${{ env.BRANCH_NAME }}\",
-                \"base\": \"main\"
+                \"base\": \"main\",
+                \"draft\": true
               }")
             
             PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url // empty')
