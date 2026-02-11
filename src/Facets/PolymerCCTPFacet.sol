@@ -300,9 +300,6 @@ contract PolymerCCTPFacet is
         if (chainId == 1329) {
             return 16; // Sei
         }
-        if (chainId == 56) {
-            return 17; // Bsc
-        }
         if (chainId == 50) {
             return 18; // XDC
         }
