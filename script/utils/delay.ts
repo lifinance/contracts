@@ -1,4 +1,4 @@
-import { INTER_CALL_DELAY } from './delayConstants'
+import { INTER_CALL_DELAY } from '../deploy/tron/constants'
 
 /**
  * Sleeps for the specified duration

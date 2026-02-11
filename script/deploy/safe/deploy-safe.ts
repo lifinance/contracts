@@ -177,11 +177,7 @@ async function compareDeployedBytecode(
   return ok
 }
 
-const sleep = (ms: number): Promise<void> => {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
+import { sleep } from '../../utils/delay'
 
 // At the top of the file, add new type for EVM versions
 type EVMVersion = 'london' | 'cancun'

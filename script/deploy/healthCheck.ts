@@ -31,12 +31,14 @@ import {
   networks,
   type Network,
 } from '../utils/viemScriptHelpers'
+import { getRPCEnvVarName } from '../utils/network'
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../utils/delay'
 import {
   INITIAL_CALL_DELAY,
   INTER_CALL_DELAY,
   RETRY_DELAY,
-} from '../utils/delayConstants'
+} from './tron/constants'
 
 import targetState from './_targetState.json'
 import {
@@ -47,6 +49,8 @@ import {
   normalizeSelector,
   parseTronAddressOutput,
   parseTroncastNestedArray,
+  checkOwnershipTron,
+  checkWhitelistIntegrityTron,
 } from './healthCheckTronUtils'
 import {
   checkIsDeployedTron,
@@ -163,6 +167,15 @@ interface IWhitelistConfig {
     }>
   >
 }
+
+// Type for getExpectedPairs function
+type GetExpectedPairsFunction = (
+  network: string,
+  deployedContracts: Record<string, string | `0x${string}`>,
+  environment: string,
+  whitelistConfig: IWhitelistConfig,
+  isTron?: boolean
+) => Promise<Array<{ contract: string; selector: Hex }>>
 
 const errors: string[] = []
 const main = defineCommand({
@@ -350,7 +363,9 @@ const main = defineCommand({
       if (isTron) {
         // Use troncast for Tron
         // Diamond address in deployments is already in Tron format
-        const rpcUrl = networksConfig[networkLower].rpcUrl
+        // Get RPC URL from environment variable first, fallback to networks.json
+        const envVarName = getRPCEnvVarName(networkLower)
+        const rpcUrl = getEnvVar(envVarName) || networksConfig[networkLower].rpcUrl
 
         // Execute with retry logic for rate limits
         // TronGrid has strict rate limits, so we add initial delay and retry on 429
@@ -509,7 +524,9 @@ const main = defineCommand({
     if (environment === 'production') {
       if (isTron && tronWeb) {
         try {
-          const rpcUrl = networksConfig[networkLower].rpcUrl
+          // Get RPC URL from environment variable first, fallback to networks.json
+          const envVarName = getRPCEnvVarName(networkLower)
+          const rpcUrl = getEnvVar(envVarName) || networksConfig[networkLower].rpcUrl
           const erc20ProxyAddress = deployedContracts['ERC20Proxy']
           const executorAddress = deployedContracts['Executor']
 
@@ -583,7 +600,9 @@ const main = defineCommand({
       if (contractsToCheck.length > 0) {
         if (isTron && tronWeb) {
           // Tron implementation using troncast
-          const rpcUrl = networksConfig[networkLower].rpcUrl
+          // Get RPC URL from environment variable first, fallback to networks.json
+          const envVarName = getRPCEnvVarName(networkLower)
+          const rpcUrl = getEnvVar(envVarName) || networksConfig[networkLower].rpcUrl
           const diamondAddress = deployedContracts['LiFiDiamond']
 
           for (const periphery of contractsToCheck) {
@@ -696,14 +715,19 @@ const main = defineCommand({
       if (hasWhitelistConfig) {
         if (isTron && tronWeb) {
           // Tron implementation using troncast and TronWeb
+          // Get RPC URL from environment variable first, fallback to networks.json
+          const envVarName = getRPCEnvVarName(networkLower)
+          const rpcUrl = getEnvVar(envVarName) || networksConfig[networkLower].rpcUrl
           await checkWhitelistIntegrityTron(
             networkStr as string,
             deployedContracts,
             environment,
             whitelistConfig,
             diamondAddress,
-            networksConfig[networkLower].rpcUrl,
-            tronWeb
+            rpcUrl,
+            tronWeb,
+            logError,
+            getExpectedPairs
           )
         } else if (publicClient) {
           // EVM implementation using viem
@@ -776,7 +800,9 @@ const main = defineCommand({
     consola.box('Checking ownership...')
 
     if (isTron && tronWeb) {
-      const rpcUrl = networksConfig[networkLower].rpcUrl
+      // Get RPC URL from environment variable first, fallback to networks.json
+      const envVarName = getRPCEnvVarName(networkLower)
+      const rpcUrl = getEnvVar(envVarName) || networksConfig[networkLower].rpcUrl
 
       // Check ERC20Proxy ownership (skip for staging)
       if (environment === 'production') {
@@ -785,7 +811,8 @@ const main = defineCommand({
           deployerWallet,
           deployedContracts,
           rpcUrl,
-          tronWeb
+          tronWeb,
+          logError
         )
       } else {
         consola.info(
@@ -802,7 +829,8 @@ const main = defineCommand({
             timelockAddress,
             deployedContracts,
             rpcUrl,
-            tronWeb
+            tronWeb,
+            logError
           )
         } else {
           consola.error(
@@ -819,7 +847,8 @@ const main = defineCommand({
         feeCollectorOwner,
         deployedContracts,
         rpcUrl,
-        tronWeb
+        tronWeb,
+        logError
       )
 
       // Receiver
@@ -828,7 +857,8 @@ const main = defineCommand({
         refundWallet,
         deployedContracts,
         rpcUrl,
-        tronWeb
+        tronWeb,
+        logError
       )
     } else if (publicClient) {
       // EVM implementation
@@ -1101,47 +1131,7 @@ const checkOwnership = async (
 /**
  * Check contract ownership for Tron using troncast
  */
-const checkOwnershipTron = async (
-  name: string,
-  expectedOwner: string,
-  deployedContracts: Record<string, string>,
-  rpcUrl: string,
-  tronWeb: TronWeb
-) => {
-  if (deployedContracts[name]) {
-    try {
-              await sleep(INTER_CALL_DELAY)
-      const contractAddress = deployedContracts[name]
-      const ownerOutput = await callTronContract(
-        contractAddress,
-        'owner()',
-        [],
-        'address',
-        rpcUrl
-      )
-
-      const ownerAddress = parseTronAddressOutput(ownerOutput)
-      
-      // Convert expectedOwner to Tron format if it's in EVM format (0x...)
-      // This handles cases where getTronWallet falls back to EVM address
-      const expectedOwnerTron = ensureTronAddress(expectedOwner, tronWeb)
-      const expectedOwnerLower = expectedOwnerTron.toLowerCase()
-      const actualOwnerLower = ownerAddress.toLowerCase()
-
-      if (actualOwnerLower !== expectedOwnerLower) {
-        logError(
-          `${name} owner is ${ownerAddress}, expected ${expectedOwnerTron}`
-        )
-      } else {
-        consola.success(`${name} owner is correct`)
-      }
-    } catch (error: any) {
-      logError(
-        `Failed to check ${name} ownership: ${error?.message || String(error)}`
-      )
-    }
-  }
-}
+// checkOwnershipTron is now imported from healthCheckTronUtils.ts
 
 const checkIsDeployed = async (
   contract: string,
@@ -1229,214 +1219,7 @@ const getExpectedPairs = async (
 }
 
 
-/**
- * Check whitelist integrity for Tron network using troncast and TronWeb
- */
-const checkWhitelistIntegrityTron = async (
-  network: string,
-  deployedContracts: Record<string, string>,
-  environment: string,
-  whitelistConfig: IWhitelistConfig,
-  diamondAddress: string,
-  rpcUrl: string,
-  tronWeb: TronWeb
-) => {
-  consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
-
-  // Get expected pairs from config
-  const expectedPairs = await getExpectedPairs(
-    network,
-    deployedContracts,
-    environment,
-    whitelistConfig,
-    true // isTron = true
-  )
-
-  if (expectedPairs.length === 0) {
-    consola.warn('No expected pairs in config. Skipping all checks.')
-    return
-  }
-
-  // --- 1. Preparation ---
-  consola.info('Preparing expected data sets from config...')
-  const uniqueContracts = new Set(
-    expectedPairs.map((p) => p.contract.toLowerCase())
-  )
-  const uniqueSelectors = new Set(
-    expectedPairs.map((p) => p.selector.toLowerCase())
-  )
-  consola.info(
-    `Config has ${expectedPairs.length} pairs, ${uniqueContracts.size} unique contracts, and ${uniqueSelectors.size} unique selectors.`
-  )
-
-  try {
-    // Get on-chain data using getAllContractSelectorPairs
-    consola.start('Fetching on-chain whitelist data...')
-    const onChainDataOutput = await callTronContract(
-      diamondAddress,
-      'getAllContractSelectorPairs()',
-      [],
-      'address[],bytes4[][]',
-      rpcUrl
-    )
-
-    // Parse the output - troncast returns nested arrays: [[addresses...] [[selectors...]]]
-    // Try JSON.parse first, fallback to simple parsing
-    let parsed: unknown[]
-    try {
-      parsed = JSON.parse(onChainDataOutput.trim())
-    } catch {
-      // If JSON.parse fails, use simple recursive parser (same approach as checkWhitelistSyncStatusPerNetwork.ts)
-      const trimmed = onChainDataOutput.trim()
-      if (!trimmed.startsWith('[')) {
-        throw new Error('Expected array format')
-      }
-      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
-      parsed = parsedArray as unknown[]
-    }
-
-    if (!Array.isArray(parsed) || parsed.length !== 2) {
-      throw new Error('Unexpected troncast output format: expected nested arrays')
-    }
-
-    const addresses = (parsed[0] as unknown[]) || []
-    const selectorsArrays = (parsed[1] as unknown[]) || []
-
-    if (!Array.isArray(addresses) || !Array.isArray(selectorsArrays)) {
-      throw new Error('Unexpected troncast output format: expected arrays')
-    }
-
-    // Build sets for quick lookup
-    // For Tron, addresses are base58 and should be compared in lowercase for consistency
-    const onChainPairSet = new Set<string>()
-    for (let i = 0; i < addresses.length; i++) {
-      const contract = String(addresses[i]).toLowerCase()
-      const selectors = (selectorsArrays[i] as unknown[]) || []
-      if (Array.isArray(selectors)) {
-        for (const selector of selectors) {
-          const selectorLower = String(selector).toLowerCase()
-          onChainPairSet.add(`${contract}:${selectorLower}`)
-        }
-      }
-    }
-
-    consola.info(
-      `On-chain has ${addresses.length} contracts with ${onChainPairSet.size} total pairs.`
-    )
-
-    // Check each expected pair using isContractSelectorWhitelisted
-    // Use TronWeb directly to avoid troncast parsing issues with address+bytes4 parameters
-    consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
-    let granularFails = 0
-
-    for (const expectedPair of expectedPairs) {
-      try {
-        // Add delay to avoid rate limits
-              await sleep(INTER_CALL_DELAY)
-
-        // Use TronWeb directly instead of troncast to avoid parameter parsing issues
-        // expectedPair.contract is already in original base58 format (not lowercase) for Tron
-        const isWhitelisted = await callTronContractBoolean(
-          tronWeb,
-          diamondAddress,
-          'isContractSelectorWhitelisted(address,bytes4)',
-          [
-            { type: 'address', value: expectedPair.contract },
-            { type: 'bytes4', value: expectedPair.selector },
-          ],
-          'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
-        )
-
-        if (!isWhitelisted) {
-          logError(
-            `Source of Truth FAILED: ${expectedPair.contract} / ${expectedPair.selector} is 'false'.`
-          )
-          granularFails++
-        }
-      } catch (error: any) {
-        const errorMessage = error?.message || String(error)
-        logError(
-          `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
-        )
-        granularFails++
-      }
-    }
-
-    if (granularFails === 0) {
-      consola.success(
-        'Source of Truth (isContractSelectorWhitelisted) is synced.'
-      )
-    }
-
-    // Check Config vs. Getter Arrays
-    consola.start('Step 2/2: Checking Config vs. Getter Arrays...')
-
-    // Build expected pair set for comparison (use lowercase for addresses to match onChainPairSet)
-    const expectedPairSet = new Set<string>()
-    for (const pair of expectedPairs) {
-      expectedPairSet.add(
-        `${pair.contract.toLowerCase()}:${pair.selector.toLowerCase()}`
-      )
-    }
-
-    // Check for missing pairs (in config but not on-chain)
-    const missingPairsList: string[] = []
-    for (const expectedPair of expectedPairs) {
-      const key = `${expectedPair.contract.toLowerCase()}:${expectedPair.selector.toLowerCase()}`
-      if (!onChainPairSet.has(key)) {
-        missingPairsList.push(key)
-      }
-    }
-
-    // Check for stale pairs (on-chain but not in config)
-    const stalePairsList: string[] = []
-    for (const onChainPair of onChainPairSet) {
-      if (!expectedPairSet.has(onChainPair)) {
-        stalePairsList.push(onChainPair)
-      }
-    }
-
-    if (missingPairsList.length === 0 && stalePairsList.length === 0) {
-      consola.success(
-        `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
-      )
-    } else {
-      if (missingPairsList.length > 0) {
-        logError(
-          `Pair Array is missing ${missingPairsList.length} pairs from config:`
-        )
-        missingPairsList.slice(0, 10).forEach((pair) => {
-          const [contract, selector] = pair.split(':')
-          logError(`  Missing: ${contract} / ${selector}`)
-        })
-        if (missingPairsList.length > 10) {
-          logError(`  ... and ${missingPairsList.length - 10} more`)
-        }
-        consola.warn(
-          `\n💡 To fix missing pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
-      }
-      if (stalePairsList.length > 0) {
-        logError(
-          `Pair Array has ${stalePairsList.length} stale pairs not in config:`
-        )
-        stalePairsList.slice(0, 10).forEach((pair) => {
-          const [contract, selector] = pair.split(':')
-          logError(`  Stale: ${contract} / ${selector}`)
-        })
-        if (stalePairsList.length > 10) {
-          logError(`  ... and ${stalePairsList.length - 10} more`)
-        }
-        consola.warn(
-          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
-      }
-    }
-  } catch (error: any) {
-    const errorMessage = error?.message || String(error)
-    logError(`Failed during whitelist integrity checks: ${errorMessage}`)
-  }
-}
+// checkWhitelistIntegrityTron is now imported from healthCheckTronUtils.ts
 
 // Checks the config.json (source of truth) against on-chain state.
 // This function handles all checks for data integrity and synchronization.

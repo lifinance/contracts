@@ -51,12 +51,7 @@ const DEFAULT_LOCK_OPTIONS: Required<ILockOptions> = {
   staleThreshold: 60000,
 }
 
-/**
- * Sleeps for the specified duration
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+import { sleep } from '../../utils/delay'
 
 /**
  * Local file-based cache for deployment records

@@ -8,6 +8,7 @@ import {
 } from 'mongodb'
 
 import type { EnvironmentEnum } from '../../common/types'
+import { sleep } from '../../utils/delay'
 
 /**
  * Represents a deployment record stored in MongoDB
@@ -128,7 +129,7 @@ export class DatabaseConnectionManager {
 
         const delay = Math.pow(2, retryCount) * 1000
         consola.warn(`MongoDB connection failed, retrying in ${delay}ms...`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await sleep(delay)
       }
   }
 

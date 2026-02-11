@@ -13,7 +13,6 @@ import {
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { getRPCEnvVarName } from '../../utils/network'
 import { sleep } from '../../utils/delay'
-import { RETRY_DELAY } from '../../utils/delayConstants'
 
 import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
@@ -21,6 +20,8 @@ import {
   MIN_BALANCE_REGISTRATION,
   DEFAULT_FEE_LIMIT_TRX,
   MIN_BALANCE_WARNING,
+  MAX_RETRIES,
+  DEFAULT_RETRY_DELAY,
 } from './constants'
 import type {
   IForgeArtifact,
@@ -31,12 +32,6 @@ import type {
 
 // Re-export constants for backward compatibility
 export { DEFAULT_SAFETY_MARGIN } from './constants'
-
-/**
- * Default retry configuration for rate limit errors
- */
-const DEFAULT_MAX_RETRIES = 3
-const DEFAULT_RETRY_DELAY = RETRY_DELAY
 
 /**
  * Check if an error is a rate limit or connection error
@@ -73,7 +68,7 @@ function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
  */
 export async function retryWithRateLimit<T>(
   operation: () => Promise<T>,
-  maxRetries = DEFAULT_MAX_RETRIES,
+  maxRetries = MAX_RETRIES,
   retryDelay: number | number[] = DEFAULT_RETRY_DELAY,
   onRetry?: (attempt: number, delay: number) => void,
   includeConnectionErrors = true
@@ -186,7 +181,7 @@ export async function checkIsDeployedTron(
   try {
     const contractInfo = await retryWithRateLimit(
       () => tronWeb.trx.getContract(tronAddress),
-      DEFAULT_MAX_RETRIES,
+      MAX_RETRIES,
       DEFAULT_RETRY_DELAY
     )
     return contractInfo && contractInfo.contract_address ? true : false
