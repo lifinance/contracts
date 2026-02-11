@@ -1,6 +1,6 @@
 ---
 name: analyze-unverified-contract
-description: Analyze an unverified contract — validate input, resolve RPC, disassemble/decompile with Heimdall, extract and enrich selectors (known/local/cast/4byte), summarize and optionally dump storage/CFG
+description: Analyze an unverified contract — validate input, resolve RPC, disassemble with Heimdall, extract and enrich selectors (known/local/cast/4byte), and produce a single well-structured report file with all insights and no duplicate information
 usage: /analyze-unverified-contract <address> <network> | /analyze-unverified-contract <block_explorer_contract_url>
 ---
 
@@ -51,7 +51,7 @@ Execute the workflow below in order. This file contains all context needed for a
 - **Shared options**: `-r` / `--rpc-url` = RPC URL; `-o` = output path or `print`; `-d` / `--default` = non-interactive (choose defaults when prompted).
 - **Disassemble** (bytecode → opcodes): `heimdall disassemble <TARGET> -r <RPC_URL> -o <OUTPUT>` — `<TARGET>` = address, ENS, or bytecode file path. Optional: `-d` for decimal program counter.
 - **Decompile** (bytecode → pseudo-Solidity + ABI): `heimdall decompile <TARGET> -r <RPC_URL> -o <OUTPUT> -d`. Use `--include-sol` and/or `--include-yul` for full output; `--skip-resolving` to skip selector resolution.
-- **Outputs**: e.g. `opcodes-<network>-<short_addr>.txt` (or `opcodes.txt`); optional `decompiled-<short_addr>/`.
+- **Outputs**: e.g. `opcodes-<network>-<short_addr>.txt/` (Heimdall may create a directory; opcodes are in `disassembled.asm` inside) or `opcodes.txt`; optional `decompiled-<short_addr>/`.
 - **More insight**: `heimdall dump <TARGET> -r <RPC_URL>` (storage slots); `heimdall cfg <TARGET> -r <RPC_URL> -o <OUTPUT>` (control-flow graph). Use when summarizing structure or proxy/storage patterns.
 
 ---
@@ -71,7 +71,7 @@ Execute the workflow below in order. This file contains all context needed for a
 
 ## 7. Enrich selectors with signatures
 
-**Use this order for speed**: resolve via known + local + cast first (no network delay), then 4byte.directory only for unresolved.
+**Use this order for speed**: resolve via known + local + cast first (no network delay), then **always** run the 4byte.directory step for every selector still unresolved after cast.
 
 **D. Known selectors** (instant) — 0x01ffc9a7→supportsInterface(bytes4), 0x1626ba7e→isValidSignature(bytes32,bytes), 0x150b7a02→onERC721Received(…), 0xf23a6e61→onERC1155Received(…), 0xbc197c81→onERC1155BatchReceived(…), 0x52d1902d→proxiableUUID(), 0x4f1ef286→upgradeToAndCall(address,bytes), 0x3f707e6b→execute((address,uint256,bytes)[]), 0xb61d27f6→execute(address,uint256,bytes). Add common ERC20/ERC721 (e.g. balanceOf, transfer, approve) if useful.
 
@@ -79,16 +79,28 @@ Execute the workflow below in order. This file contains all context needed for a
 
 **C. cast** (fast, no rate limit) — `cast 4byte <selector>` returns signature; use for each unresolved selector before hitting the API.
 
-**A. 4byte.directory** (rate-limited) — `GET https://www.4byte.directory/api/v1/signatures/?hex_signature=0x<selector>`, `results[].text_signature`. Use ~0.3s delay between requests. **Repo**: function `decodeSelectors4byte` in `script/playgroundHelpers.sh` (requires `script/helperFunctions.sh` for `isValidSelector`). Usage: source both scripts, then `decodeSelectors4byte 0x8388464e 0x...` or `decodeSelectors4byte` (reads selectors from `opcodes-selectors.md`), or `grep -oE '0x[0-9a-f]{8}' opcodes-selectors.md | sort -u | ... | decodeSelectors4byte --stdin`. Env: `FOURBYTE_DELAY=0.5` to slow requests.
+**A. 4byte.directory (mandatory for unresolved)** — For every selector still showing no signature after D/B/C, query 4byte.directory and merge any results into the selectors file. **Preferred**: source `script/helperFunctions.sh` and `script/playgroundHelpers.sh`, then run `decodeSelectors4byte` with no args (reads from the selectors file) or pass only the unresolved selectors; use `FOURBYTE_DELAY=0.3`–0.5. **Fallback**: if sourcing the repo scripts fails (e.g. in a minimal env), call the API directly: `GET https://www.4byte.directory/api/v1/signatures/?hex_signature=0x<selector>`, parse `results[].text_signature`, use ~0.3s delay between requests, and update the selectors file with any new signatures. Selectors that remain unknown after 4byte stay as "—" in the table.
 
-Merge into selectors file as table **Selector** | **Signature**.
+Merge all resolved signatures into the selectors file as table **Selector** | **Signature**.
 
 ---
 
-## 8. Output and summary
+## 8. Produce a single well-structured report file
 
-- **Paths**: Opcodes file, selectors file (with signatures), optional decompile dir; optional dump/cfg outputs.
-- **Summary**: Total selectors, resolved vs unresolved count, interface hints (ERC165, ERC1271, proxy, receivers), and one-line structure note if decompile/dump was used.
+**Requirement**: Write exactly one report file that contains all insights in a clear structure and **no duplicate information** (e.g. do not repeat the full selector table in multiple sections).
+
+- **Path**: `report-unverified-<network>-<short_addr>.md` (e.g. `report-unverified-base-36d3cbd8.md`) in the repo root or a dedicated folder (e.g. `docs/analysis/`). Short addr = first 8 hex chars of address (lowercase).
+- **Structure** (use these sections; each piece of information appears only once):
+
+  1. **Metadata** — Contract address, network (and chainId if known), RPC source, analysis date.
+  2. **Input & validation** — How the address/network were obtained (e.g. URL parsed), validation result.
+  3. **Artifacts** — Table or list of paths only: opcodes file, selectors file (with signature table), optional decompile dir, optional dump/cfg paths. No inline duplication of selector table here.
+  4. **Selectors** — Either embed the full Selector | Signature table once in the report, or reference the selectors file and give total count + resolved vs unresolved. Do not repeat the same table elsewhere in the report.
+  5. **Interface hints** — Concise mapping: which selectors imply which interfaces (ERC165, ERC1271, ERC721/1155 receivers, UUPS/proxy, Safe-style execute, ERC-4337, EIP-712, etc.). No raw selector list again; refer to section 4 or the selectors file.
+  6. **Structure summary** — One-line characterization of the contract (e.g. "Smart account with ERC1271 and UUPS"). If decompile or dump/cfg was run, add 1–3 short bullets (dispatch pattern, proxy slot, dangerous patterns) without repeating selector or artifact paths.
+  7. **Optional extras** (only if produced) — Call-flow hints, suggested `cast call` examples for key selectors, storage/CFG notes, repo comparison. Keep brief; reference section 4 for selectors.
+
+- **Chat summary**: In the conversation, give a short summary and point to the report file path; do not paste the full report again.
 
 ---
 
@@ -99,23 +111,24 @@ Merge into selectors file as table **Selector** | **Signature**.
 | Network list + RPC   | `config/networks.json` (`.rpcUrl`) |
 | getRPCUrl            | `script/helperFunctions.sh` |
 | decodeSelectors4byte (function) | `script/playgroundHelpers.sh` (source after `script/helperFunctions.sh`) |
-| Example selectors    | `opcodes-selectors.md` |
+| Selectors file       | `opcodes-selectors.md` or `<contract>-selectors.md` |
+| Report file (output) | `report-unverified-<network>-<short_addr>.md` (Section 8) |
 | Heimdall commands    | `script/playground.sh` (commented) |
 
 ---
 
 ## 10. Additional benefits (optional, for maximum insight)
 
-After the base workflow:
+If run, fold the results into the report (Section 8) in the appropriate subsection; do not duplicate elsewhere.
 
 | Benefit | Description |
 |--------|-------------|
-| **Interface detection** | Map selectors → interfaces: ERC165 (supportsInterface), ERC1271 (isValidSignature), ERC721/1155 receivers, UUPS/proxy (proxiableUUID, upgradeToAndCall), Safe-style execute. Mention in summary. |
-| **Call-flow hints** | For patterns (e.g. execute + isValidSignature), state which selectors are needed for a flow (e.g. Permit2 + swap, ERC1271 sign + execute). |
-| **Decompiled code review** | Note structure (dispatch table, delegatecall targets, storage layout), dangerous patterns (selfdestruct, delegatecall to input), and proxy slots (EIP-1967) if visible. Not a full audit. |
-| **cast call examples** | Suggest `cast call <ADDRESS> "<signature>" [args] --rpc-url <RPC>` for key selectors (e.g. owner(), entryPoint(), supportsInterface(0x...)). |
-| **Storage / CFG** | Run `heimdall dump <ADDRESS> -r <RPC>` for storage slots; `heimdall cfg <ADDRESS> -r <RPC> -o <OUTPUT>` for control-flow graph. Use to infer proxy implementation slot or layout. |
-| **Repo comparison** | Compare selector set with `out/*/*.json` methodIdentifiers; report overlap (e.g. "matches LiFiDiamond facets") if contract may relate to repo. |
-| **Transaction inspect** | For a specific tx: `heimdall inspect <TX_HASH> -r <RPC> -d` (calldata decode, trace, logs). |
+| **Interface detection** | Map selectors → interfaces (Section 8.5). ERC165, ERC1271, ERC721/1155 receivers, UUPS/proxy, Safe-style execute. |
+| **Call-flow hints** | For patterns (e.g. execute + isValidSignature), state which selectors are needed; add to report Section 8.7. |
+| **Decompiled code review** | Note structure (dispatch table, delegatecall targets, storage layout), dangerous patterns, proxy slots; add to report Section 8.6. |
+| **cast call examples** | Suggest `cast call <ADDRESS> "<signature>" [args] --rpc-url <RPC>` for key selectors; add to report Section 8.7. |
+| **Storage / CFG** | `heimdall dump` / `heimdall cfg`; add artifact paths and brief notes to report Sections 8.3 and 8.6. |
+| **Repo comparison** | Compare selector set with `out/*/*.json` methodIdentifiers; add one line to report Section 8.7 if relevant. |
+| **Transaction inspect** | For a specific tx: `heimdall inspect <TX_HASH> -r <RPC> -d`; can be referenced in the report if needed. |
 
-Keep main deliverable: opcodes file, selector list with signatures, short summary; treat the rest as optional.
+Main deliverable: opcodes file, selectors file (with full table), and **one report file** (Section 8) containing all insights without duplication.
