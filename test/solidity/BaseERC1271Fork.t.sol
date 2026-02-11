@@ -8,45 +8,56 @@ import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { IWhitelistManagerFacet } from "lifi/Interfaces/IWhitelistManagerFacet.sol";
 import { IERC173 } from "lifi/Interfaces/IERC173.sol";
+import { IERC5267 } from "@openzeppelin/contracts/interfaces/IERC5267.sol";
 import { UniswapV2Router02 } from "./utils/Interfaces.sol";
 
-/// @title CoinbaseERC1271Fork
-/// @notice Fork test: EIP-7702 wallet delegating to Coinbase Smart Wallet (0x0001...397e72), then
-///         validate ERC-1271. Uses a wallet we control: etch 0xef0100||implementation, then sign replay-safe hash (CoinbaseSmartWalletMessage(bytes32 hash), domain "Coinbase Smart Wallet"/"1")
-///         and call isValidSignature(hash, abi.encode(ownerIndex, abi.encodePacked(r,s,v))).
-///         Env: ETH_NODE_URI_ARBITRUM (optional PRIVATE_KEY for signer).
-contract CoinbaseERC1271Fork is Test {
+/// @title BaseERC1271Fork
+/// @notice Fork test on Base: EIP-7702 wallet delegating to implementation 0x36d3...c0D, then validate ERC-1271.
+///         Same flow as CoinbaseERC1271Fork (Arbitrum) but Base chain and delegation target 0x36d3CBD83961868398d056EfBf50f5CE15528c0D.
+///         Env: ETH_NODE_URI_BASE (optional PRIVATE_KEY for signer).
+/// @dev Demonstrates how to get a valid ERC-1271 signature: fetch EIP-712 domain via eip712Domain(), build replay-safe hash (domain + message struct type), sign, pass to isValidSignature.
+///      USDT_WHALE_BASE must hold sufficient USDT on Base.
+///      Wallet delegation exists only in fork state (vm.etch); cast call to wallet on Base cannot reproduce execute failures—
+///      use forge test --match-test <name> -vvvv for full trace.
+/// @dev Matches (address,uint256,bytes) for batch execute ABI.
+struct BatchExecuteCall {
+    address target;
+    uint256 value;
+    bytes data;
+}
+
+contract BaseERC1271Fork is Test {
     error WhaleTransferFailed();
-    /// @dev Reverted when wallet execute (single or batch) fails; we rethrow delegate return data when present.
+    /// @dev Reverted when wallet execute (single or batch) returns false (we rethrow delegate return data when present).
     error ApproveViaExecuteFailed();
     error WalletShouldHaveUSDT(uint256 expected, uint256 actual);
     error IsValidSignatureCallFailed();
     error InvalidResultLength(uint256 length);
-    error InitializeFailed();
 
-    address internal constant COINBASE_SMART_WALLET =
-        0x000100abaad02f1cfC8Bbe32bD5a564817339E72;
+    /// @dev Delegation target on Base (wallet implementation for EIP-7702).
+    address internal constant DELEGATION_TARGET_BASE =
+        0x36d3CBD83961868398d056EfBf50f5CE15528c0D;
 
-    address internal constant USDT_ARBITRUM =
-        0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
-    /// @dev Known USDT holder on Arbitrum (e.g. exchange) for funding the test wallet.
-    address internal constant USDT_WHALE_ARBITRUM =
-        0xa656f7d2A93A6F5878AA768f24eB38Ec8C827fE2;
+    /// @dev USDT on Base (matches TestBase ADDRESS_USDT_BASE).
+    address internal constant USDT_BASE =
+        0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2;
+    /// @dev USDT holder on Base for funding.
+    address internal constant USDT_WHALE_BASE =
+        0xb8C6A7E8B6970b7C33bC61455416F1EC8015a8cA;
     address internal constant PERMIT2 =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    /// @dev Permit2Proxy on Arbitrum (used for callDiamondWithPermit2 fork test).
-    address internal constant PERMIT2_PROXY_ARBITRUM =
-        0xb18aa783983D7354F77690fc27bbEC11AAAe22B5;
-    /// @dev Uniswap V2–style router on Arbitrum (TestBase.sol ADDRESS_UNISWAP_ARB).
-    address internal constant UNISWAP_ARBITRUM =
-        0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-    /// @dev USDC.e on Arbitrum (TestBase.sol ADDRESS_USDC_ARB); swap target for USDT -> USDC.
-    address internal constant USDC_ARBITRUM =
-        0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8;
+    address internal constant PERMIT2_PROXY_BASE =
+        0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51;
+    /// @dev TestBase.sol ADDRESS_UNISWAP_BASE (Aerodrome / Uniswap-style router).
+    address internal constant UNISWAP_BASE =
+        0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891;
+    address internal constant USDC_BASE =
+        0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
 
-    /// @dev Pinned fork block so tests are deterministic (whale balance, liquidity, contracts; EIP-7702 / Coinbase wallet present).
-    uint256 internal constant FORK_BLOCK_ARBITRUM = 410_000_000;
+    /// @dev Pinned fork block so tests are deterministic (whale balance, liquidity, delegate 0x36d3... deployed at 35816553).
+    uint256 internal constant FORK_BLOCK_BASE = 41_990_000;
 
+    /// @dev Message struct type for EIP-712 replay-safe hash. Must match the delegator implementation (e.g. Coinbase uses CoinbaseSmartWalletMessage(bytes32 hash)).
     bytes32 internal constant COINBASE_MESSAGE_TYPEHASH =
         keccak256("CoinbaseSmartWalletMessage(bytes32 hash)");
     bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
@@ -54,7 +65,6 @@ contract CoinbaseERC1271Fork is Test {
             "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
         );
 
-    // Permit2 (SignatureTransfer) EIP-712: domain has no version
     bytes32 internal constant PERMIT2_DOMAIN_TYPEHASH =
         keccak256(
             "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
@@ -68,6 +78,8 @@ contract CoinbaseERC1271Fork is Test {
 
     uint256 internal walletPrivateKey;
     address internal wallet;
+    /// @dev EIP-712 domain separator from delegator's eip712Domain(); 0 = use Coinbase default in _replaySafeHash.
+    bytes32 internal fetchedDomainSeparator;
 
     function setUp() public {
         walletPrivateKey = vm.envOr(
@@ -79,54 +91,86 @@ contract CoinbaseERC1271Fork is Test {
         wallet = vm.addr(walletPrivateKey);
 
         string memory rpcUrl = vm.envOr(
-            "ETH_NODE_URI_ARBITRUM",
-            string("https://arb1.arbitrum.io/rpc")
+            "ETH_NODE_URI_BASE",
+            string("https://mainnet.base.org")
         );
-        vm.createSelectFork(rpcUrl, FORK_BLOCK_ARBITRUM);
+        vm.createSelectFork(rpcUrl, FORK_BLOCK_BASE);
 
         vm.label(wallet, "Signer_Wallet");
-        vm.label(USDT_ARBITRUM, "USDT_ARBITRUM");
-        vm.label(USDT_WHALE_ARBITRUM, "USDT_WHALE_ARBITRUM");
+        vm.label(USDT_BASE, "USDT_BASE");
+        vm.label(USDT_WHALE_BASE, "USDT_WHALE_BASE");
         vm.label(PERMIT2, "PERMIT2");
-        vm.label(PERMIT2_PROXY_ARBITRUM, "PERMIT2_PROXY_ARBITRUM");
+        vm.label(PERMIT2_PROXY_BASE, "PERMIT2_PROXY_BASE");
 
-        _setDelegationAndInitialize();
+        _setDelegation();
+        _fetchDomainFromDelegator();
     }
 
-    /// @dev Set EOA code to EIP-7702 delegation (0xef0100 || implementation), then initialize with EOA as sole owner so ERC-1271 has an owner to verify against.
-    function _setDelegationAndInitialize() internal {
+    /// @dev Set EIP-7702 delegation (0xef0100 || implementation). No initialize call; delegate may use EOA as implicit owner.
+    function _setDelegation() internal {
         bytes memory delegationCode = abi.encodePacked(
             hex"ef0100",
-            COINBASE_SMART_WALLET
+            DELEGATION_TARGET_BASE
         );
         vm.etch(wallet, delegationCode);
-
-        bytes[] memory owners = new bytes[](1);
-        owners[0] = abi.encode(wallet);
-        (bool ok, bytes memory err) = wallet.call(
-            abi.encodeWithSelector(
-                bytes4(keccak256("initialize(bytes[])")),
-                owners
-            )
-        );
-        if (!ok && err.length > 0) LibUtil.revertWith(err);
-        if (!ok) revert InitializeFailed();
     }
 
-    /// @notice Replay-safe hash as used by Coinbase Smart Wallet ERC1271 (domain name "Coinbase Smart Wallet", version "1").
+    /// @dev Fetch EIP-712 domain from delegator via eip712Domain() (EIP-5267) and set fetchedDomainSeparator for _replaySafeHash.
+    ///      Tries wallet first (EIP-7702 delegatecall); if that fails, calls delegation target and uses wallet as verifyingContract.
+    function _fetchDomainFromDelegator() internal {
+        (bool ok, bytes memory ret) = wallet.staticcall(
+            abi.encodeWithSelector(IERC5267.eip712Domain.selector)
+        );
+        if (!ok || ret.length == 0) {
+            (ok, ret) = DELEGATION_TARGET_BASE.staticcall(
+                abi.encodeWithSelector(IERC5267.eip712Domain.selector)
+            );
+        }
+        if (!ok || ret.length == 0) return;
+
+        (
+            ,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            ,
+
+        ) = abi.decode(
+                ret,
+                (bytes1, string, string, uint256, address, bytes32, uint256[])
+            );
+
+        if (verifyingContract != wallet) {
+            verifyingContract = wallet;
+        }
+        fetchedDomainSeparator = keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifyingContract
+            )
+        );
+    }
+
+    /// @notice Replay-safe hash for ERC-1271: EIP-712 hash of (domain, messageType, hash). Domain from eip712Domain(); message type must match delegator (see COINBASE_MESSAGE_TYPEHASH).
     function _replaySafeHash(
         address account,
         bytes32 hash
     ) internal view returns (bytes32) {
-        bytes32 domainSeparator = keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                keccak256("Coinbase Smart Wallet"),
-                keccak256("1"),
-                block.chainid,
-                account
-            )
-        );
+        bytes32 domainSeparator = fetchedDomainSeparator != bytes32(0)
+            ? fetchedDomainSeparator
+            : keccak256(
+                abi.encode(
+                    EIP712_DOMAIN_TYPEHASH,
+                    keccak256("Coinbase Smart Wallet"),
+                    keccak256("1"),
+                    block.chainid,
+                    account
+                )
+            );
         bytes32 structHash = keccak256(
             abi.encode(COINBASE_MESSAGE_TYPEHASH, hash)
         );
@@ -136,7 +180,6 @@ contract CoinbaseERC1271Fork is Test {
             );
     }
 
-    /// @notice Coinbase Smart Wallet expects signature = abi.encode(SignatureWrapper(ownerIndex, abi.encodePacked(r,s,v))).
     function _encodeSignature(
         uint256 ownerIndex,
         bytes memory sigRsv
@@ -144,7 +187,6 @@ contract CoinbaseERC1271Fork is Test {
         return abi.encode(ownerIndex, sigRsv);
     }
 
-    /// @notice Compute Permit2 (SignatureTransfer) EIP-712 digest. Spender must be the caller of permitTransferFrom.
     function _permit2Digest(
         address token,
         uint256 amount,
@@ -178,63 +220,43 @@ contract CoinbaseERC1271Fork is Test {
             );
     }
 
-    /// @dev Selector for execute(address,uint256,bytes) — single execute from wallet (used for USDT approve so wallet is msg.sender).
-    bytes4 internal constant EXECUTE_SELECTOR = 0xb61d27f6;
+    /// @dev Selector for execute((address,uint256,bytes)[]) — batch execute from wallet bytecode dispatch.
+    bytes4 internal constant BATCH_EXECUTE_SELECTOR = 0x3f707e6b;
 
-    /// @dev Fund wallet with USDT via whale transfer and approve Permit2. USDT requires approve(0) before approve(max). Use single execute calls so the wallet is msg.sender to USDT.
+    /// @dev Fund wallet with USDT via whale and approve Permit2 using batch execute with one call.
     function _fundWalletAndApprovePermit2() internal {
-        uint256 amount = 1000 * 1e6; // 1000 USDT (6 decimals)
-        vm.prank(USDT_WHALE_ARBITRUM);
-        if (!IERC20(USDT_ARBITRUM).transfer(wallet, amount))
+        uint256 amount = 100 * 1e6; // 100 USDT (6 decimals); use 1000 if whale has sufficient balance
+        vm.prank(USDT_WHALE_BASE);
+        if (!IERC20(USDT_BASE).transfer(wallet, amount))
             revert WhaleTransferFailed();
 
-        bytes memory approveZero = abi.encodeWithSelector(
-            bytes4(keccak256("approve(address,uint256)")),
-            PERMIT2,
-            uint256(0)
-        );
-        bytes memory approveMax = abi.encodeWithSelector(
+        bytes memory approveCalldata = abi.encodeWithSelector(
             bytes4(keccak256("approve(address,uint256)")),
             PERMIT2,
             type(uint256).max
         );
+        BatchExecuteCall[] memory calls = new BatchExecuteCall[](1);
+        calls[0] = BatchExecuteCall({
+            target: USDT_BASE,
+            value: uint256(0),
+            data: approveCalldata
+        });
 
-        vm.startPrank(wallet);
+        vm.prank(wallet);
         (bool ok, bytes memory returnData) = wallet.call(
-            abi.encodeWithSelector(
-                EXECUTE_SELECTOR,
-                USDT_ARBITRUM,
-                uint256(0),
-                approveZero
-            )
+            abi.encodeWithSelector(BATCH_EXECUTE_SELECTOR, calls)
         );
-        if (!ok) {
-            vm.stopPrank();
-            if (returnData.length > 0) LibUtil.revertWith(returnData);
-            revert ApproveViaExecuteFailed();
-        }
-        (ok, returnData) = wallet.call(
-            abi.encodeWithSelector(
-                EXECUTE_SELECTOR,
-                USDT_ARBITRUM,
-                uint256(0),
-                approveMax
-            )
-        );
-        vm.stopPrank();
         if (!ok) {
             if (returnData.length > 0) LibUtil.revertWith(returnData);
             revert ApproveViaExecuteFailed();
         }
 
-        uint256 walletBalance = IERC20(USDT_ARBITRUM).balanceOf(wallet);
+        uint256 walletBalance = IERC20(USDT_BASE).balanceOf(wallet);
         if (walletBalance != amount)
             revert WalletShouldHaveUSDT(amount, walletBalance);
     }
 
-    function testFork_CoinbaseERC1271_IsValidSignature_ReturnsMagicValue()
-        public
-    {
+    function testFork_BaseERC1271_IsValidSignature_ReturnsMagicValue() public {
         bytes32 hash = keccak256("LiFi ERC1271 test");
         bytes32 messageHash = _replaySafeHashFromWallet(hash);
 
@@ -261,21 +283,21 @@ contract CoinbaseERC1271Fork is Test {
     }
 
     /// @notice With Permit2 params for USDT, wallet.isValidSignature(permit2Digest, signature) returns magic value.
-    function testFork_CoinbaseERC1271_Permit2Digest_IsValidSignature_ReturnsMagicValue()
+    function testFork_BaseERC1271_Permit2Digest_IsValidSignature_ReturnsMagicValue()
         public
     {
         uint256 amount = 100 * 1e6;
         uint256 deadline = block.timestamp + 1 days;
         uint256 nonce = 0;
         bytes32 digest = _permit2Digest(
-            USDT_ARBITRUM,
+            USDT_BASE,
             amount,
             nonce,
             deadline,
             address(this)
         );
         bytes memory signature = _signPermit2Permit(
-            USDT_ARBITRUM,
+            USDT_BASE,
             amount,
             nonce,
             deadline
@@ -297,18 +319,16 @@ contract CoinbaseERC1271Fork is Test {
         );
     }
 
-    /// @notice Register a Permit2 permit for USDT: wallet signs, we call permitTransferFrom; validates ERC-1271 via Permit2.
-    /// @dev Requires wallet to have USDT (funded via whale in _fundWalletAndApprovePermit2).
-    function testFork_CoinbaseERC1271_Permit2TransferFrom_USDT() public {
+    /// @notice Permit2 permit for USDT: wallet signs, we call permitTransferFrom.
+    function testFork_BaseERC1271_Permit2TransferFrom_USDT() public {
         _fundWalletAndApprovePermit2();
 
         uint256 amount = 100 * 1e6; // 100 USDT
         uint256 deadline = block.timestamp + 1 days;
-        // Use a high nonce so it is unused on the forked chain (avoids InvalidNonce if 0 was already used).
         uint256 nonce = 0x1234_5678_9abc_def0;
-        address recipient = address(uint160(0x1234)); // fresh so pre-balance 0 on fork
+        address recipient = address(uint160(0x1234));
         assertEq(
-            IERC20(USDT_ARBITRUM).balanceOf(recipient),
+            IERC20(USDT_BASE).balanceOf(recipient),
             0,
             "recipient should not have USDT"
         );
@@ -316,7 +336,7 @@ contract CoinbaseERC1271Fork is Test {
         ISignatureTransfer.PermitTransferFrom
             memory permit = ISignatureTransfer.PermitTransferFrom({
                 permitted: ISignatureTransfer.TokenPermissions({
-                    token: USDT_ARBITRUM,
+                    token: USDT_BASE,
                     amount: amount
                 }),
                 nonce: nonce,
@@ -330,7 +350,7 @@ contract CoinbaseERC1271Fork is Test {
                 });
 
         bytes memory signature = _signPermit2Permit(
-            USDT_ARBITRUM,
+            USDT_BASE,
             amount,
             nonce,
             deadline
@@ -344,7 +364,7 @@ contract CoinbaseERC1271Fork is Test {
         );
 
         assertEq(
-            IERC20(USDT_ARBITRUM).balanceOf(recipient),
+            IERC20(USDT_BASE).balanceOf(recipient),
             amount,
             "recipient should have USDT"
         );
@@ -366,7 +386,6 @@ contract CoinbaseERC1271Fork is Test {
             );
     }
 
-    /// @notice Same as _signPermit2Permit but with explicit spender (e.g. Permit2Proxy for callDiamondWithPermit2).
     function _signPermit2PermitForSpender(
         address token,
         uint256 amount,
@@ -381,6 +400,7 @@ contract CoinbaseERC1271Fork is Test {
             deadline,
             spender
         );
+        // Use wallet's replaySafeHash when available so we sign exactly what the wallet will verify.
         bytes32 messageHash = _replaySafeHashFromWallet(digest);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
             walletPrivateKey,
@@ -400,21 +420,20 @@ contract CoinbaseERC1271Fork is Test {
         return _replaySafeHash(wallet, hash);
     }
 
-    /// @notice Fork test: Coinbase 7702 wallet signs Permit2 permit with spender = Permit2Proxy,
-    ///         then we call Permit2Proxy.callDiamondWithPermit2; validates full flow via proxy.
-    function testFork_CoinbaseERC1271_Permit2Proxy_CallDiamondWithPermit2_USDT()
+    /// @notice Permit2Proxy.callDiamondWithPermit2 with minimal diamond calldata (view).
+    function testFork_BaseERC1271_Permit2Proxy_CallDiamondWithPermit2_USDT()
         public
     {
         _fundWalletAndApprovePermit2();
 
         uint256 amount = 100 * 1e6; // 100 USDT
         uint256 deadline = block.timestamp + 1 days;
-        uint256 nonce = 0x5678_9abc_def0_1234; // high nonce, unused on fork
+        uint256 nonce = 0x5678_9abc_def0_1234;
 
         ISignatureTransfer.PermitTransferFrom
             memory permit = ISignatureTransfer.PermitTransferFrom({
                 permitted: ISignatureTransfer.TokenPermissions({
-                    token: USDT_ARBITRUM,
+                    token: USDT_BASE,
                     amount: amount
                 }),
                 nonce: nonce,
@@ -422,37 +441,35 @@ contract CoinbaseERC1271Fork is Test {
             });
 
         bytes memory signature = _signPermit2PermitForSpender(
-            USDT_ARBITRUM,
+            USDT_BASE,
             amount,
             nonce,
             deadline,
-            PERMIT2_PROXY_ARBITRUM
+            PERMIT2_PROXY_BASE
         );
 
-        // Minimal diamond calldata: call facetAddress(selector) on the proxy's LIFI_DIAMOND (view, no state change).
         bytes memory diamondCalldata = abi.encodeWithSelector(
             IDiamondLoupe.facetAddress.selector,
-            bytes4(0x1626ba7e) // ERC1271 magic value as example selector
+            bytes4(0x1626ba7e)
         );
 
         vm.prank(wallet);
-        IPermit2Proxy(PERMIT2_PROXY_ARBITRUM).callDiamondWithPermit2(
+        IPermit2Proxy(PERMIT2_PROXY_BASE).callDiamondWithPermit2(
             diamondCalldata,
             permit,
             signature
         );
 
-        // Proxy should have received the USDT (then approved diamond); assert proxy balance or diamond call succeeded.
         assertEq(
-            IERC20(USDT_ARBITRUM).balanceOf(PERMIT2_PROXY_ARBITRUM),
+            IERC20(USDT_BASE).balanceOf(PERMIT2_PROXY_BASE),
             amount,
             "Permit2Proxy should hold USDT after permit transfer"
         );
     }
 
-    /// @notice Fork test: Permit2Proxy + GenericSwapFacetV3 swap (USDT -> USDC via Uniswap on Arbitrum).
-    /// @dev Pranks diamond owner to whitelist Uniswap + swapExactTokensForTokens; then runs permit + swap; asserts wallet receives USDC.
-    function testFork_CoinbaseERC1271_Permit2Proxy_CallDiamondWithPermit2_USDT_MinimalSwap()
+    /// @notice Fork test: Permit2Proxy + GenericSwapFacetV3 swap (USDT -> USDC via Uniswap-style router on Base).
+    /// @dev Pranks diamond owner to whitelist router + swapExactTokensForTokens; then runs permit + swap; asserts wallet receives USDC.
+    function testFork_BaseERC1271_Permit2Proxy_CallDiamondWithPermit2_USDT_MinimalSwap()
         public
     {
         _fundWalletAndApprovePermit2();
@@ -464,7 +481,7 @@ contract CoinbaseERC1271Fork is Test {
         ISignatureTransfer.PermitTransferFrom
             memory permit = ISignatureTransfer.PermitTransferFrom({
                 permitted: ISignatureTransfer.TokenPermissions({
-                    token: USDT_ARBITRUM,
+                    token: USDT_BASE,
                     amount: amount
                 }),
                 nonce: nonce,
@@ -472,40 +489,39 @@ contract CoinbaseERC1271Fork is Test {
             });
 
         bytes memory signature = _signPermit2PermitForSpender(
-            USDT_ARBITRUM,
+            USDT_BASE,
             amount,
             nonce,
             deadline,
-            PERMIT2_PROXY_ARBITRUM
+            PERMIT2_PROXY_BASE
         );
 
-        address lifiDiamond = IPermit2ProxyView(PERMIT2_PROXY_ARBITRUM)
+        address lifiDiamond = IPermit2ProxyView(PERMIT2_PROXY_BASE)
             .LIFI_DIAMOND();
-
-        // Whitelist Uniswap + swapExactTokensForTokens so GenericSwapFacetV3 can call it.
-        address diamondOwner = IERC173(lifiDiamond).owner();
-        vm.prank(diamondOwner);
-        IWhitelistManagerFacet(lifiDiamond).setContractSelectorWhitelist(
-            UNISWAP_ARBITRUM,
-            UniswapV2Router02.swapExactTokensForTokens.selector,
-            true
-        );
 
         (
             bytes memory diamondCalldata,
             uint256 minAmountOut
         ) = _buildSwapTokensGenericCalldata(lifiDiamond, amount);
 
-        uint256 receiverUsdcBefore = IERC20(USDC_ARBITRUM).balanceOf(wallet);
+        address diamondOwner = IERC173(lifiDiamond).owner();
+        vm.prank(diamondOwner);
+        IWhitelistManagerFacet(lifiDiamond).setContractSelectorWhitelist(
+            UNISWAP_BASE,
+            UniswapV2Router02.swapExactTokensForTokens.selector,
+            true
+        );
+
+        uint256 receiverUsdcBefore = IERC20(USDC_BASE).balanceOf(wallet);
 
         vm.prank(wallet);
-        IPermit2Proxy(PERMIT2_PROXY_ARBITRUM).callDiamondWithPermit2(
+        IPermit2Proxy(PERMIT2_PROXY_BASE).callDiamondWithPermit2(
             diamondCalldata,
             permit,
             signature
         );
 
-        uint256 receiverUsdcAfter = IERC20(USDC_ARBITRUM).balanceOf(wallet);
+        uint256 receiverUsdcAfter = IERC20(USDC_BASE).balanceOf(wallet);
         assertGt(
             receiverUsdcAfter,
             receiverUsdcBefore,
@@ -518,7 +534,8 @@ contract CoinbaseERC1271Fork is Test {
         );
     }
 
-    /// @dev Builds calldata for GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20: one hop USDT -> USDC via Uniswap on Arbitrum.
+    /// @dev Builds calldata for GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20: one hop USDT -> USDC on Base.
+    ///      Reverts when getAmountsOut fails (e.g. pool unavailable at fork block).
     function _buildSwapTokensGenericCalldata(
         address lifiDiamond,
         uint256 amountIn
@@ -528,13 +545,12 @@ contract CoinbaseERC1271Fork is Test {
         returns (bytes memory diamondCalldata, uint256 minAmountOut)
     {
         address[] memory path = new address[](2);
-        path[0] = USDT_ARBITRUM;
-        path[1] = USDC_ARBITRUM;
+        path[0] = USDT_BASE;
+        path[1] = USDC_BASE;
 
-        minAmountOut = UniswapV2Router02(UNISWAP_ARBITRUM).getAmountsOut(
-            amountIn,
-            path
-        )[1];
+        uint256[] memory amounts = UniswapV2Router02(UNISWAP_BASE)
+            .getAmountsOut(amountIn, path);
+        minAmountOut = amounts[1];
 
         uint256 swapDeadline = block.timestamp + 20 minutes;
         bytes memory swapCallData = abi.encodeWithSelector(
@@ -547,10 +563,10 @@ contract CoinbaseERC1271Fork is Test {
         );
 
         LibSwap.SwapData memory swapData = LibSwap.SwapData({
-            callTo: UNISWAP_ARBITRUM,
-            approveTo: UNISWAP_ARBITRUM,
-            sendingAssetId: USDT_ARBITRUM,
-            receivingAssetId: USDC_ARBITRUM,
+            callTo: UNISWAP_BASE,
+            approveTo: UNISWAP_BASE,
+            sendingAssetId: USDT_BASE,
+            receivingAssetId: USDC_BASE,
             fromAmount: amountIn,
             callData: swapCallData,
             requiresDeposit: true
@@ -573,12 +589,10 @@ interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
 }
 
-/// @dev Read LIFI_DIAMOND from Permit2Proxy (for swap recipient and building swap calldata).
 interface IPermit2ProxyView {
     function LIFI_DIAMOND() external view returns (address);
 }
 
-/// @dev Minimal interface for Permit2Proxy.callDiamondWithPermit2.
 interface IPermit2Proxy {
     function callDiamondWithPermit2(
         bytes calldata _diamondCalldata,
@@ -587,7 +601,6 @@ interface IPermit2Proxy {
     ) external payable returns (bytes memory);
 }
 
-/// @dev Used to build minimal diamond calldata (view call) for the fork test.
 interface IDiamondLoupe {
     function facetAddress(
         bytes4 _functionSelector
