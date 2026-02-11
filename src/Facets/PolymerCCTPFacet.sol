@@ -16,7 +16,7 @@ import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidCallDat
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging USDC through Polymer CCTP
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -294,8 +294,14 @@ contract PolymerCCTPFacet is
         if (chainId == 480) {
             return 14; // World Chain
         }
+        if (chainId == 143) {
+            return 15; // Monad
+        }
         if (chainId == 1329) {
             return 16; // Sei
+        }
+        if (chainId == 56) {
+            return 17; // Bsc
         }
         if (chainId == 50) {
             return 18; // XDC
