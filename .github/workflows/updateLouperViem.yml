@@ -12,7 +12,6 @@ on:
     types: [closed]
     paths:
       - 'config/networks.json'
-  workflow_dispatch: # Allows manual trigger for testing
 
 permissions:
   contents: read # required to read repository contents
@@ -22,9 +21,7 @@ jobs:
   update-louper-viem:
     runs-on: ubuntu-latest
     # Only run when PR is merged to main branch
-    if: |
-      (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') ||
-      github.event_name == 'workflow_dispatch'
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
 
     steps:
       - name: Checkout repository
@@ -35,6 +32,7 @@ jobs:
       - name: Detect Newly Added Networks
         id: detect-changes
         run: |
+          set -e
           echo "Comparing config/networks.json with previous state..."
           
           # Compare with base branch (main) to detect new networks
@@ -95,7 +93,9 @@ jobs:
         id: update-viem
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          ADDED_NETWORKS: ${{ env.added_networks }}
         run: |
+          set -e
           cd target-repo
           
           # Detect default branch using GitHub API
@@ -112,12 +112,16 @@ jobs:
           CURRENT_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem // "not found"' package.json)
           echo "Current viem version: $CURRENT_VIEM"
           
+          # Strip version prefix (^, ~, =) for comparison
+          CURRENT_VIEM_CLEAN=$(echo "$CURRENT_VIEM" | sed 's/^[\^~=]//')
+          echo "Current viem version (cleaned): $CURRENT_VIEM_CLEAN"
+          
           # Get latest viem version from npm
           LATEST_VIEM=$(npm view viem version)
           echo "Latest viem version: $LATEST_VIEM"
           
           # Check if update is needed
-          if [ "$CURRENT_VIEM" == "$LATEST_VIEM" ]; then
+          if [ "$CURRENT_VIEM_CLEAN" == "$LATEST_VIEM" ]; then
             echo "viem is already at latest version ($LATEST_VIEM). No update needed."
             echo "UPDATE_NEEDED=false" >> $GITHUB_ENV
           else
@@ -142,7 +146,11 @@ jobs:
               # Checkout the branch
               git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"
               # Merge latest changes from default branch to keep it up to date
-              git merge "origin/${DEFAULT_BRANCH}" --no-edit || echo "Merge conflicts or already up to date"
+              if ! git merge "origin/${DEFAULT_BRANCH}" --no-edit; then
+                echo "❌ Merge conflicts detected. Aborting merge and recreating branch from ${DEFAULT_BRANCH}."
+                git merge --abort
+                git checkout -B "$BRANCH_NAME" "origin/${DEFAULT_BRANCH}"
+              fi
             else
               echo "Creating new branch $BRANCH_NAME from ${DEFAULT_BRANCH}"
               git checkout -b "$BRANCH_NAME" "origin/${DEFAULT_BRANCH}"
@@ -216,11 +224,12 @@ jobs:
               [ -f "pnpm-lock.yaml" ] && git add pnpm-lock.yaml || true
               [ -f "yarn.lock" ] && git add yarn.lock || true
               
-              # Create commit message with HEREDOC
+              # Create commit message with safe variable expansion
+              ADDED_NETWORKS_LIST=$(echo "$ADDED_NETWORKS" | jq -r '.[]' | sed 's/^/- /')
               git commit -m "chore: Update viem to ${LATEST_VIEM}" \
                 -m "This update ensures new networks added to contracts are available." \
                 -m "New networks detected:" \
-                -m "$(echo '${{ env.added_networks }}' | jq -r '.[]' | sed 's/^/- /')" \
+                -m "$ADDED_NETWORKS_LIST" \
                 -m "Related commit: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
               
               # Push branch after successful commit
@@ -244,7 +253,9 @@ jobs:
         if: env.SKIP_UPDATE != 'true' && env.UPDATE_NEEDED == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          NETWORK_DETAILS_JSON: ${{ env.network_details }}
         run: |
+          set -e
           cd target-repo
           
           # Detect default branch of target repository
@@ -261,8 +272,8 @@ jobs:
             "https://api.github.com/repos/mark3labs/louper/pulls?state=open&head=mark3labs:${{ env.BRANCH_NAME }}" | \
             jq -r '.[0].number // empty')
           
-          # Prepare PR body using jq to safely build JSON
-          NETWORK_DETAILS=$(echo '${{ env.network_details }}' | jq -r '.[] | "- **\(.name)**: Chain ID \(.chainId)"')
+          # Prepare PR body using jq to safely build JSON with safe variable expansion
+          NETWORK_DETAILS=$(echo "$NETWORK_DETAILS_JSON" | jq -r '.[] | "- **\(.name)**: Chain ID \(.chainId)"')
           
           PR_BODY=$(jq -n \
             --arg viem "${{ env.LATEST_VIEM }}" \
@@ -276,11 +287,17 @@ jobs:
             }' | jq -r '.body')
           
           if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
-            echo "PR #$EXISTING_PR already exists, updating..."
-            PR_URL=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            echo "PR #$EXISTING_PR already exists, updating with new network details..."
+            # Update existing PR with new title and body
+            PR_RESPONSE=$(curl -s -X PATCH \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/mark3labs/louper/pulls/$EXISTING_PR" | \
-              jq -r '.html_url')
+              "https://api.github.com/repos/mark3labs/louper/pulls/$EXISTING_PR" \
+              -d "{
+                \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }}\",
+                \"body\": $(echo "$PR_BODY" | jq -Rs .)
+              }")
+            PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url')
             echo "✅ PR updated: $PR_URL"
             echo "PR_URL=$PR_URL" >> $GITHUB_ENV
             echo "PR_NUMBER=$EXISTING_PR" >> $GITHUB_ENV
@@ -315,6 +332,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
+          set -e
           echo "## Summary"
           echo ""
           if [ "${{ env.SKIP_UPDATE }}" == "true" ]; then
