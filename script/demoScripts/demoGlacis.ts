@@ -64,7 +64,9 @@ async function main() {
   const DST_TOKEN_ADDRESS = getAddress(
     '0x9151434b16b9763660705744891fA906F660EcC5' // USD₮0 on Unichain
   )
-  const AIRLIFT_ADDRESS = getConfigElement(glacisConfig, srcChain, 'airlift')
+  const AIRLIFT_ADDRESS = getAddress(
+    getConfigElement(glacisConfig.airlift, srcChain) as string
+  )
 
   // === Read token metadata ===
   const srcTokenName = await publicClient.readContract({

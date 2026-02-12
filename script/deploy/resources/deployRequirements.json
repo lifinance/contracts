@@ -264,6 +264,15 @@
       }
     }
   },
+  "GlacisFacet": {
+    "configData": {
+      "_airlift": {
+        "configFileName": "glacis.json",
+        "keyInConfigFile": ".airlift.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "GnosisBridgeFacet": {
     "configData": {
       "_xDaiBridge": {
@@ -720,7 +729,7 @@
     "configData": {
       "_htlcRegistry": {
         "configFileName": "garden.json",
-        "keyInConfigFile": ".<NETWORK>.htlcRegistry",
+        "keyInConfigFile": ".htlcRegistry.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
     }

@@ -392,23 +392,77 @@ function formatBatchSetContractSelectorWhitelist(
   })
 }
 
-function tryFormatDiamondPayload(payload: Hex): string | undefined {
-  if (!payload || payload === '0x') return undefined
-  if (payload.toLowerCase().startsWith('0xf2455b71')) {
+let diamondAbiCache: Abi | undefined
+function getDiamondAbi(): Abi | undefined {
+  if (diamondAbiCache !== undefined) return diamondAbiCache
+  try {
+    const diamondPath = path.join(process.cwd(), 'diamond.json')
+    if (!fs.existsSync(diamondPath)) return undefined
+    const raw = fs.readFileSync(diamondPath, 'utf8')
+    const parsed = JSON.parse(raw) as unknown
+    diamondAbiCache = Array.isArray(parsed) ? (parsed as Abi) : undefined
+    return diamondAbiCache
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Resolves a function selector to the matching ABI item from diamond.json (Diamond ABI).
+ * Used to decode payloads dynamically instead of hardcoding selectors.
+ */
+function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
+  const abi = getDiamondAbi()
+  if (!abi) return null
+  const normalizedSelector = selector.toLowerCase()
+  for (const item of abi) {
+    if (item.type !== 'function') continue
     try {
-      const abi = parseAbi([
-        'function setDeBridgeChainId(uint256 chainId, uint256 deBridgeChainId)',
-      ])
-      const decoded = decodeFunctionData({ abi, data: payload })
-      const chainId = decoded.args?.[0]
-      const deBridgeChainId = decoded.args?.[1]
-      if (typeof chainId === 'bigint' && typeof deBridgeChainId === 'bigint')
-        return `setDeBridgeChainId(chainId=${chainId.toString()}, deBridgeChainId=${deBridgeChainId.toString()})`
+      const itemSelector = toFunctionSelector(item).toLowerCase()
+      if (itemSelector === normalizedSelector) return item
     } catch {
-      return `setDeBridgeChainId(<failed to decode>)`
+      continue
     }
   }
-  return undefined
+  return null
+}
+
+function formatDecodedArg(arg: unknown): string {
+  if (arg === undefined || arg === null) return String(arg)
+  if (typeof arg === 'bigint') return arg.toString()
+  if (typeof arg === 'object') return JSON.stringify(arg)
+  return String(arg)
+}
+
+/**
+ * pretty-format for a Diamond call payload using the Diamond ABI.
+ * Resolves selector via diamond.json and decodes
+ */
+function tryFormatDiamondPayload(payload: Hex): string | undefined {
+  if (!payload || payload === '0x') return undefined
+  const selector = payload.slice(0, 10).toLowerCase()
+  const abiItem = getDiamondAbiItemForSelector(selector)
+  if (!abiItem || abiItem.type !== 'function') return undefined
+  const name = abiItem.name
+  try {
+    const decoded = decodeFunctionData({
+      abi: [abiItem],
+      data: payload,
+    })
+    if (!decoded.args || decoded.args.length === 0) return `${name}()`
+    const inputs =
+      'inputs' in abiItem && Array.isArray(abiItem.inputs) ? abiItem.inputs : []
+    const parts = decoded.args.map((arg: unknown, i: number) => {
+      const paramName =
+        (inputs[i] && typeof inputs[i] === 'object' && 'name' in inputs[i]
+          ? (inputs[i] as { name: string }).name
+          : undefined) ?? `arg${i}`
+      return `${paramName}=${formatDecodedArg(arg)}`
+    })
+    return `${name}(${parts.join(', ')})`
+  } catch {
+    return `${name}(<failed to decode>)`
+  }
 }
 
 async function formatTimelockScheduleBatch(
@@ -493,6 +547,26 @@ const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
 const ABI_REGISTER_PERIPHERY_CONTRACT = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
+const ABI_GRANT_ROLE = parseAbi(['function grantRole(bytes32,address)'])
+
+// OpenZeppelin TimelockController / AccessControl role names (keccak256 of role string)
+const KNOWN_ROLE_NAMES: Record<string, string> = {}
+for (const name of [
+  'TIMELOCK_ADMIN_ROLE',
+  'PROPOSER_ROLE',
+  'EXECUTOR_ROLE',
+  'CANCELLER_ROLE',
+]) {
+  const hash = keccak256(stringToHex(name))
+  KNOWN_ROLE_NAMES[hash.toLowerCase()] = name
+}
+
+function getRoleName(roleHash: string): string {
+  const normalized = roleHash.startsWith('0x')
+    ? roleHash.toLowerCase()
+    : `0x${roleHash}`.toLowerCase()
+  return KNOWN_ROLE_NAMES[normalized] ?? ''
+}
 
 /**
  * Decodes a transaction's function call using diamond ABI
@@ -592,9 +666,29 @@ function getAbiForKnownFunction(functionName: string): Abi | null {
       return ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST
     case 'registerPeripheryContract':
       return ABI_REGISTER_PERIPHERY_CONTRACT
+    case 'grantRole':
+      return ABI_GRANT_ROLE
     default:
       return null
   }
+}
+
+async function formatGrantRole(
+  args: readonly unknown[],
+  network: string
+): Promise<void> {
+  if (!args || args.length < 2) return
+  const role = args[0]
+  const account = args[1]
+  const roleStr = typeof role === 'string' ? role : String(role ?? '')
+  const accountStr =
+    typeof account === 'string' ? account : String(account ?? '')
+  const roleName = getRoleName(roleStr)
+  const roleLabel = roleName ? ` \u001b[33m(${roleName})\u001b[0m` : ''
+  consola.info(`Function: \u001b[34mgrantRole\u001b[0m`)
+  consola.info(`  Role:   \u001b[32m${roleStr}\u001b[0m${roleLabel}`)
+  const accountSuffix = await getTargetSuffix(network, accountStr)
+  consola.info(`  Account: \u001b[32m${accountStr}\u001b[0m${accountSuffix}`)
 }
 
 /**
@@ -638,7 +732,7 @@ export async function formatDecodedTxDataForDisplay(
 
     if (decoded?.functionName === 'diamondCut' && decoded.args) {
       await formatDiamondCutSummary(decoded.args, network)
-      await decodeDiamondCut(decoded, chainId)
+      await decodeDiamondCut(decoded, chainId, network)
       return
     }
 
@@ -693,6 +787,15 @@ export async function formatDecodedTxDataForDisplay(
       peripheryLine += await getTargetSuffix(network, peripheryAddress)
       peripheryLine += deploymentSuffix
       consola.info(peripheryLine)
+      return
+    }
+
+    if (
+      decoded?.functionName === 'grantRole' &&
+      decoded.args &&
+      decoded.args.length >= 2
+    ) {
+      await formatGrantRole(decoded.args, network)
       return
     }
 
