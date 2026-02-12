@@ -855,7 +855,8 @@ function saveDiamondFacets() {
     # if merge failed, create fresh structure preserving existing Periphery when available
     if [[ $? -ne 0 || -z "$result" ]]; then
       warning "[$NETWORK] Merge failed, creating fresh diamond structure with facets"
-      EXISTING_PERIPHERY=$(jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Periphery // {}' "$DIAMOND_FILE" 2>/dev/null) || EXISTING_PERIPHERY='{}'
+      existing_json=$(cat "$DIAMOND_FILE" 2>/dev/null || echo '{}')
+      EXISTING_PERIPHERY=$(echo "$existing_json" | jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Periphery // {}' 2>/dev/null) || EXISTING_PERIPHERY='{}'
       result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" --argjson periphery_obj "$EXISTING_PERIPHERY" '
         {
           ($diamond_name): {
@@ -999,7 +1000,8 @@ function saveDiamondPeriphery() {
     # if merge failed, create fresh structure preserving existing Facets when available
     if [[ $? -ne 0 || -z "$result" ]]; then
       warning "[$NETWORK] Merge failed, creating fresh diamond structure with periphery"
-      EXISTING_FACETS=$(jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Facets // {}' "$DIAMOND_FILE" 2>/dev/null) || EXISTING_FACETS='{}'
+      existing_json=$(cat "$DIAMOND_FILE" 2>/dev/null || echo '{}')
+      EXISTING_FACETS=$(echo "$existing_json" | jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Facets // {}' 2>/dev/null) || EXISTING_FACETS='{}'
       result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$EXISTING_FACETS" --argjson periphery_obj "$PERIPHERY_JSON" '
         {
           ($diamond_name): {
