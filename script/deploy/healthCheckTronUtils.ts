@@ -1,14 +1,19 @@
-// @ts-nocheck
 import { spawn } from 'child_process'
+import type { Buffer } from 'buffer'
 
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
   decodeFunctionResult,
   parseAbi,
+  type Abi,
   type Hex,
 } from 'viem'
 
+import type {
+  GetExpectedPairsFunction,
+  IWhitelistConfig,
+} from '../common/types'
 import { INITIAL_CALL_DELAY, INTER_CALL_DELAY, RETRY_DELAY } from './tron/constants'
 import { sleep } from '../utils/delay'
 import { hexToTronAddress, retryWithRateLimit } from './tron/utils'
@@ -50,34 +55,34 @@ export async function callTronContract(
         let stdout = ''
         let stderr = ''
 
-        child.stdout.on('data', (data) => {
+        child.stdout.on('data', (data: Buffer) => {
           stdout += data.toString()
         })
 
-        child.stderr.on('data', (data) => {
+        child.stderr.on('data', (data: Buffer) => {
           stderr += data.toString()
         })
 
-        child.on('close', (code) => {
+        child.on('close', (code: number | null) => {
           if (code !== 0) {
             const error = new Error(
               `Command failed with exit code ${code}: ${stderr || stdout}`
             )
-            ;(error as any).message = stderr || stdout || `Exit code ${code}`
+            ;(error as Error & { message: string }).message = stderr || stdout || `Exit code ${code}`
             reject(error)
           } else {
             resolve(stdout)
           }
         })
 
-        child.on('error', (error) => {
+        child.on('error', (error: Error) => {
           reject(error)
         })
       })
     },
     3,
     RETRY_DELAY,
-    (attempt, delay) => {
+    (attempt: number, delay: number) => {
       consola.warn(
         `Rate limit detected (429). Retrying in ${
           delay / 1000
@@ -94,11 +99,17 @@ export async function callTronContract(
  * Get Tron wallet address from globalConfig, falling back to EVM format if Tron version doesn't exist
  */
 export function getTronWallet(
-  globalConfig: any,
+  globalConfig: Record<string, unknown>,
   walletName: string
 ): string {
   const tronKey = `${walletName}Tron`
-  return (globalConfig as any)[tronKey] || globalConfig[walletName]
+  const tronValue = globalConfig[tronKey]
+  const fallbackValue = globalConfig[walletName]
+  
+  if (typeof tronValue === 'string') return tronValue
+  if (typeof fallbackValue === 'string') return fallbackValue
+  
+  throw new Error(`Wallet '${walletName}' not found in config`)
 }
 
 /**
@@ -166,9 +177,9 @@ export async function callTronContractBoolean(
   }
 
   const decodedResult = decodeFunctionResult({
-    abi: parseAbi([abiFunction]),
+    abi: parseAbi([abiFunction]) as Abi,
     functionName: functionSignature.split('(')[0],
-    data: `0x${constantResult}`,
+    data: `0x${constantResult}` as Hex,
   })
 
   return decodedResult === true
@@ -256,10 +267,9 @@ export async function checkOwnershipTron(
       } else {
         consola.success(`${name} owner is correct`)
       }
-    } catch (error: any) {
-      logError(
-        `Failed to check ${name} ownership: ${error?.message || String(error)}`
-      )
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logError(`Failed to check ${name} ownership: ${errorMessage}`)
     }
   }
 }
@@ -269,25 +279,23 @@ export async function checkOwnershipTron(
  * @param network - Network name
  * @param deployedContracts - Record of deployed contract addresses
  * @param environment - Environment (staging/production)
- * @param whitelistConfig - Whitelist configuration (shared type, defined in healthCheck.ts as IWhitelistConfig)
+ * @param whitelistConfig - Whitelist configuration
  * @param diamondAddress - Diamond contract address
  * @param rpcUrl - RPC URL for Tron network
  * @param tronWeb - TronWeb instance
  * @param logError - Function to log errors
- * @param getExpectedPairs - Function to get expected pairs from config (shared function, defined in healthCheck.ts)
+ * @param getExpectedPairs - Function to get expected pairs from config
  */
 export async function checkWhitelistIntegrityTron(
   network: string,
   deployedContracts: Record<string, string>,
   environment: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Shared type defined in healthCheck.ts (IWhitelistConfig)
-  whitelistConfig: any,
+  whitelistConfig: IWhitelistConfig,
   diamondAddress: string,
   rpcUrl: string,
   tronWeb: TronWeb,
   logError: (msg: string) => void,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Shared function type defined in healthCheck.ts (GetExpectedPairsFunction)
-  getExpectedPairs: any
+  getExpectedPairs: GetExpectedPairsFunction
 ): Promise<void> {
   consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
 
@@ -401,8 +409,8 @@ export async function checkWhitelistIntegrityTron(
           )
           granularFails++
         }
-      } catch (error: any) {
-        const errorMessage = error?.message || String(error)
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
         logError(
           `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
         )
@@ -480,8 +488,8 @@ export async function checkWhitelistIntegrityTron(
         )
       }
     }
-  } catch (error: any) {
-    const errorMessage = error?.message || String(error)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
     logError(`Failed during whitelist integrity checks: ${errorMessage}`)
   }
 }

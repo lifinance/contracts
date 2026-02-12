@@ -21,7 +21,7 @@ import {
   DEFAULT_FEE_LIMIT_TRX,
   MIN_BALANCE_WARNING,
   MAX_RETRIES,
-  DEFAULT_RETRY_DELAY,
+  RETRY_DELAY,
 } from './constants'
 import type {
   IForgeArtifact,
@@ -69,7 +69,7 @@ function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
 export async function retryWithRateLimit<T>(
   operation: () => Promise<T>,
   maxRetries = MAX_RETRIES,
-  retryDelay: number | number[] = DEFAULT_RETRY_DELAY,
+  retryDelay: number | number[] = RETRY_DELAY,
   onRetry?: (attempt: number, delay: number) => void,
   includeConnectionErrors = true
 ): Promise<T> {
@@ -82,10 +82,10 @@ export async function retryWithRateLimit<T>(
     try {
       // Add delay before retry (not before first attempt)
       if (retry > 0) {
-        const delay: number =
-          retryDelays[retry - 1] ??
-          retryDelays[retryDelays.length - 1] ??
-          DEFAULT_RETRY_DELAY
+      const delay: number =
+        retryDelays[retry - 1] ??
+        retryDelays[retryDelays.length - 1] ??
+        RETRY_DELAY
         if (onRetry) {
           onRetry(retry, delay)
         }
@@ -182,7 +182,7 @@ export async function checkIsDeployedTron(
     const contractInfo = await retryWithRateLimit(
       () => tronWeb.trx.getContract(tronAddress),
       MAX_RETRIES,
-      DEFAULT_RETRY_DELAY
+      RETRY_DELAY
     )
     return contractInfo && contractInfo.contract_address ? true : false
   } catch {

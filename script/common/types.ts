@@ -45,3 +45,41 @@ export interface INetwork {
    */
   customVerificationFlags?: Record<string, string | null>
 }
+
+/**
+ * Whitelist configuration structure for DEX and Periphery contracts
+ * Used in health check scripts to validate on-chain whitelist state
+ */
+export interface IWhitelistConfig {
+  DEXS: Array<{
+    name: string
+    key: string
+    contracts?: Record<
+      string,
+      Array<{
+        address: string
+        functions?: Record<string, string>
+      }>
+    >
+  }>
+  PERIPHERY?: Record<
+    string,
+    Array<{
+      name: string
+      address: string
+      selectors: Array<{ selector: string; signature: string }>
+    }>
+  >
+}
+
+/**
+ * Function type for getting expected whitelist pairs from configuration
+ * Used in health check scripts to compare config vs on-chain state
+ */
+export type GetExpectedPairsFunction = (
+  network: string,
+  deployedContracts: Record<string, string | `0x${string}`>,
+  environment: string,
+  whitelistConfig: IWhitelistConfig,
+  isTron?: boolean
+) => Promise<Array<{ contract: string; selector: `0x${string}` }>>

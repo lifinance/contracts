@@ -54,9 +54,6 @@ export const INITIAL_CALL_DELAY = 2000 // 2s
  */
 export const RETRY_DELAY = 2000 // 2s
 
-// Alias for backward compatibility
-export const DEFAULT_RETRY_DELAY = RETRY_DELAY
-
 // Bandwidth calculation constants
 // Used to calculate transaction bandwidth consumption on Tron
 // Formula: rawDataLength + DATA_HEX_PROTOBUF_EXTRA + MAX_RESULT_SIZE_IN_TX + (signatures * A_SIGNATURE)
