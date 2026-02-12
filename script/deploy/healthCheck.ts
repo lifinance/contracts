@@ -1,5 +1,5 @@
-import { spawn } from 'child_process'
 import type { Buffer } from 'buffer'
+import { spawn } from 'child_process'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -24,21 +24,38 @@ import {
   whitelistPeripheryFunctions,
 } from '../../config/global.json'
 import type { IWhitelistConfig } from '../common/types'
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
+import { sleep } from '../utils/delay'
+import { getRPCEnvVarName } from '../utils/network'
 import {
   getViemChainForNetworkName,
   networks,
 } from '../utils/viemScriptHelpers'
-import { getRPCEnvVarName } from '../utils/network'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
-import { sleep } from '../utils/delay'
+
+import targetStateImport from './_targetState.json'
+import {
+  callTronContract,
+  callTronContractBoolean,
+  ensureTronAddress,
+  getTronWallet,
+  normalizeSelector,
+  checkOwnershipTron,
+  checkWhitelistIntegrityTron,
+} from './healthCheckTronUtils'
 import {
   INITIAL_CALL_DELAY,
   INTER_CALL_DELAY,
   RETRY_DELAY,
 } from './tron/constants'
-
-import targetStateImport from './_targetState.json'
+import {
+  checkIsDeployedTron,
+  getCoreFacets as getTronCoreFacets,
+  getTronCorePeriphery,
+  isRateLimitError,
+  parseTroncastFacetsOutput,
+  retryWithRateLimit,
+} from './tron/utils'
 
 // Type for target state JSON structure
 type TargetState = Record<
@@ -56,22 +73,6 @@ type TargetState = Record<
 >
 
 const targetState = targetStateImport as TargetState
-import {
-  callTronContract,
-  callTronContractBoolean,
-  ensureTronAddress,
-  getTronWallet,
-  normalizeSelector,
-  checkOwnershipTron,
-  checkWhitelistIntegrityTron,
-} from './healthCheckTronUtils'
-import {
-  checkIsDeployedTron,
-  getCoreFacets as getTronCoreFacets,
-  getTronCorePeriphery,
-  parseTroncastFacetsOutput,
-  retryWithRateLimit,
-} from './tron/utils'
 
 /**
  * Execute a command with retry logic for rate limit errors (429)
@@ -421,14 +422,9 @@ const main = defineCommand({
       }
     } catch (error: unknown) {
       facetCheckSkipped = true
-      const errorMessage = error instanceof Error ? error.message : String(error)
 
       // Check if it's a rate limit error (429)
-      if (
-        errorMessage.includes('429') ||
-        errorMessage.includes('rate limit') ||
-        errorMessage.includes('Too Many Requests')
-      ) {
+      if (isRateLimitError(error, false)) {
         consola.warn(
           'RPC rate limit reached (429) - skipping facet registration check'
         )
@@ -436,6 +432,7 @@ const main = defineCommand({
           'This is a temporary limitation from the RPC provider. The check will be skipped.'
         )
       } else {
+        const errorMessage = error instanceof Error ? error.message : String(error)
         consola.warn(
           'Unable to parse output - skipping facet registration check'
         )

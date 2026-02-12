@@ -11,8 +11,8 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
 import { sleep } from '../../utils/delay'
+import { getRPCEnvVarName } from '../../utils/network'
 
 import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
@@ -39,7 +39,7 @@ export { DEFAULT_SAFETY_MARGIN } from './constants'
  * @param includeConnectionErrors - Whether to include connection errors (ECONNREFUSED, ETIMEDOUT)
  * @returns True if the error is a rate limit or connection error
  */
-function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
+export function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
   const errorMessage = error?.message || String(error)
   const rateLimitPatterns = [
     '429',
