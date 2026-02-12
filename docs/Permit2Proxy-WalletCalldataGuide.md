@@ -106,6 +106,8 @@ Tokens (e.g. native USDC) may implement `permit(owner, spender, value, deadline,
 
 ### 6.2 Coinbase Smart Wallet example
 
+- **Coinbase Smart Wallet + Arb. native USDC:** Build the EIP-2612 permit digest (token `DOMAIN_SEPARATOR`, `Permit(owner, spender, value, nonce, deadline)`), sign it to get (r, s, v), then set `signature = abi.encode(ownerIndex, abi.encodePacked(r, s, v))` and call `callDiamondWithEIP2612Signature(token, amount, deadline, signature, diamondCalldata)` with `msg.sender = wallet`.
+
 Coinbase expects:
 
 ```solidity
