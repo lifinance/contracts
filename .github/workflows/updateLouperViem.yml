@@ -61,16 +61,16 @@ jobs:
 
           if [[ "$ADDED_NETWORKS" == "[]" ]]; then
             echo "No new networks detected. Skipping update."
-            echo "SKIP_UPDATE=true" >> $GITHUB_ENV
+            echo "SKIP_UPDATE=true" >> "$GITHUB_ENV"
           else
             echo "New networks detected: $ADDED_NETWORKS"
-            echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
-            echo "SKIP_UPDATE=false" >> $GITHUB_ENV
+            echo "added_networks=$(echo "$ADDED_NETWORKS" | jq -c .)" >> "$GITHUB_ENV"
+            echo "SKIP_UPDATE=false" >> "$GITHUB_ENV"
             
             # Extract network names and chainIds for PR description
             NETWORK_DETAILS=$(jq -n --argjson networks "$ADDED_NETWORKS" --argjson all "$(cat config/networks.json)" \
               '$networks | map(. as $name | $all[$name] | {name: $name, chainId: .chainId})')
-            echo "network_details=$(echo $NETWORK_DETAILS | jq -c .)" >> $GITHUB_ENV
+            echo "network_details=$(echo "$NETWORK_DETAILS" | jq -c .)" >> "$GITHUB_ENV"
           fi
 
       - name: Setup Node.js
@@ -123,12 +123,12 @@ jobs:
           # Check if update is needed
           if [ "$CURRENT_VIEM_CLEAN" == "$LATEST_VIEM" ]; then
             echo "viem is already at latest version ($LATEST_VIEM). No update needed."
-            echo "UPDATE_NEEDED=false" >> $GITHUB_ENV
+            echo "UPDATE_NEEDED=false" >> "$GITHUB_ENV"
           else
             echo "Update needed: $CURRENT_VIEM -> $LATEST_VIEM"
-            echo "UPDATE_NEEDED=true" >> $GITHUB_ENV
-            echo "CURRENT_VIEM=$CURRENT_VIEM" >> $GITHUB_ENV
-            echo "LATEST_VIEM=$LATEST_VIEM" >> $GITHUB_ENV
+            echo "UPDATE_NEEDED=true" >> "$GITHUB_ENV"
+            echo "CURRENT_VIEM=$CURRENT_VIEM" >> "$GITHUB_ENV"
+            echo "LATEST_VIEM=$LATEST_VIEM" >> "$GITHUB_ENV"
             
             # Configure git for target repo
             git config user.name "github-actions[bot]"
@@ -136,7 +136,7 @@ jobs:
             
             # Use branch name with viem version
             BRANCH_NAME="chore/update-viem-${LATEST_VIEM}"
-            echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+            echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
             
             # Check if branch already exists remotely
             if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
@@ -159,20 +159,29 @@ jobs:
             # Check if viem exists in package.json and update/add it directly
             VIEM_EXISTS=$(jq -r '.dependencies.viem // .devDependencies.viem // empty' package.json)
             
-            if [ -z "$VIEM_EXISTS" ] || [ "$VIEM_EXISTS" == "null" ]; then
-              echo "viem not found in package.json, adding it to devDependencies..."
-              # Add viem to devDependencies using jq
-              jq ".devDependencies.viem = \"${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+            # Extract version prefix (^, ~, =) to preserve semver resolution semantics
+            if [ -n "$VIEM_EXISTS" ] && [ "$VIEM_EXISTS" != "null" ]; then
+              VIEM_PREFIX=$(echo "$VIEM_EXISTS" | sed -n 's/^\([^0-9]*\).*/\1/p')
             else
-              echo "viem found in package.json (version: $VIEM_EXISTS), updating to ${LATEST_VIEM}..."
+              VIEM_PREFIX=""
+            fi
+            # Default to ^ if no prefix detected (npm convention for new packages)
+            [ -z "$VIEM_PREFIX" ] && VIEM_PREFIX="^"
+            
+            if [ -z "$VIEM_EXISTS" ] || [ "$VIEM_EXISTS" == "null" ]; then
+              echo "viem not found in package.json, adding it to devDependencies with prefix ${VIEM_PREFIX}..."
+              # Add viem to devDependencies using jq with prefix
+              jq ".devDependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+            else
+              echo "viem found in package.json (version: $VIEM_EXISTS), updating to ${VIEM_PREFIX}${LATEST_VIEM}..."
               # Update viem version using jq (check both dependencies and devDependencies)
               if jq -e '.dependencies.viem' package.json > /dev/null 2>&1; then
-                jq ".dependencies.viem = \"${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+                jq ".dependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
               elif jq -e '.devDependencies.viem' package.json > /dev/null 2>&1; then
-                jq ".devDependencies.viem = \"${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+                jq ".devDependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
               else
-                # Fallback: add to devDependencies
-                jq ".devDependencies.viem = \"${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+                # Fallback: add to devDependencies with prefix
+                jq ".devDependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
               fi
             fi
             
@@ -216,7 +225,7 @@ jobs:
                ([ ! -f "pnpm-lock.yaml" ] || git diff --quiet pnpm-lock.yaml) && \
                ([ ! -f "yarn.lock" ] || git diff --quiet yarn.lock); then
               echo "⚠️ No changes detected after update. Skipping commit and push."
-              echo "UPDATE_NEEDED=false" >> $GITHUB_ENV
+              echo "UPDATE_NEEDED=false" >> "$GITHUB_ENV"
             else
               # Commit changes (add all lock files that exist)
               git add package.json
@@ -299,8 +308,8 @@ jobs:
               }")
             PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url')
             echo "✅ PR updated: $PR_URL"
-            echo "PR_URL=$PR_URL" >> $GITHUB_ENV
-            echo "PR_NUMBER=$EXISTING_PR" >> $GITHUB_ENV
+            echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
+            echo "PR_NUMBER=$EXISTING_PR" >> "$GITHUB_ENV"
           else
             echo "Creating new PR..."
             # Create PR using GitHub API
@@ -320,8 +329,8 @@ jobs:
             
             if [ -n "$PR_URL" ] && [ "$PR_URL" != "null" ]; then
               echo "✅ PR created successfully: $PR_URL"
-              echo "PR_URL=$PR_URL" >> $GITHUB_ENV
-              echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+              echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
+              echo "PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
             else
               echo "❌ Failed to create PR"
               echo "Response: $PR_RESPONSE"
