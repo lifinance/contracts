@@ -8,7 +8,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidCallData, InvalidReceiver } from "../Errors/GenericErrors.sol";
