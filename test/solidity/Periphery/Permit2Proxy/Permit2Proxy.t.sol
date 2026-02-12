@@ -3,8 +3,8 @@ pragma solidity ^0.8.17;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import { TestBase } from "../utils/TestBase.sol";
-import { ERC1271Wallet } from "../utils/ERC1271Wallet.sol";
+import { TestBase } from "../../utils/TestBase.sol";
+import { ERC1271Wallet } from "../../utils/ERC1271Wallet.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";

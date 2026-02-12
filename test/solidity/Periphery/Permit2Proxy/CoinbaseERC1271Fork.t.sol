@@ -8,7 +8,8 @@ import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { IWhitelistManagerFacet } from "lifi/Interfaces/IWhitelistManagerFacet.sol";
 import { IERC173 } from "lifi/Interfaces/IERC173.sol";
-import { UniswapV2Router02 } from "./utils/Interfaces.sol";
+import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
+import { UniswapV2Router02 } from "../../utils/Interfaces.sol";
 
 /// @title CoinbaseERC1271Fork
 /// @notice Fork test: EIP-7702 wallet delegating to Coinbase Smart Wallet (0x0001...397e72), then
@@ -43,6 +44,9 @@ contract CoinbaseERC1271Fork is Test {
     /// @dev USDC.e on Arbitrum (TestBase.sol ADDRESS_USDC_ARB); swap target for USDT -> USDC.
     address internal constant USDC_ARBITRUM =
         0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8;
+    /// @dev Native USDC (Circle) on Arbitrum; used for EIP2612 fork test (supports ERC1271 in permit when owner is contract).
+    address internal constant USDC_NATIVE_ARBITRUM =
+        0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
     /// @dev Pinned fork block so tests are deterministic (whale balance, liquidity, contracts; EIP-7702 / Coinbase wallet present).
     uint256 internal constant FORK_BLOCK_ARBITRUM = 410_000_000;
@@ -232,7 +236,7 @@ contract CoinbaseERC1271Fork is Test {
             revert WalletShouldHaveUSDT(amount, walletBalance);
     }
 
-    function testFork_CoinbaseERC1271_IsValidSignature_ReturnsMagicValue()
+    function test_coinbase_erc1271_is_valid_signature_returns_magic_value()
         public
     {
         bytes32 hash = keccak256("LiFi ERC1271 test");
@@ -261,7 +265,7 @@ contract CoinbaseERC1271Fork is Test {
     }
 
     /// @notice With Permit2 params for USDT, wallet.isValidSignature(permit2Digest, signature) returns magic value.
-    function testFork_CoinbaseERC1271_Permit2Digest_IsValidSignature_ReturnsMagicValue()
+    function test_coinbase_erc1271_permit2_digest_is_valid_signature_returns_magic_value()
         public
     {
         uint256 amount = 100 * 1e6;
@@ -299,7 +303,7 @@ contract CoinbaseERC1271Fork is Test {
 
     /// @notice Register a Permit2 permit for USDT: wallet signs, we call permitTransferFrom; validates ERC-1271 via Permit2.
     /// @dev Requires wallet to have USDT (funded via whale in _fundWalletAndApprovePermit2).
-    function testFork_CoinbaseERC1271_Permit2TransferFrom_USDT() public {
+    function test_coinbase_erc1271_permit2_transfer_from_usdt() public {
         _fundWalletAndApprovePermit2();
 
         uint256 amount = 100 * 1e6; // 100 USDT
@@ -389,6 +393,35 @@ contract CoinbaseERC1271Fork is Test {
         return _encodeSignature(0, abi.encodePacked(r, s, v));
     }
 
+    /// @notice EIP2612 permit digest (Permit(owner, spender, value, nonce, deadline)); used for EIP2612 fork test.
+    function _generateEIP2612MsgHash(
+        address owner,
+        address spender,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 domainSeparator
+    ) internal pure returns (bytes32 digest) {
+        digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                domainSeparator,
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                        ),
+                        owner,
+                        spender,
+                        amount,
+                        nonce,
+                        deadline
+                    )
+                )
+            )
+        );
+    }
+
     /// @dev Get replay-safe hash from wallet if it exposes replaySafeHash(bytes32); else use local _replaySafeHash.
     function _replaySafeHashFromWallet(
         bytes32 hash
@@ -402,7 +435,7 @@ contract CoinbaseERC1271Fork is Test {
 
     /// @notice Fork test: Coinbase 7702 wallet signs Permit2 permit with spender = Permit2Proxy,
     ///         then we call Permit2Proxy.callDiamondWithPermit2; validates full flow via proxy.
-    function testFork_CoinbaseERC1271_Permit2Proxy_CallDiamondWithPermit2_USDT()
+    function test_coinbase_erc1271_permit2_proxy_call_diamond_with_permit2_usdt()
         public
     {
         _fundWalletAndApprovePermit2();
@@ -450,9 +483,127 @@ contract CoinbaseERC1271Fork is Test {
         );
     }
 
+    /// @notice Fork test: Coinbase 7702 wallet signs EIP2612 permit for Arbitrum native USDC and
+    ///         calls Permit2Proxy.callDiamondWithEIP2612Signature with full signature bytes; full flow succeeds.
+    /// @dev Uses a proxy deployed in-test that supports permit(..., bytes) so we can pass
+    ///         Coinbase-format signature abi.encode(ownerIndex, abi.encodePacked(r,s,v)).
+    function test_coinbase_erc1271_permit2_proxy_call_diamond_with_eip2612_usdc()
+        public
+    {
+        address lifiDiamond = IPermit2ProxyView(PERMIT2_PROXY_ARBITRUM)
+            .LIFI_DIAMOND();
+        Permit2Proxy proxyWithBytes = new Permit2Proxy(
+            lifiDiamond,
+            ISignatureTransfer(PERMIT2),
+            address(this)
+        );
+
+        uint256 amount = 100 * 1e6; // 100 USDC (6 decimals)
+        uint256 walletBalance = 1000 * 1e6;
+        deal(USDC_NATIVE_ARBITRUM, wallet, walletBalance);
+
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 nonce = IERC20Permit(USDC_NATIVE_ARBITRUM).nonces(wallet);
+        bytes32 domainSeparator = IERC20Permit(USDC_NATIVE_ARBITRUM)
+            .DOMAIN_SEPARATOR();
+
+        bytes32 digest = _generateEIP2612MsgHash(
+            wallet,
+            address(proxyWithBytes),
+            amount,
+            nonce,
+            deadline,
+            domainSeparator
+        );
+        bytes32 messageHash = _replaySafeHashFromWallet(digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            walletPrivateKey,
+            messageHash
+        );
+        bytes memory signature = _encodeSignature(
+            0,
+            abi.encodePacked(r, s, v)
+        );
+
+        bytes memory diamondCalldata = abi.encodeWithSelector(
+            IDiamondLoupe.facetAddress.selector,
+            bytes4(0x1626ba7e)
+        );
+
+        vm.prank(wallet);
+        proxyWithBytes.callDiamondWithEIP2612Signature(
+            USDC_NATIVE_ARBITRUM,
+            amount,
+            deadline,
+            signature,
+            diamondCalldata
+        );
+
+        assertEq(
+            IERC20(USDC_NATIVE_ARBITRUM).balanceOf(address(proxyWithBytes)),
+            amount,
+            "proxy should hold USDC after EIP2612 permit transfer"
+        );
+        assertEq(
+            IERC20(USDC_NATIVE_ARBITRUM).balanceOf(wallet),
+            walletBalance - amount,
+            "wallet balance should decrease by amount"
+        );
+    }
+
+    /// @notice Fork test: Demonstrates USDC.e + Coinbase wallet with EIP2612 (v,r,s) path.
+    ///         USDC.e only has permit(owner, spender, value, deadline, v, r, s); it passes
+    ///         abi.encodePacked(r,s,v) (65 bytes) to ERC1271, while Coinbase Smart Wallet expects
+    ///         abi.encode(ownerIndex, abi.encodePacked(r,s,v)). So the call reverts (USDC.e uses "ERC20Permit: invalid signature").
+    /// @dev Use native USDC + callDiamondWithEIP2612Signature for a successful Coinbase EIP2612 flow.
+    function testRevert_coinbase_erc1271_permit2_proxy_call_diamond_with_eip2612_usdce_signature_format()
+        public
+    {
+        uint256 amount = 100 * 1e6; // 100 USDC.e (6 decimals)
+        uint256 walletBalance = 1000 * 1e6;
+        deal(USDC_ARBITRUM, wallet, walletBalance);
+
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 nonce = IERC20Permit(USDC_ARBITRUM).nonces(wallet);
+        bytes32 domainSeparator = IERC20Permit(USDC_ARBITRUM)
+            .DOMAIN_SEPARATOR();
+
+        bytes32 digest = _generateEIP2612MsgHash(
+            wallet,
+            PERMIT2_PROXY_ARBITRUM,
+            amount,
+            nonce,
+            deadline,
+            domainSeparator
+        );
+        bytes32 messageHash = _replaySafeHashFromWallet(digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            walletPrivateKey,
+            messageHash
+        );
+
+        bytes memory diamondCalldata = abi.encodeWithSelector(
+            IDiamondLoupe.facetAddress.selector,
+            bytes4(0x1626ba7e)
+        );
+
+        vm.expectRevert("ERC20Permit: invalid signature");
+
+        vm.prank(wallet);
+        IPermit2Proxy(PERMIT2_PROXY_ARBITRUM).callDiamondWithEIP2612Signature(
+            USDC_ARBITRUM,
+            amount,
+            deadline,
+            v,
+            r,
+            s,
+            diamondCalldata
+        );
+    }
+
     /// @notice Fork test: Permit2Proxy + GenericSwapFacetV3 swap (USDT -> USDC via Uniswap on Arbitrum).
     /// @dev Pranks diamond owner to whitelist Uniswap + swapExactTokensForTokens; then runs permit + swap; asserts wallet receives USDC.
-    function testFork_CoinbaseERC1271_Permit2Proxy_CallDiamondWithPermit2_USDT_MinimalSwap()
+    function test_coinbase_erc1271_permit2_proxy_call_diamond_with_permit2_usdt_minimal_swap()
         public
     {
         _fundWalletAndApprovePermit2();
@@ -578,13 +729,29 @@ interface IPermit2ProxyView {
     function LIFI_DIAMOND() external view returns (address);
 }
 
-/// @dev Minimal interface for Permit2Proxy.callDiamondWithPermit2.
+/// @dev Minimal interface for Permit2Proxy (Permit2 and EIP2612 flows).
 interface IPermit2Proxy {
     function callDiamondWithPermit2(
         bytes calldata _diamondCalldata,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable returns (bytes memory);
+
+    function callDiamondWithEIP2612Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s,
+        bytes calldata diamondCalldata
+    ) external payable returns (bytes memory);
+}
+
+/// @dev EIP2612 token interface for DOMAIN_SEPARATOR and nonces (used in EIP2612 fork test).
+interface IERC20Permit {
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+    function nonces(address owner) external view returns (uint256);
 }
 
 /// @dev Used to build minimal diamond calldata (view call) for the fork test.

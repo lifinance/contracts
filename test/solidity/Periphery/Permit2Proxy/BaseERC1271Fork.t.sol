@@ -9,7 +9,7 @@ import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { IWhitelistManagerFacet } from "lifi/Interfaces/IWhitelistManagerFacet.sol";
 import { IERC173 } from "lifi/Interfaces/IERC173.sol";
 import { IERC5267 } from "@openzeppelin/contracts/interfaces/IERC5267.sol";
-import { UniswapV2Router02 } from "./utils/Interfaces.sol";
+import { UniswapV2Router02 } from "../../utils/Interfaces.sol";
 
 /// @title BaseERC1271Fork
 /// @notice Fork test on Base: EIP-7702 wallet delegating to implementation 0x36d3...c0D, then validate ERC-1271.
