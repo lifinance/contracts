@@ -23,6 +23,8 @@ Uses `GET https://www.4byte.directory/api/v1/signatures/?hex_signature=0x...`. O
 
 ## Full list (50 selectors)
 
+Contract: 0x36d3CBD83961868398d056EfBf50f5CE15528c0D (Base)
+
 | Selector    | Signature (from 4byte or known) |
 |------------|----------------------------------|
 | `0x01ffc9a7` | `supportsInterface(bytes4)` (ERC165) |
@@ -79,7 +81,7 @@ Uses `GET https://www.4byte.directory/api/v1/signatures/?hex_signature=0x...`. O
 ## Excluded
 
 - **`0xffffffff`** – Used as sentinel/mask in the bytecode (not a function selector).
-- **`0x4e487b71`** – `Error(string)`; used for revert encoding, not dispatch. (4byte also lists as `Panic(uint256)`.)
+- **`0x4e487b71`** – `Panic(uint256)`; used for revert encoding, not dispatch. (4byte also lists as `Panic(uint256)`; for `Error(string)` the selector is `0x08c379a0`.)
 
 ## EIP-712 constants derived from opcodes
 
