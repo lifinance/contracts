@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-      
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+
       - name: Install dev dependencies
         run: bun install
 
@@ -32,7 +32,7 @@ jobs:
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
         if: ${{ inputs.warning == 'UNDERSTOOD' }}
         id: authenticate-user
-        uses: tspascoal/get-user-teams-membership@v3
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
         with:
           username: ${{ github.actor }}
           organization: lifinance
@@ -52,7 +52,7 @@ jobs:
       #     fi
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
 
       - name: Fetch RPC endpoints from MongoDB
         run: |
@@ -74,7 +74,7 @@ jobs:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET_STAGING }}
 
       - name: Send Reminder to Slack SC-general Channel
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
