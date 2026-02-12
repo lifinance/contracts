@@ -23,7 +23,7 @@ import {
   pauserWallet,
   whitelistPeripheryFunctions,
 } from '../../config/global.json'
-import type { IWhitelistConfig } from '../common/types'
+import type { IWhitelistConfig, TargetState } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
@@ -45,9 +45,9 @@ import {
 } from './healthCheckTronUtils'
 import {
   INITIAL_CALL_DELAY,
-  INTER_CALL_DELAY,
   RETRY_DELAY,
-} from './tron/constants'
+  SAFE_THRESHOLD,
+} from './shared/constants'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -56,21 +56,6 @@ import {
   parseTroncastFacetsOutput,
   retryWithRateLimit,
 } from './tron/utils'
-
-// Type for target state JSON structure
-type TargetState = Record<
-  string,
-  {
-    production?: {
-      LiFiDiamond?: Record<string, string>
-      [key: string]: Record<string, string> | undefined
-    }
-    staging?: {
-      LiFiDiamond?: Record<string, string>
-      [key: string]: Record<string, string> | undefined
-    }
-  }
->
 
 const targetState = targetStateImport as TargetState
 
@@ -148,8 +133,6 @@ export async function execWithRateLimitRetry(
     false // Shell commands don't include connection errors in rate limit detection
   )
 }
-
-const SAFE_THRESHOLD = 3
 
 const errors: string[] = []
 const main = defineCommand({
@@ -274,8 +257,6 @@ const main = defineCommand({
     for (const facet of coreFacetsToCheck) {
       let isDeployed: boolean
       if (isTron && tronWeb) {
-        // Add small delay between Tron RPC calls to avoid rate limits
-        await sleep(INTER_CALL_DELAY) // Delay between calls to avoid rate limits
         isDeployed = await checkIsDeployedTron(
           facet,
           deployedContracts,
@@ -304,8 +285,6 @@ const main = defineCommand({
       for (const facet of nonCoreFacets) {
         let isDeployed: boolean
         if (isTron && tronWeb) {
-          // Add small delay between Tron RPC calls to avoid rate limits
-          await sleep(INTER_CALL_DELAY) // Delay between calls to avoid rate limits
           isDeployed = await checkIsDeployedTron(
             facet,
             deployedContracts,
@@ -463,8 +442,6 @@ const main = defineCommand({
       for (const contract of peripheryToCheck) {
         let isDeployed: boolean
         if (isTron && tronWeb) {
-          // Add small delay between Tron RPC calls to avoid rate limits
-          await sleep(INTER_CALL_DELAY) // Delay between calls to avoid rate limits
           isDeployed = await checkIsDeployedTron(
             contract,
             deployedContracts,
@@ -938,9 +915,6 @@ const main = defineCommand({
 
       // Convert refund wallet to Tron format if needed
       const refundTronAddress = ensureTronAddress(refundWallet, tronWeb)
-
-      // Add delay before starting loop to avoid rate limits
-      await sleep(INITIAL_CALL_DELAY)
 
       for (const selector of refundSelectors) {
         try {

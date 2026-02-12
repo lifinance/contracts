@@ -1,5 +1,5 @@
-import { spawn } from 'child_process'
 import type { Buffer } from 'buffer'
+import { spawn } from 'child_process'
 
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -14,8 +14,9 @@ import type {
   GetExpectedPairsFunction,
   IWhitelistConfig,
 } from '../common/types'
-import { INITIAL_CALL_DELAY, INTER_CALL_DELAY, RETRY_DELAY } from './tron/constants'
 import { sleep } from '../utils/delay'
+
+import { INITIAL_CALL_DELAY, RETRY_DELAY } from './shared/constants'
 import { hexToTronAddress, retryWithRateLimit } from './tron/utils'
 
 /**
@@ -149,6 +150,9 @@ export async function callTronContractBoolean(
   params: Array<{ type: string; value: string }>,
   abiFunction: string
 ): Promise<boolean> {
+  // Add initial delay for Tron to avoid rate limits
+  await sleep(INITIAL_CALL_DELAY)
+
   const result = await retryWithRateLimit(
     () =>
       tronWeb.transactionBuilder.triggerConstantContract(
@@ -242,7 +246,6 @@ export async function checkOwnershipTron(
 ): Promise<void> {
   if (deployedContracts[name]) {
     try {
-      await sleep(INTER_CALL_DELAY)
       const contractAddress = deployedContracts[name]
       const ownerOutput = await callTronContract(
         contractAddress,
@@ -387,9 +390,6 @@ export async function checkWhitelistIntegrityTron(
 
     for (const expectedPair of expectedPairs) {
       try {
-        // Add delay to avoid rate limits
-        await sleep(INTER_CALL_DELAY)
-
         // Use TronWeb directly instead of troncast to avoid parameter parsing issues
         // expectedPair.contract is already in original base58 format (not lowercase) for Tron
         const isWhitelisted = await callTronContractBoolean(

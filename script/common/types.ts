@@ -83,3 +83,21 @@ export type GetExpectedPairsFunction = (
   whitelistConfig: IWhitelistConfig,
   isTron?: boolean
 ) => Promise<Array<{ contract: string; selector: `0x${string}` }>>
+
+/**
+ * Target state JSON structure for health checks
+ * Maps network names to their production/staging deployment states
+ */
+export type TargetState = Record<
+  string,
+  {
+    production?: {
+      LiFiDiamond?: Record<string, string>
+      [key: string]: Record<string, string> | undefined
+    }
+    staging?: {
+      LiFiDiamond?: Record<string, string>
+      [key: string]: Record<string, string> | undefined
+    }
+  }
+>

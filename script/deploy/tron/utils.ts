@@ -13,16 +13,17 @@ import {
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
-
 import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
-  ZERO_ADDRESS,
-  MIN_BALANCE_REGISTRATION,
-  DEFAULT_FEE_LIMIT_TRX,
-  MIN_BALANCE_WARNING,
+  INITIAL_CALL_DELAY,
   MAX_RETRIES,
+  MIN_BALANCE_REGISTRATION,
+  MIN_BALANCE_WARNING,
+  DEFAULT_FEE_LIMIT_TRX,
   RETRY_DELAY,
-} from './constants'
+  ZERO_ADDRESS,
+} from '../shared/constants'
+
 import type {
   IForgeArtifact,
   IDeploymentResult,
@@ -31,7 +32,7 @@ import type {
 } from './types'
 
 // Re-export constants for backward compatibility
-export { DEFAULT_SAFETY_MARGIN } from './constants'
+export { DEFAULT_SAFETY_MARGIN } from '../shared/constants'
 
 /**
  * Check if an error is a rate limit or connection error
@@ -177,6 +178,9 @@ export async function checkIsDeployedTron(
 
   // For Tron, addresses in deployments are already in Tron format
   const tronAddress = deployedContracts[contract]
+
+  // Add initial delay for Tron to avoid rate limits
+  await sleep(INITIAL_CALL_DELAY)
 
   try {
     const contractInfo = await retryWithRateLimit(
