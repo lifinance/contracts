@@ -69,6 +69,13 @@
               "0x301a3720": "mixSwap(address,address,uint256,uint256,address[],address[],address[],uint256,bytes[],bytes,uint256)",
               "0x94cfab17": "dodoMutliSwap(uint256,uint256,uint256[],address[],address[],bytes[],bytes,uint256)"
             }
+          },
+          {
+            "address": "0x3a64ec3606ff7310e8fad6fcc008e39705fb496d",
+            "functions": {
+              "0xff84aafa": "mixSwap(address,address,uint256,uint256,uint256,address[],address[],address[],uint256,bytes[],bytes,uint256)",
+              "0x2fa11647": "externalSwap(address,address,address,address,uint256,uint256,uint256,bytes,bytes,uint256)"
+            }
           }
         ],
         "bsc": [
@@ -169,6 +176,13 @@
               "0xa8676443": "externalSwap(address,address,address,address,uint256,uint256,bytes,bytes,uint256)",
               "0x301a3720": "mixSwap(address,address,uint256,uint256,address[],address[],address[],uint256,bytes[],bytes,uint256)",
               "0x94cfab17": "dodoMutliSwap(uint256,uint256,uint256[],address[],address[],bytes[],bytes,uint256)"
+            }
+          },
+          {
+            "address": "0x69716e51e3f8bec9c3d4e1bb46396384ae11c594",
+            "functions": {
+              "0xff84aafa": "mixSwap(address,address,uint256,uint256,uint256,address[],address[],address[],uint256,bytes[],bytes,uint256)",
+              "0x2fa11647": "externalSwap(address,address,address,address,uint256,uint256,uint256,bytes,bytes,uint256)"
             }
           }
         ],
@@ -1673,7 +1687,10 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
+              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -1681,7 +1698,10 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
+              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -1857,7 +1877,10 @@
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
             "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
+              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
             }
           }
         ],
@@ -4875,12 +4898,14 @@
           {
             "address": "0xe5bbef8de2db447a7432a47eba58924d94ee470e",
             "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x5ae401dc": "multicall(uint256,bytes[])"
             }
           },
           {
             "address": "0xaab1c664cead881afbb58555e6a3a79523d3e4c0",
             "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x3593564c": "execute(bytes,bytes[],uint256)"
             }
           }
@@ -6952,6 +6977,74 @@
         ]
       }
     ],
+    "jovay": [
+      {
+        "name": "FeeCollector",
+        "address": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x9E4146C44f00e6b74A1e8eeF7a3Df3036A32De6D",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
     "kaia": [
       {
         "name": "FeeCollector",
@@ -7454,6 +7547,16 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x875Bd979B56605aE2c5Ea8CAb53e064F832b6C34",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -8998,6 +9101,74 @@
       {
         "name": "LiFiDEXAggregator",
         "address": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
+    "telos": [
+      {
+        "name": "FeeCollector",
+        "address": "0x28F597dCAB2dcEEb8B38474550C947E38cFace61",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0x65084727261bBBc3496e0835cFD7e34e2bAD94CD",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x808828ED6633bb52e95a77D82fff1cF5991624e7",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xa586622A07b8e5Afc97cC37ea66CC045Ccb7bF1E",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0xEfD58f4D96e21c7e2F7f07CdCD21fe131b11254b",
         "selectors": [
           {
             "selector": "0x2646478b",
