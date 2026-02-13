@@ -465,7 +465,11 @@ function tryFormatDiamondPayload(payload: Hex): string | undefined {
   }
 }
 
-async function formatTimelockScheduleBatch(
+/**
+ * Formats timelock scheduleBatch args for display: for each call shows target, value, selector, and decoded call.
+ * Exported for use by execute-pending-timelock-tx when displaying a batch operation.
+ */
+export async function formatTimelockScheduleBatch(
   args: readonly unknown[],
   network: string
 ): Promise<void> {
