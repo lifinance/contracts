@@ -26,6 +26,21 @@ contract WithdrawFacet {
 
     /// External Methods ///
 
+    /// @notice Batch withdraw multiple assets
+    /// @param _assetAddresses Array of asset addresses to withdraw
+    /// @param _to Address to withdraw to
+    /// @param _amounts Array of amounts to withdraw
+    function batchWithdraw(
+        address[] calldata _assetAddresses,
+        address _to,
+        uint256[] calldata _amounts
+    ) external {
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
+        // Implementation would go here
+    }
+
     /// @notice Execute call data and withdraw asset.
     /// @param _callTo The address to execute the calldata on.
     /// @param _callData The data to execute.
