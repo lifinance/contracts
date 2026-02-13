@@ -253,6 +253,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidReceiver.selector);
+
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
@@ -281,11 +282,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     function testRevert_ConstructorWithZeroTokenMessenger() public {
         vm.expectRevert(InvalidConfig.selector);
+
         new TestPolymerCCTPFacet(address(0), ADDRESS_USDC, polymerFeeReceiver);
     }
 
     function testRevert_ConstructorWithZeroUSDC() public {
         vm.expectRevert(InvalidConfig.selector);
+
         new TestPolymerCCTPFacet(
             TOKEN_MESSENGER_V2_MAINNET,
             address(0),
@@ -295,6 +298,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     function testRevert_ConstructorWithZeroFeeReceiver() public {
         vm.expectRevert(InvalidConfig.selector);
+
         new TestPolymerCCTPFacet(
             TOKEN_MESSENGER_V2_MAINNET,
             ADDRESS_USDC,
@@ -309,6 +313,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         dai.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidSendingToken.selector);
+
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
@@ -358,6 +363,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         validPolymerData.nonEVMReceiver = bytes32(0);
 
         vm.expectRevert(InvalidReceiver.selector);
+
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
@@ -374,6 +380,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         validPolymerData.solanaReceiverATA = bytes32(0);
 
         vm.expectRevert(InvalidReceiver.selector);
+
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
@@ -456,6 +463,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     function testRevert_ChainIdToDomainIdWithUnsupportedChainId() public {
         vm.expectRevert(InvalidCallData.selector);
+
         polymerCCTPFacet.chainIdToDomainId(99999); // Unsupported chainId
     }
 

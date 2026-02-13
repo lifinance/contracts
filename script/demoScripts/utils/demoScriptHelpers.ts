@@ -1,7 +1,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { getAssociatedTokenAddress } from '@solana/spl-token'
+import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
 // eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
@@ -199,7 +199,7 @@ export async function computeSolanaATABytes32(
 ): Promise<`0x${string}`> {
   const ownerPublicKey = new PublicKey(solanaAddress)
   const mintPublicKey = new PublicKey(tokenMint)
-  const ata = await getAssociatedTokenAddress(mintPublicKey, ownerPublicKey)
+  const ata = getAssociatedTokenAddressSync(mintPublicKey, ownerPublicKey)
   const ataBytes = ata.toBytes()
   const ataHex = '0x' + Buffer.from(ataBytes).toString('hex').padStart(64, '0')
   return ataHex as `0x${string}`
