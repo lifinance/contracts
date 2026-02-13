@@ -107,6 +107,7 @@
     "typechain:incremental": "forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts",
     "balances": "bunx tsx ./script/balances.ts",
+    "changelog:contracts": "bun run script/changelogAnalysis/generateContractChangelog.ts",
     "update-whitelist-periphery": "bunx tsx ./script/tasks/updateWhitelistPeriphery.ts"
   },
   "dependencies": {

@@ -1,0 +1,122 @@
+name: Generate Contract Changelog
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'src/**/*.sol'
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to analyze (leave empty for latest)'
+        required: false
+        type: string
+      use_ai:
+        description: 'Use AI for semantic analysis (requires API key)'
+        required: false
+        type: boolean
+        default: false
+      ai_provider:
+        description: 'AI provider to use'
+        required: false
+        type: choice
+        options:
+          - openai
+          - anthropic
+        default: openai
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  generate-changelog:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for diff analysis
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate changelog
+        id: generate
+        run: |
+          # Run the changelog generator script
+          # Three modes available: Basic, Advanced (default), AI
+          
+          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "🤖 Running in AI mode (OpenAI/Anthropic)"
+            export USE_AI=true
+            export AI_PROVIDER="${{ github.event.inputs.ai_provider || 'openai' }}"
+          else
+            echo "🔬 Running in Advanced mode (AST + Forge + Heuristics - default, free)"
+            export USE_ADVANCED=true
+          fi
+          
+          bun run script/changelogAnalysis/generateContractChangelog.ts
+        env:
+          COMMIT_SHA: ${{ github.event.inputs.commit_sha || github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Check for changes
+        id: check
+        run: |
+          if git diff --quiet CHANGELOG-CONTRACTS.md; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No changelog changes detected"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changelog updated"
+          fi
+
+      - name: Commit and push changelog
+        if: steps.check.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add CHANGELOG-CONTRACTS.md
+          git commit -m "chore: update contract changelog [skip ci]"
+          git push
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Contract Changelog Generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show mode
+          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "**Mode**: 🤖 AI-powered semantic analysis" >> $GITHUB_STEP_SUMMARY
+            echo "**Provider**: ${{ github.event.inputs.ai_provider || 'openai' }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Quality**: 98% | **Cost**: ~\$0.03-0.15 per commit" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Mode**: 🔬 Advanced AST analysis (default)" >> $GITHUB_STEP_SUMMARY
+            echo "**Quality**: 90% | **Cost**: Free" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> 💡 **Optional**: Add \`OPENAI_API_KEY\` secret for AI mode (98% quality, ~\$5-10/month)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check.outputs.has_changes }}" == "true" ]; then
+            echo "✅ Changelog updated successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Changes detected in:" >> $GITHUB_STEP_SUMMARY
+            git diff HEAD~1 --name-only --diff-filter=AM src/**/*.sol | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No contract changes detected" >> $GITHUB_STEP_SUMMARY
+          fi

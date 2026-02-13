@@ -24,6 +24,12 @@ contract WithdrawFacet {
         uint256 amount
     );
 
+    event BatchWithdrawCompleted(
+        address[] indexed assets,
+        address indexed to,
+        uint256 totalAmount
+    );
+
     /// External Methods ///
 
     /// @notice Batch withdraw multiple assets
