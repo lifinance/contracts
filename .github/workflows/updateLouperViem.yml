@@ -209,14 +209,15 @@ jobs:
             # Verify update
             UPDATED_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem // empty' package.json)
             echo "Updated viem version: $UPDATED_VIEM"
+            UPDATED_VIEM_CLEAN=$(echo "$UPDATED_VIEM" | sed 's/^[\^~=]//')
             
             if [ -z "$UPDATED_VIEM" ] || [ "$UPDATED_VIEM" == "null" ]; then
               echo "❌ Error: Failed to update viem in package.json"
               exit 1
             fi
             
-            if [ "$UPDATED_VIEM" != "$LATEST_VIEM" ]; then
-              echo "⚠️ Warning: Version mismatch. Expected $LATEST_VIEM, got $UPDATED_VIEM"
+            if [ "$UPDATED_VIEM_CLEAN" != "$LATEST_VIEM" ]; then
+              echo "⚠️ Warning: Version mismatch. Expected $LATEST_VIEM, got $UPDATED_VIEM_CLEAN"
             fi
             
             # Check if there are actual changes to commit
@@ -307,6 +308,13 @@ jobs:
                 \"body\": $(echo "$PR_BODY" | jq -Rs .)
               }")
             PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url')
+            
+            if [ -z "$PR_URL" ] || [ "$PR_URL" == "null" ]; then
+              echo "❌ Failed to update PR #$EXISTING_PR"
+              echo "Response: $PR_RESPONSE"
+              exit 1
+            fi
+            
             echo "✅ PR updated: $PR_URL"
             echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
             echo "PR_NUMBER=$EXISTING_PR" >> "$GITHUB_ENV"
