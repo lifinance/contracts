@@ -1,7 +1,8 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { Keypair } from '@solana/web3.js'
+import { getAssociatedTokenAddress } from '@solana/spl-token'
+import { Keypair, PublicKey } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
 // eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
 import bs58 from 'bs58'
@@ -106,8 +107,10 @@ export const ADDRESS_UNISWAP_BASE = '0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891'
 //
 export const ADDRESS_DEV_WALLET_SOLANA_BYTES32 =
   '0x066c3a098d50715ef7f3902e25bead0dd33bd58acb6e30c67969faff35856401' // Solana address: S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4
-export const ADDRESS_DEV_WALLET_V4 =
-  '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
+export const ADDRESS_DEV_WALLET_SOLANA_BASE58 =
+  'S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4'
+export const ADDRESS_DEV_WALLET_V5 =
+  '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3'
 
 // LiFi chain ID for Solana (from LiFiData.sol)
 export const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
@@ -161,6 +164,25 @@ export const solanaAddressToBytes32 = (
 
   // Convert to hex string
   return toHex(addressBytes)
+}
+
+/**
+ * Computes the Associated Token Account (ATA) for a Solana address and token mint, returns bytes32 hex.
+ * Used when bridging to Solana (e.g. Polymer CCTP) where CCTP v2 requires mintRecipient to be the ATA.
+ * @param solanaAddress - Solana wallet address in base58 format
+ * @param tokenMint - Token mint address in base58 format (e.g. USDC on Solana)
+ * @returns ATA address as bytes32 hex string
+ */
+export async function computeSolanaATABytes32(
+  solanaAddress: string,
+  tokenMint: string
+): Promise<`0x${string}`> {
+  const ownerPublicKey = new PublicKey(solanaAddress)
+  const mintPublicKey = new PublicKey(tokenMint)
+  const ata = await getAssociatedTokenAddress(mintPublicKey, ownerPublicKey)
+  const ataBytes = ata.toBytes()
+  const ataHex = '0x' + Buffer.from(ataBytes).toString('hex').padStart(64, '0')
+  return ataHex as `0x${string}`
 }
 
 /**

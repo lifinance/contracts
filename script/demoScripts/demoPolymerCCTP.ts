@@ -14,26 +14,32 @@ import {
   zeroAddress,
 } from 'viem'
 
+import deploymentsARB from '../../deployments/arbitrum.staging.json'
+import deploymentsOPT from '../../deployments/optimism.staging.json'
 import {
   ERC20__factory,
   PolymerCCTPFacet__factory,
   type ILiFi,
   type PolymerCCTPFacet,
 } from '../../typechain'
+import { EnvironmentEnum } from '../common/types'
 
 import {
-  ADDRESS_DEV_WALLET_SOLANA_BYTES32,
   ADDRESS_USDC_ARB,
   ADDRESS_USDC_OPT,
   ADDRESS_USDC_SOL,
   DEV_WALLET_ADDRESS,
   NON_EVM_ADDRESS,
+  computeSolanaATABytes32,
   createContractObject,
+  deriveSolanaAddress,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
+  getPrivateKeyForEnvironment,
   logBridgeDataStruct,
   setupEnvironment,
+  solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
 config()
@@ -59,38 +65,26 @@ const SEND_TX = false // Set to false to dry-run without sending transaction
 const USE_FAST_MODE = false // Set to true for fast route (1000), false for standard route (2000)
 
 // Polymer API configuration
-// const POLYMER_API_URL = 'https://lifi.devnet.polymer.zone' // testnet API URL
-const POLYMER_API_URL = 'https://lifi.shadownet.polymer.zone' // mainnet API URL
+const POLYMER_API_URL = 'https://lifi.testnet.polymer.zone' // testnet API URL
 
 // Source chain: 'arbitrum' or 'optimism'
-const SRC_CHAIN = 'optimism' as 'arbitrum' | 'optimism'
+const SRC_CHAIN = 'arbitrum' as 'arbitrum' | 'optimism'
 
-// in order to test with our staging diamond, the polymer team needs to update their off-chain logic
-// to monitor our addresses. So far we tested with their deployments.
-// const DIAMOND_ADDRESS_SRC =
-//   SRC_CHAIN === 'arbitrum'
-//     ? deploymentsARB.LiFiDiamond
-//     : deploymentsOPT.LiFiDiamond
-
-// these are test deployments by Polymer team
-const LIFI_DIAMOND_ADDRESS_ARB = '0xD99A49304227d3fE2c27A1F12Ef66A95b95837b6'
-const LIFI_DIAMOND_ADDRESS_OPT = '0x36d7A6e0B2FE968a9558C5AaF5713aC2DAc0DbFc'
 const DIAMOND_ADDRESS_SRC = getAddress(
-  SRC_CHAIN === 'arbitrum' ? LIFI_DIAMOND_ADDRESS_ARB : LIFI_DIAMOND_ADDRESS_OPT
+  SRC_CHAIN === 'arbitrum'
+    ? deploymentsARB.LiFiDiamond
+    : deploymentsOPT.LiFiDiamond
 )
 
-const LIFI_CHAIN_ID_SOLANA = 1151111081099710
+const LIFI_AND_POLYMER_CHAIN_ID_SOLANA = 1151111081099710
 const LIFI_CHAIN_ID_ARBITRUM = 42161
 const LIFI_CHAIN_ID_OPTIMISM = 10
 
-// Polymer API chain IDs (different from LiFi chain IDs)
-// Note: even though SOLANA's custom chain id in LifiData.sol is 1151111081099710,
-// polymer's chain id for solana is 2, so we need to pass in 2 for the polymer endpoint
-const POLYMER_CHAIN_ID_SOLANA = 2
-
 const DST_CHAIN_ID_EVM =
   SRC_CHAIN === 'arbitrum' ? LIFI_CHAIN_ID_OPTIMISM : LIFI_CHAIN_ID_ARBITRUM
-const DST_CHAIN_ID = BRIDGE_TO_SOLANA ? LIFI_CHAIN_ID_SOLANA : DST_CHAIN_ID_EVM
+const DST_CHAIN_ID = BRIDGE_TO_SOLANA
+  ? LIFI_AND_POLYMER_CHAIN_ID_SOLANA
+  : DST_CHAIN_ID_EVM
 
 const sendingAssetId = getAddress(
   SRC_CHAIN === 'arbitrum' ? ADDRESS_USDC_ARB : ADDRESS_USDC_OPT
@@ -100,7 +94,6 @@ const fromAmount = parseUnits('1', 6) // 1 USDC (6 decimals)
 const receiverAddress = getAddress(
   BRIDGE_TO_SOLANA ? NON_EVM_ADDRESS : DEV_WALLET_ADDRESS
 )
-const solanaReceiverBytes32 = ADDRESS_DEV_WALLET_SOLANA_BYTES32
 
 const EXPLORER_BASE_URL =
   SRC_CHAIN === 'arbitrum'
@@ -314,7 +307,7 @@ async function main() {
 
   // Polymer API uses its own chain ID mapping (Solana = 2, not LiFi's 1151111081099710)
   const destinationChainIdPolymer = BRIDGE_TO_SOLANA
-    ? POLYMER_CHAIN_ID_SOLANA
+    ? LIFI_AND_POLYMER_CHAIN_ID_SOLANA
     : DST_CHAIN_ID
 
   // Get quote from Polymer API
@@ -370,13 +363,31 @@ async function main() {
   consola.info('')
   logBridgeDataStruct(bridgeData)
 
+  // For Solana: derive wallet from same key as EVM signer, then compute USDC ATA (CCTP v2 requires mintRecipient = ATA)
+  let solanaUserWalletBytes32: `0x${string}` = toHex(0, { size: 32 })
+  let solanaReceiverATABytes32: `0x${string}` = toHex(0, { size: 32 })
+  if (BRIDGE_TO_SOLANA) {
+    const privateKey = getPrivateKeyForEnvironment(EnvironmentEnum.staging)
+    const solanaBase58 = deriveSolanaAddress(privateKey)
+    solanaUserWalletBytes32 = solanaAddressToBytes32(solanaBase58)
+    consola.info(`  Solana user wallet (bytes32): ${solanaUserWalletBytes32}`)
+    solanaReceiverATABytes32 = await computeSolanaATABytes32(
+      solanaBase58,
+      ADDRESS_USDC_SOL
+    )
+    consola.info(
+      `  Solana USDC ATA (solanaReceiverATA): ${solanaReceiverATABytes32}`
+    )
+  }
+
   // Prepare PolymerCCTP data using fees extracted from API response
   const polymerData: PolymerCCTPFacet.PolymerCCTPDataStruct = {
     polymerTokenFee: polymerTokenFee.toString(),
     maxCCTPFee: maxCCTPFee.toString(),
     nonEVMReceiver: BRIDGE_TO_SOLANA
-      ? toHex(solanaReceiverBytes32)
+      ? solanaUserWalletBytes32
       : toHex(0, { size: 32 }),
+    solanaReceiverATA: solanaReceiverATABytes32,
     minFinalityThreshold,
   }
   consola.info('\n📋 POLYMER CCTP DATA PREPARED:')
@@ -386,7 +397,12 @@ async function main() {
       maxCCTPFee === 0n ? '0 = no limit' : 'from API'
     })`
   )
-  consola.info(`  nonEVMReceiver: ${polymerData.nonEVMReceiver}`)
+  consola.info(
+    `  nonEVMReceiver (Solana user wallet): ${polymerData.nonEVMReceiver}`
+  )
+  consola.info(
+    `  solanaReceiverATA (USDC ATA): ${polymerData.solanaReceiverATA}`
+  )
   consola.info(
     `  minFinalityThreshold: ${polymerData.minFinalityThreshold} (from API, ${
       minFinalityThreshold === 1000 ? 'fast path' : 'standard path'

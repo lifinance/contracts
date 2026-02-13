@@ -94,6 +94,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             polymerTokenFee: (bridgeData.minAmount / 100) * 1, // 1% of bridging amount
             maxCCTPFee: (bridgeData.minAmount / 100) * 10, // 10% of bridging amount
             nonEVMReceiver: bytes32(0),
+            solanaReceiverATA: bytes32(0),
             minFinalityThreshold: 1000 // Fast route (1000)
         });
 
@@ -172,6 +173,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 polymerTokenFee: polymerFee,
                 maxCCTPFee: maxCCTPFee,
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
                 minFinalityThreshold: validPolymerData.minFinalityThreshold
             });
 
@@ -208,6 +210,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 polymerTokenFee: polymerFee,
                 maxCCTPFee: swapOutputAmount / 10, // 10% of swap output
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
                 minFinalityThreshold: validPolymerData.minFinalityThreshold
             });
 
@@ -319,6 +322,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
         validPolymerData.nonEVMReceiver = bytes32(uint256(0x1234));
+        validPolymerData.solanaReceiverATA = bytes32(uint256(0x5678));
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit ILiFi.BridgeToNonEVMChainBytes32(
@@ -352,6 +356,22 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
         validPolymerData.nonEVMReceiver = bytes32(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaDestWithZeroSolanaReceiverATA() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validPolymerData.nonEVMReceiver = bytes32(uint256(0x1234));
+        validPolymerData.solanaReceiverATA = bytes32(0);
 
         vm.expectRevert(InvalidReceiver.selector);
         initiateBridgeTxWithFacet(false);

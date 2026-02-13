@@ -212,6 +212,14 @@
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0xa8deB34CDD4915D3D5E37e622fB2585bC2c1a7d6": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.0"
+      },
+      "0xC31f575546A12Bc9dEf107CE19a242cd351BaDe2": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
