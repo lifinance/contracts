@@ -8,7 +8,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidCallData, InvalidReceiver } from "../Errors/GenericErrors.sol";
@@ -16,7 +16,7 @@ import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidCallDat
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging USDC through Polymer CCTP
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -41,6 +41,8 @@ contract PolymerCCTPFacet is
         uint256 maxCCTPFee;
         // Should only be nonzero if submitting to a nonEVM chain
         bytes32 nonEVMReceiver;
+        // For Solana: the receiver's Associated Token Account (ATA) for USDC
+        bytes32 solanaReceiverATA;
         // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
         // 1000 = fast path, 2000 = standard path
         uint32 minFinalityThreshold;
@@ -186,6 +188,8 @@ contract PolymerCCTPFacet is
         uint256 bridgeAmount = _bridgeData.minAmount -
             _polymerData.polymerTokenFee;
 
+        uint256 destinationChainId = _bridgeData.destinationChainId;
+
         // This case first for gas ops since it will likely be triggered more often
         if (_bridgeData.receiver != NON_EVM_ADDRESS) {
             // _bridgeData.receiver != NON_EVM_ADDRESS -> mint to _bridgeData.receiver
@@ -195,7 +199,7 @@ contract PolymerCCTPFacet is
 
             TOKEN_MESSENGER.depositForBurn(
                 bridgeAmount,
-                _chainIdToDomainId(_bridgeData.destinationChainId),
+                _chainIdToDomainId(destinationChainId),
                 bytes32(uint256(uint160(_bridgeData.receiver))),
                 USDC,
                 UNRESTRICTED_DESTINATION_CALLER,
@@ -208,10 +212,16 @@ contract PolymerCCTPFacet is
                 revert InvalidReceiver();
             }
 
+            // For Solana, CCTP expects the ATA as mintRecipient; for other non-EVM, use nonEVMReceiver.
+            // TokenMessenger enforces mintRecipient != bytes32(0), so no need to check solanaReceiverATA here.
+            bytes32 mintRecipient = destinationChainId == LIFI_CHAIN_ID_SOLANA
+                ? _polymerData.solanaReceiverATA
+                : _polymerData.nonEVMReceiver;
+
             TOKEN_MESSENGER.depositForBurn(
                 bridgeAmount,
-                _chainIdToDomainId(_bridgeData.destinationChainId),
-                _polymerData.nonEVMReceiver,
+                _chainIdToDomainId(destinationChainId),
+                mintRecipient,
                 USDC,
                 UNRESTRICTED_DESTINATION_CALLER,
                 _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
@@ -220,7 +230,7 @@ contract PolymerCCTPFacet is
 
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
-                _bridgeData.destinationChainId,
+                destinationChainId,
                 _polymerData.nonEVMReceiver
             );
         }
@@ -242,7 +252,7 @@ contract PolymerCCTPFacet is
                 _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
                 bridgeAmount,
-                _bridgeData.destinationChainId,
+                destinationChainId,
                 _bridgeData.hasSourceSwaps,
                 _bridgeData.hasDestinationCall
             )
@@ -293,6 +303,9 @@ contract PolymerCCTPFacet is
         }
         if (chainId == 480) {
             return 14; // World Chain
+        }
+        if (chainId == 143) {
+            return 15; // Monad
         }
         if (chainId == 1329) {
             return 16; // Sei

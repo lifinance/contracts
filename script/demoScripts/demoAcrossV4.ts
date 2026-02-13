@@ -12,7 +12,7 @@ import type { LibSwap } from '../../typechain/AcrossFacetV4'
 
 import {
   ADDRESS_DEV_WALLET_SOLANA_BYTES32,
-  ADDRESS_DEV_WALLET_V4,
+  ADDRESS_DEV_WALLET_V5,
   ADDRESS_UNISWAP_ARB,
   ADDRESS_UNISWAP_OPT,
   ADDRESS_USDC_ARB,
@@ -374,7 +374,7 @@ const RECEIVER_ADDRESS_DST = isSolana
   ? ADDRESS_DEV_WALLET_SOLANA_BYTES32
   : WITH_DEST_CALL
   ? deploymentsARB.ReceiverAcrossV3
-  : ADDRESS_DEV_WALLET_V4
+  : ADDRESS_DEV_WALLET_V5
 const EXPLORER_BASE_URL = 'https://optimistic.etherscan.io/tx/'
 
 // ############################################################################################################
