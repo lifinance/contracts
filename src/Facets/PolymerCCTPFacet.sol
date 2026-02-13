@@ -211,11 +211,10 @@ contract PolymerCCTPFacet is
             if (_polymerData.nonEVMReceiver == bytes32(0)) {
                 revert InvalidReceiver();
             }
-            bool isSolanaDest = destinationChainId == LIFI_CHAIN_ID_SOLANA;
-            if (isSolanaDest && _polymerData.solanaReceiverATA == bytes32(0)) {
-                revert InvalidReceiver();
-            }
-            bytes32 mintRecipient = isSolanaDest
+
+            // For Solana, CCTP expects the ATA as mintRecipient; for other non-EVM, use nonEVMReceiver.
+            // TokenMessenger enforces mintRecipient != bytes32(0), so no need to check solanaReceiverATA here.
+            bytes32 mintRecipient = destinationChainId == LIFI_CHAIN_ID_SOLANA
                 ? _polymerData.solanaReceiverATA
                 : _polymerData.nonEVMReceiver;
 
