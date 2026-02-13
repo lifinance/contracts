@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 /// @title IAcrossSpokePoolV4
 /// @notice Interface for interacting with Across Protocol V4 Spoke Pool
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 /// @dev Mirrors deposit(bytes32,...) from across-protocol/contracts SpokePool.sol; live signature on SpokePool implementation.
 interface IAcrossSpokePoolV4 {
     /// @notice Bundled parameters for `deposit` (useful for calldata decoding/validation)
@@ -35,7 +35,14 @@ interface IAcrossSpokePoolV4 {
     /// @param exclusiveRelayer Exclusive relayer; 0 for none
     /// @param quoteTimestamp Quote timestamp for fee calculation
     /// @param fillDeadline Deadline for fill on destination chain
-    /// @param exclusivityParameter 0 = no exclusivity; < MAX = offset from now; else absolute deadline
+    /// @param exclusivityParameter This value is used to set the exclusivity deadline timestamp in the emitted deposit
+    ///                           event. Before this destination chain timestamp, only the exclusiveRelayer (if set to a non-zero address),
+    ///                           can fill this deposit. There are three ways to use this parameter:
+    ///                           1. NO EXCLUSIVITY: If this value is set to 0, then a timestamp of 0 will be emitted,
+    ///                              meaning that there is no exclusivity period.
+    ///                           2. OFFSET: If this value is less than MAX_EXCLUSIVITY_PERIOD_SECONDS, then add this value to
+    ///                              the block.timestamp to derive the exclusive relayer deadline.
+    ///                           3. TIMESTAMP: Otherwise, set this value as the exclusivity deadline timestamp.
     /// @param message Arbitrary data for recipient (e.g. swap instructions, destination calldata)
     function deposit(
         bytes32 depositor,
