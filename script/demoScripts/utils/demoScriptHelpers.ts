@@ -167,6 +167,26 @@ export const solanaAddressToBytes32 = (
 }
 
 /**
+ * Converts a bytes32 hex value (e.g. from event logs: mintRecipient, nonEVMReceiver) to Solana base58 address.
+ * Inverse of solanaAddressToBytes32.
+ * @param bytes32Hex - 32-byte value as hex string (with or without 0x prefix)
+ * @returns Solana address in base58 format
+ */
+export const bytes32ToSolanaAddress = (bytes32Hex: string): string => {
+  const hex = bytes32Hex.replace(/^0x/i, '')
+  if (hex.length !== 64) {
+    throw new Error(
+      `Invalid bytes32 length: ${hex.length} hex chars (expected 64)`
+    )
+  }
+  const bytes = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return bs58.encode(bytes)
+}
+
+/**
  * Computes the Associated Token Account (ATA) for a Solana address and token mint, returns bytes32 hex.
  * Used when bridging to Solana (e.g. Polymer CCTP) where CCTP v2 requires mintRecipient to be the ATA.
  * @param solanaAddress - Solana wallet address in base58 format

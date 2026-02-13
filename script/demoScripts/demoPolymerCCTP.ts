@@ -59,10 +59,20 @@ config()
 //  RECEIVE: https://arbiscan.io/tx/0xfb6ac6f8dd9369cff32ffc2c6a166a4252f310ab1253d53fa13960dbee530824
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
 
+// ADDITIONAL DEMO TXS
+// ARB.USDC > OPT.USDC (fast path):
+//  SEND: https://arbiscan.io/tx/0x8bece438c05af716fa727a228d5b4f4a0bdc9ab1fe63c820f4864f5def8bea2f
+//  RECEIVE: https://optimistic.etherscan.io/tx/0x546f37d42364f9613ad702f6340c55935b3de8f7e933b7301a02fcd30ed4709c
+//  EXPLORER: https://lifi-explorer.polymer.zone/transfer/testnet/0x8bece438c05af716fa727a228d5b4f4a0bdc9ab1fe63c820f4864f5def8bea2f
+// ARB.USDC > SOLANA.USDC (fast path):
+//  SEND: https://arbiscan.io/tx/0x17ae338fce5766f004e51cfe9897c41da7ed56e3ffd40ca8a4d0b6a722f8bc70
+//  RECEIVE: https://explorer.solana.com/address/AhLkXqoSJR7hYcLcJAdjpCFG6HJUTDBRpvR2uBMfnq63
+//  EXPLORER: https://lifi-explorer.polymer.zone/transfer/testnet/0x17ae338fce5766f004e51cfe9897c41da7ed56e3ffd40ca8a4d0b6a722f8bc70
+
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const BRIDGE_TO_SOLANA = false
+const BRIDGE_TO_SOLANA = true
 const SEND_TX = false // Set to false to dry-run without sending transaction
-const USE_FAST_MODE = false // Set to true for fast route (1000), false for standard route (2000)
+const USE_FAST_MODE = true // Set to true for fast route (1000), false for standard route (2000)
 
 // Polymer API configuration
 const POLYMER_API_URL = 'https://lifi.testnet.polymer.zone' // testnet API URL
@@ -378,6 +388,7 @@ async function main() {
     consola.info(
       `  Solana USDC ATA (solanaReceiverATA): ${solanaReceiverATABytes32}`
     )
+    consola.info(`  Solana user wallet (base58): ${solanaBase58}`)
   }
 
   // Prepare PolymerCCTP data using fees extracted from API response
@@ -417,6 +428,10 @@ async function main() {
       walletClient
     )
 
+    consola.info(`Wallet: ${walletAddress}`)
+    consola.info(
+      `Wallet balance: ${await tokenContract.read.balanceOf([walletAddress])}`
+    )
     // Contract transfers minAmount, so user must approve minAmount (fromAmount)
     await ensureBalance(tokenContract, walletAddress, fromAmount, publicClient)
     await ensureAllowance(
