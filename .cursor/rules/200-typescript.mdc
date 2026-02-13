@@ -11,12 +11,14 @@ globs:
 - TS scripts use `.eslintrc.cjs` rules, `bunx tsx`, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`).
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
+- **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore` in new files. Existing files with these directives are technical debt to be resolved. When creating new files or refactoring existing ones, properly type all code and fix type errors instead of suppressing them.
 
 ## Code Quality
 
 - Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
 - When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
+  - `script/utils/delay.ts` - `sleep(ms)` function for delays (MUST use this instead of implementing sleep locally),
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
   - `script/common/types.ts` (shared types).
