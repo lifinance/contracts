@@ -5,50 +5,38 @@ pragma solidity ^0.8.17;
 /// @notice Interface for interacting with Across Protocol V4 Spoke Pool
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
+/// @dev Mirrors deposit(bytes32,...) from across-protocol/contracts SpokePool.sol; live signature on SpokePool implementation.
 interface IAcrossSpokePoolV4 {
     /// @notice Bundled parameters for `deposit` (useful for calldata decoding/validation)
-    /// @dev This struct is not used by the SpokePool contract itself; it exists for consumers that
-    ///      want to decode `deposit(...)` calldata without a long tuple.
+    /// @dev Not used by SpokePool; for consumers decoding deposit(...) calldata without a long tuple.
     struct DepositParams {
-        bytes32 depositor;
-        bytes32 recipient;
-        bytes32 inputToken;
-        bytes32 outputToken;
-        uint256 inputAmount;
-        uint256 outputAmount;
-        uint256 destinationChainId;
-        bytes32 exclusiveRelayer;
-        uint32 quoteTimestamp;
-        uint32 fillDeadline;
-        uint32 exclusivityParameter;
-        bytes message;
+        bytes32 depositor; // Origin-chain depositor (bytes32 for cross-chain)
+        bytes32 recipient; // Destination-chain recipient (bytes32 for cross-chain)
+        bytes32 inputToken; // Token deposited on origin
+        bytes32 outputToken; // Token received on destination
+        uint256 inputAmount; // Amount deposited on origin
+        uint256 outputAmount; // Amount received on destination (after fees)
+        uint256 destinationChainId; // Destination chain ID
+        bytes32 exclusiveRelayer; // Exclusive relayer (0 for none)
+        uint32 quoteTimestamp; // Quote timestamp for fee calculation
+        uint32 fillDeadline; // Deadline for fill on destination
+        uint32 exclusivityParameter; // 0 = none; < MAX = offset from now; else absolute deadline
+        bytes message; // Arbitrary data for recipient (e.g. swap instructions)
     }
 
     /// @notice Initiates a cross-chain token transfer via Across Protocol V4
-    /// @dev This function allows users to deposit tokens on the origin chain for bridging to a destination chain.
-    ///      The function supports both EVM and non-EVM chains through the use of bytes32 addresses.
-    ///      The deposit can be filled by relayers on the destination chain within the specified deadlines.
-    /// @param depositor The address that made the deposit on the origin chain (bytes32 format for cross-chain compatibility)
-    /// @param recipient The recipient address on the destination chain (bytes32 format for cross-chain compatibility)
-    /// @param inputToken The token address that is deposited on the origin chain by the depositor (bytes32 format)
-    /// @param outputToken The token address that will be received on the destination chain by the recipient (bytes32 format)
-    /// @param inputAmount The amount of input token deposited by the depositor on the origin chain
-    /// @param outputAmount The amount of output token to be received by the recipient on the destination chain (after fees)
-    /// @param destinationChainId The chain ID of the destination chain where the tokens will be received
-    /// @param exclusiveRelayer The exclusive relayer address who can fill the deposit before the exclusivity deadline.
-    ///                         Set to zero bytes32 if no exclusive relayer is specified
-    /// @param quoteTimestamp The timestamp when the quote was created, used for fee calculation and validation
-    /// @param fillDeadline The timestamp on the destination chain after which this deposit can no longer be filled by any relayer
-    /// @param exclusivityParameter This value is used to set the exclusivity deadline timestamp in the emitted deposit
-    ///                           event. Before this destination chain timestamp, only the exclusiveRelayer (if set to a non-zero address),
-    ///                           can fill this deposit. There are three ways to use this parameter:
-    ///                           1. NO EXCLUSIVITY: If this value is set to 0, then a timestamp of 0 will be emitted,
-    ///                              meaning that there is no exclusivity period.
-    ///                           2. OFFSET: If this value is less than MAX_EXCLUSIVITY_PERIOD_SECONDS, then add this value to
-    ///                              the block.timestamp to derive the exclusive relayer deadline.
-    ///                           3. TIMESTAMP: Otherwise, set this value as the exclusivity deadline timestamp.
-    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
-    ///                This can include swap instructions, destination call data, or other cross-chain messages
+    /// @param depositor Origin-chain depositor (bytes32 for cross-chain)
+    /// @param recipient Destination-chain recipient (bytes32 for cross-chain)
+    /// @param inputToken Token deposited on origin chain
+    /// @param outputToken Token received on destination chain
+    /// @param inputAmount Amount deposited on origin
+    /// @param outputAmount Amount received on destination (after fees)
+    /// @param destinationChainId Destination chain ID
+    /// @param exclusiveRelayer Exclusive relayer; 0 for none
+    /// @param quoteTimestamp Quote timestamp for fee calculation
+    /// @param fillDeadline Deadline for fill on destination chain
+    /// @param exclusivityParameter 0 = no exclusivity; < MAX = offset from now; else absolute deadline
+    /// @param message Arbitrary data for recipient (e.g. swap instructions, destination calldata)
     function deposit(
         bytes32 depositor,
         bytes32 recipient,

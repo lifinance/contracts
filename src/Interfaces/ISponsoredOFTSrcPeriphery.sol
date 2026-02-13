@@ -12,7 +12,6 @@ interface ISponsoredOFTSrcPeriphery {
     /// @dev Upstream: UnsignedQuoteParams in `Structs.sol`
     struct UnsignedQuoteParams {
         address refundRecipient;
-        uint256 maxUserSlippageBps;
     }
 
     /// @notice Signed params of the sponsored bridging flow quote
@@ -25,10 +24,14 @@ interface ISponsoredOFTSrcPeriphery {
         bytes32 nonce;
         uint256 deadline;
         uint256 maxBpsToSponsor;
+        uint256 maxUserSlippageBps;
         bytes32 finalRecipient;
         bytes32 finalToken;
+        uint32 destinationDex;
         uint256 lzReceiveGasLimit;
         uint256 lzComposeGasLimit;
+        uint256 maxOftFeeBps;
+        uint8 accountCreationMode;
         uint8 executionMode;
         bytes actionData;
     }
