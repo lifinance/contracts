@@ -653,6 +653,15 @@ const main = defineCommand({
         hasDexWhitelistConfig || hasPeripheryWhitelistConfig
 
       if (hasWhitelistConfig) {
+        // Get expected pairs from whitelist.json or whitelist.staging.json file
+        const expectedPairs = await getExpectedPairs(
+          networkStr as string,
+          deployedContracts,
+          environment,
+          whitelistConfig,
+          isTron
+        )
+
         if (isTron && tronWeb) {
           // Tron implementation using troncast and TronWeb
           // Get RPC URL from environment variable first, fallback to networks.json
@@ -660,14 +669,12 @@ const main = defineCommand({
           const rpcUrl = getEnvVar(envVarName) || networkConfig.rpcUrl
           await checkWhitelistIntegrityTron(
             networkStr as string,
-            deployedContracts,
-            environment,
-            whitelistConfig,
             diamondAddress,
             rpcUrl,
             tronWeb,
-            logError,
-            getExpectedPairs
+            expectedPairs,
+            environment,
+            logError
           )
         } else if (publicClient) {
           // EVM implementation using viem
@@ -679,15 +686,6 @@ const main = defineCommand({
             ]),
             client: publicClient,
           })
-
-          // Get expected pairs from whitelist.json or whitelist.staging.json file
-          const expectedPairs = await getExpectedPairs(
-            networkStr as string,
-            deployedContracts,
-            environment,
-            whitelistConfig,
-            false // isTron = false for EVM
-          )
 
           // Get on-chain data once and use for all checks
           const [onChainContracts, onChainSelectors] =
@@ -1159,7 +1157,6 @@ const getExpectedPairs = async (
 
 // Checks the config.json (source of truth) against on-chain state.
 // This function handles all checks for data integrity and synchronization.
-// Refactored to use DRY principle with checkWhitelistIntegrityCore
 const checkWhitelistIntegrity = async (
   publicClient: PublicClient,
   _diamondAddress: Address,

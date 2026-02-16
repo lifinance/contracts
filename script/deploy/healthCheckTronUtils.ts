@@ -10,10 +10,6 @@ import {
   type Hex,
 } from 'viem'
 
-import type {
-  GetExpectedPairsFunction,
-  IWhitelistConfig,
-} from '../common/types'
 import { sleep } from '../utils/delay'
 
 import { INITIAL_CALL_DELAY, RETRY_DELAY } from './shared/constants'
@@ -21,7 +17,6 @@ import { hexToTronAddress, retryWithRateLimit } from './tron/utils'
 
 /**
  * Adapter interface for network-specific whitelist operations
- * Allows DRY principle by abstracting network-specific differences
  */
 export interface IWhitelistAdapter {
   /**
@@ -294,8 +289,8 @@ export async function checkOwnershipTron(
 }
 
 /**
- * Core whitelist integrity check logic (network-agnostic)
- * Applies DRY principle by separating shared logic from network-specific implementations
+ * Check whitelist integrity by comparing config against on-chain state.
+ * Network-agnostic implementation that uses an adapter for network-specific operations.
  * 
  * @param expectedPairs - Expected pairs from config
  * @param adapter - Network-specific adapter for fetching and checking whitelist data
@@ -443,34 +438,22 @@ export async function checkWhitelistIntegrityCore(
 /**
  * Check whitelist integrity for Tron network using troncast and TronWeb
  * @param network - Network name
- * @param deployedContracts - Record of deployed contract addresses
- * @param environment - Environment (staging/production)
- * @param whitelistConfig - Whitelist configuration
  * @param diamondAddress - Diamond contract address
  * @param rpcUrl - RPC URL for Tron network
  * @param tronWeb - TronWeb instance
+ * @param expectedPairs - Expected whitelist pairs from config
+ * @param environment - Environment (staging/production)
  * @param logError - Function to log errors
- * @param getExpectedPairs - Function to get expected pairs from config
  */
 export async function checkWhitelistIntegrityTron(
   network: string,
-  deployedContracts: Record<string, string>,
-  environment: string,
-  whitelistConfig: IWhitelistConfig,
   diamondAddress: string,
   rpcUrl: string,
   tronWeb: TronWeb,
-  logError: (msg: string) => void,
-  getExpectedPairs: GetExpectedPairsFunction
+  expectedPairs: Array<{ contract: string; selector: Hex }>,
+  environment: string,
+  logError: (msg: string) => void
 ): Promise<void> {
-  // Get expected pairs from config
-  const expectedPairs = await getExpectedPairs(
-    network,
-    deployedContracts,
-    environment,
-    whitelistConfig,
-    true // isTron = true
-  )
 
   // Create Tron-specific adapter
   const tronAdapter: IWhitelistAdapter = {
