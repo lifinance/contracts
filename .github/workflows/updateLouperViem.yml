@@ -1,0 +1,362 @@
+name: Update Louper Viem
+
+# - Automatically creates a PR in target repository when new networks are added
+# - detects new networks by comparing config/networks.json with main branch
+# - clones target repo, updates viem to latest version, and creates PR
+# - ensures new networks become available in target repository after deployment
+# - runs on push to main branch (after PR merge) or when networks.json changes
+# - Target repository is mark3labs/louper-v3
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - 'config/networks.json'
+
+permissions:
+  contents: read # required to read repository contents
+  pull-requests: write # required to create PR in target repository
+
+jobs:
+  update-louper-viem:
+    runs-on: ubuntu-latest
+    # Only run when PR is merged to main branch
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect Newly Added Networks
+        id: detect-changes
+        run: |
+          set -e
+          echo "Comparing config/networks.json with previous state..."
+          
+          # Compare with base branch (main) to detect new networks
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git fetch origin "$BASE_SHA" --depth=1 || echo "Could not fetch base SHA"
+          
+          if git show "$BASE_SHA:config/networks.json" > /dev/null 2>&1; then
+            OLD_NETWORKS=$(git show "$BASE_SHA:config/networks.json" | jq 'keys')
+          else
+            echo "⚠️ No previous networks.json found in base branch. Checking main..."
+            git fetch origin main --depth=1 || true
+            if git show origin/main:config/networks.json > /dev/null 2>&1; then
+              OLD_NETWORKS=$(git show origin/main:config/networks.json | jq 'keys')
+            else
+              echo "❌ Error: Could not find previous networks.json"
+              exit 1
+            fi
+          fi
+
+          NEW_NETWORKS=$(jq 'keys' config/networks.json)
+          ADDED_NETWORKS=$(jq -n --argjson old "$OLD_NETWORKS" --argjson new "$NEW_NETWORKS" '$new - $old')
+
+          echo "Previous networks: $OLD_NETWORKS"
+          echo "Current networks: $NEW_NETWORKS"
+          echo "Added networks: $ADDED_NETWORKS"
+
+          if [[ "$ADDED_NETWORKS" == "[]" ]]; then
+            echo "No new networks detected. Skipping update."
+            echo "SKIP_UPDATE=true" >> "$GITHUB_ENV"
+          else
+            echo "New networks detected: $ADDED_NETWORKS"
+            echo "added_networks=$(echo "$ADDED_NETWORKS" | jq -c .)" >> "$GITHUB_ENV"
+            echo "SKIP_UPDATE=false" >> "$GITHUB_ENV"
+            
+            # Extract network names and chainIds for PR description
+            NETWORK_DETAILS=$(jq -n --argjson networks "$ADDED_NETWORKS" --argjson all "$(cat config/networks.json)" \
+              '$networks | map(. as $name | $all[$name] | {name: $name, chainId: .chainId})')
+            echo "network_details=$(echo "$NETWORK_DETAILS" | jq -c .)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Node.js
+        if: env.SKIP_UPDATE != 'true'
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+
+      - name: Checkout target repository
+        if: env.SKIP_UPDATE != 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: mark3labs/louper-v3
+          path: target-repo
+          token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          fetch-depth: 0
+
+      - name: Update viem to latest version
+        if: env.SKIP_UPDATE != 'true'
+        id: update-viem
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          ADDED_NETWORKS: ${{ env.added_networks }}
+        run: |
+          set -e
+          cd target-repo
+          
+          # Detect default branch using GitHub API
+          REPO_INFO=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/mark3labs/louper-v3")
+          DEFAULT_BRANCH=$(echo "$REPO_INFO" | jq -r '.default_branch // "dev"')
+          echo "Default branch: ${DEFAULT_BRANCH}"
+          
+          # Ensure we have the default branch fetched
+          git fetch origin "${DEFAULT_BRANCH}" || git fetch origin
+          
+          # Get current viem version
+          CURRENT_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem // "not found"' package.json)
+          echo "Current viem version: $CURRENT_VIEM"
+          
+          # Strip version prefix (^, ~, =) for comparison
+          CURRENT_VIEM_CLEAN=$(echo "$CURRENT_VIEM" | sed 's/^[\^~=]//')
+          echo "Current viem version (cleaned): $CURRENT_VIEM_CLEAN"
+          
+          # Get latest viem version from npm
+          LATEST_VIEM=$(npm view viem version)
+          echo "Latest viem version: $LATEST_VIEM"
+          
+          # Check if update is needed
+          if [ "$CURRENT_VIEM_CLEAN" == "$LATEST_VIEM" ]; then
+            echo "viem is already at latest version ($LATEST_VIEM). No update needed."
+            echo "UPDATE_NEEDED=false" >> "$GITHUB_ENV"
+          else
+            echo "Update needed: $CURRENT_VIEM -> $LATEST_VIEM"
+            echo "UPDATE_NEEDED=true" >> "$GITHUB_ENV"
+            echo "CURRENT_VIEM=$CURRENT_VIEM" >> "$GITHUB_ENV"
+            echo "LATEST_VIEM=$LATEST_VIEM" >> "$GITHUB_ENV"
+            
+            # Configure git for target repo
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            # Use branch name with viem version
+            BRANCH_NAME="chore/update-viem-${LATEST_VIEM}"
+            echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
+            
+            # Check if branch already exists remotely
+            if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+              echo "Branch $BRANCH_NAME already exists remotely, checking out and updating..."
+              # Fetch the branch
+              git fetch origin "$BRANCH_NAME"
+              # Checkout the branch
+              git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"
+              # Merge latest changes from default branch to keep it up to date
+              if ! git merge "origin/${DEFAULT_BRANCH}" --no-edit; then
+                echo "❌ Merge conflicts detected. Aborting merge and recreating branch from ${DEFAULT_BRANCH}."
+                git merge --abort
+                git checkout -B "$BRANCH_NAME" "origin/${DEFAULT_BRANCH}"
+              fi
+            else
+              echo "Creating new branch $BRANCH_NAME from ${DEFAULT_BRANCH}"
+              git checkout -b "$BRANCH_NAME" "origin/${DEFAULT_BRANCH}"
+            fi
+            
+            # Check if viem exists in package.json and update/add it directly
+            VIEM_EXISTS=$(jq -r '.dependencies.viem // .devDependencies.viem // empty' package.json)
+            
+            # Extract version prefix (^, ~, =) to preserve semver resolution semantics
+            if [ -n "$VIEM_EXISTS" ] && [ "$VIEM_EXISTS" != "null" ]; then
+              VIEM_PREFIX=$(echo "$VIEM_EXISTS" | sed -n 's/^\([^0-9]*\).*/\1/p')
+            else
+              VIEM_PREFIX=""
+            fi
+            # Default to ^ if no prefix detected (npm convention for new packages)
+            [ -z "$VIEM_PREFIX" ] && VIEM_PREFIX="^"
+            
+            if [ -z "$VIEM_EXISTS" ] || [ "$VIEM_EXISTS" == "null" ]; then
+              echo "viem not found in package.json, adding it to devDependencies with prefix ${VIEM_PREFIX}..."
+              # Add viem to devDependencies using jq with prefix
+              jq ".devDependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+            else
+              echo "viem found in package.json (version: $VIEM_EXISTS), updating to ${VIEM_PREFIX}${LATEST_VIEM}..."
+              # Update viem version using jq (check both dependencies and devDependencies)
+              if jq -e '.dependencies.viem' package.json > /dev/null 2>&1; then
+                jq ".dependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+              elif jq -e '.devDependencies.viem' package.json > /dev/null 2>&1; then
+                jq ".devDependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+              else
+                # Fallback: add to devDependencies with prefix
+                jq ".devDependencies.viem = \"${VIEM_PREFIX}${LATEST_VIEM}\"" package.json > package.json.tmp && mv package.json.tmp package.json
+              fi
+            fi
+            
+            # Install dependencies to update lock file
+            # Use --force to bypass peer dependency conflicts (TypeScript version)
+            if [ -f "package-lock.json" ]; then
+              npm install --force || {
+                echo "❌ Error: npm install failed"
+                exit 1
+              }
+            elif [ -f "pnpm-lock.yaml" ]; then
+              npm install -g pnpm
+              pnpm install --force || {
+                echo "❌ Error: pnpm install failed"
+                exit 1
+              }
+            elif [ -f "yarn.lock" ]; then
+              npm install -g yarn
+              yarn install --force || {
+                echo "❌ Error: yarn install failed"
+                exit 1
+              }
+            fi
+            
+            # Verify update
+            UPDATED_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem // empty' package.json)
+            echo "Updated viem version: $UPDATED_VIEM"
+            UPDATED_VIEM_CLEAN=$(echo "$UPDATED_VIEM" | sed 's/^[\^~=]//')
+            
+            if [ -z "$UPDATED_VIEM" ] || [ "$UPDATED_VIEM" == "null" ]; then
+              echo "❌ Error: Failed to update viem in package.json"
+              exit 1
+            fi
+            
+            if [ "$UPDATED_VIEM_CLEAN" != "$LATEST_VIEM" ]; then
+              echo "⚠️ Warning: Version mismatch. Expected $LATEST_VIEM, got $UPDATED_VIEM_CLEAN"
+            fi
+            
+            # Check if there are actual changes to commit
+            if git diff --quiet package.json && \
+               ([ ! -f "package-lock.json" ] || git diff --quiet package-lock.json) && \
+               ([ ! -f "pnpm-lock.yaml" ] || git diff --quiet pnpm-lock.yaml) && \
+               ([ ! -f "yarn.lock" ] || git diff --quiet yarn.lock); then
+              echo "⚠️ No changes detected after update. Skipping commit and push."
+              echo "UPDATE_NEEDED=false" >> "$GITHUB_ENV"
+            else
+              # Commit changes (add all lock files that exist)
+              git add package.json
+              [ -f "package-lock.json" ] && git add package-lock.json || true
+              [ -f "pnpm-lock.yaml" ] && git add pnpm-lock.yaml || true
+              [ -f "yarn.lock" ] && git add yarn.lock || true
+              
+              # Create commit message with safe variable expansion
+              ADDED_NETWORKS_LIST=$(echo "$ADDED_NETWORKS" | jq -r '.[]' | sed 's/^/- /')
+              git commit -m "chore: Update viem to ${LATEST_VIEM}" \
+                -m "This update ensures new networks added to contracts are available." \
+                -m "New networks detected:" \
+                -m "$ADDED_NETWORKS_LIST" \
+                -m "Related commit: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+              
+              # Push branch after successful commit
+              if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+                echo "Branch exists remotely, using force push to update..."
+                git push --force origin "$BRANCH_NAME" || {
+                  echo "❌ Failed to force push branch"
+                  exit 1
+                }
+              else
+                echo "Pushing new branch..."
+                git push origin "$BRANCH_NAME" || {
+                  echo "❌ Failed to push branch"
+                  exit 1
+                }
+              fi
+            fi
+          fi
+
+      - name: Create or Update Pull Request in target repository
+        if: env.SKIP_UPDATE != 'true' && env.UPDATE_NEEDED == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          NETWORK_DETAILS_JSON: ${{ env.network_details }}
+        run: |
+          set -e
+          cd target-repo
+          
+          # Detect default branch of target repository
+          REPO_INFO=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/mark3labs/louper-v3")
+          
+          DEFAULT_BRANCH=$(echo "$REPO_INFO" | jq -r '.default_branch // "dev"')
+          echo "Detected default branch: ${DEFAULT_BRANCH}"
+          
+          # Check if PR already exists
+          EXISTING_PR=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/mark3labs/louper-v3/pulls?state=open&head=mark3labs:${{ env.BRANCH_NAME }}" | \
+            jq -r '.[0].number // empty')
+          
+          # Prepare PR body using jq to safely build JSON with safe variable expansion
+          NETWORK_DETAILS=$(echo "$NETWORK_DETAILS_JSON" | jq -r '.[] | "- **\(.name)**: Chain ID \(.chainId)"')
+          
+          PR_BODY=$(jq -n \
+            --arg viem "${{ env.LATEST_VIEM }}" \
+            --arg current "${{ env.CURRENT_VIEM }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg networks "${NETWORK_DETAILS}" \
+            '{
+              title: "Update viem",
+              body: ("This PR updates viem to version \($viem) to ensure new networks added to contracts are available.\n\n## New Networks Detected\n\nThe following networks were added to [contracts repository](https://github.com/\($repo)):\n\n\($networks)\n\n## Changes\n\n- Updated viem from \($current) to \($viem)\n\n## Related\n\n- Source commit: [\($sha)](https://github.com/\($repo)/commit/\($sha))\n\n## Verification\n\nAfter merging this PR, please verify that the new networks are available by checking:\n1. Network selection dropdown includes the new networks\n2. Contract inspection works correctly for contracts deployed on these networks\n\n---\n\n*This PR was automatically created by automated workflow*")
+            }' | jq -r '.body')
+          
+          if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+            echo "PR #$EXISTING_PR already exists, updating with new network details..."
+            # Update existing PR with new title and body
+            PR_RESPONSE=$(curl -s -X PATCH \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/mark3labs/louper-v3/pulls/$EXISTING_PR" \
+              -d "{
+                \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }}\",
+                \"body\": $(echo "$PR_BODY" | jq -Rs .)
+              }")
+            PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url')
+            
+            if [ -z "$PR_URL" ] || [ "$PR_URL" == "null" ]; then
+              echo "❌ Failed to update PR #$EXISTING_PR"
+              echo "Response: $PR_RESPONSE"
+              exit 1
+            fi
+            
+            echo "✅ PR updated: $PR_URL"
+            echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
+            echo "PR_NUMBER=$EXISTING_PR" >> "$GITHUB_ENV"
+          else
+            echo "Creating new PR..."
+            # Create PR using GitHub API
+            PR_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/mark3labs/louper-v3/pulls" \
+              -d "{
+                \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }}\",
+                \"body\": $(echo "$PR_BODY" | jq -Rs .),
+                \"head\": \"${{ env.BRANCH_NAME }}\",
+                \"base\": \"${DEFAULT_BRANCH}\"
+              }")
+            
+            PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url // empty')
+            PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.number // empty')
+            
+            if [ -n "$PR_URL" ] && [ "$PR_URL" != "null" ]; then
+              echo "✅ PR created successfully: $PR_URL"
+              echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
+              echo "PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
+            else
+              echo "❌ Failed to create PR"
+              echo "Response: $PR_RESPONSE"
+              exit 1
+            fi
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          set -e
+          echo "## Summary"
+          echo ""
+          if [ "${{ env.SKIP_UPDATE }}" == "true" ]; then
+            echo "✅ No new networks detected. Skipped update."
+          elif [ "${{ env.UPDATE_NEEDED }}" == "true" ]; then
+            echo "✅ Updated viem to ${{ env.LATEST_VIEM }} and created/updated PR in target repository"
+            echo "PR: ${{ env.PR_URL }}"
+          else
+            echo "✅ viem is already at latest version. No update needed."
+          fi
