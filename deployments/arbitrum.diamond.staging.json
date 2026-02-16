@@ -220,6 +220,10 @@
       "0xC31f575546A12Bc9dEf107CE19a242cd351BaDe2": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
+      },
+      "0xBdE21104479e1373a20F487D3f6ffDED62574FA7": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
