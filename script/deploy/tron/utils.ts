@@ -13,26 +13,20 @@ import {
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
+import { INITIAL_CALL_DELAY, MAX_RETRIES, RETRY_DELAY, ZERO_ADDRESS } from '../shared/constants'
+
 import {
+  DEFAULT_FEE_LIMIT_TRX,
   DIAMOND_CUT_ENERGY_MULTIPLIER,
-  INITIAL_CALL_DELAY,
-  MAX_RETRIES,
   MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
-  DEFAULT_FEE_LIMIT_TRX,
-  RETRY_DELAY,
-  ZERO_ADDRESS,
-} from '../shared/constants'
-
+} from './constants'
 import type {
   IForgeArtifact,
   IDeploymentResult,
   INetworkInfo,
   IDiamondRegistrationResult,
 } from './types'
-
-// Re-export constants for backward compatibility
-export { DEFAULT_SAFETY_MARGIN } from '../shared/constants'
 
 /**
  * Check if an error is a rate limit or connection error

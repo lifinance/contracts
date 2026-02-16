@@ -20,6 +20,22 @@ import { INITIAL_CALL_DELAY, RETRY_DELAY } from './shared/constants'
 import { hexToTronAddress, retryWithRateLimit } from './tron/utils'
 
 /**
+ * Adapter interface for network-specific whitelist operations
+ * Allows DRY principle by abstracting network-specific differences
+ */
+export interface IWhitelistAdapter {
+  /**
+   * Fetch on-chain whitelist data and return as a Set of "contract:selector" pairs
+   */
+  fetchOnChainPairs: () => Promise<Set<string>>
+  
+  /**
+   * Check if a specific contract/selector pair is whitelisted
+   */
+  checkPairWhitelisted: (contract: string, selector: Hex) => Promise<boolean>
+}
+
+/**
  * Call Tron contract function using troncast
  */
 export async function callTronContract(
@@ -278,38 +294,23 @@ export async function checkOwnershipTron(
 }
 
 /**
- * Check whitelist integrity for Tron network using troncast and TronWeb
- * @param network - Network name
- * @param deployedContracts - Record of deployed contract addresses
- * @param environment - Environment (staging/production)
- * @param whitelistConfig - Whitelist configuration
- * @param diamondAddress - Diamond contract address
- * @param rpcUrl - RPC URL for Tron network
- * @param tronWeb - TronWeb instance
+ * Core whitelist integrity check logic (network-agnostic)
+ * Applies DRY principle by separating shared logic from network-specific implementations
+ * 
+ * @param expectedPairs - Expected pairs from config
+ * @param adapter - Network-specific adapter for fetching and checking whitelist data
+ * @param network - Network name (for error messages)
+ * @param environment - Environment (for error messages)
  * @param logError - Function to log errors
- * @param getExpectedPairs - Function to get expected pairs from config
  */
-export async function checkWhitelistIntegrityTron(
+export async function checkWhitelistIntegrityCore(
+  expectedPairs: Array<{ contract: string; selector: Hex }>,
+  adapter: IWhitelistAdapter,
   network: string,
-  deployedContracts: Record<string, string>,
   environment: string,
-  whitelistConfig: IWhitelistConfig,
-  diamondAddress: string,
-  rpcUrl: string,
-  tronWeb: TronWeb,
-  logError: (msg: string) => void,
-  getExpectedPairs: GetExpectedPairsFunction
+  logError: (msg: string) => void
 ): Promise<void> {
   consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
-
-  // Get expected pairs from config
-  const expectedPairs = await getExpectedPairs(
-    network,
-    deployedContracts,
-    environment,
-    whitelistConfig,
-    true // isTron = true
-  )
 
   if (expectedPairs.length === 0) {
     consola.warn('No expected pairs in config. Skipping all checks.')
@@ -329,78 +330,23 @@ export async function checkWhitelistIntegrityTron(
   )
 
   try {
-    // Get on-chain data using getAllContractSelectorPairs
+    // --- 2. Fetch on-chain data (network-specific) ---
     consola.start('Fetching on-chain whitelist data...')
-    const onChainDataOutput = await callTronContract(
-      diamondAddress,
-      'getAllContractSelectorPairs()',
-      [],
-      'address[],bytes4[][]',
-      rpcUrl
-    )
-
-    // Parse the output - troncast returns nested arrays: [[addresses...] [[selectors...]]]
-    // Try JSON.parse first, fallback to simple parsing
-    let parsed: unknown[]
-    try {
-      parsed = JSON.parse(onChainDataOutput.trim())
-    } catch {
-      // If JSON.parse fails, use simple recursive parser (same approach as checkWhitelistSyncStatusPerNetwork.ts)
-      const trimmed = onChainDataOutput.trim()
-      if (!trimmed.startsWith('[')) {
-        throw new Error('Expected array format')
-      }
-      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
-      parsed = parsedArray as unknown[]
-    }
-
-    if (!Array.isArray(parsed) || parsed.length !== 2) {
-      throw new Error('Unexpected troncast output format: expected nested arrays')
-    }
-
-    const addresses = (parsed[0] as unknown[]) || []
-    const selectorsArrays = (parsed[1] as unknown[]) || []
-
-    if (!Array.isArray(addresses) || !Array.isArray(selectorsArrays)) {
-      throw new Error('Unexpected troncast output format: expected arrays')
-    }
-
-    // Build sets for quick lookup
-    // For Tron, addresses are base58 and should be compared in lowercase for consistency
-    const onChainPairSet = new Set<string>()
-    for (let i = 0; i < addresses.length; i++) {
-      const contract = String(addresses[i]).toLowerCase()
-      const selectors = (selectorsArrays[i] as unknown[]) || []
-      if (Array.isArray(selectors)) {
-        for (const selector of selectors) {
-          const selectorLower = String(selector).toLowerCase()
-          onChainPairSet.add(`${contract}:${selectorLower}`)
-        }
-      }
-    }
-
+    const onChainPairSet = await adapter.fetchOnChainPairs()
+    
     consola.info(
-      `On-chain has ${addresses.length} contracts with ${onChainPairSet.size} total pairs.`
+      `On-chain has ${onChainPairSet.size} total pairs.`
     )
 
-    // Check each expected pair using isContractSelectorWhitelisted
-    // Use TronWeb directly to avoid troncast parsing issues with address+bytes4 parameters
+    // --- 3. Check each expected pair using isContractSelectorWhitelisted ---
     consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
     let granularFails = 0
 
     for (const expectedPair of expectedPairs) {
       try {
-        // Use TronWeb directly instead of troncast to avoid parameter parsing issues
-        // expectedPair.contract is already in original base58 format (not lowercase) for Tron
-        const isWhitelisted = await callTronContractBoolean(
-          tronWeb,
-          diamondAddress,
-          'isContractSelectorWhitelisted(address,bytes4)',
-          [
-            { type: 'address', value: expectedPair.contract },
-            { type: 'bytes4', value: expectedPair.selector },
-          ],
-          'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
+        const isWhitelisted = await adapter.checkPairWhitelisted(
+          expectedPair.contract,
+          expectedPair.selector
         )
 
         if (!isWhitelisted) {
@@ -424,10 +370,10 @@ export async function checkWhitelistIntegrityTron(
       )
     }
 
-    // Check Config vs. Getter Arrays
+    // --- 4. Check Config vs. Getter Arrays ---
     consola.start('Step 2/2: Checking Config vs. Getter Arrays...')
 
-    // Build expected pair set for comparison (use lowercase for addresses to match onChainPairSet)
+    // Build expected pair set for comparison
     const expectedPairSet = new Set<string>()
     for (const pair of expectedPairs) {
       expectedPairSet.add(
@@ -492,4 +438,107 @@ export async function checkWhitelistIntegrityTron(
     const errorMessage = error instanceof Error ? error.message : String(error)
     logError(`Failed during whitelist integrity checks: ${errorMessage}`)
   }
+}
+
+/**
+ * Check whitelist integrity for Tron network using troncast and TronWeb
+ * @param network - Network name
+ * @param deployedContracts - Record of deployed contract addresses
+ * @param environment - Environment (staging/production)
+ * @param whitelistConfig - Whitelist configuration
+ * @param diamondAddress - Diamond contract address
+ * @param rpcUrl - RPC URL for Tron network
+ * @param tronWeb - TronWeb instance
+ * @param logError - Function to log errors
+ * @param getExpectedPairs - Function to get expected pairs from config
+ */
+export async function checkWhitelistIntegrityTron(
+  network: string,
+  deployedContracts: Record<string, string>,
+  environment: string,
+  whitelistConfig: IWhitelistConfig,
+  diamondAddress: string,
+  rpcUrl: string,
+  tronWeb: TronWeb,
+  logError: (msg: string) => void,
+  getExpectedPairs: GetExpectedPairsFunction
+): Promise<void> {
+  // Get expected pairs from config
+  const expectedPairs = await getExpectedPairs(
+    network,
+    deployedContracts,
+    environment,
+    whitelistConfig,
+    true // isTron = true
+  )
+
+  // Create Tron-specific adapter
+  const tronAdapter: IWhitelistAdapter = {
+    // Fetch on-chain pairs using troncast
+    fetchOnChainPairs: async () => {
+      const onChainDataOutput = await callTronContract(
+        diamondAddress,
+        'getAllContractSelectorPairs()',
+        [],
+        'address[],bytes4[][]',
+        rpcUrl
+      )
+
+      // Parse the output - troncast returns nested arrays: [[addresses...] [[selectors...]]]
+      let parsed: unknown[]
+      try {
+        parsed = JSON.parse(onChainDataOutput.trim())
+      } catch {
+        const trimmed = onChainDataOutput.trim()
+        if (!trimmed.startsWith('[')) {
+          throw new Error('Expected array format')
+        }
+        const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
+        parsed = parsedArray as unknown[]
+      }
+
+      if (!Array.isArray(parsed) || parsed.length !== 2) {
+        throw new Error('Unexpected troncast output format')
+      }
+
+      const addresses = (parsed[0] as unknown[]) || []
+      const selectorsArrays = (parsed[1] as unknown[]) || []
+
+      // Build set of "contract:selector" pairs
+      const onChainPairSet = new Set<string>()
+      for (let i = 0; i < addresses.length; i++) {
+        const contract = String(addresses[i]).toLowerCase()
+        const selectors = (selectorsArrays[i] as unknown[]) || []
+        if (Array.isArray(selectors)) {
+          for (const selector of selectors) {
+            onChainPairSet.add(`${contract}:${String(selector).toLowerCase()}`)
+          }
+        }
+      }
+      return onChainPairSet
+    },
+
+    // Check pair using TronWeb
+    checkPairWhitelisted: async (contract: string, selector: Hex) => {
+      return callTronContractBoolean(
+        tronWeb,
+        diamondAddress,
+        'isContractSelectorWhitelisted(address,bytes4)',
+        [
+          { type: 'address', value: contract },
+          { type: 'bytes4', value: selector },
+        ],
+        'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
+      )
+    },
+  }
+
+  // Use core logic with Tron adapter
+  await checkWhitelistIntegrityCore(
+    expectedPairs,
+    tronAdapter,
+    network,
+    environment,
+    logError
+  )
 }

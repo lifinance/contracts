@@ -42,9 +42,10 @@ import {
   normalizeSelector,
   checkOwnershipTron,
   checkWhitelistIntegrityTron,
+  checkWhitelistIntegrityCore,
+  type IWhitelistAdapter,
 } from './healthCheckTronUtils'
 import {
-  INITIAL_CALL_DELAY,
   RETRY_DELAY,
   SAFE_THRESHOLD,
 } from './shared/constants'
@@ -62,7 +63,13 @@ const targetState = targetStateImport as TargetState
 /**
  * Execute a command with retry logic for rate limit errors (429)
  * Uses spawn to avoid shell interpretation issues with special characters
- * @param commandParts - Array of command parts (e.g., ['bun', 'troncast', 'call', ...])
+ * 
+ * NOTE: For Tron contract calls, prefer using callTronContract() from healthCheckTronUtils.ts
+ * which is specialized for troncast and includes proper delay handling.
+ * 
+ * This function is primarily used for EVM contract calls via cast.
+ * 
+ * @param commandParts - Array of command parts (e.g., ['cast', 'call', ...])
  * @param initialDelay - Initial delay before first attempt (ms)
  * @param maxRetries - Maximum number of retries
  * @param retryDelay - Delay in ms for all retry attempts (default: RETRY_DELAY)
@@ -183,10 +190,9 @@ const main = defineCommand({
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
-      if (targetState[networkLower]?.production?.LiFiDiamond) {
-        nonCoreFacets = Object.keys(
-          targetState[networkLower].production!.LiFiDiamond
-        ).filter((k) => {
+      const productionDiamond = targetState[networkLower]?.production?.LiFiDiamond
+      if (productionDiamond) {
+        nonCoreFacets = Object.keys(productionDiamond).filter((k) => {
           return (
             !coreFacetsToCheck.includes(k) &&
             !corePeriphery.includes(k) &&
@@ -323,22 +329,13 @@ const main = defineCommand({
         const envVarName = getRPCEnvVarName(networkLower)
         const rpcUrl = getEnvVar(envVarName) || networkConfig.rpcUrl
 
-        // Execute with retry logic for rate limits
-        // TronGrid has strict rate limits, so we add initial delay and retry on 429
-        const rawString = await execWithRateLimitRetry(
-          [
-            'bun',
-            'run',
-            'troncast',
-            'call',
-            diamondAddress,
-            'facets() returns ((address,bytes4[])[])',
-            '--rpc-url',
-            rpcUrl,
-          ],
-          INITIAL_CALL_DELAY, // Initial delay before Tron calls to avoid rate limits
-          3,
-          RETRY_DELAY
+        // callTronContract handles INITIAL_CALL_DELAY internally
+        const rawString = await callTronContract(
+          diamondAddress,
+          'facets()',
+          [],
+          '(address,bytes4[])[]',
+          rpcUrl
         )
 
         // Parse Tron output format
@@ -587,8 +584,8 @@ const main = defineCommand({
                   `Periphery contract ${periphery} registered in Diamond`
                 )
               }
-            } catch (error: any) {
-              const errorMessage = error?.message || String(error)
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : String(error)
               logError(
                 `Failed to check periphery registration for ${periphery}: ${errorMessage}`
               )
@@ -702,7 +699,9 @@ const main = defineCommand({
             whitelistManager,
             expectedPairs,
             onChainContracts as readonly Address[],
-            onChainSelectors as unknown as readonly Hex[][]
+            onChainSelectors as unknown as readonly Hex[][],
+            network,
+            environment
           )
         }
       } else {
@@ -1160,151 +1159,74 @@ const getExpectedPairs = async (
 
 // Checks the config.json (source of truth) against on-chain state.
 // This function handles all checks for data integrity and synchronization.
+// Refactored to use DRY principle with checkWhitelistIntegrityCore
 const checkWhitelistIntegrity = async (
   publicClient: PublicClient,
   _diamondAddress: Address,
   whitelistManager: ReturnType<typeof getContract>,
   expectedPairs: Array<{ contract: string; selector: Hex }>,
   onChainContracts: readonly Address[],
-  onChainSelectors: readonly Hex[][]
+  onChainSelectors: readonly Hex[][],
+  network: string,
+  environment: string
 ) => {
-  consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
-
-  if (expectedPairs.length === 0) {
-    consola.warn('No expected pairs in config. Skipping all checks.')
-    return
-  }
-
-  // --- 1. Preparation ---
-  consola.info('Preparing expected data sets from config...')
-  const uniqueContracts = new Set(
-    expectedPairs.map((p) => p.contract.toLowerCase())
-  )
-  const uniqueSelectors = new Set(
-    expectedPairs.map((p) => p.selector.toLowerCase())
-  )
-  const expectedPairSet = new Set(
-    expectedPairs.map((p) => `${p.contract.toLowerCase()}:${p.selector.toLowerCase()}`)
-  )
-  consola.info(
-    `Config has ${expectedPairs.length} pairs, ${uniqueContracts.size} unique contracts, and ${uniqueSelectors.size} unique selectors.`
-  )
-
-  try {
-    // --- 2. Check Config vs. On-Chain Contract Functions (Multicall) ---
-    consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
-
-    // Check if multicall3 is available on this chain
-    const hasMulticall3 =
-      publicClient.chain?.contracts?.multicall3 !== undefined
-
-    let granularResults: boolean[]
-    if (hasMulticall3) {
-      // Use multicall if available
-      const granularMulticall = expectedPairs.map((pair) => ({
-        address: whitelistManager.address,
-        abi: whitelistManager.abi as Abi,
-        functionName: 'isContractSelectorWhitelisted',
-        args: [pair.contract as Address, pair.selector],
-      }))
-      const multicallResults = await publicClient.multicall({
-        contracts: granularMulticall,
-        allowFailure: false,
-      })
-      granularResults = (multicallResults as unknown[]).map(result => result as boolean)
-    } else {
-      // Fallback to individual calls if multicall3 is not available
-      consola.info(
-        'Multicall3 not available on this chain, using individual calls...'
-      )
-      const manager = whitelistManager as unknown as { 
-        read: { isContractSelectorWhitelisted: (args: [Address, Hex]) => Promise<boolean> }
-      }
-      granularResults = await Promise.all(
-        expectedPairs.map((pair) =>
-          manager.read.isContractSelectorWhitelisted([
-            pair.contract as Address,
-            pair.selector,
-          ])
-        )
-      )
-    }
-
-    let granularFails = 0
-    granularResults.forEach((isWhitelisted, index) => {
-      if (isWhitelisted === false) {
-        const pair = expectedPairs[index]
-        if (pair) {
-          logError(
-            `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
-          )
-          granularFails++
+  // Create EVM-specific adapter
+  const evmAdapter: IWhitelistAdapter = {
+    // Fetch on-chain pairs from pre-fetched data
+    fetchOnChainPairs: async () => {
+      const onChainPairSet = new Set<string>()
+      for (let i = 0; i < onChainContracts.length; i++) {
+        const contract = onChainContracts[i]?.toLowerCase()
+        const selectors = onChainSelectors[i]
+        if (contract && selectors) {
+          for (const selector of selectors) {
+            onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
+          }
         }
       }
-    })
-    if (granularFails === 0)
-      consola.success(
-        'Source of Truth (isContractSelectorWhitelisted) is synced.'
-      )
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logError(`Failed during functional checks: ${errorMessage}`)
+      return onChainPairSet
+    },
+
+    // Check pair using multicall or individual calls
+    checkPairWhitelisted: async (contract: string, selector: Hex) => {
+      const hasMulticall3 =
+        publicClient.chain?.contracts?.multicall3 !== undefined
+
+      if (hasMulticall3) {
+        const result = await publicClient.multicall({
+          contracts: [
+            {
+              address: whitelistManager.address,
+              abi: whitelistManager.abi as Abi,
+              functionName: 'isContractSelectorWhitelisted',
+              args: [contract as Address, selector],
+            },
+          ],
+          allowFailure: false,
+        })
+        return result[0] as boolean
+      } else {
+        const manager = whitelistManager as unknown as {
+          read: {
+            isContractSelectorWhitelisted: (args: [Address, Hex]) => Promise<boolean>
+          }
+        }
+        return manager.read.isContractSelectorWhitelisted([
+          contract as Address,
+          selector,
+        ])
+      }
+    },
   }
 
-  // --- 3. Check Config vs. Getter Arrays ---
-  consola.start('Step 2/2: Checking Config vs. Getter Arrays...')
-  try {
-    // Check pair array: getAllContractSelectorPairs
-    const onChainPairSet = new Set<string>()
-    for (let i = 0; i < onChainContracts.length; i++) {
-      const contract = onChainContracts[i]?.toLowerCase()
-      const selectors = onChainSelectors[i]
-      if (contract && selectors) {
-        for (const selector of selectors) {
-          onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
-        }
-      }
-    }
-    const missingPairsList: string[] = []
-    const stalePairsList: string[] = []
-    for (const expected of expectedPairSet) {
-      if (!onChainPairSet.has(expected)) missingPairsList.push(expected)
-    }
-    for (const onChain of onChainPairSet) {
-      if (!expectedPairSet.has(onChain)) stalePairsList.push(onChain)
-    }
-    if (missingPairsList.length === 0 && stalePairsList.length === 0) {
-      consola.success(
-        `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
-      )
-    } else {
-      if (missingPairsList.length > 0) {
-        logError(
-          `Pair Array is missing ${missingPairsList.length} pairs from config:`
-        )
-        missingPairsList.forEach((pair) => {
-          const [contract, selector] = pair.split(':')
-          consola.error(`  Missing: ${contract} / ${selector}`)
-        })
-        consola.info(`\n💡 To fix run diamondSyncWhitelist script`)
-      }
-      if (stalePairsList.length > 0) {
-        logError(
-          `Pair Array has ${stalePairsList.length} stale pairs not in config:`
-        )
-        stalePairsList.forEach((pair) => {
-          const [contract, selector] = pair.split(':')
-          consola.error(`  Stale: ${contract} / ${selector}`)
-        })
-        consola.info(
-          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist <network> <environment>`
-        )
-      }
-    }
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logError(`Failed during getter array checks: ${errorMessage}`)
-  }
+  // Use core logic with EVM adapter
+  await checkWhitelistIntegrityCore(
+    expectedPairs,
+    evmAdapter,
+    network,
+    environment,
+    logError
+  )
 }
 
 const finish = () => {
