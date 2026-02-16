@@ -5,7 +5,7 @@ name: Update Louper Viem
 # - clones target repo, updates viem to latest version, and creates PR
 # - ensures new networks become available in target repository after deployment
 # - runs on push to main branch (after PR merge) or when networks.json changes
-# - Target repository is hardcoded to mark3labs/louper
+# - Target repository is mark3labs/louper-v3
 
 on:
   pull_request:
@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
@@ -75,15 +75,15 @@ jobs:
 
       - name: Setup Node.js
         if: env.SKIP_UPDATE != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: '20'
 
       - name: Checkout target repository
         if: env.SKIP_UPDATE != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          repository: mark3labs/louper
+          repository: mark3labs/louper-v3
           path: target-repo
           token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           fetch-depth: 0
@@ -101,7 +101,7 @@ jobs:
           # Detect default branch using GitHub API
           REPO_INFO=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/mark3labs/louper")
+            "https://api.github.com/repos/mark3labs/louper-v3")
           DEFAULT_BRANCH=$(echo "$REPO_INFO" | jq -r '.default_branch // "dev"')
           echo "Default branch: ${DEFAULT_BRANCH}"
           
@@ -271,7 +271,7 @@ jobs:
           # Detect default branch of target repository
           REPO_INFO=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/mark3labs/louper")
+            "https://api.github.com/repos/mark3labs/louper-v3")
           
           DEFAULT_BRANCH=$(echo "$REPO_INFO" | jq -r '.default_branch // "dev"')
           echo "Detected default branch: ${DEFAULT_BRANCH}"
@@ -279,7 +279,7 @@ jobs:
           # Check if PR already exists
           EXISTING_PR=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/mark3labs/louper/pulls?state=open&head=mark3labs:${{ env.BRANCH_NAME }}" | \
+            "https://api.github.com/repos/mark3labs/louper-v3/pulls?state=open&head=mark3labs:${{ env.BRANCH_NAME }}" | \
             jq -r '.[0].number // empty')
           
           # Prepare PR body using jq to safely build JSON with safe variable expansion
@@ -302,7 +302,7 @@ jobs:
             PR_RESPONSE=$(curl -s -X PATCH \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/mark3labs/louper/pulls/$EXISTING_PR" \
+              "https://api.github.com/repos/mark3labs/louper-v3/pulls/$EXISTING_PR" \
               -d "{
                 \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }}\",
                 \"body\": $(echo "$PR_BODY" | jq -Rs .)
@@ -324,7 +324,7 @@ jobs:
             PR_RESPONSE=$(curl -s -X POST \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/mark3labs/louper/pulls" \
+              "https://api.github.com/repos/mark3labs/louper-v3/pulls" \
               -d "{
                 \"title\": \"chore: Update viem to ${{ env.LATEST_VIEM }}\",
                 \"body\": $(echo "$PR_BODY" | jq -Rs .),
