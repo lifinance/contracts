@@ -427,8 +427,11 @@ contract AcrossV4SwapFacet is
         bytes calldata _callData,
         uint256 _preSwapAmount
     ) internal {
-        // Sponsored OFT flow is ERC20-based (token is pulled via transferFrom(msg.sender,...)).
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+        // Sponsored OFT flow: sendingAssetId must match the periphery's accepted token (implies ERC20, not native).
+        if (
+            _bridgeData.sendingAssetId !=
+            ISponsoredOFTSrcPeriphery(SPONSORED_OFT_SRC_PERIPHERY).TOKEN()
+        ) {
             revert InvalidCallData();
         }
 
@@ -436,6 +439,14 @@ contract AcrossV4SwapFacet is
             ISponsoredOFTSrcPeriphery.Quote memory quote,
             bytes memory signature
         ) = abi.decode(_callData, (ISponsoredOFTSrcPeriphery.Quote, bytes));
+
+        // Validate destination mapping (LiFi chainId -> LayerZero eid) to prevent offchain/onchain mismatch.
+        if (
+            quote.signedParams.dstEid !=
+            _chainIdToLzEid(_bridgeData.destinationChainId)
+        ) {
+            revert InformationMismatch();
+        }
 
         // If this is the positive-slippage path, refund any surplus and bridge the originally quoted amount.
         // We MUST NOT change the signed quote amount, otherwise the signature would become invalid.
@@ -663,6 +674,51 @@ contract AcrossV4SwapFacet is
         if (_chainId == 1337) return 19; // HyperCore (via HyperEVM)
         if (_chainId == 57073) return 21; // Ink
         if (_chainId == 98866) return 22; // Plume
+        revert InvalidCallData();
+    }
+
+    /// @notice Get LayerZero V2 endpoint ID (eid) for destination chain
+    /// @dev For Sponsored OFT flows, the quote uses LayerZero eids (not EVM chainIds). We validate that the
+    ///      provided `BridgeData.destinationChainId` maps to the same eid as in the signed quote.
+    ///      Full list: https://docs.layerzero.network/v2/deployments/deployed-contracts (30xxx = mainnet).
+    ///      Machine-readable: https://metadata.layerzero-api.com/v1/metadata/deployments
+    /// @param _chainId LI.FI destination chain id
+    /// @return LayerZero V2 endpoint ID (eid) used by the OFT periphery
+    // solhint-disable-next-line code-complexity
+    function _chainIdToLzEid(uint256 _chainId) internal pure returns (uint32) {
+        // Ordered by chainId for maintainability
+        if (_chainId == 1) return 30101; // Ethereum
+        if (_chainId == 10) return 30111; // OP Mainnet
+        if (_chainId == 30) return 30333; // Rootstock
+        if (_chainId == 50) return 30136; // XDC
+        if (_chainId == 56) return 30102; // BNB Smart Chain
+        if (_chainId == 100) return 30145; // Gnosis
+        if (_chainId == 122) return 30138; // Fuse
+        if (_chainId == 130) return 30320; // Unichain
+        if (_chainId == 137) return 30109; // Polygon PoS
+        if (_chainId == 143) return 30390; // Monad
+        if (_chainId == 146) return 30332; // Sonic
+        if (_chainId == 196) return 30274; // X Layer
+        if (_chainId == 324) return 30165; // zkSync Era
+        if (_chainId == 480) return 30319; // World Chain
+        if (_chainId == 999) return 30367; // HyperEVM (Hyperliquid)
+        if (_chainId == 1088) return 30151; // Metis
+        if (_chainId == 1101) return 30158; // Polygon zkEVM
+        if (_chainId == 1284) return 30126; // Moonbeam
+        if (_chainId == 1329) return 30280; // Sei
+        if (_chainId == 1337) return 30367; // HyperCore (same eid as HyperEVM)
+        if (_chainId == 42161) return 30110; // Arbitrum
+        if (_chainId == 43114) return 30106; // Avalanche
+        if (_chainId == 34443) return 30260; // Mode
+        if (_chainId == 534352) return 30214; // Scroll
+        if (_chainId == 57073) return 30339; // Ink
+        if (_chainId == 59144) return 30183; // Linea
+        if (_chainId == 81457) return 30243; // Blast
+        if (_chainId == 8453) return 30184; // Base
+        if (_chainId == 81224) return 30323; // Codex
+        if (_chainId == 98866) return 30318; // Plume
+        if (_chainId == 167000) return 30290; // Taiko
+        if (_chainId == LIFI_CHAIN_ID_SOLANA) return 30168; // Solana
         revert InvalidCallData();
     }
 

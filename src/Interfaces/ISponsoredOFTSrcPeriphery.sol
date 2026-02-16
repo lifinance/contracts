@@ -8,6 +8,10 @@ pragma solidity ^0.8.17;
 ///      (`contracts/periphery/mintburn/sponsored-oft/`).
 /// @custom:version 1.0.0
 interface ISponsoredOFTSrcPeriphery {
+    /// @notice The ERC20 token address accepted by this periphery for sponsored OFT deposits
+    /// @return The token contract address
+    function TOKEN() external view returns (address);
+
     /// @notice Unsigned params of the sponsored bridging flow quote
     /// @dev Upstream: UnsignedQuoteParams in `Structs.sol`
     struct UnsignedQuoteParams {
