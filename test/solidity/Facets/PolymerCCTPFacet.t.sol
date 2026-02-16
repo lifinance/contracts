@@ -359,10 +359,27 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         bridgeData.receiver = NON_EVM_ADDRESS;
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.destinationChainId = 10;
         validPolymerData.nonEVMReceiver = bytes32(0);
 
         vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaDestinationWithZeroSolanaReceiverATA() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validPolymerData.nonEVMReceiver = bytes32(uint256(0x1234));
+        validPolymerData.solanaReceiverATA = bytes32(0);
+
+        vm.expectRevert(InvalidConfig.selector);
 
         initiateBridgeTxWithFacet(false);
 

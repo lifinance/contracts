@@ -207,16 +207,18 @@ contract PolymerCCTPFacet is
                 _polymerData.minFinalityThreshold // minFinalityThreshold - use default
             );
         } else {
-            // _bridgeData.receiver == NON_EVM_ADDRESS -> mint to _polymerData.nonEVMReceiver
-            if (_polymerData.nonEVMReceiver == bytes32(0)) {
-                revert InvalidReceiver();
-            }
-
             // For Solana, CCTP expects the ATA as mintRecipient; for other non-EVM, use nonEVMReceiver.
-            // TokenMessenger enforces mintRecipient != bytes32(0), so no need to check solanaReceiverATA here.
-            bytes32 mintRecipient = destinationChainId == LIFI_CHAIN_ID_SOLANA
+            bool isSolanaDestination = destinationChainId ==
+                LIFI_CHAIN_ID_SOLANA;
+
+            bytes32 mintRecipient = isSolanaDestination
                 ? _polymerData.solanaReceiverATA
                 : _polymerData.nonEVMReceiver;
+
+            if (mintRecipient == bytes32(0)) {
+                if (isSolanaDestination) revert InvalidConfig();
+                revert InvalidReceiver();
+            }
 
             TOKEN_MESSENGER.depositForBurn(
                 bridgeAmount,
