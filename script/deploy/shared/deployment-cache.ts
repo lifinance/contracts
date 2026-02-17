@@ -400,12 +400,13 @@ export class DeploymentCache {
       return this.refresh(environment)
     }
 
-    consola.debug(
-      `Cache hit: ${
+    // Use stderr so stdout stays JSON-only when used from bash (e.g. query-deployment-logs filter/get)
+    process.stderr.write(
+      `[debug] Cache hit: ${
         cachedRecords.length
       } records loaded from cache (age: ${this.getCacheAge(
         metadata.lastRefresh
-      )})`
+      )})\n`
     )
     return cachedRecords
   }
