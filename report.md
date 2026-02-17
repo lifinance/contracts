@@ -1,12 +1,11 @@
 # FeeCollector Balance Audit Report
 
-Generated: 2026-02-17T19:41:55.384Z
+Generated: 2026-02-17T21:54:00.926Z
 
 ## Terminology
 
-- **Affected** — A token where the on-chain balance does not match the balance implied by events (collected − withdrawn). The table below lists all affected tokens.
-- **Missing** — Expected balance &gt; actual balance (shortfall: the contract holds less than the events say it should).
-- **Surplus** — Actual balance &gt; expected balance (the contract holds more than the events say; can happen e.g. with rebase or if events were incomplete).
+- **Missing** — Current balance &lt; Expected (collected − withdrawn). The contract holds less than the events say it should (shortfall). The table below lists only these tokens.
+- **Total affected** — All tokens on that chain where expected ≠ actual (missing + surplus). Surplus = Current balance &gt; Expected.
 
 ## Column reference (how to read the Affected Tokens table)
 
@@ -26,9 +25,9 @@ Generated: 2026-02-17T19:41:55.384Z
 
 - **Total missing (USD):** 0.00
 
-- **arbitrum:** 3 affected token(s) (39 total affected), missing USD: 0.00, tokens scanned: 936
-- **base:** 18 affected token(s) (1133 total affected), missing USD: 0.00, tokens scanned: 7719
-- **mainnet:** 70 affected token(s) (1699 total affected), missing USD: 0.00, tokens scanned: 2117
+- **arbitrum:** 3 Missing (Current balance &lt; Expected), 39 total affected (missing + surplus), missing USD: 0.00, tokens scanned: 936
+- **base:** 18 Missing (Current balance &lt; Expected), 1133 total affected (missing + surplus), missing USD: 0.00, tokens scanned: 7719
+- **mainnet:** 70 Missing (Current balance &lt; Expected), 1699 total affected (missing + surplus), missing USD: 0.00, tokens scanned: 2117
 
 ## Affected Tokens
 

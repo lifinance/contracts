@@ -29,6 +29,11 @@
  * number of CoinGecko calls matches the tokens that will appear in the default report. Use
  * --include-surplus to price all affected tokens (missing + surplus).
  *
+ * Affected counts: "affected" = tokens where expected balance !== actual (missing + surplus).
+ * Reconcile logs "X affected: Y missing, Z surplus". Report defaults to --affected-only
+ * (missing only); use --include-surplus to include surplus in report. Counts can grow between
+ * runs if you re-run --step collect (new toBlock = more events) or use different event files.
+ *
  * ---
  *
  * FULL RUN (default: scan events in memory, reconcile, then report in one go)
@@ -50,20 +55,12 @@
  *   --output-md <path>  Write Markdown report here (e.g. report.md).
  *   --from-block <n>    Override fromBlock for event scan (all chains).
  *   --to-block <n>      Override toBlock for event scan (all chains).
- *   --affected-only     Only include missing-balance tokens in report (default: true).
- *   --include-surplus   Include surplus tokens in report and price them in reconcile.
+ *   --affected-only     Only include tokens where Current balance < Expected (default: true).
+ *   --include-surplus   Include surplus tokens in report (together with missing).
  *   --skip-prices       Do not fetch token prices (all Missing USD will be N/A; no CoinGecko calls).
+ *   RPC: Uses chain default from config; override with ETH_NODE_URI_<NETWORK> (e.g. ETH_NODE_URI_MAINNET).
  *
- * ---
- *
- * COINGECKO API (Demo plan)
- * -------------------------
- *
- * This script is tuned for the CoinGecko Demo plan:
- *   - 30 requests/minute rate limit  → 2s delay between requests (COINGECKO_DELAY_MS).
- *   - 1 contract address per request → chunk size 1 (COINGECKO_CHUNK_SIZE).
- *   - 10k call credits/month         → reconcile step uses 1 credit per token priced; stay under 10k per month.
- *
+
  * Set COINGECKO_DEMO_API_KEY (or COINGECKO_API_KEY) so requests use the Demo API; without it,
  * the public tier may return 400 (e.g. "exceeds the allowed limit of 1 contract address") or 429.
  *
@@ -89,6 +86,24 @@
  *
  * The Markdown report includes a column reference at the top (Chain, Token address, Symbol,
  * Collected, Withdrawn, Expected, Current balance, Missing amount, Missing USD).
+ *
+ * IMPORTANT: For each chain, the three event files (FeesCollected, FeesWithdrawn, LiFiFeesWithdrawn)
+ * must have the same fromBlock and toBlock. If they come from different runs (e.g. one scan
+ * finished, another was interrupted), you get inflated "missing" for standard ERC20s because
+ * collected is overcounted vs withdrawals. Reconcile step validates this and skips the chain
+ * with an error if ranges differ; re-run --step collect for that chain to fix.
+ *
+ * Read skew fix: balanceOf (and native getBalance) are queried at the same toBlock as the
+ * event scan, not at "latest". Otherwise withdrawals after toBlock would make actual < expected
+ * and falsely report "missing" for standard tokens (USDC, ETH, WETH, etc.).
+ *
+ * If balanceOf fails (e.g. RPC does not support historical block, or token reverts at that block),
+ * the script logs a warning and treats balance as 0, which can falsely show "missing". Use an
+ * archive-capable RPC (ETH_NODE_URI_<NETWORK>) if you see many such warnings.
+ *
+ * RPC timeouts: Balance fetches use limited concurrency (BALANCE_FETCH_CONCURRENCY), transport
+ * timeout/retry, and per-call retries on timeout so "request took too long" is retried before
+ * treating as 0. If many timeouts persist, use a faster or less loaded RPC.
  */
 
 import * as fs from 'fs'
@@ -118,7 +133,7 @@ import {
 
 const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
-/** FeeCollector audit fromBlock per chain. */
+/** FeeCollector audit fromBlock per chain (deployment block for each). Do not increase or early withdrawals will be excluded and standard tokens will show false "missing". */
 const FEE_COLLECTOR_FROM_BLOCK: Record<string, bigint> = {
   mainnet: 23322816n,
   base: 2650157n,
@@ -126,6 +141,14 @@ const FEE_COLLECTOR_FROM_BLOCK: Record<string, bigint> = {
 }
 
 const CHUNK_SIZE = 10_000n
+
+/** Max concurrent balanceOf calls per chain to avoid RPC timeouts. */
+const BALANCE_FETCH_CONCURRENCY = 2
+/** Timeout for each eth_call (balanceOf). */
+const BALANCE_FETCH_TIMEOUT_MS = 30_000
+/** Retries for getActualBalance on timeout. */
+const BALANCE_FETCH_RETRIES = 2
+const BALANCE_FETCH_RETRY_DELAY_MS = 1500
 
 const ERC20_ABI = parseAbi([
   'function balanceOf(address owner) view returns (uint256)',
@@ -157,13 +180,20 @@ interface IAffectedToken {
   missingAmount: string
   missingUsd: number | null
   discrepancyType: DiscrepancyType
+  /** Set when balanceOf(token).call reverted; actualBalance is then treated as 0. */
+  note?: string
 }
 
 interface IAuditSummary {
   totalMissingUsd: number
   byChain: Record<
     string,
-    { affectedCount: number; missingUsd: number; tokensScanned: number }
+    {
+      affectedCount: number
+      totalAffected: number
+      missingUsd: number
+      tokensScanned: number
+    }
   >
 }
 
@@ -277,24 +307,68 @@ async function getTokenMetadata(
   }
 }
 
+function isRetryableBalanceError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err).toLowerCase()
+  const s = msg.toLowerCase()
+  return (
+    s.includes('timeout') ||
+    s.includes('too long') ||
+    s.includes('timed out') ||
+    s.includes('econnreset') ||
+    s.includes('econnrefused')
+  )
+}
+
+/** Result of balance fetch: balance (0n on failure) and whether the contract reverted. */
+interface IBalanceResult {
+  balance: bigint
+  reverted: boolean
+}
+
+/** Pinned to blockNumber to avoid read skew: expected is from events up to toBlock, actual must be at same block. */
 async function getActualBalance(
   publicClient: PublicClient,
   feeCollectorAddress: Address,
-  token: Address
-): Promise<bigint> {
+  token: Address,
+  blockNumber: bigint,
+  context?: { networkName: string; symbol?: string }
+): Promise<IBalanceResult> {
   if (token === NULL_ADDRESS) {
-    return publicClient.getBalance({ address: feeCollectorAddress })
-  }
-  try {
-    return await publicClient.readContract({
-      address: token,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [feeCollectorAddress],
+    const balance = await publicClient.getBalance({
+      address: feeCollectorAddress,
+      blockNumber,
     })
-  } catch {
-    return 0n
+    return { balance, reverted: false }
   }
+  const label = context?.symbol ? `${context.symbol} (${token})` : token
+  const networkLabel = context?.networkName ?? '?'
+  let lastErr: unknown
+  for (let attempt = 0; attempt <= BALANCE_FETCH_RETRIES; attempt++) {
+    try {
+      const balance = await publicClient.readContract({
+        address: token,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [feeCollectorAddress],
+        blockNumber,
+      })
+      return { balance, reverted: false }
+    } catch (err) {
+      lastErr = err
+      if (attempt < BALANCE_FETCH_RETRIES && isRetryableBalanceError(err)) {
+        await new Promise((r) => setTimeout(r, BALANCE_FETCH_RETRY_DELAY_MS))
+        continue
+      }
+      break
+    }
+  }
+  const msg =
+    lastErr instanceof Error ? (lastErr as Error).message : String(lastErr)
+  const reverted = /revert/i.test(msg)
+  consola.warn(
+    `[${networkLabel}] balanceOf failed for ${label} at block ${blockNumber}, treating as 0: ${msg}`
+  )
+  return { balance: 0n, reverted }
 }
 
 function formatHumanAmount(wei: bigint, decimals: number): string {
@@ -323,9 +397,10 @@ async function runAuditForChain(
     )
   ) as Address
   const chain = getViemChainForNetworkName(networkName)
+  const parsedRpcUrl = chain.rpcUrls.default.http[0]
   const publicClient = createPublicClient({
     chain,
-    transport: http(),
+    transport: http(parsedRpcUrl),
   })
 
   const fromBlock =
@@ -408,7 +483,7 @@ async function runAuditForChain(
     networkName,
     totalFeesCollected,
     totalFeesWithdrawn,
-    { skipPrices: options?.skipPrices }
+    { skipPrices: options?.skipPrices, toBlock }
   )
   return { affected, tokensScanned, chainId: chain.id }
 }
@@ -536,9 +611,10 @@ async function runStepCollect(
       )
     ) as Address
     const chain = getViemChainForNetworkName(networkName)
+    const parsedRpcUrl = chain.rpcUrls.default.http[0]
     const publicClient = createPublicClient({
       chain,
-      transport: http(),
+      transport: http(parsedRpcUrl),
     })
     const fromBlock =
       fromBlockOverride ?? FEE_COLLECTOR_FROM_BLOCK[networkName] ?? 0n
@@ -679,10 +755,16 @@ async function runReconcileForChain(
   networkName: SupportedChain,
   totalFeesCollected: Record<string, bigint>,
   totalFeesWithdrawn: Record<string, bigint>,
-  options?: { priceOnlyMissing?: boolean; skipPrices?: boolean }
+  options: {
+    priceOnlyMissing?: boolean
+    skipPrices?: boolean
+    /** Pin balanceOf to this block to avoid read skew (expected from events up to toBlock, actual at same block). */
+    toBlock: bigint
+  }
 ): Promise<{ affected: IAffectedToken[]; tokensScanned: number }> {
-  const priceOnlyMissing = options?.priceOnlyMissing === true
-  const skipPrices = options?.skipPrices === true
+  const priceOnlyMissing = options.priceOnlyMissing === true
+  const skipPrices = options.skipPrices === true
+  const toBlock = options.toBlock
   const feeCollectorAddress = getAddress(
     await getContractAddressForNetwork(
       'FeeCollector',
@@ -691,28 +773,43 @@ async function runReconcileForChain(
     )
   ) as Address
   const chain = getViemChainForNetworkName(networkName)
+  const parsedRpcUrl = chain.rpcUrls.default.http[0]
   const publicClient = createPublicClient({
     chain,
-    transport: http(),
+    transport: http(parsedRpcUrl, {
+      timeout: BALANCE_FETCH_TIMEOUT_MS,
+      retryCount: 3,
+      retryDelay: 1000,
+    }),
   })
   const allTokensArr = Array.from(
     new Set([
-      ...Object.keys(totalFeesCollected),
-      ...Object.keys(totalFeesWithdrawn),
+      ...Object.keys(totalFeesCollected).map((k) => getAddress(k as Address)),
+      ...Object.keys(totalFeesWithdrawn).map((k) => getAddress(k as Address)),
     ])
   ) as Address[]
   consola.info(
-    `[${networkName}] Reconciling balances for ${allTokensArr.length} tokens...`
+    `[${networkName}] Reconciling balances for ${allTokensArr.length} tokens at block ${toBlock} (concurrency ${BALANCE_FETCH_CONCURRENCY})...`
   )
-  const actualBalances = await Promise.all(
-    allTokensArr.map((token) =>
-      getActualBalance(publicClient, feeCollectorAddress, token)
+  const balanceResults: IBalanceResult[] = []
+  for (let i = 0; i < allTokensArr.length; i += BALANCE_FETCH_CONCURRENCY) {
+    const chunk = allTokensArr.slice(i, i + BALANCE_FETCH_CONCURRENCY)
+    const chunkResults = await Promise.all(
+      chunk.map((token) =>
+        getActualBalance(publicClient, feeCollectorAddress, token, toBlock, {
+          networkName,
+        })
+      )
     )
-  )
+    balanceResults.push(...chunkResults)
+  }
   const tokenToActual = new Map<string, bigint>()
+  const tokenReverted = new Set<string>()
   allTokensArr.forEach((t, i) => {
-    const bal = actualBalances[i]
-    tokenToActual.set(getAddress(t), bal !== undefined ? bal : 0n)
+    const res = balanceResults[i]
+    const addr = getAddress(t)
+    tokenToActual.set(addr, res?.balance ?? 0n)
+    if (res?.reverted) tokenReverted.add(addr)
   })
   const affectedTokensList: Address[] = []
   const discrepancyAmounts = new Map<
@@ -799,6 +896,7 @@ async function runReconcileForChain(
     ) {
       missingUsd = null
     }
+    const note = tokenReverted.has(tokenKey) ? 'balanceOf reverted' : undefined
     affected.push({
       chainId: chain.id,
       chainName: networkName,
@@ -812,6 +910,7 @@ async function runReconcileForChain(
       missingAmount: amount.toString(),
       missingUsd,
       discrepancyType,
+      ...(note ? { note } : {}),
     })
   }
   return { affected, tokensScanned: allTokensArr.length }
@@ -862,6 +961,22 @@ async function runStepReconcile(
     const lifiWithdrawn = JSON.parse(
       fs.readFileSync(lifiPath, 'utf-8')
     ) as IEventFile
+    const fromBlocks = [
+      collected.fromBlock,
+      withdrawn.fromBlock,
+      lifiWithdrawn.fromBlock,
+    ]
+    const toBlocks = [
+      collected.toBlock,
+      withdrawn.toBlock,
+      lifiWithdrawn.toBlock,
+    ]
+    if (new Set(fromBlocks).size > 1 || new Set(toBlocks).size > 1) {
+      consola.error(
+        `[${chainName}] Inconsistent event file block ranges. FeesCollected: ${collected.fromBlock}-${collected.toBlock}, FeesWithdrawn: ${withdrawn.fromBlock}-${withdrawn.toBlock}, LiFiFeesWithdrawn: ${lifiWithdrawn.fromBlock}-${lifiWithdrawn.toBlock}. Re-run --step collect for this chain so all three files use the same range, or you will get wrong affected counts (e.g. many false "missing" if collected has a higher toBlock).`
+      )
+      continue
+    }
     const { totalFeesCollected, totalFeesWithdrawn } = aggregateEvents(
       collected.events,
       withdrawn.events,
@@ -871,7 +986,11 @@ async function runStepReconcile(
       chainName,
       totalFeesCollected,
       totalFeesWithdrawn,
-      { priceOnlyMissing, skipPrices }
+      {
+        priceOnlyMissing,
+        skipPrices,
+        toBlock: BigInt(collected.toBlock),
+      }
     )
     const reconciliationFile: IReconciliationFile = {
       chainName,
@@ -884,8 +1003,14 @@ async function runStepReconcile(
       JSON.stringify(reconciliationFile, null, 2),
       'utf-8'
     )
+    const missingCount = result.affected.filter(
+      (t) => t.discrepancyType === 'missing'
+    ).length
+    const surplusCount = result.affected.filter(
+      (t) => t.discrepancyType === 'surplus'
+    ).length
     consola.success(
-      `[${chainName}] Wrote ${outPath} (${result.affected.length} affected, ${result.tokensScanned} tokens scanned)`
+      `[${chainName}] Wrote ${outPath} (${result.affected.length} affected: ${missingCount} missing, ${surplusCount} surplus; ${result.tokensScanned} tokens scanned)`
     )
   }
 }
@@ -926,6 +1051,7 @@ async function runStepReport(
       .reduce((sum, t) => sum + (t.missingUsd ?? 0), 0)
     byChain[rec.chainName] = {
       affectedCount: rec.affected.length,
+      totalAffected: rec.affected.length,
       missingUsd,
       tokensScanned: rec.tokensScanned,
     }
@@ -943,10 +1069,12 @@ async function runStepReport(
     const chainMissingUsd = chainTokens
       .filter((t) => t.discrepancyType === 'missing')
       .reduce((sum, t) => sum + (t.missingUsd ?? 0), 0)
+    const base = byChain[c]
     reportByChain[c] = {
       affectedCount: chainTokens.length,
+      totalAffected: base?.totalAffected ?? chainTokens.length,
       missingUsd: chainMissingUsd,
-      tokensScanned: byChain[c]?.tokensScanned ?? 0,
+      tokensScanned: base?.tokensScanned ?? 0,
     }
   }
   return {
@@ -968,8 +1096,13 @@ function outputReport(
     `Total missing USD: ${report.summary.totalMissingUsd.toFixed(2)}`
   )
   for (const [c, d] of Object.entries(report.summary.byChain)) {
+    const totalAffected = d.totalAffected ?? d.affectedCount
+    const countStr =
+      totalAffected !== d.affectedCount
+        ? `${d.affectedCount} Missing (Current balance < Expected), ${totalAffected} total affected (missing + surplus)`
+        : `${d.affectedCount} Missing (Current balance < Expected)`
     consola.info(
-      `  ${c}: ${d.affectedCount} affected, missing USD ${d.missingUsd.toFixed(
+      `  ${c}: ${countStr}, missing USD ${d.missingUsd.toFixed(
         2
       )}, tokens scanned ${d.tokensScanned}`
     )
@@ -977,10 +1110,13 @@ function outputReport(
   if (report.affectedTokens.length > 0) {
     consola.info('Affected tokens (first 20):')
     for (const t of report.affectedTokens.slice(0, 20)) {
+      const noteSuffix = t.note ? ` — ${t.note}` : ''
       consola.info(
         `  ${t.chainName} ${t.tokenAddress} ${t.symbol} ${t.discrepancyType}=${
           t.missingAmount
-        } (${t.missingUsd !== null ? `$${t.missingUsd.toFixed(2)}` : 'N/A'})`
+        } (${
+          t.missingUsd !== null ? `$${t.missingUsd.toFixed(2)}` : 'N/A'
+        })${noteSuffix}`
       )
     }
   }
@@ -1012,6 +1148,11 @@ function writeMarkdownReport(report: IReport, outputPath: string): void {
     '',
     `Generated: ${report.generatedAt}`,
     '',
+    '## Terminology',
+    '',
+    '- **Missing** — Current balance &lt; Expected (collected − withdrawn). The contract holds less than the events say it should (shortfall). The table below lists only these tokens.',
+    '- **Total affected** — All tokens on that chain where expected ≠ actual (missing + surplus). Surplus = Current balance &gt; Expected.',
+    '',
     '## Column reference (how to read the Affected Tokens table)',
     '',
     '| Column | What it means |',
@@ -1024,6 +1165,7 @@ function writeMarkdownReport(report: IReport, outputPath: string): void {
     '| **Current balance** | What the contract actually holds (balanceOf(FeeCollector)). |',
     '| **Missing amount** | Shortfall: Expected − Current balance (in token units). |',
     '| **Missing USD** | Same shortfall in USD (or N/A if no price). |',
+    '| **Note** | e.g. "balanceOf reverted" when the token contract reverted on balanceOf (actual treated as 0). |',
     '',
     '## Summary',
     '',
@@ -1031,10 +1173,13 @@ function writeMarkdownReport(report: IReport, outputPath: string): void {
     '',
   ]
   for (const [chain, data] of Object.entries(report.summary.byChain)) {
+    const totalAffected = data.totalAffected ?? data.affectedCount
+    const countStr =
+      totalAffected !== data.affectedCount
+        ? `${data.affectedCount} Missing (Current balance &lt; Expected), ${totalAffected} total affected (missing + surplus)`
+        : `${data.affectedCount} Missing (Current balance &lt; Expected)`
     lines.push(
-      `- **${chain}:** ${
-        data.affectedCount
-      } affected token(s), missing USD: ${data.missingUsd.toFixed(
+      `- **${chain}:** ${countStr}, missing USD: ${data.missingUsd.toFixed(
         2
       )}, tokens scanned: ${data.tokensScanned}`
     )
@@ -1044,13 +1189,13 @@ function writeMarkdownReport(report: IReport, outputPath: string): void {
     (t) => t.discrepancyType === 'surplus'
   )
   const tableHeader =
-    '| Chain | Token address | Symbol | Collected | Withdrawn | Expected (collected - withdrawn) | Current balance | Missing amount | Missing USD |'
+    '| Chain | Token address | Symbol | Collected | Withdrawn | Expected (collected - withdrawn) | Current balance | Missing amount | Missing USD | Note |'
   const tableHeaderSurplus =
-    '| Chain | Token address | Symbol | Collected | Withdrawn | Expected | Current balance | Discrepancy | Amount | USD |'
+    '| Chain | Token address | Symbol | Collected | Withdrawn | Expected | Current balance | Discrepancy | Amount | USD | Note |'
   const tableDivider =
-    '| ----- | ------------- | ------ | --------- | --------- | ------------------------------- | --------------- | ------------- | ----------- |'
+    '| ----- | ------------- | ------ | --------- | --------- | ------------------------------- | --------------- | ------------- | ----------- | ---- |'
   const tableDividerSurplus =
-    '| ----- | ------------- | ------ | --------- | --------- | --------- | --------------- | ----------- | ------ | --- |'
+    '| ----- | ------------- | ------ | --------- | --------- | --------- | --------------- | ----------- | ------ | --- | ---- |'
   if (hasSurplus) {
     lines.push(tableHeaderSurplus)
     lines.push(tableDividerSurplus)
@@ -1074,13 +1219,14 @@ function writeMarkdownReport(report: IReport, outputPath: string): void {
     const actualHuman = formatHumanAmount(BigInt(t.actualBalance), t.decimals)
     const missingHuman = formatHumanAmount(BigInt(t.missingAmount), t.decimals)
     const usdStr = t.missingUsd !== null ? t.missingUsd.toFixed(2) : 'N/A'
+    const noteCell = t.note ?? ''
     if (hasSurplus) {
       lines.push(
-        `| ${t.chainName} | ${t.tokenAddress} | ${t.symbol} | ${collectedHuman} | ${withdrawnHuman} | ${expectedHuman} | ${actualHuman} | ${t.discrepancyType} | ${missingHuman} | ${usdStr} |`
+        `| ${t.chainName} | ${t.tokenAddress} | ${t.symbol} | ${collectedHuman} | ${withdrawnHuman} | ${expectedHuman} | ${actualHuman} | ${t.discrepancyType} | ${missingHuman} | ${usdStr} | ${noteCell} |`
       )
     } else {
       lines.push(
-        `| ${t.chainName} | ${t.tokenAddress} | ${t.symbol} | ${collectedHuman} | ${withdrawnHuman} | ${expectedHuman} | ${actualHuman} | ${missingHuman} | ${usdStr} |`
+        `| ${t.chainName} | ${t.tokenAddress} | ${t.symbol} | ${collectedHuman} | ${withdrawnHuman} | ${expectedHuman} | ${actualHuman} | ${missingHuman} | ${usdStr} | ${noteCell} |`
       )
     }
   }
@@ -1143,7 +1289,7 @@ const main = defineCommand({
     },
     includeSurplus: {
       type: 'boolean',
-      description: 'Include surplus tokens in report',
+      description: 'Include surplus tokens in report (together with missing)',
       required: false,
     },
     skipPrices: {
@@ -1233,6 +1379,7 @@ const main = defineCommand({
         .reduce((sum, t) => sum + (t.missingUsd ?? 0), 0)
       byChain[chain] = {
         affectedCount: result.affected.length,
+        totalAffected: result.affected.length,
         missingUsd,
         tokensScanned: result.tokensScanned,
       }
@@ -1251,10 +1398,12 @@ const main = defineCommand({
       const chainMissingUsd = chainTokens
         .filter((t) => t.discrepancyType === 'missing')
         .reduce((sum, t) => sum + (t.missingUsd ?? 0), 0)
+      const base = byChain[c]
       reportByChain[c] = {
         affectedCount: chainTokens.length,
+        totalAffected: base?.totalAffected ?? chainTokens.length,
         missingUsd: chainMissingUsd,
-        tokensScanned: byChain[c]?.tokensScanned ?? 0,
+        tokensScanned: base?.tokensScanned ?? 0,
       }
     }
 
