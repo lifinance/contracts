@@ -1,0 +1,46 @@
+# LI.FI Project Rules for CodeRabbit
+
+**IMPORTANT: This file is a pointer to dynamic rules. CodeRabbit should read and apply all rules from `.cursor/rules/*.mdc` files.**
+
+## Dynamic Rules Location
+
+All project conventions and rules are defined in `.cursor/rules/*.mdc` files. These files are:
+- **Dynamic**: Updated frequently as new rules are added
+- **Organized**: Each file covers a specific domain (Solidity, TypeScript, Architecture, etc.)
+- **Tracked**: All files are version-controlled in git
+
+## Rule Files to Apply
+
+CodeRabbit should read and apply ALL rules from the following directory:
+- `.cursor/rules/` - Contains all rule files (*.mdc)
+
+All rule files (24 total):
+- `.cursor/rules/000-global-standards.mdc` - Global guardrails, anti-hallucination, context hygiene
+- `.cursor/rules/001-project-structure.mdc` - Directory structure, file organization, and where to place new files
+- `.cursor/rules/002-architecture.mdc` - Core architectural principles for Diamond, separation of concerns, and governance
+- `.cursor/rules/003-context-monitor.mdc` - Context window monitoring, warn when approaching limits, and handle information rollover
+- `.cursor/rules/004-config-structure.mdc` - How to structure JSON config files in config/ for deployments and deploy scripts
+- `.cursor/rules/099-finish.mdc` - Completion checklist to keep repo green
+- `.cursor/rules/100-solidity-basics.mdc` - Solidity conventions (license, pragma, NatSpec, naming)
+- `.cursor/rules/101-solidity-contracts.mdc` - Contract-specific requirements
+- `.cursor/rules/102-facets.mdc` - Facet requirements and patterns
+- `.cursor/rules/103-solidity-interfaces.mdc` - Interface conventions
+- `.cursor/rules/104-receiver-contracts.mdc` - Receiver contract patterns
+- `.cursor/rules/105-security.mdc` - Security guidelines
+- `.cursor/rules/106-gas.mdc` - Gas-efficiency guidance aligned with existing patterns
+- `.cursor/rules/107-solidity-scripts.mdc` - Foundry deployment/update script patterns
+- `.cursor/rules/200-typescript.mdc` - TypeScript conventions
+- `.cursor/rules/201-safe-decode-scripts.mdc` - Safe/timelock decode and display conventions for script/deploy/safe
+- `.cursor/rules/300-bash.mdc` - Deployment bash structure and safety
+- `.cursor/rules/400-solidity-tests.mdc` - Foundry test structure, naming, and expectations
+- `.cursor/rules/401-testing-patterns.mdc` - Cross-language testing, coverage, and structure expectations
+- `.cursor/rules/402-typescript-tests.mdc` - Bun test structure, coverage, and expectations for `.test.ts`
+- `.cursor/rules/500-github-actions.mdc` - Structure, conventions, and best practices for GitHub Actions workflows
+- `.cursor/rules/501-audits.mdc` - Rules for maintaining audit logs, audit reports, and audit-related workflows
+- `.cursor/rules/502-whitelist-branching.mdc` - Ensure whitelist config files are only changed in main branch to prevent segregation
+- `.cursor/rules/600-transaction-analysis.mdc` - Transaction analysis activation gate
+
+## Instructions for CodeRabbit
+
+1. **Read all `.cursor/rules/*.mdc` files** - These contain the actual rules and conventions
+2. **Apply rules based on file globs** - Each rule file specifies which files it applies to (via `globs` in frontmatter)
