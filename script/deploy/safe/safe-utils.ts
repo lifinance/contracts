@@ -39,6 +39,7 @@ import {
 } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
+import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 
 config()
 
@@ -1941,18 +1942,13 @@ export async function wrapWithTimelockSchedule(
   // Create a unique salt based on the current timestamp
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
 
-  // Encode the schedule function call
-  const scheduleAbi = parseAbi([
-    'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
-  ])
-
-  const scheduleCalldata = encodeFunctionData({
-    abi: scheduleAbi,
-    functionName: 'schedule',
+  const scheduleBatchCalldata = encodeFunctionData({
+    abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+    functionName: 'scheduleBatch',
     args: [
-      targetAddress, // target
-      0n, // value
-      originalCalldata, // data
+      [targetAddress], // targets
+      [0n], // values
+      [originalCalldata], // payloads
       '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
       salt, // salt
       minDelay, // delay
@@ -1960,11 +1956,11 @@ export async function wrapWithTimelockSchedule(
   })
 
   consola.info(
-    `Wrapped transaction in timelock schedule call with minimum delay of ${minDelay} seconds`
+    `Wrapped transaction in timelock scheduleBatch call (batch-of-one) with minimum delay of ${minDelay} seconds`
   )
 
   return {
-    calldata: scheduleCalldata,
+    calldata: scheduleBatchCalldata,
     targetAddress: timelockAddress,
   }
 }
