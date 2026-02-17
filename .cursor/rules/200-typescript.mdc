@@ -40,6 +40,17 @@ globs:
 
 - When referring to "demo script", this means scripts in `script/demoScripts/`. They follow similar structural patterns (e.g., `main()` function, `setupEnvironment()`, helpers from `demoScriptHelpers`). See `demoLidoWrapper.ts`, `demoUnit.ts`, `demoEco.ts` as reference examples.
 
+## Solana addresses and dev wallet address ([CONV:SOLANA-DEV-WALLET])
+
+- **Solana addresses (base58, bytes32)**: Derive dynamically from the signer’s private key. Do **not** hardcode Solana addresses or store them in config (e.g. `config/global.json`).
+  - **Source**: `script/demoScripts/utils/demoScriptHelpers.ts`
+  - **Base58**: `deriveSolanaAddress(privateKey)` — use for logging, Solana APIs, or ATA computation.
+  - **Bytes32**: `solanaAddressToBytes32(deriveSolanaAddress(privateKey))` — use for contract/struct fields that expect bytes32 (e.g. non-EVM receiver, mintRecipient).
+  - **Private key**: `getPrivateKeyForEnvironment(EnvironmentEnum.staging)` (or `EnvironmentEnum.production`) from `demoScriptHelpers`. Example: `demoAcrossV4.ts`, `demoPolymerCCTP.ts`, `demoNEARIntents.ts`.
+- **Dev wallet (EVM)**: Use a single source of truth from config.
+  - Use **only** `DEV_WALLET_ADDRESS` from `script/demoScripts/utils/demoScriptHelpers.ts` (it reads `config/global.json` → `devWallet`). Do not use `globalConfig.devWallet` elsewhere.
+  - Do not add or use separate constants for the same EVM dev wallet (e.g. no `ADDRESS_DEV_WALLET_V5`-style aliases).
+
 ## CLI and Logging
 
 - CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.

@@ -16,6 +16,7 @@ import {
   type INetwork,
   type SupportedChain,
 } from '../../common/types'
+import { DEV_WALLET_ADDRESS } from '../../demoScripts/utils/demoScriptHelpers'
 import { SAFE_SINGLETON_ABI } from '../../deploy/safe/config'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { getRPCEnvVarName } from '../../utils/network'
@@ -30,7 +31,7 @@ const OLD_SC_DEV_WALLET =
 
 // New addresses (from global.json)
 const NEW_DEPLOYER = getAddress(globalConfig.deployerWallet) as Address
-const NEW_SC_DEV_WALLET = getAddress(globalConfig.devWallet) as Address
+const NEW_SC_DEV_WALLET = getAddress(DEV_WALLET_ADDRESS) as Address
 
 // Function selector for batchSetContractSelectorWhitelist
 const BATCH_SET_CONTRACT_SELECTOR_WHITELIST_SELECTOR =

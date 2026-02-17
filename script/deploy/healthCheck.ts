@@ -24,6 +24,7 @@ import {
   pauserWallet,
   whitelistPeripheryFunctions,
 } from '../../config/global.json'
+import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
   getViemChainForNetworkName,
@@ -356,7 +357,7 @@ const main = defineCommand({
 
     const deployerWallet = getAddress(
       environment === 'staging'
-        ? globalConfig.devWallet
+        ? DEV_WALLET_ADDRESS
         : globalConfig.deployerWallet
     )
 
