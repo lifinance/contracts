@@ -466,13 +466,16 @@ function tryFormatDiamondPayload(payload: Hex): string | undefined {
 }
 
 /**
- * Formats timelock scheduleBatch args for display: for each call shows target, value, selector, and decoded call.
+ * Formats timelock scheduleBatch args for display: for each call shows target, value, selector, decoded call,
+ * and full formatting for known inner types (e.g. diamondCut summary when payload is diamondCut).
  * Exported for use by execute-pending-timelock-tx when displaying a batch operation.
+ * @param context - chainId and network for resolving names and explorer links; required for recursive decode display.
  */
 export async function formatTimelockScheduleBatch(
   args: readonly unknown[],
-  network: string
+  context: IFormatDecodedTxContext
 ): Promise<void> {
+  const { network } = context
   if (!args || args.length < 6) {
     consola.warn('Invalid arguments for timelock scheduleBatch')
     return
@@ -532,6 +535,8 @@ export async function formatTimelockScheduleBatch(
         payloadStr.length > 96 ? `${payloadStr.slice(0, 96)}…` : payloadStr
       consola.info(`     payload=\u001b[90m${preview}\u001b[0m`)
     }
+    if (payloadStr && payloadStr !== '0x')
+      await formatDecodedTxDataForDisplay(payloadStr, context)
   }
 }
 
@@ -711,6 +716,34 @@ export async function formatDecodedTxDataForDisplay(
   const { chainId, network } = context
 
   try {
+    // Selector-based fallback: show diamond cut formatting when calldata is
+    // diamondCut even if decodeTransactionData didn't identify it (e.g.
+    // diamond.json omits diamondCut, or openchain fetch failed).
+    const diamondCutSelector = toFunctionSelector(
+      'diamondCut((address,uint8,bytes4[])[],address,bytes)'
+    ).toLowerCase()
+    if (
+      data.length >= 10 &&
+      data.slice(0, 10).toLowerCase() === diamondCutSelector
+    ) {
+      try {
+        const decodedDiamondCut = decodeFunctionData({
+          abi: ABI_DIAMOND_CUT,
+          data,
+        })
+        if (
+          decodedDiamondCut.functionName === 'diamondCut' &&
+          decodedDiamondCut.args
+        ) {
+          await formatDiamondCutSummary(decodedDiamondCut.args, network)
+          await decodeDiamondCut(decodedDiamondCut, chainId, network)
+          return
+        }
+      } catch {
+        // not valid diamondCut calldata, continue with normal decode path
+      }
+    }
+
     const { functionName } = await decodeTransactionData(data)
     const knownAbi = functionName ? getAbiForKnownFunction(functionName) : null
     let decoded: { functionName: string; args?: readonly unknown[] } | null =
@@ -762,7 +795,7 @@ export async function formatDecodedTxDataForDisplay(
     }
 
     if (decoded?.functionName === 'scheduleBatch' && decoded.args) {
-      await formatTimelockScheduleBatch(decoded.args, network)
+      await formatTimelockScheduleBatch(decoded.args, context)
       return
     }
 
