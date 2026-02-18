@@ -25,6 +25,7 @@ import {
 } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
 import { getRPCEnvVarName } from '../utils/network'
@@ -463,6 +464,21 @@ const main = defineCommand({
         'Skipping core periphery deployment checks for staging environment'
       )
     }
+
+    // Skip remaining checks for Tron as they require specific implementations
+    if (isTron) {
+      consola.info(
+        '\nNote: Advanced checks (DEXs, permissions, SAFE) are not yet implemented for Tron'
+      )
+      finish()
+      return
+    }
+
+    const deployerWallet = getAddress(
+      environment === 'staging'
+        ? DEV_WALLET_ADDRESS
+        : globalConfig.deployerWallet
+    )
 
     // Load whitelist config (staging or production)
     const whitelistConfig = await import(
