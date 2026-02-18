@@ -1,6 +1,3 @@
-import type { Buffer } from 'buffer'
-import { spawn } from 'child_process'
-
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
@@ -11,8 +8,9 @@ import {
 } from 'viem'
 
 import { sleep } from '../utils/delay'
+import { spawnAndCapture } from '../utils/spawnAndCapture'
 
-import { INITIAL_CALL_DELAY, RETRY_DELAY } from './shared/constants'
+import { INITIAL_CALL_DELAY, MAX_RETRIES, RETRY_DELAY } from './shared/constants'
 import { hexToTronAddress, retryWithRateLimit } from './tron/utils'
 
 /**
@@ -56,55 +54,22 @@ export async function callTronContract(
   // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
-  // Execute with retry logic for rate limits using spawn to avoid shell issues
+  // Execute with retry logic for rate limits
   const result = await retryWithRateLimit(
-    () => {
-      return new Promise<string>((resolve, reject) => {
-        const child = spawn('bun', args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
-        })
-
-        let stdout = ''
-        let stderr = ''
-
-        child.stdout.on('data', (data: Buffer) => {
-          stdout += data.toString()
-        })
-
-        child.stderr.on('data', (data: Buffer) => {
-          stderr += data.toString()
-        })
-
-        child.on('close', (code: number | null) => {
-          if (code !== 0) {
-            const error = new Error(
-              `Command failed with exit code ${code}: ${stderr || stdout}`
-            )
-            ;(error as Error & { message: string }).message = stderr || stdout || `Exit code ${code}`
-            reject(error)
-          } else {
-            resolve(stdout)
-          }
-        })
-
-        child.on('error', (error: Error) => {
-          reject(error)
-        })
-      })
-    },
-    3,
+    () => spawnAndCapture('bun', args),
+    MAX_RETRIES,
     RETRY_DELAY,
     (attempt: number, delay: number) => {
       consola.warn(
         `Rate limit detected (429). Retrying in ${
           delay / 1000
-        }s... (attempt ${attempt}/3)`
+        }s... (attempt ${attempt}/${MAX_RETRIES})`
       )
     },
     false
   )
 
-  return result.trim()
+  return result
 }
 
 /**
@@ -173,7 +138,7 @@ export async function callTronContractBoolean(
         params,
         tronWeb.defaultAddress?.base58 || tronWeb.defaultAddress?.hex || ''
       ),
-    3,
+    MAX_RETRIES,
     RETRY_DELAY
   )
 

@@ -1,6 +1,3 @@
-import type { Buffer } from 'buffer'
-import { spawn } from 'child_process'
-
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -25,9 +22,9 @@ import {
 } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
-import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
+import { spawnAndCapture } from '../utils/spawnAndCapture'
 import { getRPCEnvVarName } from '../utils/network'
 import {
   getViemChainForNetworkName,
@@ -90,44 +87,11 @@ export async function execWithRateLimitRetry(
 
   return retryWithRateLimit(
     () => {
-      return new Promise<string>((resolve, reject) => {
-        const [command, ...args] = commandParts
-        if (!command) {
-          reject(new Error('No command provided'))
-          return
-        }
-        
-        const child = spawn(command, args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
-        })
-
-        let stdout = ''
-        let stderr = ''
-
-        child.stdout?.on('data', (data: Buffer) => {
-          stdout += data.toString()
-        })
-
-        child.stderr?.on('data', (data: Buffer) => {
-          stderr += data.toString()
-        })
-
-        child.on('close', (code: number | null) => {
-          if (code !== 0) {
-            const error = new Error(
-              `Command failed with exit code ${code}: ${stderr || stdout}`
-            )
-            ;(error as Error & { message: string }).message = stderr || stdout || `Exit code ${code}`
-            reject(error)
-          } else {
-            resolve(stdout)
-          }
-        })
-
-        child.on('error', (error: Error) => {
-          reject(error)
-        })
-      })
+      const [command, ...args] = commandParts
+      if (!command) {
+        return Promise.reject(new Error('No command provided'))
+      }
+      return spawnAndCapture(command, args)
     },
     maxRetries,
     retryDelay,
@@ -214,6 +178,11 @@ const main = defineCommand({
       throw new Error(`Network config not found for ${networkLower}`)
     }
 
+    // Tron RPC URL: compute once and reuse for all Tron checks
+    const tronRpcUrl = isTron
+      ? getEnvVar(getRPCEnvVarName(networkLower)) || networkConfig.rpcUrl
+      : undefined
+
     if (isTron)
       tronWeb = initTronWeb(
         'mainnet',
@@ -235,25 +204,18 @@ const main = defineCommand({
     //          │                Check Diamond Contract                   │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking diamond Contract...')
-    let diamondDeployed: boolean
-    if (isTron && tronWeb)
-      diamondDeployed = await checkIsDeployedTron(
-        'LiFiDiamond',
-        deployedContracts,
-        tronWeb
-      )
-    else if (publicClient)
-      diamondDeployed = await checkIsDeployed(
-        'LiFiDiamond',
-        deployedContracts,
-        publicClient
-      )
-    else diamondDeployed = false
-
+    const diamondDeployed = await checkAndLogDeployment(
+      'LiFiDiamond',
+      deployedContracts,
+      isTron,
+      tronWeb,
+      publicClient,
+      logError
+    )
     if (!diamondDeployed) {
-      logError(`LiFiDiamond not deployed`)
       finish()
-    } else consola.success('LiFiDiamond deployed')
+      return
+    }
 
     const diamondAddress = deployedContracts['LiFiDiamond']
 
@@ -262,26 +224,16 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking Core Facets...')
     for (const facet of coreFacetsToCheck) {
-      let isDeployed: boolean
-      if (isTron && tronWeb) {
-        isDeployed = await checkIsDeployedTron(
-          facet,
-          deployedContracts,
-          tronWeb
-        )
-      } else if (publicClient)
-        isDeployed = await checkIsDeployed(
-          facet,
-          deployedContracts,
-          publicClient
-        )
-      else isDeployed = false
-
-      if (!isDeployed) {
-        logError(`Facet ${facet} not deployed`)
-        continue
-      }
-      consola.success(`Facet ${facet} deployed`)
+      const isDeployed = await checkAndLogDeployment(
+        facet,
+        deployedContracts,
+        isTron,
+        tronWeb,
+        publicClient,
+        logError,
+        'Facet'
+      )
+      if (!isDeployed) continue
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
@@ -290,26 +242,16 @@ const main = defineCommand({
     if (environment === 'production') {
       consola.box('Checking Non-Core facets...')
       for (const facet of nonCoreFacets) {
-        let isDeployed: boolean
-        if (isTron && tronWeb) {
-          isDeployed = await checkIsDeployedTron(
-            facet,
-            deployedContracts,
-            tronWeb
-          )
-        } else if (publicClient)
-          isDeployed = await checkIsDeployed(
-            facet,
-            deployedContracts,
-            publicClient
-          )
-        else isDeployed = false
-
-        if (!isDeployed) {
-          logError(`Facet ${facet} not deployed`)
-          continue
-        }
-        consola.success(`Facet ${facet} deployed`)
+        const isDeployed = await checkAndLogDeployment(
+          facet,
+          deployedContracts,
+          isTron,
+          tronWeb,
+          publicClient,
+          logError,
+          'Facet'
+        )
+        if (!isDeployed) continue
       }
     } else {
       consola.info('Skipping non-core facet checks for staging environment')
@@ -323,20 +265,14 @@ const main = defineCommand({
     let registeredFacets: string[] = []
     let facetCheckSkipped = false
     try {
-      if (isTron) {
-        // Use troncast for Tron
-        // Diamond address in deployments is already in Tron format
-        // Get RPC URL from environment variable first, fallback to networks.json
-        const envVarName = getRPCEnvVarName(networkLower)
-        const rpcUrl = getEnvVar(envVarName) || networkConfig.rpcUrl
-
-        // callTronContract handles INITIAL_CALL_DELAY internally
+      if (isTron && tronRpcUrl) {
+        // Use troncast for Tron; tronRpcUrl computed once at start
         const rawString = await callTronContract(
           diamondAddress,
           'facets()',
           [],
           '(address,bytes4[])[]',
-          rpcUrl
+          tronRpcUrl
         )
 
         // Parse Tron output format
@@ -438,47 +374,22 @@ const main = defineCommand({
       const peripheryToCheck = isTron ? getTronCorePeriphery() : corePeriphery
 
       for (const contract of peripheryToCheck) {
-        let isDeployed: boolean
-        if (isTron && tronWeb) {
-          isDeployed = await checkIsDeployedTron(
-            contract,
-            deployedContracts,
-            tronWeb
-          )
-        } else if (publicClient)
-          isDeployed = await checkIsDeployed(
-            contract,
-            deployedContracts,
-            publicClient
-          )
-        else isDeployed = false
-
-        if (!isDeployed) {
-          logError(`Periphery contract ${contract} not deployed`)
-          continue
-        }
-        consola.success(`Periphery contract ${contract} deployed`)
+        const isDeployed = await checkAndLogDeployment(
+          contract,
+          deployedContracts,
+          isTron,
+          tronWeb,
+          publicClient,
+          logError,
+          'Periphery contract'
+        )
+        if (!isDeployed) continue
       }
     } else {
       consola.info(
         'Skipping core periphery deployment checks for staging environment'
       )
     }
-
-    // Skip remaining checks for Tron as they require specific implementations
-    if (isTron) {
-      consola.info(
-        '\nNote: Advanced checks (DEXs, permissions, SAFE) are not yet implemented for Tron'
-      )
-      finish()
-      return
-    }
-
-    const deployerWallet = getAddress(
-      environment === 'staging'
-        ? DEV_WALLET_ADDRESS
-        : globalConfig.deployerWallet
-    )
 
     // Load whitelist config (staging or production)
     const whitelistConfig = await import(
@@ -556,11 +467,7 @@ const main = defineCommand({
       )
 
       if (contractsToCheck.length > 0) {
-        if (isTron && tronWeb) {
-          // Tron implementation using troncast
-          // Get RPC URL from environment variable first, fallback to networks.json
-          const envVarName = getRPCEnvVarName(networkLower)
-          const rpcUrl = getEnvVar(envVarName) || networkConfig.rpcUrl
+        if (isTron && tronWeb && tronRpcUrl) {
           const diamondAddress = deployedContracts['LiFiDiamond']
 
           for (const periphery of contractsToCheck) {
@@ -581,7 +488,7 @@ const main = defineCommand({
                 'getPeripheryContract(string)',
                 [periphery],
                 'address',
-                rpcUrl
+                tronRpcUrl
               )
 
               // Parse Tron address from output (base58 format starting with T)
@@ -678,15 +585,11 @@ const main = defineCommand({
           isTron
         )
 
-        if (isTron && tronWeb) {
-          // Tron implementation using troncast and TronWeb
-          // Get RPC URL from environment variable first, fallback to networks.json
-          const envVarName = getRPCEnvVarName(networkLower)
-          const rpcUrl = getEnvVar(envVarName) || networkConfig.rpcUrl
+        if (isTron && tronWeb && tronRpcUrl) {
           await checkWhitelistIntegrityTron(
             networkStr as string,
             diamondAddress,
-            rpcUrl,
+            tronRpcUrl,
             tronWeb,
             expectedPairs,
             environment,
@@ -755,18 +658,14 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking ownership...')
 
-    if (isTron && tronWeb) {
-      // Get RPC URL from environment variable first, fallback to networks.json
-      const envVarName = getRPCEnvVarName(networkLower)
-      const rpcUrl = getEnvVar(envVarName) || networkConfig.rpcUrl
-
+    if (isTron && tronWeb && tronRpcUrl) {
       // Check ERC20Proxy ownership (skip for staging)
       if (environment === 'production') {
         await checkOwnershipTron(
           'ERC20Proxy',
           deployerWallet,
           deployedContracts,
-          rpcUrl,
+          tronRpcUrl,
           tronWeb,
           logError
         )
@@ -784,7 +683,7 @@ const main = defineCommand({
             'LiFiDiamond',
             timelockAddress,
             deployedContracts,
-            rpcUrl,
+            tronRpcUrl,
             tronWeb,
             logError
           )
@@ -802,7 +701,7 @@ const main = defineCommand({
         'FeeCollector',
         feeCollectorOwner,
         deployedContracts,
-        rpcUrl,
+        tronRpcUrl,
         tronWeb,
         logError
       )
@@ -812,7 +711,7 @@ const main = defineCommand({
         'Receiver',
         refundWallet,
         deployedContracts,
-        rpcUrl,
+        tronRpcUrl,
         tronWeb,
         logError
       )
@@ -988,7 +887,12 @@ const main = defineCommand({
       }
     }
 
-    if (environment === 'production') {
+    // Skip SAFE checks for Tron as they require EVM-specific implementation
+    if (isTron) {
+      consola.info(
+        '\nNote: SAFE configuration checks are not implemented for Tron (EVM-only)'
+      )
+    } else if (environment === 'production') {
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                   SAFE Configuration                    │
       //          ╰─────────────────────────────────────────────────────────╯
@@ -1082,6 +986,40 @@ const checkOwnership = async (
       )
     else consola.success(`${name} owner is correct`)
   }
+}
+
+/**
+ * Check if a contract is deployed (Tron or EVM) and log success or error.
+ * @param label - Optional prefix for messages (e.g. 'Facet', 'Periphery contract'). If omitted, message is "${name} not deployed".
+ */
+async function checkAndLogDeployment(
+  name: string,
+  deployedContracts: Record<string, Address | string>,
+  isTron: boolean,
+  tronWeb: TronWeb | undefined,
+  publicClient: PublicClient | undefined,
+  logError: (msg: string) => void,
+  label?: string
+): Promise<boolean> {
+  let isDeployed: boolean
+  if (isTron && tronWeb) {
+    isDeployed = await checkIsDeployedTron(name, deployedContracts, tronWeb)
+  } else if (publicClient) {
+    isDeployed = await checkIsDeployed(name, deployedContracts, publicClient)
+  } else {
+    isDeployed = false
+  }
+
+  if (!isDeployed) {
+    logError(
+      label ? `${label} ${name} not deployed` : `${name} not deployed`
+    )
+    return false
+  }
+  consola.success(
+    label ? `${label} ${name} deployed` : `${name} deployed`
+  )
+  return true
 }
 
 const checkIsDeployed = async (
