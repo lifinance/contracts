@@ -831,7 +831,7 @@ export async function formatDecodedTxDataForDisplay(
     log(`Data (raw): \u001b[90m${preview}\u001b[0m`)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    consola.warn(`Failed to decode data: ${msg}`)
+    log(`Failed to decode data: ${msg}`)
     const preview = data.length > 66 ? `${data.slice(0, 66)}…` : data
     log(`Data (raw): \u001b[90m${preview}\u001b[0m`)
   }
