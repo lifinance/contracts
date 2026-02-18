@@ -11,13 +11,15 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
+import { spawnAndCapture } from '../../utils/spawnAndCapture'
+import { INITIAL_CALL_DELAY, MAX_RETRIES, RETRY_DELAY, ZERO_ADDRESS } from '../shared/constants'
 
 import {
-  DIAMOND_CUT_ENERGY_MULTIPLIER,
-  ZERO_ADDRESS,
-  MIN_BALANCE_REGISTRATION,
   DEFAULT_FEE_LIMIT_TRX,
+  DIAMOND_CUT_ENERGY_MULTIPLIER,
+  MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
 } from './constants'
 import type {
@@ -27,8 +29,82 @@ import type {
   IDiamondRegistrationResult,
 } from './types'
 
-// Re-export constants for backward compatibility
-export { DEFAULT_SAFETY_MARGIN } from './constants'
+/**
+ * Check if an error is a rate limit or connection error
+ * @param error - The error to check
+ * @param includeConnectionErrors - Whether to include connection errors (ECONNREFUSED, ETIMEDOUT)
+ * @returns True if the error is a rate limit or connection error
+ */
+export function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
+  const errorMessage = error?.message || String(error)
+  const rateLimitPatterns = [
+    '429',
+    'rate limit',
+    'Too Many Requests',
+  ]
+  
+  if (includeConnectionErrors) {
+    rateLimitPatterns.push('ECONNREFUSED', 'ETIMEDOUT')
+  }
+
+  return rateLimitPatterns.some((pattern) =>
+    errorMessage.includes(pattern)
+  )
+}
+
+/**
+ * Generic retry function with rate limit handling
+ * @param operation - Async function to retry
+ * @param maxRetries - Maximum number of retries (default: 3)
+ * @param retryDelay - Delay in ms for all retry attempts (default: 2000). Can be a number or array for backward compatibility
+ * @param onRetry - Optional callback called before each retry
+ * @param includeConnectionErrors - Whether to include connection errors in rate limit detection (default: true)
+ * @returns Result of the operation
+ * @throws The last error if all retries fail
+ */
+export async function retryWithRateLimit<T>(
+  operation: () => Promise<T>,
+  maxRetries = MAX_RETRIES,
+  retryDelay: number | number[] = RETRY_DELAY,
+  onRetry?: (attempt: number, delay: number) => void,
+  includeConnectionErrors = true
+): Promise<T> {
+  // Normalize retryDelay: if it's a number, use it for all retries
+  const retryDelays: number[] = Array.isArray(retryDelay)
+    ? retryDelay
+    : Array(maxRetries).fill(retryDelay)
+
+  for (let retry = 0; retry <= maxRetries; retry++) {
+    try {
+      // Add delay before retry (not before first attempt)
+      if (retry > 0) {
+      const delay: number =
+        retryDelays[retry - 1] ??
+        retryDelays[retryDelays.length - 1] ??
+        RETRY_DELAY
+        if (onRetry) {
+          onRetry(retry, delay)
+        }
+        await sleep(delay)
+      }
+
+      return await operation()
+    } catch (error: any) {
+      const isRateLimit = isRateLimitError(error, includeConnectionErrors)
+
+      // If it's a rate limit error and we have retries left, continue
+      if (isRateLimit && retry < maxRetries) {
+        continue
+      }
+
+      // If it's not a rate limit error, or we've exhausted retries, throw
+      throw error
+    }
+  }
+
+  // This should never be reached, but TypeScript requires it
+  throw new Error('Max retries exceeded')
+}
 
 /**
  * Load compiled contract artifact from Forge output
@@ -95,12 +171,22 @@ export async function checkIsDeployedTron(
 ): Promise<boolean> {
   if (!deployedContracts[contract]) return false
 
+  // For Tron, addresses in deployments are already in Tron format
+  const tronAddress = deployedContracts[contract]
+
+  // Add initial delay for Tron to avoid rate limits
+  await sleep(INITIAL_CALL_DELAY)
+
   try {
-    // For Tron, addresses in deployments are already in Tron format
-    const tronAddress = deployedContracts[contract]
-    const contractInfo = await tronWeb.trx.getContract(tronAddress)
-    return contractInfo && contractInfo.contract_address
+    const contractInfo = await retryWithRateLimit(
+      () => tronWeb.trx.getContract(tronAddress),
+      MAX_RETRIES,
+      RETRY_DELAY
+    )
+    return contractInfo && contractInfo.contract_address ? true : false
   } catch {
+    // If all retries fail, return false
+    // This could mean the contract is not deployed, or there's a persistent RPC issue
     return false
   }
 }
@@ -115,18 +201,7 @@ export async function checkIsDeployedTron(
  * @returns The command output
  */
 export async function executeShellCommand(command: string): Promise<string> {
-  const proc = Bun.spawn(['bash', '-c', command], {
-    cwd: process.cwd(),
-    env: process.env,
-  })
-
-  const output = await new Response(proc.stdout).text()
-  const exitCode = await proc.exited
-
-  if (exitCode !== 0)
-    throw new Error(`Command failed with exit code ${exitCode}: ${command}`)
-
-  return output.trim()
+  return spawnAndCapture('bash', ['-c', command])
 }
 
 /**
@@ -875,7 +950,7 @@ export async function waitBetweenDeployments(
 
       if (i < numCalls - 1) {
         // Wait between calls (except for the last one)
-        await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+        await sleep(delayPerCall)
       }
     } catch (error) {
       // If RPC call fails, fall back to simple timeout
@@ -884,7 +959,7 @@ export async function waitBetweenDeployments(
           `RPC call failed during wait, using timeout fallback: ${error}`
         )
       }
-      await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+      await sleep(delayPerCall)
     }
   }
 }

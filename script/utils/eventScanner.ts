@@ -40,6 +40,8 @@
 import { consola } from 'consola'
 import { type Address, type PublicClient } from 'viem'
 
+import { sleep } from './delay'
+
 export interface IEventScannerConfig {
   publicClient: PublicClient
   address: Address
@@ -167,7 +169,7 @@ export async function scanEventsInChunks<T>(
             waitTime / 1000
           }s...`
         )
-        await new Promise((resolve) => setTimeout(resolve, waitTime))
+        await sleep(waitTime)
       }
     }
 
