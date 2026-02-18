@@ -15,6 +15,7 @@ globs:
 ## Code Quality
 
 - Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
+- When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
@@ -39,6 +40,17 @@ globs:
 
 - When referring to "demo script", this means scripts in `script/demoScripts/`. They follow similar structural patterns (e.g., `main()` function, `setupEnvironment()`, helpers from `demoScriptHelpers`). See `demoLidoWrapper.ts`, `demoUnit.ts`, `demoEco.ts` as reference examples.
 
+## Solana addresses and dev wallet address ([CONV:SOLANA-DEV-WALLET])
+
+- **Solana addresses (base58, bytes32)**: Derive dynamically from the signer’s private key. Do **not** hardcode Solana addresses or store them in config (e.g. `config/global.json`).
+  - **Source**: `script/demoScripts/utils/demoScriptHelpers.ts`
+  - **Base58**: `deriveSolanaAddress(privateKey)` — use for logging, Solana APIs, or ATA computation.
+  - **Bytes32**: `solanaAddressToBytes32(deriveSolanaAddress(privateKey))` — use for contract/struct fields that expect bytes32 (e.g. non-EVM receiver, mintRecipient).
+  - **Private key**: `getPrivateKeyForEnvironment(EnvironmentEnum.staging)` (or `EnvironmentEnum.production`) from `demoScriptHelpers`. Example: `demoAcrossV4.ts`, `demoPolymerCCTP.ts`, `demoNEARIntents.ts`.
+- **Dev wallet (EVM)**: Use a single source of truth from config.
+  - Use **only** `DEV_WALLET_ADDRESS` from `script/demoScripts/utils/demoScriptHelpers.ts` (it reads `config/global.json` → `devWallet`). Do not use `globalConfig.devWallet` elsewhere.
+  - Do not add or use separate constants for the same EVM dev wallet (e.g. no `ADDRESS_DEV_WALLET_V5`-style aliases).
+
 ## CLI and Logging
 
 - CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
@@ -50,3 +62,28 @@ globs:
 ## Post-Change Actions
 
 - After TS changes run lint/tests (or state which remain) to ensure eslint/type checks pass.
+
+### Hard gate: CLI validation required
+
+Editor diagnostics (and Cursor “lints”) are **not sufficient** to claim a TypeScript script is clean.
+
+If you edit any file matching this rule’s globs, you **MUST** do the following before finalizing:
+
+- **Run ESLint CLI on the changed file(s)**:
+  - `bunx eslint <changed-file-1> [<changed-file-2> ...]`
+  - If ESLint reports fixable issues, run: `bunx eslint --fix <changed-file(s)>`
+  - Re-run `bunx eslint <changed-file(s)>` and ensure it exits `0`.
+- **Run TypeScript typecheck on the changed file(s)**:
+  - `bunx tsc-files --noEmit <changed-file-1> [<changed-file-2> ...]`
+
+### Reporting requirement
+
+- In the final message, explicitly list the commands that were run and whether they passed.
+- **Never** state or imply “no linting errors” unless `bunx eslint ...` was executed and returned `0`.
+
+### Scope escalation (when needed)
+
+If changes touch shared helpers or wide surfaces (or you can’t easily isolate changed files), prefer running the broader checks:
+
+- `bun lint:js`
+- `bun lint`

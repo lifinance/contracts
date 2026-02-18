@@ -14,6 +14,8 @@ import {
   getEnvironment,
   updateDiamondJsonBatch,
   getCurrentPrices,
+  waitBetweenDeployments,
+  getTronGridAPIKey,
 } from './utils.js'
 
 /**
@@ -451,10 +453,15 @@ async function registerFacetsToDiamond(
 
     if (!fullHost) throw new Error('Tron RPC URL not found in networks.json')
 
-    const tronWeb = new TronWeb({
+    const apiKey = getTronGridAPIKey(false)
+    const tronWebConfig: any = {
       fullHost,
       privateKey,
-    })
+    }
+    if (apiKey) {
+      tronWebConfig.headers = { 'TRON-PRO-API-KEY': apiKey }
+    }
+    const tronWeb = new TronWeb(tronWebConfig)
 
     consola.info(` Connected to: ${fullHost}`)
     consola.info(`👛 Deployer: ${tronWeb.defaultAddress.base58}`)
@@ -584,8 +591,10 @@ async function registerFacetsToDiamond(
 
         // Small delay between groups
         if (i < FACET_GROUPS.length - 1 && !options.dryRun) {
-          consola.info(' Waiting 3 seconds before next group...')
-          await new Promise((resolve) => setTimeout(resolve, 3000))
+          consola.info(
+            ' Waiting 3 seconds before next group using TronGrid RPC...'
+          )
+          await waitBetweenDeployments(3, false, tronWeb, fullHost)
         }
       }
     } else {

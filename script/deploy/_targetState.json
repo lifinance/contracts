@@ -2163,5 +2163,64 @@
         "ReceiverStargateV2": "1.1.0"
       }
     }
+  },
+  "telos": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.1",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GasZipFacet": "2.0.5",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.2",
+        "LiFiTimelockController": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "FeeForwarder": "1.0.0",
+        "GasZipPeriphery": "1.0.2",
+        "LiFiDEXAggregator": "1.12.0",
+        "TokenWrapper": "1.2.1",
+        "Permit2Proxy": "1.0.4",
+        "StargateFacetV2": "1.0.1",
+        "ReceiverStargateV2": "1.1.0",
+        "SymbiosisFacet": "1.0.0"
+      }
+    }
+  },
+  "jovay": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.3.1",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "EmergencyPauseFacet": "1.0.1",
+        "GasZipFacet": "2.0.5",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.2",
+        "LiFiTimelockController": "1.0.1",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "FeeForwarder": "1.0.0",
+        "GasZipPeriphery": "1.0.2",
+        "LiFiDEXAggregator": "1.12.0",
+        "TokenWrapper": "1.2.1",
+        "Permit2Proxy": "1.0.4",
+        "GlacisFacet": "1.2.0",
+        "LiFiIntentEscrowFacet": "1.0.0"
+      }
+    }
   }
 }

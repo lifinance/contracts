@@ -9,10 +9,9 @@ import {
   AcrossFacetV4__factory,
 } from '../../typechain'
 import type { LibSwap } from '../../typechain/AcrossFacetV4'
+import { EnvironmentEnum } from '../common/types'
 
 import {
-  ADDRESS_DEV_WALLET_SOLANA_BYTES32,
-  ADDRESS_DEV_WALLET_V4,
   ADDRESS_UNISWAP_ARB,
   ADDRESS_UNISWAP_OPT,
   ADDRESS_USDC_ARB,
@@ -23,8 +22,10 @@ import {
   ADDRESS_WETH_ARB,
   ADDRESS_WETH_OPT,
   DEFAULT_DEST_PAYLOAD_ABI,
+  deriveSolanaAddress,
   DEV_WALLET_ADDRESS,
   ensureBalanceAndAllowanceToDiamond,
+  getPrivateKeyForEnvironment,
   getProvider,
   getUniswapDataERC20toExactERC20,
   getUniswapDataERC20toExactETH,
@@ -34,6 +35,7 @@ import {
   ITransactionTypeEnum,
   leftPadAddressToBytes32,
   sendTransaction,
+  solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
@@ -370,11 +372,6 @@ const WITH_EXCLUSIVE_RELAYER = false
 const EXCLUSIVE_RELAYER = '0x07ae8551be970cb1cca11dd7a11f47ae82e70e67' // biggest across relayer
 const SRC_CHAIN = 'optimism'
 const DIAMOND_ADDRESS_SRC = deploymentsOPT.LiFiDiamond
-const RECEIVER_ADDRESS_DST = isSolana
-  ? ADDRESS_DEV_WALLET_SOLANA_BYTES32
-  : WITH_DEST_CALL
-  ? deploymentsARB.ReceiverAcrossV3
-  : ADDRESS_DEV_WALLET_V4
 const EXPLORER_BASE_URL = 'https://optimistic.etherscan.io/tx/'
 
 // ############################################################################################################
@@ -384,6 +381,15 @@ async function main() {
   const wallet = getWalletFromPrivateKeyInDotEnv(provider)
   const walletAddress = await wallet.getAddress()
   consola.info('you are using this wallet address: ', walletAddress)
+
+  // Receiver on destination: derive Solana from signer key when bridging to Solana, else use config/deployment
+  const privateKey = getPrivateKeyForEnvironment(EnvironmentEnum.staging)
+  const solanaReceiverBase58 = isSolana ? deriveSolanaAddress(privateKey) : ''
+  const receiverAddressDst = isSolana
+    ? solanaAddressToBytes32(solanaReceiverBase58)
+    : WITH_DEST_CALL
+    ? deploymentsARB.ReceiverAcrossV3
+    : DEV_WALLET_ADDRESS
 
   // Helper function to format amount with decimals
   const formatAmount = (amount: string, isNative: boolean): string => {
@@ -416,9 +422,7 @@ async function main() {
   consola.info(`🎯 Sending Asset: ${sendingAssetId}`)
   consola.info(`📦 Receiving Asset: ${receivingAssetId}`)
   consola.info(
-    `👤 Receiver: ${
-      isSolana ? 'S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4' : walletAddress
-    }`
+    `👤 Receiver: ${isSolana ? solanaReceiverBase58 : walletAddress}`
   )
   consola.info(`🔄 Transaction Type: ${ITransactionTypeEnum[TRANSACTION_TYPE]}`)
   consola.info('')
@@ -454,7 +458,7 @@ async function main() {
   const bridgeDataReceiver = isSolana
     ? NON_EVM_ADDRESS // Use NON_EVM_ADDRESS for Solana
     : WITH_DEST_CALL
-    ? RECEIVER_ADDRESS_DST
+    ? receiverAddressDst
     : walletAddress
 
   const bridgeData: ILiFi.BridgeDataStruct = {
@@ -615,7 +619,7 @@ async function main() {
       fromChainId,
       toChainId,
       fromAmount,
-      RECEIVER_ADDRESS_DST, // must be a contract address when a message is provided
+      receiverAddressDst, // must be a contract address when a message is provided
       payload
     )
 
@@ -644,10 +648,10 @@ async function main() {
   // prepare AcrossV4Data - note the differences from V3
   const acrossV4Data: AcrossFacetV4.AcrossV4DataStruct = {
     receiverAddress: isSolana
-      ? ADDRESS_DEV_WALLET_SOLANA_BYTES32 // Use pre-converted Solana bytes32 address
+      ? receiverAddressDst // Derived from signer private key (Solana bytes32)
       : leftPadAddressToBytes32(
           // For other chains, convert to bytes32
-          WITH_DEST_CALL ? RECEIVER_ADDRESS_DST : walletAddress
+          WITH_DEST_CALL ? receiverAddressDst : walletAddress
         ), // bytes32
     refundAddress: leftPadAddressToBytes32(walletAddress),
     sendingAssetId: leftPadAddressToBytes32(sendingAssetId),

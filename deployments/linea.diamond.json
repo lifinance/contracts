@@ -156,6 +156,10 @@
       "0xb312fA96d1206998D815b4e243994DeE6E285d4C": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.2"
+      },
+      "0xb81e577FBA568c5A4d6feF10f7d35f37bb479E19": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -163,9 +167,9 @@
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
       "FeeForwarder": "0xD8b700cEd3e486c3c4FC31Fc0c3b3590e1a52D7e",
-      "GasZipPeriphery": "0xd65312fa0DB664C7057AfF91087A4164749C057C",
-      "LidoWrapper": "",
+      "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
       "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
       "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",
