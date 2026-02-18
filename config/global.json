@@ -30,8 +30,6 @@
     "DiamondCutFacet",
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
-    "GasZipFacet",
-    "GenericSwapFacet",
     "GenericSwapFacetV3",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
@@ -43,11 +41,9 @@
     "Executor",
     "FeeCollector",
     "FeeForwarder",
-    "GasZipPeriphery",
     "LiFiDEXAggregator",
     "LiFiTimelockController",
-    "Permit2Proxy",
-    "TokenWrapper"
+    "Permit2Proxy"
   ],
   "blacklistedFunctionSelectors": ["0x23b872dd"],
   "whitelistPeripheryFunctions": {
@@ -69,26 +65,6 @@
       {
         "selector": "0x0e8ae67f",
         "signature": "forwardNativeFees((address,uint256)[])"
-      }
-    ],
-    "GasZipPeriphery": [
-      {
-        "selector": "0x8b71ae6c",
-        "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-      },
-      {
-        "selector": "0xc4af5a74",
-        "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-      }
-    ],
-    "TokenWrapper": [
-      {
-        "selector": "0xd0e30db0",
-        "signature": "deposit()"
-      },
-      {
-        "selector": "0x3ccfd60b",
-        "signature": "withdraw()"
       }
     ],
     "LiFiDEXAggregator": [
