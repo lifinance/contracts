@@ -13,6 +13,7 @@ import {
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
+import { spawnAndCapture } from '../../utils/spawnAndCapture'
 import { INITIAL_CALL_DELAY, MAX_RETRIES, RETRY_DELAY, ZERO_ADDRESS } from '../shared/constants'
 
 import {
@@ -200,18 +201,7 @@ export async function checkIsDeployedTron(
  * @returns The command output
  */
 export async function executeShellCommand(command: string): Promise<string> {
-  const proc = Bun.spawn(['bash', '-c', command], {
-    cwd: process.cwd(),
-    env: process.env,
-  })
-
-  const output = await new Response(proc.stdout).text()
-  const exitCode = await proc.exited
-
-  if (exitCode !== 0)
-    throw new Error(`Command failed with exit code ${exitCode}: ${command}`)
-
-  return output.trim()
+  return spawnAndCapture('bash', ['-c', command])
 }
 
 /**
