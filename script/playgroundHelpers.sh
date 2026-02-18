@@ -58,7 +58,7 @@ function getContractVerified() {
   CURRENT_ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".address")
   CURRENT_OPTIMIZER=$(echo "$LOG_ENTRY" | jq -r ".optimizerRuns")
   CURRENT_TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".timestamp")
-  CURRENT_CONSTRUCTOR_ARGS=$(echo "$LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS")
+  CURRENT_CONSTRUCTOR_ARGS=$(echo "$LOG_ENTRY" | jq -r '.CONSTRUCTOR_ARGS // .constructorArgs // "0x"')
   CURRENT_SALT=$(echo "$LOG_ENTRY" | jq -r ".salt")
   CURRENT_VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".verified")
   CURRENT_SOLC_VERSION=$(echo "$LOG_ENTRY" | jq -r ".solcVersion // empty")

@@ -213,6 +213,8 @@ function findContractInMasterLog() {
     local MONGO_EXIT_CODE=$?
 
     if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Strip leading non-JSON so jq sees only the object
+      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
       # Validate that the result is valid JSON before returning it
       if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
         echo "$MONGO_RESULT"
@@ -273,12 +275,19 @@ function findContractInMasterLogByAddress() {
     local MONGO_EXIT=$?
 
     if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Strip leading non-JSON (e.g. consola/cache messages) so jq sees only the object
+      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
       # Validate that MONGO_RESULT is valid JSON
       if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
         # Convert MongoDB result to expected format
         local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
         local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
         local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+
+        # If version missing/empty in record, try to resolve by contract name from master log
+        if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" 2>/dev/null) || true
+        fi
 
         # Check for valid contract name and version (version can be empty string but not null)
         if [[ "$CONTRACT_NAME" != "null" && "$CONTRACT_NAME" != "" ]]; then
@@ -675,6 +684,8 @@ function getConstructorArgsFromMasterLog() {
   EXIT_CODE=$?
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+    # Strip leading non-JSON (e.g. debug) so jq sees only the object
+    MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
     # Validate that the result is valid JSON before parsing
     if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
       echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK"
@@ -682,9 +693,10 @@ function getConstructorArgsFromMasterLog() {
       return 1
     fi
 
-    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs' 2>/dev/null)
+    # Accept both keys (MongoDB/cache may use constructorArgs or CONSTRUCTOR_ARGS)
+    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.CONSTRUCTOR_ARGS // .constructorArgs // empty' 2>/dev/null)
 
-    if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
+    if [[ -n "$CONSTRUCTOR_ARGS" && "$CONSTRUCTOR_ARGS" != "null" ]]; then
       echo "$CONSTRUCTOR_ARGS"
       return 0
     fi
@@ -800,7 +812,11 @@ function saveDiamondFacets() {
       if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
         warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
         NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-        JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
+        VERSION=""
+        if [[ -n "${NAME:-}" ]]; then
+          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$NAME" 2>/dev/null) || true
+        fi
+        JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"${NAME:-}\", \"Version\": \"${VERSION:-}\"}}"
       fi
       echo "$JSON_ENTRY" >"$FACETS_DIR/${FACET_ADDRESS}.json"
     ) &
