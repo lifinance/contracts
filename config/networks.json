@@ -1122,9 +1122,9 @@
   "tempo": {
     "name": "tempo",
     "chainId": 4217,
-    "nativeAddress": "n/a - network does not have a native asset",
-    "nativeCurrency": "n/a - network does not have a native asset",
-    "wrappedNativeAddress": "n/a - network does not have a native asset",
+    "nativeAddress": "N/A",
+    "nativeCurrency": "N/A",
+    "wrappedNativeAddress": "N/A",
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://rpc.tempo.xyz",
