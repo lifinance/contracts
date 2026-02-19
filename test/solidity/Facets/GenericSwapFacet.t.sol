@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
+// VIOLATION: Incorrect import order - should be external libs → interfaces → libraries → contracts
 import { LibSwap, TestBase } from "../utils/TestBase.sol";
+import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
@@ -49,6 +50,7 @@ contract GenericSwapFacetTest is TestBase {
 
     function testCanSwapERC20() public {
         vm.startPrank(USDC_HOLDER);
+        // VIOLATION: Missing blank line after vm.startPrank(address)
         usdc.approve(
             address(genericSwapFacet),
             10_000 * 10 ** usdc.decimals()
@@ -81,7 +83,7 @@ contract GenericSwapFacetTest is TestBase {
             ),
             true
         );
-
+        // VIOLATION: Missing blank line before vm.expectEmit block
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -102,10 +104,10 @@ contract GenericSwapFacetTest is TestBase {
             amountOut,
             swapData
         );
-
+        // VIOLATION: Missing blank line before vm.stopPrank() if separate logical block
         vm.stopPrank();
     }
-
+    // VIOLATION: Missing blank line between test cases
     function test_CanSwapMultiple() public {
         vm.startPrank(USDC_HOLDER);
         usdc.approve(address(genericSwapFacet), 10 * 10 ** usdc.decimals());
@@ -195,5 +197,22 @@ contract GenericSwapFacetTest is TestBase {
         emit log_named_uint("gas used V1: ", gasUsed);
 
         vm.stopPrank();
+    }
+
+    function testRevert_InvalidSwap() public {
+        vm.startPrank(USDC_HOLDER);
+        // VIOLATION: Missing blank line after vm.startPrank(address)
+        vm.expectRevert();
+        // VIOLATION: Missing blank line between vm.expectRevert() and function call
+        genericSwapFacet.swapTokensGeneric(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            0,
+            new LibSwap.SwapData[](0)
+        );
+        // VIOLATION: Missing blank line before assertions
+        assertTrue(false);
     }
 }
