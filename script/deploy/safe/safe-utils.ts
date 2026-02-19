@@ -1609,6 +1609,32 @@ function getContractNameFromNetworkDeployments(
   }
 }
 
+/** Item from openchain.xyz signature lookup result (function name) */
+interface IOpenchainLookupResultItem {
+  name: string
+}
+
+/** Openchain API lookup response shape for type-safe parsing */
+interface IOpenchainLookupResponse {
+  ok?: boolean
+  result?: {
+    function?: Record<string, IOpenchainLookupResultItem[]>
+  }
+}
+
+const OPENCHAIN_FETCH_TIMEOUT_MS = 10_000
+
+function isOpenchainLookupResponse(
+  value: unknown
+): value is IOpenchainLookupResponse {
+  if (value === null || typeof value !== 'object') return false
+  const o = value as Record<string, unknown>
+  if (!o.result || typeof o.result !== 'object') return false
+  const result = o.result as Record<string, unknown>
+  if (!result.function || typeof result.function !== 'object') return false
+  return true
+}
+
 /**
  * Looks up a function selector via openchain.xyz signature database (e.g. 4byte).
  * Use when the selector is not in diamond.json (e.g. different ABI encoding for same function).
@@ -1620,10 +1646,18 @@ async function lookupSelectorFromOpenchain(
   try {
     const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
     const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${normalized}&filter=true`
-    const response = await fetch(url)
-    const data = await response.json()
-    if (data?.ok && data?.result?.function?.[normalized]?.[0]?.name)
-      return data.result.function[normalized][0].name as string
+    const controller = new AbortController()
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      OPENCHAIN_FETCH_TIMEOUT_MS
+    )
+    const response = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    if (!response.ok) return null
+    const raw: unknown = await response.json()
+    if (!isOpenchainLookupResponse(raw)) return null
+    const first = raw.result?.function?.[normalized]?.[0]
+    if (first?.name && typeof first.name === 'string') return first.name
     return null
   } catch {
     return null
