@@ -729,7 +729,7 @@ export async function formatDecodedTxDataForDisplay(
         initAddress &&
         String(initAddress) !== '0x0000000000000000000000000000000000000000' &&
         initCalldataHex !== '0x' &&
-        initCalldataHex.length > 10
+        initCalldataHex.length >= 10
       if (hasInitCall) {
         log('Init call:')
         await formatDecodedTxDataForDisplay(initCalldataHex, {
