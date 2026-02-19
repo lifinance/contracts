@@ -5,6 +5,7 @@ cache/
 zkcache/
 artifacts/
 artifacts-zk/
+audit-events/
 out/
 zkout/
 broadcast/

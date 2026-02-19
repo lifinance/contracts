@@ -1,0 +1,9 @@
+{
+  "chains": ["mainnet", "polygon", "arbitrum", "optimism", "base", "bsc", "zksync"],
+  "fromBlockByChain": {
+    "mainnet": 23322816,
+    "base": 2650157,
+    "bsc": 19921313,
+    "arbitrum": 18708645
+  }
+}
