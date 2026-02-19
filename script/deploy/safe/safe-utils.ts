@@ -1854,57 +1854,9 @@ export async function decodeDiamondCut(
       initCalldata &&
       typeof initCalldata === 'string' &&
       initCalldata !== '0x' &&
-      (initCalldata as string).length > 10
+      (initCalldata as string).length >= 10
     if (!indent || !hasInitCall)
       consola.info(`${pre}Init Calldata: ${initCalldata ?? '0x'}`)
-  }
-}
-
-/**
- * Decodes a transaction's function call
- * @param data - Transaction data
- * @returns Decoded function name and data if available
- */
-export async function decodeTransactionData(data: Hex): Promise<{
-  functionName?: string
-  decodedData?: unknown
-}> {
-  if (!data || data === '0x') return {}
-
-  try {
-    const selector = data.substring(0, 10)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
-
-    if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
-    ) {
-      const functionName = responseData.result.function[selector][0].name
-
-      try {
-        const decodedData = {
-          functionName,
-          args: responseData.result.function[selector][0].args,
-        }
-
-        return {
-          functionName,
-          decodedData,
-        }
-      } catch (error) {
-        consola.warn(`Could not decode function data: ${error}`)
-        return { functionName }
-      }
-    }
-
-    return {}
-  } catch (error) {
-    consola.warn(`Error decoding transaction data: ${error}`)
-    return {}
   }
 }
 
