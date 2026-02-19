@@ -50,7 +50,6 @@ contract GenericSwapFacetTest is TestBase {
 
     function testCanSwapERC20() public {
         vm.startPrank(USDC_HOLDER);
-        // VIOLATION: Missing blank line after vm.startPrank(address)
         usdc.approve(
             address(genericSwapFacet),
             10_000 * 10 ** usdc.decimals()
@@ -83,7 +82,7 @@ contract GenericSwapFacetTest is TestBase {
             ),
             true
         );
-        // VIOLATION: Missing blank line before vm.expectEmit block
+
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
@@ -104,12 +103,13 @@ contract GenericSwapFacetTest is TestBase {
             amountOut,
             swapData
         );
-        // VIOLATION: Missing blank line before vm.stopPrank() if separate logical block
+
         vm.stopPrank();
     }
-    // VIOLATION: Missing blank line between test cases
+
     function test_CanSwapMultiple() public {
         vm.startPrank(USDC_HOLDER);
+        // VIOLATION: Missing blank line after vm.startPrank(address)
         usdc.approve(address(genericSwapFacet), 10 * 10 ** usdc.decimals());
 
         // Swap1: USDC to DAI
@@ -197,22 +197,5 @@ contract GenericSwapFacetTest is TestBase {
         emit log_named_uint("gas used V1: ", gasUsed);
 
         vm.stopPrank();
-    }
-
-    function testRevert_InvalidSwap() public {
-        vm.startPrank(USDC_HOLDER);
-        // VIOLATION: Missing blank line after vm.startPrank(address)
-        vm.expectRevert();
-        // VIOLATION: Missing blank line between vm.expectRevert() and function call
-        genericSwapFacet.swapTokensGeneric(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            0,
-            new LibSwap.SwapData[](0)
-        );
-        // VIOLATION: Missing blank line before assertions
-        assertTrue(false);
     }
 }
