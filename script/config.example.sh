@@ -16,6 +16,11 @@ MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
 MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
 
+# the maximum number of times to retry the whole network run (e.g. verify) per network.
+# Each run uses up to MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION verification attempts.
+# Set to 1 to get only MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION attempts per network.
+MAX_ATTEMPTS_PER_NETWORK_EXECUTION=3
+
 # number of max jobs that scripts will do in parallel (e.g. when interacting with multiple networks)
 MAX_CONCURRENT_JOBS=100
 

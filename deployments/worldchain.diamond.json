@@ -53,10 +53,6 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xB5dD83183fD7CCF859b227CA83663a034d5B2f92": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.0.0"
-      },
       "0x90ADbFc03002aaA3d9FEdf2517D593CfD93e6c57": {
         "Name": "AcrossFacetPackedV3",
         "Version": "1.0.0"
@@ -67,7 +63,7 @@
       },
       "0x08F7800449ad6681bd607EF21d3cc9C9dDDaF1C8": {
         "Name": "AcrossFacetV3",
-        "Version": ""
+        "Version": "1.1.0"
       },
       "0xeBCC663275cec5F53eebcDb16C0bCFacbAe74128": {
         "Name": "RelayFacet",
@@ -93,9 +89,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0xB1eAe2beA9648C2B1447C7829ED0562872Ee694e": {
+      "0x78A78927ba0EeE804d37cad22BfcC69e3B0fF5e1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

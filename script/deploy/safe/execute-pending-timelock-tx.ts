@@ -1141,7 +1141,7 @@ async function executeOperation(
       operation.salt,
       operation.delay,
     ],
-    network ?? networkName ?? ''
+    { chainId: chainId ?? 0, network: network ?? networkName ?? '' }
   )
 
   if (callCount === 1 && chainId !== undefined && network) {
