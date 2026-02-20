@@ -19,7 +19,6 @@ NC='\033[0m' # No color
 # MongoDB query retry defaults (used by findContractInMasterLog, findContractInMasterLogByAddress,
 # getContractVersionFromMasterLog, getHighestDeployedContractVersionFromMasterLog, getConstructorArgsFromMasterLog)
 MONGO_MAX_RETRIES=${MONGO_MAX_RETRIES:-3}
-MONGO_RETRY_DELAY=${MONGO_RETRY_DELAY:-1}
 
 # >>>>> logging
 function logContractDeploymentInfo {
@@ -200,8 +199,7 @@ function findContractInMasterLog() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION="$4"
-  local MAX_RETRIES=$MONGO_MAX_RETRIES
-  local RETRY_DELAY=$MONGO_RETRY_DELAY
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -213,7 +211,7 @@ function findContractInMasterLog() {
   echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
 
   local attempt=1
-  while [[ $attempt -le $MAX_RETRIES ]]; do
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     local MONGO_EXIT_CODE=$?
 
@@ -225,12 +223,12 @@ function findContractInMasterLog() {
         echo "$MONGO_RESULT"
         return 0
       else
-        echoDebug "MongoDB returned invalid JSON for $CONTRACT on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+        echoDebug "MongoDB returned invalid JSON for $CONTRACT on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
       fi
     fi
 
-    if [[ $attempt -lt $MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
       sleep $RETRY_DELAY
       RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
@@ -244,8 +242,7 @@ function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET_ADDRESS="$3"
-  local MAX_RETRIES=$MONGO_MAX_RETRIES
-  local RETRY_DELAY=$MONGO_RETRY_DELAY
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -257,10 +254,10 @@ function findContractInMasterLogByAddress() {
 
   local attempt=1
   local USE_CACHE=true
-  while [[ $attempt -le $MAX_RETRIES ]]; do
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
     local MONGO_RESULT
     # On last attempt, try without cache to ensure we get fresh data
-    if [[ $attempt -eq $MAX_RETRIES ]]; then
+    if [[ $attempt -eq $MONGO_MAX_RETRIES ]]; then
       USE_CACHE=false
       echoDebug "Cache query failed, trying direct MongoDB query (no cache) for address $TARGET_ADDRESS on $NETWORK"
     fi
@@ -301,12 +298,12 @@ function findContractInMasterLogByAddress() {
           return 0
         fi
       else
-        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
       fi
     fi
 
-    if [[ $attempt -lt $MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
       sleep $RETRY_DELAY
       RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
@@ -321,8 +318,7 @@ function getContractVersionFromMasterLog() {
   local ENVIRONMENT="$2"
   local CONTRACT="$3"
   local TARGET_ADDRESS="$4"
-  local MAX_RETRIES=$MONGO_MAX_RETRIES
-  local RETRY_DELAY=$MONGO_RETRY_DELAY
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -331,8 +327,8 @@ function getContractVersionFromMasterLog() {
   fi
 
   local attempt=1
-  while [[ $attempt -le $MAX_RETRIES ]]; do
-    echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS (attempt $attempt/$MAX_RETRIES)"
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
     MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
@@ -352,12 +348,12 @@ function getContractVersionFromMasterLog() {
           return 0
         fi
       else
-        echoDebug "MongoDB returned invalid JSON for getContractVersionFromMasterLog $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+        echoDebug "MongoDB returned invalid JSON for getContractVersionFromMasterLog $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
       fi
     fi
 
-    if [[ $attempt -lt $MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for getContractVersionFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for getContractVersionFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
       sleep $RETRY_DELAY
       RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
@@ -378,12 +374,11 @@ function getHighestDeployedContractVersionFromMasterLog() {
     return 1
   fi
 
-  local MAX_RETRIES=$MONGO_MAX_RETRIES
-  local RETRY_DELAY=$MONGO_RETRY_DELAY
+  local RETRY_DELAY=1
   local attempt=1
 
-  while [[ $attempt -le $MAX_RETRIES ]]; do
-    echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT (attempt $attempt/$MAX_RETRIES)"
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
     MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
@@ -405,12 +400,12 @@ function getHighestDeployedContractVersionFromMasterLog() {
           return 0
         fi
       else
-        echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+        echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
       fi
     fi
 
-    if [[ $attempt -lt $MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for getHighestDeployedContractVersionFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for getHighestDeployedContractVersionFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
       sleep $RETRY_DELAY
       RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
@@ -690,8 +685,7 @@ function getConstructorArgsFromMasterLog() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION=${4:-} # Optional version parameter
-  local MAX_RETRIES=$MONGO_MAX_RETRIES
-  local RETRY_DELAY=$MONGO_RETRY_DELAY
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -710,8 +704,8 @@ function getConstructorArgsFromMasterLog() {
   fi
 
   local attempt=1
-  while [[ $attempt -le $MAX_RETRIES ]]; do
-    echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION (attempt $attempt/$MAX_RETRIES)"
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
     MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
@@ -734,12 +728,12 @@ function getConstructorArgsFromMasterLog() {
           return 0
         fi
       else
-        echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+        echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
       fi
     fi
 
-    if [[ $attempt -lt $MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for getConstructorArgsFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for getConstructorArgsFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
       sleep $RETRY_DELAY
       RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
