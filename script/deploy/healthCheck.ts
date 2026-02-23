@@ -41,10 +41,7 @@ import {
   checkOwnershipTron,
   parseTroncastNestedArray,
 } from './healthCheckTronUtils'
-import {
-  RETRY_DELAY,
-  SAFE_THRESHOLD,
-} from './shared/constants'
+import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
 import { isRateLimitError, retryWithRateLimit } from './shared/rateLimit'
 import {
   checkIsDeployedTron,
@@ -58,12 +55,12 @@ const targetState = targetStateImport as TargetState
 /**
  * Execute a command with retry logic for rate limit errors (429)
  * Uses spawn to avoid shell interpretation issues with special characters
- * 
+ *
  * NOTE: For Tron contract calls, prefer using callTronContract() from healthCheckTronUtils.ts
  * which is specialized for troncast and includes proper delay handling.
- * 
+ *
  * This function is primarily used for EVM contract calls via cast.
- * 
+ *
  * @param commandParts - Array of command parts (e.g., ['cast', 'call', ...])
  * @param initialDelay - Initial delay before first attempt (ms)
  * @param maxRetries - Maximum number of retries
@@ -152,7 +149,8 @@ const main = defineCommand({
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
-      const productionDiamond = targetState[networkLower]?.production?.LiFiDiamond
+      const productionDiamond =
+        targetState[networkLower]?.production?.LiFiDiamond
       if (productionDiamond) {
         nonCoreFacets = Object.keys(productionDiamond).filter((k) => {
           return (
@@ -180,11 +178,7 @@ const main = defineCommand({
       : undefined
 
     if (isTron)
-      tronWeb = initTronWeb(
-        'mainnet',
-        undefined,
-        networkConfig.rpcUrl
-      )
+      tronWeb = initTronWeb('mainnet', undefined, networkConfig.rpcUrl)
     else {
       const chain = getViemChainForNetworkName(networkLower)
       publicClient = createPublicClient({
@@ -276,11 +270,13 @@ const main = defineCommand({
         if (Array.isArray(onChainFacets)) {
           // Map Tron addresses directly (deployments already use Tron format)
           const configFacetsByAddress = Object.fromEntries(
-            Object.entries(deployedContracts).map(([name, address]: [string, unknown]) => {
-              // Address is already in Tron format for Tron deployments
-              const addressStr = String(address)
-              return [addressStr.toLowerCase(), name]
-            })
+            Object.entries(deployedContracts).map(
+              ([name, address]: [string, unknown]) => {
+                // Address is already in Tron format for Tron deployments
+                const addressStr = String(address)
+                return [addressStr.toLowerCase(), name]
+              }
+            )
           )
 
           registeredFacets = onChainFacets
@@ -291,7 +287,8 @@ const main = defineCommand({
         }
       } else if (networkConfig.rpcUrl && publicClient && publicClient.chain) {
         // Existing EVM logic with retry for rate limits
-        const rpcUrl: string = publicClient.chain.rpcUrls.default.http[0] || networkConfig.rpcUrl
+        const rpcUrl: string =
+          publicClient.chain.rpcUrls.default.http[0] || networkConfig.rpcUrl
         const rawString = await execWithRateLimitRetry(
           [
             'cast',
@@ -315,10 +312,12 @@ const main = defineCommand({
 
         if (Array.isArray(onChainFacets)) {
           const configFacetsByAddress = Object.fromEntries(
-            Object.entries(deployedContracts).map(([name, address]: [string, unknown]) => {
-              const addressStr = String(address)
-              return [addressStr.toLowerCase(), name]
-            })
+            Object.entries(deployedContracts).map(
+              ([name, address]: [string, unknown]) => {
+                const addressStr = String(address)
+                return [addressStr.toLowerCase(), name]
+              }
+            )
           )
 
           registeredFacets = onChainFacets
@@ -340,7 +339,8 @@ const main = defineCommand({
           'This is a temporary limitation from the RPC provider. The check will be skipped.'
         )
       } else {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
         consola.warn(
           'Unable to parse output - skipping facet registration check'
         )
@@ -415,7 +415,8 @@ const main = defineCommand({
             consola.success('Executor is authorized in ERC20Proxy')
           }
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
           logError(`Failed to check Executor authorization: ${errorMessage}`)
         }
       } else if (publicClient) {
@@ -439,7 +440,7 @@ const main = defineCommand({
       }
     } else {
       consola.info(
-        'Skipping Executor authorization check for staging environment because Executor is not deployed'
+        'Skipping Executor aauthorization check for staging environment because Executor is not deployed'
       )
     }
 
@@ -487,15 +488,23 @@ const main = defineCommand({
               )
 
               // Parse Tron address from output (base58 format starting with T)
-              const cleanedAddress = registeredAddressOutput.trim().replace(/^["']|["']$/g, '')
-              const registeredAddress = cleanedAddress.startsWith('T') && cleanedAddress.length === 34
-                ? cleanedAddress
-                : null
+              const cleanedAddress = registeredAddressOutput
+                .trim()
+                .replace(/^["']|["']$/g, '')
+              const registeredAddress =
+                cleanedAddress.startsWith('T') && cleanedAddress.length === 34
+                  ? cleanedAddress
+                  : null
               const expectedAddress = peripheryAddress.toLowerCase()
 
-              if (!registeredAddress || registeredAddress.toLowerCase() !== expectedAddress) {
+              if (
+                !registeredAddress ||
+                registeredAddress.toLowerCase() !== expectedAddress
+              ) {
                 logError(
-                  `Periphery contract ${periphery} not registered in Diamond (expected: ${peripheryAddress}, got: ${registeredAddress || 'null'})`
+                  `Periphery contract ${periphery} not registered in Diamond (expected: ${peripheryAddress}, got: ${
+                    registeredAddress || 'null'
+                  })`
                 )
               } else {
                 consola.success(
@@ -503,7 +512,8 @@ const main = defineCommand({
                 )
               }
             } catch (error: unknown) {
-              const errorMessage = error instanceof Error ? error.message : String(error)
+              const errorMessage =
+                error instanceof Error ? error.message : String(error)
               logError(
                 `Failed to check periphery registration for ${periphery}: ${errorMessage}`
               )
@@ -782,7 +792,8 @@ const main = defineCommand({
           consola.success(`PauserWallet is funded: ${balanceTrx} TRX`)
         }
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
         logError(`Failed to check pauser wallet balance: ${errorMessage}`)
       }
     } else if (publicClient) {
@@ -838,7 +849,8 @@ const main = defineCommand({
             )
           }
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
           logError(
             `Failed to check access permission for ${selector.name}: ${errorMessage}`
           )
@@ -950,7 +962,6 @@ const getOwnableContract = (address: Address, client: PublicClient) => {
   })
 }
 
-
 const checkOwnership = async (
   name: string,
   expectedOwner: Address | string,
@@ -996,14 +1007,10 @@ async function checkAndLogDeployment(
   }
 
   if (!isDeployed) {
-    logError(
-      label ? `${label} ${name} not deployed` : `${name} not deployed`
-    )
+    logError(label ? `${label} ${name} not deployed` : `${name} not deployed`)
     return false
   }
-  consola.success(
-    label ? `${label} ${name} deployed` : `${name} deployed`
-  )
+  consola.success(label ? `${label} ${name} deployed` : `${name} deployed`)
   return true
 }
 
@@ -1199,7 +1206,9 @@ async function checkWhitelistIntegrity(
       }
     }
   } else {
-    consola.warn('No Tron or EVM context provided. Skipping whitelist integrity check.')
+    consola.warn(
+      'No Tron or EVM context provided. Skipping whitelist integrity check.'
+    )
     return
   }
 
@@ -1229,7 +1238,8 @@ async function checkWhitelistIntegrity(
             granularFails++
           }
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
           logError(
             `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
           )
@@ -1257,7 +1267,10 @@ async function checkWhitelistIntegrity(
                   address: whitelistManager.address,
                   abi: whitelistManager.abi as Abi,
                   functionName: 'isContractSelectorWhitelisted',
-                  args: [expectedPair.contract as Address, expectedPair.selector],
+                  args: [
+                    expectedPair.contract as Address,
+                    expectedPair.selector,
+                  ],
                 },
               ],
               allowFailure: false,
@@ -1266,7 +1279,9 @@ async function checkWhitelistIntegrity(
           } else {
             const manager = whitelistManager as unknown as {
               read: {
-                isContractSelectorWhitelisted: (args: [Address, Hex]) => Promise<boolean>
+                isContractSelectorWhitelisted: (
+                  args: [Address, Hex]
+                ) => Promise<boolean>
               }
             }
             isWhitelisted = await manager.read.isContractSelectorWhitelisted([
@@ -1281,7 +1296,8 @@ async function checkWhitelistIntegrity(
             granularFails++
           }
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
           logError(
             `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
           )
