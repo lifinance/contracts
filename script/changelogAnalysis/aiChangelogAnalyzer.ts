@@ -28,18 +28,69 @@ interface ContractDiff {
 export async function analyzeContractChangesWithAI(
   diff: ContractDiff,
   apiKey?: string,
-  provider: 'openai' | 'anthropic' = 'openai'
+  provider: 'coderabbit' | 'openai' | 'anthropic' = 'coderabbit'
 ): Promise<AIAnalysisResult> {
-  const key = apiKey || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY
+  const key = apiKey || process.env.CODERABBIT_CONTRACTS_REPO_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY
   
   if (!key) {
-    throw new Error('No API key provided. Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable')
+    throw new Error('No API key provided. Set CODERABBIT_CONTRACTS_REPO_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable')
   }
 
-  if (provider === 'openai') {
+  if (provider === 'coderabbit') {
+    return analyzeWithCodeRabbit(diff, key)
+  } else if (provider === 'openai') {
     return analyzeWithOpenAI(diff, key)
   } else {
     return analyzeWithAnthropic(diff, key)
+  }
+}
+
+/**
+ * Analyze using CodeRabbit API
+ * 
+ * Note: This assumes CodeRabbit uses a similar API format to OpenAI.
+ * If CodeRabbit has a different API endpoint or format, adjust accordingly.
+ */
+async function analyzeWithCodeRabbit(diff: ContractDiff, apiKey: string): Promise<AIAnalysisResult> {
+  const prompt = buildAnalysisPrompt(diff)
+  
+  try {
+    // CodeRabbit API endpoint - TODO: Verify actual endpoint from CodeRabbit documentation
+    // If CodeRabbit uses a different API format, update this accordingly
+    const response = await fetch('https://api.coderabbit.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Solidity smart contract expert analyzing code changes for changelog generation. Provide concise, technical descriptions of what changed and why.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`CodeRabbit API error: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    const content = data.choices[0]?.message?.content || ''
+    
+    return parseAIResponse(content, diff.contractName)
+  } catch (error) {
+    console.error('Error calling CodeRabbit API:', error)
+    throw error
   }
 }
 

@@ -13,7 +13,7 @@
  */
 
 import { execSync } from 'child_process'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import {
   analyzeContractChangesWithAI,
@@ -26,11 +26,11 @@ import {
   type AdvancedChangelogEntry,
 } from './advancedChangelogGenerator'
 
-const CHANGELOG_FILE = 'script/changelogAnalysis/CHANGELOG-CONTRACTS.md'
+const CHANGELOG_DIR = 'changelog'
 const CONTRACTS_DIR = 'src'
 const USE_AI = process.env.USE_AI === 'true'
 const USE_ADVANCED = process.env.USE_ADVANCED !== 'false' // Default true
-const AI_PROVIDER = (process.env.AI_PROVIDER || 'openai') as 'openai' | 'anthropic'
+const AI_PROVIDER = (process.env.AI_PROVIDER || 'coderabbit') as 'coderabbit' | 'openai' | 'anthropic'
 
 interface ChangelogEntry {
   date: string
@@ -282,7 +282,7 @@ function analyzeContractChanges(file: string): ContractAnalysis | null {
  */
 function generateChangelogEntry(analyses: ContractAnalysis[]): ChangelogEntry {
   const date = new Date().toISOString().split('T')[0]
-  const commitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
+  const commitSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim() // Full commit hash
   const commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim().split('\n')[0]
   
   const entry: ChangelogEntry = {
@@ -409,36 +409,52 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
     markdown += '\n'
   }
   
-  return markdown + '---\n\n'
+  return markdown
 }
 
 /**
- * Update or create changelog file
+ * Update or create changelog file for a specific commit
  */
-function updateChangelog(entry: string): void {
-  const changelogPath = join(process.cwd(), CHANGELOG_FILE)
+function updateChangelog(entry: string, commitSha: string): void {
+  // Ensure changelog directory exists
+  const changelogDir = join(process.cwd(), CHANGELOG_DIR)
+  if (!existsSync(changelogDir)) {
+    mkdirSync(changelogDir, { recursive: true })
+  }
   
-  let content = ''
+  // Create file path: changelog/{commitHash}.md
+  const changelogPath = join(changelogDir, `${commitSha}.md`)
+  
+  // Check if file already exists
   if (existsSync(changelogPath)) {
-    content = readFileSync(changelogPath, 'utf-8')
-  } else {
-    content = `# Contract Changelog
+    console.log(`⚠️  Changelog file already exists for commit ${commitSha.substring(0, 7)}`)
+    console.log(`   Skipping to avoid overwriting existing changelog`)
+    return
+  }
+  
+  // Generate full changelog content for this commit
+  const commitDate = execSync('git log -1 --format=%ci HEAD', { encoding: 'utf-8' }).trim()
+  const commitAuthor = execSync('git log -1 --format=%an HEAD', { encoding: 'utf-8' }).trim()
+  const commitUrl = process.env.REPOSITORY 
+    ? `https://github.com/${process.env.REPOSITORY}/commit/${commitSha}`
+    : `#${commitSha}`
+  
+  const content = `# Contract Changelog - ${commitSha.substring(0, 7)}
 
-All notable changes to smart contracts will be documented in this file.
-
-This changelog is automatically generated based on contract modifications.
+**Commit**: [${commitSha}](${commitUrl})  
+**Date**: ${commitDate}  
+**Author**: ${commitAuthor}
 
 ---
 
-`
-  }
+${entry}
+
+---
+
+*This changelog was automatically generated for commit ${commitSha}*`
   
-  // Insert new entry after header
-  const headerEnd = content.indexOf('---\n\n') + 5
-  const newContent = content.slice(0, headerEnd) + entry + content.slice(headerEnd)
-  
-  writeFileSync(changelogPath, newContent, 'utf-8')
-  console.log(`✅ Changelog updated: ${CHANGELOG_FILE}`)
+  writeFileSync(changelogPath, content, 'utf-8')
+  console.log(`✅ Changelog created: ${CHANGELOG_DIR}/${commitSha}.md`)
 }
 
 /**
@@ -460,7 +476,7 @@ async function mainWithAI() {
   console.log()
   
   const date = new Date().toISOString().split('T')[0]
-  const commitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
+  const commitSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim() // Full commit hash
   const commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim().split('\n')[0]
   
   let combinedEntry: ChangelogEntry = {
@@ -535,7 +551,7 @@ async function mainWithAI() {
   console.log('\n📝 Generated changelog entry:\n')
   console.log(formattedEntry)
   
-  updateChangelog(formattedEntry)
+  updateChangelog(formattedEntry, commitSha)
 }
 
 /**
@@ -571,11 +587,12 @@ function main() {
   
   const entry = generateChangelogEntry(analyses)
   const formattedEntry = formatChangelogEntry(entry)
+  const commitSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim() // Full commit hash
   
   console.log('📝 Generated changelog entry:\n')
   console.log(formattedEntry)
   
-  updateChangelog(formattedEntry)
+  updateChangelog(formattedEntry, commitSha)
 }
 
 /**
@@ -596,7 +613,7 @@ async function mainAdvanced() {
   console.log()
   
   const date = new Date().toISOString().split('T')[0]
-  const commitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
+  const commitSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim() // Full commit hash
   const commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim().split('\n')[0]
   
   let combinedEntry: ChangelogEntry = {
@@ -662,7 +679,7 @@ async function mainAdvanced() {
   console.log('\n📝 Generated changelog entry:\n')
   console.log(formattedEntry)
   
-  updateChangelog(formattedEntry)
+  updateChangelog(formattedEntry, commitSha)
 }
 
 // Run appropriate mode

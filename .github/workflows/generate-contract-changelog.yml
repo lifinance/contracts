@@ -1,8 +1,10 @@
 # Generate Contract Changelog
 # - Triggers when a PR is merged to main that modified Solidity contracts
-# - Analyzes contract changes and updates CHANGELOG-CONTRACTS.md
-# - Commits changelog updates directly to main
+# - Also triggers on push to test branch (SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI)
+# - Analyzes contract changes and generates individual changelog file per commit: changelog/{commitHash}.md
+# - Commits changelog files directly to the branch
 # - Supports manual execution via workflow_dispatch
+# - Uses CodeRabbit API (CODERABBIT_CONTRACTS_REPO_API_KEY) by default, falls back to OpenAI/Anthropic if available
 
 name: Generate Contract Changelog
 
@@ -11,6 +13,11 @@ on:
     types: [closed]
     branches:
       - main
+    paths:
+      - 'src/**/*.sol'
+  push:
+    branches:
+      - 'SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI'
     paths:
       - 'src/**/*.sol'
   workflow_dispatch:
@@ -29,9 +36,10 @@ on:
         required: false
         type: choice
         options:
+          - coderabbit
           - openai
           - anthropic
-        default: openai
+        default: coderabbit
 
 permissions:
   contents: write
@@ -39,15 +47,15 @@ permissions:
 
 jobs:
   generate-changelog:
-    # Only run if: (1) PR was merged (not just closed), OR (2) manually triggered
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    # Only run if: (1) PR was merged (not just closed), OR (2) manually triggered, OR (3) push to test branch
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref || 'main' }} # Checkout target branch (main)
+          ref: ${{ github.event.pull_request.base.ref || github.ref }} # Checkout target branch (main for PRs, current branch for pushes)
           fetch-depth: 0 # Need full history for diff analysis
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -65,10 +73,10 @@ jobs:
           # Run the changelog generator script
           # Three modes available: Basic, Advanced (default), AI
           
-          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "🤖 Running in AI mode (OpenAI/Anthropic)"
+          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.CODERABBIT_CONTRACTS_REPO_API_KEY }}" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "🤖 Running in AI mode"
             export USE_AI=true
-            export AI_PROVIDER="${{ github.event.inputs.ai_provider || 'openai' }}"
+            export AI_PROVIDER="${{ github.event.inputs.ai_provider || 'coderabbit' }}"
           else
             echo "🔬 Running in Advanced mode (AST + Forge + Heuristics - default, free)"
             export USE_ADVANCED=true
@@ -79,18 +87,23 @@ jobs:
           COMMIT_SHA: ${{ github.event.inputs.commit_sha || github.event.pull_request.merge_commit_sha || github.sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
+          CODERABBIT_CONTRACTS_REPO_API_KEY: ${{ secrets.CODERABBIT_CONTRACTS_REPO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Check for changes
         id: check
         run: |
-          if git diff --quiet script/changelogAnalysis/CHANGELOG-CONTRACTS.md; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "No changelog changes detected"
-          else
+          # Check if any new changelog files were created
+          if git diff --name-only --diff-filter=A | grep -q "^changelog/.*\.md$"; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "Changelog updated"
+            echo "New changelog file(s) created"
+            git diff --name-only --diff-filter=A | grep "^changelog/.*\.md$" | while read file; do
+              echo "  - $file"
+            done
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No new changelog files detected"
           fi
 
       - name: Commit and push changelog
@@ -98,8 +111,10 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add script/changelogAnalysis/CHANGELOG-CONTRACTS.md
-          git commit -m "chore: update contract changelog"
+          # Add all new changelog files
+          git add changelog/*.md
+          COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
+          git commit -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
           git push
 
       - name: Summary
@@ -109,27 +124,30 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Show mode
-          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.CODERABBIT_CONTRACTS_REPO_API_KEY }}" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
             echo "**Mode**: 🤖 AI-powered semantic analysis" >> $GITHUB_STEP_SUMMARY
-            echo "**Provider**: ${{ github.event.inputs.ai_provider || 'openai' }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Provider**: ${{ github.event.inputs.ai_provider || 'coderabbit' }}" >> $GITHUB_STEP_SUMMARY
             echo "**Quality**: 98% | **Cost**: ~\$0.03-0.15 per commit" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Mode**: 🔬 Advanced AST analysis (default)" >> $GITHUB_STEP_SUMMARY
             echo "**Quality**: 90% | **Cost**: Free" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "> 💡 **Optional**: Add \`OPENAI_API_KEY\` secret for AI mode (98% quality, ~\$5-10/month)" >> $GITHUB_STEP_SUMMARY
+            echo "> 💡 **Optional**: Add \`CODERABBIT_CONTRACTS_REPO_API_KEY\` secret for AI mode (98% quality)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ steps.check.outputs.has_changes }}" == "true" ]; then
-            echo "✅ Changelog updated successfully" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Changelog file created successfully" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Changes detected in:" >> $GITHUB_STEP_SUMMARY
-            # Show files from the merged PR
+            echo "### New changelog file(s):" >> $GITHUB_STEP_SUMMARY
+            git diff --name-only --diff-filter=A | grep "^changelog/.*\.md$" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Contract changes analyzed:" >> $GITHUB_STEP_SUMMARY
+            # Show files from the merged PR or push
             if [ -n "${{ github.event.pull_request.number }}" ]; then
               echo "**PR #${{ github.event.pull_request.number }}**: ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
             fi
-            git diff HEAD~1 --name-only --diff-filter=AM src/**/*.sol | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
+            git diff HEAD~1 --name-only --diff-filter=AM src/**/*.sol 2>/dev/null | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "ℹ️ No contract changes detected" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ No contract changes detected or changelog file already exists for this commit" >> $GITHUB_STEP_SUMMARY
           fi
