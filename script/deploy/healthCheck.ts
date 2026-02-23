@@ -24,8 +24,8 @@ import type { IWhitelistConfig, TargetState } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
-import { spawnAndCapture } from '../utils/spawnAndCapture'
 import { getRPCEnvVarName } from '../utils/network'
+import { spawnAndCapture } from '../utils/spawnAndCapture'
 import {
   getViemChainForNetworkName,
   networks,
@@ -39,21 +39,18 @@ import {
   getTronWallet,
   normalizeSelector,
   checkOwnershipTron,
-  checkWhitelistIntegrityTron,
-  checkWhitelistIntegrityCore,
-  type IWhitelistAdapter,
+  parseTroncastNestedArray,
 } from './healthCheckTronUtils'
 import {
   RETRY_DELAY,
   SAFE_THRESHOLD,
 } from './shared/constants'
+import { isRateLimitError, retryWithRateLimit } from './shared/rateLimit'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
-  isRateLimitError,
   parseTroncastFacetsOutput,
-  retryWithRateLimit,
 } from './tron/utils'
 
 const targetState = targetStateImport as TargetState
@@ -178,7 +175,6 @@ const main = defineCommand({
       throw new Error(`Network config not found for ${networkLower}`)
     }
 
-    // Tron RPC URL: compute once and reuse for all Tron checks
     const tronRpcUrl = isTron
       ? getEnvVar(getRPCEnvVarName(networkLower)) || networkConfig.rpcUrl
       : undefined
@@ -266,7 +262,6 @@ const main = defineCommand({
     let facetCheckSkipped = false
     try {
       if (isTron && tronRpcUrl) {
-        // Use troncast for Tron; tronRpcUrl computed once at start
         const rawString = await callTronContract(
           diamondAddress,
           'facets()',
@@ -586,39 +581,29 @@ const main = defineCommand({
         )
 
         if (isTron && tronWeb && tronRpcUrl) {
-          await checkWhitelistIntegrityTron(
+          await checkWhitelistIntegrity(
             networkStr as string,
-            diamondAddress,
-            tronRpcUrl,
-            tronWeb,
-            expectedPairs,
             environment,
-            logError
+            expectedPairs,
+            logError,
+            {
+              isTron: true,
+              diamondAddress,
+              tronRpcUrl,
+              tronWeb,
+            }
           )
         } else if (publicClient) {
-          // EVM implementation using viem
-          const whitelistManager = getContract({
-            address: deployedContracts['LiFiDiamond'],
-            abi: parseAbi([
-              'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
-              'function getAllContractSelectorPairs() external view returns (address[],bytes4[][])',
-            ]),
-            client: publicClient,
-          })
-
-          // Get on-chain data once and use for all checks
-          const [onChainContracts, onChainSelectors] =
-            await whitelistManager.read.getAllContractSelectorPairs()
-
           await checkWhitelistIntegrity(
-            publicClient,
-            diamondAddress,
-            whitelistManager,
+            networkStr as string,
+            environment,
             expectedPairs,
-            onChainContracts as readonly Address[],
-            onChainSelectors as unknown as readonly Hex[][],
-            network,
-            environment
+            logError,
+            {
+              isTron: false,
+              diamondAddress,
+              publicClient,
+            }
           )
         }
       } else {
@@ -1109,75 +1094,272 @@ const getExpectedPairs = async (
   }
 }
 
-// Checks the config.json (source of truth) against on-chain state.
-// This function handles all checks for data integrity and synchronization.
-const checkWhitelistIntegrity = async (
-  publicClient: PublicClient,
-  _diamondAddress: Address,
-  whitelistManager: ReturnType<typeof getContract>,
-  expectedPairs: Array<{ contract: string; selector: Hex }>,
-  onChainContracts: readonly Address[],
-  onChainSelectors: readonly Hex[][],
+/**
+ * Check whitelist integrity by comparing config against on-chain state.
+ * Branches inside for Tron vs EVM (same style as checkAndLogDeployment).
+ */
+async function checkWhitelistIntegrity(
   network: string,
-  environment: string
-) => {
-  // Create EVM-specific adapter
-  const evmAdapter: IWhitelistAdapter = {
-    // Fetch on-chain pairs from pre-fetched data
-    fetchOnChainPairs: async () => {
-      const onChainPairSet = new Set<string>()
-      for (let i = 0; i < onChainContracts.length; i++) {
-        const contract = onChainContracts[i]?.toLowerCase()
-        const selectors = onChainSelectors[i]
-        if (contract && selectors) {
-          for (const selector of selectors) {
-            onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
-          }
+  environment: string,
+  expectedPairs: Array<{ contract: string; selector: Hex }>,
+  logError: (msg: string) => void,
+  options: {
+    isTron: boolean
+    diamondAddress: string
+    tronRpcUrl?: string
+    tronWeb?: TronWeb
+    publicClient?: PublicClient
+  }
+): Promise<void> {
+  const { isTron, diamondAddress } = options
+  const tronRpcUrl = options.tronRpcUrl
+  const tronWeb = options.tronWeb
+  const publicClient = options.publicClient
+
+  consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
+
+  if (expectedPairs.length === 0) {
+    consola.warn('No expected pairs in config. Skipping all checks.')
+    return
+  }
+
+  consola.info('Preparing expected data sets from config...')
+  const uniqueContracts = new Set(
+    expectedPairs.map((p) => p.contract.toLowerCase())
+  )
+  const uniqueSelectors = new Set(
+    expectedPairs.map((p) => p.selector.toLowerCase())
+  )
+  consola.info(
+    `Config has ${expectedPairs.length} pairs, ${uniqueContracts.size} unique contracts, and ${uniqueSelectors.size} unique selectors.`
+  )
+
+  let onChainPairSet: Set<string>
+
+  if (isTron && tronWeb && tronRpcUrl) {
+    consola.start('Fetching on-chain whitelist data (Tron)...')
+    const onChainDataOutput = await callTronContract(
+      diamondAddress,
+      'getAllContractSelectorPairs()',
+      [],
+      'address[],bytes4[][]',
+      tronRpcUrl
+    )
+
+    let parsed: unknown[]
+    try {
+      parsed = JSON.parse(onChainDataOutput.trim())
+    } catch {
+      const trimmed = onChainDataOutput.trim()
+      if (!trimmed.startsWith('[')) {
+        throw new Error('Expected array format')
+      }
+      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
+      parsed = parsedArray as unknown[]
+    }
+
+    if (!Array.isArray(parsed) || parsed.length !== 2) {
+      throw new Error('Unexpected troncast output format')
+    }
+
+    const addresses = (parsed[0] as unknown[]) || []
+    const selectorsArrays = (parsed[1] as unknown[]) || []
+    onChainPairSet = new Set<string>()
+    for (let i = 0; i < addresses.length; i++) {
+      const contract = String(addresses[i]).toLowerCase()
+      const selectors = (selectorsArrays[i] as unknown[]) || []
+      if (Array.isArray(selectors)) {
+        for (const selector of selectors) {
+          onChainPairSet.add(`${contract}:${String(selector).toLowerCase()}`)
         }
       }
-      return onChainPairSet
-    },
+    }
+  } else if (publicClient) {
+    consola.start('Fetching on-chain whitelist data (EVM)...')
+    const whitelistManager = getContract({
+      address: diamondAddress as Address,
+      abi: parseAbi([
+        'function getAllContractSelectorPairs() external view returns (address[],bytes4[][])',
+        'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+      ]),
+      client: publicClient,
+    })
 
-    // Check pair using multicall or individual calls
-    checkPairWhitelisted: async (contract: string, selector: Hex) => {
+    const [onChainContracts, onChainSelectors] =
+      await whitelistManager.read.getAllContractSelectorPairs()
+
+    onChainPairSet = new Set<string>()
+    for (let i = 0; i < onChainContracts.length; i++) {
+      const contract = onChainContracts[i]?.toLowerCase()
+      const selectors = onChainSelectors[i]
+      if (contract && selectors) {
+        for (const selector of selectors) {
+          onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
+        }
+      }
+    }
+  } else {
+    consola.warn('No Tron or EVM context provided. Skipping whitelist integrity check.')
+    return
+  }
+
+  consola.info(`On-chain has ${onChainPairSet.size} total pairs.`)
+
+  try {
+    consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
+    let granularFails = 0
+
+    if (isTron && tronWeb) {
+      for (const expectedPair of expectedPairs) {
+        try {
+          const isWhitelisted = await callTronContractBoolean(
+            tronWeb,
+            diamondAddress,
+            'isContractSelectorWhitelisted(address,bytes4)',
+            [
+              { type: 'address', value: expectedPair.contract },
+              { type: 'bytes4', value: expectedPair.selector },
+            ],
+            'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
+          )
+          if (!isWhitelisted) {
+            logError(
+              `Source of Truth FAILED: ${expectedPair.contract} / ${expectedPair.selector} is 'false'.`
+            )
+            granularFails++
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logError(
+            `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
+          )
+          granularFails++
+        }
+      }
+    } else if (publicClient) {
+      const whitelistManager = getContract({
+        address: diamondAddress as Address,
+        abi: parseAbi([
+          'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+        ]),
+        client: publicClient,
+      })
       const hasMulticall3 =
         publicClient.chain?.contracts?.multicall3 !== undefined
 
-      if (hasMulticall3) {
-        const result = await publicClient.multicall({
-          contracts: [
-            {
-              address: whitelistManager.address,
-              abi: whitelistManager.abi as Abi,
-              functionName: 'isContractSelectorWhitelisted',
-              args: [contract as Address, selector],
-            },
-          ],
-          allowFailure: false,
-        })
-        return result[0] as boolean
-      } else {
-        const manager = whitelistManager as unknown as {
-          read: {
-            isContractSelectorWhitelisted: (args: [Address, Hex]) => Promise<boolean>
+      for (const expectedPair of expectedPairs) {
+        try {
+          let isWhitelisted: boolean
+          if (hasMulticall3) {
+            const result = await publicClient.multicall({
+              contracts: [
+                {
+                  address: whitelistManager.address,
+                  abi: whitelistManager.abi as Abi,
+                  functionName: 'isContractSelectorWhitelisted',
+                  args: [expectedPair.contract as Address, expectedPair.selector],
+                },
+              ],
+              allowFailure: false,
+            })
+            isWhitelisted = result[0] as boolean
+          } else {
+            const manager = whitelistManager as unknown as {
+              read: {
+                isContractSelectorWhitelisted: (args: [Address, Hex]) => Promise<boolean>
+              }
+            }
+            isWhitelisted = await manager.read.isContractSelectorWhitelisted([
+              expectedPair.contract as Address,
+              expectedPair.selector,
+            ])
           }
+          if (!isWhitelisted) {
+            logError(
+              `Source of Truth FAILED: ${expectedPair.contract} / ${expectedPair.selector} is 'false'.`
+            )
+            granularFails++
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logError(
+            `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
+          )
+          granularFails++
         }
-        return manager.read.isContractSelectorWhitelisted([
-          contract as Address,
-          selector,
-        ])
       }
-    },
-  }
+    }
 
-  // Use core logic with EVM adapter
-  await checkWhitelistIntegrityCore(
-    expectedPairs,
-    evmAdapter,
-    network,
-    environment,
-    logError
-  )
+    if (granularFails === 0) {
+      consola.success(
+        'Source of Truth (isContractSelectorWhitelisted) is synced.'
+      )
+    }
+
+    consola.start('Step 2/2: Checking Config vs. Getter Arrays...')
+
+    const expectedPairSet = new Set<string>()
+    for (const pair of expectedPairs) {
+      expectedPairSet.add(
+        `${pair.contract.toLowerCase()}:${pair.selector.toLowerCase()}`
+      )
+    }
+
+    const missingPairsList: string[] = []
+    for (const expectedPair of expectedPairs) {
+      const key = `${expectedPair.contract.toLowerCase()}:${expectedPair.selector.toLowerCase()}`
+      if (!onChainPairSet.has(key)) {
+        missingPairsList.push(key)
+      }
+    }
+
+    const stalePairsList: string[] = []
+    for (const onChainPair of onChainPairSet) {
+      if (!expectedPairSet.has(onChainPair)) {
+        stalePairsList.push(onChainPair)
+      }
+    }
+
+    if (missingPairsList.length === 0 && stalePairsList.length === 0) {
+      consola.success(
+        `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
+      )
+    } else {
+      if (missingPairsList.length > 0) {
+        logError(
+          `Pair Array is missing ${missingPairsList.length} pairs from config:`
+        )
+        missingPairsList.slice(0, 10).forEach((pair) => {
+          const [contract, selector] = pair.split(':')
+          logError(`  Missing: ${contract} / ${selector}`)
+        })
+        if (missingPairsList.length > 10) {
+          logError(`  ... and ${missingPairsList.length - 10} more`)
+        }
+        consola.warn(
+          `\n💡 To fix missing pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
+        )
+      }
+      if (stalePairsList.length > 0) {
+        logError(
+          `Pair Array has ${stalePairsList.length} stale pairs not in config:`
+        )
+        stalePairsList.slice(0, 10).forEach((pair) => {
+          const [contract, selector] = pair.split(':')
+          logError(`  Stale: ${contract} / ${selector}`)
+        })
+        if (stalePairsList.length > 10) {
+          logError(`  ... and ${stalePairsList.length - 10} more`)
+        }
+        consola.warn(
+          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
+        )
+      }
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logError(`Failed during whitelist integrity checks: ${errorMessage}`)
+  }
 }
 
 const finish = () => {

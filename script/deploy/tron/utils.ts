@@ -14,7 +14,13 @@ import {
 import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
 import { spawnAndCapture } from '../../utils/spawnAndCapture'
-import { INITIAL_CALL_DELAY, MAX_RETRIES, RETRY_DELAY, ZERO_ADDRESS } from '../shared/constants'
+import {
+  INITIAL_CALL_DELAY,
+  MAX_RETRIES,
+  RETRY_DELAY,
+  ZERO_ADDRESS,
+} from '../shared/constants'
+import { retryWithRateLimit } from '../shared/rateLimit'
 
 import {
   DEFAULT_FEE_LIMIT_TRX,
@@ -29,82 +35,8 @@ import type {
   IDiamondRegistrationResult,
 } from './types'
 
-/**
- * Check if an error is a rate limit or connection error
- * @param error - The error to check
- * @param includeConnectionErrors - Whether to include connection errors (ECONNREFUSED, ETIMEDOUT)
- * @returns True if the error is a rate limit or connection error
- */
-export function isRateLimitError(error: any, includeConnectionErrors = true): boolean {
-  const errorMessage = error?.message || String(error)
-  const rateLimitPatterns = [
-    '429',
-    'rate limit',
-    'Too Many Requests',
-  ]
-  
-  if (includeConnectionErrors) {
-    rateLimitPatterns.push('ECONNREFUSED', 'ETIMEDOUT')
-  }
-
-  return rateLimitPatterns.some((pattern) =>
-    errorMessage.includes(pattern)
-  )
-}
-
-/**
- * Generic retry function with rate limit handling
- * @param operation - Async function to retry
- * @param maxRetries - Maximum number of retries (default: 3)
- * @param retryDelay - Delay in ms for all retry attempts (default: 2000). Can be a number or array for backward compatibility
- * @param onRetry - Optional callback called before each retry
- * @param includeConnectionErrors - Whether to include connection errors in rate limit detection (default: true)
- * @returns Result of the operation
- * @throws The last error if all retries fail
- */
-export async function retryWithRateLimit<T>(
-  operation: () => Promise<T>,
-  maxRetries = MAX_RETRIES,
-  retryDelay: number | number[] = RETRY_DELAY,
-  onRetry?: (attempt: number, delay: number) => void,
-  includeConnectionErrors = true
-): Promise<T> {
-  // Normalize retryDelay: if it's a number, use it for all retries
-  const retryDelays: number[] = Array.isArray(retryDelay)
-    ? retryDelay
-    : Array(maxRetries).fill(retryDelay)
-
-  for (let retry = 0; retry <= maxRetries; retry++) {
-    try {
-      // Add delay before retry (not before first attempt)
-      if (retry > 0) {
-      const delay: number =
-        retryDelays[retry - 1] ??
-        retryDelays[retryDelays.length - 1] ??
-        RETRY_DELAY
-        if (onRetry) {
-          onRetry(retry, delay)
-        }
-        await sleep(delay)
-      }
-
-      return await operation()
-    } catch (error: any) {
-      const isRateLimit = isRateLimitError(error, includeConnectionErrors)
-
-      // If it's a rate limit error and we have retries left, continue
-      if (isRateLimit && retry < maxRetries) {
-        continue
-      }
-
-      // If it's not a rate limit error, or we've exhausted retries, throw
-      throw error
-    }
-  }
-
-  // This should never be reached, but TypeScript requires it
-  throw new Error('Max retries exceeded')
-}
+// Re-export for callers that still import from tron/utils (used for both Tron and EVM)
+export { isRateLimitError, retryWithRateLimit } from '../shared/rateLimit'
 
 /**
  * Load compiled contract artifact from Forge output
@@ -169,7 +101,12 @@ export async function checkIsDeployedTron(
   deployedContracts: Record<string, string>,
   tronWeb: any
 ): Promise<boolean> {
-  if (!deployedContracts[contract]) return false
+  if (!deployedContracts[contract]) {
+    consola.warn(
+      `Contract "${contract}" not found in deployments file. Ensure deployments/tron.json (or .staging) contains this contract.`
+    )
+    return false
+  }
 
   // For Tron, addresses in deployments are already in Tron format
   const tronAddress = deployedContracts[contract]
@@ -178,15 +115,25 @@ export async function checkIsDeployedTron(
   await sleep(INITIAL_CALL_DELAY)
 
   try {
-    const contractInfo = await retryWithRateLimit(
-      () => tronWeb.trx.getContract(tronAddress),
+    // TronWeb getContract return type is underspecified; shape includes contract_address when contract exists
+    type GetContractResult = { contract_address?: string } | null
+    const contractInfo = await retryWithRateLimit<GetContractResult>(
+      () =>
+        tronWeb.trx.getContract(tronAddress) as Promise<GetContractResult>,
       MAX_RETRIES,
       RETRY_DELAY
     )
-    return contractInfo && contractInfo.contract_address ? true : false
-  } catch {
-    // If all retries fail, return false
-    // This could mean the contract is not deployed, or there's a persistent RPC issue
+    const address = contractInfo?.contract_address
+    if (address) return true
+    consola.warn(
+      `Contract "${contract}" at ${tronAddress}: getContract returned no contract_address (contract may not exist on-chain).`
+    )
+    return false
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    consola.warn(
+      `Contract "${contract}" at ${tronAddress}: getContract failed after retries. Reason: ${msg}`
+    )
     return false
   }
 }
