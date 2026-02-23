@@ -3,9 +3,6 @@
 # - Forked PRs cannot access secrets or run CI in this repo due to security restrictions.
 # - To continue the contribution process, we need to recreate the PR using a local branch.
 #
-# Security: All user-controlled inputs (PR title, body, fork repo/ref) are passed via step
-# env only and never interpolated into the script body, to prevent RCE via malicious PR titles.
-#
 # What this action does:
 # ✅ Detects if a PR comes from a fork.
 # ✅ Fetches the forked PR branch and creates a new local branch in the main repo.
@@ -48,8 +45,6 @@ jobs:
       - name: Fetch forked branch content
         id: fetch_fork
         env:
-          # Pass event data via env to prevent RCE: user-controlled values must not
-          # be interpolated into the script body (see CVE-style RCE via PR title/body).
           FORK_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           FORK_REF: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -81,7 +76,6 @@ jobs:
       - name: Create internal PR
         id: create_internal_pr
         env:
-          # Pass all user/event inputs via env to prevent RCE (no interpolation into script).
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           ORIGINAL_PR_NUMBER: ${{ github.event.pull_request.number }}
