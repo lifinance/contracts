@@ -3,6 +3,9 @@
 # - Forked PRs cannot access secrets or run CI in this repo due to security restrictions.
 # - To continue the contribution process, we need to recreate the PR using a local branch.
 #
+# Security: All user-controlled inputs (PR title, body, fork repo/ref) are passed via step
+# env only and never interpolated into the script body, to prevent RCE via malicious PR titles.
+#
 # What this action does:
 # ✅ Detects if a PR comes from a fork.
 # ✅ Fetches the forked PR branch and creates a new local branch in the main repo.
@@ -38,27 +41,29 @@ jobs:
 
     steps:
       - name: Checkout base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Fetch forked branch content
         id: fetch_fork
+        env:
+          # Pass event data via env to prevent RCE: user-controlled values must not
+          # be interpolated into the script body (see CVE-style RCE via PR title/body).
+          FORK_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          FORK_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
           git config --global user.name "Lifi Bot"
           git config --global user.email "actions@users.noreply.github.com"
 
-          # Sanitize repo and ref inputs (basic alphanumeric + symbols)
-          FORK_REPO="${{ github.event.pull_request.head.repo.full_name }}"
-          FORK_REF="${{ github.event.pull_request.head.ref }}"
-          NEW_BRANCH="fork-pr-${{ github.event.pull_request.number }}"
-
-          # Allow only expected characters in ref and repo
-          SAFE_FORK_REPO=$(echo "$FORK_REPO" | sed 's/[^a-zA-Z0-9_.\/-]//g')
-          SAFE_FORK_REF=$(echo "$FORK_REF" | sed 's/[^a-zA-Z0-9_.\/-]//g')
-          SAFE_NEW_BRANCH=$(echo "$NEW_BRANCH" | sed 's/[^a-zA-Z0-9_.\/-]//g')
+          # Sanitize repo and ref (read from env; never interpolate into script)
+          SAFE_FORK_REPO=$(printf '%s' "$FORK_REPO" | sed 's/[^a-zA-Z0-9_.\/-]//g')
+          SAFE_FORK_REF=$(printf '%s' "$FORK_REF" | sed 's/[^a-zA-Z0-9_.\/-]//g')
+          NEW_BRANCH="fork-pr-${PR_NUMBER}"
+          SAFE_NEW_BRANCH=$(printf '%s' "$NEW_BRANCH" | sed 's/[^a-zA-Z0-9_.\/-]//g')
 
           # Check if branch already exists
           if git show-ref --verify --quiet refs/remotes/origin/"$SAFE_NEW_BRANCH"; then
@@ -75,32 +80,28 @@ jobs:
 
       - name: Create internal PR
         id: create_internal_pr
+        env:
+          # Pass all user/event inputs via env to prevent RCE (no interpolation into script).
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          ORIGINAL_PR_NUMBER: ${{ github.event.pull_request.number }}
+          ORIGINAL_PR_URL: https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+          ORIGINAL_AUTHOR: '@${{ github.event.pull_request.user.login }}'
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
 
-          # Safely escape PR title for shell usage
-          PR_TITLE=$(printf "%q" "${{ github.event.pull_request.title }}")
-          ORIGINAL_PR_NUMBER="${{ github.event.pull_request.number }}"
-          ORIGINAL_PR_URL="https://github.com/${{ github.repository }}/pull/$ORIGINAL_PR_NUMBER"
-          ORIGINAL_AUTHOR="@${{ github.event.pull_request.user.login }}"
+          BODY_CONTENT="${PR_BODY:-No original PR description.}"
 
-          # Safely handle PR body with proper escaping
-          RAW_BODY="${{ github.event.pull_request.body }}"
-          PR_BODY="${RAW_BODY:-No original PR description.}"
-
-          # Create a temporary file for the PR body to avoid shell escaping issues
-          cat > /tmp/pr_body.md << 'EOF'
-> 🔄 This PR was created automatically from external PR [#$ORIGINAL_PR_NUMBER]($ORIGINAL_PR_URL) for CI/security purposes.
-
-Original PR by $ORIGINAL_AUTHOR: $ORIGINAL_PR_URL
-
----
-
-$PR_BODY
-EOF
+          # Build PR body file with printf only (no heredoc with user content = no RCE).
+          {
+            printf '> 🔄 This PR was created automatically from external PR [#%s](%s) for CI/security purposes.\n\n' "$ORIGINAL_PR_NUMBER" "$ORIGINAL_PR_URL"
+            printf 'Original PR by %s: %s\n\n---\n\n' "$ORIGINAL_AUTHOR" "$ORIGINAL_PR_URL"
+            printf '%s' "$BODY_CONTENT"
+          } > /tmp/pr_body.md
 
           NEW_PR_URL=$(gh pr create \
-            --base "${{ github.event.pull_request.base.ref }}" \
+            --base "$BASE_REF" \
             --head "$SAFE_NEW_BRANCH" \
             --title "$PR_TITLE" \
             --body-file /tmp/pr_body.md)
