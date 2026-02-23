@@ -4,9 +4,9 @@
 # - Analyzes contract changes and generates individual changelog file per commit: changelog/{commitHash}.md
 # - Commits changelog files directly to the branch
 # - Supports manual execution via workflow_dispatch
-# - Uses CodeRabbit API (CODERABBIT_CONTRACTS_REPO_API_KEY) by default, falls back to OpenAI/Anthropic if available
+# - Uses CodeRabbit API (CODERABBIT_CONTRACTS_REPO_API_KEY)
 
-name: Generate Contract Changelog
+name: generateContractChangelog
 
 on:
   pull_request:
@@ -26,20 +26,6 @@ on:
         description: 'Commit SHA to analyze (leave empty for latest)'
         required: false
         type: string
-      use_ai:
-        description: 'Use AI for semantic analysis (requires API key)'
-        required: false
-        type: boolean
-        default: false
-      ai_provider:
-        description: 'AI provider to use'
-        required: false
-        type: choice
-        options:
-          - coderabbit
-          - openai
-          - anthropic
-        default: coderabbit
 
 permissions:
   contents: write
@@ -70,26 +56,13 @@ jobs:
       - name: Generate changelog
         id: generate
         run: |
-          # Run the changelog generator script
-          # Three modes available: Basic, Advanced (default), AI
-          
-          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.CODERABBIT_CONTRACTS_REPO_API_KEY }}" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "🤖 Running in AI mode"
-            export USE_AI=true
-            export AI_PROVIDER="${{ github.event.inputs.ai_provider || 'coderabbit' }}"
-          else
-            echo "🔬 Running in Advanced mode (AST + Forge + Heuristics - default, free)"
-            export USE_ADVANCED=true
-          fi
-          
+          echo "🤖 Running AI-powered changelog generation (CodeRabbit)"
           bun run script/changelogAnalysis/generateContractChangelog.ts
         env:
           COMMIT_SHA: ${{ github.event.inputs.commit_sha || github.event.pull_request.merge_commit_sha || github.sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           CODERABBIT_CONTRACTS_REPO_API_KEY: ${{ secrets.CODERABBIT_CONTRACTS_REPO_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Check for changes
         id: check
@@ -123,17 +96,7 @@ jobs:
           echo "## Contract Changelog Generation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Show mode
-          if [ "${{ github.event.inputs.use_ai }}" == "true" ] || [ -n "${{ secrets.CODERABBIT_CONTRACTS_REPO_API_KEY }}" ] || [ -n "${{ secrets.OPENAI_API_KEY }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "**Mode**: 🤖 AI-powered semantic analysis" >> $GITHUB_STEP_SUMMARY
-            echo "**Provider**: ${{ github.event.inputs.ai_provider || 'coderabbit' }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Quality**: 98% | **Cost**: ~\$0.03-0.15 per commit" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Mode**: 🔬 Advanced AST analysis (default)" >> $GITHUB_STEP_SUMMARY
-            echo "**Quality**: 90% | **Cost**: Free" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "> 💡 **Optional**: Add \`CODERABBIT_CONTRACTS_REPO_API_KEY\` secret for AI mode (98% quality)" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "**Mode**: 🤖 AI-powered semantic analysis (CodeRabbit)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ steps.check.outputs.has_changes }}" == "true" ]; then

@@ -9,6 +9,7 @@ import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
+// Changelog test: demo change in .t.sol (not included in contract changelog)
 contract LiFiDiamondTest is DSTest {
     // solhint-disable immutable-vars-naming
     Vm internal immutable vm = Vm(HEVM_ADDRESS);

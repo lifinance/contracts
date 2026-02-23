@@ -1,7 +1,7 @@
 /**
  * AI-powered Contract Change Analyzer
- * 
- * Uses AI (OpenAI/Anthropic) to generate semantic descriptions of contract changes
+ *
+ * Uses CodeRabbit API to generate semantic descriptions of contract changes.
  */
 
 interface AIAnalysisResult {
@@ -23,26 +23,21 @@ interface ContractDiff {
 }
 
 /**
- * Analyze contract changes using AI
+ * Analyze contract changes using CodeRabbit AI
  */
 export async function analyzeContractChangesWithAI(
   diff: ContractDiff,
-  apiKey?: string,
-  provider: 'coderabbit' | 'openai' | 'anthropic' = 'coderabbit'
+  apiKey?: string
 ): Promise<AIAnalysisResult> {
-  const key = apiKey || process.env.CODERABBIT_CONTRACTS_REPO_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY
-  
+  const key = apiKey ?? process.env.CODERABBIT_CONTRACTS_REPO_API_KEY
+
   if (!key) {
-    throw new Error('No API key provided. Set CODERABBIT_CONTRACTS_REPO_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable')
+    throw new Error(
+      'No API key provided. Set CODERABBIT_CONTRACTS_REPO_API_KEY environment variable'
+    )
   }
 
-  if (provider === 'coderabbit') {
-    return analyzeWithCodeRabbit(diff, key)
-  } else if (provider === 'openai') {
-    return analyzeWithOpenAI(diff, key)
-  } else {
-    return analyzeWithAnthropic(diff, key)
-  }
+  return analyzeWithCodeRabbit(diff, key)
 }
 
 /**
@@ -90,91 +85,6 @@ async function analyzeWithCodeRabbit(diff: ContractDiff, apiKey: string): Promis
     return parseAIResponse(content, diff.contractName)
   } catch (error) {
     console.error('Error calling CodeRabbit API:', error)
-    throw error
-  }
-}
-
-/**
- * Analyze using OpenAI API
- */
-async function analyzeWithOpenAI(diff: ContractDiff, apiKey: string): Promise<AIAnalysisResult> {
-  const prompt = buildAnalysisPrompt(diff)
-  
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4-turbo-preview',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a Solidity smart contract expert analyzing code changes for changelog generation. Provide concise, technical descriptions of what changed and why.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    const content = data.choices[0]?.message?.content || ''
-    
-    return parseAIResponse(content, diff.contractName)
-  } catch (error) {
-    console.error('Error calling OpenAI API:', error)
-    throw error
-  }
-}
-
-/**
- * Analyze using Anthropic Claude API
- */
-async function analyzeWithAnthropic(diff: ContractDiff, apiKey: string): Promise<AIAnalysisResult> {
-  const prompt = buildAnalysisPrompt(diff)
-  
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-sonnet-20240229',
-        max_tokens: 2000,
-        temperature: 0.3,
-        messages: [
-          {
-            role: 'user',
-            content: `You are a Solidity smart contract expert analyzing code changes for changelog generation. Provide concise, technical descriptions of what changed and why.\n\n${prompt}`,
-          },
-        ],
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Anthropic API error: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    const content = data.content[0]?.text || ''
-    
-    return parseAIResponse(content, diff.contractName)
-  } catch (error) {
-    console.error('Error calling Anthropic API:', error)
     throw error
   }
 }
