@@ -9,7 +9,7 @@
  */
 
 import { execSync } from 'child_process'
-import { existsSync, writeFileSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import {
   analyzeContractChangesWithAI,
@@ -18,7 +18,15 @@ import {
 } from './aiChangelogAnalyzer'
 
 const CHANGELOG_DIR = 'changelog'
+const CONTRACTS_CHANGELOG_DIR = join(CHANGELOG_DIR, 'contracts')
+const MAIN_CHANGELOG_FILE = 'CHANGELOG.md'
 const CONTRACTS_DIR = 'src'
+
+const CHANGELOG_HEADER = `# Contract Changelog
+
+All contract changes by commit (newest first). Per-contract history: \`changelog/contracts/{ContractName}.md\`.
+
+`
 
 interface ChangelogEntry {
   date: string
@@ -123,49 +131,132 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
   return markdown
 }
 
+/** Format change sections (### Breaking, Added, etc.) for a single contract. */
+function formatContractSections(analysis: {
+  breaking: string[]
+  added: string[]
+  changed: string[]
+  removed: string[]
+  fixed: string[]
+  context?: string
+}): string {
+  const parts: string[] = []
+  if (analysis.breaking.length > 0) {
+    parts.push('### ⚠️ Breaking Changes\n\n' + analysis.breaking.map((c) => `- ${c}`).join('\n'))
+  }
+  if (analysis.added.length > 0) {
+    parts.push('### ✨ Added\n\n' + analysis.added.map((c) => `- ${c}`).join('\n'))
+  }
+  if (analysis.changed.length > 0) {
+    parts.push('### 🔄 Changed\n\n' + analysis.changed.map((c) => `- ${c}`).join('\n'))
+  }
+  if (analysis.removed.length > 0) {
+    parts.push('### 🗑️ Removed\n\n' + analysis.removed.map((c) => `- ${c}`).join('\n'))
+  }
+  if (analysis.fixed.length > 0) {
+    parts.push('### 🐛 Fixed\n\n' + analysis.fixed.map((c) => `- ${c}`).join('\n'))
+  }
+  if (analysis.context) {
+    parts.push('**Note**: ' + analysis.context)
+  }
+  return parts.join('\n\n')
+}
+
 /**
- * Update or create changelog file for a specific commit
+ * Prepend this commit's full entry to changelog/CHANGELOG.md.
+ * Skips if this commit is already present. Ordered by commit (newest first).
  */
 function updateChangelog(entry: string, commitSha: string): void {
-  // Ensure changelog directory exists
-  const changelogDir = join(process.cwd(), CHANGELOG_DIR)
-  if (!existsSync(changelogDir)) {
-    mkdirSync(changelogDir, { recursive: true })
+  const changelogRoot = join(process.cwd(), CHANGELOG_DIR)
+  if (!existsSync(changelogRoot)) {
+    mkdirSync(changelogRoot, { recursive: true })
   }
-  
-  // Create file path: changelog/{commitHash}.md
-  const changelogPath = join(changelogDir, `${commitSha}.md`)
-  
-  // Check if file already exists
-  if (existsSync(changelogPath)) {
-    console.log(`⚠️  Changelog file already exists for commit ${commitSha.substring(0, 7)}`)
-    console.log(`   Skipping to avoid overwriting existing changelog`)
-    return
-  }
-  
-  // Generate full changelog content for this commit
+  const changelogPath = join(changelogRoot, MAIN_CHANGELOG_FILE)
   const commitDate = execSync('git log -1 --format=%ci HEAD', { encoding: 'utf-8' }).trim()
   const commitAuthor = execSync('git log -1 --format=%an HEAD', { encoding: 'utf-8' }).trim()
-  const commitUrl = process.env.REPOSITORY 
+  const commitUrl = process.env.REPOSITORY
     ? `https://github.com/${process.env.REPOSITORY}/commit/${commitSha}`
     : `#${commitSha}`
-  
-  const content = `# Contract Changelog - ${commitSha.substring(0, 7)}
+  const firstLine = entry.split('\n')[0] ?? ''
+  const commitMessage = firstLine.replace(/^## \[[^\]]*\] - /, '').trim() || 'Contract changes'
+  const sections = entry.split('\n').slice(4).join('\n').trim()
 
-**Commit**: [${commitSha}](${commitUrl})  
+  const block = `## [${commitSha.substring(0, 7)}] - ${commitMessage}
+
+**Commit**: [\`${commitSha}\`](${commitUrl})  
 **Date**: ${commitDate}  
 **Author**: ${commitAuthor}
 
----
-
-${entry}
+${sections}
 
 ---
+`
 
-*This changelog was automatically generated for commit ${commitSha}*`
-  
-  writeFileSync(changelogPath, content, 'utf-8')
-  console.log(`✅ Changelog created: ${CHANGELOG_DIR}/${commitSha}.md`)
+  if (existsSync(changelogPath)) {
+    const current = readFileSync(changelogPath, 'utf-8')
+    if (current.includes(commitSha)) {
+      console.log(`⚠️  Commit ${commitSha.substring(0, 7)} already in ${CHANGELOG_DIR}/${MAIN_CHANGELOG_FILE}, skipping`)
+      return
+    }
+    const body = current.startsWith(CHANGELOG_HEADER)
+      ? current.slice(CHANGELOG_HEADER.length).trim()
+      : current.trim()
+    writeFileSync(changelogPath, CHANGELOG_HEADER + block + (body ? '\n\n' + body : ''), 'utf-8')
+  } else {
+    writeFileSync(changelogPath, CHANGELOG_HEADER + block.trimEnd(), 'utf-8')
+  }
+  console.log(`✅ Updated ${CHANGELOG_DIR}/${MAIN_CHANGELOG_FILE}`)
+}
+
+/**
+ * Prepend this commit's changes for one contract to changelog/contracts/{ContractName}.md.
+ * Lists commit hash and change sections; newest first.
+ */
+function updateContractChangelog(
+  contractName: string,
+  commitSha: string,
+  commitMessage: string,
+  commitDate: string,
+  sections: string
+): void {
+  const contractsDir = join(process.cwd(), CONTRACTS_CHANGELOG_DIR)
+  if (!existsSync(contractsDir)) {
+    mkdirSync(contractsDir, { recursive: true })
+  }
+  const safeName = contractName.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const filePath = join(contractsDir, `${safeName}.md`)
+  const commitUrl = process.env.REPOSITORY
+    ? `https://github.com/${process.env.REPOSITORY}/commit/${commitSha}`
+    : `#${commitSha}`
+  const commitAuthor = execSync('git log -1 --format=%an HEAD', { encoding: 'utf-8' }).trim()
+
+  const block = `## [${commitSha.substring(0, 7)}] - ${commitMessage}
+
+**Commit**: [\`${commitSha}\`](${commitUrl})  
+**Date**: ${commitDate}  
+**Author**: ${commitAuthor}
+
+${sections}
+
+---
+`
+
+  const header = `# ${contractName} – Changelog
+
+Commits that modified this contract (newest first).
+
+`
+  if (existsSync(filePath)) {
+    const current = readFileSync(filePath, 'utf-8')
+    if (current.includes(commitSha)) {
+      return
+    }
+    const body = current.startsWith(header) ? current.slice(header.length).trim() : current.trim()
+    writeFileSync(filePath, header + block + (body ? '\n\n' + body : ''), 'utf-8')
+  } else {
+    writeFileSync(filePath, header + block.trimEnd(), 'utf-8')
+  }
+  console.log(`✅ Updated ${CONTRACTS_CHANGELOG_DIR}/${safeName}.md`)
 }
 
 /**
@@ -188,6 +279,7 @@ async function mainWithAI() {
   const date = new Date().toISOString().split('T')[0] ?? ''
   const commitSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
   const commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim().split('\n')[0] ?? ''
+  const commitDate = execSync('git log -1 --format=%ci HEAD', { encoding: 'utf-8' }).trim()
 
   let combinedEntry: ChangelogEntry = {
     date,
@@ -201,7 +293,8 @@ async function mainWithAI() {
       fixed: [],
     },
   }
-  
+  const perContract: Array<{ contractName: string; aiAnalysis: Awaited<ReturnType<typeof analyzeContractChangesWithAI>> }> = []
+
   for (const file of changedFiles) {
     console.log(`\n🔍 Analyzing ${file}...`)
     
@@ -236,6 +329,7 @@ async function mainWithAI() {
     if (aiAnalysis.context) {
       combinedEntry.changes.changed.push(`**Note**: ${aiAnalysis.context}`)
     }
+    perContract.push({ contractName, aiAnalysis })
   }
   
   const formattedEntry = formatChangelogEntry(combinedEntry)
@@ -244,6 +338,15 @@ async function mainWithAI() {
   console.log(formattedEntry)
   
   updateChangelog(formattedEntry, commitSha)
+  for (const { contractName, aiAnalysis } of perContract) {
+    updateContractChangelog(
+      contractName,
+      commitSha,
+      commitMessage,
+      commitDate,
+      formatContractSections(aiAnalysis)
+    )
+  }
 }
 
 mainWithAI().catch((error: unknown) => {

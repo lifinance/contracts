@@ -1,8 +1,8 @@
 # Generate Contract Changelog
 # - Triggers when a PR is merged to main that modified Solidity contracts
 # - Also triggers on push to test branch (SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI)
-# - Analyzes contract changes and generates individual changelog file per commit: changelog/{commitHash}.md
-# - Commits changelog files directly to the branch
+# - Writes changelog/CHANGELOG.md (all commits, newest first) and changelog/contracts/{Contract}.md per contract
+# - Commits changelog/ to the branch
 # - Supports manual execution via workflow_dispatch
 # - Uses Anthropic Claude Sonnet (CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY)
 
@@ -67,16 +67,12 @@ jobs:
       - name: Check for changes
         id: check
         run: |
-          # Check if any new changelog files were created
-          if git diff --name-only --diff-filter=A | grep -q "^changelog/.*\.md$"; then
+          if git diff --name-only | grep -q "^changelog/"; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "New changelog file(s) created"
-            git diff --name-only --diff-filter=A | grep "^changelog/.*\.md$" | while read file; do
-              echo "  - $file"
-            done
+            echo "changelog/ updated"
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "No new changelog files detected"
+            echo "No changelog changes"
           fi
 
       - name: Commit and push changelog
@@ -84,8 +80,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          # Add all new changelog files
-          git add changelog/*.md
+          git add changelog/
           COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
           git commit -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
           git push
@@ -100,10 +95,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ steps.check.outputs.has_changes }}" == "true" ]; then
-            echo "✅ Changelog file created successfully" >> $GITHUB_STEP_SUMMARY
+            echo "✅ changelog/ updated" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### New changelog file(s):" >> $GITHUB_STEP_SUMMARY
-            git diff --name-only --diff-filter=A | grep "^changelog/.*\.md$" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
+            echo "### Updated:" >> $GITHUB_STEP_SUMMARY
+            git diff --name-only | grep "^changelog/" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Contract changes analyzed:" >> $GITHUB_STEP_SUMMARY
             # Show files from the merged PR or push
@@ -112,5 +107,5 @@ jobs:
             fi
             git diff HEAD~1 --name-only --diff-filter=AM src/**/*.sol 2>/dev/null | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "ℹ️ No contract changes detected or changelog file already exists for this commit" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ No contract changes or commit already in changelog" >> $GITHUB_STEP_SUMMARY
           fi

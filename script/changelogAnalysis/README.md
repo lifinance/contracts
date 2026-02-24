@@ -1,6 +1,9 @@
 # Contract Changelog Analysis System
 
-Automated system that analyzes Solidity contract changes and generates changelog entries using **Claude Sonnet** (Anthropic API). One Markdown file per commit is written under `changelog/{commitHash}.md`.
+Automated system that analyzes Solidity contract changes and generates changelog entries using **Claude Sonnet** (Anthropic API). Output lives under the **`changelog/`** folder (similar to `audit/`):
+
+- **`changelog/CHANGELOG.md`** — single file with all contract changes by commit (newest first). Full info per commit: link, date, author, and all categories (Breaking, Added, Changed, Removed, Fixed). May become large over time.
+- **`changelog/contracts/{ContractName}.md`** — one file per contract; each lists the **commit hash(es)** that modified that contract and the changes in that commit (newest first).
 
 ---
 
@@ -32,7 +35,7 @@ script/changelogAnalysis/
   - Gets unified diff via `aiChangelogAnalyzer.getFileDiff()` and builds a `ContractDiff` via `buildContractDiff()`.
   - Calls `analyzeContractChangesWithAI(contractDiff)` (the only AI call).
   - Merges the returned categories (breaking, added, changed, removed, fixed) into a single changelog entry.
-- **Output**: Builds one combined Markdown entry, then calls `updateChangelog()` to write `changelog/{commitSha}.md` (creates `changelog/` if needed, skips if file already exists).
+- **Output**: Builds one combined Markdown entry, calls `updateChangelog()` to prepend it to `changelog/CHANGELOG.md`, and for each changed contract calls `updateContractChangelog()` to prepend that commit’s changes to `changelog/contracts/{ContractName}.md`.
 
 **Key functions**:
 
@@ -40,10 +43,12 @@ script/changelogAnalysis/
 - `getFileAtCommit(file, commit)` — file content at a given commit.
 - `extractContractName(content, filename)` — contract name for headings.
 - `formatChangelogEntry(entry)` — Markdown from the structured entry.
-- `updateChangelog(entry, commitSha)` — write `changelog/{commitSha}.md`.
-- `mainWithAI()` — async main: detect files → analyze each → merge → format → write.
+- `formatContractSections(analysis)` — Markdown sections (### Breaking, Added, etc.) for one contract.
+- `updateChangelog(entry, commitSha)` — prepend this commit’s full entry to `changelog/CHANGELOG.md`; no-op if commit already present.
+- `updateContractChangelog(contractName, commitSha, ...)` — prepend this commit’s changes for one contract to `changelog/contracts/{ContractName}.md`.
+- `mainWithAI()` — async main: detect files → analyze each → merge → format → write changelog + per-contract files.
 
-**Constants**: `CHANGELOG_DIR = 'changelog'`, `CONTRACTS_DIR = 'src'`.
+**Constants**: `CHANGELOG_DIR = 'changelog'`, `CONTRACTS_CHANGELOG_DIR = 'changelog/contracts'`, `CONTRACTS_DIR = 'src'`.
 
 ---
 
@@ -73,13 +78,13 @@ script/changelogAnalysis/
 
 ### 3. `.github/workflows/generateContractChangelog.yml` (CI)
 
-**Role**: Run the changelog generator in GitHub Actions and optionally commit the new file(s).
+**Role**: Run the changelog generator in GitHub Actions and commit the `changelog/` folder when updated.
 
 **Triggers**:
 
 - **Pull request closed (merged)** into `main` and the PR touched `src/**/*.sol` → run after merge.
 - **Manual**: `workflow_dispatch` (optional input: commit SHA to analyze; if empty, current HEAD is used).
-- **Push**: Trigger on push to the test branch is currently **disabled** so the reviewer can review the PR in draft first (see comments in the workflow file).
+- **Push**: Push to the test branch that touches `src/**/*.sol` also triggers the workflow.
 
 **Steps**:
 
@@ -89,9 +94,9 @@ script/changelogAnalysis/
 4. **Generate changelog** — runs `bun run script/changelogAnalysis/generateContractChangelog.ts` with env:
    - `COMMIT_SHA`, `GITHUB_TOKEN`, `REPOSITORY`
    - `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` (from repo secrets).
-5. **Check for changes** — detect new `changelog/*.md` files.
-6. **Commit and push** — if any new changelog files exist, commit them and push (e.g. message: `chore: add contract changelog for commit <short-sha>`).
-7. **Summary** — write job summary (success, list of new files, contracts analyzed).
+5. **Check for changes** — detect if any file under `changelog/` was modified.
+6. **Commit and push** — if `changelog/` changed, commit and push (e.g. message: `chore: add contract changelog for commit <short-sha>`).
+7. **Summary** — write job summary (success, contracts analyzed).
 
 **Secrets**: Repo must have `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` set in Settings → Secrets and variables → Actions.
 
@@ -117,10 +122,11 @@ script/changelogAnalysis/
    - All results for the commit are merged into a single `ChangelogEntry`; `formatChangelogEntry()` turns it into Markdown.
 
 6. **Write**  
-   - `updateChangelog()` writes `changelog/{commitSha}.md` (skips if the file already exists).
+   - `updateChangelog()` prepends the full entry to `changelog/CHANGELOG.md` (skips if this commit is already in the file).
+   - For each changed contract, `updateContractChangelog()` prepends this commit’s changes to `changelog/contracts/{ContractName}.md` (commit hash, date, author, and change sections).
 
 7. **CI only**  
-   - Workflow detects new `changelog/*.md` and, if any, commits and pushes them.
+   - Workflow detects changes under `changelog/` and, if any, commits and pushes.
 
 ---
 
@@ -135,11 +141,11 @@ Requires `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` in the environment.
 bun run script/changelogAnalysis/generateContractChangelog.ts
 ```
 
-Output: `changelog/{commitSha}.md` (only if there were changed `.sol` files under `src/` and the file does not already exist).
+Output: `changelog/CHANGELOG.md` and `changelog/contracts/{ContractName}.md` updated (only if there were changed `.sol` files and this commit is not already recorded).
 
 ### Automatic (CI)
 
-- Merge a PR into `main` that changes `src/**/*.sol` → workflow runs and may add/commit `changelog/{commitSha}.md`.
+- Merge a PR into `main` that changes `src/**/*.sol` → workflow runs and may update/commit `changelog/`.
 - Or run manually: Actions → “Generate Contract Changelog” → “Run workflow”.
 
 ---
@@ -149,7 +155,7 @@ Output: `changelog/{commitSha}.md` (only if there were changed `.sol` files unde
 | Item | Where | Description |
 |------|--------|-------------|
 | `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` | Env / GitHub secret | Anthropic API key; required for AI. |
-| `CHANGELOG_DIR` | `generateContractChangelog.ts` | Output directory (default `changelog`). |
+| `CHANGELOG_DIR` / `CONTRACTS_CHANGELOG_DIR` | `generateContractChangelog.ts` | `changelog/` and `changelog/contracts/` for main changelog and per-contract files. |
 | `CONTRACTS_DIR` | `generateContractChangelog.ts` | Path filter for contracts (default `src`). |
 
 No other AI providers or fallbacks are used.
@@ -158,11 +164,14 @@ No other AI providers or fallbacks are used.
 
 ## Output format
 
-Each `changelog/{commitSha}.md` includes:
+**`changelog/CHANGELOG.md`**: Title and short intro, then one section per commit (newest first). Each section includes:
 
-- Title and commit link, date, author.
-- Sections: **Breaking**, **Added**, **Changed**, **Removed**, **Fixed** (only if non-empty).
-- Each bullet is prefixed with the contract name, e.g. `` `LiFiDiamond`: ... ``.
+- Heading: `## [shortSha] - commit message`
+- **Commit** (link), **Date**, **Author**
+- Full change list: **Breaking**, **Added**, **Changed**, **Removed**, **Fixed** (only if non-empty)
+- Each bullet prefixed with the contract name, e.g. `` `LiFiDiamond`: ... ``.
+
+**`changelog/contracts/{ContractName}.md`**: One file per contract. Title “{ContractName} – Changelog”, short intro, then one section per **commit** that modified that contract (newest first). Each section has: commit short hash, message, **Commit** link, **Date**, **Author**, and the change sections (Breaking, Added, Changed, Removed, Fixed) for that contract only.
 
 ---
 
@@ -174,11 +183,11 @@ Each `changelog/{commitSha}.md` includes:
 | “No API key provided” | Set `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` (env or GitHub secret). |
 | “Anthropic API error” | Key valid, network access, and (if 4xx) Anthropic status/docs. |
 | “Failed to parse AI response” | Model must return valid JSON in the requested shape; check prompt and model output. |
-| Changelog file already exists | Script skips writing if `changelog/{commitSha}.md` exists; delete or use another commit for testing. |
+| Commit already in changelog | Script skips if this commit SHA is already present in `changelog/CHANGELOG.md` or in the per-contract file. |
 
 ---
 
 ## Related
 
 - Workflow file: `.github/workflows/generateContractChangelog.yml`
-- Changelog output: `changelog/*.md`
+- Changelog output: `changelog/CHANGELOG.md` (all commits) and `changelog/contracts/*.md` (per contract, commit hash + changes)
