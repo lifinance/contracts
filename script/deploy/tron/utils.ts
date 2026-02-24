@@ -20,7 +20,7 @@ import {
   RETRY_DELAY,
   ZERO_ADDRESS,
 } from '../shared/constants'
-import { retryWithRateLimit } from '../shared/rateLimit'
+import { getRetryDelays, isRateLimitError } from '../shared/rateLimit'
 
 import {
   DEFAULT_FEE_LIMIT_TRX,
@@ -35,8 +35,7 @@ import type {
   IDiamondRegistrationResult,
 } from './types'
 
-// Re-export for callers that still import from tron/utils (used for both Tron and EVM)
-export { isRateLimitError, retryWithRateLimit } from '../shared/rateLimit'
+export { getRetryDelays, isRateLimitError } from '../shared/rateLimit'
 
 /**
  * Load compiled contract artifact from Forge output
@@ -114,28 +113,41 @@ export async function checkIsDeployedTron(
   // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
-  try {
-    // TronWeb getContract return type is underspecified; shape includes contract_address when contract exists
-    type GetContractResult = { contract_address?: string } | null
-    const contractInfo = await retryWithRateLimit<GetContractResult>(
-      () =>
-        tronWeb.trx.getContract(tronAddress) as Promise<GetContractResult>,
-      MAX_RETRIES,
-      RETRY_DELAY
-    )
-    const address = contractInfo?.contract_address
-    if (address) return true
-    consola.warn(
-      `Contract "${contract}" at ${tronAddress}: getContract returned no contract_address (contract may not exist on-chain).`
-    )
-    return false
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error)
-    consola.warn(
-      `Contract "${contract}" at ${tronAddress}: getContract failed after retries. Reason: ${msg}`
-    )
-    return false
+  type GetContractResult = { contract_address?: string } | null
+  const retryDelays = getRetryDelays(MAX_RETRIES, RETRY_DELAY)
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay =
+        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? RETRY_DELAY
+      await sleep(delay)
+    }
+    try {
+      const contractInfo = (await tronWeb.trx.getContract(
+        tronAddress
+      )) as GetContractResult
+      const address = contractInfo?.contract_address
+      if (address) return true
+      consola.warn(
+        `Contract "${contract}" at ${tronAddress}: getContract returned no contract_address (contract may not exist on-chain).`
+      )
+      return false
+    } catch (error: unknown) {
+      const shouldRetry = isRateLimitError(error, true) && attempt < MAX_RETRIES
+      if (!shouldRetry) {
+        const msg = error instanceof Error ? error.message : String(error)
+        consola.warn(
+          `Contract "${contract}" at ${tronAddress}: getContract failed after retries. Reason: ${msg}`
+        )
+        return false
+      }
+    }
   }
+
+  consola.warn(
+    `Contract "${contract}" at ${tronAddress}: getContract failed after retries.`
+  )
+  return false
 }
 
 /**

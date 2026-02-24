@@ -23,7 +23,7 @@ export const POLL_INTERVAL = 3000 // 3 seconds
  * Usage:
  * - Use INTER_CALL_DELAY for delays between individual checks/calls in loops
  * - Use INITIAL_CALL_DELAY before starting a sequence of calls
- * - Use RETRY_DELAY as the default for retryWithRateLimit and similar functions
+ * - Use RETRY_DELAY as the default for retry loops (getRetryDelays) and execWithRateLimitRetry
  */
 
 /**
@@ -40,7 +40,7 @@ export const INITIAL_CALL_DELAY = 2000 // 2s
 
 /**
  * Delay between retry attempts when rate limits are hit
- * Used for: retryWithRateLimit, execWithRateLimitRetry default delay
+ * Used for: getRetryDelays / retry loops, execWithRateLimitRetry default delay
  */
 export const RETRY_DELAY = 2000 // 2s
 

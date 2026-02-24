@@ -45,7 +45,7 @@ import {
   RETRY_DELAY,
   SAFE_THRESHOLD,
 } from './shared/constants'
-import { isRateLimitError, retryWithRateLimit } from './shared/rateLimit'
+import { getRetryDelays, isRateLimitError } from './shared/rateLimit'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -82,25 +82,32 @@ export async function execWithRateLimitRetry(
     await sleep(initialDelay)
   }
 
-  return retryWithRateLimit(
-    () => {
+  const retryDelays = getRetryDelays(maxRetries, retryDelay)
+  const includeConnectionErrors = false
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delay =
+        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? retryDelay
+      consola.warn(
+        `Rate limit detected (429). Retrying in ${delay / 1000}s... (attempt ${attempt}/${maxRetries})`
+      )
+      await sleep(delay)
+    }
+    try {
       const [command, ...args] = commandParts
       if (!command) {
-        return Promise.reject(new Error('No command provided'))
+        throw new Error('No command provided')
       }
-      return spawnAndCapture(command, args)
-    },
-    maxRetries,
-    retryDelay,
-    (attempt: number, delay: number) => {
-      consola.warn(
-        `Rate limit detected (429). Retrying in ${
-          delay / 1000
-        }s... (attempt ${attempt}/${maxRetries})`
-      )
-    },
-    false // Shell commands don't include connection errors in rate limit detection
-  )
+      return await spawnAndCapture(command, args)
+    } catch (error: unknown) {
+      const shouldRetry =
+        isRateLimitError(error, includeConnectionErrors) && attempt < maxRetries
+      if (!shouldRetry) throw error
+    }
+  }
+
+  throw new Error('Max retries exceeded')
 }
 
 const errors: string[] = []
@@ -575,37 +582,25 @@ const main = defineCommand({
         const expectedPairs = await getExpectedPairs(
           networkStr as string,
           deployedContracts,
-          environment,
           whitelistConfig,
           isTron
         )
 
-        if (isTron && tronWeb && tronRpcUrl) {
-          await checkWhitelistIntegrity(
-            networkStr as string,
-            environment,
-            expectedPairs,
-            logError,
-            {
-              isTron: true,
-              diamondAddress,
-              tronRpcUrl,
-              tronWeb,
-            }
-          )
-        } else if (publicClient) {
-          await checkWhitelistIntegrity(
-            networkStr as string,
-            environment,
-            expectedPairs,
-            logError,
-            {
-              isTron: false,
-              diamondAddress,
-              publicClient,
-            }
-          )
-        }
+        await checkWhitelistIntegrity(
+          networkStr as string,
+          environment,
+          expectedPairs,
+          logError,
+          isTron,
+          diamondAddress,
+          {
+            tronContext:
+              isTron && tronRpcUrl && tronWeb
+                ? { tronRpcUrl, tronWeb }
+                : undefined,
+            evmContext: publicClient ? { publicClient } : undefined,
+          }
+        )
       } else {
         consola.info(
           'No whitelist configuration found for this network, skipping whitelist checks'
@@ -1026,7 +1021,6 @@ const checkIsDeployed = async (
 const getExpectedPairs = async (
   network: string,
   deployedContracts: Record<string, Address | string>,
-  _environment: string,
   whitelistConfig: IWhitelistConfig,
   isTron = false
 ): Promise<Array<{ contract: string; selector: Hex }>> => {
@@ -1094,27 +1088,21 @@ const getExpectedPairs = async (
   }
 }
 
-/**
- * Check whitelist integrity by comparing config against on-chain state.
- * Branches inside for Tron vs EVM (same style as checkAndLogDeployment).
- */
 async function checkWhitelistIntegrity(
   network: string,
   environment: string,
   expectedPairs: Array<{ contract: string; selector: Hex }>,
   logError: (msg: string) => void,
-  options: {
-    isTron: boolean
-    diamondAddress: string
-    tronRpcUrl?: string
-    tronWeb?: TronWeb
-    publicClient?: PublicClient
+  isTron: boolean,
+  diamondAddress: string,
+  context: {
+    tronContext?: { tronRpcUrl: string; tronWeb: TronWeb }
+    evmContext?: { publicClient: PublicClient }
   }
 ): Promise<void> {
-  const { isTron, diamondAddress } = options
-  const tronRpcUrl = options.tronRpcUrl
-  const tronWeb = options.tronWeb
-  const publicClient = options.publicClient
+  const tronRpcUrl = context.tronContext?.tronRpcUrl
+  const tronWeb = context.tronContext?.tronWeb
+  const publicClient = context.evmContext?.publicClient
 
   consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
 

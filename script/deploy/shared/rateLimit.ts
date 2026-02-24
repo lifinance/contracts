@@ -1,11 +1,13 @@
 /**
  * Shared rate-limit and retry utilities for both Tron and EVM.
  * Used by health check, Tron deploy scripts, and any RPC-heavy flows.
+ * Call sites implement their own retry loop using getRetryDelays and isRateLimitError
+ * (no functions passed as parameters per project convention).
  */
 
-import { sleep } from '../../utils/delay'
+import { RETRY_DELAY } from './constants'
 
-import { MAX_RETRIES, RETRY_DELAY } from './constants'
+export { MAX_RETRIES, RETRY_DELAY } from './constants'
 
 /**
  * Check if an error is a rate limit or connection error
@@ -31,50 +33,17 @@ export function isRateLimitError(
 }
 
 /**
- * Generic retry function with rate limit handling
- * @param operation - Async function to retry
- * @param maxRetries - Maximum number of retries (default: 3)
- * @param retryDelay - Delay in ms for all retry attempts (default: RETRY_DELAY). Can be a number or array for backward compatibility
- * @param onRetry - Optional callback called before each retry
- * @param includeConnectionErrors - Whether to include connection errors in rate limit detection (default: true)
- * @returns Result of the operation
- * @throws The last error if all retries fail
+ * Build delay array for retry attempts (one delay before each retry, indexed by attempt).
+ * Used by call sites that implement their own retry loop without passing functions.
+ * @param maxRetries - Maximum number of retries
+ * @param retryDelay - Delay in ms (number or array for per-attempt delays)
+ * @returns Array of delays; length is maxRetries, use index [retry - 1] before attempt retry
  */
-export async function retryWithRateLimit<T>(
-  operation: () => Promise<T>,
-  maxRetries = MAX_RETRIES,
-  retryDelay: number | number[] = RETRY_DELAY,
-  onRetry?: (attempt: number, delay: number) => void,
-  includeConnectionErrors = true
-): Promise<T> {
-  const retryDelays: number[] = Array.isArray(retryDelay)
+export function getRetryDelays(
+  maxRetries: number,
+  retryDelay: number | number[] = RETRY_DELAY
+): number[] {
+  return Array.isArray(retryDelay)
     ? retryDelay
     : Array(maxRetries).fill(retryDelay)
-
-  for (let retry = 0; retry <= maxRetries; retry++) {
-    try {
-      if (retry > 0) {
-        const delay: number =
-          retryDelays[retry - 1] ??
-          retryDelays[retryDelays.length - 1] ??
-          RETRY_DELAY
-        if (onRetry) {
-          onRetry(retry, delay)
-        }
-        await sleep(delay)
-      }
-
-      return await operation()
-    } catch (error: unknown) {
-      const isRateLimit = isRateLimitError(error, includeConnectionErrors)
-
-      if (isRateLimit && retry < maxRetries) {
-        continue
-      }
-
-      throw error
-    }
-  }
-
-  throw new Error('Max retries exceeded')
 }

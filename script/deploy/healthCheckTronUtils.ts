@@ -11,7 +11,7 @@ import { sleep } from '../utils/delay'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
 
 import { INITIAL_CALL_DELAY, MAX_RETRIES, RETRY_DELAY } from './shared/constants'
-import { retryWithRateLimit } from './shared/rateLimit'
+import { getRetryDelays, isRateLimitError } from './shared/rateLimit'
 import { hexToTronAddress } from './tron/utils'
 
 /**
@@ -40,22 +40,28 @@ export async function callTronContract(
   // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
-  // Execute with retry logic for rate limits
-  const result = await retryWithRateLimit(
-    () => spawnAndCapture('bun', args),
-    MAX_RETRIES,
-    RETRY_DELAY,
-    (attempt: number, delay: number) => {
-      consola.warn(
-        `Rate limit detected (429). Retrying in ${
-          delay / 1000
-        }s... (attempt ${attempt}/${MAX_RETRIES})`
-      )
-    },
-    false
-  )
+  const retryDelays = getRetryDelays(MAX_RETRIES, RETRY_DELAY)
+  const includeConnectionErrors = false
 
-  return result
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay =
+        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? RETRY_DELAY
+      consola.warn(
+        `Rate limit detected (429). Retrying in ${delay / 1000}s... (attempt ${attempt}/${MAX_RETRIES})`
+      )
+      await sleep(delay)
+    }
+    try {
+      return await spawnAndCapture('bun', args)
+    } catch (error: unknown) {
+      const shouldRetry =
+        isRateLimitError(error, includeConnectionErrors) && attempt < MAX_RETRIES
+      if (!shouldRetry) throw error
+    }
+  }
+
+  throw new Error('Max retries exceeded')
 }
 
 /**
@@ -115,40 +121,51 @@ export async function callTronContractBoolean(
   // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
-  const result = await retryWithRateLimit(
-    () =>
-      tronWeb.transactionBuilder.triggerConstantContract(
+  const retryDelays = getRetryDelays(MAX_RETRIES, RETRY_DELAY)
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay =
+        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? RETRY_DELAY
+      await sleep(delay)
+    }
+    try {
+      const result = await tronWeb.transactionBuilder.triggerConstantContract(
         contractAddress,
         functionSignature,
         {},
         params,
         tronWeb.defaultAddress?.base58 || tronWeb.defaultAddress?.hex || ''
-      ),
-    MAX_RETRIES,
-    RETRY_DELAY
-  )
+      )
 
-  // Check if call was successful
-  if (!result?.result?.result) {
-    const errorMsg = result?.constant_result?.[0]
-      ? tronWeb.toUtf8(result.constant_result[0])
-      : 'Unknown error'
-    throw new Error(`Call failed: ${errorMsg}`)
+      // Check if call was successful
+      if (!result?.result?.result) {
+        const errorMsg = result?.constant_result?.[0]
+          ? tronWeb.toUtf8(result.constant_result[0])
+          : 'Unknown error'
+        throw new Error(`Call failed: ${errorMsg}`)
+      }
+
+      // Decode boolean result using viem's decodeFunctionResult
+      const constantResult = result.constant_result?.[0]
+      if (!constantResult) {
+        throw new Error('No result returned from contract call')
+      }
+
+      const decodedResult = decodeFunctionResult({
+        abi: parseAbi([abiFunction]) as Abi,
+        functionName: functionSignature.split('(')[0],
+        data: `0x${constantResult}` as Hex,
+      })
+
+      return decodedResult === true
+    } catch (error: unknown) {
+      const shouldRetry = isRateLimitError(error, true) && attempt < MAX_RETRIES
+      if (!shouldRetry) throw error
+    }
   }
 
-  // Decode boolean result using viem's decodeFunctionResult
-  const constantResult = result.constant_result?.[0]
-  if (!constantResult) {
-    throw new Error('No result returned from contract call')
-  }
-
-  const decodedResult = decodeFunctionResult({
-    abi: parseAbi([abiFunction]) as Abi,
-    functionName: functionSignature.split('(')[0],
-    data: `0x${constantResult}` as Hex,
-  })
-
-  return decodedResult === true
+  throw new Error('Max retries exceeded')
 }
 
 /**
