@@ -14,7 +14,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title UnitFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Unit
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract UnitFacet is
     ILiFi,
     ReentrancyGuard,
@@ -72,13 +72,18 @@ contract UnitFacet is
 
     /// External Methods ///
 
+    /// @notice Returns the facet version for integration and debugging.
+    /// @return The semantic version string (e.g. "1.0.2").
+    function getUnitFacetVersion() external pure returns (string memory) {
+        return "1.0.2";
+    }
+
     /// @notice Bridges tokens via Unit
-    /// @dev IMPORTANT: Unit protocol enforces minimum deposit amounts to ensure deposits are sufficiently
-    /// above network fees. Amounts below the minimum threshold may result in irrecoverable fund loss.
-    /// These minimums are validated by the backend in the signed payload, but integrators should
-    /// ensure amounts meet these requirements before calling this function.
-    /// For the most up-to-date minimum amounts, refer to:
-    /// https://docs.hyperunit.xyz/developers/api/generate-address and https://app.hyperunit.xyz/
+    /// @dev IMPORTANT: Unit enforces minimum deposit amounts so deposits stay above network fees.
+    /// Amounts below the minimum may result in irrecoverable fund loss. The backend validates
+    /// these minimums in the signed payload; integrators should still ensure amounts meet
+    /// requirements before calling. See https://docs.hyperunit.xyz/developers/api/generate-address
+    /// and https://app.hyperunit.xyz/ for current minimums.
     /// @param _bridgeData The core information needed for bridging
     /// @param _unitData Data specific to Unit
     function startBridgeTokensViaUnit(
@@ -104,12 +109,7 @@ contract UnitFacet is
     }
 
     /// @notice Performs a swap before bridging via Unit
-    /// @dev IMPORTANT: Unit protocol enforces minimum deposit amounts to ensure deposits are sufficiently
-    /// above network fees. Amounts below the minimum threshold may result in irrecoverable fund loss.
-    /// These minimums are validated by the backend in the signed payload, but integrators should
-    /// ensure amounts meet these requirements before calling this function.
-    /// For the most up-to-date minimum amounts, refer to:
-    /// https://docs.hyperunit.xyz/developers/api/generate-address and https://app.hyperunit.xyz/
+    /// @dev Same minimum-deposit rules as startBridgeTokensViaUnit; see that function's NatSpec.
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _unitData Data specific to Unit
