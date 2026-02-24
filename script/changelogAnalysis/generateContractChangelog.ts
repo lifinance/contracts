@@ -42,14 +42,19 @@ interface ChangelogEntry {
 }
 
 /**
- * Get changed Solidity files from the last commit
+ * Get changed Solidity files for a given commit (or HEAD if not specified).
+ * Uses COMMIT_SHA from env when set (workflow passes the commit that triggered the run).
  */
-function getChangedSolidityFiles(): string[] {
+function getChangedSolidityFiles(commitSha?: string): string[] {
+  const target = commitSha ?? 'HEAD'
+  const parent = commitSha ? `${commitSha}^` : 'HEAD~1'
   try {
-    const output = execSync('git diff --name-only HEAD~1 HEAD', { encoding: 'utf-8' })
+    const output = execSync(`git diff --name-only ${parent} ${target}`, {
+      encoding: 'utf-8',
+    })
     return output
       .split('\n')
-      .filter(file => file.startsWith(CONTRACTS_DIR) && file.endsWith('.sol'))
+      .filter((file) => file.startsWith(CONTRACTS_DIR) && file.endsWith('.sol'))
   } catch (error) {
     console.error('Error getting changed files:', error)
     return []
@@ -264,11 +269,16 @@ Commits that modified this contract (newest first).
  */
 async function mainWithAI() {
   console.log('🤖 AI-powered analysis (Claude Sonnet)\n')
-  
-  const changedFiles = getChangedSolidityFiles()
+  const commitSha =
+    process.env.COMMIT_SHA?.trim() ||
+    execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
+  const parentCommit = `${commitSha}^`
+  console.log(`Analyzing commit: ${commitSha}\n`)
+
+  const changedFiles = getChangedSolidityFiles(commitSha)
   
   if (changedFiles.length === 0) {
-    console.log('ℹ️  No Solidity files changed')
+    console.log('ℹ️  No Solidity files changed in this commit')
     return
   }
   
@@ -277,9 +287,14 @@ async function mainWithAI() {
   console.log()
   
   const date = new Date().toISOString().split('T')[0] ?? ''
-  const commitSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
-  const commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim().split('\n')[0] ?? ''
-  const commitDate = execSync('git log -1 --format=%ci HEAD', { encoding: 'utf-8' }).trim()
+  const commitMessage = execSync(`git log -1 --pretty=%B ${commitSha}`, {
+    encoding: 'utf-8',
+  })
+    .trim()
+    .split('\n')[0] ?? ''
+  const commitDate = execSync(`git log -1 --format=%ci ${commitSha}`, {
+    encoding: 'utf-8',
+  }).trim()
 
   let combinedEntry: ChangelogEntry = {
     date,
@@ -298,8 +313,8 @@ async function mainWithAI() {
   for (const file of changedFiles) {
     console.log(`\n🔍 Analyzing ${file}...`)
     
-    const oldContent = getFileAtCommit(file, 'HEAD~1')
-    const newContent = getFileAtCommit(file, 'HEAD')
+    const oldContent = getFileAtCommit(file, parentCommit)
+    const newContent = getFileAtCommit(file, commitSha)
     
     if (!newContent) {
       console.log(`  ⚠️  Skipped (file deleted or not accessible)`)
@@ -307,7 +322,7 @@ async function mainWithAI() {
     }
     
     const contractName = extractContractName(newContent, file)
-    const diff = getFileDiff(file, 'HEAD~1', 'HEAD')
+    const diff = getFileDiff(file, parentCommit, commitSha)
     
     if (!diff || diff.trim().length === 0) {
       console.log(`  ℹ️  No diff found`)
