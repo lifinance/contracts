@@ -32,10 +32,7 @@ import {
   type IProcessingStats,
 } from '../../utils/slack-notifier'
 
-import {
-  formatDecodedTxDataForDisplay,
-  formatTimelockScheduleBatch,
-} from './safe-decode-utils'
+import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 import {
   TIMELOCK_SCHEDULE_ABI,
@@ -1132,6 +1129,8 @@ async function executeOperation(
     }`
   )
   consola.info(`${networkPrefix}    Batch details:`)
+  const decodeContext =
+    chainId !== undefined && network ? { chainId, network } : undefined
   await formatTimelockScheduleBatch(
     [
       operation.targets,
@@ -1141,13 +1140,9 @@ async function executeOperation(
       operation.salt,
       operation.delay,
     ],
-    network ?? networkName ?? ''
+    network ?? networkName ?? '',
+    decodeContext
   )
-
-  if (callCount === 1 && chainId !== undefined && network) {
-    consola.info(`${networkPrefix}    Decoded call:`)
-    await formatDecodedTxDataForDisplay(primaryPayload, { chainId, network })
-  }
 
   // If interactive mode, show choice prompt
   if (interactive) {
