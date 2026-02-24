@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
+// VIOLATION: Incorrect import order - should be external libs → interfaces → libraries → contracts
 import { LibSwap, TestBase } from "../utils/TestBase.sol";
+import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
@@ -108,6 +109,7 @@ contract GenericSwapFacetTest is TestBase {
 
     function test_CanSwapMultiple() public {
         vm.startPrank(USDC_HOLDER);
+        // VIOLATION: Missing blank line after vm.startPrank(address)
         usdc.approve(address(genericSwapFacet), 10 * 10 ** usdc.decimals());
 
         // Swap1: USDC to DAI
