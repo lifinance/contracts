@@ -1609,6 +1609,61 @@ function getContractNameFromNetworkDeployments(
   }
 }
 
+/** Item from openchain.xyz signature lookup result (function name) */
+interface IOpenchainLookupResultItem {
+  name: string
+}
+
+/** Openchain API lookup response shape for type-safe parsing */
+interface IOpenchainLookupResponse {
+  ok?: boolean
+  result?: {
+    function?: Record<string, IOpenchainLookupResultItem[]>
+  }
+}
+
+const OPENCHAIN_FETCH_TIMEOUT_MS = 10_000
+
+function isOpenchainLookupResponse(
+  value: unknown
+): value is IOpenchainLookupResponse {
+  if (value === null || typeof value !== 'object') return false
+  const o = value as Record<string, unknown>
+  if (!o.result || typeof o.result !== 'object') return false
+  const result = o.result as Record<string, unknown>
+  if (!result.function || typeof result.function !== 'object') return false
+  return true
+}
+
+/**
+ * Looks up a function selector via openchain.xyz signature database (e.g. 4byte).
+ * Use when the selector is not in diamond.json (e.g. different ABI encoding for same function).
+ * @returns Function signature string if found, null otherwise
+ */
+async function lookupSelectorFromOpenchain(
+  selector: string
+): Promise<string | null> {
+  try {
+    const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
+    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${normalized}&filter=true`
+    const controller = new AbortController()
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      OPENCHAIN_FETCH_TIMEOUT_MS
+    )
+    const response = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    if (!response.ok) return null
+    const raw: unknown = await response.json()
+    if (!isOpenchainLookupResponse(raw)) return null
+    const first = raw.result?.function?.[normalized]?.[0]
+    if (first?.name && typeof first.name === 'string') return first.name
+    return null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Creates a mapping of function selectors to function names from diamond ABI
  * @returns Map of selector to function info
@@ -1631,7 +1686,7 @@ async function createSelectorMap(): Promise<Map<
     for (const abiItem of abiData)
       if (abiItem.type === 'function')
         try {
-          const selector = toFunctionSelector(abiItem)
+          const selector = toFunctionSelector(abiItem).toLowerCase()
           const inputs =
             abiItem.inputs
               ?.map((input: { type: string }) => input.type)
@@ -1647,7 +1702,6 @@ async function createSelectorMap(): Promise<Map<
           continue
         }
 
-    consola.info(`Created selector map with ${selectorMap.size} functions`)
     return selectorMap
   } catch (error) {
     consola.warn(`Error creating selector map: ${error}`)
@@ -1660,12 +1714,15 @@ async function createSelectorMap(): Promise<Map<
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
  * @param network - Optional network name (e.g. hyperevm) to resolve contract names from per-network deployment files
+ * @param indent - Optional prefix for each log line (e.g. when nested under scheduleBatch [00])
  */
 export async function decodeDiamondCut(
   diamondCutData: { functionName: string; args?: readonly unknown[] },
   chainId: number,
-  network?: string
+  network?: string,
+  indent?: string
 ) {
+  const pre = indent ?? ''
   const actionMap: Record<number, string> = {
     0: 'Add',
     1: 'Replace',
@@ -1689,22 +1746,29 @@ export async function decodeDiamondCut(
     networkIdForExplorer = undefined
   }
 
-  consola.info('Diamond Cut Details:')
-  consola.info('-'.repeat(80))
+  consola.info(`${pre}Diamond Cut Details:`)
+  consola.info(`${pre}` + '-'.repeat(80))
   // diamondCutData.args[0] contains an array of modifications.
   const args = diamondCutData.args
   if (!args || args.length === 0) {
-    consola.warn('No arguments found in diamondCut data')
+    consola.warn(`${pre}No arguments found in diamondCut data`)
     return
   }
 
   const modifications = args[0]
   if (!Array.isArray(modifications)) {
-    consola.warn('Invalid modifications format in diamondCut data')
+    consola.warn(`${pre}Invalid modifications format in diamondCut data`)
     return
   }
 
-  for (const mod of modifications) {
+  // Display order: Add (0), Replace (1), Remove (2)
+  const sortedModifications = [...modifications].sort((a, b) => {
+    const actionA = typeof a[1] === 'bigint' ? Number(a[1]) : (a[1] as number)
+    const actionB = typeof b[1] === 'bigint' ? Number(b[1]) : (b[1] as number)
+    return (actionA <= 2 ? actionA : 99) - (actionB <= 2 ? actionB : 99)
+  })
+
+  for (const mod of sortedModifications) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
     try {
@@ -1716,34 +1780,47 @@ export async function decodeDiamondCut(
         )
         if (explorerUrl) facetLine += ` \u001b[36m${explorerUrl}\u001b[0m`
       }
-      consola.info(facetLine)
-      consola.info(`Action: ${actionMap[actionValue] ?? actionValue}`)
+      consola.info(`${pre}${facetLine}`)
+      consola.info(`${pre}Action: ${actionMap[actionValue] ?? actionValue}`)
 
       // Use selector map for efficient lookup
       if (selectorMap) {
         const contractName = network
           ? getContractNameFromNetworkDeployments(network, facetAddress)
           : 'Unknown'
-        consola.info(`Contract Name: \u001b[34m${contractName}\u001b[0m`)
+        consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
         for (const selector of selectors) {
-          const functionInfo = selectorMap.get(selector)
-          if (functionInfo)
+          const normalizedSelector =
+            typeof selector === 'string' ? selector.toLowerCase() : selector
+          const functionInfo = selectorMap.get(normalizedSelector)
+          if (functionInfo) {
             consola.info(
-              `Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
+              `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
             )
-          else consola.warn(`Unknown function [${selector}]`)
+          } else {
+            const openchainName = await lookupSelectorFromOpenchain(
+              normalizedSelector
+            )
+            if (openchainName)
+              consola.info(
+                `${pre}Function: \u001b[34m${openchainName}\u001b[0m [${selector}] \u001b[90m(openchain.xyz)\u001b[0m`
+              )
+            else consola.warn(`${pre}Unknown function [${selector}]`)
+          }
         }
       } else {
         // Fallback to external API if selector map not available
-        consola.info('No diamond ABI found, fetching from anyabi.xyz...')
+        consola.info(`${pre}No diamond ABI found, fetching from anyabi.xyz...`)
         const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
         const response = await fetch(url)
         const resData = await response.json()
 
         if (resData && resData.abi) {
           consola.info(
-            `Contract Name: \u001b[34m${resData.name || 'unknown'}\u001b[0m`
+            `${pre}Contract Name: \u001b[34m${
+              resData.name || 'unknown'
+            }\u001b[0m`
           )
 
           for (const selector of selectors)
@@ -1788,71 +1865,32 @@ export async function decodeDiamondCut(
 
               if (matchingFunction)
                 consola.info(
-                  `Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
+                  `${pre}Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
                 )
-              else consola.warn(`Unknown function [${selector}]`)
+              else consola.warn(`${pre}Unknown function [${selector}]`)
             } catch (error) {
-              consola.warn(`Failed to decode selector: ${selector}`)
+              consola.warn(`${pre}Failed to decode selector: ${selector}`)
             }
-        } else consola.info(`Could not fetch ABI for facet ${facetAddress}`)
+        } else
+          consola.info(`${pre}Could not fetch ABI for facet ${facetAddress}`)
       }
     } catch (error) {
-      consola.error(`Error processing facet ${facetAddress}:`, error)
+      consola.error(`${pre}Error processing facet ${facetAddress}:`, error)
     }
-    consola.info('-'.repeat(80))
+    consola.info(`${pre}` + '-'.repeat(80))
   }
-  // Also log the initialization parameters (2nd and 3rd arguments of diamondCut)
+  // Also log the initialization parameters (2nd and 3rd arguments of diamondCut).
+  // When indent is set, caller (safe-decode-utils) will decode and display init calldata; skip raw dump.
   if (args && args.length >= 3) {
-    consola.info(`Init Address: ${args[1]}`)
-    consola.info(`Init Calldata: ${args[2]}`)
-  }
-}
-
-/**
- * Decodes a transaction's function call
- * @param data - Transaction data
- * @returns Decoded function name and data if available
- */
-export async function decodeTransactionData(data: Hex): Promise<{
-  functionName?: string
-  decodedData?: unknown
-}> {
-  if (!data || data === '0x') return {}
-
-  try {
-    const selector = data.substring(0, 10)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
-
-    if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
-    ) {
-      const functionName = responseData.result.function[selector][0].name
-
-      try {
-        const decodedData = {
-          functionName,
-          args: responseData.result.function[selector][0].args,
-        }
-
-        return {
-          functionName,
-          decodedData,
-        }
-      } catch (error) {
-        consola.warn(`Could not decode function data: ${error}`)
-        return { functionName }
-      }
-    }
-
-    return {}
-  } catch (error) {
-    consola.warn(`Error decoding transaction data: ${error}`)
-    return {}
+    consola.info(`${pre}Init Address: ${args[1]}`)
+    const initCalldata = args[2]
+    const hasInitCall =
+      initCalldata &&
+      typeof initCalldata === 'string' &&
+      initCalldata !== '0x' &&
+      (initCalldata as string).length >= 10
+    if (!indent || !hasInitCall)
+      consola.info(`${pre}Init Calldata: ${initCalldata ?? '0x'}`)
   }
 }
 
