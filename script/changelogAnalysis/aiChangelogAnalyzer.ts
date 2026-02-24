@@ -1,7 +1,7 @@
 /**
  * AI-powered Contract Change Analyzer
  *
- * Uses CodeRabbit API to generate semantic descriptions of contract changes.
+ * Intended to use CodeRabbit API to generate semantic descriptions of contract changes.
  */
 
 interface AIAnalysisResult {
@@ -41,52 +41,47 @@ export async function analyzeContractChangesWithAI(
 }
 
 /**
- * Analyze using CodeRabbit API
- * 
- * Note: This assumes CodeRabbit uses a similar API format to OpenAI.
- * If CodeRabbit has a different API endpoint or format, adjust accordingly.
+ * Analyze using CodeRabbit API.
+ * Current call returns 404 Not Found — see project docs for "CodeRabbit changelog API" for required endpoint/spec.
  */
 async function analyzeWithCodeRabbit(diff: ContractDiff, apiKey: string): Promise<AIAnalysisResult> {
   const prompt = buildAnalysisPrompt(diff)
-  
-  try {
-    // CodeRabbit API endpoint - TODO: Verify actual endpoint from CodeRabbit documentation
-    // If CodeRabbit uses a different API format, update this accordingly
-    const response = await fetch('https://api.coderabbit.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4-turbo-preview',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a Solidity smart contract expert analyzing code changes for changelog generation. Provide concise, technical descriptions of what changed and why.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-      }),
-    })
 
-    if (!response.ok) {
-      throw new Error(`CodeRabbit API error: ${response.statusText}`)
-    }
+  const response = await fetch('https://api.coderabbit.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4-turbo-preview',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a Solidity smart contract expert analyzing code changes for changelog generation. Provide concise, technical descriptions of what changed and why.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 2000,
+    }),
+  })
 
-    const data = await response.json()
-    const content = data.choices[0]?.message?.content || ''
-    
-    return parseAIResponse(content, diff.contractName)
-  } catch (error) {
-    console.error('Error calling CodeRabbit API:', error)
-    throw error
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`CodeRabbit API error: ${response.status} ${response.statusText} - ${text}`)
   }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  const content = data.choices?.[0]?.message?.content ?? ''
+
+  return parseAIResponse(content, diff.contractName)
 }
 
 /**
