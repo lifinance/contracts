@@ -10,7 +10,7 @@ import { NotAContract } from "../Errors/GenericErrors.sol";
 /// @title Withdraw Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract WithdrawFacet {
     /// Errors ///
 
@@ -31,6 +31,12 @@ contract WithdrawFacet {
     );
 
     /// External Methods ///
+
+    /// @notice Returns the facet version for integration and debugging.
+    /// @return The semantic version string (e.g. "1.0.1").
+    function getWithdrawFacetVersion() external pure returns (string memory) {
+        return "1.0.1";
+    }
 
     /// @notice Batch withdraw multiple assets
     /// @param _assetAddresses Array of asset addresses to withdraw
