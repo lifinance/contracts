@@ -3,8 +3,8 @@
 /**
  * Contract Changelog Generator
  *
- * Analyzes Solidity contract changes and generates changelog entries using AI
- * (CodeRabbit) for semantic descriptions.
+ * Analyzes Solidity contract changes and generates changelog entries using
+ * Claude Sonnet (Anthropic API). Requires CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY.
  * Changelog test: demo change in .ts (not included in contract changelog).
  */
 
@@ -172,7 +172,7 @@ ${entry}
  * Main execution with AI analysis
  */
 async function mainWithAI() {
-  console.log('🤖 AI-powered analysis (CodeRabbit)\n')
+  console.log('🤖 AI-powered analysis (Claude Sonnet)\n')
   
   const changedFiles = getChangedSolidityFiles()
   

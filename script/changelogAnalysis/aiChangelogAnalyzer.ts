@@ -1,7 +1,8 @@
 /**
  * AI-powered Contract Change Analyzer
  *
- * Intended to use CodeRabbit API to generate semantic descriptions of contract changes.
+ * Uses Anthropic Claude Sonnet API only (no fallbacks).
+ * Requires CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY.
  */
 
 interface AIAnalysisResult {
@@ -22,64 +23,69 @@ interface ContractDiff {
   diff: string
 }
 
+const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages'
+const CLAUDE_SONNET_MODEL = 'claude-sonnet-4-5'
+
 /**
- * Analyze contract changes using CodeRabbit AI
+ * Analyze contract changes using Claude Sonnet (Anthropic API only).
  */
 export async function analyzeContractChangesWithAI(
   diff: ContractDiff,
   apiKey?: string
 ): Promise<AIAnalysisResult> {
-  const key = apiKey ?? process.env.CODERABBIT_CONTRACTS_REPO_API_KEY
+  const key =
+    apiKey ?? process.env.CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY
 
   if (!key) {
     throw new Error(
-      'No API key provided. Set CODERABBIT_CONTRACTS_REPO_API_KEY environment variable'
+      'No API key provided. Set CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY environment variable'
     )
   }
 
-  return analyzeWithCodeRabbit(diff, key)
+  return analyzeWithClaudeSonnet(diff, key)
 }
 
 /**
- * Analyze using CodeRabbit API.
- * Current call returns 404 Not Found — see project docs for "CodeRabbit changelog API" for required endpoint/spec.
+ * Call Anthropic Messages API (Claude Sonnet).
  */
-async function analyzeWithCodeRabbit(diff: ContractDiff, apiKey: string): Promise<AIAnalysisResult> {
+async function analyzeWithClaudeSonnet(
+  diff: ContractDiff,
+  apiKey: string
+): Promise<AIAnalysisResult> {
   const prompt = buildAnalysisPrompt(diff)
 
-  const response = await fetch('https://api.coderabbit.ai/v1/chat/completions', {
+  const response = await fetch(ANTHROPIC_MESSAGES_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'gpt-4-turbo-preview',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a Solidity smart contract expert analyzing code changes for changelog generation. Provide concise, technical descriptions of what changed and why.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.3,
+      model: CLAUDE_SONNET_MODEL,
       max_tokens: 2000,
+      temperature: 0.3,
+      system:
+        'You are a Solidity smart contract expert analyzing code changes for changelog generation. Provide concise, technical descriptions of what changed and why.',
+      messages: [{ role: 'user', content: prompt }],
     }),
   })
 
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(`CodeRabbit API error: ${response.status} ${response.statusText} - ${text}`)
+    throw new Error(
+      `Anthropic API error: ${response.status} ${response.statusText} - ${text}`
+    )
   }
 
   const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>
+    content?: Array<{ type: string; text?: string }>
   }
-  const content = data.choices?.[0]?.message?.content ?? ''
+  const content =
+    data.content
+      ?.filter((block) => block.type === 'text' && block.text)
+      .map((block) => (block as { text: string }).text)
+      .join('') ?? ''
 
   return parseAIResponse(content, diff.contractName)
 }

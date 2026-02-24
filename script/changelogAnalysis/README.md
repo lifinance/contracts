@@ -1,383 +1,184 @@
 # Contract Changelog Analysis System
 
-Automated system for analyzing and documenting smart contract changes.
+Automated system that analyzes Solidity contract changes and generates changelog entries using **Claude Sonnet** (Anthropic API). One Markdown file per commit is written under `changelog/{commitHash}.md`.
 
-## 📁 Architecture
+---
+
+## Architecture
 
 ```
 script/changelogAnalysis/
-├── generateContractChangelog.ts    # Main orchestrator
-├── advancedChangelogGenerator.ts   # Advanced analysis engine
-├── astAnalyzer.ts                  # Solidity AST parser
-├── forgeAnalyzer.ts                # Forge integration (storage layout)
-├── semanticInference.ts            # Smart heuristics
-├── aiChangelogAnalyzer.ts          # AI integration (optional)
-├── CHANGELOG-CONTRACTS.md          # Generated output
-└── README.md                       # This file
+├── generateContractChangelog.ts   # Entrypoint: git diff → AI analysis → write changelog
+├── aiChangelogAnalyzer.ts         # Claude Sonnet API + diff building + response parsing
+└── README.md                      # This file
 ```
+
+**GitHub workflow**: `.github/workflows/generateContractChangelog.yml` — runs the script in CI and optionally commits the generated file(s).
 
 ---
 
-## 🔄 How It Works
+## Components
 
-### 1. Change Detection
-**File**: `generateContractChangelog.ts`
+### 1. `generateContractChangelog.ts` (orchestrator)
 
-```typescript
-getChangedSolidityFiles()
-  → Executes: git diff --name-only HEAD~1 HEAD
-  → Filters: src/**/*.sol files only
-  → Returns: Array of changed contract paths
-```
+**Role**: CLI entrypoint and orchestration. No AI calls; it drives git and the analyzer.
 
-### 2. Analysis Pipeline
+**Responsibilities**:
 
-**Entry Point**: `mainAdvanced()` in `generateContractChangelog.ts`
+- **Change detection**: Runs `git diff --name-only HEAD~1 HEAD`, keeps only paths under `src/` ending in `.sol`.
+- **Per-file loop**: For each changed file:
+  - Reads old/new content with `git show <commit>:<file>`.
+  - Derives contract name from file content (regex) or filename.
+  - Gets unified diff via `aiChangelogAnalyzer.getFileDiff()` and builds a `ContractDiff` via `buildContractDiff()`.
+  - Calls `analyzeContractChangesWithAI(contractDiff)` (the only AI call).
+  - Merges the returned categories (breaking, added, changed, removed, fixed) into a single changelog entry.
+- **Output**: Builds one combined Markdown entry, then calls `updateChangelog()` to write `changelog/{commitSha}.md` (creates `changelog/` if needed, skips if file already exists).
 
-```
-For each changed contract:
-  ├─ Get old version (HEAD~1)
-  ├─ Get new version (HEAD)
-  └─ Call analyzeContractAdvanced()
-```
+**Key functions**:
 
-**Analysis**: `analyzeContractAdvanced()` in `advancedChangelogGenerator.ts`
+- `getChangedSolidityFiles()` — list of changed `.sol` paths.
+- `getFileAtCommit(file, commit)` — file content at a given commit.
+- `extractContractName(content, filename)` — contract name for headings.
+- `formatChangelogEntry(entry)` — Markdown from the structured entry.
+- `updateChangelog(entry, commitSha)` — write `changelog/{commitSha}.md`.
+- `mainWithAI()` — async main: detect files → analyze each → merge → format → write.
 
-```
-1. Try AST Analysis (if solc can compile)
-   ├─ astAnalyzer.parseContractAST()
-   └─ Extract: functions, events, modifiers, state vars
-
-2. Try Forge Analysis (storage layout)
-   ├─ forgeAnalyzer.inspectContractWithForge()
-   └─ Detect: breaking storage changes
-
-3. Fallback to Regex (always works)
-   └─ Extract basic function/event names
-
-4. Semantic Inference
-   ├─ semanticInference.inferFunctionAddition()
-   ├─ semanticInference.inferFunctionModification()
-   └─ Add context based on heuristics
-```
-
-### 3. Change Categorization
-
-**Categories**:
-- **Breaking**: Removed functions, storage changes
-- **Added**: New functions, events, modifiers
-- **Changed**: Modified signatures, added modifiers
-- **Removed**: Deleted events, modifiers
-- **Fixed**: Bug fixes (inferred from commit type)
-
-### 4. Output Generation
-
-```typescript
-formatChangelogEntry()
-  → Markdown with sections
-  → Link to commit
-  → Grouped by category
-```
+**Constants**: `CHANGELOG_DIR = 'changelog'`, `CONTRACTS_DIR = 'src'`.
 
 ---
 
-## 🧩 Component Details
+### 2. `aiChangelogAnalyzer.ts` (AI + diff utilities)
 
-### `astAnalyzer.ts` - AST Parser
+**Role**: Build inputs for the model, call Anthropic, and parse the response. Single AI provider (Claude Sonnet); no fallbacks.
 
-**Purpose**: Parse Solidity code using `solc --ast-json`
+**Responsibilities**:
 
-**Key Functions**:
-- `parseContractAST(content, filename)` - Main parser
-- `extractFunctionInfo(node)` - Extract function metadata
-- `extractEventInfo(node)` - Extract event metadata
-- `formatFunctionSignature(func)` - Format for display
+- **API**: Call Anthropic Messages API (`https://api.anthropic.com/v1/messages`) with model `claude-sonnet-4-5`. Uses env var `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY`.
+- **Prompt**: Builds a single user prompt containing contract name, file path, and the git diff; asks for a JSON object with `summary`, `breaking`, `added`, `changed`, `removed`, `fixed`, `context`.
+- **Parsing**: Extracts JSON from the reply (allows surrounding text), validates required fields, and prefixes each item with the contract name (e.g. `` `ContractName`: description ``).
+- **Git helpers**: `getFileDiff(file, oldCommit, newCommit)` runs `git diff`; `buildContractDiff(...)` returns the `ContractDiff` object passed to the AI.
 
-**Limitations**: 
-- Requires compilation to work
-- Files with unresolved imports will fail → fallback to regex
+**Key functions**:
 
-**Example Output**:
-```typescript
-{
-  name: "withdraw",
-  visibility: "external",
-  stateMutability: "nonpayable",
-  params: [{ name: "amount", type: "uint256" }],
-  modifiers: ["nonReentrant"],
-  documentation: "Withdraw funds with protection"
-}
-```
+- `analyzeContractChangesWithAI(diff, apiKey?)` — public entry; resolves API key from env or argument, then calls Claude.
+- `analyzeWithClaudeSonnet(diff, apiKey)` — HTTP request to Anthropic and response handling.
+- `buildAnalysisPrompt(diff)` — builds the prompt text.
+- `parseAIResponse(content, contractName)` — JSON parse + validation + prefixing.
+- `getFileDiff(file, oldCommit, newCommit)` — shell `git diff`.
+- `buildContractDiff(file, contractName, oldContent, newContent, diff)` — builds `ContractDiff`.
+
+**Environment**: `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` (required for AI).
 
 ---
 
-### `forgeAnalyzer.ts` - Forge Integration
+### 3. `.github/workflows/generateContractChangelog.yml` (CI)
 
-**Purpose**: Analyze storage layout and ABI using Foundry tools
+**Role**: Run the changelog generator in GitHub Actions and optionally commit the new file(s).
 
-**Key Functions**:
-- `inspectContractWithForge(path, name)` - Run forge inspect
-- `compareStorageLayouts(old, new)` - Detect breaking changes
-- `estimateGasImpact(old, new)` - Estimate gas changes
+**Triggers**:
 
-**Commands Used**:
+- **Pull request closed (merged)** into `main` and the PR touched `src/**/*.sol` → run after merge.
+- **Manual**: `workflow_dispatch` (optional input: commit SHA to analyze; if empty, current HEAD is used).
+- **Push**: Trigger on push to the test branch is currently **disabled** so the reviewer can review the PR in draft first (see comments in the workflow file).
+
+**Steps**:
+
+1. **Checkout** — full history (`fetch-depth: 0`) for diff analysis.
+2. **Setup Bun** — install Bun.
+3. **Install dependencies** — `bun install`.
+4. **Generate changelog** — runs `bun run script/changelogAnalysis/generateContractChangelog.ts` with env:
+   - `COMMIT_SHA`, `GITHUB_TOKEN`, `REPOSITORY`
+   - `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` (from repo secrets).
+5. **Check for changes** — detect new `changelog/*.md` files.
+6. **Commit and push** — if any new changelog files exist, commit them and push (e.g. message: `chore: add contract changelog for commit <short-sha>`).
+7. **Summary** — write job summary (success, list of new files, contracts analyzed).
+
+**Secrets**: Repo must have `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` set in Settings → Secrets and variables → Actions.
+
+---
+
+## Process (end-to-end)
+
+1. **Trigger**  
+   - Merge of a PR into `main` that changed `src/**/*.sol`, or manual `workflow_dispatch`.
+
+2. **Change set**  
+   - Script runs `git diff --name-only HEAD~1 HEAD` and keeps `src/**/*.sol` paths.
+
+3. **Per changed file**  
+   - Old/new content from git; contract name from source or filename.  
+   - `getFileDiff(file, 'HEAD~1', 'HEAD')` → unified diff.  
+   - `buildContractDiff(...)` → one `ContractDiff` per file.
+
+4. **AI analysis**  
+   - One call to Claude Sonnet per `ContractDiff` with a structured prompt; model returns JSON: `summary`, `breaking`, `added`, `changed`, `removed`, `fixed`, `context`.
+
+5. **Merge and format**  
+   - All results for the commit are merged into a single `ChangelogEntry`; `formatChangelogEntry()` turns it into Markdown.
+
+6. **Write**  
+   - `updateChangelog()` writes `changelog/{commitSha}.md` (skips if the file already exists).
+
+7. **CI only**  
+   - Workflow detects new `changelog/*.md` and, if any, commits and pushes them.
+
+---
+
+## Usage
+
+### Manual (local)
+
+Requires `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` in the environment.
+
 ```bash
-forge inspect ContractPath:ContractName storageLayout
-forge inspect ContractPath:ContractName abi
-forge inspect ContractPath:ContractName methods
+# From repo root; analyzes last commit (HEAD vs HEAD~1)
+bun run script/changelogAnalysis/generateContractChangelog.ts
 ```
 
-**Breaking Change Detection**:
-- Variable removed → Breaking
-- Slot changed → Breaking
-- Type changed → Breaking
-- Variable inserted (not appended) → Breaking
-- Variable appended → Safe
+Output: `changelog/{commitSha}.md` (only if there were changed `.sol` files under `src/` and the file does not already exist).
 
-**Example**:
-```typescript
-{
-  isBreaking: true,
-  changes: ["Storage variable `feeCollector` moved to different slot"]
-}
-```
+### Automatic (CI)
+
+- Merge a PR into `main` that changes `src/**/*.sol` → workflow runs and may add/commit `changelog/{commitSha}.md`.
+- Or run manually: Actions → “Generate Contract Changelog” → “Run workflow”.
 
 ---
 
-### `semanticInference.ts` - Heuristic Engine
+## Configuration
 
-**Purpose**: Infer meaning and context from code patterns
+| Item | Where | Description |
+|------|--------|-------------|
+| `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` | Env / GitHub secret | Anthropic API key; required for AI. |
+| `CHANGELOG_DIR` | `generateContractChangelog.ts` | Output directory (default `changelog`). |
+| `CONTRACTS_DIR` | `generateContractChangelog.ts` | Path filter for contracts (default `src`). |
 
-**Pattern Recognition**:
-
-1. **Function Purpose** (by name):
-   - `batch*` → "gas-efficient batch operations"
-   - `withdraw*` → "for withdrawing funds"
-   - `transfer*` → "for token transfers"
-   - `swap*` → "for token swaps"
-   - `bridge*` → "for cross-chain bridging"
-
-2. **Security Modifiers**:
-   - `nonReentrant` → "Added security protection"
-   - `onlyOwner` → "admin-only operation"
-   - `whenNotPaused` → "pausable protection"
-
-3. **Breaking Change Detection**:
-   - Function removed → Breaking
-   - Parameters changed → Breaking
-   - Visibility restricted → Breaking
-   - Access control added → Breaking
-
-**Key Functions**:
-- `inferFunctionAddition(func)` - Infer purpose of new function
-- `inferFunctionModification(old, new)` - Detect changes
-- `parseCommitMessage(msg)` - Parse conventional commits
-- `isBreakingChange(old, new)` - Determine if breaking
-
-**Example**:
-```typescript
-inferFunctionAddition({
-  name: "batchTransfer",
-  modifiers: ["nonReentrant"]
-})
-// Returns:
-{
-  shortDescription: "Added `batchTransfer`",
-  context: "for gas-efficient batch operations",
-  securityNote: "Protected by: nonReentrant"
-}
-```
+No other AI providers or fallbacks are used.
 
 ---
 
-### `advancedChangelogGenerator.ts` - Main Analysis
+## Output format
 
-**Purpose**: Orchestrate all analysis methods
+Each `changelog/{commitSha}.md` includes:
 
-**Flow**:
-```
-1. parseContractAST() → Try AST
-   ↓ (if fails)
-2. analyzeWithRegex() → Fallback regex
-   ↓
-3. inspectContractWithForge() → Storage analysis
-   ↓
-4. inferFunctionAddition/Modification() → Add context
-   ↓
-5. enhanceWithCommitContext() → Use commit message
-```
-
-**Regex Fallback**:
-- Matches: `function name(...) external`
-- Matches: `event Name(...)`
-- Simple but reliable
+- Title and commit link, date, author.
+- Sections: **Breaking**, **Added**, **Changed**, **Removed**, **Fixed** (only if non-empty).
+- Each bullet is prefixed with the contract name, e.g. `` `LiFiDiamond`: ... ``.
 
 ---
 
-### `aiChangelogAnalyzer.ts` - AI Integration (Optional)
+## Troubleshooting
 
-**Purpose**: Use OpenAI/Anthropic for semantic analysis
-
-**Usage**:
-```bash
-USE_AI=true OPENAI_API_KEY="sk-..." bun run changelog:contracts
-```
-
-**What AI Adds**:
-- Natural language descriptions
-- Security vulnerability references
-- Migration code examples
-- Gas impact percentages
-- Industry context
-
-**Cost**: ~$0.01-0.05 per contract file
+| Issue | What to check |
+|-------|-------------------------------|
+| “No Solidity files changed” | Files must be under `src/` and `.sol`; run `git diff --name-only HEAD~1 HEAD` and confirm. |
+| “No API key provided” | Set `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` (env or GitHub secret). |
+| “Anthropic API error” | Key valid, network access, and (if 4xx) Anthropic status/docs. |
+| “Failed to parse AI response” | Model must return valid JSON in the requested shape; check prompt and model output. |
+| Changelog file already exists | Script skips writing if `changelog/{commitSha}.md` exists; delete or use another commit for testing. |
 
 ---
 
-## 🚀 Usage
+## Related
 
-### Manual Execution
-```bash
-# Run on last commit
-bun run changelog:contracts
-
-# View output
-cat script/changelogAnalysis/CHANGELOG-CONTRACTS.md
-```
-
-### Automatic (GitHub Action)
-```yaml
-# Triggers on push to main with .sol changes
-on:
-  push:
-    branches: [main, master]
-    paths: ['src/**/*.sol']
-```
-
-### With AI Mode
-```bash
-USE_AI=true OPENAI_API_KEY="sk-proj-..." bun run changelog:contracts
-```
-
----
-
-## 🧪 Testing
-
-### Test with Sample Change
-```bash
-# 1. Edit a contract
-vim src/Facets/SomeFacet.sol
-
-# 2. Commit
-git add src/Facets/SomeFacet.sol
-git commit -m "feat: add new function"
-
-# 3. Generate changelog
-bun run changelog:contracts
-
-# 4. View result
-cat script/changelogAnalysis/CHANGELOG-CONTRACTS.md
-```
-
----
-
-## 📊 Analysis Quality
-
-**Regex Mode** (Fallback):
-- ✅ Detects: Added/removed functions and events
-- ❌ Missing: Parameter types, modifiers, context
-- Quality: ~70%
-
-**Advanced Mode** (Default):
-- ✅ Complete function signatures
-- ✅ Storage layout analysis
-- ✅ Security pattern detection
-- ✅ Semantic context
-- Quality: ~90%
-
-**AI Mode** (Optional):
-- ✅ All of Advanced mode
-- ✅ Natural language
-- ✅ Security references
-- ✅ Migration examples
-- Quality: ~98%
-
----
-
-## 🛠️ Configuration
-
-### Environment Variables
-- `USE_ADVANCED` - Use advanced analysis (default: `true`)
-- `USE_AI` - Use AI analysis (default: `false`)
-- `AI_PROVIDER` - AI provider: `openai` or `anthropic` (default: `openai`)
-- `OPENAI_API_KEY` - OpenAI API key (for AI mode)
-- `ANTHROPIC_API_KEY` - Anthropic API key (for AI mode)
-
-### Customization
-
-**Change output location**:
-```typescript
-// In generateContractChangelog.ts
-const CHANGELOG_FILE = 'path/to/changelog.md'
-```
-
-**Filter contracts**:
-```typescript
-// In generateContractChangelog.ts
-const CONTRACTS_DIR = 'src/Facets' // Only analyze facets
-```
-
----
-
-## 🐛 Troubleshooting
-
-### "No Solidity files changed"
-- Check that files are in `src/` directory
-- Verify commit has actual changes
-- Run `git diff --name-only HEAD~1 HEAD` manually
-
-### "AST parsing failed, using basic analysis"
-- Normal behavior - AST requires compilation
-- Files with imports won't compile standalone
-- Fallback regex analysis will be used (still good quality)
-
-### "Storage layout not available"
-- Requires Forge to be installed
-- Run `forge --version` to verify
-- Non-critical - analysis continues without it
-
----
-
-## 📝 Output Format
-
-### Generated Entry Example
-
-```markdown
-## [2024-02-13] - feat: add batch withdraw
-
-**Commit**: [`abc123`](../../commit/abc123)
-
-### ✨ Added
-- `WithdrawFacet`: Added function `batchWithdraw`
-
-### 🔄 Changed
-- `WithdrawFacet`: Modified `withdraw` - added modifier nonReentrant
-
-### ⚠️ Breaking Changes
-- `TokenFacet`: Removed function `oldTransfer`
-```
-
----
-
-## 🔗 Related Files
-
-- `.github/workflows/generate-contract-changelog.yml` - GitHub Action
-- `package.json` - npm script: `changelog:contracts`
-
----
-
-## 📚 Further Reading
-
-- [Conventional Commits](https://www.conventionalcommits.org/) - Commit message format
-- [Solidity AST](https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html) - Storage layout
-- [Foundry Forge](https://book.getfoundry.sh/forge/) - Forge commands
+- Workflow file: `.github/workflows/generateContractChangelog.yml`
+- Changelog output: `changelog/*.md`
