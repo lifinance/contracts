@@ -10,4 +10,4 @@
     "./tasks/**/*.ts",
     ".eslintrc.cjs"
   ]
-} 
+}
