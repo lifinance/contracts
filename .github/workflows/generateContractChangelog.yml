@@ -1,7 +1,6 @@
 # Generate Contract Changelog
 # - Triggers when a PR is merged to main that modified Solidity contracts
-# - Push to test branch disabled for draft PR review (re-enable when ready):
-#   push -> branches: [SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI]
+# - Also triggers on push to test branch (SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI)
 # - Analyzes contract changes and generates individual changelog file per commit: changelog/{commitHash}.md
 # - Commits changelog files directly to the branch
 # - Supports manual execution via workflow_dispatch
@@ -16,12 +15,11 @@ on:
       - main
     paths:
       - 'src/**/*.sol'
-  # Push to test branch disabled so reviewer can review PR in draft first
-  # push:
-  #   branches:
-  #     - 'SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI'
-  #   paths:
-  #     - 'src/**/*.sol'
+  push:
+    branches:
+      - 'SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI'
+    paths:
+      - 'src/**/*.sol'
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -35,8 +33,8 @@ permissions:
 
 jobs:
   generate-changelog:
-    # Only run if: (1) PR was merged (not just closed), OR (2) manually triggered
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    # Only run if: (1) PR was merged (not just closed), OR (2) manually triggered, OR (3) push to test branch
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     
     steps:
