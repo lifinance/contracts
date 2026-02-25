@@ -2,11 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { OutputValidator } from "lifi/Periphery/OutputValidator.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
@@ -14,16 +14,8 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { TransferFromFailed, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub CBridgeFacet Contract
-contract TestCBridgeFacet is CBridgeFacet {
+contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
-
-    function addDex(address _dex) external {
-        LibAllowList.addAllowedContract(_dex);
-    }
-
-    function setFunctionApprovalBySignature(bytes4 _signature) external {
-        LibAllowList.addAllowedSelector(_signature);
-    }
 }
 
 contract OutputValidatorTest is TestBase {
@@ -53,14 +45,13 @@ contract OutputValidatorTest is TestBase {
 
         // Deploy CBridge facet
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridge
             .swapAndStartBridgeTokensViaCBridge
             .selector;
-        functionSelectors[2] = cBridge.addDex.selector;
-        functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
-        functionSelectors[4] = cBridge.triggerRefund.selector;
+        functionSelectors[2] = cBridge.addAllowedContractSelector.selector;
+        functionSelectors[3] = cBridge.triggerRefund.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
         cBridge = TestCBridgeFacet(address(diamond));
@@ -69,23 +60,26 @@ contract OutputValidatorTest is TestBase {
         mockDEX = new MockUniswapDEX();
 
         // Whitelist MockDEX in the diamond using CBridge facet
-        cBridge.addDex(address(mockDEX));
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.addAllowedContractSelector(
+            address(mockDEX),
             mockDEX.swapExactTokensForTokens.selector
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.addAllowedContractSelector(
+            address(mockDEX),
             mockDEX.swapExactTokensForETH.selector
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.addAllowedContractSelector(
+            address(mockDEX),
             mockDEX.swapExactETHForTokens.selector
         );
 
         // Whitelist OutputValidator in the diamond
-        cBridge.addDex(address(outputValidator));
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.addAllowedContractSelector(
+            address(outputValidator),
             outputValidator.validateNativeOutput.selector
         );
-        cBridge.setFunctionApprovalBySignature(
+        cBridge.addAllowedContractSelector(
+            address(outputValidator),
             outputValidator.validateERC20Output.selector
         );
 
