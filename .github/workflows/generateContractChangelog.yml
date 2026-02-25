@@ -67,7 +67,8 @@ jobs:
       - name: Check for changes
         id: check
         run: |
-          if git diff --name-only | grep -q "^script/changelogAnalysis/changelog/"; then
+          # Detect both new (untracked) and modified files; git diff only shows tracked changes
+          if git status --porcelain script/changelogAnalysis/changelog/ | grep -q .; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
             echo "script/changelogAnalysis/changelog/ updated"
           else
@@ -98,7 +99,7 @@ jobs:
             echo "✅ changelog/ updated" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Updated:" >> $GITHUB_STEP_SUMMARY
-            git diff --name-only | grep "^script/changelogAnalysis/changelog/" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
+            git diff --name-only HEAD^ HEAD -- script/changelogAnalysis/changelog/ | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Contract changes analyzed:" >> $GITHUB_STEP_SUMMARY
             COMMIT_SHA="${{ github.sha }}"
