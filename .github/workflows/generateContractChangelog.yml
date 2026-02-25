@@ -58,6 +58,12 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY: ${{ secrets.CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY }}
 
+      - name: List changelog/ (verify location)
+        run: |
+          echo "Contents of changelog/ at repo root:"
+          ls -la changelog/ 2>/dev/null || echo "(changelog/ not found at repo root)"
+          ls -la changelog/contracts/ 2>/dev/null || true
+
       - name: Check for changes
         id: check
         run: |

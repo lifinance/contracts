@@ -10,12 +10,17 @@
 
 import { execSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+
 import {
   analyzeContractChangesWithAI,
   buildContractDiff,
   getFileDiff,
 } from './aiChangelogAnalyzer'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const REPO_ROOT = join(__dirname, '..', '..')
 
 const CHANGELOG_DIR = 'changelog'
 const CONTRACTS_CHANGELOG_DIR = join(CHANGELOG_DIR, 'contracts')
@@ -28,7 +33,7 @@ All contract changes by commit (newest first). Per-contract history: \`changelog
 
 `
 
-interface ChangelogEntry {
+interface IChangelogEntry {
   date: string
   commitSha: string
   commitMessage: string
@@ -145,7 +150,7 @@ function extractContractName(content: string, filename: string): string {
 /**
  * Format changelog entry as Markdown
  */
-function formatChangelogEntry(entry: ChangelogEntry): string {
+function formatChangelogEntry(entry: IChangelogEntry): string {
   let markdown = `## [${entry.date}] - ${entry.commitMessage}\n\n`
   markdown += `**Commit**: [\`${entry.commitSha}\`](../../commit/${entry.commitSha})\n\n`
   
@@ -228,7 +233,7 @@ function formatContractSections(analysis: {
  * Skips if this commit is already present. Ordered by commit (newest first).
  */
 function updateChangelog(entry: string, commitSha: string): void {
-  const changelogRoot = join(process.cwd(), CHANGELOG_DIR)
+  const changelogRoot = join(REPO_ROOT, CHANGELOG_DIR)
   if (!existsSync(changelogRoot)) {
     mkdirSync(changelogRoot, { recursive: true })
   }
@@ -280,7 +285,7 @@ function updateContractChangelog(
   commitDate: string,
   sections: string
 ): void {
-  const contractsDir = join(process.cwd(), CONTRACTS_CHANGELOG_DIR)
+  const contractsDir = join(REPO_ROOT, CONTRACTS_CHANGELOG_DIR)
   if (!existsSync(contractsDir)) {
     mkdirSync(contractsDir, { recursive: true })
   }
@@ -325,6 +330,7 @@ Commits that modified this contract (newest first).
  */
 async function mainWithAI() {
   console.log('🤖 AI-powered analysis (Claude Sonnet)\n')
+  console.log(`Changelog output dir: ${join(REPO_ROOT, CHANGELOG_DIR)}\n`)
   const commitSha =
     process.env.COMMIT_SHA?.trim() ||
     execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
@@ -352,7 +358,7 @@ async function mainWithAI() {
     encoding: 'utf-8',
   }).trim()
 
-  let combinedEntry: ChangelogEntry = {
+  const combinedEntry: IChangelogEntry = {
     date,
     commitSha,
     commitMessage,
