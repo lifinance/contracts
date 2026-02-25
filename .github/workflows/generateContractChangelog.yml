@@ -3,6 +3,7 @@
 # - Writes changelog/CHANGELOG.md (all commits, newest first) and changelog/contracts/{Contract}.md per contract
 # - Commits changelog/ to the same branch
 # - Uses Anthropic Claude Sonnet (CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY)
+# - workflow_dispatch allows manual run from Actions tab (e.g. to debug or re-run for a branch)
 
 name: generateContractChangelog
 
@@ -10,6 +11,7 @@ on:
   push:
     paths:
       - 'src/**/*.sol'
+  workflow_dispatch:
 
 permissions:
   contents: write
