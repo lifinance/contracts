@@ -8,7 +8,7 @@ import { IERC165 } from "../Interfaces/IERC165.sol";
 /// @title Diamond Loupe Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Core EIP-2535 Facet for inspecting Diamond Proxies.
-/// @custom:version 1.0.6
+/// @custom:version 1.0.7
 contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     uint8 internal constant LOUPE_VERSION = 1;
 
