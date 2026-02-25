@@ -8,8 +8,10 @@ import { IERC165 } from "../Interfaces/IERC165.sol";
 /// @title Diamond Loupe Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Core EIP-2535 Facet for inspecting Diamond Proxies.
-/// @custom:version 1.0.5
+/// @custom:version 1.0.6
 contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
+    uint8 internal constant LOUPE_VERSION = 1;
+
     // Diamond Loupe Functions
     ////////////////////////////////////////////////////////////////////
     /// These functions are expected to be called frequently by tools.
@@ -95,9 +97,9 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     }
 
     /// @notice Returns the loupe interface version for tooling.
-    /// @return version_ Always 1 for this implementation.
-    function loupeVersion() external pure returns (uint8 version_) {
-        version_ = 1;
+    /// @return version_ LOUPE_VERSION constant.
+    function loupeVersion() external view returns (uint8 version_) {
+        version_ = LOUPE_VERSION;
     }
 
     // This implements ERC-165.
