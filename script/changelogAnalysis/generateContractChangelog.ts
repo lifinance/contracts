@@ -88,12 +88,7 @@ function isCommentLine(content: string): boolean {
     return true
   }
 
-  // Version and other meaningful NatSpec metadata count as real changes for changelog
-  if (content.includes('@custom:version')) {
-    return false
-  }
-
-  // Single-line and NatSpec comments
+  // Single-line and NatSpec comments (including @custom:version – only real code changes trigger changelog)
   if (content.startsWith('//') || content.startsWith('///')) {
     return true
   }

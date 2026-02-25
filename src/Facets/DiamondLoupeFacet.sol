@@ -8,7 +8,7 @@ import { IERC165 } from "../Interfaces/IERC165.sol";
 /// @title Diamond Loupe Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Core EIP-2535 Facet for inspecting Diamond Proxies.
-/// @custom:version 1.0.9
+/// @custom:version 1.1.0
 contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     uint8 internal constant LOUPE_VERSION = 1;
 
@@ -86,14 +86,18 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     /// @return count_ The number of facets.
     function facetCount() external view returns (uint256 count_) {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        count_ = ds.facetAddresses.length;
+        count_ = _facetCount(ds);
+    }
+
+    function _facetCount(LibDiamond.DiamondStorage storage ds) internal view returns (uint256) {
+        return ds.facetAddresses.length;
     }
 
     /// @notice Returns true if the diamond has at least one facet registered.
     /// @return hasFacets_ True when facetCount() > 0.
     function hasFacets() external view returns (bool hasFacets_) {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        hasFacets_ = ds.facetAddresses.length > 0;
+        hasFacets_ = _facetCount(ds) > 0;
     }
 
     /// @notice Returns the loupe interface version for tooling.
