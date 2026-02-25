@@ -84,7 +84,7 @@ jobs:
           git add script/changelogAnalysis/changelog/
           COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
           git commit --no-verify -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
-          git push
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Summary
         if: always()
