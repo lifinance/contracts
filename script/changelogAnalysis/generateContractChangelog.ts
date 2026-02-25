@@ -73,6 +73,62 @@ function getFileAtCommit(file: string, commit: string): string | null {
 }
 
 /**
+ * Return true if a line of Solidity is purely a comment / NatSpec.
+ * Expects the line to already be trimmed (no leading/trailing whitespace).
+ */
+function isCommentLine(content: string): boolean {
+  if (content === '') {
+    return true
+  }
+
+  // Single-line and NatSpec comments
+  if (content.startsWith('//') || content.startsWith('///')) {
+    return true
+  }
+
+  // Block comment lines (including NatSpec-style /** ... */ blocks)
+  if (content.startsWith('/*') || content.startsWith('/**')) {
+    return true
+  }
+  if (content.startsWith('*') || content.endsWith('*/')) {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * Detect whether a unified diff contains only comment changes.
+ * We ignore metadata lines (diff/index/@@/---/+++), and only inspect
+ * added/removed lines that start with '+' or '-'.
+ */
+function isCommentOnlyDiff(diff: string): boolean {
+  const lines = diff.split('\n')
+  for (const line of lines) {
+    if (!line.startsWith('+') && !line.startsWith('-')) {
+      continue
+    }
+    // Skip file headers like +++/--- which also start with those chars
+    if (line.startsWith('+++') || line.startsWith('---')) {
+      continue
+    }
+
+    const content = line.slice(1).trim()
+    if (content === '') {
+      continue
+    }
+
+    // If any changed line is not a pure comment, this is not comment-only
+    if (!isCommentLine(content)) {
+      return false
+    }
+  }
+
+  // No non-comment changes found
+  return true
+}
+
+/**
  * Extract contract name from file content
  */
 function extractContractName(content: string, filename: string): string {
@@ -328,6 +384,11 @@ async function mainWithAI() {
       console.log(`  ℹ️  No diff found`)
       continue
     }
+
+    if (isCommentOnlyDiff(diff)) {
+      console.log('  ℹ️  Only comment changes detected, skipping for changelog/AI')
+      continue
+    }
     
     const contractDiff = buildContractDiff(file, contractName, oldContent, newContent, diff)
     const aiAnalysis = await analyzeContractChangesWithAI(contractDiff)
@@ -348,6 +409,17 @@ async function mainWithAI() {
   }
   
   const formattedEntry = formatChangelogEntry(combinedEntry)
+
+  if (
+    combinedEntry.changes.breaking.length === 0 &&
+    combinedEntry.changes.added.length === 0 &&
+    combinedEntry.changes.changed.length === 0 &&
+    combinedEntry.changes.removed.length === 0 &&
+    combinedEntry.changes.fixed.length === 0
+  ) {
+    console.log('ℹ️  No code-level contract changes (only comments/formatting); skipping changelog update')
+    return
+  }
   
   console.log('\n📝 Generated changelog entry:\n')
   console.log(formattedEntry)

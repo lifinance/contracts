@@ -1,31 +1,15 @@
 # Generate Contract Changelog
-# - Triggers when a PR is merged to main that modified Solidity contracts
-# - Also triggers on push to test branch (SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI)
+# - Triggers on push to any branch that modified Solidity contracts under src/
 # - Writes changelog/CHANGELOG.md (all commits, newest first) and changelog/contracts/{Contract}.md per contract
-# - Commits changelog/ to the branch
-# - Supports manual execution via workflow_dispatch
+# - Commits changelog/ to the same branch
 # - Uses Anthropic Claude Sonnet (CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY)
 
 name: generateContractChangelog
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - main
-    paths:
-      - 'src/**/*.sol'
   push:
-    branches:
-      - 'SMAR-41-Research-how-we-can-auto-generate-contract-changelogs-using-AI'
     paths:
       - 'src/**/*.sol'
-  workflow_dispatch:
-    inputs:
-      commit_sha:
-        description: 'Commit SHA to analyze (leave empty for latest)'
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -33,17 +17,25 @@ permissions:
 
 jobs:
   generate-changelog:
-    # Only run if: (1) PR was merged (not just closed), OR (2) manually triggered, OR (3) push to test branch
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref || github.ref }} # Checkout target branch (main for PRs, current branch for pushes)
-          fetch-depth: 0 # Need full history for diff analysis
+          ref: ${{ github.sha }} # Checkout the pushed commit
+          fetch-depth: 0 # Need full history so COMMIT_SHA^ exists for diff
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Debug — commit and changed .sol files
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          echo "HEAD: $(git rev-parse HEAD)"
+          echo "COMMIT_SHA: $COMMIT_SHA"
+          echo "Changed files (all):"
+          git diff --name-only "${COMMIT_SHA}^" "$COMMIT_SHA" || true
+          echo "Filtered src/**/*.sol:"
+          git diff --name-only "${COMMIT_SHA}^" "$COMMIT_SHA" | grep -E '^src/.*\.sol$' || echo "(none)"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -59,7 +51,7 @@ jobs:
           echo "🤖 Running AI-powered changelog generation (Claude Sonnet)"
           bun run script/changelogAnalysis/generateContractChangelog.ts
         env:
-          COMMIT_SHA: ${{ github.event.inputs.commit_sha || github.event.pull_request.merge_commit_sha || github.sha }}
+          COMMIT_SHA: ${{ github.sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY: ${{ secrets.CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY }}
@@ -101,11 +93,8 @@ jobs:
             git diff --name-only | grep "^changelog/" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Contract changes analyzed:" >> $GITHUB_STEP_SUMMARY
-            # Show files from the merged PR or push
-            if [ -n "${{ github.event.pull_request.number }}" ]; then
-              echo "**PR #${{ github.event.pull_request.number }}**: ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
-            fi
-            git diff HEAD~1 --name-only --diff-filter=AM src/**/*.sol 2>/dev/null | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
+            COMMIT_SHA="${{ github.sha }}"
+            git diff --name-only "${COMMIT_SHA}^" "$COMMIT_SHA" | grep -E '^src/.*\.sol$' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
           else
             echo "ℹ️ No contract changes or commit already in changelog" >> $GITHUB_STEP_SUMMARY
           fi
