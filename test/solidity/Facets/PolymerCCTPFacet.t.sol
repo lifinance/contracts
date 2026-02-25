@@ -94,6 +94,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             polymerTokenFee: (bridgeData.minAmount / 100) * 1, // 1% of bridging amount
             maxCCTPFee: (bridgeData.minAmount / 100) * 10, // 10% of bridging amount
             nonEVMReceiver: bytes32(0),
+            solanaReceiverATA: bytes32(0),
             minFinalityThreshold: 1000 // Fast route (1000)
         });
 
@@ -172,6 +173,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 polymerTokenFee: polymerFee,
                 maxCCTPFee: maxCCTPFee,
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
                 minFinalityThreshold: validPolymerData.minFinalityThreshold
             });
 
@@ -208,6 +210,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 polymerTokenFee: polymerFee,
                 maxCCTPFee: swapOutputAmount / 10, // 10% of swap output
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
                 minFinalityThreshold: validPolymerData.minFinalityThreshold
             });
 
@@ -250,6 +253,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidReceiver.selector);
+
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
@@ -278,11 +282,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     function testRevert_ConstructorWithZeroTokenMessenger() public {
         vm.expectRevert(InvalidConfig.selector);
+
         new TestPolymerCCTPFacet(address(0), ADDRESS_USDC, polymerFeeReceiver);
     }
 
     function testRevert_ConstructorWithZeroUSDC() public {
         vm.expectRevert(InvalidConfig.selector);
+
         new TestPolymerCCTPFacet(
             TOKEN_MESSENGER_V2_MAINNET,
             address(0),
@@ -292,6 +298,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     function testRevert_ConstructorWithZeroFeeReceiver() public {
         vm.expectRevert(InvalidConfig.selector);
+
         new TestPolymerCCTPFacet(
             TOKEN_MESSENGER_V2_MAINNET,
             ADDRESS_USDC,
@@ -306,6 +313,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         dai.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidSendingToken.selector);
+
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
@@ -319,6 +327,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
         validPolymerData.nonEVMReceiver = bytes32(uint256(0x1234));
+        validPolymerData.solanaReceiverATA = bytes32(uint256(0x5678));
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit ILiFi.BridgeToNonEVMChainBytes32(
@@ -350,10 +359,28 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         bridgeData.receiver = NON_EVM_ADDRESS;
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.destinationChainId = 10;
         validPolymerData.nonEVMReceiver = bytes32(0);
 
         vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaDestinationWithZeroSolanaReceiverATA() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validPolymerData.nonEVMReceiver = bytes32(uint256(0x1234));
+        validPolymerData.solanaReceiverATA = bytes32(0);
+
+        vm.expectRevert(InvalidConfig.selector);
+
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
@@ -408,7 +435,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     }
 
     function test_ChainIdToDomainIdMapping() public {
-        ChainMapping[] memory mappings = new ChainMapping[](16);
+        ChainMapping[] memory mappings = new ChainMapping[](17);
         mappings[0] = ChainMapping({ chainId: 1, domainId: 0 }); // Ethereum
         mappings[1] = ChainMapping({ chainId: 43114, domainId: 1 }); // Avalanche
         mappings[2] = ChainMapping({ chainId: 10, domainId: 2 }); // OP Mainnet
@@ -420,11 +447,12 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         mappings[8] = ChainMapping({ chainId: 81224, domainId: 12 }); // Codex
         mappings[9] = ChainMapping({ chainId: 146, domainId: 13 }); // Sonic
         mappings[10] = ChainMapping({ chainId: 480, domainId: 14 }); // World Chain
-        mappings[11] = ChainMapping({ chainId: 1329, domainId: 16 }); // Sei
-        mappings[12] = ChainMapping({ chainId: 50, domainId: 18 }); // XDC
-        mappings[13] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
-        mappings[14] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
-        mappings[15] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
+        mappings[11] = ChainMapping({ chainId: 143, domainId: 15 }); // Monad
+        mappings[12] = ChainMapping({ chainId: 1329, domainId: 16 }); // Sei
+        mappings[13] = ChainMapping({ chainId: 50, domainId: 18 }); // XDC
+        mappings[14] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
+        mappings[15] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
+        mappings[16] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
 
         for (uint256 i = 0; i < mappings.length; i++) {
             assertEq(
@@ -436,6 +464,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     function testRevert_ChainIdToDomainIdWithUnsupportedChainId() public {
         vm.expectRevert(InvalidCallData.selector);
+
         polymerCCTPFacet.chainIdToDomainId(99999); // Unsupported chainId
     }
 

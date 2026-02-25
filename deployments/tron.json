@@ -18,5 +18,6 @@
   "SymbiosisFacet": "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f",
   "AllBridgeFacet": "TCyAJzpLJjGyUqPoQ9Kvm1Zjw9zDmXLUfU",
   "EcoFacet": "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM",
-  "FeeForwarder": "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ"
+  "FeeForwarder": "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ",
+  "WhitelistManagerFacet": "TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn"
 }

@@ -88,6 +88,10 @@
       "0x6496DB316c9aB67C80baF5e2a592e8087d7C8023": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
+      },
+      "0x3565C9e37fA5B55dB7e50662207143C54a52A87c": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -95,7 +99,7 @@
       "Executor": "0x1F050386e23d81fC81C154a8F8616DEa3826b777",
       "FeeCollector": "0x7CaC679Cc2dF9c602590eA4965091F54EC32F2Fc",
       "FeeForwarder": "0xb85d6B3deDc688C2aC7C71669F20Fdd1eC739e97",
-      "GasZipPeriphery": "0x718e4C256271417C0e1237c3586BE6d79449fdD8",
+      "GasZipPeriphery": "0x36dff5e623257bA84f8e221eDd4f9081dc183D4e",
       "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
       "LidoWrapper": "",
       "Patcher": "",
@@ -103,6 +107,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "0xee2edD809EEddD4a944e6E4bb4A3AC0927CA02e1",
       "ReceiverChainflip": "",
+      "ReceiverOIF": "",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xdD73C6B0387018314FFBd4CB0b9F382771BB541A"
     }
