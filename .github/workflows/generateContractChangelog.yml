@@ -83,7 +83,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add script/changelogAnalysis/changelog/
           COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
-          git commit -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
+          git commit --no-verify -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
           git push
 
       - name: Summary
