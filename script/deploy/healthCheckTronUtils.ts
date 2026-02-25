@@ -11,7 +11,7 @@ import { sleep } from '../utils/delay'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
 
 import { INITIAL_CALL_DELAY, MAX_RETRIES, RETRY_DELAY } from './shared/constants'
-import { getRetryDelays, isRateLimitError } from './shared/rateLimit'
+import { isRateLimitError } from './shared/rateLimit'
 import { hexToTronAddress } from './tron/utils'
 
 /**
@@ -40,23 +40,17 @@ export async function callTronContract(
   // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
-  const retryDelays = getRetryDelays(MAX_RETRIES, RETRY_DELAY)
-  const includeConnectionErrors = false
-
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const delay =
-        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? RETRY_DELAY
       consola.warn(
-        `Rate limit detected (429). Retrying in ${delay / 1000}s... (attempt ${attempt}/${MAX_RETRIES})`
+        `Rate limit (429). Retrying in ${RETRY_DELAY / 1000}s... (attempt ${attempt}/${MAX_RETRIES})`
       )
-      await sleep(delay)
+      await sleep(RETRY_DELAY)
     }
     try {
       return await spawnAndCapture('bun', args)
     } catch (error: unknown) {
-      const shouldRetry =
-        isRateLimitError(error, includeConnectionErrors) && attempt < MAX_RETRIES
+      const shouldRetry = isRateLimitError(error) && attempt < MAX_RETRIES
       if (!shouldRetry) throw error
     }
   }
@@ -121,14 +115,8 @@ export async function callTronContractBoolean(
   // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
-  const retryDelays = getRetryDelays(MAX_RETRIES, RETRY_DELAY)
-
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      const delay =
-        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? RETRY_DELAY
-      await sleep(delay)
-    }
+    if (attempt > 0) await sleep(RETRY_DELAY)
     try {
       const result = await tronWeb.transactionBuilder.triggerConstantContract(
         contractAddress,
@@ -160,7 +148,7 @@ export async function callTronContractBoolean(
 
       return decodedResult === true
     } catch (error: unknown) {
-      const shouldRetry = isRateLimitError(error, true) && attempt < MAX_RETRIES
+      const shouldRetry = isRateLimitError(error) && attempt < MAX_RETRIES
       if (!shouldRetry) throw error
     }
   }

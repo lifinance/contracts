@@ -45,7 +45,7 @@ import {
   RETRY_DELAY,
   SAFE_THRESHOLD,
 } from './shared/constants'
-import { getRetryDelays, isRateLimitError } from './shared/rateLimit'
+import { isRateLimitError } from './shared/rateLimit'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -82,17 +82,12 @@ export async function execWithRateLimitRetry(
     await sleep(initialDelay)
   }
 
-  const retryDelays = getRetryDelays(maxRetries, retryDelay)
-  const includeConnectionErrors = false
-
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
-      const delay =
-        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? retryDelay
       consola.warn(
-        `Rate limit detected (429). Retrying in ${delay / 1000}s... (attempt ${attempt}/${maxRetries})`
+        `Rate limit (429). Retrying in ${retryDelay / 1000}s... (attempt ${attempt}/${maxRetries})`
       )
-      await sleep(delay)
+      await sleep(retryDelay)
     }
     try {
       const [command, ...args] = commandParts
@@ -101,8 +96,7 @@ export async function execWithRateLimitRetry(
       }
       return await spawnAndCapture(command, args)
     } catch (error: unknown) {
-      const shouldRetry =
-        isRateLimitError(error, includeConnectionErrors) && attempt < maxRetries
+      const shouldRetry = isRateLimitError(error) && attempt < maxRetries
       if (!shouldRetry) throw error
     }
   }
@@ -339,7 +333,7 @@ const main = defineCommand({
       facetCheckSkipped = true
 
       // Check if it's a rate limit error (429)
-      if (isRateLimitError(error, false)) {
+      if (isRateLimitError(error)) {
         consola.warn(
           'RPC rate limit reached (429) - skipping facet registration check'
         )
@@ -1088,6 +1082,16 @@ const getExpectedPairs = async (
   }
 }
 
+/**
+ * Check whitelist integrity by comparing config against on-chain state.
+ * @param network - The network name (e.g. 'ethereum', 'tron', 'polygon', etc.)
+ * @param environment - The environment name (e.g. 'production', 'staging')
+ * @param expectedPairs - An array of expected pairs (contract: selector)
+ * @param logError - A function to log errors
+ * @param isTron - Whether the network is Tron
+ * @param diamondAddress - The address of the diamond contract
+ * @param context - An object containing the Tron and EVM contexts
+ */
 async function checkWhitelistIntegrity(
   network: string,
   environment: string,

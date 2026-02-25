@@ -20,7 +20,7 @@ import {
   RETRY_DELAY,
   ZERO_ADDRESS,
 } from '../shared/constants'
-import { getRetryDelays, isRateLimitError } from '../shared/rateLimit'
+import { isRateLimitError } from '../shared/rateLimit'
 
 import {
   DEFAULT_FEE_LIMIT_TRX,
@@ -34,8 +34,6 @@ import type {
   INetworkInfo,
   IDiamondRegistrationResult,
 } from './types'
-
-export { getRetryDelays, isRateLimitError } from '../shared/rateLimit'
 
 /**
  * Load compiled contract artifact from Forge output
@@ -114,14 +112,9 @@ export async function checkIsDeployedTron(
   await sleep(INITIAL_CALL_DELAY)
 
   type GetContractResult = { contract_address?: string } | null
-  const retryDelays = getRetryDelays(MAX_RETRIES, RETRY_DELAY)
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      const delay =
-        retryDelays[attempt - 1] ?? retryDelays[retryDelays.length - 1] ?? RETRY_DELAY
-      await sleep(delay)
-    }
+    if (attempt > 0) await sleep(RETRY_DELAY)
     try {
       const contractInfo = (await tronWeb.trx.getContract(
         tronAddress
@@ -133,7 +126,7 @@ export async function checkIsDeployedTron(
       )
       return false
     } catch (error: unknown) {
-      const shouldRetry = isRateLimitError(error, true) && attempt < MAX_RETRIES
+      const shouldRetry = isRateLimitError(error) && attempt < MAX_RETRIES
       if (!shouldRetry) {
         const msg = error instanceof Error ? error.message : String(error)
         consola.warn(
