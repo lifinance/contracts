@@ -20,7 +20,8 @@ import {
 } from './aiChangelogAnalyzer'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const REPO_ROOT = join(__dirname, '..', '..')
+/** Output dir for generated changelog files (inside script/changelogAnalysis/). */
+const CHANGELOG_OUTPUT_ROOT = __dirname
 
 const CHANGELOG_DIR = 'changelog'
 const CONTRACTS_CHANGELOG_DIR = join(CHANGELOG_DIR, 'contracts')
@@ -233,7 +234,7 @@ function formatContractSections(analysis: {
  * Skips if this commit is already present. Ordered by commit (newest first).
  */
 function updateChangelog(entry: string, commitSha: string): void {
-  const changelogRoot = join(REPO_ROOT, CHANGELOG_DIR)
+  const changelogRoot = join(CHANGELOG_OUTPUT_ROOT, CHANGELOG_DIR)
   if (!existsSync(changelogRoot)) {
     mkdirSync(changelogRoot, { recursive: true })
   }
@@ -285,7 +286,7 @@ function updateContractChangelog(
   commitDate: string,
   sections: string
 ): void {
-  const contractsDir = join(REPO_ROOT, CONTRACTS_CHANGELOG_DIR)
+  const contractsDir = join(CHANGELOG_OUTPUT_ROOT, CONTRACTS_CHANGELOG_DIR)
   if (!existsSync(contractsDir)) {
     mkdirSync(contractsDir, { recursive: true })
   }
@@ -330,7 +331,7 @@ Commits that modified this contract (newest first).
  */
 async function mainWithAI() {
   console.log('🤖 AI-powered analysis (Claude Sonnet)\n')
-  console.log(`Changelog output dir: ${join(REPO_ROOT, CHANGELOG_DIR)}\n`)
+  console.log(`Changelog output dir: ${join(CHANGELOG_OUTPUT_ROOT, CHANGELOG_DIR)}\n`)
   const commitSha =
     process.env.COMMIT_SHA?.trim() ||
     execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()

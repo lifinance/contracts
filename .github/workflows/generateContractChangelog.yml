@@ -1,7 +1,7 @@
 # Generate Contract Changelog
 # - Triggers on push to any branch that modified Solidity contracts under src/
-# - Writes changelog/CHANGELOG.md (all commits, newest first) and changelog/contracts/{Contract}.md per contract
-# - Commits changelog/ to the same branch
+# - Writes script/changelogAnalysis/changelog/CHANGELOG.md and changelog/contracts/{Contract}.md per contract
+# - Commits script/changelogAnalysis/changelog/ to the same branch
 # - Uses Anthropic Claude Sonnet (CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY)
 # - workflow_dispatch allows manual run from Actions tab (e.g. to debug or re-run for a branch)
 
@@ -58,18 +58,18 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY: ${{ secrets.CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY }}
 
-      - name: List changelog/ (verify location)
+      - name: List changelog (verify location)
         run: |
-          echo "Contents of changelog/ at repo root:"
-          ls -la changelog/ 2>/dev/null || echo "(changelog/ not found at repo root)"
-          ls -la changelog/contracts/ 2>/dev/null || true
+          echo "Contents of script/changelogAnalysis/changelog/:"
+          ls -la script/changelogAnalysis/changelog/ 2>/dev/null || echo "(changelog not found)"
+          ls -la script/changelogAnalysis/changelog/contracts/ 2>/dev/null || true
 
       - name: Check for changes
         id: check
         run: |
-          if git diff --name-only | grep -q "^changelog/"; then
+          if git diff --name-only | grep -q "^script/changelogAnalysis/changelog/"; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "changelog/ updated"
+            echo "script/changelogAnalysis/changelog/ updated"
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             echo "No changelog changes"
@@ -80,7 +80,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add changelog/
+          git add script/changelogAnalysis/changelog/
           COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
           git commit -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
           git push
@@ -98,7 +98,7 @@ jobs:
             echo "✅ changelog/ updated" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Updated:" >> $GITHUB_STEP_SUMMARY
-            git diff --name-only | grep "^changelog/" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
+            git diff --name-only | grep "^script/changelogAnalysis/changelog/" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Contract changes analyzed:" >> $GITHUB_STEP_SUMMARY
             COMMIT_SHA="${{ github.sha }}"
