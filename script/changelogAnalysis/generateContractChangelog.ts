@@ -20,8 +20,9 @@ import {
 } from './aiChangelogAnalyzer'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-/** Output dir for generated changelog files (inside script/changelogAnalysis/). */
-const CHANGELOG_OUTPUT_ROOT = __dirname
+/** Repo root; changelog files are written to <repo_root>/changelog/ */
+const REPO_ROOT = join(__dirname, '..', '..')
+const CHANGELOG_OUTPUT_ROOT = REPO_ROOT
 
 const CHANGELOG_DIR = 'changelog'
 const CONTRACTS_CHANGELOG_DIR = join(CHANGELOG_DIR, 'contracts')

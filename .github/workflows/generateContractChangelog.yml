@@ -1,7 +1,7 @@
 # Generate Contract Changelog
 # - Triggers on push to any branch that modified Solidity contracts under src/
-# - Writes script/changelogAnalysis/changelog/CHANGELOG.md and changelog/contracts/{Contract}.md per contract
-# - Commits script/changelogAnalysis/changelog/ to the same branch
+# - Writes changelog/CHANGELOG.md and changelog/contracts/{Contract}.md at repo root
+# - Commits changelog/ to the same branch
 # - Uses Anthropic Claude Sonnet (CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY)
 # - workflow_dispatch allows manual run from Actions tab (e.g. to debug or re-run for a branch)
 
@@ -60,17 +60,17 @@ jobs:
 
       - name: List changelog (verify location)
         run: |
-          echo "Contents of script/changelogAnalysis/changelog/:"
-          ls -la script/changelogAnalysis/changelog/ 2>/dev/null || echo "(changelog not found)"
-          ls -la script/changelogAnalysis/changelog/contracts/ 2>/dev/null || true
+          echo "Contents of changelog/ (repo root):"
+          ls -la changelog/ 2>/dev/null || echo "(changelog not found)"
+          ls -la changelog/contracts/ 2>/dev/null || true
 
       - name: Check for changes
         id: check
         run: |
           # Detect both new (untracked) and modified files; git diff only shows tracked changes
-          if git status --porcelain script/changelogAnalysis/changelog/ | grep -q .; then
+          if git status --porcelain changelog/ | grep -q .; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "script/changelogAnalysis/changelog/ updated"
+            echo "changelog/ updated"
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             echo "No changelog changes"
@@ -81,7 +81,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add script/changelogAnalysis/changelog/
+          git add changelog/
           COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
           git commit --no-verify -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
           git push origin HEAD:${{ github.ref_name }}
@@ -99,7 +99,7 @@ jobs:
             echo "✅ changelog/ updated" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Updated:" >> $GITHUB_STEP_SUMMARY
-            git diff --name-only HEAD^ HEAD -- script/changelogAnalysis/changelog/ | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
+            git diff --name-only HEAD^ HEAD -- changelog/ | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Contract changes analyzed:" >> $GITHUB_STEP_SUMMARY
             COMMIT_SHA="${{ github.sha }}"
