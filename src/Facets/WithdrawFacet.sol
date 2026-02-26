@@ -24,18 +24,18 @@ contract WithdrawFacet {
         uint256 amount
     );
 
-    event BatchWithdrawCompleted(
-        address[] indexed assets,
-        address indexed to,
-        uint256 totalAmount
-    );
-
     /// External Methods ///
 
     /// @notice Returns the facet version for integration and debugging.
     /// @return The semantic version string (e.g. "1.0.2").
     function getWithdrawFacetVersion() external pure returns (string memory) {
         return "1.0.2";
+    }
+
+    /// @notice Returns the facet name for integration and debugging.
+    /// @return The facet name string.
+    function getWithdrawFacetName() external pure returns (string memory) {
+        return "WithdrawFacet";
     }
 
     /// @notice Batch withdraw multiple assets
@@ -50,7 +50,10 @@ contract WithdrawFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        // Implementation would go here
+        require(_assetAddresses.length == _amounts.length, "Length mismatch");
+        for (uint256 i = 0; i < _assetAddresses.length; i++) {
+            _withdrawAsset(_assetAddresses[i], _to, _amounts[i]);
+        }
     }
 
     /// @notice Execute call data and withdraw asset.
