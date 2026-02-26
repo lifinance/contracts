@@ -14,7 +14,7 @@ import {
   type PublicClient,
 } from 'viem'
 
-import {
+import globalConfig, {
   coreFacets,
   corePeriphery,
   pauserWallet,
@@ -165,8 +165,6 @@ const main = defineCommand({
         })
       }
     }
-
-    const globalConfig = await import('../../config/global.json')
 
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
@@ -585,7 +583,6 @@ const main = defineCommand({
           environment,
           expectedPairs,
           logError,
-          isTron,
           diamondAddress,
           {
             tronContext:
@@ -1088,7 +1085,6 @@ const getExpectedPairs = async (
  * @param environment - The environment name (e.g. 'production', 'staging')
  * @param expectedPairs - An array of expected pairs (contract: selector)
  * @param logError - A function to log errors
- * @param isTron - Whether the network is Tron
  * @param diamondAddress - The address of the diamond contract
  * @param context - An object containing the Tron and EVM contexts
  */
@@ -1097,7 +1093,6 @@ async function checkWhitelistIntegrity(
   environment: string,
   expectedPairs: Array<{ contract: string; selector: Hex }>,
   logError: (msg: string) => void,
-  isTron: boolean,
   diamondAddress: string,
   context: {
     tronContext?: { tronRpcUrl: string; tronWeb: TronWeb }
@@ -1107,6 +1102,9 @@ async function checkWhitelistIntegrity(
   const tronRpcUrl = context.tronContext?.tronRpcUrl
   const tronWeb = context.tronContext?.tronWeb
   const publicClient = context.evmContext?.publicClient
+
+  const hasTronContext = !!tronRpcUrl && !!tronWeb
+  const hasEvmContext = !!publicClient
 
   consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
 
@@ -1128,7 +1126,7 @@ async function checkWhitelistIntegrity(
 
   let onChainPairSet: Set<string>
 
-  if (isTron && tronWeb && tronRpcUrl) {
+  if (hasTronContext) {
     consola.start('Fetching on-chain whitelist data (Tron)...')
     const onChainDataOutput = await callTronContract(
       diamondAddress,
@@ -1166,7 +1164,7 @@ async function checkWhitelistIntegrity(
         }
       }
     }
-  } else if (publicClient) {
+  } else if (hasEvmContext) {
     consola.start('Fetching on-chain whitelist data (EVM)...')
     const whitelistManager = getContract({
       address: diamondAddress as Address,
@@ -1201,7 +1199,7 @@ async function checkWhitelistIntegrity(
     consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
     let granularFails = 0
 
-    if (isTron && tronWeb) {
+    if (hasTronContext) {
       for (const expectedPair of expectedPairs) {
         try {
           const isWhitelisted = await callTronContractBoolean(
@@ -1228,7 +1226,7 @@ async function checkWhitelistIntegrity(
           granularFails++
         }
       }
-    } else if (publicClient) {
+    } else if (hasEvmContext) {
       const whitelistManager = getContract({
         address: diamondAddress as Address,
         abi: parseAbi([
