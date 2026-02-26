@@ -23,6 +23,7 @@ import {
 
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../utils/delay'
 
 import { createDefaultCache } from './shared/deployment-cache'
 import {
@@ -110,7 +111,7 @@ class DeploymentLogManager {
 
         const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff
         consola.warn(`MongoDB connection failed, retrying in ${delay}ms...`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await sleep(delay)
       }
   }
 

@@ -1,8 +1,3 @@
-// @ts-nocheck
-import { execSync } from 'child_process'
-import { dirname } from 'path'
-import { fileURLToPath } from 'url'
-
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -13,26 +8,39 @@ import {
   getContract,
   http,
   parseAbi,
+  type Abi,
   type Address,
   type Hex,
   type PublicClient,
 } from 'viem'
 
-import {
-  coreFacets,
-  corePeriphery,
-  pauserWallet,
-  whitelistPeripheryFunctions,
-} from '../../config/global.json'
-import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
+import globalConfig from '../../config/global.json'
+import type { IWhitelistConfig, TargetState } from '../common/types'
+import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
+import { sleep } from '../utils/delay'
+import { getRPCEnvVarName } from '../utils/network'
+import { spawnAndCapture } from '../utils/spawnAndCapture'
 import {
   getViemChainForNetworkName,
   networks,
-  type Network,
 } from '../utils/viemScriptHelpers'
 
-import targetState from './_targetState.json'
+import targetStateImport from './_targetState.json'
+import {
+  callTronContract,
+  callTronContractBoolean,
+  ensureTronAddress,
+  getTronWallet,
+  normalizeSelector,
+  checkOwnershipTron,
+  parseTroncastNestedArray,
+} from './healthCheckTronUtils'
+import {
+  RETRY_DELAY,
+  SAFE_THRESHOLD,
+} from './shared/constants'
+import { isRateLimitError } from './shared/rateLimit'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -40,31 +48,55 @@ import {
   parseTroncastFacetsOutput,
 } from './tron/utils'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const targetState = targetStateImport as TargetState
 
-const SAFE_THRESHOLD = 3
+/**
+ * Execute a command with retry logic for rate limit errors (429)
+ * Uses spawn to avoid shell interpretation issues with special characters
+ * 
+ * NOTE: For Tron contract calls, prefer using callTronContract() from healthCheckTronUtils.ts
+ * which is specialized for troncast and includes proper delay handling.
+ * 
+ * This function is primarily used for EVM contract calls via cast.
+ * 
+ * @param commandParts - Array of command parts (e.g., ['cast', 'call', ...])
+ * @param initialDelay - Initial delay before first attempt (ms)
+ * @param maxRetries - Maximum number of retries
+ * @param retryDelay - Delay in ms for all retry attempts (default: RETRY_DELAY)
+ * @returns The command output string
+ * @throws The last error if all retries fail
+ */
+export async function execWithRateLimitRetry(
+  commandParts: string[],
+  initialDelay = 0,
+  maxRetries = 3,
+  retryDelay = RETRY_DELAY
+): Promise<string> {
+  // Initial delay before first attempt
+  if (initialDelay > 0) {
+    await sleep(initialDelay)
+  }
 
-interface IWhitelistConfig {
-  DEXS: Array<{
-    name: string
-    key: string
-    contracts?: Record<
-      string,
-      Array<{
-        address: string
-        functions?: Record<string, string>
-      }>
-    >
-  }>
-  PERIPHERY?: Record<
-    string,
-    Array<{
-      name: string
-      address: string
-      selectors: Array<{ selector: string; signature: string }>
-    }>
-  >
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      consola.warn(
+        `Rate limit (429). Retrying in ${retryDelay / 1000}s... (attempt ${attempt}/${maxRetries})`
+      )
+      await sleep(retryDelay)
+    }
+    try {
+      const [command, ...args] = commandParts
+      if (!command) {
+        throw new Error('No command provided')
+      }
+      return await spawnAndCapture(command, args)
+    } catch (error: unknown) {
+      const shouldRetry = isRateLimitError(error) && attempt < maxRetries
+      if (!shouldRetry) throw error
+    }
+  }
+
+  throw new Error('Max retries exceeded')
 }
 
 const errors: string[] = []
@@ -105,41 +137,47 @@ const main = defineCommand({
         environment === 'staging' ? '.staging' : ''
       }.json`
     )
-    const targetStateJson = await import(`./_targetState.json`)
 
     // Get core facets - use Tron-specific filtering if needed
     let coreFacetsToCheck: string[]
     if (isTron)
       // Use the Tron-specific utility that filters out GasZipFacet
       coreFacetsToCheck = getTronCoreFacets()
-    else coreFacetsToCheck = coreFacets
+    else coreFacetsToCheck = globalConfig.coreFacets
 
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
-      nonCoreFacets = Object.keys(
-        targetStateJson[networkLower]['production'].LiFiDiamond
-      ).filter((k) => {
-        return (
-          !coreFacetsToCheck.includes(k) &&
-          !corePeriphery.includes(k) &&
-          k !== 'LiFiDiamond' &&
-          k.includes('Facet')
-        )
-      })
+      const productionDiamond = targetState[networkLower]?.production?.LiFiDiamond
+      if (productionDiamond) {
+        nonCoreFacets = Object.keys(productionDiamond).filter((k) => {
+          return (
+            !coreFacetsToCheck.includes(k) &&
+            !globalConfig.corePeriphery.includes(k) &&
+            k !== 'LiFiDiamond' &&
+            k.includes('Facet')
+          )
+        })
+      }
     }
-
-    const globalConfig = await import('../../config/global.json')
-    const networksConfig = await import('../../config/networks.json')
 
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
+
+    const networkConfig = networks[networkLower]
+    if (!networkConfig) {
+      throw new Error(`Network config not found for ${networkLower}`)
+    }
+
+    const tronRpcUrl = isTron
+      ? getEnvVar(getRPCEnvVarName(networkLower)) || networkConfig.rpcUrl
+      : undefined
 
     if (isTron)
       tronWeb = initTronWeb(
         'mainnet',
         undefined,
-        networksConfig[networkLower].rpcUrl
+        networkConfig.rpcUrl
       )
     else {
       const chain = getViemChainForNetworkName(networkLower)
@@ -156,25 +194,18 @@ const main = defineCommand({
     //          │                Check Diamond Contract                   │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking diamond Contract...')
-    let diamondDeployed: boolean
-    if (isTron && tronWeb)
-      diamondDeployed = await checkIsDeployedTron(
-        'LiFiDiamond',
-        deployedContracts,
-        tronWeb
-      )
-    else if (publicClient)
-      diamondDeployed = await checkIsDeployed(
-        'LiFiDiamond',
-        deployedContracts,
-        publicClient
-      )
-    else diamondDeployed = false
-
+    const diamondDeployed = await checkAndLogDeployment(
+      'LiFiDiamond',
+      deployedContracts,
+      isTron,
+      tronWeb,
+      publicClient,
+      logError
+    )
     if (!diamondDeployed) {
-      logError(`LiFiDiamond not deployed`)
       finish()
-    } else consola.success('LiFiDiamond deployed')
+      return
+    }
 
     const diamondAddress = deployedContracts['LiFiDiamond']
 
@@ -183,26 +214,16 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking Core Facets...')
     for (const facet of coreFacetsToCheck) {
-      let isDeployed: boolean
-      if (isTron && tronWeb)
-        isDeployed = await checkIsDeployedTron(
-          facet,
-          deployedContracts,
-          tronWeb
-        )
-      else if (publicClient)
-        isDeployed = await checkIsDeployed(
-          facet,
-          deployedContracts,
-          publicClient
-        )
-      else isDeployed = false
-
-      if (!isDeployed) {
-        logError(`Facet ${facet} not deployed`)
-        continue
-      }
-      consola.success(`Facet ${facet} deployed`)
+      const isDeployed = await checkAndLogDeployment(
+        facet,
+        deployedContracts,
+        isTron,
+        tronWeb,
+        publicClient,
+        logError,
+        'Facet'
+      )
+      if (!isDeployed) continue
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
@@ -211,26 +232,16 @@ const main = defineCommand({
     if (environment === 'production') {
       consola.box('Checking Non-Core facets...')
       for (const facet of nonCoreFacets) {
-        let isDeployed: boolean
-        if (isTron && tronWeb)
-          isDeployed = await checkIsDeployedTron(
-            facet,
-            deployedContracts,
-            tronWeb
-          )
-        else if (publicClient)
-          isDeployed = await checkIsDeployed(
-            facet,
-            deployedContracts,
-            publicClient
-          )
-        else isDeployed = false
-
-        if (!isDeployed) {
-          logError(`Facet ${facet} not deployed`)
-          continue
-        }
-        consola.success(`Facet ${facet} deployed`)
+        const isDeployed = await checkAndLogDeployment(
+          facet,
+          deployedContracts,
+          isTron,
+          tronWeb,
+          publicClient,
+          logError,
+          'Facet'
+        )
+        if (!isDeployed) continue
       }
     } else {
       consola.info('Skipping non-core facet checks for staging environment')
@@ -242,14 +253,15 @@ const main = defineCommand({
     consola.box('Checking facets registered in diamond...')
 
     let registeredFacets: string[] = []
+    let facetCheckSkipped = false
     try {
-      if (isTron) {
-        // Use troncast for Tron
-        // Diamond address in deployments is already in Tron format
-        const rpcUrl = networksConfig[networkLower].rpcUrl
-        const rawString = execSync(
-          `bun troncast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
-          { encoding: 'utf8' }
+      if (isTron && tronRpcUrl) {
+        const rawString = await callTronContract(
+          diamondAddress,
+          'facets()',
+          [],
+          '(address,bytes4[])[]',
+          tronRpcUrl
         )
 
         // Parse Tron output format
@@ -258,24 +270,34 @@ const main = defineCommand({
         if (Array.isArray(onChainFacets)) {
           // Map Tron addresses directly (deployments already use Tron format)
           const configFacetsByAddress = Object.fromEntries(
-            Object.entries(deployedContracts).map(([name, address]) => {
+            Object.entries(deployedContracts).map(([name, address]: [string, unknown]) => {
               // Address is already in Tron format for Tron deployments
-              return [address.toLowerCase(), name]
+              const addressStr = String(address)
+              return [addressStr.toLowerCase(), name]
             })
           )
 
           registeredFacets = onChainFacets
-            .map(([tronAddress]) => {
+            .map(([tronAddress]: [string, unknown]) => {
               return configFacetsByAddress[tronAddress.toLowerCase()]
             })
-            .filter(Boolean)
+            .filter((name): name is string => typeof name === 'string')
         }
-      } else if (networksConfig[networkLower].rpcUrl && publicClient) {
-        // Existing EVM logic
-        const rpcUrl: string = publicClient.chain.rpcUrls.default.http[0]
-        const rawString = execSync(
-          `cast call "${diamondAddress}" "facets() returns ((address,bytes4[])[])" --rpc-url "${rpcUrl}"`,
-          { encoding: 'utf8' }
+      } else if (networkConfig.rpcUrl && publicClient && publicClient.chain) {
+        // Existing EVM logic with retry for rate limits
+        const rpcUrl: string = publicClient.chain.rpcUrls.default.http[0] || networkConfig.rpcUrl
+        const rawString = await execWithRateLimitRetry(
+          [
+            'cast',
+            'call',
+            diamondAddress,
+            'facets() returns ((address,bytes4[])[])',
+            '--rpc-url',
+            rpcUrl,
+          ],
+          0, // No initial delay for EVM (can be adjusted if needed)
+          3,
+          RETRY_DELAY
         )
 
         const jsonCompatibleString = rawString
@@ -287,27 +309,49 @@ const main = defineCommand({
 
         if (Array.isArray(onChainFacets)) {
           const configFacetsByAddress = Object.fromEntries(
-            Object.entries(deployedContracts).map(([name, address]) => {
-              return [address.toLowerCase(), name]
+            Object.entries(deployedContracts).map(([name, address]: [string, unknown]) => {
+              const addressStr = String(address)
+              return [addressStr.toLowerCase(), name]
             })
           )
 
-          registeredFacets = onChainFacets.map(([address]) => {
-            return configFacetsByAddress[address.toLowerCase()]
-          })
+          registeredFacets = onChainFacets
+            .map(([address]: [string, unknown]) => {
+              return configFacetsByAddress[address.toLowerCase()]
+            })
+            .filter((name): name is string => typeof name === 'string')
         }
       }
-    } catch (error) {
-      consola.warn('Unable to parse output - skipping facet registration check')
-      consola.warn('Error:', error)
+    } catch (error: unknown) {
+      facetCheckSkipped = true
+
+      // Check if it's a rate limit error (429)
+      if (isRateLimitError(error)) {
+        consola.warn(
+          'RPC rate limit reached (429) - skipping facet registration check'
+        )
+        consola.warn(
+          'This is a temporary limitation from the RPC provider. The check will be skipped.'
+        )
+      } else {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        consola.warn(
+          'Unable to parse output - skipping facet registration check'
+        )
+        consola.warn('Error:', errorMessage)
+      }
     }
 
-    for (const facet of [...coreFacetsToCheck, ...nonCoreFacets])
-      if (!registeredFacets.includes(facet))
-        logError(
-          `Facet ${facet} not registered in Diamond or possibly unverified`
-        )
-      else consola.success(`Facet ${facet} registered in Diamond`)
+    // Only check facet registration if we successfully retrieved the data
+    // If the check was skipped due to an error (e.g. RPC rate limit), don't mark all facets as "not registered"
+    if (!facetCheckSkipped) {
+      for (const facet of [...coreFacetsToCheck, ...nonCoreFacets])
+        if (!registeredFacets.includes(facet))
+          logError(
+            `Facet ${facet} not registered in Diamond or possibly unverified`
+          )
+        else consola.success(`Facet ${facet} registered in Diamond`)
+    }
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │      Check that core periphery contracts are deployed   │
@@ -316,50 +360,25 @@ const main = defineCommand({
       consola.box('Checking deploy status of periphery contracts...')
 
       // Filter periphery contracts for Tron if needed
-      const peripheryToCheck = isTron ? getTronCorePeriphery() : corePeriphery
+      const peripheryToCheck = isTron ? getTronCorePeriphery() : globalConfig.corePeriphery
 
       for (const contract of peripheryToCheck) {
-        let isDeployed: boolean
-        if (isTron && tronWeb)
-          isDeployed = await checkIsDeployedTron(
-            contract,
-            deployedContracts,
-            tronWeb
-          )
-        else if (publicClient)
-          isDeployed = await checkIsDeployed(
-            contract,
-            deployedContracts,
-            publicClient
-          )
-        else isDeployed = false
-
-        if (!isDeployed) {
-          logError(`Periphery contract ${contract} not deployed`)
-          continue
-        }
-        consola.success(`Periphery contract ${contract} deployed`)
+        const isDeployed = await checkAndLogDeployment(
+          contract,
+          deployedContracts,
+          isTron,
+          tronWeb,
+          publicClient,
+          logError,
+          'Periphery contract'
+        )
+        if (!isDeployed) continue
       }
     } else {
       consola.info(
         'Skipping core periphery deployment checks for staging environment'
       )
     }
-
-    // Skip remaining checks for Tron as they require specific implementations
-    if (isTron) {
-      consola.info(
-        '\nNote: Advanced checks (DEXs, permissions, SAFE) are not yet implemented for Tron'
-      )
-      finish()
-      return
-    }
-
-    const deployerWallet = getAddress(
-      environment === 'staging'
-        ? DEV_WALLET_ADDRESS
-        : globalConfig.deployerWallet
-    )
 
     // Load whitelist config (staging or production)
     const whitelistConfig = await import(
@@ -369,29 +388,55 @@ const main = defineCommand({
     )
 
     // Check Executor authorization in ERC20Proxy
-    const erc20Proxy = getContract({
-      address: deployedContracts['ERC20Proxy'],
-      abi: parseAbi([
-        'function authorizedCallers(address) external view returns (bool)',
-        'function owner() external view returns (address)',
-      ]),
-      client: publicClient,
-    })
-
     if (environment === 'production') {
-      const executorAddress = deployedContracts['Executor']
-      const isExecutorAuthorized = await erc20Proxy.read.authorizedCallers([
-        executorAddress,
-      ])
+      if (isTron && tronWeb) {
+        try {
+          const erc20ProxyAddress = deployedContracts['ERC20Proxy']
+          const executorAddress = deployedContracts['Executor']
 
-      if (!isExecutorAuthorized)
-        logError('Executor is not authorized in ERC20Proxy')
-      else consola.success('Executor is authorized in ERC20Proxy')
+          // Use callTronContractBoolean for proper boolean decoding
+          const isAuthorized = await callTronContractBoolean(
+            tronWeb,
+            erc20ProxyAddress,
+            'authorizedCallers(address)',
+            [{ type: 'address', value: executorAddress }],
+            'function authorizedCallers(address) external view returns (bool)'
+          )
+
+          if (!isAuthorized) {
+            logError('Executor is not authorized in ERC20Proxy')
+          } else {
+            consola.success('Executor is authorized in ERC20Proxy')
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logError(`Failed to check Executor authorization: ${errorMessage}`)
+        }
+      } else if (publicClient) {
+        const erc20Proxy = getContract({
+          address: deployedContracts['ERC20Proxy'],
+          abi: parseAbi([
+            'function authorizedCallers(address) external view returns (bool)',
+            'function owner() external view returns (address)',
+          ]),
+          client: publicClient,
+        })
+
+        const executorAddress = deployedContracts['Executor']
+        const isExecutorAuthorized = await erc20Proxy.read.authorizedCallers([
+          executorAddress,
+        ])
+
+        if (!isExecutorAuthorized)
+          logError('Executor is not authorized in ERC20Proxy')
+        else consola.success('Executor is authorized in ERC20Proxy')
+      }
     } else {
       consola.info(
         'Skipping Executor authorization check for staging environment because Executor is not deployed'
       )
     }
+
     //          ╭─────────────────────────────────────────────────────────╮
     //          │          Check registered periphery contracts           │
     //          ╰─────────────────────────────────────────────────────────╯
@@ -399,44 +444,96 @@ const main = defineCommand({
       consola.box(
         'Checking periphery registration in diamond (PeripheryRegistry)...'
       )
-      const peripheryRegistry = getContract({
-        address: deployedContracts['LiFiDiamond'],
-        abi: parseAbi([
-          'function getPeripheryContract(string) external view returns (address)',
-        ]),
-        client: publicClient,
-      })
 
       // Only check contracts that are expected to be deployed according to target state
       const targetStateContracts =
         targetState[networkLower]?.production?.LiFiDiamond || {}
       const contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
-          corePeriphery.includes(contract) ||
-          Object.keys(whitelistPeripheryFunctions).includes(contract)
+          (isTron ? getTronCorePeriphery() : globalConfig.corePeriphery).includes(
+            contract
+          ) || Object.keys(globalConfig.whitelistPeripheryFunctions).includes(contract)
       )
 
       if (contractsToCheck.length > 0) {
-        const addresses = await Promise.all(
-          contractsToCheck.map((c) =>
-            peripheryRegistry.read.getPeripheryContract([c])
-          )
-        )
+        if (isTron && tronWeb && tronRpcUrl) {
+          const diamondAddress = deployedContracts['LiFiDiamond']
 
-        for (const periphery of contractsToCheck) {
-          const peripheryAddress = deployedContracts[periphery]
-          if (!peripheryAddress)
-            logError(`Periphery contract ${periphery} not deployed `)
-          else if (!addresses.includes(getAddress(peripheryAddress))) {
-            // skip the registration check for LiFiTimelockController (no need to register it)
+          for (const periphery of contractsToCheck) {
+            const peripheryAddress = deployedContracts[periphery]
+            if (!peripheryAddress) {
+              logError(`Periphery contract ${periphery} not deployed`)
+              continue
+            }
+
+            // Skip LiFiTimelockController (no need to register it)
             if (periphery === 'LiFiTimelockController') continue
-            logError(
-              `Periphery contract ${periphery} not registered in Diamond`
+
+            try {
+              // Call getPeripheryContract using troncast
+              // callTronContract handles INITIAL_CALL_DELAY internally
+              const registeredAddressOutput = await callTronContract(
+                diamondAddress,
+                'getPeripheryContract(string)',
+                [periphery],
+                'address',
+                tronRpcUrl
+              )
+
+              // Parse Tron address from output (base58 format starting with T)
+              const cleanedAddress = registeredAddressOutput.trim().replace(/^["']|["']$/g, '')
+              const registeredAddress = cleanedAddress.startsWith('T') && cleanedAddress.length === 34
+                ? cleanedAddress
+                : null
+              const expectedAddress = peripheryAddress.toLowerCase()
+
+              if (!registeredAddress || registeredAddress.toLowerCase() !== expectedAddress) {
+                logError(
+                  `Periphery contract ${periphery} not registered in Diamond (expected: ${peripheryAddress}, got: ${registeredAddress || 'null'})`
+                )
+              } else {
+                consola.success(
+                  `Periphery contract ${periphery} registered in Diamond`
+                )
+              }
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : String(error)
+              logError(
+                `Failed to check periphery registration for ${periphery}: ${errorMessage}`
+              )
+            }
+          }
+        } else if (publicClient) {
+          // EVM implementation using viem
+          const peripheryRegistry = getContract({
+            address: deployedContracts['LiFiDiamond'],
+            abi: parseAbi([
+              'function getPeripheryContract(string) external view returns (address)',
+            ]),
+            client: publicClient,
+          })
+
+          const addresses = await Promise.all(
+            contractsToCheck.map((c) =>
+              peripheryRegistry.read.getPeripheryContract([c])
             )
-          } else
-            consola.success(
-              `Periphery contract ${periphery} registered in Diamond`
-            )
+          )
+
+          for (const periphery of contractsToCheck) {
+            const peripheryAddress = deployedContracts[periphery]
+            if (!peripheryAddress)
+              logError(`Periphery contract ${periphery} not deployed `)
+            else if (!addresses.includes(getAddress(peripheryAddress))) {
+              // skip the registration check for LiFiTimelockController (no need to register it)
+              if (periphery === 'LiFiTimelockController') continue
+              logError(
+                `Periphery contract ${periphery} not registered in Diamond`
+              )
+            } else
+              consola.success(
+                `Periphery contract ${periphery} registered in Diamond`
+              )
+          }
         }
       }
     } else {
@@ -468,35 +565,27 @@ const main = defineCommand({
         hasDexWhitelistConfig || hasPeripheryWhitelistConfig
 
       if (hasWhitelistConfig) {
-        // connect with diamond to get whitelisted addresses
-        const whitelistManager = getContract({
-          address: deployedContracts['LiFiDiamond'],
-          abi: parseAbi([
-            'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
-            'function getAllContractSelectorPairs() external view returns (address[],bytes4[][])',
-          ]),
-          client: publicClient,
-        })
-
         // Get expected pairs from whitelist.json or whitelist.staging.json file
         const expectedPairs = await getExpectedPairs(
           networkStr as string,
           deployedContracts,
-          environment,
-          whitelistConfig
+          whitelistConfig,
+          isTron
         )
 
-        // Get on-chain data once and use for all checks
-        const [onChainContracts, onChainSelectors] =
-          await whitelistManager.read.getAllContractSelectorPairs()
-
         await checkWhitelistIntegrity(
-          publicClient,
-          diamondAddress,
-          whitelistManager,
+          networkStr as string,
+          environment,
           expectedPairs,
-          onChainContracts,
-          onChainSelectors
+          logError,
+          diamondAddress,
+          {
+            tronContext:
+              isTron && tronRpcUrl && tronWeb
+                ? { tronRpcUrl, tronWeb }
+                : undefined,
+            evmContext: publicClient ? { publicClient } : undefined,
+          }
         )
       } else {
         consola.info(
@@ -507,127 +596,276 @@ const main = defineCommand({
       logError('Whitelist configuration not available')
     }
 
+    // Get wallet addresses (Tron or EVM format)
+    let deployerWallet: string
+    let refundWallet: string
+    let feeCollectorOwner: string
+    let pauserWalletAddress: string
+
+    if (isTron) {
+      // Use Tron wallets if available, fallback to EVM wallets (will need conversion)
+      deployerWallet = getTronWallet(globalConfig, 'deployerWallet')
+      refundWallet = getTronWallet(globalConfig, 'refundWallet')
+      feeCollectorOwner = getTronWallet(globalConfig, 'feeCollectorOwner')
+      pauserWalletAddress = getTronWallet(globalConfig, 'pauserWallet')
+    } else {
+      deployerWallet = getAddress(
+        environment === 'staging'
+          ? globalConfig.devWallet
+          : globalConfig.deployerWallet
+      )
+      refundWallet = getAddress(globalConfig.refundWallet)
+      feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
+      pauserWalletAddress = globalConfig.pauserWallet
+    }
+
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                Check contract ownership                 │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking ownership...')
 
-    const refundWallet = getAddress(globalConfig.refundWallet)
-    const feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
-
-    // Check ERC20Proxy ownership (skip for staging)
-    if (environment === 'production') {
-      const erc20ProxyOwner = await erc20Proxy.read.owner()
-      if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
-        logError(
-          `ERC20Proxy owner is ${getAddress(
-            erc20ProxyOwner
-          )}, expected ${getAddress(deployerWallet)}`
+    if (isTron && tronWeb && tronRpcUrl) {
+      // Check ERC20Proxy ownership (skip for staging)
+      if (environment === 'production') {
+        await checkOwnershipTron(
+          'ERC20Proxy',
+          deployerWallet,
+          deployedContracts,
+          tronRpcUrl,
+          tronWeb,
+          logError
         )
-      else consola.success('ERC20Proxy owner is correct')
-    } else {
-      consola.info(
-        'Skipping ERC20Proxy ownership check for staging environment'
+      } else {
+        consola.info(
+          'Skipping ERC20Proxy ownership check for staging environment'
+        )
+      }
+
+      // Check that Diamond is owned by Timelock (skip for staging)
+      if (environment === 'production') {
+        if (deployedContracts.LiFiTimelockController) {
+          const timelockAddress = deployedContracts.LiFiTimelockController
+          await checkOwnershipTron(
+            'LiFiDiamond',
+            timelockAddress,
+            deployedContracts,
+            tronRpcUrl,
+            tronWeb,
+            logError
+          )
+        } else {
+          consola.error(
+            'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
+          )
+        }
+      } else {
+        consola.info('Skipping diamond ownership check for staging environment')
+      }
+
+      // FeeCollector
+      await checkOwnershipTron(
+        'FeeCollector',
+        feeCollectorOwner,
+        deployedContracts,
+        tronRpcUrl,
+        tronWeb,
+        logError
+      )
+
+      // Receiver
+      await checkOwnershipTron(
+        'Receiver',
+        refundWallet,
+        deployedContracts,
+        tronRpcUrl,
+        tronWeb,
+        logError
+      )
+    } else if (publicClient) {
+      // EVM implementation
+      // Check ERC20Proxy ownership (skip for staging)
+      if (environment === 'production') {
+        const erc20ProxyContract = getContract({
+          address: deployedContracts['ERC20Proxy'],
+          abi: parseAbi(['function owner() external view returns (address)']),
+          client: publicClient,
+        })
+        const erc20ProxyOwner = await erc20ProxyContract.read.owner()
+        if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
+          logError(
+            `ERC20Proxy owner is ${getAddress(
+              erc20ProxyOwner
+            )}, expected ${getAddress(deployerWallet)}`
+          )
+        else consola.success('ERC20Proxy owner is correct')
+      } else {
+        consola.info(
+          'Skipping ERC20Proxy ownership check for staging environment'
+        )
+      }
+
+      // Check that Diamond is owned by Timelock (skip for staging)
+      if (environment === 'production') {
+        if (deployedContracts.LiFiTimelockController) {
+          const timelockAddress = deployedContracts.LiFiTimelockController
+
+          await checkOwnership(
+            'LiFiDiamond',
+            timelockAddress,
+            deployedContracts,
+            publicClient
+          )
+        } else
+          consola.error(
+            'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
+          )
+      } else {
+        consola.info('Skipping diamond ownership check for staging environment')
+      }
+
+      // FeeCollector
+      await checkOwnership(
+        'FeeCollector',
+        feeCollectorOwner,
+        deployedContracts,
+        publicClient
+      )
+
+      // Receiver
+      await checkOwnership(
+        'Receiver',
+        refundWallet,
+        deployedContracts,
+        publicClient
       )
     }
-
-    // Check that Diamond is owned by Timelock (skip for staging)
-    if (environment === 'production') {
-      if (deployedContracts.LiFiTimelockController) {
-        const timelockAddress = deployedContracts.LiFiTimelockController
-
-        await checkOwnership(
-          'LiFiDiamond',
-          timelockAddress,
-          deployedContracts,
-          publicClient
-        )
-      } else
-        consola.error(
-          'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
-        )
-    } else {
-      consola.info('Skipping diamond ownership check for staging environment')
-    }
-
-    // FeeCollector
-    await checkOwnership(
-      'FeeCollector',
-      feeCollectorOwner,
-      deployedContracts,
-      publicClient
-    )
-
-    // Receiver
-    await checkOwnership(
-      'Receiver',
-      refundWallet,
-      deployedContracts,
-      publicClient
-    )
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                Check emergency pause config             │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking funding of pauser wallet...')
 
-    const pauserBalance = formatEther(
-      await publicClient.getBalance({
-        address: pauserWallet,
-      })
-    )
+    if (isTron && tronWeb) {
+      try {
+        // Convert EVM address to Tron if needed
+        const pauserTronAddress = ensureTronAddress(
+          pauserWalletAddress,
+          tronWeb
+        )
 
-    if (!pauserBalance || pauserBalance === '0')
-      logError(`PauserWallet does not have any native balance`)
-    else consola.success(`PauserWallet is funded: ${pauserBalance}`)
+        const balanceSun = await tronWeb.trx.getBalance(pauserTronAddress)
+        const balanceTrx = tronWeb.fromSun(balanceSun)
+        const balanceStr = String(balanceTrx)
+
+        if (!balanceTrx || balanceStr === '0') {
+          logError(`PauserWallet does not have any native balance`)
+        } else {
+          consola.success(`PauserWallet is funded: ${balanceTrx} TRX`)
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logError(`Failed to check pauser wallet balance: ${errorMessage}`)
+      }
+    } else if (publicClient) {
+      const pauserBalance = formatEther(
+        await publicClient.getBalance({
+          address: pauserWalletAddress as Address,
+        })
+      )
+
+      if (!pauserBalance || pauserBalance === '0')
+        logError(`PauserWallet does not have any native balance`)
+      else consola.success(`PauserWallet is funded: ${pauserBalance}`)
+    }
 
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                Check access permissions                 │
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking access permissions...')
-    const accessManager = getContract({
-      address: deployedContracts['LiFiDiamond'],
-      abi: parseAbi([
-        'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
-      ]),
-      client: publicClient,
-    })
 
-    // Refund wallet
     const refundSelectors = globalConfig.approvedSelectorsForRefundWallet as {
       selector: Hex
       name: string
     }[]
 
-    for (const selector of refundSelectors) {
-      const normalizedSelector = selector.selector.startsWith('0x')
-        ? (selector.selector as Hex)
-        : (`0x${selector.selector}` as Hex)
+    if (isTron && tronWeb) {
+      const diamondAddress = deployedContracts['LiFiDiamond']
 
-      if (
-        !(await accessManager.read.addressCanExecuteMethod([
-          normalizedSelector,
-          refundWallet,
-        ]))
-      )
-        logError(
-          `Refund wallet ${refundWallet} cannot execute ${selector.name} (${normalizedSelector})`
+      // Convert refund wallet to Tron format if needed
+      const refundTronAddress = ensureTronAddress(refundWallet, tronWeb)
+
+      for (const selector of refundSelectors) {
+        try {
+          const normalizedSelector = normalizeSelector(selector.selector)
+
+          const canExecute = await callTronContractBoolean(
+            tronWeb,
+            diamondAddress,
+            'addressCanExecuteMethod(bytes4,address)',
+            [
+              { type: 'bytes4', value: normalizedSelector },
+              { type: 'address', value: refundTronAddress },
+            ],
+            'function addressCanExecuteMethod(bytes4,address) external view returns (bool)'
+          )
+
+          if (!canExecute) {
+            logError(
+              `Refund wallet ${refundTronAddress} cannot execute ${selector.name} (${normalizedSelector})`
+            )
+          } else {
+            consola.success(
+              `Refund wallet ${refundTronAddress} can execute ${selector.name} (${normalizedSelector})`
+            )
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logError(
+            `Failed to check access permission for ${selector.name}: ${errorMessage}`
+          )
+        }
+      }
+    } else if (publicClient) {
+      const accessManager = getContract({
+        address: deployedContracts['LiFiDiamond'],
+        abi: parseAbi([
+          'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
+        ]),
+        client: publicClient,
+      })
+
+      for (const selector of refundSelectors) {
+        const normalizedSelector = normalizeSelector(selector.selector)
+
+        if (
+          !(await accessManager.read.addressCanExecuteMethod([
+            normalizedSelector,
+            refundWallet as Address,
+          ]))
         )
-      else
-        consola.success(
-          `Refund wallet ${refundWallet} can execute ${selector.name} (${normalizedSelector})`
-        )
+          logError(
+            `Refund wallet ${refundWallet} cannot execute ${selector.name} (${normalizedSelector})`
+          )
+        else
+          consola.success(
+            `Refund wallet ${refundWallet} can execute ${selector.name} (${normalizedSelector})`
+          )
+      }
     }
 
-    if (environment === 'production') {
+    // Skip SAFE checks for Tron as they require EVM-specific implementation
+    if (isTron) {
+      consola.info(
+        '\nNote: SAFE configuration checks are not implemented for Tron (EVM-only)'
+      )
+    } else if (environment === 'production') {
       //          ╭─────────────────────────────────────────────────────────╮
       //          │                   SAFE Configuration                    │
       //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking SAFE configuration...')
-      const networkConfig: Network = networks[networkLower]
       if (!networkConfig.safeAddress)
         consola.warn('SAFE address not configured')
-      else {
+      else if (publicClient) {
         const safeOwners = globalConfig.safeOwners
         const safeAddress = networkConfig.safeAddress
 
@@ -638,12 +876,14 @@ const main = defineCommand({
           // Get Safe info directly from the contract
           const safeInfo = await getSafeInfoFromContract(
             publicClient,
-            safeAddress
+            safeAddress as Address
           )
 
           // Check that each safeOwner is in the Safe
           for (const o in safeOwners) {
-            const safeOwner = getAddress(safeOwners[o])
+            const safeOwnerAddr = safeOwners[o]
+            if (!safeOwnerAddr) continue
+            const safeOwner = getAddress(safeOwnerAddr)
             const isOwner = safeInfo.owners.some(
               (owner) => getAddress(owner) === safeOwner
             )
@@ -691,37 +931,73 @@ const getOwnableContract = (address: Address, client: PublicClient) => {
   })
 }
 
+
 const checkOwnership = async (
   name: string,
-  expectedOwner: Address,
-  deployedContracts: Record<string, Address>,
+  expectedOwner: Address | string,
+  deployedContracts: Record<string, Address | string>,
   publicClient: PublicClient
 ) => {
-  if (deployedContracts[name]) {
-    const contractAddress = deployedContracts[name]
+  const contractAddress = deployedContracts[name]
+  if (contractAddress) {
     const owner = await getOwnableContract(
-      contractAddress,
+      contractAddress as Address,
       publicClient
     ).read.owner()
-    if (getAddress(owner) !== getAddress(expectedOwner))
+    if (getAddress(owner) !== getAddress(expectedOwner as Address))
       logError(
         `${name} owner is ${getAddress(owner)}, expected ${getAddress(
-          expectedOwner
+          expectedOwner as Address
         )}`
       )
     else consola.success(`${name} owner is correct`)
   }
 }
 
+/**
+ * Check if a contract is deployed (Tron or EVM) and log success or error.
+ * @param label - Optional prefix for messages (e.g. 'Facet', 'Periphery contract'). If omitted, message is "${name} not deployed".
+ */
+async function checkAndLogDeployment(
+  name: string,
+  deployedContracts: Record<string, Address | string>,
+  isTron: boolean,
+  tronWeb: TronWeb | undefined,
+  publicClient: PublicClient | undefined,
+  logError: (msg: string) => void,
+  label?: string
+): Promise<boolean> {
+  let isDeployed: boolean
+  if (isTron && tronWeb) {
+    isDeployed = await checkIsDeployedTron(name, deployedContracts, tronWeb)
+  } else if (publicClient) {
+    isDeployed = await checkIsDeployed(name, deployedContracts, publicClient)
+  } else {
+    isDeployed = false
+  }
+
+  if (!isDeployed) {
+    logError(
+      label ? `${label} ${name} not deployed` : `${name} not deployed`
+    )
+    return false
+  }
+  consola.success(
+    label ? `${label} ${name} deployed` : `${name} deployed`
+  )
+  return true
+}
+
 const checkIsDeployed = async (
   contract: string,
-  deployedContracts: Record<string, Address>,
+  deployedContracts: Record<string, Address | string>,
   publicClient: PublicClient
 ): Promise<boolean> => {
-  if (!deployedContracts[contract]) return false
+  const address = deployedContracts[contract]
+  if (!address) return false
 
   const code = await publicClient.getCode({
-    address: deployedContracts[contract],
+    address: address as Address,
   })
   if (code === '0x') return false
 
@@ -730,12 +1006,12 @@ const checkIsDeployed = async (
 
 const getExpectedPairs = async (
   network: string,
-  deployedContracts: Record<string, Address>,
-  environment: string,
-  whitelistConfig: IWhitelistConfig
-): Promise<Array<{ contract: Address; selector: Hex }>> => {
+  deployedContracts: Record<string, Address | string>,
+  whitelistConfig: IWhitelistConfig,
+  isTron = false
+): Promise<Array<{ contract: string; selector: Hex }>> => {
   try {
-    const expectedPairs: Array<{ contract: Address; selector: Hex }> = []
+    const expectedPairs: Array<{ contract: string; selector: Hex }> = []
 
     // Both staging and production have the same structure: DEXS at root with contracts nested under network
     for (const dex of (whitelistConfig.DEXS as Array<{
@@ -745,20 +1021,23 @@ const getExpectedPairs = async (
       >
     }>) || []) {
       for (const contract of dex.contracts?.[network.toLowerCase()] || []) {
-        const contractAddr = getAddress(contract.address)
+        // For Tron, addresses are already in base58 format, for EVM use getAddress
+        const contractAddr = isTron
+          ? contract.address
+          : getAddress(contract.address)
         const functions = contract.functions || {}
 
         if (Object.keys(functions).length === 0) {
           // Contract with no specific functions uses ApproveTo-Only Selector (0xffffffff)
           expectedPairs.push({
-            contract: contractAddr,
+            contract: isTron ? contractAddr : contractAddr.toLowerCase(),
             selector: '0xffffffff' as Hex,
           })
         } else {
           // Contract with specific function selectors
           for (const selector of Object.keys(functions)) {
             expectedPairs.push({
-              contract: contractAddr,
+              contract: isTron ? contractAddr : contractAddr.toLowerCase(),
               selector: selector.toLowerCase() as Hex,
             })
           }
@@ -768,18 +1047,21 @@ const getExpectedPairs = async (
 
     // Add periphery contracts from config
     const peripheryConfig = whitelistConfig.PERIPHERY
-    if (peripheryConfig && peripheryConfig[network.toLowerCase()]) {
+    if (peripheryConfig) {
       const networkPeripheryContracts = peripheryConfig[network.toLowerCase()]
-
-      for (const peripheryContract of networkPeripheryContracts) {
-        const contractAddr = deployedContracts[peripheryContract.name]
-        if (contractAddr) {
-          // Use the actual selectors from config instead of ApproveTo-Only Selector (0xffffffff) selector
-          for (const selectorInfo of peripheryContract.selectors || []) {
-            expectedPairs.push({
-              contract: getAddress(contractAddr),
-              selector: selectorInfo.selector.toLowerCase() as Hex,
-            })
+      if (networkPeripheryContracts) {
+        for (const peripheryContract of networkPeripheryContracts) {
+          const contractAddr = deployedContracts[peripheryContract.name]
+          if (contractAddr) {
+            // Use the actual selectors from config instead of ApproveTo-Only Selector (0xffffffff) selector
+            for (const selectorInfo of peripheryContract.selectors || []) {
+              expectedPairs.push({
+                contract: isTron
+                  ? String(contractAddr) // Keep original case for Tron base58 addresses
+                  : getAddress(contractAddr as Address).toLowerCase(),
+                selector: selectorInfo.selector.toLowerCase() as Hex,
+              })
+            }
           }
         }
       }
@@ -792,16 +1074,33 @@ const getExpectedPairs = async (
   }
 }
 
-// Checks the config.json (source of truth) against on-chain state.
-// This function handles all checks for data integrity and synchronization.
-const checkWhitelistIntegrity = async (
-  publicClient: PublicClient,
-  diamondAddress: Address,
-  whitelistManager: ReturnType<typeof getContract>,
-  expectedPairs: Array<{ contract: Address; selector: Hex }>,
-  onChainContracts: Address[],
-  onChainSelectors: Hex[][]
-) => {
+/**
+ * Check whitelist integrity by comparing config against on-chain state.
+ * @param network - The network name (e.g. 'ethereum', 'tron', 'polygon', etc.)
+ * @param environment - The environment name (e.g. 'production', 'staging')
+ * @param expectedPairs - An array of expected pairs (contract: selector)
+ * @param logError - A function to log errors
+ * @param diamondAddress - The address of the diamond contract
+ * @param context - An object containing the Tron and EVM contexts
+ */
+async function checkWhitelistIntegrity(
+  network: string,
+  environment: string,
+  expectedPairs: Array<{ contract: string; selector: Hex }>,
+  logError: (msg: string) => void,
+  diamondAddress: string,
+  context: {
+    tronContext?: { tronRpcUrl: string; tronWeb: TronWeb }
+    evmContext?: { publicClient: PublicClient }
+  }
+): Promise<void> {
+  const tronRpcUrl = context.tronContext?.tronRpcUrl
+  const tronWeb = context.tronContext?.tronWeb
+  const publicClient = context.evmContext?.publicClient
+
+  const hasTronContext = !!tronRpcUrl && !!tronWeb
+  const hasEvmContext = !!publicClient
+
   consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
 
   if (expectedPairs.length === 0) {
@@ -809,13 +1108,7 @@ const checkWhitelistIntegrity = async (
     return
   }
 
-  // --- 1. Preparation ---
   consola.info('Preparing expected data sets from config...')
-  const expectedPairSet = new Set(
-    expectedPairs.map(
-      (p) => `${p.contract.toLowerCase()}:${p.selector.toLowerCase()}`
-    )
-  )
   const uniqueContracts = new Set(
     expectedPairs.map((p) => p.contract.toLowerCase())
   )
@@ -826,79 +1119,192 @@ const checkWhitelistIntegrity = async (
     `Config has ${expectedPairs.length} pairs, ${uniqueContracts.size} unique contracts, and ${uniqueSelectors.size} unique selectors.`
   )
 
-  try {
-    // --- 2. Check Config vs. On-Chain Contract Functions (Multicall) ---
-    consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
+  let onChainPairSet: Set<string>
 
-    // Check if multicall3 is available on this chain
-    const hasMulticall3 =
-      publicClient.chain?.contracts?.multicall3 !== undefined
+  if (hasTronContext) {
+    consola.start('Fetching on-chain whitelist data (Tron)...')
+    const onChainDataOutput = await callTronContract(
+      diamondAddress,
+      'getAllContractSelectorPairs()',
+      [],
+      'address[],bytes4[][]',
+      tronRpcUrl
+    )
 
-    let granularResults: boolean[]
-    if (hasMulticall3) {
-      // Use multicall if available
-      const granularMulticall = expectedPairs.map((pair) => ({
-        address: whitelistManager.address,
-        abi: whitelistManager.abi,
-        functionName: 'isContractSelectorWhitelisted',
-        args: [pair.contract, pair.selector],
-      }))
-      granularResults = await publicClient.multicall({
-        contracts: granularMulticall,
-        allowFailure: false,
-      })
-    } else {
-      // Fallback to individual calls if multicall3 is not available
-      consola.info(
-        'Multicall3 not available on this chain, using individual calls...'
-      )
-      granularResults = await Promise.all(
-        expectedPairs.map((pair) =>
-          whitelistManager.read.isContractSelectorWhitelisted([
-            pair.contract,
-            pair.selector,
-          ])
-        )
-      )
+    let parsed: unknown[]
+    try {
+      parsed = JSON.parse(onChainDataOutput.trim())
+    } catch {
+      const trimmed = onChainDataOutput.trim()
+      if (!trimmed.startsWith('[')) {
+        throw new Error('Expected array format')
+      }
+      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
+      parsed = parsedArray as unknown[]
     }
 
-    let granularFails = 0
-    granularResults.forEach((isWhitelisted, index) => {
-      if (isWhitelisted === false) {
-        const pair = expectedPairs[index]
-        logError(
-          `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
-        )
-        granularFails++
+    if (!Array.isArray(parsed) || parsed.length !== 2) {
+      throw new Error('Unexpected troncast output format')
+    }
+
+    const addresses = (parsed[0] as unknown[]) || []
+    const selectorsArrays = (parsed[1] as unknown[]) || []
+    onChainPairSet = new Set<string>()
+    for (let i = 0; i < addresses.length; i++) {
+      const contract = String(addresses[i]).toLowerCase()
+      const selectors = (selectorsArrays[i] as unknown[]) || []
+      if (Array.isArray(selectors)) {
+        for (const selector of selectors) {
+          onChainPairSet.add(`${contract}:${String(selector).toLowerCase()}`)
+        }
       }
+    }
+  } else if (hasEvmContext) {
+    consola.start('Fetching on-chain whitelist data (EVM)...')
+    const whitelistManager = getContract({
+      address: diamondAddress as Address,
+      abi: parseAbi([
+        'function getAllContractSelectorPairs() external view returns (address[],bytes4[][])',
+        'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+      ]),
+      client: publicClient,
     })
-    if (granularFails === 0)
+
+    const [onChainContracts, onChainSelectors] =
+      await whitelistManager.read.getAllContractSelectorPairs()
+
+    onChainPairSet = new Set<string>()
+    for (let i = 0; i < onChainContracts.length; i++) {
+      const contract = onChainContracts[i]?.toLowerCase()
+      const selectors = onChainSelectors[i]
+      if (contract && selectors) {
+        for (const selector of selectors) {
+          onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
+        }
+      }
+    }
+  } else {
+    consola.warn('No Tron or EVM context provided. Skipping whitelist integrity check.')
+    return
+  }
+
+  consola.info(`On-chain has ${onChainPairSet.size} total pairs.`)
+
+  try {
+    consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
+    let granularFails = 0
+
+    if (hasTronContext) {
+      for (const expectedPair of expectedPairs) {
+        try {
+          const isWhitelisted = await callTronContractBoolean(
+            tronWeb,
+            diamondAddress,
+            'isContractSelectorWhitelisted(address,bytes4)',
+            [
+              { type: 'address', value: expectedPair.contract },
+              { type: 'bytes4', value: expectedPair.selector },
+            ],
+            'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
+          )
+          if (!isWhitelisted) {
+            logError(
+              `Source of Truth FAILED: ${expectedPair.contract} / ${expectedPair.selector} is 'false'.`
+            )
+            granularFails++
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logError(
+            `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
+          )
+          granularFails++
+        }
+      }
+    } else if (hasEvmContext) {
+      const whitelistManager = getContract({
+        address: diamondAddress as Address,
+        abi: parseAbi([
+          'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+        ]),
+        client: publicClient,
+      })
+      const hasMulticall3 =
+        publicClient.chain?.contracts?.multicall3 !== undefined
+
+      for (const expectedPair of expectedPairs) {
+        try {
+          let isWhitelisted: boolean
+          if (hasMulticall3) {
+            const result = await publicClient.multicall({
+              contracts: [
+                {
+                  address: whitelistManager.address,
+                  abi: whitelistManager.abi as Abi,
+                  functionName: 'isContractSelectorWhitelisted',
+                  args: [expectedPair.contract as Address, expectedPair.selector],
+                },
+              ],
+              allowFailure: false,
+            })
+            isWhitelisted = result[0] as boolean
+          } else {
+            const manager = whitelistManager as unknown as {
+              read: {
+                isContractSelectorWhitelisted: (args: [Address, Hex]) => Promise<boolean>
+              }
+            }
+            isWhitelisted = await manager.read.isContractSelectorWhitelisted([
+              expectedPair.contract as Address,
+              expectedPair.selector,
+            ])
+          }
+          if (!isWhitelisted) {
+            logError(
+              `Source of Truth FAILED: ${expectedPair.contract} / ${expectedPair.selector} is 'false'.`
+            )
+            granularFails++
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logError(
+            `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
+          )
+          granularFails++
+        }
+      }
+    }
+
+    if (granularFails === 0) {
       consola.success(
         'Source of Truth (isContractSelectorWhitelisted) is synced.'
       )
-  } catch (error) {
-    logError(`Failed during functional checks: ${error.message}`)
-  }
+    }
 
-  // --- 3. Check Config vs. Getter Arrays ---
-  consola.start('Step 2/2: Checking Config vs. Getter Arrays...')
-  try {
-    // Check pair array: getAllContractSelectorPairs
-    const onChainPairSet = new Set<string>()
-    for (let i = 0; i < onChainContracts.length; i++) {
-      const contract = onChainContracts[i].toLowerCase()
-      for (const selector of onChainSelectors[i]) {
-        onChainPairSet.add(`${contract}:${selector.toLowerCase()}`)
+    consola.start('Step 2/2: Checking Config vs. Getter Arrays...')
+
+    const expectedPairSet = new Set<string>()
+    for (const pair of expectedPairs) {
+      expectedPairSet.add(
+        `${pair.contract.toLowerCase()}:${pair.selector.toLowerCase()}`
+      )
+    }
+
+    const missingPairsList: string[] = []
+    for (const expectedPair of expectedPairs) {
+      const key = `${expectedPair.contract.toLowerCase()}:${expectedPair.selector.toLowerCase()}`
+      if (!onChainPairSet.has(key)) {
+        missingPairsList.push(key)
       }
     }
-    const missingPairsList: string[] = []
+
     const stalePairsList: string[] = []
-    for (const expected of expectedPairSet) {
-      if (!onChainPairSet.has(expected)) missingPairsList.push(expected)
+    for (const onChainPair of onChainPairSet) {
+      if (!expectedPairSet.has(onChainPair)) {
+        stalePairsList.push(onChainPair)
+      }
     }
-    for (const onChain of onChainPairSet) {
-      if (!expectedPairSet.has(onChain)) stalePairsList.push(onChain)
-    }
+
     if (missingPairsList.length === 0 && stalePairsList.length === 0) {
       consola.success(
         `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
@@ -908,27 +1314,36 @@ const checkWhitelistIntegrity = async (
         logError(
           `Pair Array is missing ${missingPairsList.length} pairs from config:`
         )
-        missingPairsList.forEach((pair) => {
+        missingPairsList.slice(0, 10).forEach((pair) => {
           const [contract, selector] = pair.split(':')
-          consola.error(`  Missing: ${contract} / ${selector}`)
+          logError(`  Missing: ${contract} / ${selector}`)
         })
-        consola.info(`\n💡 To fix run diamondSyncWhitelist script`)
+        if (missingPairsList.length > 10) {
+          logError(`  ... and ${missingPairsList.length - 10} more`)
+        }
+        consola.warn(
+          `\n💡 To fix missing pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
+        )
       }
       if (stalePairsList.length > 0) {
         logError(
           `Pair Array has ${stalePairsList.length} stale pairs not in config:`
         )
-        stalePairsList.forEach((pair) => {
+        stalePairsList.slice(0, 10).forEach((pair) => {
           const [contract, selector] = pair.split(':')
-          consola.error(`  Stale: ${contract} / ${selector}`)
+          logError(`  Stale: ${contract} / ${selector}`)
         })
-        consola.info(
-          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist <network> <environment>`
+        if (stalePairsList.length > 10) {
+          logError(`  ... and ${stalePairsList.length - 10} more`)
+        }
+        consola.warn(
+          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
         )
       }
     }
-  } catch (error) {
-    logError(`Failed during getter array checks: ${error.message}`)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logError(`Failed during whitelist integrity checks: ${errorMessage}`)
   }
 }
 
