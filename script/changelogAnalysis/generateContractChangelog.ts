@@ -31,14 +31,16 @@ const CONTRACTS_DIR = 'src'
 
 const CHANGELOG_HEADER = `# Contract Changelog
 
-All contract changes by commit (newest first). Per-contract history: \`changelog/contracts/{ContractName}.md\`.
+Contract changes grouped by version (from \`@custom:version\`). Per-contract history: \`changelog/contracts/{ContractName}.md\`.
 
 `
 
-interface IChangelogEntry {
-  date: string
-  commitSha: string
-  commitMessage: string
+/** Aggregated changes for one contract version (one section in the changelog) */
+interface IVersionedEntry {
+  contractName: string
+  version: string
+  commitShas: string[]
+  latestDate: string
   changes: {
     breaking: string[]
     added: string[]
@@ -149,54 +151,38 @@ function extractContractName(content: string, filename: string): string {
   return filename.split('/').pop()?.replace('.sol', '') || 'Unknown'
 }
 
+/** Match @custom:version X.Y.Z or custom::version X.Y.Z in NatSpec/comments */
+const VERSION_REGEX = /(?:@custom:version|custom::version)\s+(\d+\.\d+\.\d+)/i
+
+function extractVersion(content: string): string | null {
+  const m = content.match(VERSION_REGEX)
+  return m ? m[1] ?? null : null
+}
+
 /**
- * Format changelog entry as Markdown
+ * Commits to analyze: for a merge commit (e.g. PR merge), all commits in the branch; otherwise the single commit.
  */
-function formatChangelogEntry(entry: IChangelogEntry): string {
-  let markdown = `## [${entry.date}] - ${entry.commitMessage}\n\n`
-  markdown += `**Commit**: [\`${entry.commitSha}\`](../../commit/${entry.commitSha})\n\n`
-  
-  if (entry.changes.breaking.length > 0) {
-    markdown += `### ⚠️ Breaking Changes\n\n`
-    for (const change of entry.changes.breaking) {
-      markdown += `- ${change}\n`
+function getCommitsToAnalyze(commitSha: string): string[] {
+  try {
+    const parentRef = `${commitSha}^@`
+    const parents = execSync(`git rev-parse ${parentRef}`, { encoding: 'utf-8' })
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+    if (parents.length >= 2) {
+      // Merge commit: first parent = base (e.g. main), second = branch tip
+      const list = execSync(`git rev-list --reverse ${parents[0]}..${parents[1]}`, {
+        encoding: 'utf-8',
+      })
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+      return list.length > 0 ? list : [commitSha]
     }
-    markdown += '\n'
+  } catch {
+    // Fallback to single commit
   }
-  
-  if (entry.changes.added.length > 0) {
-    markdown += `### ✨ Added\n\n`
-    for (const change of entry.changes.added) {
-      markdown += `- ${change}\n`
-    }
-    markdown += '\n'
-  }
-  
-  if (entry.changes.changed.length > 0) {
-    markdown += `### 🔄 Changed\n\n`
-    for (const change of entry.changes.changed) {
-      markdown += `- ${change}\n`
-    }
-    markdown += '\n'
-  }
-  
-  if (entry.changes.removed.length > 0) {
-    markdown += `### 🗑️ Removed\n\n`
-    for (const change of entry.changes.removed) {
-      markdown += `- ${change}\n`
-    }
-    markdown += '\n'
-  }
-  
-  if (entry.changes.fixed.length > 0) {
-    markdown += `### 🐛 Fixed\n\n`
-    for (const change of entry.changes.fixed) {
-      markdown += `- ${change}\n`
-    }
-    markdown += '\n'
-  }
-  
-  return markdown
+  return [commitSha]
 }
 
 /** Format change sections (### Breaking, Added, etc.) for a single contract. */
@@ -230,32 +216,64 @@ function formatContractSections(analysis: {
   return parts.join('\n\n')
 }
 
+function commitUrl(sha: string): string {
+  return process.env.REPOSITORY
+    ? `https://github.com/${process.env.REPOSITORY}/commit/${sha}`
+    : `#${sha}`
+}
+
+/** Format one versioned section (header = contract version, combined changes from all commits). */
+function formatVersionedSection(entry: IVersionedEntry): string {
+  const commitLinks = entry.commitShas
+    .map((sha) => `[\`${sha.substring(0, 7)}\`](${commitUrl(sha)})`)
+    .join(', ')
+  let out = `### ${entry.contractName} v${entry.version}\n\n`
+  out += `**Commits**: ${commitLinks}\n\n`
+  out += `**Date**: ${entry.latestDate}\n\n`
+  out += formatContractSections(entry.changes)
+  return out
+}
+
+/** Format one version section for a per-contract changelog (header = vX.Y.Z). */
+function formatContractVersionSection(
+  version: string,
+  commitShas: string[],
+  latestDate: string,
+  sections: string
+): string {
+  const commitLinks = commitShas
+    .map((sha) => `[\`${sha.substring(0, 7)}\`](${commitUrl(sha)})`)
+    .join(', ')
+  return `## v${version}
+
+**Commits**: ${commitLinks}  
+**Date**: ${latestDate}
+
+${sections}
+
+---
+`
+}
+
 /**
- * Prepend this commit's full entry to changelog/CHANGELOG.md.
- * Skips if this commit is already present. Ordered by commit (newest first).
+ * Prepend one versioned block (all contract versions in this run) to changelog/CHANGELOG.md.
+ * Skips if commitSha is already present.
  */
-function updateChangelog(entry: string, commitSha: string): void {
+function updateChangelogVersioned(entries: IVersionedEntry[], commitSha: string): void {
   const changelogRoot = join(CHANGELOG_OUTPUT_ROOT, CHANGELOG_DIR)
   if (!existsSync(changelogRoot)) {
     mkdirSync(changelogRoot, { recursive: true })
   }
   const changelogPath = join(changelogRoot, MAIN_CHANGELOG_FILE)
   const commitDate = execSync('git log -1 --format=%ci HEAD', { encoding: 'utf-8' }).trim()
-  const commitAuthor = execSync('git log -1 --format=%an HEAD', { encoding: 'utf-8' }).trim()
-  const commitUrl = process.env.REPOSITORY
-    ? `https://github.com/${process.env.REPOSITORY}/commit/${commitSha}`
-    : `#${commitSha}`
-  const firstLine = entry.split('\n')[0] ?? ''
-  const commitMessage = firstLine.replace(/^## \[[^\]]*\] - /, '').trim() || 'Contract changes'
-  const sections = entry.split('\n').slice(4).join('\n').trim()
+  const url = commitUrl(commitSha)
+  const versionBlock = entries.map((e) => formatVersionedSection(e)).join('\n\n')
+  const block = `## [${commitSha.substring(0, 7)}] - Contract version updates
 
-  const block = `## [${commitSha.substring(0, 7)}] - ${commitMessage}
+**Commit**: [\`${commitSha}\`](${url})  
+**Date**: ${commitDate}
 
-**Commit**: [\`${commitSha}\`](${commitUrl})  
-**Date**: ${commitDate}  
-**Author**: ${commitAuthor}
-
-${sections}
+${versionBlock}
 
 ---
 `
@@ -277,15 +295,12 @@ ${sections}
 }
 
 /**
- * Prepend this commit's changes for one contract to changelog/contracts/{ContractName}.md.
- * Lists commit hash and change sections; newest first.
+ * Prepend versioned sections for one contract to changelog/contracts/{ContractName}.md.
+ * One section per version (newest first); skips if any of the entries' commits are already in the file.
  */
-function updateContractChangelog(
+function updateContractChangelogVersioned(
   contractName: string,
-  commitSha: string,
-  commitMessage: string,
-  commitDate: string,
-  sections: string
+  entries: IVersionedEntry[]
 ): void {
   const contractsDir = join(CHANGELOG_OUTPUT_ROOT, CONTRACTS_CHANGELOG_DIR)
   if (!existsSync(contractsDir)) {
@@ -293,42 +308,62 @@ function updateContractChangelog(
   }
   const safeName = contractName.replace(/[^a-zA-Z0-9_-]/g, '_')
   const filePath = join(contractsDir, `${safeName}.md`)
-  const commitUrl = process.env.REPOSITORY
-    ? `https://github.com/${process.env.REPOSITORY}/commit/${commitSha}`
-    : `#${commitSha}`
-  const commitAuthor = execSync('git log -1 --format=%an HEAD', { encoding: 'utf-8' }).trim()
-
-  const block = `## [${commitSha.substring(0, 7)}] - ${commitMessage}
-
-**Commit**: [\`${commitSha}\`](${commitUrl})  
-**Date**: ${commitDate}  
-**Author**: ${commitAuthor}
-
-${sections}
-
----
-`
-
+  const allShas = entries.flatMap((e) => e.commitShas)
   const header = `# ${contractName} – Changelog
 
-Commits that modified this contract (newest first).
+Changes grouped by contract version (\`@custom:version\`).
 
 `
   if (existsSync(filePath)) {
     const current = readFileSync(filePath, 'utf-8')
-    if (current.includes(commitSha)) {
+    if (allShas.some((sha) => current.includes(sha))) {
       return
     }
     const body = current.startsWith(header) ? current.slice(header.length).trim() : current.trim()
-    writeFileSync(filePath, header + block + (body ? '\n\n' + body : ''), 'utf-8')
+    const sections = entries
+      .sort((a, b) => compareVersion(b.version, a.version))
+      .map((e) =>
+        formatContractVersionSection(
+          e.version,
+          e.commitShas,
+          e.latestDate,
+          formatContractSections(e.changes)
+        )
+      )
+      .join('\n\n')
+    writeFileSync(filePath, header + sections + (body ? '\n\n' + body : ''), 'utf-8')
   } else {
-    writeFileSync(filePath, header + block.trimEnd(), 'utf-8')
+    const sections = entries
+      .sort((a, b) => compareVersion(b.version, a.version))
+      .map((e) =>
+        formatContractVersionSection(
+          e.version,
+          e.commitShas,
+          e.latestDate,
+          formatContractSections(e.changes)
+        )
+      )
+      .join('\n\n')
+    writeFileSync(filePath, header + sections.trimEnd(), 'utf-8')
   }
   console.log(`✅ Updated ${CONTRACTS_CHANGELOG_DIR}/${safeName}.md`)
 }
 
+/** Compare semver strings (a, b) -> negative if a < b, 0 if equal, positive if a > b */
+function compareVersion(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const va = pa[i] ?? 0
+    const vb = pb[i] ?? 0
+    if (va !== vb) return va - vb
+  }
+  return 0
+}
+
 /**
- * Main execution with AI analysis
+ * Main execution with AI analysis. Groups changes by contract version (@custom:version).
+ * For merge commits, analyzes all commits in the branch and aggregates by version.
  */
 async function mainWithAI() {
   console.log('🤖 AI-powered analysis (Claude Sonnet)\n')
@@ -336,111 +371,94 @@ async function mainWithAI() {
   const commitSha =
     process.env.COMMIT_SHA?.trim() ||
     execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
-  const parentCommit = `${commitSha}^`
-  console.log(`Analyzing commit: ${commitSha}\n`)
+  const commitsToAnalyze = getCommitsToAnalyze(commitSha)
+  console.log(`Analyzing ${commitsToAnalyze.length} commit(s) (trigger: ${commitSha.substring(0, 7)})\n`)
 
-  const changedFiles = getChangedSolidityFiles(commitSha)
-  
-  if (changedFiles.length === 0) {
-    console.log('ℹ️  No Solidity files changed in this commit')
+  /** key: "contractName|version" -> aggregated entry */
+  const byContractAndVersion = new Map<string, IVersionedEntry>()
+
+  for (const c of commitsToAnalyze) {
+    const parentCommit = `${c}^`
+    const changedFiles = getChangedSolidityFiles(c)
+    const commitDate = execSync(`git log -1 --format=%ci ${c}`, { encoding: 'utf-8' }).trim()
+
+    for (const file of changedFiles) {
+      const oldContent = getFileAtCommit(file, parentCommit)
+      const newContent = getFileAtCommit(file, c)
+      if (!newContent) continue
+      const contractName = extractContractName(newContent, file)
+      const version = extractVersion(newContent) ?? 'unknown'
+      const key = `${contractName}|${version}`
+
+      const diff = getFileDiff(file, parentCommit, c)
+      if (!diff?.trim() || isCommentOnlyDiff(diff)) continue
+
+      console.log(`\n🔍 ${file} @ ${c.substring(0, 7)} (${contractName} v${version})`)
+      const contractDiff = buildContractDiff(file, contractName, oldContent, newContent, diff)
+      const aiAnalysis = await analyzeContractChangesWithAI(contractDiff)
+      console.log(`  ✅ ${aiAnalysis.summary}`)
+
+      let entry = byContractAndVersion.get(key)
+      if (!entry) {
+        entry = {
+          contractName,
+          version,
+          commitShas: [],
+          latestDate: commitDate,
+          changes: {
+            breaking: [],
+            added: [],
+            changed: [],
+            removed: [],
+            fixed: [],
+          },
+        }
+        byContractAndVersion.set(key, entry)
+      }
+      entry.commitShas.push(c)
+      if (commitDate > entry.latestDate) entry.latestDate = commitDate
+      entry.changes.breaking.push(...aiAnalysis.breaking)
+      entry.changes.added.push(...aiAnalysis.added)
+      entry.changes.changed.push(...aiAnalysis.changed)
+      entry.changes.removed.push(...aiAnalysis.removed)
+      entry.changes.fixed.push(...aiAnalysis.fixed)
+      if (aiAnalysis.context) {
+        entry.changes.changed.push(`**Note**: ${aiAnalysis.context}`)
+      }
+    }
+  }
+
+  const entries = Array.from(byContractAndVersion.values())
+  if (entries.length === 0) {
+    console.log('ℹ️  No code-level contract changes (only comments/formatting or no .sol changes)')
     return
   }
-  
-  console.log(`Found ${changedFiles.length} changed contract(s):\n`)
-  changedFiles.forEach(file => console.log(`  - ${file}`))
-  console.log()
-  
-  const date = new Date().toISOString().split('T')[0] ?? ''
-  const commitMessage = execSync(`git log -1 --pretty=%B ${commitSha}`, {
-    encoding: 'utf-8',
-  })
-    .trim()
-    .split('\n')[0] ?? ''
-  const commitDate = execSync(`git log -1 --format=%ci ${commitSha}`, {
-    encoding: 'utf-8',
-  }).trim()
 
-  const combinedEntry: IChangelogEntry = {
-    date,
-    commitSha,
-    commitMessage,
-    changes: {
-      breaking: [],
-      added: [],
-      changed: [],
-      removed: [],
-      fixed: [],
-    },
-  }
-  const perContract: Array<{ contractName: string; aiAnalysis: Awaited<ReturnType<typeof analyzeContractChangesWithAI>> }> = []
-
-  for (const file of changedFiles) {
-    console.log(`\n🔍 Analyzing ${file}...`)
-    
-    const oldContent = getFileAtCommit(file, parentCommit)
-    const newContent = getFileAtCommit(file, commitSha)
-    
-    if (!newContent) {
-      console.log(`  ⚠️  Skipped (file deleted or not accessible)`)
-      continue
-    }
-    
-    const contractName = extractContractName(newContent, file)
-    const diff = getFileDiff(file, parentCommit, commitSha)
-    
-    if (!diff || diff.trim().length === 0) {
-      console.log(`  ℹ️  No diff found`)
-      continue
-    }
-
-    if (isCommentOnlyDiff(diff)) {
-      console.log('  ℹ️  Only comment changes detected, skipping for changelog/AI')
-      continue
-    }
-    
-    const contractDiff = buildContractDiff(file, contractName, oldContent, newContent, diff)
-    const aiAnalysis = await analyzeContractChangesWithAI(contractDiff)
-
-    console.log(`  ✅ Analysis complete`)
-    console.log(`     Summary: ${aiAnalysis.summary}`)
-
-    combinedEntry.changes.breaking.push(...aiAnalysis.breaking)
-    combinedEntry.changes.added.push(...aiAnalysis.added)
-    combinedEntry.changes.changed.push(...aiAnalysis.changed)
-    combinedEntry.changes.removed.push(...aiAnalysis.removed)
-    combinedEntry.changes.fixed.push(...aiAnalysis.fixed)
-
-    if (aiAnalysis.context) {
-      combinedEntry.changes.changed.push(`**Note**: ${aiAnalysis.context}`)
-    }
-    perContract.push({ contractName, aiAnalysis })
-  }
-  
-  const formattedEntry = formatChangelogEntry(combinedEntry)
-
-  if (
-    combinedEntry.changes.breaking.length === 0 &&
-    combinedEntry.changes.added.length === 0 &&
-    combinedEntry.changes.changed.length === 0 &&
-    combinedEntry.changes.removed.length === 0 &&
-    combinedEntry.changes.fixed.length === 0
-  ) {
-    console.log('ℹ️  No code-level contract changes (only comments/formatting); skipping changelog update')
+  const hasAnyChanges = entries.some(
+    (e) =>
+      e.changes.breaking.length > 0 ||
+      e.changes.added.length > 0 ||
+      e.changes.changed.length > 0 ||
+      e.changes.removed.length > 0 ||
+      e.changes.fixed.length > 0
+  )
+  if (!hasAnyChanges) {
+    console.log('ℹ️  No code-level contract changes; skipping changelog update')
     return
   }
-  
-  console.log('\n📝 Generated changelog entry:\n')
-  console.log(formattedEntry)
-  
-  updateChangelog(formattedEntry, commitSha)
-  for (const { contractName, aiAnalysis } of perContract) {
-    updateContractChangelog(
-      contractName,
-      commitSha,
-      commitMessage,
-      commitDate,
-      formatContractSections(aiAnalysis)
-    )
+
+  console.log('\n📝 Generated changelog (by version):\n')
+  entries.forEach((e) => console.log(`  - ${e.contractName} v${e.version}`))
+
+  updateChangelogVersioned(entries, commitSha)
+  const byContract = new Map<string, IVersionedEntry[]>()
+  for (const e of entries) {
+    const list = byContract.get(e.contractName) ?? []
+    list.push(e)
+    byContract.set(e.contractName, list)
+  }
+  for (const [contractName, versionEntries] of byContract) {
+    updateContractChangelogVersioned(contractName, versionEntries)
   }
 }
 

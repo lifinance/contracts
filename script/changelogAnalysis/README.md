@@ -2,8 +2,8 @@
 
 Automated system that analyzes Solidity contract changes and generates changelog entries using **Claude Sonnet** (Anthropic API). Output lives under the **`changelog/`** folder (similar to `audit/`):
 
-- **`changelog/CHANGELOG.md`** — single file with all contract changes by commit (newest first). Full info per commit: link, date, author, and all categories (Breaking, Added, Changed, Removed, Fixed). May become large over time.
-- **`changelog/contracts/{ContractName}.md`** — one file per contract; each lists the **commit hash(es)** that modified that contract and the changes in that commit (newest first).
+- **`changelog/CHANGELOG.md`** — single file with all contract changes **grouped by version** (from `@custom:version` in contracts). Each run adds one block; inside it, one subsection per contract version with combined changes (Breaking, Added, Changed, Removed, Fixed) from all commits in the PR.
+- **`changelog/contracts/{ContractName}.md`** — one file per contract; sections are **per version** (e.g. `## v1.0.2`). Under each version: commit links, date, and combined changes from all commits that contributed to that version.
 
 ---
 
@@ -28,8 +28,8 @@ script/changelogAnalysis/
 
 **Responsibilities**:
 
-- **Change detection**: Runs `git diff --name-only HEAD~1 HEAD`, keeps only paths under `src/` ending in `.sol`.
-- **Per-file loop**: For each changed file:
+- **Commits to analyze**: For a merge commit (e.g. PR merge), gets all commits in the branch via `getCommitsToAnalyze()`; otherwise the single trigger commit.
+- **Per-commit, per-file**: For each commit, runs `git diff` for changed `.sol` under `src/`. For each changed file:
   - Reads old/new content with `git show <commit>:<file>`.
   - Derives contract name from file content (regex) or filename.
   - Gets unified diff via `aiChangelogAnalyzer.getFileDiff()` and builds a `ContractDiff` via `buildContractDiff()`.
@@ -39,14 +39,15 @@ script/changelogAnalysis/
 
 **Key functions**:
 
-- `getChangedSolidityFiles()` — list of changed `.sol` paths.
+- `getCommitsToAnalyze(commitSha)` — for merge commits, all commits in the branch; else `[commitSha]`.
+- `getChangedSolidityFiles(commitSha)` — list of changed `.sol` paths for that commit.
 - `getFileAtCommit(file, commit)` — file content at a given commit.
 - `extractContractName(content, filename)` — contract name for headings.
-- `formatChangelogEntry(entry)` — Markdown from the structured entry.
+- `extractVersion(content)` — parse `@custom:version X.Y.Z` (or `custom::version`) from file.
 - `formatContractSections(analysis)` — Markdown sections (### Breaking, Added, etc.) for one contract.
 - `updateChangelog(entry, commitSha)` — prepend this commit’s full entry to `changelog/CHANGELOG.md`; no-op if commit already present.
 - `updateContractChangelog(contractName, commitSha, ...)` — prepend this commit’s changes for one contract to `changelog/contracts/{ContractName}.md`.
-- `mainWithAI()` — async main: detect files → analyze each → merge → format → write changelog + per-contract files.
+- `mainWithAI()` — async main: get commits → analyze each file → aggregate by version → write changelog + per-contract files.
 
 **Constants**: `CHANGELOG_DIR = 'changelog'`, `CONTRACTS_CHANGELOG_DIR = 'changelog/contracts'`, `CONTRACTS_DIR = 'src'`.
 
@@ -108,22 +109,22 @@ script/changelogAnalysis/
    - Merge of a PR into `main` that changed `src/**/*.sol`, or manual `workflow_dispatch`.
 
 2. **Change set**  
-   - Script runs `git diff --name-only HEAD~1 HEAD` and keeps `src/**/*.sol` paths.
+   - Script gets commits via `getCommitsToAnalyze(commitSha)` (all commits in PR for a merge, else the single commit). For each commit, `git diff` yields changed `src/**/*.sol` paths.
 
-3. **Per changed file**  
-   - Old/new content from git; contract name from source or filename.  
-   - `getFileDiff(file, 'HEAD~1', 'HEAD')` → unified diff.  
+3. **Per commit, per changed file**  
+   - Old/new content from git; contract name and version (`@custom:version`) from file.  
+   - `getFileDiff(file, parent, commit)` → unified diff.  
    - `buildContractDiff(...)` → one `ContractDiff` per file.
 
 4. **AI analysis**  
    - One call to Claude Sonnet per `ContractDiff` with a structured prompt; model returns JSON: `summary`, `breaking`, `added`, `changed`, `removed`, `fixed`, `context`.
 
-5. **Merge and format**  
-   - All results for the commit are merged into a single `ChangelogEntry`; `formatChangelogEntry()` turns it into Markdown.
+5. **Aggregate by version**  
+   - Results are grouped by `(contractName, version)`. All commits that touch the same contract version are merged: commit SHAs collected, change categories concatenated, latest date kept.
 
 6. **Write**  
-   - `updateChangelog()` prepends the full entry to `changelog/CHANGELOG.md` (skips if this commit is already in the file).
-   - For each changed contract, `updateContractChangelog()` prepends this commit’s changes to `changelog/contracts/{ContractName}.md` (commit hash, date, author, and change sections).
+   - `updateChangelogVersioned()` prepends one block to `changelog/CHANGELOG.md` with one subsection per contract version (skips if trigger commit already in file).
+   - For each contract, `updateContractChangelogVersioned()` prepends one section per version to `changelog/contracts/{ContractName}.md` (commit links, date, combined change sections). Author is not included.
 
 7. **CI only**  
    - Workflow detects changes under `changelog/` and, if any, commits and pushes.
@@ -164,14 +165,13 @@ No other AI providers or fallbacks are used.
 
 ## Output format
 
-**`changelog/CHANGELOG.md`**: Title and short intro, then one section per commit (newest first). Each section includes:
+**`changelog/CHANGELOG.md`**: Title and short intro, then one block per run (e.g. per PR merge). Each block has:
 
-- Heading: `## [shortSha] - commit message`
-- **Commit** (link), **Date**, **Author**
-- Full change list: **Breaking**, **Added**, **Changed**, **Removed**, **Fixed** (only if non-empty)
-- Each bullet prefixed with the contract name, e.g. `` `LiFiDiamond`: ... ``.
+- Heading: `## [shortSha] - Contract version updates`
+- **Commit** (link), **Date**
+- One **subsection per contract version** (e.g. `### ContractName v1.0.2`): **Commits** (links for all commits that contributed), **Date**, and combined **Breaking** / **Added** / **Changed** / **Removed** / **Fixed** (only if non-empty). Author is not included.
 
-**`changelog/contracts/{ContractName}.md`**: One file per contract. Title “{ContractName} – Changelog”, short intro, then one section per **commit** that modified that contract (newest first). Each section has: commit short hash, message, **Commit** link, **Date**, **Author**, and the change sections (Breaking, Added, Changed, Removed, Fixed) for that contract only.
+**`changelog/contracts/{ContractName}.md`**: One file per contract. Title “{ContractName} – Changelog”, intro “Changes grouped by contract version”, then one section per **version** (e.g. `## v1.0.2`), newest first. Each section has: **Commits** (links), **Date**, and the change sections for that version only.
 
 ---
 
@@ -179,7 +179,7 @@ No other AI providers or fallbacks are used.
 
 | Issue | What to check |
 |-------|-------------------------------|
-| “No Solidity files changed” | Files must be under `src/` and `.sol`; run `git diff --name-only HEAD~1 HEAD` and confirm. |
+| “No Solidity files changed” | Files must be under `src/` and `.sol`; for the analyzed commit(s) run `git diff` against parent and confirm. |
 | “No API key provided” | Set `CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY` (env or GitHub secret). |
 | “Anthropic API error” | Key valid, network access, and (if 4xx) Anthropic status/docs. |
 | “Failed to parse AI response” | Model must return valid JSON in the requested shape; check prompt and model output. |
@@ -190,4 +190,4 @@ No other AI providers or fallbacks are used.
 ## Related
 
 - Workflow file: `.github/workflows/generateContractChangelog.yml`
-- Changelog output: `changelog/CHANGELOG.md` (all commits) and `changelog/contracts/*.md` (per contract, commit hash + changes)
+- Changelog output: `changelog/CHANGELOG.md` (by version per run) and `changelog/contracts/*.md` (per contract, by version)
