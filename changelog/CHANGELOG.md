@@ -2,6 +2,34 @@
 
 Contract changes grouped by version (from `@custom:version`). Per-contract history: `changelog/contracts/{ContractName}.md`.
 
+## [c41df2c] - Contract version updates
+
+**Commit**: [`c41df2cdcfc01f25dcf6e19cbecb22e9ba0e79c6`](https://github.com/lifinance/contracts/commit/c41df2cdcfc01f25dcf6e19cbecb22e9ba0e79c6)  
+**Date**: 2026-02-26 14:11:45 +0100
+
+### WithdrawFacet v1.0.2
+
+**Commits**: [`c41df2c`](https://github.com/lifinance/contracts/commit/c41df2cdcfc01f25dcf6e19cbecb22e9ba0e79c6)
+
+**Date**: 2026-02-26 14:11:45 +0100
+
+### ✨ Added
+
+- `WithdrawFacet`: Added `getWithdrawFacetName()` function returning 'WithdrawFacet' for facet identification and debugging purposes
+- `WithdrawFacet`: Implemented `batchWithdraw()` function body with array length validation and iterative withdrawal logic for multiple assets
+
+### 🔄 Changed
+
+- `WithdrawFacet`: Updated facet version from previous to '1.0.2' to reflect implementation changes
+- **Note**: The batchWithdraw function now includes input validation (array length matching) and delegates to internal _withdrawAsset for each asset. Access control enforcement remains unchanged (owner bypass or access control check). No storage layout changes, safe for upgradeable deployments.
+
+### 🗑️ Removed
+
+- `WithdrawFacet`: Removed `BatchWithdrawCompleted` event that was declared but never emitted in the implementation
+
+---
+
+
 ## [c98a883] - Contract version updates
 
 **Commit**: [`c98a883fac0fd202bfa02cf75c833b6d9eebcbe5`](https://github.com/lifinance/contracts/commit/c98a883fac0fd202bfa02cf75c833b6d9eebcbe5)  
