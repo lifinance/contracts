@@ -14,12 +14,7 @@ import {
   type PublicClient,
 } from 'viem'
 
-import globalConfig, {
-  coreFacets,
-  corePeriphery,
-  pauserWallet,
-  whitelistPeripheryFunctions,
-} from '../../config/global.json'
+import globalConfig from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
@@ -148,7 +143,7 @@ const main = defineCommand({
     if (isTron)
       // Use the Tron-specific utility that filters out GasZipFacet
       coreFacetsToCheck = getTronCoreFacets()
-    else coreFacetsToCheck = coreFacets
+    else coreFacetsToCheck = globalConfig.coreFacets
 
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
@@ -158,7 +153,7 @@ const main = defineCommand({
         nonCoreFacets = Object.keys(productionDiamond).filter((k) => {
           return (
             !coreFacetsToCheck.includes(k) &&
-            !corePeriphery.includes(k) &&
+            !globalConfig.corePeriphery.includes(k) &&
             k !== 'LiFiDiamond' &&
             k.includes('Facet')
           )
@@ -365,7 +360,7 @@ const main = defineCommand({
       consola.box('Checking deploy status of periphery contracts...')
 
       // Filter periphery contracts for Tron if needed
-      const peripheryToCheck = isTron ? getTronCorePeriphery() : corePeriphery
+      const peripheryToCheck = isTron ? getTronCorePeriphery() : globalConfig.corePeriphery
 
       for (const contract of peripheryToCheck) {
         const isDeployed = await checkAndLogDeployment(
@@ -455,9 +450,9 @@ const main = defineCommand({
         targetState[networkLower]?.production?.LiFiDiamond || {}
       const contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
-          (isTron ? getTronCorePeriphery() : corePeriphery).includes(
+          (isTron ? getTronCorePeriphery() : globalConfig.corePeriphery).includes(
             contract
-          ) || Object.keys(whitelistPeripheryFunctions).includes(contract)
+          ) || Object.keys(globalConfig.whitelistPeripheryFunctions).includes(contract)
       )
 
       if (contractsToCheck.length > 0) {
@@ -621,7 +616,7 @@ const main = defineCommand({
       )
       refundWallet = getAddress(globalConfig.refundWallet)
       feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
-      pauserWalletAddress = pauserWallet
+      pauserWalletAddress = globalConfig.pauserWallet
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
