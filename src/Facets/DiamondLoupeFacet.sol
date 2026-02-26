@@ -8,8 +8,10 @@ import { IERC165 } from "../Interfaces/IERC165.sol";
 /// @title Diamond Loupe Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Core EIP-2535 Facet for inspecting Diamond Proxies.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
+    uint8 internal constant LOUPE_VERSION = 1;
+
     // Diamond Loupe Functions
     ////////////////////////////////////////////////////////////////////
     /// These functions are expected to be called frequently by tools.
@@ -67,16 +69,41 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     }
 
     /// @notice Gets the facet that supports the given selector.
-    /// @dev If facet is not found return address(0).
+    /// @dev If selector is zero or facet is not found return address(0).
     /// @param _functionSelector The function selector.
     /// @return facetAddress_ The facet address.
     function facetAddress(
         bytes4 _functionSelector
     ) external view override returns (address facetAddress_) {
+        if (_functionSelector == 0) return address(0);
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         facetAddress_ = ds
             .selectorToFacetAndPosition[_functionSelector]
             .facetAddress;
+    }
+
+    /// @notice Returns the number of facets registered on the diamond.
+    /// @return count_ The number of facets.
+    function facetCount() external view returns (uint256 count_) {
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        count_ = _facetCount(ds);
+    }
+
+    function _facetCount(LibDiamond.DiamondStorage storage ds) internal view returns (uint256) {
+        return ds.facetAddresses.length;
+    }
+
+    /// @notice Returns true if the diamond has at least one facet registered.
+    /// @return hasFacets_ True when facetCount() > 0.
+    function hasFacets() external view returns (bool hasFacets_) {
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        hasFacets_ = _facetCount(ds) > 0;
+    }
+
+    /// @notice Returns the loupe interface version for tooling.
+    /// @return version_ LOUPE_VERSION constant.
+    function loupeVersion() external view returns (uint8 version_) {
+        version_ = LOUPE_VERSION;
     }
 
     // This implements ERC-165.

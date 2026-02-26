@@ -14,7 +14,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title UnitFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Unit
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract UnitFacet is
     ILiFi,
     ReentrancyGuard,
@@ -71,6 +71,12 @@ contract UnitFacet is
     }
 
     /// External Methods ///
+
+    /// @notice Returns the facet version for integration and debugging.
+    /// @return The semantic version string (e.g. "1.0.2").
+    function getUnitFacetVersion() external pure returns (string memory) {
+        return "1.0.2";
+    }
 
     /// @notice Bridges tokens via Unit
     /// @dev IMPORTANT: Unit protocol enforces minimum deposit amounts to ensure deposits are sufficiently

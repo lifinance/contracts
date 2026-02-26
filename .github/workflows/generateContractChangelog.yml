@@ -1,0 +1,109 @@
+# Generate Contract Changelog
+# - Triggers on push to any branch that modified Solidity contracts under src/
+# - Writes changelog/CHANGELOG.md and changelog/contracts/{Contract}.md at repo root
+# - Commits changelog/ to the same branch
+# - Uses Anthropic Claude Sonnet (CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY)
+# - workflow_dispatch allows manual run from Actions tab (e.g. to debug or re-run for a branch)
+
+name: generateContractChangelog
+
+on:
+  push:
+    paths:
+      - 'src/**/*.sol'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  generate-changelog:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }} # Checkout the pushed commit
+          fetch-depth: 0 # Need full history so COMMIT_SHA^ exists for diff
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Debug — commit and changed .sol files
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          echo "HEAD: $(git rev-parse HEAD)"
+          echo "COMMIT_SHA: $COMMIT_SHA"
+          echo "Changed files (all):"
+          git diff --name-only "${COMMIT_SHA}^" "$COMMIT_SHA" || true
+          echo "Filtered src/**/*.sol:"
+          git diff --name-only "${COMMIT_SHA}^" "$COMMIT_SHA" | grep -E '^src/.*\.sol$' || echo "(none)"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --ignore-scripts
+
+      - name: Generate changelog
+        id: generate
+        run: |
+          echo "🤖 Running AI-powered changelog generation (Claude Sonnet)"
+          bun run script/changelogAnalysis/generateContractChangelog.ts
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY: ${{ secrets.CLAUDE_CODE_SC_CONTRACTS_REPO_CHANGELOGS_API_KEY }}
+
+      - name: List changelog (verify location)
+        run: |
+          echo "Contents of changelog/ (repo root):"
+          ls -la changelog/ 2>/dev/null || echo "(changelog not found)"
+          ls -la changelog/contracts/ 2>/dev/null || true
+
+      - name: Check for changes
+        id: check
+        run: |
+          # Detect both new (untracked) and modified files; git diff only shows tracked changes
+          if git status --porcelain changelog/ | grep -q .; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "changelog/ updated"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No changelog changes"
+          fi
+
+      - name: Commit and push changelog
+        if: steps.check.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add changelog/
+          COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
+          git commit --no-verify -m "chore: add contract changelog for commit ${COMMIT_SHA_SHORT}"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Contract Changelog Generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "**Mode**: 🤖 AI-powered semantic analysis (Claude Sonnet)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check.outputs.has_changes }}" == "true" ]; then
+            echo "✅ changelog/ updated" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Updated:" >> $GITHUB_STEP_SUMMARY
+            git diff --name-only HEAD^ HEAD -- changelog/ | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Contract changes analyzed:" >> $GITHUB_STEP_SUMMARY
+            COMMIT_SHA="${{ github.sha }}"
+            git diff --name-only "${COMMIT_SHA}^" "$COMMIT_SHA" | grep -E '^src/.*\.sol$' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || echo "- (see commit for details)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No contract changes or commit already in changelog" >> $GITHUB_STEP_SUMMARY
+          fi
