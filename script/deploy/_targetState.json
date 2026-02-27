@@ -50,7 +50,6 @@
         "PioneerFacet": "1.0.0",
         "PolygonBridgeFacet": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -85,7 +84,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -137,7 +135,6 @@
         "MayanFacet": "1.2.2",
         "PioneerFacet": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -178,7 +175,6 @@
         "GlacisFacet": "1.1.0",
         "MayanFacet": "1.2.2",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -212,8 +208,7 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1"
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   },
@@ -259,7 +254,6 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
@@ -294,7 +288,6 @@
         "Permit2Proxy": "1.0.4",
         "GlacisFacet": "1.1.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -336,7 +329,6 @@
         "CBridgeFacetPacked": "1.0.3",
         "GlacisFacet": "1.1.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -368,8 +360,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "DeBridgeDlnFacet": "1.0.1",
-        "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1"
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   },
@@ -401,7 +392,6 @@
         "CBridgeFacet": "1.0.0",
         "DeBridgeDlnFacet": "1.0.1",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -444,7 +434,6 @@
         "GlacisFacet": "1.1.0",
         "MayanFacet": "1.2.2",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -695,7 +684,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -763,7 +751,6 @@
         "GlacisFacet": "1.1.0",
         "MayanFacet": "1.2.2",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -829,7 +816,6 @@
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.1.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -902,7 +888,6 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -1074,7 +1059,6 @@
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.1.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1151,7 +1135,6 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -1229,7 +1212,6 @@
         "HopFacetOptimized": "2.0.0",
         "MayanFacet": "1.2.2",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
@@ -1304,7 +1286,6 @@
         "CBridgeFacetPacked": "1.0.3",
         "GlacisFacet": "1.1.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -1377,7 +1358,6 @@
         "ReceiverAcrossV4": "1.0.0",
         "PioneerFacet": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -1442,8 +1422,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "GlacisFacet": "1.1.0",
-        "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1"
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   },
@@ -1473,7 +1452,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -1544,7 +1522,6 @@
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.1.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0"
@@ -1582,8 +1559,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1"
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   },
@@ -1681,7 +1657,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1872,7 +1847,6 @@
         "ReceiverAcrossV4": "1.0.0",
         "ArbitrumBridgeFacet": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -1903,8 +1877,7 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1"
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   },
@@ -1968,7 +1941,6 @@
         "AcrossFacetV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -2033,7 +2005,6 @@
         "Permit2Proxy": "1.0.4",
         "DeBridgeDlnFacet": "1.0.1",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }
@@ -2066,8 +2037,7 @@
         "Permit2Proxy": "1.0.4",
         "AcrossFacetV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "GlacisFacet": "1.1.0",
-        "RelayFacet": "1.0.1"
+        "GlacisFacet": "1.1.0"
       }
     }
   },
@@ -2158,7 +2128,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "RelayDepositoryFacet": "1.0.0",
-        "RelayFacet": "1.0.1",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0"
       }

@@ -107,34 +107,42 @@ When `/deprecate-network` is invoked with network names:
    - If the command fails, report the error but don't abort (the network deprecation is already complete)
    - Display the command output for verification
 
-8. **Display summary**:
+8. **Remind user to update Product Target Sheet**:
+
+   - Display a prominent reminder to manually update the Product Target State spreadsheet
+   - The spreadsheet tracks contract deployments across networks: [Product Target State spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0)
+   - For deprecated networks: Move the network row(s) to the deprecated section
+   - This is a manual step that must be done separately as the spreadsheet is not part of the codebase
+
+9. **Display summary**:
 
    - List all networks successfully deprecated
    - List all files removed
    - List any warnings (e.g., network not found in networks.json, but found in foundry.toml)
    - Display any errors encountered
 
-9. **Search for remaining occurrences**:
-   - For each deprecated network, search the entire codebase for occurrences of the network name
-   - Use case-insensitive search to find all matches (e.g., `grep -ri "fantom" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=out --exclude-dir=cache --exclude-dir=broadcast --exclude-dir=typechain --exclude-dir=lib`)
-   - Exclude generated directories: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`
-   - Group results by file path, sorted alphabetically
-   - For each file, show:
-     - File path (relative to workspace root)
-     - Total number of matches in that file
-     - Sample of matches (first 2-3 lines with line numbers and context)
-   - Present a concise, organized list to the user with clear formatting
-   - **Important notes**:
-     - Some files like `config/*.json` may intentionally keep network values for historical reference
-     - Files in `archive/` directory are typically historical and may be kept
-     - Test files may reference networks for testing purposes
-   - Ask the user to review the list and indicate which files/occurrences should be removed
-   - Wait for user input before proceeding with any additional removals
-   - Format options for user response:
-     - List specific file paths to clean up
-     - Say "none" if all occurrences should remain
-     - Say "all" to remove all occurrences (use with caution)
-     - Say "config only" to remove only from config files (excluding archive/)
+10. **Search for remaining occurrences**:
+
+- For each deprecated network, search the entire codebase for occurrences of the network name
+- Use case-insensitive search to find all matches (e.g., `grep -ri "fantom" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=out --exclude-dir=cache --exclude-dir=broadcast --exclude-dir=typechain --exclude-dir=lib`)
+- Exclude generated directories: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`
+- Group results by file path, sorted alphabetically
+- For each file, show:
+  - File path (relative to workspace root)
+  - Total number of matches in that file
+  - Sample of matches (first 2-3 lines with line numbers and context)
+- Present a concise, organized list to the user with clear formatting
+- **Important notes**:
+  - Some files like `config/*.json` may intentionally keep network values for historical reference
+  - Files in `archive/` directory are typically historical and may be kept
+  - Test files may reference networks for testing purposes
+- Ask the user to review the list and indicate which files/occurrences should be removed
+- Wait for user input before proceeding with any additional removals
+- Format options for user response:
+  - List specific file paths to clean up
+  - Say "none" if all occurrences should remain
+  - Say "all" to remove all occurrences (use with caution)
+  - Say "config only" to remove only from config files (excluding archive/)
 
 ## File Patterns
 
@@ -210,6 +218,15 @@ The command handles:
 - **Backup suggestion**: Recommend backing up files before deprecation (informational message)
 - **Remaining occurrences review**: After deprecation, search codebase and present all matches for user review before removing
 
+## Manual Steps Required
+
+After the command completes, you **must** manually update the Product Target State spreadsheet:
+
+- **Spreadsheet URL**: [Product Target State spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0)
+- **For deprecated networks**: Move the network row(s) to the deprecated section in the spreadsheet
+- This spreadsheet tracks contract deployments across all networks and is used by the product team
+- The command cannot automatically update this spreadsheet as it's external to the codebase
+
 ## Key Files Modified
 
 - `config/networks.json` - Network configuration (removes network entries)
@@ -258,6 +275,17 @@ Deprecating networks: fantom, harmony
 ✓ Whitelist updated successfully
 
 Successfully deprecated 2 networks.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  MANUAL STEP REQUIRED: Update Product Target Sheet
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please manually update the Product Target State spreadsheet:
+📊 https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0
+
+Actions required:
+- Move the "fantom" row to the deprecated section
+- Move the "harmony" row to the deprecated section
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 Remaining Occurrences Review
