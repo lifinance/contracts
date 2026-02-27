@@ -1,6 +1,9 @@
 #!/bin/bash
 
-diamondUpdateFacet() {
+function diamondUpdatePeriphery() {
+  echo ""
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running diamondUpdatePeriphery now...."
+
   # load required resources
   # Note: .env is already sourced in the parent script, so we don't need to source it again
   # This prevents overwriting exported variables like SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
@@ -11,53 +14,15 @@ diamondUpdateFacet() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
-  local SCRIPT="$4"
-  local REPLACE_EXISTING_FACET="$5"
-
-  # if no ENVIRONMENT was passed to this function, determine it
-  if [[ -z "$ENVIRONMENT" ]]; then
-    if [[ "$PRODUCTION" == "true" ]]; then
-      # make sure that PRODUCTION was selected intentionally by user
-      echo "    "
-      echo "    "
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
-      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true"
-      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production"
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-      echo "    "
-      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?"
-      PROD_SELECTION=$(
-        gum choose \
-          "yes" \
-          "no"
-      )
-
-      if [[ $PROD_SELECTION != "no" ]]; then
-        echo "...exiting script"
-        exit 0
-      fi
-
-      ENVIRONMENT="production"
-    else
-      ENVIRONMENT="staging"
-    fi
-  fi
+  local UPDATE_ALL="$4"
+  local EXIT_ON_ERROR="$5"
+  local CONTRACT=$6
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
-    NETWORK=$(getUserSelectedNetwork)
-
-    # check the return code the last call
-    if [ $? -ne 0 ]; then
-      echo "$NETWORK" # will contain an error message
-      exit 1
-    fi
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-
-    echo "[info] selected network: $NETWORK"
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
+    checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+	  NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
+    checkRequiredVariablesInDotEnv $NETWORK
   fi
 
   # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select diamond type
@@ -69,240 +34,285 @@ diamondUpdateFacet() {
   fi
 
   # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # get diamond address from deployments script
   DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
   # if no diamond address was found, throw an error and exit the script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting diamondUpdatePeripheryscript now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting diamondUpdatePeriphery script now"
     return 1
   fi
+
+  # determine which periphery contracts to update
+  if [[ -z "$UPDATE_ALL" || "$UPDATE_ALL" == "false" ]]; then
+    # check to see if a single contract was passed that should be upgraded
+    if [[ -z "$CONTRACT" ]]; then
+      # get a list of all periphery contracts
+      local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
+      PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
+      PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
+
+      # ask user to select contracts to be updated
+      CONTRACTS=$(gum choose --no-limit "${PERIPHERY_CONTRACTS_ARR[@]}")
+    else
+      CONTRACTS=$CONTRACT
+    fi
+  else
+    # get all periphery contracts that are not excluded by config
+    CONTRACTS=$(getIncludedPeripheryContractsArray)
+  fi
+
+  # logging for debug purposes
+  echoDebug "in function updatePeriphery"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "UPDATE_ALL=$UPDATE_ALL"
+  echoDebug "CONTRACTS=($CONTRACTS)"
+  echo ""
+
+  # get path of deployment file to extract contract addresses from it
+  if [[ -z "$FILE_SUFFIX" ]]; then
+    ADDRS="deployments/$NETWORK$FILE_SUFFIX.json"
+  else
+    ADDRS="deployments/$NETWORK.$FILE_SUFFIX""json"
+  fi
+
+  # initialize LAST_CALL variable that will be used to exit the script (only when ERROR_ON_EXIT flag is true)
+  local LAST_CALL=0
+
+  # loop through all periphery contracts
+  for CONTRACT in $CONTRACTS; do
+    # check if contract is in target state, otherwise skip iteration
+    TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
+
+    # only continue if contract was found in target state (only required for production environment)
+    if [[ "$?" -eq 0 || "$ENVIRONMENT" == "staging" ]]; then
+      # get contract address from deploy log
+      local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
+
+      # check if address available, otherwise throw error and skip iteration
+      if [ "$CONTRACT_ADDRESS" != "0x" ]; then
+        # verify function selectors match their signatures in global.json
+        local GLOBAL_JSON="config/global.json"
+        if [ -f "$GLOBAL_JSON" ]; then
+          local SELECTOR_DATA=$(jq -r --arg CONTRACT "$CONTRACT" '.whitelistPeripheryFunctions[$CONTRACT] // [] | .[] | "\(.signature)|\(.selector)"' "$GLOBAL_JSON" 2>/dev/null)
+
+          if [ -n "$SELECTOR_DATA" ]; then
+            local VERIFICATION_FAILED=false
+            while IFS='|' read -r SIGNATURE EXPECTED_SELECTOR; do
+              if [ -n "$SIGNATURE" ] && [ -n "$EXPECTED_SELECTOR" ]; then
+                if ! verifySelectorMatchesSignature "$SIGNATURE" "$EXPECTED_SELECTOR"; then
+                  local CALCULATED=$(cast sig "$SIGNATURE" 2>/dev/null)
+                  error "Selector mismatch for $CONTRACT:"
+                  error "  Signature: $SIGNATURE"
+                  error "  Expected selector: $EXPECTED_SELECTOR"
+                  error "  Calculated selector: $CALCULATED"
+                  VERIFICATION_FAILED=true
+                fi
+              fi
+            done <<< "$SELECTOR_DATA"
+
+            if [ "$VERIFICATION_FAILED" = true ]; then
+              error "Function selector verification failed for $CONTRACT. Please fix global.json before proceeding."
+              LAST_CALL=1
+              continue
+            fi
+          fi
+        fi
+
+        # check if has already been added to diamond
+        KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
+
+        if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
+          # register contract
+          register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
+          LAST_CALL=$?
+
+          if [ $LAST_CALL -eq 0 ]; then
+            echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+          fi
+        else
+          echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
+        fi
+      else
+        warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
+        LAST_CALL=1
+      fi
+    else
+      warning "contract $CONTRACT not found in target state file. ACTION REQUIRED: Update target state file and try again if this contract should be included."
+    fi
+  done
+
+  # check the return code the last call
+  if [ $LAST_CALL -ne 0 ]; then
+    # end this script according to flag
+    if [[ "$EXIT_ON_ERROR" == "true" ]]; then
+      exit 1
+    fi
+  fi
+
+  # update diamond log file (only for staging environment since in PROD we need to execute proposals first)
+  if [[ "$ENVIRONMENT" == "staging"  ]]; then
+    if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
+    else
+      saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+    fi
+  fi
+
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
+}
+
+register() {
+  local NETWORK="$1"
+  local DIAMOND=$2
+  local CONTRACT_NAME=$3
+  local ADDR=$4
+  local RPC_URL=$(getRPCUrl $NETWORK) || checkFailure $? "get rpc url"
+  local ENVIRONMENT=$5
 
   # make sure GAS_ESTIMATE_MULTIPLIER is set
   if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
     GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
   fi
 
-  # if no SCRIPT was passed to this function, ask user to select it
-  if [[ -z "$SCRIPT" ]]; then
-    echo "Please select which facet you would like to update"
-    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
-  fi
-
-  # Handle script paths and extensions based on network type
-  if isZkEvmNetwork "$NETWORK"; then
-    SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
-    # Check if the foundry-zksync binaries exist, if not fetch them
-    install_foundry_zksync
-  else
-    SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
-  fi
-
-  CONTRACT_NAME=$(basename "$SCRIPT_PATH" | sed 's/\.zksync\.s\.sol$//' | sed 's/\.s\.sol$//')
-
-  # set flag for mutable/immutable diamond
-  USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
+  # register periphery contract
+  local ATTEMPTS=1
 
   # logging for debug purposes
-  echoDebug "updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
+  echoDebug "in function register"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "DIAMOND=$DIAMOND"
+  echoDebug "CONTRACT_NAME=$CONTRACT_NAME"
+  echoDebug "ADDR=$ADDR"
+  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
+  echo ""
 
-  # check if update script exists
-  if ! checkIfFileExists "$SCRIPT_PATH" >/dev/null; then
-    error "could not find update script for $CONTRACT_NAME in this path: $SCRIPT_PATH. Aborting update."
+  # check that the contract is actually deployed
+  local CODE_SIZE=$(cast codesize "$ADDR" --rpc-url "$RPC_URL")
+  if [ $CODE_SIZE -eq 0 ]; then
+    error "contract $CONTRACT_NAME is not deployed on network $NETWORK - exiting script now"
     return 1
   fi
 
-  # update diamond with new facet address (remove/replace of existing selectors happens in update script)
-  attempts=1
-  while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-    echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
-
-    # Add skip simulation flag based on environment variable
-    SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
-
-    # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-      # PROD: suggest diamondCut transaction to SAFE
-
-      PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
-      echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
-
-      # Execute, parse, and check return code
-      local COMMAND
-      if isZkEvmNetwork "$NETWORK"; then
-        echo "zkEVM network detected"
-        COMMAND="FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
-      else
-        # PROD (normal mode): suggest diamondCut transaction to SAFE
-        COMMAND="NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
-      fi
-      
-      if ! executeAndParse \
-        "$COMMAND" \
-        "true" \
-        "forge script failed for $CONTRACT_NAME on network $NETWORK" \
-        "continue"; then
-        attempts=$((attempts + 1))
-        sleep 1
-        continue
-      fi
-      
-      # Extract JSON from cleaned RAW_RETURN_DATA (may have leading/trailing characters). Use sed to handle multi-line JSON
-      # (critical for large hex strings that cause forge to output multi-line JSON)
-      JSON_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
-
-      # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
-      if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
-        JSON_DATA=$(echo "${RAW_RETURN_DATA:-}" | grep -o '{"logs":.*}' | tail -1)
-      fi
-
-      # Validate that extracted JSON_DATA is valid JSON
-      if ! echo "$JSON_DATA" | jq empty >/dev/null 2>&1; then
-        {
-          echo "Error: Failed to extract valid JSON from forge script output" >&2
-          echo "JSON_DATA:" >&2
-          echo "$JSON_DATA" >&2
-          echo "" >&2
-          echo "RAW_RETURN_DATA:" >&2
-          echo "${RAW_RETURN_DATA:-}" >&2
-        }
-        return 1
-      fi
-
-      # Extract cutData from the cleaned JSON output
-      FACET_CUT=$(echo "$JSON_DATA" | jq -r '.returns.cutData.value // empty' 2>/dev/null)
-
-      # Validate extracted calldata length (should be even number of hex chars after 0x)
-      if [[ -n "$FACET_CUT" && "$FACET_CUT" != "0x" ]]; then
-        CALLDATA_LENGTH=$((${#FACET_CUT} - 2))
-        if [[ $((CALLDATA_LENGTH % 2)) -ne 0 ]]; then
-          error "Extracted calldata appears truncated (odd length: $CALLDATA_LENGTH hex chars)"
-          return 1
-        fi
-        echoDebug "Extracted calldata length: $CALLDATA_LENGTH hex chars ($((CALLDATA_LENGTH / 2)) bytes)"
-      fi
-
-      echo "FACET_CUT: ($FACET_CUT)"
-      echo ""
-
-      if [[ "$FACET_CUT" != "0x" && -n "$FACET_CUT" ]]; then
-        echo "Proposing facet cut for $CONTRACT_NAME on network $NETWORK..."
-        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-
-        RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-
-        # Check if timelock is enabled and available
-        TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
-        # For very long calldata, use a temporary file to avoid command line length limits
-        # Check if calldata exceeds a safe threshold (e.g., 20KB hex = 10KB bytes)
-        CALLDATA_BYTES=$(((${#FACET_CUT} - 2) / 2))
-        if [[ $CALLDATA_BYTES -gt 10000 ]]; then
-          echoDebug "Calldata is large ($CALLDATA_BYTES bytes), using temporary file to avoid truncation"
-          TEMP_CALLDATA_FILE=$(mktemp)
-          printf '%s' "$FACET_CUT" > "$TEMP_CALLDATA_FILE"
-          # Save existing EXIT trap before setting our own
-          OLD_TRAP="$(trap -p EXIT)"
-          # Register trap to ensure cleanup on script exit (including errors)
-          trap '[[ -n "$TEMP_CALLDATA_FILE" ]] && rm -f "$TEMP_CALLDATA_FILE"' EXIT
-
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
-          rc=$?
-
-          rm -f "$TEMP_CALLDATA_FILE"
-          # Restore the previous EXIT trap if one existed
-          if [[ -n "$OLD_TRAP" ]]; then
-            eval "$OLD_TRAP"
-          else
-            trap - EXIT
-          fi
-
-          if [ $rc -ne 0 ]; then
-            return $rc
-          fi
-        else
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
-          rc=$?
-
-          if [ $rc -ne 0 ]; then
-            return $rc
-          fi
-        fi
-      else
-        error "FacetCut is empty"
-        return 1
-      fi
+  # helper function to get gas limit with multiplier applied
+  getGasLimitWithMultiplier() {
+    local ESTIMATED_GAS=$(cast estimate "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --rpc-url "$RPC_URL" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$ESTIMATED_GAS" ]; then
+      # Multiply by multiplier (130 = 1.3x, 200 = 2x, etc.)
+      echo $((ESTIMATED_GAS * GAS_ESTIMATE_MULTIPLIER / 100))
     else
-      # STAGING (or new network deployment): just deploy normally without further checks
-      echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
+      # If estimation fails, return empty (universalCast send will estimate automatically)
+      echo ""
+    fi
+  }
 
-      # Execute, parse, and check return code
-      local COMMAND
-      if isZkEvmNetwork "$NETWORK"; then
-        COMMAND="FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")"
+  while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    # calculate gas limit with multiplier
+    local GAS_LIMIT=$(getGasLimitWithMultiplier)
+    local GAS_LIMIT_ARGS=()
+    if [ -n "$GAS_LIMIT" ] && [ "$GAS_LIMIT" -gt 0 ] 2>/dev/null; then
+      GAS_LIMIT_ARGS=("--gas-limit" "$GAS_LIMIT")
+      echoDebug "Using gas limit: $GAS_LIMIT (estimated gas * $GAS_ESTIMATE_MULTIPLIER / 100)"
+    else
+      echoDebug "Gas estimation failed or returned invalid value, universalCast send will estimate automatically"
+    fi
+
+    # try to execute call
+    if [[ "$DEBUG" == *"true"* ]]; then
+      # print output to console
+      echoDebug "trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+
+      # ensure that gas price is below maximum threshold (for mainnet only)
+      doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
+        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
+          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
+        else
+          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
+          local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
+
+          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
+          # Get timelock controller address if it exists
+          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+
+          # Check if timelock is enabled and available
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            echo "[info] Using timelock controller for periphery registration"
+            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
+          else
+            echo "[info] Using diamond directly for periphery registration"
+            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${DIAMOND_ADDRESS}' with calldata $CALLDATA"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
+          fi
+        fi
       else
-        COMMAND="NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG"
+        # just register the diamond (no multisig required)
+        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
       fi
-      
-      if ! executeAndParse \
-        "$COMMAND" \
-        "true" \
-        "forge script failed for $CONTRACT_NAME on network $NETWORK" \
-        "return"; then
-        return 1
+
+      #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url $RPC_URL" --legacy
+    else
+      # do not print output to console
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
+        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
+          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
+          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
+        else
+          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
+          local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
+          echoDebug "Calldata: $CALLDATA"
+
+          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+          echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
+          echoDebug "NETWORK: $NETWORK"
+
+          # Get timelock controller address if it exists
+          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
+
+          # Check if timelock is enabled and available
+          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
+            echoDebug "Using timelock controller for periphery registration"
+            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
+          else
+            echoDebug "Using diamond directly for periphery registration"
+            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${DIAMOND_ADDRESS}' with calldata $CALLDATA"
+            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
+          fi
+        fi
+      else
+        # just register the diamond (no multisig required)
+        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR" >/dev/null 2>&1
       fi
     fi
 
     # check the return code the last call
-    if [ "${RETURN_CODE:-1}" -eq 0 ]; then
-      # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
-      if [[ "$ENVIRONMENT" != "production" ]]; then
-        # extract the "returns" property directly from the JSON output
-        RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | jq -r '.returns // empty' 2>/dev/null)
-        # echoDebug "RETURN_DATA: $RETURN_DATA"
-
-        # get the facet addresses that are known to the diamond from the return data
-        FACETS=$(echo "$RETURN_DATA" | jq -r '.facets.value // "{}"')
-        if [[ $FACETS != "{}" ]]; then
-          break # exit the loop if the operation was successful
-        fi
-      else
-        # if deploying to PROD and RETURN_CODE is OK then we can assume that the proposal to SAFE worked fine
-        break
-      fi
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
     fi
 
-    attempts=$((attempts + 1)) # increment attempts
+    ATTEMPTS=$((ATTEMPTS + 1)) # increment attempts
     sleep 1                    # wait for 1 second before trying the operation again
   done
 
   # check if call was executed successfully or used all attempts
-  if [ $attempts -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    error "failed to execute $SCRIPT on network $NETWORK in $ENVIRONMENT environment"
+  if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+    error "failed to register $CONTRACT_NAME in diamond on network $NETWORK"
     return 1
   fi
-
-  # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
-  if [[ "$ENVIRONMENT" != "production" ]]; then
-    # Using default behavior: update diamond file (not facets-only mode)
-    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS" "" ""
-  fi
-
-  echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
-  return 0
 }
