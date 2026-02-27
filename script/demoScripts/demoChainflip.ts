@@ -79,7 +79,7 @@ async function executeWithSourceSwap(
     ADDRESS_USDT_ARB,
     ADDRESS_USDC_ARB,
     amount,
-    lifiDiamondAddress,
+    lifiDiamondAddress.address,
     true
   )
 
