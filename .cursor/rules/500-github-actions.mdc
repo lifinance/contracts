@@ -12,6 +12,9 @@ alwaysApply: false
 ## GitHub Actions Conventions
 
 - Workflows: explicit permissions, comments, secrets via `${{ secrets.* }}`; clear step names & triggers.
+- **Pin 3rd party actions**: all non-local `uses:` actions MUST be pinned to an immutable **full commit SHA**, not a tag/version (e.g., `@v2`, `@v4.1.7`). This avoids supply-chain risk from mutable tags.
+  - **Good**: `uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7`
+  - **Bad**: `uses: actions/checkout@v4.1.7`
 
 ### Immutable action refs ([CONV:ACTIONS-IMMUTABLE])
 
