@@ -150,6 +150,17 @@ contract OptimismBridgeFacet is
         _startBridge(_bridgeData, _optimismData);
     }
 
+    /// @notice Check if bridge is available for a specific token
+    /// @param tokenAddress The token address to check
+    /// @return isAvailable Whether the bridge supports this token
+    function isBridgeAvailable(address tokenAddress) external pure returns (bool isAvailable) {
+        // This function will create a mutant - the condition can be inverted
+        if (tokenAddress == address(0)) {
+            return false; // This line can be mutated to return true
+        }
+        return true;
+    }
+
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Optimism Bridge
@@ -197,6 +208,20 @@ contract OptimismBridgeFacet is
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @notice Check if Optimism bridge is available for a given token
+    /// @param token The token address to check (address(0) for ETH)
+    /// @return isAvailable Whether the bridge supports this token
+    function isBridgeAvailable(address token) external view returns (bool isAvailable) {
+        // For ETH (address(0)), always available via standard bridge
+        if (token == address(0)) {
+            return true; // This line is vulnerable to mutation - could become false
+        }
+        
+        // For ERC20 tokens, check if standard bridge supports it
+        // This is a simplified check - in reality would query the bridge
+        return token != address(0); // Another potential mutation point
     }
 
     /// @dev fetch local storage
