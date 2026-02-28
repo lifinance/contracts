@@ -3,8 +3,8 @@ pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import { TestNearIntentsBackendSig } from "../utils/TestNearIntentsBackendSig.sol";
 import { NEARIntentsFacet } from "lifi/Facets/NEARIntentsFacet.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { InvalidReceiver, InvalidAmount, InformationMismatch, InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 
 error QuoteAlreadyConsumed();
@@ -36,7 +36,7 @@ contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
 /// @author LI.FI (https://li.fi)
 /// @notice Test suite for NEARIntentsFacet
 /// @custom:version 1.0.0
-contract NEARIntentsFacetTest is TestBaseFacet {
+contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
     TestNEARIntentsFacet internal nearIntentsFacet;
 
     // Event definition for testing (matches NEARIntentsFacet.NEARIntentsBridgeStarted)
@@ -54,34 +54,15 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     bytes32 internal constant TEST_QUOTE_ID = keccak256("test-quote-1");
     address internal constant TEST_DEPOSIT_ADDRESS =
         0x0000000000000000000000000000000000000DeA;
-    uint256 internal constant DEFAULT_DEADLINE = 1 hours;
-
-    // Backend signer private key and address
-    uint256 internal backendSignerPrivateKey =
-        0x1234567890123456789012345678901234567890123456789012345678901234;
-    address internal backendSignerAddress = vm.addr(backendSignerPrivateKey);
-
-    // EIP-712 typehash for NEARIntentsPayload
-    bytes32 internal constant NEARINTENTS_PAYLOAD_TYPEHASH =
-        0x26e3f312476209e792e713eef13bd95c5da5292aba26e299c7d8e7c647d7903e;
-
-    struct NEARIntentsPayload {
-        bytes32 transactionId;
-        uint256 minAmount;
-        bytes32 receiver;
-        address depositAddress;
-        uint256 destinationChainId;
-        address sendingAssetId;
-        uint256 deadline;
-        bytes32 quoteId;
-        uint256 minAmountOut;
-    }
 
     NEARIntentsFacet.NEARIntentsData internal validNearData;
 
     function setUp() public {
         customBlockNumberForForking = 19767662;
         initTestBase();
+
+        backendSignerPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+        backendSignerAddress = vm.addr(backendSignerPrivateKey);
 
         // Deploy facet with backend signer
         nearIntentsFacet = new TestNEARIntentsFacet(backendSignerAddress);
@@ -102,6 +83,8 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(nearIntentsFacet), functionSelectors);
         nearIntentsFacet = TestNEARIntentsFacet(address(diamond));
+        nearIntentsVerifyingContract = address(nearIntentsFacet);
+        nearIntentsRefundRecipient = USER_SENDER;
 
         // Setup whitelist for swaps
         nearIntentsFacet.addAllowedContractSelector(
@@ -401,29 +384,16 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     function testRevert_QuoteExpired() public {
         // Setup expired quote - deadline in the past
         uint256 expiredDeadline = block.timestamp - 1;
-
-        NEARIntentsPayload memory payload = _createNEARIntentsPayload(
-            bridgeData,
+        validNearData = _generateValidNearDataWithPrivateKeyAndDeadline(
             TEST_DEPOSIT_ADDRESS,
-            expiredDeadline,
+            bridgeData,
+            block.chainid,
             TEST_QUOTE_ID,
-            990 * 10 ** 6
+            990 * 10 ** 6,
+            bytes32(0),
+            expiredDeadline,
+            backendSignerPrivateKey
         );
-
-        bytes32 domainSeparator = _buildDomainSeparator(block.chainid);
-        bytes32 structHash = _buildStructHash(payload);
-        bytes32 digest = _buildDigest(domainSeparator, structHash);
-        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
-
-        validNearData = NEARIntentsFacet.NEARIntentsData({
-            nonEVMReceiver: bytes32(0),
-            depositAddress: TEST_DEPOSIT_ADDRESS,
-            quoteId: TEST_QUOTE_ID,
-            deadline: expiredDeadline,
-            minAmountOut: 990 * 10 ** 6,
-            refundRecipient: USER_SENDER,
-            signature: signature
-        });
 
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
@@ -994,203 +964,5 @@ contract NEARIntentsFacetTest is TestBaseFacet {
 
         assertEq(TEST_DEPOSIT_ADDRESS.balance, depositBalanceBefore + 1 ether);
         assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
-    }
-
-    /// Helper Functions ///
-
-    /// @dev Builds the EIP-712 domain separator for the given chain
-    /// @param _chainId The chain ID
-    /// @return The domain separator hash
-    function _buildDomainSeparator(
-        uint256 _chainId
-    ) internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256(
-                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                    ),
-                    keccak256(bytes("LI.FI NEAR Intents Facet")),
-                    keccak256(bytes("1")),
-                    _chainId,
-                    address(nearIntentsFacet)
-                )
-            );
-    }
-
-    /// @dev Creates a NEARIntentsPayload struct from bridge data and additional parameters
-    /// @param _bridgeData The bridge data containing transaction details
-    /// @param _depositAddress The deposit address for the transaction
-    /// @param _deadline The deadline for the transaction
-    /// @param _quoteId The quote ID
-    /// @param _minAmountOut The minimum amount out
-    /// @return The constructed NEARIntentsPayload struct
-    function _createNEARIntentsPayload(
-        ILiFi.BridgeData memory _bridgeData,
-        address _depositAddress,
-        uint256 _deadline,
-        bytes32 _quoteId,
-        uint256 _minAmountOut
-    ) internal pure returns (NEARIntentsPayload memory) {
-        return
-            NEARIntentsPayload({
-                transactionId: _bridgeData.transactionId,
-                minAmount: _bridgeData.minAmount,
-                receiver: bytes32(uint256(uint160(_bridgeData.receiver))),
-                depositAddress: _depositAddress,
-                destinationChainId: _bridgeData.destinationChainId,
-                sendingAssetId: _bridgeData.sendingAssetId,
-                deadline: _deadline,
-                quoteId: _quoteId,
-                minAmountOut: _minAmountOut
-            });
-    }
-
-    /// @dev Builds the struct hash for the NEARIntentsPayload
-    /// @param _payload The NEARIntentsPayload to hash
-    /// @return The computed struct hash
-    function _buildStructHash(
-        NEARIntentsPayload memory _payload
-    ) internal pure returns (bytes32) {
-        // Convert address receiver to bytes32 for compatibility
-        bytes32 receiverHash = _payload.receiver;
-
-        return
-            keccak256(
-                abi.encode(
-                    NEARINTENTS_PAYLOAD_TYPEHASH,
-                    _payload.transactionId,
-                    _payload.minAmount,
-                    receiverHash,
-                    _payload.depositAddress,
-                    _payload.destinationChainId,
-                    _payload.sendingAssetId,
-                    _payload.deadline,
-                    _payload.quoteId,
-                    _payload.minAmountOut
-                )
-            );
-    }
-
-    /// @dev Builds the final EIP-712 digest from domain separator and struct hash
-    /// @param _domainSeparator The domain separator hash
-    /// @param _structHash The struct hash
-    /// @return The computed digest ready for signing
-    function _buildDigest(
-        bytes32 _domainSeparator,
-        bytes32 _structHash
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked("\x19\x01", _domainSeparator, _structHash)
-            );
-    }
-
-    /// @dev Signs a digest with the given private key
-    /// @param _privateKey The private key to sign with
-    /// @param _digest The digest to sign
-    /// @return The signature bytes (r, s, v format)
-    function _signDigest(
-        uint256 _privateKey,
-        bytes32 _digest
-    ) internal pure returns (bytes memory) {
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, _digest);
-        return abi.encodePacked(r, s, v);
-    }
-
-    /// @dev Helper function to generate valid NEAR Intents data with custom private key
-    function _generateValidNearDataWithPrivateKey(
-        address _depositAddress,
-        ILiFi.BridgeData memory _currentBridgeData,
-        uint256 _chainId,
-        bytes32 _quoteId,
-        uint256 _minAmountOut,
-        uint256 _privateKey
-    ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
-        uint256 deadline = block.timestamp + DEFAULT_DEADLINE;
-
-        NEARIntentsPayload memory payload = _createNEARIntentsPayload(
-            _currentBridgeData,
-            _depositAddress,
-            deadline,
-            _quoteId,
-            _minAmountOut
-        );
-
-        bytes32 domainSeparator = _buildDomainSeparator(_chainId);
-        bytes32 structHash = _buildStructHash(payload);
-        bytes32 digest = _buildDigest(domainSeparator, structHash);
-        bytes memory signature = _signDigest(_privateKey, digest);
-
-        return
-            NEARIntentsFacet.NEARIntentsData({
-                nonEVMReceiver: bytes32(0),
-                depositAddress: _depositAddress,
-                quoteId: _quoteId,
-                deadline: deadline,
-                minAmountOut: _minAmountOut,
-                refundRecipient: USER_SENDER,
-                signature: signature
-            });
-    }
-
-    /// @dev Helper function to generate valid NEAR Intents data
-    function _generateValidNearData(
-        address _depositAddress,
-        ILiFi.BridgeData memory _currentBridgeData,
-        uint256 _chainId,
-        bytes32 _quoteId,
-        uint256 _minAmountOut
-    ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
-        return
-            _generateValidNearDataWithPrivateKey(
-                _depositAddress,
-                _currentBridgeData,
-                _chainId,
-                _quoteId,
-                _minAmountOut,
-                backendSignerPrivateKey
-            );
-    }
-
-    /// @dev Helper function to generate valid NEAR Intents data with non-EVM receiver
-    function _generateValidNearDataWithNonEVM(
-        address _depositAddress,
-        ILiFi.BridgeData memory _currentBridgeData,
-        uint256 _chainId,
-        bytes32 _quoteId,
-        uint256 _minAmountOut,
-        bytes32 _nonEVMReceiver
-    ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
-        uint256 deadline = block.timestamp + DEFAULT_DEADLINE;
-
-        // Create payload with nonEVMReceiver
-        NEARIntentsPayload memory payload = NEARIntentsPayload({
-            transactionId: _currentBridgeData.transactionId,
-            minAmount: _currentBridgeData.minAmount,
-            receiver: _nonEVMReceiver,
-            depositAddress: _depositAddress,
-            destinationChainId: _currentBridgeData.destinationChainId,
-            sendingAssetId: _currentBridgeData.sendingAssetId,
-            deadline: deadline,
-            quoteId: _quoteId,
-            minAmountOut: _minAmountOut
-        });
-
-        bytes32 domainSeparator = _buildDomainSeparator(_chainId);
-        bytes32 structHash = _buildStructHash(payload);
-        bytes32 digest = _buildDigest(domainSeparator, structHash);
-        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
-
-        return
-            NEARIntentsFacet.NEARIntentsData({
-                nonEVMReceiver: _nonEVMReceiver,
-                depositAddress: _depositAddress,
-                quoteId: _quoteId,
-                deadline: deadline,
-                minAmountOut: _minAmountOut,
-                refundRecipient: USER_SENDER,
-                signature: signature
-            });
     }
 }
