@@ -211,6 +211,8 @@ function findContractInMasterLog() {
   while [[ $attempt -le $MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     local MONGO_EXIT_CODE=$?
+    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object
+    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[{]/,$ p')
 
     if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Validate that the result is valid JSON before returning it
@@ -354,8 +356,11 @@ function getHighestDeployedContractVersionFromMasterLog() {
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" \
-    --limit=50 2>/dev/null)
+    --limit=50 \
+    --no-use-cache 2>/dev/null)
   EXIT_CODE=$?
+  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON array (line that is just "[" or "[ ")
+  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[] *$/,$ p')
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     # Validate that the result is valid JSON before parsing
@@ -671,8 +676,11 @@ function getConstructorArgsFromMasterLog() {
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
     --network "$NETWORK" \
-    --version "$VERSION" 2>/dev/null)
+    --version "$VERSION" \
+    --no-use-cache 2>/dev/null)
   EXIT_CODE=$?
+  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object
+  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[{]/,$ p')
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     # Validate that the result is valid JSON before parsing
@@ -1830,6 +1838,9 @@ function verifyContract() {
       VERIFY_CMD+=("--verifier" "blockscout")
     elif [[ "$VERIFICATION_TYPE" = "sourcify" ]]; then
       VERIFY_CMD+=("--verifier" "sourcify")
+    elif [[ "$VERIFICATION_TYPE" = "etherscan" ]]; then
+      # Use etherscan verifier (foundry.toml may also set verifier = "etherscan" for this network)
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
     elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
       # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
       VERIFY_CMD+=("--verifier" "custom")
@@ -1880,8 +1891,8 @@ function verifyContract() {
     done < <(echo "$CUSTOM_FLAGS" | jq -c 'to_entries[]')
   fi
 
-  # Always add verifier URL since all networks have one configured in foundry.toml
-  VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL")
+  # Always add verifier URL and chain ID so Foundry/verifier use the correct chain (avoids "deployed on mainnet" and 404s)
+  VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL" "--chain-id" "$CHAIN_ID")
 
   echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
