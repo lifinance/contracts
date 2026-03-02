@@ -1159,7 +1159,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
-    "devNotes": ""
+    "devNotes": "Contract verification currently not working, details here: https://docs.tempo.xyz/build/toolchains/foundry/. In order to deploy contract its required to have GAS_MULTIPLIER set to even 1000 in .env file"
   },
   "unichain": {
     "name": "unichain",

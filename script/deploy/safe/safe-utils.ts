@@ -35,6 +35,7 @@ import data from '../../../config/networks.json'
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   buildExplorerContractPageUrl,
+  getHttpTransportConfig,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 
@@ -186,11 +187,12 @@ export class ViemSafe {
     let publicClient: PublicClient
     let chain: Chain | undefined = undefined
 
-    if (typeof provider === 'string')
+    if (typeof provider === 'string') {
+      const { url, fetchOptions } = getHttpTransportConfig(provider)
       publicClient = createPublicClient({
-        transport: http(provider),
+        transport: http(url, fetchOptions ? { fetchOptions } : {}),
       })
-    else {
+    } else {
       chain = provider
       publicClient = createPublicClient({
         chain: chain,
@@ -214,10 +216,17 @@ export class ViemSafe {
       )
 
     // Create wallet client with the account and chain
+    const walletTransport =
+      typeof provider === 'string'
+        ? (() => {
+            const { url, fetchOptions } = getHttpTransportConfig(provider)
+            return http(url, fetchOptions ? { fetchOptions } : {})
+          })()
+        : http()
     const walletClient = createWalletClient({
       account,
       chain,
-      transport: http(typeof provider === 'string' ? provider : undefined),
+      transport: walletTransport,
     })
 
     return new ViemSafe(publicClient, walletClient, safeAddress, account)
@@ -1243,11 +1252,12 @@ export async function initializeSafeClient(
     throw new Error(`No Safe address configured for network ${network}`)
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
+  if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
 
   // Initialize Safe with Viem
   try {
     const safe = await ViemSafe.init({
-      provider: parsedRpcUrl as string,
+      provider: parsedRpcUrl,
       privateKey,
       safeAddress: finalSafeAddress,
       useLedger,
@@ -1906,10 +1916,12 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
   let safeInfo
   try {
-    // Create a public client for read operations
+    const rpcUrl = chain.rpcUrls.default.http[0]
+    if (!rpcUrl) throw new Error(`No RPC URL for network ${network}`)
+    const { url: transportUrl, fetchOptions } = getHttpTransportConfig(rpcUrl)
     const publicClient = createPublicClient({
       chain,
-      transport: http(chain.rpcUrls.default.http[0]),
+      transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
     })
 
     safeInfo = await getSafeInfoFromContract(
@@ -1937,9 +1949,12 @@ export async function wrapWithTimelockSchedule(
 ): Promise<{ calldata: Hex; targetAddress: Address }> {
   const chain = getViemChainForNetworkName(network)
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
+  if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
+  const { url: transportUrl, fetchOptions } =
+    getHttpTransportConfig(parsedRpcUrl)
   const client = createPublicClient({
     chain,
-    transport: http(parsedRpcUrl),
+    transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
   })
 
   // Get the minimum delay from the timelock controller

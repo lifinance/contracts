@@ -248,14 +248,19 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # Add network-specific flags for megaeth
+    # Add network-specific additional flags
+    ADDITIONAL_FLAGS=""
     if [[ "$NETWORK" == "megaeth" ]]; then
-      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
+      ADDITIONAL_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
       # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
       SKIP_SIMULATION_FLAG=""
-    else
-      MEGAETH_FLAGS=""
+    elif [[ "$NETWORK" == "tempo" ]]; then
+      ADDITIONAL_FLAGS="--gas-limit 50000000"
     fi
+
+    echo "ADDITIONAL_FLAGS: $ADDITIONAL_FLAGS"
+    echo "SKIP_SIMULATION_FLAG: $SKIP_SIMULATION_FLAG"
+    echo "GAS_ESTIMATE_MULTIPLIER: $GAS_ESTIMATE_MULTIPLIER"
 
     # Execute, parse, and check return code
     if isZkEvmNetwork "$NETWORK"; then
@@ -266,7 +271,7 @@ deploySingleContract() {
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $MEGAETH_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 
