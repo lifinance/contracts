@@ -779,7 +779,7 @@
     "name": "morph",
     "chainId": 2818,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "N/A",
+    "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x5300000000000000000000000000000000000011",
     "status": "active",
     "type": "mainnet",
