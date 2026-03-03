@@ -40,6 +40,14 @@
       "0xb1e9A4b09e2b8c35D21Ede99Fa60276fe0647551": {
         "Name": "GenericSwapFacetV3",
         "Version": ""
+      },
+      "0xC2B440c209890caA45952F6143c116204994c0D2": {
+        "Name": "CalldataVerificationFacet",
+        "Version": ""
+      },
+      "0x8819A12ec23a97201d9Fb231Fc7e3B389673f707": {
+        "Name": "AccessManagerFacet",
+        "Version": ""
       }
     },
     "Periphery": {
