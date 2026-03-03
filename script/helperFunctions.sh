@@ -211,8 +211,8 @@ function findContractInMasterLog() {
   while [[ $attempt -le $MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     local MONGO_EXIT_CODE=$?
-    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object
-    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[{]/,$ p')
+    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object (supports indented or compact one-line)
+    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[:space:]]*[{]/,$ p')
 
     if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Validate that the result is valid JSON before returning it
@@ -359,8 +359,8 @@ function getHighestDeployedContractVersionFromMasterLog() {
     --limit=50 \
     --no-use-cache 2>/dev/null)
   EXIT_CODE=$?
-  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON array (line that is just "[" or "[ ")
-  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[] *$/,$ p')
+  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON array (supports indented or compact one-line)
+  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[:space:]]*[[]/,$ p')
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     # Validate that the result is valid JSON before parsing
@@ -679,8 +679,8 @@ function getConstructorArgsFromMasterLog() {
     --version "$VERSION" \
     --no-use-cache 2>/dev/null)
   EXIT_CODE=$?
-  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object
-  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[{]/,$ p')
+  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object (supports indented or compact one-line)
+  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[:space:]]*[{]/,$ p')
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     # Validate that the result is valid JSON before parsing
@@ -1840,7 +1840,11 @@ function verifyContract() {
       VERIFY_CMD+=("--verifier" "sourcify")
     elif [[ "$VERIFICATION_TYPE" = "etherscan" ]]; then
       # Use etherscan verifier (foundry.toml may also set verifier = "etherscan" for this network)
-      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
+      if [ -z "${!API_KEY}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+        return 1
+      fi
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
       # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
       VERIFY_CMD+=("--verifier" "custom")
