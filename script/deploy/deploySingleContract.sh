@@ -255,7 +255,7 @@ deploySingleContract() {
       # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
       SKIP_SIMULATION_FLAG=""
     elif [[ "$NETWORK" == "tempo" ]]; then
-      ADDITIONAL_FLAGS="--gas-limit 50000000"
+      ADDITIONAL_FLAGS="--gas-limit 40000000"
     fi
 
     echo "ADDITIONAL_FLAGS: $ADDITIONAL_FLAGS"
