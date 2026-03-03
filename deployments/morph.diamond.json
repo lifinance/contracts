@@ -48,6 +48,14 @@
       "0x8819A12ec23a97201d9Fb231Fc7e3B389673f707": {
         "Name": "AccessManagerFacet",
         "Version": ""
+      },
+      "0x830DAfBCAE31141f1f1BfDF96D6Ad545D4cc9bB4": {
+        "Name": "RelayFacet",
+        "Version": ""
+      },
+      "0xcFDe3d0c9d2Ced6cC5731439Ac8944De0E029Ce4": {
+        "Name": "RelayDepositoryFacet",
+        "Version": ""
       }
     },
     "Periphery": {
