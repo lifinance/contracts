@@ -787,7 +787,7 @@
     "verificationType": "blockscout",
     "explorerUrl": "https://explorer.morph.network",
     "explorerApiUrl": "https://explorer-api.morph.network/api",
-    "multicallAddress": "0xAcD82113982479B25E7c1D09858F0130921Dbbca",
+    "multicallAddress": "0xA403025927d715a41Ccbad5EAeBf2979055e639e",
     "safeAddress": "0x065F2837844Ca0883Eb3Fdd8A2d68cfAe770e5fb",
     "gasZipChainId": 340,
     "isZkEVM": false,
