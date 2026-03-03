@@ -359,8 +359,8 @@ function getHighestDeployedContractVersionFromMasterLog() {
     --limit=50 \
     --no-use-cache 2>/dev/null)
   EXIT_CODE=$?
-  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON array (line that is just "[" or "[ ")
-  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[] *$/,$ p')
+  # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON array (from first line starting with "[" to end; supports one-line and multi-line)
+  [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[]/,$ p')
 
   if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
     # Validate that the result is valid JSON before parsing
