@@ -44,6 +44,10 @@
       "0x10724aad575744B79f752a2838F85425041A66DC": {
         "Name": "WithdrawFacet",
         "Version": ""
+      },
+      "0x5aca0693c83b315800903Bb6f09E6A7473022B81": {
+        "Name": "AcrossFacetV4",
+        "Version": ""
       }
     },
     "Periphery": {

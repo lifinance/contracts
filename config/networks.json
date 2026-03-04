@@ -1145,7 +1145,7 @@
     "chainId": 4217,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "N/A",
-    "wrappedNativeAddress": "0x0000000000000000000000000000000000000000",
+    "wrappedNativeAddress": "0x0000000000000000000000000000000000000001",
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://rpc.tempo.xyz",
@@ -1159,7 +1159,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
-    "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error."
+    "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error. Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path (DeployAcrossFacetV4.s.sol uses allowZeroAddress for wrappedNativeAddress so tempo and similar networks can use this dummy value)."
   },
   "unichain": {
     "name": "unichain",
