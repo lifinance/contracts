@@ -1,5 +1,5 @@
 #!/bin/bash
-#
+# Changelog test: demo change in .sh (not included in contract changelog)
 
 # load env variables
 source .env

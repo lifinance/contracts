@@ -10,7 +10,7 @@ import { NotAContract } from "../Errors/GenericErrors.sol";
 /// @title Withdraw Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
-/// @custom:version 1.0.0
+/// @custom:version 1.0.2
 contract WithdrawFacet {
     /// Errors ///
 
@@ -25,6 +25,36 @@ contract WithdrawFacet {
     );
 
     /// External Methods ///
+
+    /// @notice Returns the facet version for integration and debugging.
+    /// @return The semantic version string (e.g. "1.0.2").
+    function getWithdrawFacetVersion() external pure returns (string memory) {
+        return "1.0.2";
+    }
+
+    /// @notice Returns the facet name for integration and debugging.
+    /// @return The facet name string.
+    function getWithdrawFacetName() external pure returns (string memory) {
+        return "WithdrawFacet";
+    }
+
+    /// @notice Batch withdraw multiple assets
+    /// @param _assetAddresses Array of asset addresses to withdraw
+    /// @param _to Address to withdraw to
+    /// @param _amounts Array of amounts to withdraw
+    function batchWithdraw(
+        address[] calldata _assetAddresses,
+        address _to,
+        uint256[] calldata _amounts
+    ) external {
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
+        require(_assetAddresses.length == _amounts.length, "Length mismatch");
+        for (uint256 i = 0; i < _assetAddresses.length; i++) {
+            _withdrawAsset(_assetAddresses[i], _to, _amounts[i]);
+        }
+    }
 
     /// @notice Execute call data and withdraw asset.
     /// @param _callTo The address to execute the calldata on.
