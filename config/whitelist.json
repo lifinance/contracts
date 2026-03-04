@@ -5061,6 +5061,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
         "selectors": [
@@ -5133,6 +5161,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x998d0712444FF9f63761DE3C77f541305B78E24F",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x527868EDbF533C3Ac540f4457405f701D9d4c7c1",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xe1E182Bf4AA042514368b264CD96544B3f0895cE",
         "selectors": [
@@ -5173,6 +5229,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x92A30698e56091f50a2a12947593A6cC46c55E39",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x9B6fc2dbb38dcc3461667DFCE9e6aD11F3f7D773",
         "selectors": [
@@ -5209,6 +5293,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -5259,6 +5371,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -5335,6 +5475,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
         "selectors": [
@@ -5407,6 +5575,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xb4a7493A203d10459F70Cfe73DfaBc2a739d60C3",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xbf7d441A5015d92357bB41DB2552E11619D62326",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x6295b30297C254108E0bF16C70D513d2043E3d45",
         "selectors": [
@@ -5457,6 +5653,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
         "selectors": [
@@ -5493,6 +5717,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x917F0625dD20f9a8eA45500361d2F1F1a39DF8DE",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -5537,6 +5789,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
         "selectors": [
@@ -5577,6 +5857,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x324de98D989705fe26A40B3009ca7e9aC21305aB",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x25fcf0C48ca9908c7a279027B669be5ea22c74FA",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x0AcF63fCabe57364a70F0cAAac536365AdcA7607",
         "selectors": [
@@ -5613,6 +5921,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -5667,6 +6003,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
         "selectors": [
@@ -5717,6 +6081,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xF6eE6152be29123e4E766f383257a49AC0678634",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x626391004E18ad5Aa7e36E8b810D77b7DC19aD59",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xEe2083f7f08df8492898307617f84477E4598BAb",
         "selectors": [
@@ -5753,6 +6145,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x693c18A628866BdD04956d9544Ce769C0e468149",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -5797,6 +6217,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xC623AAbE1aB0910c96404af70DBe16B603e7B928",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x4F204Bc48eE92B86c1142c1C97332AF7f30Bb68C",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x3450fA3ffbe594e8fA6850cACB0d0fa8Da49f099",
         "selectors": [
@@ -5833,6 +6281,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x324de98D989705fe26A40B3009ca7e9aC21305aB",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x0B4c7336AE02Bd3f1648dE8eb6B79a71300260a1",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -5877,6 +6353,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
         "selectors": [
@@ -5913,6 +6417,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xA5f21f42de766a7183609F4798D211A1CD490a3d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -5957,6 +6489,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
         "selectors": [
@@ -5993,6 +6553,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6069,6 +6657,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
         "selectors": [
@@ -6109,6 +6725,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
         "selectors": [
@@ -6145,6 +6789,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x36dff5e623257bA84f8e221eDd4f9081dc183D4e",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xdD73C6B0387018314FFBd4CB0b9F382771BB541A",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6199,6 +6871,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5C6Dd0170348666A3e07fD033C12D9D15c83e360",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xAcD913Ad6936Bb662395ac9a66D75bFc77c165fF",
         "selectors": [
@@ -6235,6 +6935,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x86E5a407385364B86B3e502644EfFee1a43C9a7b",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6279,6 +7007,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x9E4146C44f00e6b74A1e8eeF7a3Df3036A32De6D",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
         "selectors": [
@@ -6319,6 +7075,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x90Db26204afD5e127DDFe377462C1Fec1D22eef8",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xaB359008620d9368DD0D67A61D654DcdF095155c",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xE275759e85e5497A1B07EA65529187FD7E987509",
         "selectors": [
@@ -6355,6 +7139,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xA3cB8Ac8c250612FdA331F134EB60492b0d3bB10",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xF4841e27093bdE680962e5f4541e22d86AC4F538",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6409,6 +7221,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xf64532100038D383802F6f60C8928606B1B09Be1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x13A0486DCeEB9908D09bAD8136c0512D529383AC",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x642eeb39B287bB7809043aaE89bcfac2F409737D",
         "selectors": [
@@ -6449,6 +7289,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x645e8096781d98810226595B3e2411B5CcC4899E",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xf6C9605c6E231C1547b7a6545d93e7233f97322a",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
         "selectors": [
@@ -6485,6 +7353,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6539,6 +7435,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x0263180888007D45340F86eC0b610d250BbDcB23",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
         "selectors": [
@@ -6585,6 +7509,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xa8800ABdD6771dA7aAab2d09a5b97F4B8b19B58a",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6639,6 +7591,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x3515c6544f95Ef17a2c5d2666a43ce3d6b1C9553",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x01bDf46A673FC3c081ddBD21cb51fBA4972d00aC",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x9E4c63c9a0EDE2Ca2e772ee48C819Ca5CB4529AC",
         "selectors": [
@@ -6679,6 +7659,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
         "selectors": [
@@ -6715,6 +7723,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6765,6 +7801,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -6877,6 +7941,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x3D7986F13fE3d387D4CEb41cAb9403aB96E040D7",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x94Caf1ed23310Ef981AA60e378ab369D4875a7F7",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
         "selectors": [
@@ -6917,6 +8009,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x077A38b812e57E2e76849954c880E1a2f5e0A68d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
         "selectors": [
@@ -6953,6 +8073,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7021,6 +8169,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
         "selectors": [
@@ -7057,6 +8233,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xF6eE6152be29123e4E766f383257a49AC0678634",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x895eA96A8E1940463C40753CB472615fe215760A",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7107,6 +8311,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7183,6 +8415,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xc07c6BF7b8de75c53E4E341863cfe10955Bf298b",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x312AA44DBc5dEB0a4bA2AD9BbA21094CD5E6362e",
         "selectors": [
@@ -7223,6 +8483,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
         "selectors": [
@@ -7259,6 +8547,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7313,6 +8629,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
         "selectors": [
@@ -7349,6 +8693,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xc0c12F5F1D8E49D80755c736A5083696488342A6",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7417,6 +8789,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x51f5A9675A0663C3EC2b46121eB1504687922911",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xA03513f40409D1316c4958dbCef86e7Ab5Cd2009",
         "selectors": [
@@ -7467,6 +8867,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xEfA269B9405762E56ED0b35C428331ce4963dDFf",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xbBdf9FfB0Fe437280b14176a7EFC70c93896d9dd",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xa1f3bCb776Aca31Ce6EE8684B2F3184304F0a2F7",
         "selectors": [
@@ -7503,6 +8931,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x16a43D7db650c2B4D40484e4Ef29ab54B934A1C9",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7547,6 +9003,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x698F5d62E6841B3623907330B9883afFC3d6A6D3",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x349e00F0D4033CB7014Dbf12fdF9E80CFaf262Bc",
         "selectors": [
@@ -7583,6 +9067,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x9949c9A89146299828a96e77c70208Ab076326A2",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xBB99EbdfA348239ac16a1949E0e69d29e2957C98",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7627,6 +9139,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x645e8096781d98810226595B3e2411B5CcC4899E",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xD989E929517B0e5eD0c8EfE7607Fa167B697cBa8",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
         "selectors": [
@@ -7667,42 +9207,40 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x808828ED6633bb52e95a77D82fff1cF5991624e7",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xa586622A07b8e5Afc97cC37ea66CC045Ccb7bF1E",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xEfD58f4D96e21c7e2F7f07CdCD21fe131b11254b",
         "selectors": [
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      }
-    ],
-    "tempo": [
-      {
-        "name": "FeeCollector",
-        "address": "0x856305Ab6259E1E83FeE6a66b01672E9CfB84055",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xb421420EEf363d62108D040b70F0A8d580708AD1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
           }
         ]
       }
@@ -7735,6 +9273,20 @@
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
           }
         ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
       }
     ],
     "unichain": [
@@ -7763,6 +9315,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xc0c12F5F1D8E49D80755c736A5083696488342A6",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7831,6 +9411,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x324de98D989705fe26A40B3009ca7e9aC21305aB",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x48DD6d8b94fA02C65cC0476cB0270acEfc12Cd82",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
         "selectors": [
@@ -7871,6 +9479,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xCF7C4034025512EdeDAC9AFB77d0Bd03130222b8",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x0B4c7336AE02Bd3f1648dE8eb6B79a71300260a1",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
         "selectors": [
@@ -7907,6 +9543,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
@@ -7961,6 +9625,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x3D7986F13fE3d387D4CEb41cAb9403aB96E040D7",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x94Caf1ed23310Ef981AA60e378ab369D4875a7F7",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x12e271e8657C29cbFbc181Ce190BEd8ECB1Aa474",
         "selectors": [
@@ -8001,6 +9693,34 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x833Be894C596b15FAe740C2D522d660084c48B05",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
         "selectors": [
@@ -8037,6 +9757,34 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x4c0d29DD100aa9A94449B88abb958272791f011A",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0xf15485ada1a1826fA46225032b13F6A972eC73C1",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
           }
         ]
       },
