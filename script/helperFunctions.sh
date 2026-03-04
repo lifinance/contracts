@@ -16,6 +16,10 @@ BLUE='\033[1;34m'  # Light blue color
 
 NC='\033[0m' # No color
 
+# MongoDB query retry defaults (used by findContractInMasterLog, findContractInMasterLogByAddress,
+# getContractVersionFromMasterLog, getHighestDeployedContractVersionFromMasterLog, getConstructorArgsFromMasterLog)
+MONGO_MAX_RETRIES=${MONGO_MAX_RETRIES:-3}
+
 # >>>>> logging
 function logContractDeploymentInfo {
   # read function arguments into variables
@@ -195,7 +199,6 @@ function findContractInMasterLog() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION="$4"
-  local MAX_RETRIES=3
   local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
@@ -208,22 +211,24 @@ function findContractInMasterLog() {
   echoDebug "Querying MongoDB for findContractInMasterLog: $CONTRACT $NETWORK $ENVIRONMENT $VERSION"
 
   local attempt=1
-  while [[ $attempt -le $MAX_RETRIES ]]; do
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     local MONGO_EXIT_CODE=$?
 
     if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Strip leading non-JSON so jq sees only the object
+      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
       # Validate that the result is valid JSON before returning it
       if echo "$MONGO_RESULT" | jq . >/dev/null 2>&1; then
         echo "$MONGO_RESULT"
         return 0
       else
-        echoDebug "MongoDB returned invalid JSON for $CONTRACT on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+        echoDebug "MongoDB returned invalid JSON for $CONTRACT on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
       fi
     fi
 
-    if [[ $attempt -lt $MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
       sleep $RETRY_DELAY
       RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
@@ -237,7 +242,6 @@ function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET_ADDRESS="$3"
-  local MAX_RETRIES=3
   local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
@@ -250,10 +254,10 @@ function findContractInMasterLogByAddress() {
 
   local attempt=1
   local USE_CACHE=true
-  while [[ $attempt -le $MAX_RETRIES ]]; do
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
     local MONGO_RESULT
     # On last attempt, try without cache to ensure we get fresh data
-    if [[ $attempt -eq $MAX_RETRIES ]]; then
+    if [[ $attempt -eq $MONGO_MAX_RETRIES ]]; then
       USE_CACHE=false
       echoDebug "Cache query failed, trying direct MongoDB query (no cache) for address $TARGET_ADDRESS on $NETWORK"
     fi
@@ -273,12 +277,19 @@ function findContractInMasterLogByAddress() {
     local MONGO_EXIT=$?
 
     if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Strip leading non-JSON (e.g. consola/cache messages) so jq sees only the object
+      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
       # Validate that MONGO_RESULT is valid JSON
       if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
         # Convert MongoDB result to expected format
         local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
         local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
         local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+
+        # If version missing/empty in record, try to resolve by contract name from master log
+        if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" 2>/dev/null) || true
+        fi
 
         # Check for valid contract name and version (version can be empty string but not null)
         if [[ "$CONTRACT_NAME" != "null" && "$CONTRACT_NAME" != "" ]]; then
@@ -287,12 +298,12 @@ function findContractInMasterLogByAddress() {
           return 0
         fi
       else
-        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MAX_RETRIES)"
+        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
       fi
     fi
 
-    if [[ $attempt -lt $MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MAX_RETRIES)"
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
       sleep $RETRY_DELAY
       RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
@@ -307,6 +318,7 @@ function getContractVersionFromMasterLog() {
   local ENVIRONMENT="$2"
   local CONTRACT="$3"
   local TARGET_ADDRESS="$4"
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -314,26 +326,41 @@ function getContractVersionFromMasterLog() {
     return 1
   fi
 
-  echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS"
-  local MONGO_RESULT
-  local EXIT_CODE
-  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-    --env="$ENVIRONMENT" \
-    --network="$NETWORK" \
-    --address="$TARGET_ADDRESS" 2>/dev/null)
-  EXIT_CODE=$?
+  local attempt=1
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS (attempt $attempt/$MONGO_MAX_RETRIES)"
+    local MONGO_RESULT
+    local EXIT_CODE
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+      --env="$ENVIRONMENT" \
+      --network="$NETWORK" \
+      --address="$TARGET_ADDRESS" 2>/dev/null)
+    EXIT_CODE=$?
 
-  if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-    local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
+    if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
+      if echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
 
-    if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" ]]; then
-      echo "$VERSION"
-      return 0
+        if [[ "$CONTRACT_NAME" == "$CONTRACT" && "$VERSION" != "null" && -n "$VERSION" ]]; then
+          echo "$VERSION"
+          return 0
+        fi
+      else
+        echoDebug "MongoDB returned invalid JSON for getContractVersionFromMasterLog $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
+      fi
     fi
-  fi
 
-  # No matching entry found
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for getContractVersionFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  # No matching entry found after retries
   return 1
 }
 function getHighestDeployedContractVersionFromMasterLog() {
@@ -347,32 +374,45 @@ function getHighestDeployedContractVersionFromMasterLog() {
     return 1
   fi
 
-  echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT"
-  local MONGO_RESULT
-  local EXIT_CODE
-  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
-    --env="$ENVIRONMENT" \
-    --contract="$CONTRACT" \
-    --network="$NETWORK" \
-    --limit=50 2>/dev/null)
-  EXIT_CODE=$?
+  local RETRY_DELAY=1
+  local attempt=1
 
-  if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that the result is valid JSON before parsing
-    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
-      echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK"
-      return 1
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT (attempt $attempt/$MONGO_MAX_RETRIES)"
+    local MONGO_RESULT
+    local EXIT_CODE
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+      --env="$ENVIRONMENT" \
+      --contract="$CONTRACT" \
+      --network="$NETWORK" \
+      --limit=50 2>/dev/null)
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Strip leading non-JSON (e.g. cache/consola output) so jq sees only the array
+      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^\[/,$p')
+      # Validate that the result is valid JSON before parsing
+      if echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+        # Extract all versions and find the highest one using version sort
+        local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' 2>/dev/null | sort -V | tail -1)
+        if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" && "$HIGHEST_VERSION" != "" ]]; then
+          echo "$HIGHEST_VERSION"
+          return 0
+        fi
+      else
+        echoDebug "MongoDB returned invalid JSON for getHighestDeployedContractVersionFromMasterLog: $CONTRACT on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
+      fi
     fi
 
-    # Extract all versions and find the highest one using version sort
-    local HIGHEST_VERSION=$(echo "$MONGO_RESULT" | jq -r '.[].version' 2>/dev/null | sort -V | tail -1)
-    if [[ -n "$HIGHEST_VERSION" && "$HIGHEST_VERSION" != "null" && "$HIGHEST_VERSION" != "" ]]; then
-      echo "$HIGHEST_VERSION"
-      return 0
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for getHighestDeployedContractVersionFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
-  fi
+    attempt=$((attempt + 1))
+  done
 
-  # No matching entry found
+  # No matching entry found after retries
   return 1
 }
 # >>>>> MongoDB logging integration
@@ -645,6 +685,7 @@ function getConstructorArgsFromMasterLog() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
   local VERSION=${4:-} # Optional version parameter
+  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -662,33 +703,42 @@ function getConstructorArgsFromMasterLog() {
     fi
   fi
 
-  echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION"
+  local attempt=1
+  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION (attempt $attempt/$MONGO_MAX_RETRIES)"
+    local MONGO_RESULT
+    local EXIT_CODE
+    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
+      --env "$ENVIRONMENT" \
+      --contract "$CONTRACT" \
+      --network "$NETWORK" \
+      --version "$VERSION" 2>/dev/null)
+    EXIT_CODE=$?
 
-  # Query MongoDB for the specific deployment
-  local MONGO_RESULT
-  local EXIT_CODE
-  MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
-    --env "$ENVIRONMENT" \
-    --contract "$CONTRACT" \
-    --network "$NETWORK" \
-    --version "$VERSION" 2>/dev/null)
-  EXIT_CODE=$?
+    if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
+      # Strip leading non-JSON (e.g. debug) so jq sees only the object
+      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
+      # Validate that the result is valid JSON before parsing
+      if echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
+        # Accept both keys (MongoDB/cache may use constructorArgs or CONSTRUCTOR_ARGS)
+        local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.CONSTRUCTOR_ARGS // .constructorArgs // empty' 2>/dev/null)
 
-  if [[ $EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
-    # Validate that the result is valid JSON before parsing
-    if ! echo "$MONGO_RESULT" | jq empty >/dev/null 2>&1; then
-      echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK"
-      echo ""
-      return 1
+        if [[ -n "$CONSTRUCTOR_ARGS" && "$CONSTRUCTOR_ARGS" != "null" ]]; then
+          echo "$CONSTRUCTOR_ARGS"
+          return 0
+        fi
+      else
+        echoDebug "MongoDB returned invalid JSON for getConstructorArgsFromMasterLog: $CONTRACT on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
+      fi
     fi
 
-    local CONSTRUCTOR_ARGS=$(echo "$MONGO_RESULT" | jq -r '.constructorArgs' 2>/dev/null)
-
-    if [[ "$CONSTRUCTOR_ARGS" != "null" && -n "$CONSTRUCTOR_ARGS" ]]; then
-      echo "$CONSTRUCTOR_ARGS"
-      return 0
+    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB query failed for getConstructorArgsFromMasterLog $CONTRACT on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
     fi
-  fi
+    attempt=$((attempt + 1))
+  done
 
   echo ""
   return 1
@@ -799,8 +849,21 @@ function saveDiamondFacets() {
       JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
       if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
         warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
-        NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-        JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
+        NAME=""
+        VERSION=""
+        # Prefer existing Name/Version from current diamond log so we do not lose data when MongoDB fails
+        if [[ -f "$DIAMOND_FILE" ]]; then
+          NAME=$(jq -r --arg addr "$FACET_ADDRESS" --arg dn "$DIAMOND_NAME" '.[$dn].Facets[$addr].Name // ""' "$DIAMOND_FILE" 2>/dev/null || true)
+          VERSION=$(jq -r --arg addr "$FACET_ADDRESS" --arg dn "$DIAMOND_NAME" '.[$dn].Facets[$addr].Version // ""' "$DIAMOND_FILE" 2>/dev/null || true)
+        fi
+        if [[ -z "${NAME:-}" ]]; then
+          NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS" 2>/dev/null) || true
+        fi
+        # Version only from MongoDB (with retries inside getHighestDeployedContractVersionFromMasterLog)
+        if [[ -z "${VERSION:-}" && -n "${NAME:-}" ]]; then
+          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$NAME" 2>/dev/null) || true
+        fi
+        JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"${NAME:-}\", \"Version\": \"${VERSION:-}\"}}"
       fi
       echo "$JSON_ENTRY" >"$FACETS_DIR/${FACET_ADDRESS}.json"
     ) &
@@ -903,6 +966,10 @@ function saveDiamondPeriphery() {
     CONCURRENCY=10
   fi
 
+  # Split on spaces when iterating (callers like multiNetworkExecution.sh set IFS=$'\n\t' so names would not split otherwise)
+  local IFS_SAVE="$IFS"
+  IFS=' '
+
   # resolve each periphery address in parallel and write to temp files
   for CONTRACT in ${PERIPHERY_CONTRACTS}; do
     # throttle background jobs
@@ -930,6 +997,8 @@ function saveDiamondPeriphery() {
       MERGE_FILES+=("$FILEPATH")
     fi
   done
+
+  IFS="$IFS_SAVE"
 
   local PERIPHERY_JSON='{}'
   if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
