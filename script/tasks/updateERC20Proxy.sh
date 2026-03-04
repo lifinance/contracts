@@ -27,7 +27,7 @@ updateERC20Proxy() {
 	echo ""
 	echo "Setting $EXECUTOR as authorized caller for $ERC20PROXY on $NETWORK..."
 
-	universalCast "send" "$NETWORK" "production" "$ERC20PROXY" "setAuthorizedCaller(address,bool)" "$EXECUTOR" true
+	universalCast "send" "$NETWORK" "$ENVIRONMENT" "$ERC20PROXY" "setAuthorizedCaller(address,bool)" "$EXECUTOR true"
 	echo ""
 }
 
