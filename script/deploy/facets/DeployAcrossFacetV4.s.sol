@@ -30,10 +30,19 @@ contract DeployScript is DeployScriptBase {
             configPath,
             string.concat(".", network, ".acrossSpokePool")
         );
+
+        // allowNonContractAddress: true — some networks use a dummy wrappedNative (e.g. tempo uses
+        // address(1); see config/networks.json devNotes) when we don't activate the native path;
+        // the dummy is not address(0), so allowZeroAddress stays false; we only bypass the contract-code check.
         address wrappedNativeAddress = _getConfigContractAddress(
             networksPath,
-            string.concat(".", network, ".wrappedNativeAddress")
+            string.concat(".", network, ".wrappedNativeAddress"),
+            false, // allowZeroAddress (dummy is e.g. address(1), not zero)
+            true // allowNonContractAddress (dummy has no code)
         );
+
+        emit log_named_address("wrappedNativeAddress", wrappedNativeAddress);
+        emit log_named_address("acrossSpokePool", acrossSpokePool);
 
         // Convert address to bytes32 for V4 interface
         bytes32 wrappedNativeBytes32 = bytes32(
