@@ -35,7 +35,7 @@ import data from '../../../config/networks.json'
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   buildExplorerContractPageUrl,
-  getHttpTransportConfig,
+  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 
@@ -188,7 +188,7 @@ export class ViemSafe {
     let chain: Chain | undefined = undefined
 
     if (typeof provider === 'string') {
-      const { url, fetchOptions } = getHttpTransportConfig(provider)
+      const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
       publicClient = createPublicClient({
         transport: http(url, fetchOptions ? { fetchOptions } : {}),
       })
@@ -219,7 +219,7 @@ export class ViemSafe {
     const walletTransport =
       typeof provider === 'string'
         ? (() => {
-            const { url, fetchOptions } = getHttpTransportConfig(provider)
+            const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
             return http(url, fetchOptions ? { fetchOptions } : {})
           })()
         : http()
@@ -1918,7 +1918,8 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   try {
     const rpcUrl = chain.rpcUrls.default.http[0]
     if (!rpcUrl) throw new Error(`No RPC URL for network ${network}`)
-    const { url: transportUrl, fetchOptions } = getHttpTransportConfig(rpcUrl)
+    const { url: transportUrl, fetchOptions } =
+      getTransportConfigFromRpcUrl(rpcUrl)
     const publicClient = createPublicClient({
       chain,
       transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
@@ -1951,7 +1952,7 @@ export async function wrapWithTimelockSchedule(
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
   const { url: transportUrl, fetchOptions } =
-    getHttpTransportConfig(parsedRpcUrl)
+    getTransportConfigFromRpcUrl(parsedRpcUrl)
   const client = createPublicClient({
     chain,
     transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),

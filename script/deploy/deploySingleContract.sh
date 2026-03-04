@@ -258,10 +258,6 @@ deploySingleContract() {
       ADDITIONAL_FLAGS="--gas-limit 40000000"
     fi
 
-    echo "ADDITIONAL_FLAGS: $ADDITIONAL_FLAGS"
-    echo "SKIP_SIMULATION_FLAG: $SKIP_SIMULATION_FLAG"
-    echo "GAS_ESTIMATE_MULTIPLIER: $GAS_ESTIMATE_MULTIPLIER"
-
     # Execute, parse, and check return code
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge

@@ -35,9 +35,11 @@ export const networks: INetworksObject = networksConfig
 /**
  * Parses an RPC URL and, if it contains embedded credentials (user:pass@host),
  * returns a URL without credentials plus fetchOptions with Basic auth header.
- * Fetch strips URL-embedded credentials, so this is required for auth RPCs.
+ * The viem library cannot handle user:pass@host in the URL; it only supports
+ * authentication via the Authorization header, so this helper is required for
+ * auth-protected RPC endpoints.
  */
-export function getHttpTransportConfig(rpcUrl: string): {
+export function getTransportConfigFromRpcUrl(rpcUrl: string): {
   url: string
   fetchOptions?: { headers: Record<string, string> }
 } {

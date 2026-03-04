@@ -27,7 +27,7 @@ import {
 import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
-  getHttpTransportConfig,
+  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
   networks,
   type Network,
@@ -145,7 +145,8 @@ const main = defineCommand({
     else {
       const chain = getViemChainForNetworkName(networkLower)
       const rpcUrl = chain.rpcUrls.default.http[0]
-      const { url: transportUrl, fetchOptions } = getHttpTransportConfig(rpcUrl)
+      const { url: transportUrl, fetchOptions } =
+        getTransportConfigFromRpcUrl(rpcUrl)
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,

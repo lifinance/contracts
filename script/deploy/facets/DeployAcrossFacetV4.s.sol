@@ -41,9 +41,6 @@ contract DeployScript is DeployScriptBase {
             true // allowNonContractAddress (dummy has no code)
         );
 
-        emit log_named_address("wrappedNativeAddress", wrappedNativeAddress);
-        emit log_named_address("acrossSpokePool", acrossSpokePool);
-
         // Convert address to bytes32 for V4 interface
         bytes32 wrappedNativeBytes32 = bytes32(
             uint256(uint160(wrappedNativeAddress))
