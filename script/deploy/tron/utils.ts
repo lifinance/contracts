@@ -11,13 +11,21 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
+import { spawnAndCapture } from '../../utils/spawnAndCapture'
+import {
+  INITIAL_CALL_DELAY,
+  MAX_RETRIES,
+  RETRY_DELAY,
+  ZERO_ADDRESS,
+} from '../shared/constants'
+import { retryWithRateLimit } from '../shared/rateLimit'
 
 import {
-  DIAMOND_CUT_ENERGY_MULTIPLIER,
-  ZERO_ADDRESS,
-  MIN_BALANCE_REGISTRATION,
   DEFAULT_FEE_LIMIT_TRX,
+  DIAMOND_CUT_ENERGY_MULTIPLIER,
+  MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
 } from './constants'
 import type {
@@ -27,8 +35,8 @@ import type {
   IDiamondRegistrationResult,
 } from './types'
 
-// Re-export constants for backward compatibility
-export { DEFAULT_SAFETY_MARGIN } from './constants'
+// Re-export for callers that still import from tron/utils (used for both Tron and EVM)
+export { isRateLimitError, retryWithRateLimit } from '../shared/rateLimit'
 
 /**
  * Load compiled contract artifact from Forge output
@@ -93,14 +101,39 @@ export async function checkIsDeployedTron(
   deployedContracts: Record<string, string>,
   tronWeb: any
 ): Promise<boolean> {
-  if (!deployedContracts[contract]) return false
+  if (!deployedContracts[contract]) {
+    consola.warn(
+      `Contract "${contract}" not found in deployments file. Ensure deployments/tron.json (or .staging) contains this contract.`
+    )
+    return false
+  }
+
+  // For Tron, addresses in deployments are already in Tron format
+  const tronAddress = deployedContracts[contract]
+
+  // Add initial delay for Tron to avoid rate limits
+  await sleep(INITIAL_CALL_DELAY)
 
   try {
-    // For Tron, addresses in deployments are already in Tron format
-    const tronAddress = deployedContracts[contract]
-    const contractInfo = await tronWeb.trx.getContract(tronAddress)
-    return contractInfo && contractInfo.contract_address
-  } catch {
+    // TronWeb getContract return type is underspecified; shape includes contract_address when contract exists
+    type GetContractResult = { contract_address?: string } | null
+    const contractInfo = await retryWithRateLimit<GetContractResult>(
+      () =>
+        tronWeb.trx.getContract(tronAddress) as Promise<GetContractResult>,
+      MAX_RETRIES,
+      RETRY_DELAY
+    )
+    const address = contractInfo?.contract_address
+    if (address) return true
+    consola.warn(
+      `Contract "${contract}" at ${tronAddress}: getContract returned no contract_address (contract may not exist on-chain).`
+    )
+    return false
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    consola.warn(
+      `Contract "${contract}" at ${tronAddress}: getContract failed after retries. Reason: ${msg}`
+    )
     return false
   }
 }
@@ -115,18 +148,7 @@ export async function checkIsDeployedTron(
  * @returns The command output
  */
 export async function executeShellCommand(command: string): Promise<string> {
-  const proc = Bun.spawn(['bash', '-c', command], {
-    cwd: process.cwd(),
-    env: process.env,
-  })
-
-  const output = await new Response(proc.stdout).text()
-  const exitCode = await proc.exited
-
-  if (exitCode !== 0)
-    throw new Error(`Command failed with exit code ${exitCode}: ${command}`)
-
-  return output.trim()
+  return spawnAndCapture('bash', ['-c', command])
 }
 
 /**
@@ -875,7 +897,7 @@ export async function waitBetweenDeployments(
 
       if (i < numCalls - 1) {
         // Wait between calls (except for the last one)
-        await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+        await sleep(delayPerCall)
       }
     } catch (error) {
       // If RPC call fails, fall back to simple timeout
@@ -884,7 +906,7 @@ export async function waitBetweenDeployments(
           `RPC call failed during wait, using timeout fallback: ${error}`
         )
       }
-      await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+      await sleep(delayPerCall)
     }
   }
 }
