@@ -3,59 +3,59 @@
     "Facets": {
       "0x24601F729cFce5288764Eff6C237033236DFd843": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x12d5427De38bf6e754a21EA7Eaf8c1eE8cd7Aa5c": {
         "Name": "DiamondLoupeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xEdd18b2963AF9F3ab6A62F22d7A8F6820F364A34": {
         "Name": "GasZipFacet",
-        "Version": ""
+        "Version": "2.0.5"
       },
       "0x99E1a2E574100e07EA059FA5c010cC86Df26a046": {
         "Name": "WhitelistManagerFacet",
-        "Version": ""
+        "Version": "1.1.0"
       },
       "0x49ee202b84be232126a308F20b7AD42162184A45": {
         "Name": "PeripheryRegistryFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x8Cb61c9a0E167E6A6DD8f84095b4Ebe49EC14c96": {
         "Name": "WithdrawFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xf8bd3B0c644183FcDf04D9e2DCE8F12AfD5aD004": {
         "Name": "OwnershipFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x212A939104B8c7341D84e70CA2A5d4cB8C966b53": {
         "Name": "EmergencyPauseFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0x0A14228AC6477646576966D03eBDADce8D5C83bb": {
         "Name": "GenericSwapFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xb1e9A4b09e2b8c35D21Ede99Fa60276fe0647551": {
         "Name": "GenericSwapFacetV3",
-        "Version": ""
+        "Version": "1.0.2"
       },
       "0xC2B440c209890caA45952F6143c116204994c0D2": {
         "Name": "CalldataVerificationFacet",
-        "Version": ""
+        "Version": "1.3.1"
       },
       "0x8819A12ec23a97201d9Fb231Fc7e3B389673f707": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x830DAfBCAE31141f1f1BfDF96D6Ad545D4cc9bB4": {
         "Name": "RelayFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0xcFDe3d0c9d2Ced6cC5731439Ac8944De0E029Ce4": {
         "Name": "RelayDepositoryFacet",
-        "Version": ""
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
