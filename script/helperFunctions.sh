@@ -16,10 +16,6 @@ BLUE='\033[1;34m'  # Light blue color
 
 NC='\033[0m' # No color
 
-# MongoDB query retry defaults (used by findContractInMasterLog, findContractInMasterLogByAddress,
-# getContractVersionFromMasterLog, getHighestDeployedContractVersionFromMasterLog, getConstructorArgsFromMasterLog)
-MONGO_MAX_RETRIES=${MONGO_MAX_RETRIES:-3}
-
 # >>>>> logging
 function logContractDeploymentInfo {
   # read function arguments into variables
