@@ -2246,7 +2246,8 @@
         "GasZipPeriphery": "1.0.2",
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.2.1",
-        "Permit2Proxy": "1.0.4"
+        "Permit2Proxy": "1.0.4",
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   }
