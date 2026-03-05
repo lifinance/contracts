@@ -78,6 +78,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "arctestnet": {
+    "name": "arctestnet",
+    "chainId": 5042002,
+    "nativeAddress": "0x3600000000000000000000000000000000000000",
+    "nativeCurrency": "USDC",
+    "wrappedNativeAddress": "0x0000000000000000000000000000000000000001",
+    "status": "active",
+    "type": "testnet",
+    "rpcUrl": "https://rpc.testnet.arc.network/",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://testnet.arcscan.app",
+    "explorerApiUrl": "https://testnet.arcscan.app/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeAddress": "0x74FF5a888bcBf6dA92b57acc2690F95763728b66",
+    "gasZipChainId": 0,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d"
+  },
   "avalanche": {
     "name": "avalanche",
     "chainId": 43114,
