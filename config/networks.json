@@ -96,7 +96,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d"
+    "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
+    "castSendAsync": true
   },
   "avalanche": {
     "name": "avalanche",
