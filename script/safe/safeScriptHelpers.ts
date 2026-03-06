@@ -19,8 +19,9 @@ import {
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 /**
- * Sends the calldata directly to the Diamond (if staging or override enabled),
- * or proposes it to the Safe (if production).
+ * Sends calldata directly to the Diamond when staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
+ * (e.g. new production networks before ownership transfer). Otherwise proposes to the Safe.
+ * Timelock wrapping is not handled here; use propose-to-safe with --timelock when creating proposals if needed.
  */
 export async function sendOrPropose({
   calldata,

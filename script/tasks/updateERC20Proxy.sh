@@ -2,7 +2,6 @@
 
 #TODO:
 # - update script
-# - call with ENVIRONMENT
 # - add private key distinction
 
 updateERC20Proxy() {
@@ -27,7 +26,7 @@ updateERC20Proxy() {
 	echo ""
 	echo "Setting $EXECUTOR as authorized caller for $ERC20PROXY on $NETWORK..."
 
-	cast send $ERC20PROXY "setAuthorizedCaller(address, bool)" $EXECUTOR true --private-key $PRIVATE_KEY_PRODUCTION --rpc-url "$RPC_URL" --legacy
+	universalCast "send" "$NETWORK" "$ENVIRONMENT" "$ERC20PROXY" "setAuthorizedCaller(address,bool)" "$EXECUTOR true" "false"
 	echo ""
 }
 

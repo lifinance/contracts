@@ -3,6 +3,8 @@ name: Solidity baseline
 description: Baseline rules for all Solidity files (contracts, scripts, tests)
 globs:
   - '**/*.sol'
+  - '**/*.s.sol'
+  - '**/*.t.sol'
 ---
 
 ## Licensing ([CONV:LICENSE])

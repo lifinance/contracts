@@ -15,6 +15,7 @@ globs:
 ## Code Quality
 
 - Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
+- When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
@@ -38,6 +39,17 @@ globs:
 ## Demo Scripts
 
 - When referring to "demo script", this means scripts in `script/demoScripts/`. They follow similar structural patterns (e.g., `main()` function, `setupEnvironment()`, helpers from `demoScriptHelpers`). See `demoLidoWrapper.ts`, `demoUnit.ts`, `demoEco.ts` as reference examples.
+
+## Solana addresses and dev wallet address ([CONV:SOLANA-DEV-WALLET])
+
+- **Solana addresses (base58, bytes32)**: Derive dynamically from the signer’s private key. Do **not** hardcode Solana addresses or store them in config (e.g. `config/global.json`).
+  - **Source**: `script/demoScripts/utils/demoScriptHelpers.ts`
+  - **Base58**: `deriveSolanaAddress(privateKey)` — use for logging, Solana APIs, or ATA computation.
+  - **Bytes32**: `solanaAddressToBytes32(deriveSolanaAddress(privateKey))` — use for contract/struct fields that expect bytes32 (e.g. non-EVM receiver, mintRecipient).
+  - **Private key**: `getPrivateKeyForEnvironment(EnvironmentEnum.staging)` (or `EnvironmentEnum.production`) from `demoScriptHelpers`. Example: `demoAcrossV4.ts`, `demoPolymerCCTP.ts`, `demoNEARIntents.ts`.
+- **Dev wallet (EVM)**: Use a single source of truth from config.
+  - Use **only** `DEV_WALLET_ADDRESS` from `script/demoScripts/utils/demoScriptHelpers.ts` (it reads `config/global.json` → `devWallet`). Do not use `globalConfig.devWallet` elsewhere.
+  - Do not add or use separate constants for the same EVM dev wallet (e.g. no `ADDRESS_DEV_WALLET_V5`-style aliases).
 
 ## CLI and Logging
 

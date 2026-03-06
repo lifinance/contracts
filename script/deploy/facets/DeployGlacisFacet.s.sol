@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
@@ -24,7 +24,7 @@ contract DeployScript is DeployScriptBase {
 
         address airlift = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".airlift")
+            string.concat(".airlift.", network)
         );
 
         return abi.encode(airlift);

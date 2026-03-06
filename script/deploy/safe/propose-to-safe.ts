@@ -89,6 +89,12 @@ const main = defineCommand({
       description: 'Wrap the transaction in a timelock schedule call',
       required: false,
     },
+    safeAddress: {
+      type: 'string',
+      description:
+        'Override Safe address (default: from config for network). Use to propose to a different Safe (e.g. old Safe for admin transfer).',
+      required: false,
+    },
   },
   /**
    * Executes the propose-to-safe command
@@ -134,13 +140,17 @@ const main = defineCommand({
       derivationPath: args.derivationPath,
     }
 
-    // Initialize Safe client
+    // Initialize Safe client (use --safeAddress override when proposing to a different Safe)
+    const safeAddressOverride = args.safeAddress
+      ? (getAddress(args.safeAddress) as Address)
+      : undefined
     const { safe, chain, safeAddress } = await initializeSafeClient(
       args.network,
       privateKey,
       args.rpcUrl,
       useLedger,
-      ledgerOptions
+      ledgerOptions,
+      safeAddressOverride
     )
 
     // Get the account address

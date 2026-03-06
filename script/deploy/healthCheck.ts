@@ -24,6 +24,7 @@ import {
   pauserWallet,
   whitelistPeripheryFunctions,
 } from '../../config/global.json'
+import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
   getViemChainForNetworkName,
@@ -116,16 +117,21 @@ const main = defineCommand({
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
-      nonCoreFacets = Object.keys(
-        targetStateJson[networkLower]['production'].LiFiDiamond
-      ).filter((k) => {
-        return (
-          !coreFacetsToCheck.includes(k) &&
-          !corePeriphery.includes(k) &&
-          k !== 'LiFiDiamond' &&
-          k.includes('Facet')
+      const networkTarget = targetStateJson[networkLower]?.production
+      if (!networkTarget?.LiFiDiamond) {
+        consola.warn(
+          `Network '${networkLower}' not in target state; skipping non-core facet comparison`
         )
-      })
+      } else {
+        nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter((k) => {
+          return (
+            !coreFacetsToCheck.includes(k) &&
+            !corePeriphery.includes(k) &&
+            k !== 'LiFiDiamond' &&
+            k.includes('Facet')
+          )
+        })
+      }
     }
 
     const globalConfig = await import('../../config/global.json')
@@ -356,7 +362,7 @@ const main = defineCommand({
 
     const deployerWallet = getAddress(
       environment === 'staging'
-        ? globalConfig.devWallet
+        ? DEV_WALLET_ADDRESS
         : globalConfig.deployerWallet
     )
 
@@ -829,17 +835,37 @@ const checkWhitelistIntegrity = async (
     // --- 2. Check Config vs. On-Chain Contract Functions (Multicall) ---
     consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
 
-    // Check source of truth: isContractSelectorWhitelisted
-    const granularMulticall = expectedPairs.map((pair) => ({
-      address: whitelistManager.address,
-      abi: whitelistManager.abi,
-      functionName: 'isContractSelectorWhitelisted',
-      args: [pair.contract, pair.selector],
-    }))
-    const granularResults = await publicClient.multicall({
-      contracts: granularMulticall,
-      allowFailure: false,
-    })
+    // Check if multicall3 is available on this chain
+    const hasMulticall3 =
+      publicClient.chain?.contracts?.multicall3 !== undefined
+
+    let granularResults: boolean[]
+    if (hasMulticall3) {
+      // Use multicall if available
+      const granularMulticall = expectedPairs.map((pair) => ({
+        address: whitelistManager.address,
+        abi: whitelistManager.abi,
+        functionName: 'isContractSelectorWhitelisted',
+        args: [pair.contract, pair.selector],
+      }))
+      granularResults = await publicClient.multicall({
+        contracts: granularMulticall,
+        allowFailure: false,
+      })
+    } else {
+      // Fallback to individual calls if multicall3 is not available
+      consola.info(
+        'Multicall3 not available on this chain, using individual calls...'
+      )
+      granularResults = await Promise.all(
+        expectedPairs.map((pair) =>
+          whitelistManager.read.isContractSelectorWhitelisted([
+            pair.contract,
+            pair.selector,
+          ])
+        )
+      )
+    }
 
     let granularFails = 0
     granularResults.forEach((isWhitelisted, index) => {

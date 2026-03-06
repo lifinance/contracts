@@ -157,7 +157,7 @@ function handleNetwork() {
   fi
 
   # check if the diamond is already paused by calling owner() function and analyzing the response
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
   # only required if we dont expect the diamond to be paused
   if [[ "$ACTION" != "unpause the diamond" ]]; then
     # Check for errors in the response
@@ -185,7 +185,7 @@ function handleNetwork() {
       if [ "$ACTION" == "pause the diamond contract entirely" ]; then
         # pause the diamond
         echoDebug "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from wallet $DEPLOYER (requires PRIVATE_KEY_PAUSER_WALLET to be set in .env file)"
-        cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy >/dev/null
+        universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET" >/dev/null
       else
         # unpause the diamond
         echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig via timelock now with blacklisted facets: $BLACKLIST"
@@ -206,7 +206,7 @@ function handleNetwork() {
       fi
 
       # call diamond with PauserWallet to remove facet
-      cast send "$DIAMOND_ADDRESS" "removeFacet(address)" "$FACET_ADDRESS" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
+      universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "removeFacet(address)" "$FACET_ADDRESS" "" "$PRIVATE_KEY_PAUSER_WALLET"
     fi
 
     # check the return code of the last call

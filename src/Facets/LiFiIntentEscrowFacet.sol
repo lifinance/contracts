@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -19,7 +20,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 /// @title LiFiIntentEscrowFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler
-/// @custom:version 1.1.0
+/// @custom:version 1.1.1
 contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
@@ -27,6 +28,15 @@ contract LiFiIntentEscrowFacet is
     Validatable,
     LiFiData
 {
+    modifier validateBridgeDataLiFiIntentEscrow(
+        ILiFi.BridgeData memory _bridgeData
+    ) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver))
+            revert InvalidReceiver();
+        if (_bridgeData.minAmount == 0) revert InvalidAmount();
+        _;
+    }
+
     /// Errors ///
 
     error InvalidDepositAndRefundAddress();
@@ -74,7 +84,7 @@ contract LiFiIntentEscrowFacet is
 
     /// @param _inputSettler LIFIIntent Escrow / settlement implementation
     constructor(address _inputSettler) {
-        if (_inputSettler == address(0)) revert InvalidConfig();
+        if (LibUtil.isZeroAddress(_inputSettler)) revert InvalidConfig();
         LIFI_INTENT_ESCROW_SETTLER = _inputSettler;
     }
 
@@ -90,7 +100,7 @@ contract LiFiIntentEscrowFacet is
         external
         nonReentrant
         noNativeAsset(_bridgeData)
-        validateBridgeData(_bridgeData)
+        validateBridgeDataLiFiIntentEscrow(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
         if (_lifiIntentData.depositAndRefundAddress == address(0))
@@ -117,7 +127,7 @@ contract LiFiIntentEscrowFacet is
         noNativeAsset(_bridgeData)
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
-        validateBridgeData(_bridgeData)
+        validateBridgeDataLiFiIntentEscrow(_bridgeData)
     {
         address depositAndRefundAddress = _lifiIntentData
             .depositAndRefundAddress;

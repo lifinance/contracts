@@ -156,6 +156,10 @@
       "0xb312fA96d1206998D815b4e243994DeE6E285d4C": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.2"
+      },
+      "0x22b7d50c553c720A27B4870Aed36Dc6AF9F584CC": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

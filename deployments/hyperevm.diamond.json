@@ -88,6 +88,10 @@
       "0x6496DB316c9aB67C80baF5e2a592e8087d7C8023": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
+      },
+      "0x394326008eAF5Bd575977338Be9A48879aB058F8": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

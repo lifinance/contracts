@@ -59,18 +59,8 @@ acceptOwnershipTransferPeriphery() {
         "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
         "true"
 
-      # check return data for error message (regardless of return code as this is not 100% reliable)
-      if [[ "${RAW_RETURN_DATA:-}" == *"\"logs\":[]"* && "${RAW_RETURN_DATA:-}" == *"\"returns\":{}"* ]]; then
-        # try to extract error message and throw error
-        ERROR_MESSAGE=$(echo "${RAW_RETURN_DATA:-}" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-        if [[ $ERROR_MESSAGE == "" ]]; then
-          error "execution of script failed. Could not extract error message. RAW_RETURN_DATA: ${RAW_RETURN_DATA:-}"
-        else
-          error "execution of script failed with message: $ERROR_MESSAGE"
-        fi
-
-      # check the return code the last call
-      elif [[ "${RETURN_CODE:-1}" -eq 0 && "${RAW_RETURN_DATA:-}" != *"\"returns\":{}"* ]]; then
+      # Handle errors using centralized helper function
+      if handleForgeScriptError "forge script failed for AcceptOwnershipTransferPeriphery" "attempt $attempts/10" "$CURRENT_NETWORK"; then
         break  # exit the loop if the operation was successful
       fi
 

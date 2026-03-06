@@ -189,9 +189,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+      "0x06A8fA5B326F663507FfF045B90351a9DCF3f9B1": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
         "Name": "EcoFacet",
@@ -205,13 +205,25 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x13Dab942D27D5E84584c163fE0D732901b4733E3": {
+      "0x9C820C1569ffE99DCF54BBDf3C54682E33a40379": {
         "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.1"
+        "Version": "1.0.0"
       },
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0xa8deB34CDD4915D3D5E37e622fB2585bC2c1a7d6": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.0"
+      },
+      "0xC31f575546A12Bc9dEf107CE19a242cd351BaDe2": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xBdE21104479e1373a20F487D3f6ffDED62574FA7": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

@@ -50,11 +50,11 @@ scriptMaster() {
     forge build
   fi
 
-  # warn if SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true and this should only be activated for new network deployments
+  # Warn when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: scripts will send directly to diamond instead of proposing to Safe; use only for new production networks before ownership transfer
   if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
     echo ""
     echo ""
-    warning "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true. This should only be activated for new network deployments."
+    warning "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is set to true (send directly to diamond; use only for new production networks before ownership transfer)."
     echo ""
     echo ""
   fi

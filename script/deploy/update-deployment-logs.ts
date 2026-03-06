@@ -15,8 +15,8 @@ import { createInterface } from 'readline'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
-  type Db,
   type Collection,
+  type Db,
   type IndexSpecification,
   MongoClient,
 } from 'mongodb'
@@ -24,6 +24,7 @@ import {
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
+import { createDefaultCache } from './shared/deployment-cache'
 import {
   type IDeploymentRecord,
   type IUpdateConfig,
@@ -46,6 +47,18 @@ const config: IUpdateConfig = {
   ),
   batchSize: 100,
   databaseName: 'contract-deployments',
+}
+
+/** Invalidate deployment cache for an environment after writing to MongoDB */
+async function invalidateDeploymentCache(
+  environment: keyof typeof EnvironmentEnum
+): Promise<void> {
+  const cache = createDefaultCache({
+    mongoUri: config.mongoUri,
+    batchSize: config.batchSize,
+    databaseName: config.databaseName,
+  })
+  await cache.invalidate(environment)
 }
 
 // Helper function for user confirmation
@@ -603,6 +616,9 @@ const syncCommand = defineCommand({
 
       if (shouldSync) {
         await manager.syncDeployments(args.mode as 'merge' | 'overwrite')
+        await invalidateDeploymentCache(
+          args.env as keyof typeof EnvironmentEnum
+        )
       }
     } catch (error) {
       consola.error('Sync failed:', error)
@@ -731,6 +747,7 @@ const addCommand = defineCommand({
         `Adding deployment record: ${args.contract} on ${args.network}`
       )
       await manager.upsertDeployment(record)
+      await invalidateDeploymentCache(args.env as keyof typeof EnvironmentEnum)
       consola.success(
         `Successfully added/updated deployment: ${args.contract} on ${args.network}`
       )
@@ -885,6 +902,7 @@ const updateCommand = defineCommand({
         args.address,
         updates
       )
+      await invalidateDeploymentCache(args.env as keyof typeof EnvironmentEnum)
     } catch (error) {
       consola.error('Update operation failed:', error)
       exitCode = 1
