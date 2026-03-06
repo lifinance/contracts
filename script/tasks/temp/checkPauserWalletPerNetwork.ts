@@ -104,7 +104,8 @@ async function getTronBalance(
   networkName: string,
   address: Address
 ): Promise<{ balance: string; formattedBalance: string }> {
-  const env: 'mainnet' | 'testnet' = networkName === 'tron' ? 'mainnet' : 'testnet'
+  const env: 'mainnet' | 'testnet' =
+    networkName === 'tron' ? 'mainnet' : 'testnet'
   const tronWeb = initTronWeb(env, undefined)
 
   // Convert EVM address to Tron address if needed
@@ -270,9 +271,7 @@ async function checkNetworkPauserWallet(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
-      status.errors.push(
-        `Failed to check EmergencyPauseFacet: ${errorMessage}`
-      )
+      status.errors.push(`Failed to check EmergencyPauseFacet: ${errorMessage}`)
       status.hasEmergencyPauseFacet = false
       status.registeredSelectors = {
         pauseDiamond: false,
@@ -309,12 +308,8 @@ async function checkNetworkPauserWallet(
         console.log(
           `[${networkName} (${environment})] ⚠️  Pauser wallet DOES NOT MATCH config`
         )
-        console.log(
-          `  On-chain: ${status.pauserWalletOnChain}`
-        )
-        console.log(
-          `  Config:   ${expectedPauserWallet}`
-        )
+        console.log(`  On-chain: ${status.pauserWalletOnChain}`)
+        console.log(`  Config:   ${expectedPauserWallet}`)
       }
 
       // Wait 3 seconds before checking balance
@@ -430,14 +425,22 @@ function printTable(results: IPauserWalletStatus[]) {
   )
 
   // Header
-  const headerLine = `${'Network'.padEnd(networkWidth)} | ${'Diamond Address'.padEnd(
-    diamondWidth
-  )} | ${'Pauser Wallet'.padEnd(pauserWidth)} | ${'Match'.padEnd(matchWidth)} | ${'Facet'.padEnd(facetWidth)} | ${'Selectors'.padEnd(selectorsWidth)} | ${'Balance'.padEnd(balanceWidth)}`
+  const headerLine = `${'Network'.padEnd(
+    networkWidth
+  )} | ${'Diamond Address'.padEnd(diamondWidth)} | ${'Pauser Wallet'.padEnd(
+    pauserWidth
+  )} | ${'Match'.padEnd(matchWidth)} | ${'Facet'.padEnd(
+    facetWidth
+  )} | ${'Selectors'.padEnd(selectorsWidth)} | ${'Balance'.padEnd(
+    balanceWidth
+  )}`
   console.log('\n')
   console.log('Legend:')
   console.log('  Match: Pauser wallet matches config')
   console.log('  Facet: All EmergencyPauseFacet selectors are registered')
-  console.log('  Selectors: pauseDiamond, removeFacet, unpauseDiamond, pauserWallet')
+  console.log(
+    '  Selectors: pauseDiamond, removeFacet, unpauseDiamond, pauserWallet'
+  )
   console.log('  Balance: Native token balance of pauser wallet')
   console.log('')
   console.log(headerLine)
@@ -467,7 +470,9 @@ function printTable(results: IPauserWalletStatus[]) {
     let selectorsStatus = 'N/A'
     if (result.registeredSelectors) {
       const s = result.registeredSelectors
-      selectorsStatus = `${formatStatus(s.pauseDiamond)} ${formatStatus(s.removeFacet)} ${formatStatus(s.unpauseDiamond)} ${formatStatus(s.pauserWallet)}`
+      selectorsStatus = `${formatStatus(s.pauseDiamond)} ${formatStatus(
+        s.removeFacet
+      )} ${formatStatus(s.unpauseDiamond)} ${formatStatus(s.pauserWallet)}`
     }
     const selectors = selectorsStatus.padEnd(selectorsWidth)
 
@@ -486,7 +491,9 @@ function printTable(results: IPauserWalletStatus[]) {
 
     const line = `${getColorCode(networkColor)}${networkName}${getColorCode(
       'reset'
-    )} | ${diamondAddress} | ${pauserWallet} | ${match} | ${facet} | ${selectors} | ${getColorCode(balanceColor)}${balance}${getColorCode('reset')}`
+    )} | ${diamondAddress} | ${pauserWallet} | ${match} | ${facet} | ${selectors} | ${getColorCode(
+      balanceColor
+    )}${balance}${getColorCode('reset')}`
 
     console.log(line)
   }
@@ -506,9 +513,9 @@ function printTable(results: IPauserWalletStatus[]) {
   console.log('')
   console.log('Summary:')
   console.log(
-    `  ${getColorCode('green')}✅ Pauser wallet matches config: ${allMatchCount}${getColorCode(
-      'reset'
-    )}`
+    `  ${getColorCode(
+      'green'
+    )}✅ Pauser wallet matches config: ${allMatchCount}${getColorCode('reset')}`
   )
   console.log(
     `  ${getColorCode('yellow')}⚠️  Pauser wallet does not match: ${
@@ -517,12 +524,16 @@ function printTable(results: IPauserWalletStatus[]) {
   )
   console.log('')
   console.log(
-    `  ${getColorCode('green')}✅ EmergencyPauseFacet registered: ${hasFacetCount}${getColorCode(
+    `  ${getColorCode(
+      'green'
+    )}✅ EmergencyPauseFacet registered: ${hasFacetCount}${getColorCode(
       'reset'
     )}`
   )
   console.log(
-    `  ${getColorCode('yellow')}⚠️  EmergencyPauseFacet missing: ${missingFacetCount}${getColorCode(
+    `  ${getColorCode(
+      'yellow'
+    )}⚠️  EmergencyPauseFacet missing: ${missingFacetCount}${getColorCode(
       'reset'
     )}`
   )
@@ -540,14 +551,14 @@ function printTable(results: IPauserWalletStatus[]) {
       parseFloat(r.formattedBalance) === 0
   )
   console.log(
-    `  ${getColorCode('green')}✅ Pauser wallet with balance > 0: ${nonZeroBalances.length}${getColorCode(
-      'reset'
-    )}`
+    `  ${getColorCode('green')}✅ Pauser wallet with balance > 0: ${
+      nonZeroBalances.length
+    }${getColorCode('reset')}`
   )
   console.log(
-    `  ${getColorCode('yellow')}⚠️  Pauser wallet with balance = 0: ${zeroBalances.length}${getColorCode(
-      'reset'
-    )}`
+    `  ${getColorCode('yellow')}⚠️  Pauser wallet with balance = 0: ${
+      zeroBalances.length
+    }${getColorCode('reset')}`
   )
 
   // Show networks with errors separately
@@ -559,7 +570,9 @@ function printTable(results: IPauserWalletStatus[]) {
       }${getColorCode('reset')}`
     )
     console.log('')
-    console.log('Networks with errors (check RPC connectivity or EmergencyPauseFacet deployment):')
+    console.log(
+      'Networks with errors (check RPC connectivity or EmergencyPauseFacet deployment):'
+    )
     for (const result of networksWithErrors) {
       const firstError = result.errors[0]
       if (firstError) {
@@ -597,7 +610,9 @@ function printTable(results: IPauserWalletStatus[]) {
   )
   if (networksMissingFacet.length > 0) {
     console.log('')
-    console.log('Networks missing EmergencyPauseFacet or with partial selectors:')
+    console.log(
+      'Networks missing EmergencyPauseFacet or with partial selectors:'
+    )
     for (const result of networksMissingFacet) {
       console.log(
         `  ${getColorCode('yellow')}${result.network} (${
@@ -636,9 +651,7 @@ function printTable(results: IPauserWalletStatus[]) {
           result.environment
         }):${getColorCode('reset')}`
       )
-      console.log(
-        `    Pauser wallet: ${result.pauserWalletOnChain || 'N/A'}`
-      )
+      console.log(`    Pauser wallet: ${result.pauserWalletOnChain || 'N/A'}`)
       console.log(
         `    Balance: ${result.formattedBalance} ${result.nativeCurrency || ''}`
       )
@@ -658,15 +671,15 @@ function printTable(results: IPauserWalletStatus[]) {
           result.environment
         }):${getColorCode('reset')}`
       )
-      console.log(
-        `    Error: ${result.balanceError}`
-      )
+      console.log(`    Error: ${result.balanceError}`)
     }
   }
 
   console.log('')
   console.log(
-    `Expected pauser wallet from config/global.json: ${results[0]?.pauserWalletInConfig || 'N/A'}`
+    `Expected pauser wallet from config/global.json: ${
+      results[0]?.pauserWalletInConfig || 'N/A'
+    }`
   )
   console.log('\n')
 }
@@ -708,7 +721,7 @@ async function main() {
         checkNetworkPauserWallet(
           networkName as SupportedChain,
           networkConfig as INetwork,
-        'production',
+          'production',
           expectedPauserWallet
         )
       )
