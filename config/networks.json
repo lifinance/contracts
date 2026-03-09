@@ -775,6 +775,27 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "morph": {
+    "name": "morph",
+    "chainId": 2818,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x5300000000000000000000000000000000000011",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.morph.network",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://explorer.morph.network",
+    "explorerApiUrl": "https://explorer-api.morph.network/api",
+    "multicallAddress": "0xA403025927d715a41Ccbad5EAeBf2979055e639e",
+    "safeAddress": "0x065F2837844Ca0883Eb3Fdd8A2d68cfAe770e5fb",
+    "gasZipChainId": 340,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": "0x8a08535E676c51c24DAf6Ae548BE394B38591EAC",
+    "devNotes": ""
+  },
   "nibiru": {
     "name": "nibiru",
     "chainId": 6900,
