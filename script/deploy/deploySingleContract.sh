@@ -248,14 +248,15 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # Add network-specific additional flags
+    # Add network-specific deploy flags from networks.json (customDeployFlags)
     ADDITIONAL_FLAGS=""
-    if [[ "$NETWORK" == "megaeth" ]]; then
-      ADDITIONAL_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
-      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
+    local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
+    if [[ -f "$NETWORKS_JSON" ]]; then
+      ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
+    fi
+    # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
+    if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
       SKIP_SIMULATION_FLAG=""
-    elif [[ "$NETWORK" == "tempo" ]]; then
-      ADDITIONAL_FLAGS="--gas-limit 40000000"
     fi
 
     # Execute, parse, and check return code

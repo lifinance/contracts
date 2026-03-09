@@ -689,7 +689,8 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
-    "devNotes": "For forge script deployments, add these flags: --gas-limit 50000000 --gas-price 2000000 --skip-simulation --legacy. Required for deploySingleContract.sh, updateFacetConfig.sh, and diamondUpdateFacet.sh scripts. Example: forge script <script> -f megaeth --broadcast --legacy --gas-limit 50000000 --gas-price 2000000 --skip-simulation"
+    "customDeployFlags": "--gas-limit 50000000 --gas-price 2000000 --skip-simulation",
+    "devNotes": "For forge script deployments, customDeployFlags in this config are applied by deploySingleContract.sh, updateFacetConfig.sh, and diamondUpdateFacet.sh. Use --legacy when running forge script manually."
   },
   "metis": {
     "name": "metis",
@@ -1180,6 +1181,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
+    "customDeployFlags": "--gas-limit 40000000",
     "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error. Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path."
   },
   "unichain": {
