@@ -2245,7 +2245,9 @@
         "FeeForwarder": "1.0.0",
         "GasZipPeriphery": "1.0.2",
         "LiFiDEXAggregator": "1.12.0",
-        "Permit2Proxy": "1.0.4"
+        "TokenWrapper": "1.2.1",
+        "Permit2Proxy": "1.0.4",
+        "LiFiIntentEscrowFacet": "1.0.1"
       }
     }
   }
