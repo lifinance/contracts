@@ -76,16 +76,20 @@
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0xddC0660b5090B560795EAd23241d855C919441CF": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.1.1"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "",
-      "Executor": "",
+      "ERC20Proxy": "0xC87e9C07db776bd167bEFc3a6d46797BCf343313",
+      "Executor": "0xaD2cc66a7dC1e5adFE4419355D8b128845E77f04",
       "FeeCollector": "0x8354CdFA9FD680e53a4AAAecbf7dfB22665c36Ec",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51",
       "ReceiverAcrossV3": "",
