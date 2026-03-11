@@ -4683,8 +4683,8 @@ function getValueFromJSONFile() {
     return 1
   fi
 
-  # extract and return value from file
-  VALUE=$(cat "$FILE_PATH" | jq -r ".$KEY")
+  # extract and return value from file (use getpath/split so keys starting with digits, e.g. "0g", work)
+  VALUE=$(jq -r --arg key "$KEY" 'getpath($key | split(".")) // empty' "$FILE_PATH")
   echo "$VALUE"
 }
 function compareAddresses() {
