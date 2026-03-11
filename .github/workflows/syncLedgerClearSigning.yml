@@ -1,0 +1,145 @@
+# Sync Ledger Clear Signing (ERC-7730)
+# - Purpose: Keep Ledger's `registry/lifi/calldata-LIFIDiamond.json` up to date with this repo's Diamond ABI + deployments
+# - Triggers: manual (`workflow_dispatch`), schedule (daily), and pushes affecting ABI/deployment sources
+# - Key behaviors: clones our fork of LedgerHQ registry, regenerates the JSON, pushes a branch to the fork, and creates/updates a PR upstream
+# - Known limitations: `display.*` is preserved (hand-curated UX); only `context.contract.abi` and `deployments` are updated
+
+name: Sync Ledger Clear Signing (ERC-7730)
+
+on:
+  workflow_dispatch: # allow manual triggering
+  schedule:
+    - cron: '0 3 * * *' # daily at 03:00 UTC
+  push:
+    paths:
+      - 'src/Facets/**'
+      - 'src/Libraries/**'
+      - 'deployments/**'
+      - 'config/networks.json'
+      - 'tasks/generateLedgerClearSigning.ts'
+      - '.github/workflows/syncLedgerClearSigning.yml'
+
+permissions:
+  contents: read # required to fetch repository contents
+
+jobs:
+  sync-ledger:
+    concurrency:
+      group: sync-ledger-clear-signing
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+
+      - name: Build contracts (generate Foundry artifacts)
+        run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
+
+      - name: Sync Ledger registry file (push to fork)
+        env:
+          LEDGER_SYNC_TOKEN: ${{ secrets.LEDGER_SYNC_TOKEN }}
+          LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
+          LEDGER_UPSTREAM: LedgerHQ/clear-signing-erc7730-registry
+          LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
+          SYNC_BRANCH: sync/lifi-erc7730
+          PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json'
+        run: |
+          set -euo pipefail
+
+          if [ -z "${LEDGER_SYNC_TOKEN:-}" ]; then
+            echo -e "\033[31mError: LEDGER_SYNC_TOKEN secret missing\033[0m"
+            exit 1
+          fi
+
+          echo -e "\033[32mCloning fork: ${LEDGER_FORK}\033[0m"
+          rm -rf ledger-registry
+          git clone "https://x-access-token:${LEDGER_SYNC_TOKEN}@github.com/${LEDGER_FORK}.git" ledger-registry
+
+          cd ledger-registry
+          git remote add upstream "https://github.com/${LEDGER_UPSTREAM}.git"
+          git fetch upstream --prune
+          git checkout -B "${SYNC_BRANCH}" "upstream/master"
+          cd ..
+
+          echo -e "\033[32mRegenerating ${LEDGER_FILE_PATH} (preserving display/metadata)...\033[0m"
+          bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "ledger-registry/${LEDGER_FILE_PATH}" --printDiff
+
+          cd ledger-registry
+          if [ -z "$(git status --porcelain)" ]; then
+            echo -e "\033[32mNo changes detected. Nothing to sync.\033[0m"
+            exit 0
+          fi
+
+          git add "${LEDGER_FILE_PATH}"
+          git -c user.name="lifi-action-bot" -c user.email="lifi-action-bot@users.noreply.github.com" \
+            commit -m "${PR_TITLE}" -m "Auto-generated from lifinance/contracts (facets ABI + deployments)."
+
+          echo -e "\033[32mPushing branch to fork...\033[0m"
+          git push --force-with-lease -u origin HEAD
+
+          echo -e "\033[32mCreating/updating PR against upstream...\033[0m"
+          ##### Authenticate gh with custom PAT (do not rely on implicit GITHUB_TOKEN)
+          unset GITHUB_TOKEN
+          export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
+          HEAD_OWNER="$(echo "${LEDGER_FORK}" | cut -d/ -f1)"
+          HEAD_REF="${HEAD_OWNER}:${SYNC_BRANCH}"
+
+          ##### Resolve existing PR (if any) by head ref.
+          ##### Use API query since `gh pr list --head` can be inconsistent with OWNER:BRANCH.
+          resolve_pr_url() {
+            gh api "repos/${LEDGER_UPSTREAM}/pulls?state=open&head=${HEAD_REF}&base=master" --jq '.[0].html_url' 2>/dev/null || true
+          }
+
+          EXISTING_PR_URL="$(resolve_pr_url)"
+          if [ -n "${EXISTING_PR_URL}" ]; then
+            ##### `gh pr edit` can fail if token lacks PR-update permissions; do not fail the sync run for that.
+            if gh pr edit "${EXISTING_PR_URL}" --title "${PR_TITLE}" >/dev/null; then
+              echo -e "\033[32mPR already exists; updated title.\033[0m"
+            else
+              echo -e "\033[33mWarning: unable to update PR title (insufficient permissions). Continuing.\033[0m"
+            fi
+          else
+            PR_BODY="$(printf '%s\n' \
+              '## Summary' \
+              '- Auto-sync `registry/lifi/calldata-LIFIDiamond.json` from LI.FI contracts repo.' \
+              '- Updates only `context.contract.abi` and `context.contract.deployments`; preserves `display.*` and `metadata.*`.' \
+              '' \
+              '## Notes' \
+              '- This PR is generated by CI and can be re-run safely (idempotent).' \
+              '' \
+            )"
+
+            ##### If a PR already exists, `gh pr create` exits non-zero; treat as non-fatal and resolve via list.
+            if gh pr create --repo "${LEDGER_UPSTREAM}" \
+              --base master \
+              --head "${HEAD_REF}" \
+              --title "${PR_TITLE}" \
+              --body "${PR_BODY}" >/dev/null; then
+              echo -e "\033[32mPR created.\033[0m"
+            else
+              echo -e "\033[33mPR create returned non-zero; attempting to resolve existing PR...\033[0m"
+            fi
+          fi
+
+          ##### Always print PR link to workflow logs (when there were changes)
+          PR_URL="${EXISTING_PR_URL:-}"
+          if [ -z "${PR_URL}" ]; then
+            PR_URL="$(resolve_pr_url)"
+          fi
+          if [ -n "${PR_URL}" ]; then
+            echo -e "\033[32mPR URL: ${PR_URL}\033[0m"
+          else
+            echo -e "\033[31mError: unable to resolve PR URL after create/edit\033[0m"
+            exit 1
+          fi
