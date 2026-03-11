@@ -24,9 +24,23 @@ globs:
   - `@title` - must match the contract/interface name (same as filename without `.sol`)
   - `@author LI.FI (https://li.fi)`
   - `@notice` - must describe what the contract/interface contains and its purpose
-  - `@custom:version X.Y.Z`
+  - `@custom:version X.Y.Z` — follow [Semantic Versioning](https://semver.org/) (see below)
 - Public/external functions require NatSpec including params/returns.
 - For pure test/script scaffolding keep headers minimal but retain SPDX/pragma.
+
+## Semantic Versioning ([CONV:SEMVER])
+
+- Use **MAJOR.MINOR.PATCH** for `@custom:version`. Bump according to impact on callers/integrators:
+  - **MAJOR** (X.0.0): Breaking, incompatible changes. Bump when:
+    - Adding or removing required fields in public structs (e.g. facet data structs passed by callers).
+    - Changing or removing public/external function signatures or behavior in an incompatible way.
+    - Changing storage layout or selector layout in a way that breaks existing integrations or upgrades.
+  - **MINOR** (x.Y.0): Backward-compatible new functionality. Bump when:
+    - Adding new optional parameters, new functions, or new events without changing existing APIs.
+    - Adding new interface functions (existing callers remain valid).
+  - **PATCH** (x.y.Z): Backward-compatible bug fixes only. Bump when:
+    - Internal or logic fixes that do not change public API or behavior observable to callers.
+- When in doubt, prefer bumping MAJOR for any change that could break existing calldata, integrations, or scripts.
 
 ## Blank Lines ([CONV:BLANKLINES])
 
