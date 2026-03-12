@@ -4272,6 +4272,8 @@ function checkDeployRequirements() {
       KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
       # replace '<ENVIRONMENT>' with actual environment, if needed
       KEY_IN_FILE=${KEY_IN_FILE//<ENVIRONMENT>/$ENVIRONMENT}
+      # jq cannot resolve keys that start with a digit (e.g. "0g"); use bracket notation
+      KEY_IN_FILE=$(echo "$KEY_IN_FILE" | sed -E 's/\.([0-9][^.]*)/.["\1"]/g')
 
       # get full config file path
       CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"
