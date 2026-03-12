@@ -4347,30 +4347,6 @@
       }
     },
     {
-      "name": "Ooga Booga Meta",
-      "key": "oogaboogameta",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/oogabooga.svg",
-      "webUrl": "https://oogabooga.io/",
-      "contracts": {
-        "hyperevm": [
-          {
-            "address": "0x5fbd1b5aa82d09359c05428647871fe9add3f411",
-            "functions": {
-              "0xd46cadbc": ""
-            }
-          }
-        ],
-        "monad": [
-          {
-            "address": "0x5fbd1b5aa82d09359c05428647871fe9add3f411",
-            "functions": {
-              "0xd46cadbc": ""
-            }
-          }
-        ]
-      }
-    },
-    {
       "name": "HyperFlow",
       "key": "hyperflow",
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/hyperflow.svg",
@@ -7835,6 +7811,74 @@
       {
         "name": "LiFiDEXAggregator",
         "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
+    "morph": [
+      {
+        "name": "FeeCollector",
+        "address": "0x24Ff5343CaA5cd6B56e0AcBcEbeD4e739627404c",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0x06eB9e8e12Bc998C0A349f6B3820044839ef4F82",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xFD661279E1e5210B56972F6Fe27D87bfB16E2e3F",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x20BA4F83DA55DCA8b4687bBEd7E43c959912CA3C",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x6B1C713894D51196fF7a54536B96559de9Bc433C",
         "selectors": [
           {
             "selector": "0x2646478b",
