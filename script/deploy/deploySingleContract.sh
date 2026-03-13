@@ -142,7 +142,7 @@ deploySingleContract() {
   if ! isZkEvmNetwork "$NETWORK"; then
     # prepare bytecode
     BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
-
+    
     # get CREATE3_FACTORY_ADDRESS
     CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
     checkFailure $? "retrieve create3Factory address from networks.json"
@@ -170,7 +170,7 @@ deploySingleContract() {
     if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
       CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
     else
-      CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
+      CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT" "$CREATE3_FACTORY_ADDRESS")
     fi
 
     # check if address already contains code (=> are we deploying or re-running the script again?)
