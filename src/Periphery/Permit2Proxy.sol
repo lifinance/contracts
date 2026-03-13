@@ -2,17 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
-import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { IERC20Permit7597 } from "lifi/Interfaces/IERC20Permit7597.sol";
+import { IERC20TransferWithAuthorization } from "lifi/Interfaces/IERC20TransferWithAuthorization.sol";
+import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
-/// @notice Proxy contract allowing gasless calls via Permit2 as well as making
-///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
-/// @custom:version 1.0.4
+/// @notice Proxy contract allowing gasless calls via Permit2, ERC20 Permit (EIP-2612),
+///         and EIP-3009 receiveWithAuthorization to our diamond contract
+/// @custom:version 1.1.0
 contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 
@@ -30,8 +32,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
 
     /// Types ///
 
-    // @dev LIFI Specific Witness which verifies the correct calldata and
-    //      diamond address
+    /// @dev LI.FI-specific witness verifying the intended calldata and diamond address
     struct LiFiCall {
         address diamondAddress;
         bytes32 diamondCalldataHash;
@@ -59,11 +60,10 @@ contract Permit2Proxy is WithdrawablePeriphery {
         );
     }
 
-    /// External Functions ///
+    /// External Functions — EIP-2612 ///
 
-    /// @notice Allows to bridge tokens through a LI.FI diamond contract using
-    /// an EIP2612 gasless permit (only works with tokenAddresses that
-    /// implement EIP2612)
+    /// @notice Bridges tokens through the LI.FI diamond using an EIP-2612 permit (v, r, s).
+    ///         Only works with tokens that implement EIP-2612.
     /// The permit signer must be the caller to prevent front-running and ensure
     /// the calldata cannot be replaced by others.
     /// Can only be called by the permit signer to prevent front-running.
@@ -73,7 +73,8 @@ contract Permit2Proxy is WithdrawablePeriphery {
     /// @param v User signature (recovery ID)
     /// @param r User signature (ECDSA output)
     /// @param s User signature (ECDSA output)
-    /// @param diamondCalldata calldata to execute
+    /// @param diamondCalldata Calldata to execute on the diamond
+    /// @return Return data from the diamond call
     function callDiamondWithEIP2612Signature(
         address tokenAddress,
         uint256 amount,
@@ -110,7 +111,6 @@ contract Permit2Proxy is WithdrawablePeriphery {
             }
         }
 
-        // deposit assets
         LibAsset.transferFromERC20(
             tokenAddress,
             msg.sender,
@@ -118,21 +118,157 @@ contract Permit2Proxy is WithdrawablePeriphery {
             amount
         );
 
-        // maxApprove token to diamond if current allowance is insufficient
-        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
-
-        // call our diamond to execute calldata
-        return _executeCalldata(diamondCalldata);
+        return
+            _maxApproveAndExecuteCalldata(
+                tokenAddress,
+                amount,
+                diamondCalldata
+            );
     }
 
-    /// @notice Allows to bridge tokens of one type through a LI.FI diamond
-    ///         contract using Uniswap's Permit2 contract and a user signature
-    ///         that verifies allowance. The permit signer must be the caller to prevent front-running and
-    ///         ensure the calldata cannot be replaced by others. Can only be called by the permit signer to prevent
-    ///         front-running.
+    /// @notice Bridges tokens using EIP-2612 permit with opaque bytes signature (ERC-7597),
+    ///         for smart contract signers (e.g. Coinbase Smart Wallet). Backend supplies signature bytes per wallet format.
+    /// @param tokenAddress Address of the token
+    /// @param amount Amount to permit and transfer
+    /// @param deadline Permit deadline
+    /// @param signature Opaque signature bytes (e.g. abi.encode(ownerIndex, abi.encodePacked(r,s,v)) for Coinbase Wallet)
+    /// @param diamondCalldata Calldata to execute on the diamond
+    /// @return Return data from the diamond call
+    function callDiamondWithEIP2612Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        bytes calldata signature,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        try
+            IERC20Permit7597(tokenAddress).permit(
+                msg.sender,
+                address(this),
+                amount,
+                deadline,
+                signature
+            )
+        {} catch Error(string memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                revert(reason);
+            }
+        } catch (bytes memory reason) {
+            if (
+                IERC20(tokenAddress).allowance(msg.sender, address(this)) <
+                amount
+            ) {
+                LibUtil.revertWith(reason);
+            }
+        }
+
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msg.sender,
+            address(this),
+            amount
+        );
+
+        return
+            _maxApproveAndExecuteCalldata(
+                tokenAddress,
+                amount,
+                diamondCalldata
+            );
+    }
+
+    /// External Functions — EIP-3009 receiveWithAuthorization ///
+
+    /// @notice Bridges tokens using EIP-3009 receiveWithAuthorization (v, r, s).
+    ///         Only the payee (this proxy) can execute on the token; front-run safe. Caller must be the signer.
+    /// @dev We do not support transferWithAuthorization due to front-run risk; only receiveWithAuthorization is offered.
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param validAfter Authorization valid only after this timestamp
+    /// @param validBefore Authorization valid only before this timestamp
+    /// @param nonce Unique nonce to prevent replay
+    /// @param v User signature (recovery ID)
+    /// @param r User signature (ECDSA output)
+    /// @param s User signature (ECDSA output)
+    /// @param diamondCalldata Calldata to execute on the diamond
+    /// @return Return data from the diamond call
+    function callDiamondWithEIP3009Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        uint8 v,
+        bytes32 r,
+        bytes32 s,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        IERC20TransferWithAuthorization(tokenAddress).receiveWithAuthorization(
+            msg.sender,
+            address(this),
+            amount,
+            validAfter,
+            validBefore,
+            nonce,
+            v,
+            r,
+            s
+        );
+        return
+            _maxApproveAndExecuteCalldata(
+                tokenAddress,
+                amount,
+                diamondCalldata
+            );
+    }
+
+    /// @notice Bridges tokens using EIP-3009 receiveWithAuthorization with opaque bytes signature (ERC-7598 / ERC-1271).
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param validAfter Authorization valid only after this timestamp
+    /// @param validBefore Authorization valid only before this timestamp
+    /// @param nonce Unique nonce to prevent replay
+    /// @param signature Opaque signature bytes (e.g. wallet-encoded for contract signers)
+    /// @param diamondCalldata Calldata to execute on the diamond
+    /// @return Return data from the diamond call
+    /// @dev Front-run safe; same as the (v,r,s) overload.
+    function callDiamondWithEIP3009Signature(
+        address tokenAddress,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature,
+        bytes calldata diamondCalldata
+    ) public payable returns (bytes memory) {
+        IERC20TransferWithAuthorization(tokenAddress).receiveWithAuthorization(
+            msg.sender,
+            address(this),
+            amount,
+            validAfter,
+            validBefore,
+            nonce,
+            signature
+        );
+        return
+            _maxApproveAndExecuteCalldata(
+                tokenAddress,
+                amount,
+                diamondCalldata
+            );
+    }
+
+    /// External Functions — Permit2 ///
+
+    /// @notice Bridges tokens using Uniswap Permit2 and a signature that verifies allowance.
+    ///         Caller must be the permit signer to prevent front-running.
     /// @param _diamondCalldata the calldata to execute
     /// @param _permit the Uniswap Permit2 parameters
-    /// @param _signature the signature giving approval to transfer tokens
+    /// @param _signature Signature granting token transfer approval
+    /// @return Return data from the diamond call
     function callDiamondWithPermit2(
         bytes calldata _diamondCalldata,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
@@ -147,24 +283,20 @@ contract Permit2Proxy is WithdrawablePeriphery {
             msg.sender, // Ensure msg.sender is same wallet that signed permit
             _signature
         );
-
-        // maxApprove token to diamond if current allowance is insufficient
-        LibAsset.maxApproveERC20(
-            IERC20(_permit.permitted.token),
-            LIFI_DIAMOND,
-            _permit.permitted.amount
-        );
-
-        return _executeCalldata(_diamondCalldata);
+        return
+            _maxApproveAndExecuteCalldata(
+                _permit.permitted.token,
+                _permit.permitted.amount,
+                _diamondCalldata
+            );
     }
 
-    /// @notice Allows to bridge tokens of one type through a LI.FI diamond
-    ///         contract using Uniswap's Permit2 contract and a user signature
-    ///         that verifies allowance, diamondAddress and diamondCalldata
-    /// @param _diamondCalldata the calldata to execute
-    /// @param _signer the signer giving permission to transfer tokens
-    /// @param _permit the Uniswap Permit2 parameters
-    /// @param _signature the signature giving approval to transfer tokens
+    /// @notice Bridges tokens using Permit2 with witness (diamond address and calldata hash bound to signature).
+    /// @param _diamondCalldata Calldata to execute on the diamond
+    /// @param _signer Signer granting transfer permission
+    /// @param _permit Uniswap Permit2 parameters
+    /// @param _signature Signature granting token transfer approval
+    /// @return Return data from the diamond call
     function callDiamondWithPermit2Witness(
         bytes calldata _diamondCalldata,
         address _signer,
@@ -189,23 +321,23 @@ contract Permit2Proxy is WithdrawablePeriphery {
             WITNESS_TYPE_STRING,
             _signature
         );
-
-        // maxApprove token to diamond if current allowance is insufficient
-        LibAsset.maxApproveERC20(
-            IERC20(_permit.permitted.token),
-            LIFI_DIAMOND,
-            _permit.permitted.amount
-        );
-
-        return _executeCalldata(_diamondCalldata);
+        return
+            _maxApproveAndExecuteCalldata(
+                _permit.permitted.token,
+                _permit.permitted.amount,
+                _diamondCalldata
+            );
     }
 
-    /// @notice utitlity method for constructing a valid Permit2 message hash
-    /// @param _diamondCalldata the calldata to execute
-    /// @param _assetId the address of the token to approve
-    /// @param _amount amount of tokens to approve
-    /// @param _nonce the nonce to use
-    /// @param _deadline the expiration deadline
+    /// External Functions — Permit2 view helpers ///
+
+    /// @notice Returns the EIP-712 message hash for signing a Permit2 witness transfer (for the given calldata and params).
+    /// @param _diamondCalldata Calldata that will be executed on the diamond
+    /// @param _assetId Token to approve
+    /// @param _amount Amount to approve
+    /// @param _nonce Nonce for the permit
+    /// @param _deadline Permit deadline
+    /// @return msgHash Message hash to sign
     function getPermit2MsgHash(
         bytes calldata _diamondCalldata,
         address _assetId,
@@ -241,7 +373,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
         );
     }
 
-    /// Internal Functions ///
+    /// Internal Functions — Permit2 hash helpers ///
 
     function _getTokenPermissionsHash(
         ISignatureTransfer.TokenPermissions memory tokenPermissions
@@ -285,10 +417,15 @@ contract Permit2Proxy is WithdrawablePeriphery {
             keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
     }
 
-    function _executeCalldata(
-        bytes memory diamondCalldata
+    /// Internal Functions — Execution ///
+
+    function _maxApproveAndExecuteCalldata(
+        address tokenAddress,
+        uint256 amount,
+        bytes calldata diamondCalldata
     ) internal returns (bytes memory) {
-        // call diamond with provided calldata
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
+
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = LIFI_DIAMOND.call{
             value: msg.value
@@ -300,16 +437,14 @@ contract Permit2Proxy is WithdrawablePeriphery {
         return data;
     }
 
-    /// The following code was adapted from
-    // solhint-disable-next-line max-line-length
-    /// https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/src/Permit2NonceFinder.sol
-    /// Provides utility functions for determining the next valid Permit2 nonce
+    /// Internal Functions — Permit2 nonce utilities (adapted from
+    /// https://github.com/flood-protocol/permit2-nonce-finder) ///
 
-    /// @dev This can be helpful if you're signing multiple nonces in a row and need the next nonce to sign
+    /// @dev Use when signing multiple nonces in a row and you need the next valid nonce.
     ///      but the start one is still valid.
     /// @notice Finds the next valid nonce for a user, starting from 0.
     /// @param owner The owner of the nonces
-    /// @return nonce The first valid nonce starting from 0
+    /// @return nonce First valid nonce starting from 0
     function nextNonce(address owner) external view returns (uint256 nonce) {
         nonce = _nextNonce(owner, 0, 0);
     }
@@ -319,7 +454,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
     ///      but the start one is still valid.
     /// @param owner The owner of the nonces
     /// @param start The nonce to start from
-    /// @return nonce The first valid nonce after the given nonce
+    /// @return nonce First valid nonce after the given nonce
     function nextNonceAfter(
         address owner,
         uint256 start
@@ -370,10 +505,10 @@ contract Permit2Proxy is WithdrawablePeriphery {
         }
     }
 
-    /// @notice Constructs a nonce from a word and a position inside the word
+    /// @notice Constructs a nonce from a word and a bit position.
     /// @param word The word containing the nonce
     /// @param pos The position of the nonce inside the word
-    /// @return nonce The nonce constructed from the word and position
+    /// @return nonce Nonce built from word and position
     function _nonceFromWordAndPos(
         uint248 word,
         uint8 pos
@@ -384,6 +519,6 @@ contract Permit2Proxy is WithdrawablePeriphery {
         nonce |= pos;
     }
 
-    // required to be able to receive native token refunds from the diamond
+    /// Receive native token refunds from the diamond
     receive() external payable {}
 }
