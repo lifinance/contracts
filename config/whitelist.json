@@ -4368,230 +4368,239 @@
         ]
       }
     },
-    {
-      "name": "Fly",
-      "key": "fly",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/fly.svg",
-      "webUrl": "https://fly.trade/",
-      "contracts": {
-        "mainnet": [
-          {
-            "address": "0xa6e941eab67569ca4522f70d343714ff51d571c4",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+      {
+    "name": "Fly",
+    "key": "fly",
+    "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/fly.svg",
+    "webUrl": "https://fly.trade/",
+    "contracts": {
+      "mainnet": [
+        {
+          "address": "0xa6e941eab67569ca4522f70d343714ff51d571c4",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "optimism": [
-          {
-            "address": "0xa6e941eab67569ca4522f70d343714ff51d571c4",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "optimism": [
+        {
+          "address": "0xa6e941eab67569ca4522f70d343714ff51d571c4",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "bsc": [
-          {
-            "address": "0x29ed0a2f22a92ff84a7f196785ca6b0d21aeec62",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "bsc": [
+        {
+          "address": "0x29ed0a2f22a92ff84a7f196785ca6b0d21aeec62",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "unichain": [
-          {
-            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "unichain": [
+        {
+          "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "polygon": [
-          {
-            "address": "0xa6e941eab67569ca4522f70d343714ff51d571c4",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "polygon": [
+        {
+          "address": "0xa6e941eab67569ca4522f70d343714ff51d571c4",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "monad": [
-          {
-            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "monad": [
+        {
+          "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "sonic": [
-          {
-            "address": "0xc325856e5585823aac0d1fd46c35c608d95e65a9",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "sonic": [
+        {
+          "address": "0xc325856e5585823aac0d1fd46c35c608d95e65a9",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "fantom": [
-          {
-            "address": "0x5affa5312ade198d9527acf058fee1c8ed8fe9f3",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "fantom": [
+        {
+          "address": "0x5affa5312ade198d9527acf058fee1c8ed8fe9f3",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "zksync": [
-          {
-            "address": "0xb44958ff91b4b67d8d4db010e38ccffe52551ecb",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "zksync": [
+        {
+          "address": "0xb44958ff91b4b67d8d4db010e38ccffe52551ecb",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "stable": [
-          {
-            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "stable": [
+        {
+          "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "hyperevm": [
-          {
-            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "hyperevm": [
+        {
+          "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "metis": [
-          {
-            "address": "0xda52965937213f51bfe716f338714afa80ff17bf",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "metis": [
+        {
+          "address": "0xda52965937213f51bfe716f338714afa80ff17bf",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "polygonzkevm": [
-          {
-            "address": "0x3950bf2fff93e5d502430f17924aef4c621ea772",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "polygonzkevm": [
+        {
+          "address": "0x3950bf2fff93e5d502430f17924aef4c621ea772",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "abstract": [
-          {
-            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "abstract": [
+        {
+          "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "megaeth": [
-          {
-            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "morph": [
+        {
+          "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "base": [
-          {
-            "address": "0x5e766616aabfb588e23a8ea854e9dbd1042affd3",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "megaeth": [
+        {
+          "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "arbitrum": [
-          {
-            "address": "0xfb1b08ba6ba284934d817ea3c9d18f592cc59a50",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "base": [
+        {
+          "address": "0x5e766616aabfb588e23a8ea854e9dbd1042affd3",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "avalanche": [
-          {
-            "address": "0x3611b82c7b13e72b26eb0e9be0613bee7a45ac7c",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "arbitrum": [
+        {
+          "address": "0xfb1b08ba6ba284934d817ea3c9d18f592cc59a50",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "ink": [
-          {
-            "address": "0x52bebb970697476313ae2b3383f40d4afd4ad9d3",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "avalanche": [
+        {
+          "address": "0x3611b82c7b13e72b26eb0e9be0613bee7a45ac7c",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "linea": [
-          {
-            "address": "0x52bebb970697476313ae2b3383f40d4afd4ad9d3",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "ink": [
+        {
+          "address": "0x52bebb970697476313ae2b3383f40d4afd4ad9d3",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "berachain": [
-          {
-            "address": "0x52bebb970697476313ae2b3383f40d4afd4ad9d3",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "linea": [
+        {
+          "address": "0x52bebb970697476313ae2b3383f40d4afd4ad9d3",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "blast": [
-          {
-            "address": "0xc9f1a0ba8071685e3529982b59c8645b27734bd0",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "berachain": [
+        {
+          "address": "0x52bebb970697476313ae2b3383f40d4afd4ad9d3",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "taiko": [
-          {
-            "address": "0x5affa5312ade198d9527acf058fee1c8ed8fe9f3",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "blast": [
+        {
+          "address": "0xc9f1a0ba8071685e3529982b59c8645b27734bd0",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ],
-        "scroll": [
-          {
-            "address": "0x9ee06954418687c6fb3a9966f7c46e0a245f0183",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
+        }
+      ],
+      "taiko": [
+        {
+          "address": "0x5affa5312ade198d9527acf058fee1c8ed8fe9f3",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
           }
-        ]
-      }
-    },
+        }
+      ],
+      "scroll": [
+        {
+          "address": "0x9ee06954418687c6fb3a9966f7c46e0a245f0183",
+          "functions": {
+            "0x73fc4457": "swapWithMagpieSignature(bytes)",
+            "0x25e651ed": "swapWithUserSignature(bytes)"
+          }
+        }
+      ]
+    }
+  }
     {
       "name": "Nordstern Finance",
       "key": "nordstern",
