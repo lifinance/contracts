@@ -54,9 +54,21 @@ usage: /analyze-tx <network> <tx_hash>
 - ❌ **WRONG**: "The transaction called `swapAndStartBridgeTokensViaStargate` and emitted `LiFiTransferStarted` events."
 - ✅ **CORRECT**: "The trace shows `swapTokensMultipleV3ERC20ToERC20` was called. The receipt logs show `LiFiGenericSwapCompleted` was emitted. No `LiFiTransferStarted` events are present in the logs."
 
+## MCP-first, fallback-always (quality guarantee)
+
+This command should **prefer MCP servers** when they provide verified, structured data efficiently — but it must **always** produce high-quality output even when MCP is unavailable or unsupported.
+
+- ✅ **Try MCP first** when it’s configured and supports the network.
+- ✅ **Immediately fallback** to the existing premium-RPC workflow (`analyzeFailingTx` + repo artifacts) when:
+  - MCP tools error (missing env vars, auth, timeouts),
+  - MCP doesn’t support the given network,
+  - MCP output is incomplete for root-cause analysis.
+
+When falling back, follow the same trace-first rules and produce the same full writeup.
+
 ## Quick Checklist
 
-1. ✅ **Fetch Data** - Use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>` or user-provided RPC)
+1. ✅ **Fetch Data** - Prefer MCP tools when supported; otherwise use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>` or user-provided premium RPC)
 2. ✅ **Identify** - Was LiFiDiamond called? If not, state: "Not one of our transactions"
 3. ✅ **Decode** - Extract calldata, `msg.value` (from receipt, NOT trace), map addresses to names
 4. ✅ **Facet** - Identify facet, load code, find config file (check deploy script for correct filename)
@@ -100,18 +112,45 @@ usage: /analyze-tx <network> <tx_hash>
 
 ### Tools
 
+#### MCP (preferred when supported)
+
+- **Foundry MCP** (`lifi-foundry`)
+  - `cast_tx` - Get transaction details (via premium RPC env `RPC_URL`)
+  - `cast_receipt` - Get receipt/logs (via premium RPC env `RPC_URL`)
+  - `cast_sig` - Compute selector
+  - `cast_4byte` - Resolve selector/signature via 4byte.directory
+  - `cast_call` - Optional `eth_call` for token metadata (read-only)
+- **Explorer MCP** (`lifi-explorer`)
+  - `explorer_contract_summary` - Compact contract identity/proxy info (token-efficient)
+  - `explorer_get_abi` - Fetch ABI (only when necessary; can be large)
+  - `explorer_proxy_tx_by_hash` - Optional tx lookup (explorer proxy API)
+  - `explorer_proxy_receipt_by_hash` - Optional receipt lookup (explorer proxy API)
+  - `explorer_get_logs` - Optional logs lookup (by block range)
+- **Tenderly MCP** (`lifi-tenderly`)
+  - `tenderly_simulate` - Simulate and extract revert/call trace (use compact output)
+
+#### CLI + manual fallbacks (always allowed)
+
 - `cast 4byte <SELECTOR>` - Get function signature from selector (4byte.directory)
 - `cast calldata-decode "<SIGNATURE>" <CALLDATA>` - Decode calldata using function signature
-- `cast sig "<FUNCTION_NAME>"` - Get selector from function name
+- `cast sig "<FUNCTION_SIGNATURE>"` - Get selector from function signature
 - `cast tx <TX_HASH> --rpc-url <RPC>` - Get transaction details
 - `cast receipt <TX_HASH> --rpc-url <RPC>` - Get transaction receipt (contains logs)
-- `web_search` - Search for contract information on block explorers
+- `web_search` - Search for contract information on block explorers (last resort)
 
 ## Analysis Workflow
 
 ### 1. Fetch Transaction Data
 
-**Preferred:**
+**Preferred (MCP-first, fallback-always):**
+
+1. Try MCP for tx/receipt:
+   - Foundry MCP: `cast_tx` + `cast_receipt` (premium RPC via `RPC_URL`)
+2. Try MCP for trace/revert:
+   - Tenderly MCP: `tenderly_simulate` using real `from`, `to`, `data`, `value` and ideally `blockNumber`
+3. If any of the above fails / unsupported / insufficient → immediately fallback to the existing repo script workflow below.
+
+**Preferred (existing repo workflow, always works with premium RPC):**
 
 ```bash
 bash -lc 'source script/helperFunctions.sh && source script/playgroundHelpers.sh && analyzeFailingTx "<NETWORK>" "<TX_HASH>"'
@@ -142,12 +181,13 @@ When root transaction calls a contract other than LiFiDiamond:
 
    - Read `config/networks.json` → extract `explorerUrl` field
 
-2. **Research contract:**
-
-   - Construct URL: `<explorerUrl>/address/<CONTRACT_ADDRESS>`
-   - Use `web_search`: `"<explorerUrl>/address/<CONTRACT_ADDRESS> contract verified"`
-   - Navigate to "Contract" tab → "Write Contract" sub-tab
-   - Extract: contract name, function signatures, selectors, parameters
+2. **Research contract (MCP preferred, fallback manual):**
+   - MCP (preferred): `explorer_contract_summary` for contract name/proxy/implementation
+   - Manual (fallback):
+     - Construct URL: `<explorerUrl>/address/<CONTRACT_ADDRESS>`
+     - Use `web_search`: `"<explorerUrl>/address/<CONTRACT_ADDRESS> contract verified"`
+     - Navigate to "Contract" tab → "Write Contract" sub-tab
+     - Extract: contract name, function signatures, selectors, parameters
 
 3. **Verify function selector (CRITICAL):**
 
@@ -372,13 +412,22 @@ Before finalizing:
 - [ ] Root cause clearly explained
 - [ ] Summary clear for non-technical readers
 
+## Token Discipline (keep results meaningful, not huge)
+
+- Never paste full traces / full ABI / full source into the analysis.
+- Keep only:
+  - tx facts (`from/to/value/input selector/blockNumber/status`)
+  - emitted events (topic0 + indexed params + emitter)
+  - the call frames leading to revert(s)
+- Use MCP compact outputs when available; otherwise summarize trace/logs rather than dumping them.
+
 ## Command Execution Flow
 
 When user invokes `/analyze-tx <network> <tx_hash>`:
 
 1. **Parse arguments**: Extract network and tx_hash from command
 2. **Validate inputs**: Ensure network is valid, tx_hash is hex format
-3. **Fetch transaction data**: Use premium RPC via `analyzeFailingTx` or prompt for RPC URL
+3. **Fetch transaction data**: MCP-first when supported; otherwise use premium RPC via `analyzeFailingTx` or prompt for RPC URL
 4. **Follow analysis workflow**: Execute all steps from "Analysis Workflow" section
 5. **Generate output**: Format results according to "Output Format" section
 6. **Quality check**: Verify all items in "Quality Checks" are complete

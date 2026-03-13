@@ -1,0 +1,85 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ]
+    },
+    "jira": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "npx",
+        "-y",
+        "@aashari/mcp-server-atlassian-jira@latest"
+      ]
+    },
+    "notion": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "npx",
+        "-y",
+        "@ramidecodes/mcp-server-notion@latest"
+      ]
+    },
+    "slack": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-slack@latest"
+      ]
+    },
+    "foundry": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "bunx",
+        "tsx",
+        "script/mcp/foundry.server.ts"
+      ]
+    },
+    "tenderly": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "bunx",
+        "tsx",
+        "script/mcp/tenderly.server.ts"
+      ]
+    },
+    "explorer": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "bunx",
+        "tsx",
+        "script/mcp/explorer.server.ts"
+      ]
+    }
+  }
+}
