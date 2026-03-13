@@ -46300,6 +46300,38 @@
       }
     }
   },
+  "OutputValidator": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-26 15:55:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2025-08-26 15:55:52",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+            "SALT": "",
+            "VERIFIED": "true",
+            "ZK_SOLC_VERSION": ""
+          }
+        ]
+      }
+    }
+  },
   "AcrossFacetV4": {
     "arbitrum": {
       "staging": {
