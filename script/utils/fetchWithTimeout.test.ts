@@ -1,4 +1,6 @@
 import {
+  afterEach,
+  beforeEach,
   describe,
   expect,
   it,
@@ -7,23 +9,47 @@ import {
 
 import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from './fetchWithTimeout'
 
+const originalFetch = globalThis.fetch
+
 describe('fetchWithTimeout', () => {
+  beforeEach(() => {
+    // Restore before each test so we can set a fresh mock
+    globalThis.fetch = originalFetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
   it('exports DEFAULT_FETCH_TIMEOUT_MS as 10_000', () => {
     expect(DEFAULT_FETCH_TIMEOUT_MS).toBe(10_000)
   })
 
   it('returns Response for successful request', async () => {
-    const res = await fetchWithTimeout(
-      'https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=0xa9059cbb&filter=true'
-    )
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response('', { status: 200 })
+      )) as unknown as typeof globalThis.fetch
+    const res = await fetchWithTimeout('https://example.com/api')
     expect(res).toBeInstanceOf(Response)
     expect(res.ok).toBe(true)
   })
 
   it('throws AbortError when timeout is exceeded', async () => {
-    const timeoutMs = 50
+    globalThis.fetch = ((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => {
+        const signal = init?.signal
+        if (signal?.aborted) {
+          reject(new DOMException('Aborted', 'AbortError'))
+          return
+        }
+        signal?.addEventListener?.('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'))
+        })
+      })) as unknown as typeof globalThis.fetch
+    const timeoutMs = 10
     const promise = fetchWithTimeout(
-      'https://httpbin.org/delay/2',
+      'https://example.com/slow',
       undefined,
       timeoutMs
     )
