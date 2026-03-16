@@ -3561,6 +3561,30 @@ function getRpcUrlFromNetworksJson() {
 
   echo "$RPC_URL"
 }
+
+# getCastSendAsync: Return "true" if cast send should use --async for this network (avoids receipt
+# deserialization errors when RPC returns receipts missing fields like feePayer). Used by universalSendRaw.
+# Usage: getCastSendAsync NETWORK
+# Returns: "true" or "false"
+function getCastSendAsync() {
+  local NETWORK="${1:-}"
+  if [[ -z "$NETWORK" ]]; then
+    echo "false"
+    return
+  fi
+  checkNetworksJsonFilePath 2>/dev/null || {
+    echo "false"
+    return
+  }
+  local VAL
+  VAL=$(jq -r --arg network "$NETWORK" '.[$network].castSendAsync // false' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
+  if [[ "$VAL" == "true" ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
     afplay ./script/deploy/resources/notification.mp3

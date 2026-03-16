@@ -184,6 +184,13 @@ deployAllContracts() {
     checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
 
+    # add DiamondLoupeFacet to diamond
+    # this one facet is done separately because in many networks we had problems deploying it as part of the core facets update
+    echo ""
+    echo ""
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now adding DiamondLoupeFacet to diamond contract"
+    diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateDiamondLoupeFacet" false
+
     # update diamond with core facets
     echo ""
     echo ""
