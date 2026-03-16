@@ -41,7 +41,7 @@ Execute the workflow below in order. This file contains all context needed for a
 ## 4. Heimdall installation check
 
 - Run `command -v heimdall` (or `which heimdall`).
-- If **not found**: Tell the user: "Heimdall is not installed. Install with: `curl -L http://get.heimdall.rs | bash`, then in a new terminal run `bifrost`." Offer to continue after they install. Do **not** proceed with disassemble/decompile until heimdall is available.
+- If **not found**: Tell the user: "Heimdall is not installed. Install with: `curl -L https://get.heimdall.rs | bash`, then in a new terminal run `bifrost`." Offer to continue after they install (reference the same HTTPS install URL if they ask how to install). Do **not** proceed with disassemble/decompile until heimdall is available.
 
 ---
 
@@ -59,11 +59,11 @@ Execute the workflow below in order. This file contains all context needed for a
 ## 6. Extract function selectors from opcodes
 
 - **Pattern**: `PUSH4 <8 hex digits>` (e.g. `PUSH4 8388464e`).
-- **Exclude**: `0xffffffff` (sentinel), `0x4e487b71` (Error(string)).
+- **Exclude** (selector → signature): `0xffffffff` (sentinel), `0x4e487b71` (Panic(uint256)), `0x08c379a0` (Error(string)).
 - **Extract**: All unique PUSH4 + 8 hex, normalize to `0x` + 8 hex, remove duplicates and excluded.
 - **Example**:
   ```bash
-  grep -oE 'PUSH4 [0-9a-f]{8}' opcodes.txt | awk '{print "0x"$2}' | sort -u | grep -v '0xffffffff' | grep -v '0x4e487b71'
+  grep -oE 'PUSH4 [0-9a-f]{8}' opcodes.txt | awk '{print "0x"$2}' | sort -u | grep -v '0xffffffff' | grep -v '0x4e487b71' | grep -v '0x08c379a0'
   ```
 - **Output**: Write to e.g. `opcodes-selectors.md` or `<contract>-selectors.md` (list or table Selector | Signature).
 
