@@ -13,6 +13,21 @@ alwaysApply: false
 
 - Workflows: explicit permissions, comments, secrets via `${{ secrets.* }}`; clear step names & triggers.
 
+### Immutable action refs ([CONV:ACTIONS-IMMUTABLE])
+
+- **Every `uses:` reference MUST use a full 40-character commit SHA.** Do not use tags (e.g. `@v4`, `@v1`, `@main`) or short SHAs. Tags can be reassigned and have been exploited in supply-chain attacks (e.g. compromised third-party actions).
+- **Format**: `owner/repo@<full-40-char-sha>` with an optional trailing comment for traceability (e.g. `# v4.1.7`).
+- **When adding or updating a workflow**: Resolve the action’s tag/branch to its commit SHA (e.g. from the action’s repo releases or `git ls-remote`) and pin to that SHA.
+- **Example (correct)**:
+  ```yaml
+  - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+  ```
+- **Anti-pattern (forbidden)**:
+  ```yaml
+  - uses: actions/checkout@v4.1.7
+  - uses: some-action@main
+  ```
+
 ## GitHub Actions Workflow Structure
 
 ### File Organization
@@ -130,14 +145,13 @@ done <<< "${FILES}"
 
 ### Artifact Management
 
-- **Upload artifacts**: Use `actions/upload-artifact@v4` for sharing data between jobs
-- **Download artifacts**: Use `actions/download-artifact@v4` in dependent jobs
+- **Upload/download artifacts**: Pin to full commit SHA (e.g. `actions/upload-artifact@<full-sha> # v4`); never use `@v4` or other tags.
 - **Artifact names**: Use descriptive names (e.g., `contracts_for_audit`)
 - **Cleanup**: Initialize empty files to prevent upload failures
 
 ### Label Management
 
-- **Label assignment**: Use `actions-ecosystem/action-add-labels@v1` and `action-remove-labels@v1`
+- **Label assignment**: Pin to full commit SHA for `actions-ecosystem/action-add-labels` and `action-remove-labels`; never use `@v1` or other tags.
 - **Authorization**: Only allow specific bots (e.g., `lifi-action-bot`) to modify protected labels
 - **Verification**: Always verify label state after modification
 

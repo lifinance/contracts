@@ -236,7 +236,7 @@ register() {
         # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
+          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
         else
           # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
@@ -260,7 +260,7 @@ register() {
         fi
       else
         # just register the diamond (no multisig required)
-        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
+        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
       fi
 
       #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url $RPC_URL" --legacy
@@ -270,7 +270,7 @@ register() {
         # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR"
+          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
         else
           # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
           local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
@@ -297,7 +297,7 @@ register() {
         fi
       else
         # just register the diamond (no multisig required)
-        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR" >/dev/null 2>&1
+        universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR" >/dev/null 2>&1
       fi
     fi
 
@@ -313,6 +313,8 @@ register() {
   # check if call was executed successfully or used all attempts
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
     error "failed to register $CONTRACT_NAME in diamond on network $NETWORK"
+    printf '\033[0;33m%s\033[0m\n' "   If the error was FunctionDoesNotExist (0xa9ad62f8), PeripheryRegistryFacet may not be attached to the diamond."
+    printf '\033[0;33m%s\033[0m\n' "   Run Stage 3 (Deploy diamond and update with core facets) or run the UpdatePeripheryRegistryFacet script, then retry Stage 7."
     return 1
   fi
 }
