@@ -63,7 +63,10 @@ deployAndStoreCREATE3Factory() {
       echo "[info] Chain not in Foundry list; deploying via cast send --create"
       local RPC_URL
       RPC_URL=$(getRPCUrl "$NETWORK") || return 1
-      forge build --contracts lib/create3-factory/src/CREATE3Factory.sol --silent 2>/dev/null || true
+      if ! forge build --contracts lib/create3-factory/src/CREATE3Factory.sol --silent; then
+        error "CREATE3Factory build failed; fix the build before deploying."
+        return 1
+      fi
       local ARTIFACT="out/CREATE3Factory.sol/CREATE3Factory.json"
       [[ ! -f "$ARTIFACT" ]] && ARTIFACT="out/lib/create3-factory/src/CREATE3Factory.sol/CREATE3Factory.json"
       if [[ ! -f "$ARTIFACT" ]]; then

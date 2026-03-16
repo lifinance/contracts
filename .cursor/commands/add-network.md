@@ -1,6 +1,6 @@
 ---
 name: add-network
-description: Add a new network to the codebase (networks.json, foundry.toml, permit2, gaszip, global.json, bridge configs; target state via scriptMaster)
+description: Add a new network to the codebase (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs; do not mutate global.json for per-network Permit2/GasZip; target state via scriptMaster)
 usage: /add-network [networkKey] — inputs manually or via CSV of chain team form responses; optionally permit2 address, gasZip short ID and router address
 ---
 
@@ -20,7 +20,7 @@ Collect required inputs (manually or from a **CSV** of chain team form responses
 
 **Required**: networkKey, chainId, nativeAddress, wrappedNativeAddress, nativeCurrency, rpcUrl, verificationType, explorerUrl, explorerApiUrl.
 
-**Optional (defaults)**: status `"active"`, type `"mainnet"`, multicallAddress `0xcA11bde05977b3631167028862bE2a173976CA11` (must have code), safeAddress `""`, create3Factory `""`, isZkEVM `false`, deployedWithEvmVersion / deployedWithSolcVersion from foundry.toml, permit2Address `0x000000000022D473030F116dDEE9F6B43aC78BA3`, gasZipChainId / gasZipRouterAddress (Step 6).
+**Optional (defaults)**: status `"active"`, type `"mainnet"`, multicallAddress `0xcA11bde05977b3631167028862bE2a173976CA11` (must have code), safeAddress `""`, create3Factory `""` (omit key entirely when isZkEVM is true), isZkEVM `false`, deployedWithEvmVersion / deployedWithSolcVersion from foundry.toml, permit2Address `0x000000000022D473030F116dDEE9F6B43aC78BA3`, gasZipChainId / gasZipRouterAddress (Step 6).
 
 **CSV column mapping** (LI.FI form): chainId ← Chain ID; networkKey ← Chain Name (lowercase, no spaces); rpcUrl ← Public RPC URL; explorerUrl ← Recommended block explorer URL:; verificationType ← What is the type of your recommended block explorer? (etherscan|blockscout|Routescan|Custom / Hemera's Social Scan / etc. → custom); nativeCurrency ← Symbol of native token; nativeAddress ← Address / Representation of native token (L1 → `0x0...0` if NA); wrappedNativeAddress ← Address of wrapped native token; multicallAddress ← Address of the Multicall3 contract (if deployed); permit2Address ← Address of the Permit2 contract (if deployed); gasZipRouterAddress ← Address of Gas.Zip Deposit V1 (if deployed); isZkEVM ← Is your chain a zkEVM chain type? (Yes→true). **explorerApiUrl**: not in form — use Etherscan V2 URL if chainId in chainlist, else from explorer type/docs. **Bridges**: column 40 (free text), 41–63 (checkboxes), 65 (addresses).
 
@@ -32,7 +32,7 @@ Collect required inputs (manually or from a **CSV** of chain team form responses
 
 ## Step 2: `config/networks.json`
 
-Insert new network **alphabetically** (mainnet first, then A–Z). Fields: name, chainId, nativeAddress, nativeCurrency, wrappedNativeAddress, status `"active"`, type `"mainnet"`, rpcUrl, verificationType, explorerUrl, explorerApiUrl, multicallAddress (only if has code), safeAddress `""`, gasZipChainId (Step 6), isZkEVM, deployedWithEvmVersion, deployedWithSolcVersion, create3Factory `""`. Confirm multicall has code; if not, abort or ask for correct address.
+Insert new network **alphabetically** (mainnet first, then A–Z). Fields: name, chainId, nativeAddress, nativeCurrency, wrappedNativeAddress, status `"active"`, type `"mainnet"`, rpcUrl, verificationType, explorerUrl, explorerApiUrl, multicallAddress (only if has code), safeAddress `""`, gasZipChainId (Step 6), isZkEVM, deployedWithEvmVersion, deployedWithSolcVersion; for non-zkEVM networks only include create3Factory (use `""` until deployed, or the factory address). **Omit the create3Factory key entirely for zkEVM entries** (do not set it to `""`). Confirm multicall has code; if not, abort or ask for correct address.
 
 ---
 
@@ -49,15 +49,15 @@ Do **not** run target state parsing from the command. Tell the user to add the n
 
 ---
 
-## Step 5: Permit2 — `config/permit2Proxy.json` and `config/global.json`
+## Step 5: Permit2 — `config/permit2Proxy.json` only (do not edit `config/global.json`)
 
-Default Permit2 `0x000000000022D473030F116dDEE9F6B43aC78BA3`. `cast code` on chain: if code exists, add `"<networkKey>": "<permit2Address>"` to `config/permit2Proxy.json` (alphabetically). If no code: do not add to permit2Proxy.json; remove Permit2Proxy from corePeriphery in `config/global.json`.
+Default Permit2 `0x000000000022D473030F116dDEE9F6B43aC78BA3`. `cast code` on chain: if code exists, add `"<networkKey>": "<permit2Address>"` to `config/permit2Proxy.json` (alphabetically). If no code: do **not** add the new network to permit2Proxy.json (omit it); deployment will skip Permit2Proxy for this network. **Do not** remove Permit2Proxy from corePeriphery in `config/global.json` — global.json is shared; keep omissions local to per-network config.
 
 ---
 
-## Step 6: Gas.zip — `config/gaszip.json`, `config/networks.json`, `config/global.json`
+## Step 6: Gas.zip — `config/gaszip.json` and `config/networks.json` only (do not edit `config/global.json`)
 
-Source: https://dev.gas.zip/gas/chain-support/inbound. If available: set gasZipChainId on network in networks.json; add router to `config/gaszip.json` under gasZipRouters (alphabetically); `cast code` router and warn if no code. If not available: set gasZipChainId `0`; remove GasZipFacet from coreFacets and GasZipPeriphery from corePeriphery in `config/global.json`; do not add to gaszip.json. (Removing from global.json affects all networks; confirm with user if needed.)
+Source: https://dev.gas.zip/gas/chain-support/inbound. If available: set gasZipChainId on network in networks.json; add router to `config/gaszip.json` under gasZipRouters (alphabetically); `cast code` router and warn if no code. If not available: set gasZipChainId `0` (or omit) for the new network in networks.json; do **not** add the new network to gaszip.json; deployment will skip GasZip for this network. **Do not** remove GasZipFacet or GasZipPeriphery from `config/global.json` — global.json is shared; keep omissions local to the new network's entry in networks.json and per-network files (gaszip.json).
 
 ---
 
@@ -72,7 +72,7 @@ For each bridge indicated (checkbox true or in column 40): get contract address(
 ## Warnings to show
 
 1. Multicall no code → provide valid address or abort.
-2. Permit2 no code → not adding to permit2Proxy.json; removed from corePeriphery.
+2. Permit2 no code → not adding to permit2Proxy.json (omit this network); do not edit global.json.
 3. Gas.zip router no code → verify address or do not add.
 4. Bridge address no code → do not add until correct address; check docs or column 65.
 5. Target state → tell user to run scriptMaster use case 10 (do not run from command).
@@ -86,8 +86,8 @@ For each bridge indicated (checkbox true or in column 40): get contract address(
 - [ ] Add network to networks.json (alphabetical).
 - [ ] Add RPC + etherscan to foundry.toml; remind ETH_NODE_URI in .env.
 - [ ] Tell user to run scriptMaster use case 10 for target state (do not run parsing from command).
-- [ ] Permit2: add to permit2Proxy.json or remove from corePeriphery.
-- [ ] Gas.zip: add to gaszip.json + networks.json or set gasZipChainId = 0 and remove from global.json.
+- [ ] Permit2: add to permit2Proxy.json if has code; if no code, omit this network from permit2Proxy.json only (do not edit global.json).
+- [ ] Gas.zip: add to gaszip.json + networks.json if available; if not, set gasZipChainId = 0 in networks.json and omit from gaszip.json only (do not edit global.json).
 - [ ] Bridges: for each indicated, add to bridge config and validate addresses with cast code.
 
 ---
@@ -96,10 +96,10 @@ For each bridge indicated (checkbox true or in column 40): get contract address(
 
 | File | Change |
 |------|--------|
-| `config/networks.json` | New network (alphabetical). |
+| `config/networks.json` | New network (alphabetical); set gasZipChainId (or 0) per network. |
 | `foundry.toml` | New RPC + etherscan entry. |
-| `config/permit2Proxy.json` | New entry if Permit2 has code. |
-| `config/global.json` | Remove Permit2Proxy or GasZip if not available. |
-| `config/gaszip.json` | New router entry if Gas.zip available. |
+| `config/permit2Proxy.json` | New entry **only if** Permit2 has code on this network; omit network if no code. |
+| `config/gaszip.json` | New router entry **only if** Gas.zip available on this network; omit if not. |
+| `config/global.json` | **Do not edit** for Permit2/GasZip — keep coreFacets/corePeriphery unchanged; omissions are per-network via the above files. |
 | `config/<bridge>.json` | New network per indicated bridge (validate addresses). |
 | `script/deploy/_targetState.json` | User runs scriptMaster use case 10; do not edit manually. |
