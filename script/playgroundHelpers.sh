@@ -2077,8 +2077,8 @@ function decodeSelector4byte() {
   local RESPONSE
   RESPONSE=$(curl -sS -L "${FOURBYTE_URL}/?hex_signature=${SELECTOR}" 2>/dev/null || echo '{"count":0}')
   local COUNT
-  COUNT=$(echo "$RESPONSE" | jq -r '.count // 0')
-  if [[ "$COUNT" == "0" || "$COUNT" == "null" ]]; then
+  COUNT=$(echo "$RESPONSE" | jq -r '.count // 0' 2>/dev/null) || COUNT=""
+  if [[ -z "$COUNT" || "$COUNT" == "0" || "$COUNT" == "null" ]]; then
     printf "%s\t%s\n" "$SELECTOR" "(no match)"
     return 0
   fi
