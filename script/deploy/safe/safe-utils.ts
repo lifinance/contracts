@@ -1609,24 +1609,22 @@ function getContractNameFromNetworkDeployments(
   }
 }
 
-/** Item from openchain.xyz signature lookup result (function name) */
-interface IOpenchainLookupResultItem {
+/** Item from 4byte Sourcify signature lookup result (function name) */
+interface I4byteLookupResultItem {
   name: string
 }
 
-/** Openchain API lookup response shape for type-safe parsing */
-interface IOpenchainLookupResponse {
+/** 4byte Sourcify signature API lookup response shape for type-safe parsing */
+interface I4byteLookupResponse {
   ok?: boolean
   result?: {
-    function?: Record<string, IOpenchainLookupResultItem[]>
+    function?: Record<string, I4byteLookupResultItem[]>
   }
 }
 
-const OPENCHAIN_FETCH_TIMEOUT_MS = 10_000
+const FOURBYTE_API_FETCH_TIMEOUT_MS = 10_000
 
-function isOpenchainLookupResponse(
-  value: unknown
-): value is IOpenchainLookupResponse {
+function is4byteLookupResponse(value: unknown): value is I4byteLookupResponse {
   if (value === null || typeof value !== 'object') return false
   const o = value as Record<string, unknown>
   if (!o.result || typeof o.result !== 'object') return false
@@ -1636,26 +1634,26 @@ function isOpenchainLookupResponse(
 }
 
 /**
- * Looks up a function selector via openchain.xyz signature database (e.g. 4byte).
+ * Looks up a function selector via 4byte Sourcify signature database (api.4byte.sourcify.dev).
  * Use when the selector is not in diamond.json (e.g. different ABI encoding for same function).
  * @returns Function signature string if found, null otherwise
  */
-async function lookupSelectorFromOpenchain(
+async function lookupSelectorFrom4byte(
   selector: string
 ): Promise<string | null> {
   try {
     const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${normalized}&filter=true`
+    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${normalized}&filter=true`
     const controller = new AbortController()
     const timeoutId = setTimeout(
       () => controller.abort(),
-      OPENCHAIN_FETCH_TIMEOUT_MS
+      FOURBYTE_API_FETCH_TIMEOUT_MS
     )
     const response = await fetch(url, { signal: controller.signal })
     clearTimeout(timeoutId)
     if (!response.ok) return null
     const raw: unknown = await response.json()
-    if (!isOpenchainLookupResponse(raw)) return null
+    if (!is4byteLookupResponse(raw)) return null
     const first = raw.result?.function?.[normalized]?.[0]
     if (first?.name && typeof first.name === 'string') return first.name
     return null
@@ -1799,12 +1797,12 @@ export async function decodeDiamondCut(
               `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
             )
           } else {
-            const openchainName = await lookupSelectorFromOpenchain(
+            const signatureName = await lookupSelectorFrom4byte(
               normalizedSelector
             )
-            if (openchainName)
+            if (signatureName)
               consola.info(
-                `${pre}Function: \u001b[34m${openchainName}\u001b[0m [${selector}] \u001b[90m(openchain.xyz)\u001b[0m`
+                `${pre}Function: \u001b[34m${signatureName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
               )
             else consola.warn(`${pre}Unknown function [${selector}]`)
           }

@@ -1477,7 +1477,7 @@ async function decodeFunctionCall(data: Hex): Promise<string | null> {
   if (!data || data === '0x') return null
   try {
     const selector = data.substring(0, 10)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
+    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
     const response = await fetch(url)
     const responseData = await response.json()
     if (responseData.ok && responseData.result?.function?.[selector])

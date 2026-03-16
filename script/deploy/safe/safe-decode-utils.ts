@@ -592,8 +592,10 @@ export async function decodeTransactionData(
     }
 
     // Fallback to external API
-    consola.info(`${pre}No local ABI found, fetching from openchain.xyz...`)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
+    consola.info(
+      `${pre}No local ABI found, fetching from 4byte.sourcify.dev...`
+    )
+    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
     const response = await fetch(url)
     const responseData = await response.json()
 
@@ -705,7 +707,7 @@ export async function formatDecodedTxDataForDisplay(
     }
     if (!decoded && functionName) {
       try {
-        // Dynamic signature from openchain; parseAbi may throw for invalid format
+        // Dynamic signature from 4byte.sourcify.dev; parseAbi may throw for invalid format
         const sig = `function ${functionName}`
         const abiInterface = parseAbi([sig] as [string])
         decoded = decodeFunctionData({ abi: abiInterface, data })

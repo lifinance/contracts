@@ -32,7 +32,7 @@ globs:
 | Concern | Location | Notes |
 |--------|----------|--------|
 | Decoded tx display | safe-decode-utils: `formatDecodedTxDataForDisplay` | Single entry point |
-| Selector → function name | safe-decode-utils: `decodeTransactionData` | Diamond ABI then openchain |
+| Selector → function name | safe-decode-utils: `decodeTransactionData` | Diamond ABI then 4byte.sourcify.dev |
 | Target name / explorer | safe-decode-utils: `getTargetName`, `getTargetSuffix` | Used by formatters |
 | Diamond cut details | safe-utils: `decodeDiamondCut` | Called from safe-decode-utils |
 | Known ABIs | safe-decode-utils | One set for all callers |
