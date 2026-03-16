@@ -95,7 +95,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             maxCCTPFee: (bridgeData.minAmount / 100) * 10, // 10% of bridging amount
             nonEVMReceiver: bytes32(0),
             solanaReceiverATA: bytes32(0),
-            minFinalityThreshold: 1000 // Fast route (1000)
+            minFinalityThreshold: 1000, // Fast route (1000)
+            destinationCaller: bytes32(0),
+            hookData: ""
         });
 
         assertEq(
@@ -174,7 +176,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 maxCCTPFee: maxCCTPFee,
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
                 solanaReceiverATA: validPolymerData.solanaReceiverATA,
-                minFinalityThreshold: validPolymerData.minFinalityThreshold
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: validPolymerData.destinationCaller,
+                hookData: validPolymerData.hookData
             });
 
         usdc.approve(_facetTestContractAddress, amount);
@@ -211,7 +215,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 maxCCTPFee: swapOutputAmount / 10, // 10% of swap output
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
                 solanaReceiverATA: validPolymerData.solanaReceiverATA,
-                minFinalityThreshold: validPolymerData.minFinalityThreshold
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: validPolymerData.destinationCaller,
+                hookData: validPolymerData.hookData
             });
 
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
@@ -353,6 +359,98 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function test_CanBridgeWithHookData_EVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory hookData = hex"01";
+        bytes32 destinationCaller = bytes32(uint256(1));
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: destinationCaller,
+                hookData: hookData
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PolymerCCTPFeeSent(
+            bridgeData.minAmount,
+            polymerDataWithHook.polymerTokenFee,
+            polymerDataWithHook.minFinalityThreshold
+        );
+
+        ILiFi.BridgeData memory adjustedBridgeData = bridgeData;
+        adjustedBridgeData.minAmount =
+            bridgeData.minAmount -
+            polymerDataWithHook.polymerTokenFee;
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(adjustedBridgeData);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeToNonEVMChainWithHookData() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bytes memory hookData = hex"01";
+        bytes32 destinationCaller = bytes32(uint256(1));
+        bytes32 nonEVMReceiver = bytes32(uint256(0x1234));
+        bytes32 solanaReceiverATA = bytes32(uint256(0x5678));
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: nonEVMReceiver,
+                solanaReceiverATA: solanaReceiverATA,
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: destinationCaller,
+                hookData: hookData
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit ILiFi.BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            polymerDataWithHook.nonEVMReceiver
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PolymerCCTPFeeSent(
+            bridgeData.minAmount,
+            polymerDataWithHook.polymerTokenFee,
+            polymerDataWithHook.minFinalityThreshold
+        );
+
+        ILiFi.BridgeData memory adjustedBridgeData = bridgeData;
+        adjustedBridgeData.minAmount =
+            bridgeData.minAmount -
+            polymerDataWithHook.polymerTokenFee;
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(adjustedBridgeData);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
     function testRevert_NonEVMReceiverWithZeroBytes32() public {
         vm.startPrank(USER_SENDER);
 
@@ -435,7 +533,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     }
 
     function test_ChainIdToDomainIdMapping() public {
-        ChainMapping[] memory mappings = new ChainMapping[](17);
+        ChainMapping[] memory mappings = new ChainMapping[](18);
         mappings[0] = ChainMapping({ chainId: 1, domainId: 0 }); // Ethereum
         mappings[1] = ChainMapping({ chainId: 43114, domainId: 1 }); // Avalanche
         mappings[2] = ChainMapping({ chainId: 10, domainId: 2 }); // OP Mainnet
@@ -451,8 +549,12 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         mappings[12] = ChainMapping({ chainId: 1329, domainId: 16 }); // Sei
         mappings[13] = ChainMapping({ chainId: 50, domainId: 18 }); // XDC
         mappings[14] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
-        mappings[15] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
-        mappings[16] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
+        mappings[15] = ChainMapping({
+            chainId: LIFI_CHAIN_ID_HYPERCORE,
+            domainId: 19
+        }); // HyperCore (same domain as HyperEVM)
+        mappings[16] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
+        mappings[17] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
 
         for (uint256 i = 0; i < mappings.length; i++) {
             assertEq(
