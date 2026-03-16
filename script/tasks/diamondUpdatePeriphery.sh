@@ -313,6 +313,8 @@ register() {
   # check if call was executed successfully or used all attempts
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
     error "failed to register $CONTRACT_NAME in diamond on network $NETWORK"
+    printf '\033[0;33m%s\033[0m\n' "   If the error was FunctionDoesNotExist (0xa9ad62f8), PeripheryRegistryFacet may not be attached to the diamond."
+    printf '\033[0;33m%s\033[0m\n' "   Run Stage 3 (Deploy diamond and update with core facets) or run the UpdatePeripheryRegistryFacet script, then retry Stage 7."
     return 1
   fi
 }
