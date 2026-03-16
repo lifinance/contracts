@@ -24,6 +24,7 @@ import {
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 
 import { decodeDiamondCut } from './safe-utils'
@@ -596,21 +597,29 @@ export async function decodeTransactionData(
       `${pre}No local ABI found, fetching from 4byte.sourcify.dev...`
     )
     const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
+    const response = await fetchWithTimeout(url)
+    const responseData = (await response.json()) as unknown
 
+    const resultFn = (
+      responseData as {
+        result?: {
+          function?: Record<string, { name: string; args?: unknown }[]>
+        }
+      } | null
+    )?.result?.function?.[selector]
+    const fn = Array.isArray(resultFn) ? resultFn[0] : undefined
     if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
+      typeof responseData === 'object' &&
+      responseData !== null &&
+      (responseData as { ok?: boolean }).ok &&
+      fn?.name
     ) {
-      const functionName = responseData.result.function[selector][0].name
+      const functionName = fn.name
 
       try {
         const decodedData = {
           functionName,
-          args: responseData.result.function[selector][0].args,
+          args: fn.args,
         }
 
         return {

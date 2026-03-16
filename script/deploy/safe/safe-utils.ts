@@ -34,6 +34,10 @@ import { privateKeyToAccount } from 'viem/accounts'
 import data from '../../../config/networks.json'
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  fetchWithTimeout,
+} from '../../utils/fetchWithTimeout'
+import {
   buildExplorerContractPageUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
@@ -1626,8 +1630,6 @@ interface IFourByteLookupResponse {
   }
 }
 
-const FOURBYTE_FETCH_TIMEOUT_MS = 10_000
-
 function isFourByteLookupResponse(
   value: unknown
 ): value is IFourByteLookupResponse {
@@ -1650,13 +1652,11 @@ async function lookupSelectorFromFourByte(
   try {
     const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
     const url = `${FOURBYTE_LOOKUP_BASE}?function=${normalized}&filter=true`
-    const controller = new AbortController()
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      FOURBYTE_FETCH_TIMEOUT_MS
+    const response = await fetchWithTimeout(
+      url,
+      undefined,
+      DEFAULT_FETCH_TIMEOUT_MS
     )
-    const response = await fetch(url, { signal: controller.signal })
-    clearTimeout(timeoutId)
     if (!response.ok) return null
     const raw: unknown = await response.json()
     if (!isFourByteLookupResponse(raw)) return null
