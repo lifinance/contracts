@@ -1,16 +1,18 @@
 #!/usr/bin/env bun
 
+import { resolve } from 'path'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
-// Import utilities from existing scripts
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
@@ -22,9 +24,13 @@ import {
   getNetworkConfig,
   loadForgeArtifact,
   logDeployment,
+  readJsonFile,
   saveContractAddress,
+  tronAddressToHex,
   updateDiamondJsonPeriphery,
 } from './utils.js'
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 // Periphery contracts to deploy
 const PERIPHERY_CONTRACTS = [
@@ -152,8 +158,15 @@ async function deployAndRegisterPeripheryImpl(options: {
       )}`
     )
 
-    // Load configurations
-    const globalConfig = await Bun.file('config/global.json').json()
+    // Load configurations (Node-compatible for tsx)
+    const globalConfig = await readJsonFile<{
+      refundWallet: string
+      feeCollectorOwner: string
+      withdrawWallet: string
+      deployerWalletTron?: string
+      deployerWallet?: string
+    }>(resolve(process.cwd(), 'config/global.json'))
+    if (!globalConfig) throw new Error('Failed to load config/global.json')
 
     consola.info('\n Deployment Plan:')
     consola.info('1. Deploy ERC20Proxy')
@@ -161,7 +174,12 @@ async function deployAndRegisterPeripheryImpl(options: {
     consola.info('3. Deploy FeeCollector')
     consola.info('4. Deploy FeeForwarder')
     consola.info('5. Deploy TokenWrapper')
-    consola.info('6. Register all contracts with PeripheryRegistryFacet\n')
+    consola.info(
+      '6. Deploy LiFiTimelockController (if tron.safeAddress set; not registered with Diamond)'
+    )
+    consola.info(
+      '7. Register periphery contracts with PeripheryRegistryFacet\n'
+    )
 
     if (!dryRun && !options.skipConfirmation)
       if (environment === EnvironmentEnum.production) {
@@ -317,7 +335,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         }
       }
 
-      if (!dryRun) await Bun.sleep(3000)
+      if (!dryRun) await sleep(3000)
     } catch (error: any) {
       consola.error(` Failed to deploy ERC20Proxy:`, error.message)
       process.exit(1)
@@ -453,7 +471,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         }
       }
 
-      if (!dryRun) await Bun.sleep(3000)
+      if (!dryRun) await sleep(3000)
     } catch (error: any) {
       consola.error(` Failed to deploy Executor:`, error.message)
       deploymentResults.push({
@@ -581,7 +599,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         }
       }
 
-      if (!dryRun) await Bun.sleep(3000)
+      if (!dryRun) await sleep(3000)
     } catch (error: any) {
       consola.error(` Failed to deploy FeeCollector:`, error.message)
       deploymentResults.push({
@@ -711,7 +729,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         }
       }
 
-      if (!dryRun) await Bun.sleep(3000)
+      if (!dryRun) await sleep(3000)
     } catch (error: any) {
       consola.error(` Failed to deploy FeeForwarder:`, error.message)
       deploymentResults.push({
@@ -950,7 +968,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           }
         }
 
-        if (!dryRun) await Bun.sleep(3000)
+        if (!dryRun) await sleep(3000)
       } catch (error: any) {
         consola.error(` Failed to deploy TokenWrapper:`, error.message)
         deploymentResults.push({
@@ -962,7 +980,133 @@ async function deployAndRegisterPeripheryImpl(options: {
         })
       }
 
-    // Register all periphery contracts with the diamond
+    // 6. Deploy LiFiTimelockController (same phase as EVM Stage 6; not registered with Diamond)
+    consola.info('\n Deploying LiFiTimelockController (if Safe configured)...')
+    const safeAddress = (tronConfig.safeAddress ?? '').trim()
+    if (safeAddress) {
+      try {
+        const existingTimelock = await getContractAddress(
+          'tron',
+          'LiFiTimelockController'
+        )
+        let deployTimelock = !existingTimelock
+        if (existingTimelock && !dryRun) {
+          consola.warn(
+            `  LiFiTimelockController already deployed at: ${existingTimelock}`
+          )
+          const shouldRedeploy = await consola.prompt(
+            'Redeploy LiFiTimelockController?',
+            { type: 'confirm', initial: false }
+          )
+          if (!shouldRedeploy) {
+            consola.info('Skipping LiFiTimelockController deployment.')
+            deployedContracts['LiFiTimelockController'] = existingTimelock
+          }
+          deployTimelock = shouldRedeploy
+        }
+        if (existingTimelock && dryRun) deployTimelock = false
+
+        if (deployTimelock) {
+          const timelockConfig = await readJsonFile<{ minDelay: number }>(
+            resolve(process.cwd(), 'config/timelockController.json')
+          )
+          if (!timelockConfig?.minDelay) {
+            consola.warn(
+              '  config/timelockController.json missing or invalid minDelay; skipping LiFiTimelockController.'
+            )
+          } else {
+            const cancellerWallet =
+              globalConfig.deployerWalletTron ??
+              globalConfig.deployerWallet ??
+              ''
+            if (!cancellerWallet) {
+              consola.warn(
+                '  global.json missing deployerWalletTron/deployerWallet; skipping LiFiTimelockController.'
+              )
+            } else {
+              const safeHex = safeAddress.startsWith('T')
+                ? tronAddressToHex(safeAddress, tronWeb)
+                : safeAddress.startsWith('0x')
+                ? safeAddress
+                : '0x' + safeAddress
+              const diamondHex = diamondAddress.startsWith('T')
+                ? tronAddressToHex(diamondAddress, tronWeb)
+                : diamondAddress.startsWith('0x')
+                ? diamondAddress
+                : '0x' + diamondAddress
+              const cancellerHex = cancellerWallet.startsWith('T')
+                ? tronAddressToHex(cancellerWallet, tronWeb)
+                : cancellerWallet.startsWith('0x')
+                ? cancellerWallet
+                : '0x' + cancellerWallet
+              const minDelay = Number(timelockConfig.minDelay)
+              const proposers = [safeHex]
+              const executors = [ZERO_ADDRESS]
+              const constructorArgs = [
+                minDelay,
+                proposers,
+                executors,
+                cancellerHex,
+                safeHex,
+                diamondHex,
+              ]
+              const artifact = await loadForgeArtifact('LiFiTimelockController')
+              const version = await getContractVersion('LiFiTimelockController')
+              const result = await deployer.deployContract(
+                artifact,
+                constructorArgs
+              )
+              deployedContracts['LiFiTimelockController'] =
+                result.contractAddress
+              deploymentResults.push({
+                contract: 'LiFiTimelockController',
+                address: result.contractAddress,
+                txId: result.transactionId,
+                cost: result.actualCost.trxCost,
+                version,
+              })
+              consola.success(
+                ` LiFiTimelockController deployed: ${result.contractAddress}`
+              )
+              if (!dryRun) {
+                await logDeployment(
+                  'LiFiTimelockController',
+                  'tron',
+                  result.contractAddress,
+                  version,
+                  '0x',
+                  false
+                )
+                await saveContractAddress(
+                  'tron',
+                  'LiFiTimelockController',
+                  result.contractAddress
+                )
+              }
+            }
+          }
+        }
+        if (deployTimelock && !dryRun) await sleep(3000)
+      } catch (error: any) {
+        consola.error(
+          ` Failed to deploy LiFiTimelockController:`,
+          error.message
+        )
+        deploymentResults.push({
+          contract: 'LiFiTimelockController',
+          address: 'FAILED',
+          txId: 'FAILED',
+          cost: 0,
+          version: '0.0.0',
+        })
+      }
+    } else {
+      consola.warn(
+        '  tron.safeAddress not set in config/networks.json; skipping LiFiTimelockController. Deploy Safe first (deploy-safe-tron.ts), then run this script again.'
+      )
+    }
+
+    // Register all periphery contracts with the diamond (LiFiTimelockController is not registered)
     consola.info(
       '\n Registering periphery contracts with PeripheryRegistryFacet...'
     )
@@ -977,7 +1121,8 @@ async function deployAndRegisterPeripheryImpl(options: {
         diamondAddress
       )
 
-      for (const [name, address] of Object.entries(deployedContracts))
+      for (const [name, address] of Object.entries(deployedContracts)) {
+        if (name === 'LiFiTimelockController') continue // governance contract, not registered with PeripheryRegistryFacet (same as EVM)
         if (address && address !== 'FAILED')
           try {
             consola.info(`\n Registering ${name}...`)
@@ -1035,6 +1180,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           } catch (error: any) {
             consola.error(` Failed to register ${name}:`, error.message)
           }
+      }
 
       // Verify registrations
       consola.info('\n Verifying registrations...')

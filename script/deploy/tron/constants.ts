@@ -4,7 +4,7 @@
  */
 
 // Safety margin for energy estimation to prevent transaction failures
-export const DEFAULT_SAFETY_MARGIN = 1.5 // 50% buffer for standard operations
+export const DEFAULT_SAFETY_MARGIN = 1.2 // 20% buffer for standard operations
 
 // Diamond operations require significantly more energy than regular transactions
 // This multiplier ensures diamond cut operations don't fail due to insufficient energy

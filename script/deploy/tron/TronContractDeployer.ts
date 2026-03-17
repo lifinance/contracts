@@ -1,6 +1,9 @@
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
+import { sleep } from '../../utils/delay'
+
+import { DEFAULT_SAFETY_MARGIN } from './constants'
 import type {
   ITronDeploymentConfig,
   ITronCostEstimate,
@@ -8,11 +11,10 @@ import type {
   IForgeArtifact,
 } from './types'
 import {
-  DEFAULT_SAFETY_MARGIN,
   calculateTransactionBandwidth,
   calculateEstimatedCost,
+  getAccountAvailableResources,
 } from './utils'
-import { sleep } from '../../utils/delay'
 
 // Import TronWeb - the simple approach that was working
 
@@ -65,18 +67,58 @@ export class TronContractDeployer {
     constructorParams: any[] = []
   ): Promise<ITronDeploymentResult> {
     try {
+      // Delay before first RPC to avoid 429 rate limits when called in sequence
+      await sleep(2000)
+
       // Estimate deployment cost
       const costEstimate = await this.estimateCost(artifact, constructorParams)
 
-      if (this.config.verbose)
-        consola.debug('Estimated deployment cost:', {
-          energy: costEstimate.energy,
-          bandwidth: costEstimate.bandwidth,
-          totalTrx: costEstimate.totalTrx.toFixed(4),
-        })
+      // Log cost breakdown so user can verify estimate (helps debug 429/balance issues)
+      consola.info('Cost estimate:', {
+        energy: costEstimate.energy,
+        bandwidth: costEstimate.bandwidth,
+        energyCostTrx: costEstimate.breakdown.energyCost.toFixed(4),
+        bandwidthCostTrx: costEstimate.breakdown.bandwidthCost.toFixed(4),
+        totalTrx: costEstimate.totalTrx.toFixed(4),
+        safetyMargin: costEstimate.breakdown.safetyMargin,
+      })
 
-      // Validate account balance
-      await this.validateAccountBalance(costEstimate.totalTrx)
+      await sleep(2000)
+
+      // Reduce required TRX by the portion covered by delegated energy/bandwidth
+      const address = this.tronWeb.defaultAddress.base58
+      const { availableEnergy, availableBandwidth } =
+        await getAccountAvailableResources(this.config.fullHost, address)
+      const energyPrice =
+        costEstimate.energy > 0
+          ? costEstimate.breakdown.energyCost / costEstimate.energy
+          : 0
+      const bandwidthPrice =
+        costEstimate.bandwidth > 0
+          ? costEstimate.breakdown.bandwidthCost / costEstimate.bandwidth
+          : 0
+      const energyCovered = Math.min(costEstimate.energy, availableEnergy)
+      const bandwidthCovered = Math.min(
+        costEstimate.bandwidth,
+        availableBandwidth
+      )
+      const trxCoveredByDelegation =
+        energyCovered * energyPrice + bandwidthCovered * bandwidthPrice
+      const requiredTrx = Math.max(
+        0,
+        costEstimate.totalTrx - trxCoveredByDelegation
+      )
+      if (trxCoveredByDelegation > 0) {
+        consola.info(
+          `Delegated resources: ${availableEnergy} energy, ${availableBandwidth} bandwidth → ` +
+            `~${trxCoveredByDelegation.toFixed(
+              2
+            )} TRX covered. Required TRX: ${requiredTrx.toFixed(4)}`
+        )
+      }
+
+      // Validate account balance (only the TRX not covered by delegation)
+      await this.validateAccountBalance(requiredTrx)
 
       if (this.config.dryRun)
         return this.simulateDeployment(artifact, costEstimate)
@@ -120,11 +162,13 @@ export class TronContractDeployer {
         artifact,
         constructorParams
       )
+      await sleep(2000)
 
       const estimatedBandwidth = await this.estimateBandwidth(
         artifact,
         constructorParams
       )
+      await sleep(2000)
 
       // Get current prices from the network
       const { energyCost, bandwidthCost, totalCost } =

@@ -1,3 +1,4 @@
+import { readFile } from 'fs/promises'
 import { resolve } from 'path'
 
 import { consola } from 'consola'
@@ -34,6 +35,30 @@ import type {
   INetworkInfo,
   IDiamondRegistrationResult,
 } from './types'
+
+/**
+ * Possible project roots for deployment file resolution (cwd and cwd/contracts when run from monorepo parent).
+ */
+function getDeploymentRoots(): string[] {
+  const cwd = process.cwd()
+  const roots = [cwd]
+  if (!cwd.endsWith('contracts')) roots.push(resolve(cwd, 'contracts'))
+  return roots
+}
+
+/** Read JSON file; works with both Bun and Node (tsx). Exported for use in deploy scripts. */
+export async function readJsonFile<T = Record<string, unknown>>(
+  filePath: string
+): Promise<T | null> {
+  try {
+    if (typeof globalThis.Bun !== 'undefined')
+      return (await (globalThis.Bun as typeof Bun).file(filePath).json()) as T
+    const content = await readFile(filePath, 'utf-8')
+    return JSON.parse(content) as T
+  } catch {
+    return null
+  }
+}
 
 // Re-export for callers that still import from tron/utils (used for both Tron and EVM)
 export { isRateLimitError, retryWithRateLimit } from '../shared/rateLimit'
@@ -82,7 +107,6 @@ export function getTronCorePeriphery(): string[] {
   // Filter out contracts not deployed on Tron
   return periphery.filter(
     (contract: string) =>
-      contract !== 'LiFiTimelockController' && // Tron doesn't use Timelock yet
       contract !== 'GasZipPeriphery' && // Not deployed on Tron
       contract !== 'LiFiDEXAggregator' && // Not deployed on Tron
       contract !== 'Permit2Proxy' // Not deployed on Tron
@@ -118,8 +142,7 @@ export async function checkIsDeployedTron(
     // TronWeb getContract return type is underspecified; shape includes contract_address when contract exists
     type GetContractResult = { contract_address?: string } | null
     const contractInfo = await retryWithRateLimit<GetContractResult>(
-      () =>
-        tronWeb.trx.getContract(tronAddress) as Promise<GetContractResult>,
+      () => tronWeb.trx.getContract(tronAddress) as Promise<GetContractResult>,
       MAX_RETRIES,
       RETRY_DELAY
     )
@@ -155,9 +178,9 @@ export async function executeShellCommand(command: string): Promise<string> {
  * Get deployment environment from config.sh
  */
 export async function getEnvironment(): Promise<EnvironmentEnum> {
-  const productionValue = await executeShellCommand(
-    'source script/config.sh && echo $PRODUCTION'
-  )
+  const productionValue = (
+    await executeShellCommand('source script/config.sh && echo $PRODUCTION')
+  ).trim()
   return productionValue === 'true'
     ? EnvironmentEnum.production
     : EnvironmentEnum.staging
@@ -222,8 +245,11 @@ export async function saveContractAddress(
   const environment = await getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
+  const roots = getDeploymentRoots()
+  const root = roots[0]
+  if (!root) throw new Error('No deployment root available')
   const deploymentFile = resolve(
-    process.cwd(),
+    root,
     `deployments/${network}.${fileSuffix}json`
   )
 
@@ -242,7 +268,8 @@ export async function saveContractAddress(
 }
 
 /**
- * Get contract address from deployments file
+ * Get contract address from deployments file.
+ * Tries env-specific file first, then base network file; for Tron also tries alternate roots (e.g. cwd vs cwd/contracts).
  */
 export async function getContractAddress(
   network: SupportedChain,
@@ -251,18 +278,29 @@ export async function getContractAddress(
   const environment = await getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
-  const deploymentFile = resolve(
-    process.cwd(),
-    `deployments/${network}.${fileSuffix}json`
-  )
+  const roots = getDeploymentRoots()
 
-  try {
-    const deployments = await Bun.file(deploymentFile).json()
-    return deployments[contract] || null
-  } catch {
-    // File doesn't exist or can't be read
-    return null
+  const filesToTry: string[] = []
+  for (const root of roots) {
+    filesToTry.push(resolve(root, `deployments/${network}.${fileSuffix}json`))
+    filesToTry.push(resolve(root, `deployments/${network}.json`))
   }
+  // When staging Tron, mainnet deployment may be the only file
+  if (network === 'tronshasta')
+    for (const root of roots)
+      filesToTry.push(resolve(root, 'deployments/tron.json'))
+
+  for (const deploymentFile of filesToTry) {
+    const deployments = await readJsonFile<Record<string, string>>(
+      deploymentFile
+    )
+    if (deployments) {
+      const address = deployments[contract] || null
+      if (address) return address
+    }
+  }
+
+  return null
 }
 
 /**
@@ -1647,6 +1685,52 @@ export async function getCurrentPrices(
  */
 export function clearPriceCache(): void {
   priceCache = null
+}
+
+/** Response from Tron getaccountresource (snake_case or camelCase from different clients) */
+interface IAccountResourceResponse {
+  EnergyLimit?: number
+  EnergyUsed?: number
+  NetLimit?: number
+  NetUsed?: number
+  freeNetLimit?: number
+  freeNetUsed?: number
+  energy_limit?: number
+  energy_used?: number
+  net_limit?: number
+  net_used?: number
+  free_net_limit?: number
+  free_net_used?: number
+}
+
+/**
+ * Get account's available delegated (or owned) energy and bandwidth.
+ * Used to reduce required TRX when the account has delegated resources.
+ */
+export async function getAccountAvailableResources(
+  fullHost: string,
+  addressBase58: string
+): Promise<{ availableEnergy: number; availableBandwidth: number }> {
+  const url = fullHost.replace(/\/$/, '') + '/wallet/getaccountresource'
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ address: addressBase58, visible: true }),
+  })
+  if (!res.ok) {
+    return { availableEnergy: 0, availableBandwidth: 0 }
+  }
+  const data = (await res.json()) as IAccountResourceResponse
+  const energyLimit = data.EnergyLimit ?? data.energy_limit ?? 0
+  const energyUsed = data.EnergyUsed ?? data.energy_used ?? 0
+  const netLimit = data.NetLimit ?? data.net_limit ?? 0
+  const netUsed = data.NetUsed ?? data.net_used ?? 0
+  const freeNetLimit = data.freeNetLimit ?? data.free_net_limit ?? 0
+  const freeNetUsed = data.freeNetUsed ?? data.free_net_used ?? 0
+  const availableEnergy = Math.max(0, energyLimit - energyUsed)
+  const availableBandwidth =
+    Math.max(0, netLimit - netUsed) + Math.max(0, freeNetLimit - freeNetUsed)
+  return { availableEnergy, availableBandwidth }
 }
 
 /**
