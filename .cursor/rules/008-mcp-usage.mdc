@@ -1,0 +1,56 @@
+---
+name: MCP usage guidance
+description: When and how to use repo MCP servers (Foundry, Tenderly, Explorer, GitHub, Notion)
+globs:
+  - '**/*'
+alwaysApply: true
+---
+
+## MCP Usage ([CONV:MCP-USAGE])
+
+This repo is configured with MCP servers (project-level `.cursor/mcp.json`) to provide **verified outputs** for:
+- Foundry (`forge` / `cast`)
+- Tenderly simulation
+- Block explorer APIs (EtherscanV2 / Blockscout via `config/networks.json`)
+- GitHub
+- Notion
+
+Prefer MCP tools for **facts that can be verified** instead of guessing.
+
+### Safety defaults ([CONV:MCP-SAFETY])
+
+- **Onchain**: MCP tools must be used in **read-only** mode unless the user explicitly requests otherwise.
+  - OK: `eth_call`, fetching ABIs/source, reading logs, simulation.
+  - Not OK unless explicitly requested: broadcasting txs, signing, sending value, or any irreversible state changes.
+- **GitHub / Notion**: default to **read-only** usage.
+  - Only create/update issues/PRs/pages/comments when the user explicitly asks for that write action.
+
+### When to use which MCP server ([CONV:MCP-WHEN])
+
+- **Foundry MCP** (`lifi-foundry`):
+  - Use when asked: “does this compile?”, “do tests pass?”, “what’s the selector?”, “call this view fn onchain”.
+  - Tools: `forge_build`, `forge_test`, `cast_sig`, `cast_4byte`, `cast_call`.
+- **Explorer MCP** (`lifi-explorer`):
+  - Use when asked: ABI/source verification, proxy/implementation info (via source metadata), tx/log lookups.
+  - Tools: `explorer_list_networks`, `explorer_get_abi`, `explorer_get_source_code`, `explorer_proxy_tx_by_hash`, `explorer_get_logs`.
+- **Tenderly MCP** (`lifi-tenderly`):
+  - Use for: “why did this revert?”, “will this calldata work?”, “simulate this upgrade/call”, trace/state-diff checks.
+  - Tool: `tenderly_simulate`.
+- **GitHub MCP**:
+  - Use for: listing/searching issues/PRs, reading discussions, creating PRs/issues when explicitly requested.
+- **Notion MCP**:
+  - Use for: searching pages/dbs, reading runbooks/specs, creating/updating pages when explicitly requested.
+
+### Network selection conventions ([CONV:MCP-NETWORK])
+
+- Prefer passing **`network`** (key from `config/networks.json`, e.g. `mainnet`, `base`, `arbitrum`) to explorer tools.
+- If only `chainId` is known, pass `chainId` instead.
+- If neither is explicitly provided:
+  - Prefer `EXPLORER_NETWORK` env var default (documented in `docs/MCP.md`).
+  - Otherwise, ask one focused question: “Which network should I use?” (do not guess).
+
+### Troubleshooting guidance ([CONV:MCP-TROUBLESHOOT])
+
+- If an MCP server fails:
+  - Prefer to re-run via the repo wrapper (`bunx tsx script/mcp/run.ts -- ...`) to surface stderr.
+  - Ensure dependencies are installed (`bun install`) for repo-owned servers.
