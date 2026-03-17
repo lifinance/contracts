@@ -1,25 +1,25 @@
 {
   "LinkToDeployedToAddresses": "https://github.com/across-protocol/contracts/blob/master/broadcast/deployed-addresses.json",
   "mainnet": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
-    "sponsoredOftSrcPeriphery": "0x4607bceaf7b22cb0c46882ffc9fab3c6efe66e5a",
-    "sponsoredCctpSrcPeriphery": "0x89004ea51bac007fec55976967135b2aa6e838d4"
+    "sponsoredOftSrcPeriphery": "0xc80B267469D509ae45Df65845B291CBbe1945CB9",
+    "sponsoredCctpSrcPeriphery": "0x6769155b16F25D317819eFef011E0A50A48e83c5"
   },
   "arbitrum": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A",
-    "sponsoredOftSrcPeriphery": "0x2ac5ee3796e027da274fbde84c82173a65868940",
-    "sponsoredCctpSrcPeriphery": "0xce1ffe01ebb4f8521c12e74363a396ee3d337e1b"
+    "sponsoredOftSrcPeriphery": "0x39E4a5a7dED068831ea8D1c1012CEa07a811F624",
+    "sponsoredCctpSrcPeriphery": "0xc9c54d789ebc18169d942E781C75bb4e3D19a27b"
   },
   "base": {
-    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0xa7a8d1efc1ee3e69999d370380949092251a5c20"
+    "sponsoredCctpSrcPeriphery": "0xa30968D3468316D957B9115EAad3C1c8E450116d"
   },
   "blast": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x2D509190Ed0172ba588407D4c2df918F955Cc6E1",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
@@ -31,103 +31,103 @@
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "bsc": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x4e8E101924eDE233C13e2D8622DC8aED2872d505",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "hyperevm": {
-    "spokePoolPeriphery": "0xF1BF00D947267Da5cC63f8c8A60568c59FA31bCb",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x35E63eA3eb0fb7A3bc543C71FB66412e1F6B0E04",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
+    "sponsoredCctpSrcPeriphery": "0xc611D7c33d1C7915F13ef35f488EAee9D9DC3555"
   },
   "ink": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0xeF684C38F94F48775959ECf2012D7E864ffb9dd4",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
+    "sponsoredOftSrcPeriphery": "0xFE9D541c92E4e90437C7152A00244886dE37a658",
+    "sponsoredCctpSrcPeriphery": "0x1771c470d41b8c39338450C380bf2C080a2CEdD8"
   },
   "lens": {
-    "spokePoolPeriphery": "0x8A8cA9c4112c67b7Dae7dF7E89EA45D592362107",
+    "spokePoolPeriphery": "0x5a148a9260c1f670429361c34d40b477280F01a9",
     "spokePool": "0xb234cA484866c811d0e6D3318866F583781ED045",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "linea": {
-    "spokePoolPeriphery": "0xE0BCff426509723B18D6b2f0D8F4602d143bE3e0",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x60eb88a83434f13095b0a138cdcbf5078aa5005c"
+    "sponsoredCctpSrcPeriphery": "0xe3E88958d181AB43bf3902f8F00AF57cf5D44E8c"
   },
   "lisk": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x9552a0a6624A23B848060AE5901659CDDa1f83f8",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "megaeth": {
-    "spokePoolPeriphery": "0xf0aBCe137a493185c5E768F275E7E931109f8981",
-    "spokePool": "0x3db06da8f0a24a525f314eec954fc5c6a973d40e",
-    "sponsoredOftSrcPeriphery": "0x5be9f2a2f00475406f09e5be82c06eff206721d9",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
+    "spokePool": "0x3Db06DA8F0a24A525f314eeC954fC5c6a973d40E",
+    "sponsoredOftSrcPeriphery": "0x02D65fb01d3d88127dF19838902ba42c6239c0Fd",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "mode": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "monad": {
-    "spokePoolPeriphery": "0xe9b0666DFfC176Df6686726CB9aaC78fD83D20d7",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0xd2ecb3afe598b746F8123CaE365a598DA831A449",
-    "sponsoredOftSrcPeriphery": "0xa3de5f042efd4c732498883100a2d319bbb3c1a1",
-    "sponsoredCctpSrcPeriphery": "0xcbf361ee59cc74b9d6e7af947fe4136828faf2c5"
+    "sponsoredOftSrcPeriphery": "0xB0C6Ed64a77A3D8F61b21922B13F39525Fbf5fC0",
+    "sponsoredCctpSrcPeriphery": "0xc49226858478DE8757E425661b1B5297102330d7"
   },
   "optimism": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x6f26Bf09B1C792e3228e5467807a900A503c0281",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x986e476f93a423d7a4cd0baf362c5e0903268142"
+    "sponsoredCctpSrcPeriphery": "0x4d11A23E4408eF08Ae1216B3917560e0001CD000"
   },
   "plasma": {
-    "spokePoolPeriphery": "0xF1BF00D947267Da5cC63f8c8A60568c59FA31bCb",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x50039fAEfebef707cFD94D6d462fE6D10B39207a",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "polygon": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
-    "sponsoredOftSrcPeriphery": "0xc6a21e6a57777f2183312c19e614dd6054b1a54f",
-    "sponsoredCctpSrcPeriphery": "0x473debe3db7338e03e3c8dc8e980bb1dacb25bc5"
+    "sponsoredOftSrcPeriphery": "0x43e15Fb40DaDdA50E1d2BA300416811f6c28540c",
+    "sponsoredCctpSrcPeriphery": "0x6005CD9f10c0Dc654445f138350b2FA7370BE42d"
   },
   "scroll": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "soneium": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
   },
   "unichain": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
-    "sponsoredOftSrcPeriphery": "0x0bf1a44ae69869cf7aea7e0cba76624792fad4de",
-    "sponsoredCctpSrcPeriphery": "0x2918236893ec1ec739a96c381e00403d52ac560f"
+    "sponsoredOftSrcPeriphery": "0xC920dAbe5f40d0785Be9b4aCf5B4B8D662a5955A",
+    "sponsoredCctpSrcPeriphery": "0xce9Cf0C8f8121b573f6212344F53BC7746846e71"
   },
   "worldchain": {
-    "spokePoolPeriphery": "0x89415a82d909a7238d69094C3Dd1dCC1aCbDa85C",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "spokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x1c8243198570658f818fc56538f2c837c2a32958"
+    "sponsoredCctpSrcPeriphery": "0x2C7a3cCd1a8F4f96174c42E0638AAb3BDA6Bc923"
   },
   "zksync": {
-    "spokePoolPeriphery": "0x672b9ba0CE73b69b5F940362F0ee36AAA3F02986",
+    "spokePoolPeriphery": "0x5a148a9260c1f670429361c34d40b477280F01a9",
     "spokePool": "0xE0B015E54d54fc84a6cB9B666099c46adE9335FF",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000"
