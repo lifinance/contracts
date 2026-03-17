@@ -608,47 +608,11 @@ function diamondSyncWhitelist {
             return 0
           fi
         else
-          # getAllContractSelectorPairs failed with exit code $call_exit_code
-          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: getAllContractSelectorPairs failed, falling back..."
-        fi
-
-        # Fallback to the original approach if the new function fails
-        echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Attempting fallback to getWhitelistedAddresses()"
-        local addresses=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getWhitelistedAddresses() returns (address[])" 2>&1)
-        local addresses_exit_code=$?
-
-        if [[ $addresses_exit_code -eq 0 && -n "$addresses" && "$addresses" != "[]" ]]; then
-          # Successfully got addresses from getWhitelistedAddresses
-          local pairs=()
-          local address_list=$(echo "${addresses:1:${#addresses}-2}" | tr ',' ' ')
-
-          echoSyncDebug "DEBUG [getCurrentWhitelistedPairs]: Fallback processing $(echo "$address_list" | wc -w) addresses"
-          local addr_count=0
-          for addr in $address_list; do
-            ((addr_count++))
-            local selectors=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getWhitelistedSelectorsForContract(address) returns (bytes4[])" "$addr" 2>&1)
-            local selectors_exit_code=$?
-
-            if [[ $selectors_exit_code -eq 0 && -n "$selectors" && "$selectors" != "[]" ]]; then
-              local selector_list=$(echo "${selectors:1:${#selectors}-2}" | tr ',' ' ')
-              for selector in $selector_list; do
-                pairs+=("$(echo "$addr" | tr '[:upper:]' '[:lower:]')|$selector")
-              done
-            fi
-          done
-
-          if [[ ${#pairs[@]} -gt 0 ]]; then
-            # Successfully got ${#pairs[@]} pairs using fallback method
-            for pair in "${pairs[@]}"; do
-              echo "$pair"
-            done
-            return 0
-          else
-            :
-          fi
-        else
-          # getWhitelistedAddresses also failed
-          :
+          # getAllContractSelectorPairs failed - do not fall back; WhitelistManagerFacet likely not on diamond
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] getAllContractSelectorPairs() failed on diamond $DIAMOND_ADDRESS."
+          printf '\033[0;33m%s\033[0m\n' "   WhitelistManagerFacet is probably not deployed or not attached to the diamond."
+          printf '\033[0;33m%s\033[0m\n' "   Deploy/add it (e.g. run Stage 3 or add UpdateWhitelistManagerFacet) and try again."
+          return 1
         fi
 
         # Attempt $ATTEMPT failed, waiting 3 seconds before retry...

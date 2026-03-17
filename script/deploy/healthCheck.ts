@@ -24,6 +24,7 @@ import {
   pauserWallet,
   whitelistPeripheryFunctions,
 } from '../../config/global.json'
+import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
   getViemChainForNetworkName,
@@ -116,16 +117,21 @@ const main = defineCommand({
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
-      nonCoreFacets = Object.keys(
-        targetStateJson[networkLower]['production'].LiFiDiamond
-      ).filter((k) => {
-        return (
-          !coreFacetsToCheck.includes(k) &&
-          !corePeriphery.includes(k) &&
-          k !== 'LiFiDiamond' &&
-          k.includes('Facet')
+      const networkTarget = targetStateJson[networkLower]?.production
+      if (!networkTarget?.LiFiDiamond) {
+        consola.warn(
+          `Network '${networkLower}' not in target state; skipping non-core facet comparison`
         )
-      })
+      } else {
+        nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter((k) => {
+          return (
+            !coreFacetsToCheck.includes(k) &&
+            !corePeriphery.includes(k) &&
+            k !== 'LiFiDiamond' &&
+            k.includes('Facet')
+          )
+        })
+      }
     }
 
     const globalConfig = await import('../../config/global.json')
@@ -356,7 +362,7 @@ const main = defineCommand({
 
     const deployerWallet = getAddress(
       environment === 'staging'
-        ? globalConfig.devWallet
+        ? DEV_WALLET_ADDRESS
         : globalConfig.deployerWallet
     )
 

@@ -12,6 +12,7 @@ import * as path from 'path'
 import { consola } from 'consola'
 import type { Abi, Address, Hex } from 'viem'
 import {
+  bytesToHex,
   decodeFunctionData,
   getAddress,
   keccak256,
@@ -23,6 +24,7 @@ import {
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 
 import { decodeDiamondCut } from './safe-utils'
@@ -30,6 +32,8 @@ import { decodeDiamondCut } from './safe-utils'
 export interface IFormatDecodedTxContext {
   chainId: number
   network: string
+  /** When set, each line of decoded output is prefixed with this (e.g. under [00] in scheduleBatch). */
+  indent?: string
 }
 
 export interface IWhitelistContractSelectorMeta {
@@ -258,61 +262,12 @@ async function getPeripheryDeploymentCheckSuffix(
   return ` \u001b[31m(❌ mismatch: expected ${expectedAddress})\u001b[0m`
 }
 
-async function formatDiamondCutSummary(
-  diamondCutArgs: readonly unknown[],
-  network: string
-): Promise<void> {
-  if (!diamondCutArgs || diamondCutArgs.length < 1) return
-  const facetCutsUnknown = diamondCutArgs[0]
-  if (!Array.isArray(facetCutsUnknown)) return
-  consola.info('\u001b[35mDiamondCut summary:\u001b[0m')
-  for (const cut of facetCutsUnknown) {
-    let facetAddress: string | undefined
-    let action: number | undefined
-    let selectorsCount: number | undefined
-    if (Array.isArray(cut)) {
-      facetAddress = typeof cut[0] === 'string' ? cut[0] : undefined
-      const a = cut[1]
-      if (typeof a === 'number') action = a
-      else if (typeof a === 'bigint') action = Number(a)
-      const selectors = cut[2]
-      if (Array.isArray(selectors)) selectorsCount = selectors.length
-    } else if (isRecord(cut)) {
-      const fa =
-        typeof cut.facetAddress === 'string'
-          ? cut.facetAddress
-          : typeof cut[0] === 'string'
-          ? (cut[0] as string)
-          : undefined
-      facetAddress = fa
-      const a = cut.action ?? cut[1]
-      if (typeof a === 'number') action = a
-      else if (typeof a === 'bigint') action = Number(a)
-      const selectors = cut.functionSelectors ?? cut[2]
-      if (Array.isArray(selectors)) selectorsCount = selectors.length
-    }
-    if (!facetAddress || typeof facetAddress !== 'string') continue
-    const actionLabel =
-      action === 0
-        ? 'ADD'
-        : action === 1
-        ? 'REPLACE'
-        : action === 2
-        ? 'REMOVE'
-        : 'UNKNOWN'
-    const selectorInfo =
-      typeof selectorsCount === 'number' ? ` selectors=${selectorsCount}` : ''
-    const suffix = await getTargetSuffix(network, facetAddress)
-    consola.info(
-      `  - ${actionLabel}: \u001b[32m${facetAddress}\u001b[0m${suffix}${selectorInfo}`
-    )
-  }
-}
-
 function formatBatchSetContractSelectorWhitelist(
   args: readonly unknown[],
-  network?: string
+  network?: string,
+  indent?: string
 ): void {
+  const pre = indent ?? ''
   if (!args || args.length < 3) {
     consola.warn('Invalid arguments for batchSetContractSelectorWhitelist')
     return
@@ -338,9 +293,9 @@ function formatBatchSetContractSelectorWhitelist(
   }
   const actionText = whitelisted ? 'Adding pairs' : 'Removing pairs'
   const actionColor = whitelisted ? '\u001b[32m' : '\u001b[33m'
-  consola.info(`Action: ${actionColor}${actionText}\u001b[0m`)
-  consola.info(`Total pairs: ${contracts.length}`)
-  consola.info('Pairs:')
+  consola.info(`${pre}Action: ${actionColor}${actionText}\u001b[0m`)
+  consola.info(`${pre}Total pairs: ${contracts.length}`)
+  consola.info(`${pre}Pairs:`)
   contractToSelectors.forEach((selectorList, contract) => {
     const originalContract =
       contracts.find((c) => c.toLowerCase() === contract) || contract
@@ -362,11 +317,11 @@ function formatBatchSetContractSelectorWhitelist(
       )
       if (explorerUrl) contractLine += ` \u001b[36m${explorerUrl}\u001b[0m`
     }
-    consola.info(contractLine)
-    consola.info('    Selectors:')
+    consola.info(`${pre}${contractLine}`)
+    consola.info(`${pre}    Selectors:`)
     selectorList.forEach((selector) => {
       if (!network) {
-        consola.info(`      - \u001b[33m${selector}\u001b[0m`)
+        consola.info(`${pre}      - \u001b[33m${selector}\u001b[0m`)
         return
       }
       const meta = lookupWhitelistMetaForContractSelector(
@@ -377,7 +332,7 @@ function formatBatchSetContractSelectorWhitelist(
       const signature = meta.signature?.trim()
       if (!signature) {
         consola.info(
-          `      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown in whitelist)\u001b[0m`
+          `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown in whitelist)\u001b[0m`
         )
         return
       }
@@ -386,7 +341,7 @@ function formatBatchSetContractSelectorWhitelist(
       const status = ok ? '\u001b[32m✓\u001b[0m' : '\u001b[31m✗\u001b[0m'
       const mismatch = ok ? '' : ` \u001b[31m(expected ${expected})\u001b[0m`
       consola.info(
-        `      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
+        `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
       )
     })
   })
@@ -466,12 +421,15 @@ function tryFormatDiamondPayload(payload: Hex): string | undefined {
 }
 
 /**
- * Formats timelock scheduleBatch args for display: for each call shows target, value, selector, and decoded call.
+ * Formats timelock scheduleBatch args for display: for each call shows target, value, selector,
+ * and when context is provided, fully decoded nested call (diamondCut with selector names,
+ * registerPeripheryContract, grantRole, etc.). Otherwise falls back to a one-line summary or raw payload.
  * Exported for use by execute-pending-timelock-tx when displaying a batch operation.
  */
 export async function formatTimelockScheduleBatch(
   args: readonly unknown[],
-  network: string
+  network: string,
+  context?: IFormatDecodedTxContext
 ): Promise<void> {
   if (!args || args.length < 6) {
     consola.warn('Invalid arguments for timelock scheduleBatch')
@@ -518,7 +476,6 @@ export async function formatTimelockScheduleBatch(
       typeof value === 'bigint' ? value.toString() : String(value ?? '0')
     const payloadStr =
       typeof payload === 'string' ? (payload as Hex) : ('0x' as Hex)
-    const pretty = tryFormatDiamondPayload(payloadStr)
     const selector =
       payloadStr && payloadStr !== '0x' ? payloadStr.slice(0, 10) : '0x'
     consola.info(
@@ -526,11 +483,21 @@ export async function formatTimelockScheduleBatch(
     )
     consola.info(`     value=\u001b[32m${valueStr}\u001b[0m`)
     consola.info(`     selector=\u001b[36m${selector}\u001b[0m`)
-    if (pretty) consola.info(`     call=\u001b[34m${pretty}\u001b[0m`)
-    else {
-      const preview =
-        payloadStr.length > 96 ? `${payloadStr.slice(0, 96)}…` : payloadStr
-      consola.info(`     payload=\u001b[90m${preview}\u001b[0m`)
+    if (context && payloadStr && payloadStr !== '0x') {
+      consola.info('     Decoded call:')
+      const nestedContext: IFormatDecodedTxContext = {
+        ...context,
+        indent: (context.indent ?? '') + '       ',
+      }
+      await formatDecodedTxDataForDisplay(payloadStr, nestedContext)
+    } else {
+      const pretty = tryFormatDiamondPayload(payloadStr)
+      if (pretty) consola.info(`     call=\u001b[34m${pretty}\u001b[0m`)
+      else {
+        const preview =
+          payloadStr.length > 96 ? `${payloadStr.slice(0, 96)}…` : payloadStr
+        consola.info(`     payload=\u001b[90m${preview}\u001b[0m`)
+      }
     }
   }
 }
@@ -575,13 +542,18 @@ function getRoleName(roleHash: string): string {
 /**
  * Decodes a transaction's function call using diamond ABI
  * @param data - Transaction data
+ * @param options - Optional indent for log lines (e.g. when nested under scheduleBatch [00])
  * @returns Decoded function name and data if available
  */
-export async function decodeTransactionData(data: Hex): Promise<{
+export async function decodeTransactionData(
+  data: Hex,
+  options?: { indent?: string }
+): Promise<{
   functionName?: string
   decodedData?: unknown
 }> {
   if (!data || data === '0x') return {}
+  const pre = options?.indent ?? ''
 
   try {
     const selector = data.substring(0, 10)
@@ -601,7 +573,7 @@ export async function decodeTransactionData(data: Hex): Promise<{
                 const calculatedSelector = toFunctionSelector(abiItem)
                 if (calculatedSelector === selector) {
                   consola.info(
-                    `Using diamond ABI for function: ${abiItem.name}`
+                    `${pre}Using diamond ABI for function: ${abiItem.name}`
                   )
                   return {
                     functionName: abiItem.name,
@@ -620,24 +592,34 @@ export async function decodeTransactionData(data: Hex): Promise<{
       consola.warn(`Error reading diamond ABI: ${error}`)
     }
 
-    // Fallback to external API
-    consola.info('No local ABI found, fetching from openchain.xyz...')
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
+    // Fallback to external API (Sourcify 4byte; same response shape as openchain.xyz)
+    consola.info(
+      `${pre}No local ABI found, fetching from 4byte.sourcify.dev...`
+    )
+    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
+    const response = await fetchWithTimeout(url)
+    const responseData = (await response.json()) as unknown
 
+    const resultFn = (
+      responseData as {
+        result?: {
+          function?: Record<string, { name: string; args?: unknown }[]>
+        }
+      } | null
+    )?.result?.function?.[selector]
+    const fn = Array.isArray(resultFn) ? resultFn[0] : undefined
     if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
+      typeof responseData === 'object' &&
+      responseData !== null &&
+      (responseData as { ok?: boolean }).ok &&
+      fn?.name
     ) {
-      const functionName = responseData.result.function[selector][0].name
+      const functionName = fn.name
 
       try {
         const decodedData = {
           functionName,
-          args: responseData.result.function[selector][0].args,
+          args: fn.args,
         }
 
         return {
@@ -679,9 +661,11 @@ function getAbiForKnownFunction(functionName: string): Abi | null {
 
 async function formatGrantRole(
   args: readonly unknown[],
-  network: string
+  network: string,
+  indent?: string
 ): Promise<void> {
   if (!args || args.length < 2) return
+  const pre = indent ?? ''
   const role = args[0]
   const account = args[1]
   const roleStr = typeof role === 'string' ? role : String(role ?? '')
@@ -689,10 +673,12 @@ async function formatGrantRole(
     typeof account === 'string' ? account : String(account ?? '')
   const roleName = getRoleName(roleStr)
   const roleLabel = roleName ? ` \u001b[33m(${roleName})\u001b[0m` : ''
-  consola.info(`Function: \u001b[34mgrantRole\u001b[0m`)
-  consola.info(`  Role:   \u001b[32m${roleStr}\u001b[0m${roleLabel}`)
+  consola.info(`${pre}Function: \u001b[34mgrantRole\u001b[0m`)
+  consola.info(`${pre}  Role:   \u001b[32m${roleStr}\u001b[0m${roleLabel}`)
   const accountSuffix = await getTargetSuffix(network, accountStr)
-  consola.info(`  Account: \u001b[32m${accountStr}\u001b[0m${accountSuffix}`)
+  consola.info(
+    `${pre}  Account: \u001b[32m${accountStr}\u001b[0m${accountSuffix}`
+  )
 }
 
 /**
@@ -703,15 +689,20 @@ export async function formatDecodedTxDataForDisplay(
   data: Hex,
   context: IFormatDecodedTxContext
 ): Promise<void> {
+  const pre = context.indent ?? ''
+  const log = (msg: string) => consola.info(pre + msg)
+
   if (!data || data === '0x') {
-    consola.info('Data: (empty)')
+    log('Data: (empty)')
     return
   }
 
   const { chainId, network } = context
 
   try {
-    const { functionName } = await decodeTransactionData(data)
+    const { functionName } = await decodeTransactionData(data, {
+      indent: context.indent,
+    })
     const knownAbi = functionName ? getAbiForKnownFunction(functionName) : null
     let decoded: { functionName: string; args?: readonly unknown[] } | null =
       null
@@ -725,7 +716,7 @@ export async function formatDecodedTxDataForDisplay(
     }
     if (!decoded && functionName) {
       try {
-        // Dynamic signature from openchain; parseAbi may throw for invalid format
+        // Dynamic signature from 4byte/Sourcify; parseAbi may throw for invalid format
         const sig = `function ${functionName}`
         const abiInterface = parseAbi([sig] as [string])
         decoded = decodeFunctionData({ abi: abiInterface, data })
@@ -735,34 +726,55 @@ export async function formatDecodedTxDataForDisplay(
     }
 
     if (decoded?.functionName === 'diamondCut' && decoded.args) {
-      await formatDiamondCutSummary(decoded.args, network)
-      await decodeDiamondCut(decoded, chainId, network)
+      await decodeDiamondCut(decoded, chainId, network, pre)
+      // Decode init calldata when present (init address non-zero and calldata non-empty)
+      const initAddress = decoded.args[1]
+      const initCalldataRaw = decoded.args[2]
+      const initCalldataHex: Hex =
+        typeof initCalldataRaw === 'string'
+          ? (initCalldataRaw as Hex)
+          : initCalldataRaw instanceof Uint8Array
+          ? bytesToHex(initCalldataRaw)
+          : ('0x' as Hex)
+      const hasInitCall =
+        initAddress &&
+        String(initAddress) !== '0x0000000000000000000000000000000000000000' &&
+        initCalldataHex !== '0x' &&
+        initCalldataHex.length >= 10
+      if (hasInitCall) {
+        log('Init call:')
+        await formatDecodedTxDataForDisplay(initCalldataHex, {
+          chainId,
+          network,
+          indent: pre + '  ',
+        })
+      }
       return
     }
 
     const scheduleArgs =
       decoded?.functionName === 'schedule' ? decoded.args : undefined
     if (scheduleArgs && scheduleArgs.length >= 6) {
-      consola.info('Timelock Schedule Details:')
-      consola.info('-'.repeat(80))
+      log('Timelock Schedule Details:')
+      log('-'.repeat(80))
       const [target, value, innerData, predecessor, salt, delay] = scheduleArgs
       const targetName = await getTargetName(target as Address, network)
       const targetDisplay = targetName
         ? `${target} \u001b[33m${targetName}\u001b[0m`
         : target
-      consola.info(`Target:      \u001b[32m${targetDisplay}\u001b[0m`)
-      consola.info(`Value:       \u001b[32m${value}\u001b[0m`)
-      consola.info(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
-      consola.info(`Salt:        \u001b[32m${salt}\u001b[0m`)
-      consola.info(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
-      consola.info('-'.repeat(80))
+      log(`Target:      \u001b[32m${targetDisplay}\u001b[0m`)
+      log(`Value:       \u001b[32m${value}\u001b[0m`)
+      log(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
+      log(`Salt:        \u001b[32m${salt}\u001b[0m`)
+      log(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
+      log('-'.repeat(80))
       if (innerData && innerData !== '0x')
         await formatDecodedTxDataForDisplay(innerData as Hex, context)
       return
     }
 
     if (decoded?.functionName === 'scheduleBatch' && decoded.args) {
-      await formatTimelockScheduleBatch(decoded.args, network)
+      await formatTimelockScheduleBatch(decoded.args, network, context)
       return
     }
 
@@ -770,7 +782,7 @@ export async function formatDecodedTxDataForDisplay(
       decoded?.functionName === 'batchSetContractSelectorWhitelist' &&
       decoded.args
     ) {
-      formatBatchSetContractSelectorWhitelist(decoded.args, network)
+      formatBatchSetContractSelectorWhitelist(decoded.args, network, pre)
       return
     }
 
@@ -779,7 +791,7 @@ export async function formatDecodedTxDataForDisplay(
       decoded.args &&
       decoded.args.length >= 2
     ) {
-      consola.info(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
+      log(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
       const peripheryName = String(decoded.args[0] ?? '')
       const peripheryAddress = String(decoded.args[1] ?? '')
       const deploymentSuffix = await getPeripheryDeploymentCheckSuffix(
@@ -790,7 +802,7 @@ export async function formatDecodedTxDataForDisplay(
       let peripheryLine = `Periphery Address: \u001b[34m${peripheryAddress}\u001b[0m`
       peripheryLine += await getTargetSuffix(network, peripheryAddress)
       peripheryLine += deploymentSuffix
-      consola.info(peripheryLine)
+      log(peripheryLine)
       return
     }
 
@@ -799,39 +811,39 @@ export async function formatDecodedTxDataForDisplay(
       decoded.args &&
       decoded.args.length >= 2
     ) {
-      await formatGrantRole(decoded.args, network)
+      await formatGrantRole(decoded.args, network, pre)
       return
     }
 
     if (decoded?.functionName) {
-      consola.info(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
+      log(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
       const args = decoded.args
       if (args && args.length > 0) {
-        consola.info('Decoded Arguments:')
+        log('Decoded Arguments:')
         args.forEach((arg: unknown, index: number) => {
           let displayValue: unknown = arg
           if (typeof arg === 'bigint') displayValue = arg.toString()
           else if (typeof arg === 'object' && arg !== null)
             displayValue = JSON.stringify(arg)
-          consola.info(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
+          log(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
         })
       } else {
-        consola.info('No arguments or failed to decode arguments')
+        log('No arguments or failed to decode arguments')
       }
       return
     }
 
     if (functionName) {
-      consola.info(`Function: \u001b[34m${functionName}\u001b[0m`)
+      log(`Function: \u001b[34m${functionName}\u001b[0m`)
       return
     }
 
     const preview = data.length > 66 ? `${data.slice(0, 66)}…` : data
-    consola.info(`Data (raw): \u001b[90m${preview}\u001b[0m`)
+    log(`Data (raw): \u001b[90m${preview}\u001b[0m`)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    consola.warn(`Failed to decode data: ${msg}`)
+    log(`Failed to decode data: ${msg}`)
     const preview = data.length > 66 ? `${data.slice(0, 66)}…` : data
-    consola.info(`Data (raw): \u001b[90m${preview}\u001b[0m`)
+    log(`Data (raw): \u001b[90m${preview}\u001b[0m`)
   }
 }

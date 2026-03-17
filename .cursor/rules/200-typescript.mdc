@@ -19,9 +19,17 @@ globs:
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
+  - `script/utils/fetchWithTimeout.ts` (external API fetch with timeout; see [CONV:FETCH-TIMEOUT]),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
 - **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
+
+## External API fetch and timeout ([CONV:FETCH-TIMEOUT])
+
+- **All outbound HTTP requests to external APIs** (e.g. 4byte/Sourcify, relay APIs, explorer APIs, webhooks) **MUST** use the shared `fetchWithTimeout()` helper from `script/utils/fetchWithTimeout.ts`.
+- **Do not use unbounded `fetch(url)`** for external API calls; slow or hung requests can block scripts indefinitely.
+- **Standard pattern**: `fetchWithTimeout(url, init?, timeoutMs?)` — uses an AbortController and clears the timeout in a `finally` block. Default timeout is 10 seconds (`DEFAULT_FETCH_TIMEOUT_MS`). Pass a custom `timeoutMs` only when the use case requires it (e.g. large payloads).
+- When adding or modifying code that calls external HTTP APIs, use `fetchWithTimeout` and handle `AbortError` or timeout in catch blocks as appropriate (e.g. return null, warn, or retry).
 
 ## Types
 
@@ -39,6 +47,17 @@ globs:
 ## Demo Scripts
 
 - When referring to "demo script", this means scripts in `script/demoScripts/`. They follow similar structural patterns (e.g., `main()` function, `setupEnvironment()`, helpers from `demoScriptHelpers`). See `demoLidoWrapper.ts`, `demoUnit.ts`, `demoEco.ts` as reference examples.
+
+## Solana addresses and dev wallet address ([CONV:SOLANA-DEV-WALLET])
+
+- **Solana addresses (base58, bytes32)**: Derive dynamically from the signer’s private key. Do **not** hardcode Solana addresses or store them in config (e.g. `config/global.json`).
+  - **Source**: `script/demoScripts/utils/demoScriptHelpers.ts`
+  - **Base58**: `deriveSolanaAddress(privateKey)` — use for logging, Solana APIs, or ATA computation.
+  - **Bytes32**: `solanaAddressToBytes32(deriveSolanaAddress(privateKey))` — use for contract/struct fields that expect bytes32 (e.g. non-EVM receiver, mintRecipient).
+  - **Private key**: `getPrivateKeyForEnvironment(EnvironmentEnum.staging)` (or `EnvironmentEnum.production`) from `demoScriptHelpers`. Example: `demoAcrossV4.ts`, `demoPolymerCCTP.ts`, `demoNEARIntents.ts`.
+- **Dev wallet (EVM)**: Use a single source of truth from config.
+  - Use **only** `DEV_WALLET_ADDRESS` from `script/demoScripts/utils/demoScriptHelpers.ts` (it reads `config/global.json` → `devWallet`). Do not use `globalConfig.devWallet` elsewhere.
+  - Do not add or use separate constants for the same EVM dev wallet (e.g. no `ADDRESS_DEV_WALLET_V5`-style aliases).
 
 ## CLI and Logging
 
