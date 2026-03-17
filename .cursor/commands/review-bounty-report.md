@@ -67,6 +67,8 @@ Perform a structured, skeptical review of a Cantina bug bounty submission. Chall
 
 ## Workflow
 
+Follow these **7 steps** in order.
+
 ### 1. Parse and list claims
 
 From the report (and any platform AI analysis), extract without assuming a fixed structure:
