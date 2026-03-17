@@ -84,16 +84,16 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         vm.deal(USER_SENDER, 10 ether);
 
         spokePoolPeriphery = _configAddress(
-            "acrossV4Swap.json",
+            "across.json",
             ".arbitrum.spokePoolPeriphery"
         );
-        spokePool = _configAddress("acrossV4Swap.json", ".arbitrum.spokePool");
+        spokePool = _configAddress("across.json", ".arbitrum.acrossSpokePool");
         sponsoredOftSrcPeriphery = _configAddress(
-            "acrossV4Swap.json",
+            "across.json",
             ".arbitrum.sponsoredOftSrcPeriphery"
         );
         sponsoredCctpSrcPeriphery = _configAddress(
-            "acrossV4Swap.json",
+            "across.json",
             ".arbitrum.sponsoredCctpSrcPeriphery"
         );
 

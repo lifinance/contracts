@@ -61,19 +61,19 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         backendSigner = vm.addr(0xA11CE);
 
         address spokePoolPeriphery = getConfigAddressFromPath(
-            "acrossV4Swap.json",
+            "across.json",
             ".arbitrum.spokePoolPeriphery"
         );
         address spokePool = getConfigAddressFromPath(
-            "acrossV4Swap.json",
-            ".arbitrum.spokePool"
+            "across.json",
+            ".arbitrum.acrossSpokePool"
         );
         sponsoredOftSrcPeriphery = getConfigAddressFromPath(
-            "acrossV4Swap.json",
+            "across.json",
             ".arbitrum.sponsoredOftSrcPeriphery"
         );
         sponsoredCctpSrcPeriphery = getConfigAddressFromPath(
-            "acrossV4Swap.json",
+            "across.json",
             ".arbitrum.sponsoredCctpSrcPeriphery"
         );
 

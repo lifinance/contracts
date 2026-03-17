@@ -22,7 +22,7 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/acrossV4Swap.json");
+        string memory path = string.concat(root, "/config/across.json");
 
         address spokePoolPeriphery = _getConfigContractAddress(
             path,
@@ -30,7 +30,7 @@ contract DeployScript is DeployScriptBase {
         );
         address spokePool = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".spokePool")
+            string.concat(".", network, ".acrossSpokePool")
         );
         address sponsoredOftSrcPeriphery = _getConfigContractAddress(
             path,
