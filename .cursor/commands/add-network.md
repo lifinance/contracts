@@ -38,7 +38,8 @@ Insert new network **alphabetically** (mainnet first, then A–Z). Fields: name,
 
 ## Step 3: `foundry.toml`
 
-- **RPC**: `[rpc_endpoints]` add `{networkKey} = "${ETH_NODE_URI_{NETWORK_KEY}}"` (alphabetical). Remind user to set `ETH_NODE_URI_<NETWORK>` in `.env`.
+- **RPC**: `[rpc_endpoints]` add `{networkKey} = "${ETH_NODE_URI_{NETWORK_KEY}}"` (alphabetical). 
+**DRPC (if network is on chainlist)**: (1) Open https://drpc.org/chainlist and find the network; (2) extract the DRPC chain name (slug, e.g. `ethereum`, `bsc`); (3) construct the URL prefix `https://lb.drpc.live/<chainName>/`; (4) ask the user to attach their API key (to form the complete URL) and to store it in `.env` and MongoDB; (5) print the command for them: `bun add-network-rpc --network <networkKey> --rpc-url <complete URL>` (leave `--rpc-url` empty or as placeholder so the user fills in the full URL including their API key).
 - **Etherscan**: If chain in https://api.etherscan.io/v2/chainlist, add `{networkKey} = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid={chainId}", chain = "{chainId}" }`. Else use explorerApiUrl + verificationType; for blockscout/zksync/oklink/sourcify/custom add `verifier = "<type>"` and appropriate key. Insert alphabetically.
 
 ---
@@ -57,15 +58,28 @@ Default Permit2 `0x000000000022D473030F116dDEE9F6B43aC78BA3`. `cast code` on cha
 
 ## Step 6: Gas.zip — `config/gaszip.json` and `config/networks.json` only (do not edit `config/global.json`)
 
-Source: https://dev.gas.zip/gas/chain-support/inbound. If available: set gasZipChainId on network in networks.json; add router to `config/gaszip.json` under gasZipRouters (alphabetically); `cast code` router and warn if no code. If not available: set gasZipChainId `0` (or omit) for the new network in networks.json; do **not** add the new network to gaszip.json; deployment will skip GasZip for this network. **Do not** remove GasZipFacet or GasZipPeriphery from `config/global.json` — global.json is shared; keep omissions local to the new network's entry in networks.json and per-network files (gaszip.json).
+Source: https://dev.gas.zip/gas/chain-support/inbound. On that page, use the address from the **"Inbound: Contract Forwarder"** table (do **not** use the "Inbound: Direct Forwarder" table). If available: set gasZipChainId on network in networks.json; add that router address to `config/gaszip.json` under gasZipRouters (alphabetically); `cast code` router and warn if no code. If not available: set gasZipChainId `0` (or omit) for the new network in networks.json; do **not** add the new network to gaszip.json; deployment will skip GasZip for this network. **Do not** remove GasZipFacet or GasZipPeriphery from `config/global.json` — global.json is shared; keep omissions local to the new network's entry in networks.json and per-network files (gaszip.json).
 
 ---
 
 ## Step 7: Bridge configs (from CSV columns 40, 41–63, 65)
 
-For each bridge indicated (checkbox true or in column 40): get contract address(es) from bridge config doc link or column 65; add new network to that bridge’s `config/<bridge>.json` with same structure as existing (alphabetical); `cast code` every address — if no code, warn and do not add (or remove). List for user which bridges updated and which failed validation.
+For each bridge indicated (checkbox true or in column 40): get contract address(es) from the bridge’s config file (see links/comments inside each `config/<bridge>.json`), from the bridge config doc, or from column 65; add the new network to that bridge’s `config/<bridge>.json` with the **same structure** as existing entries (insert alphabetically: mainnet first, then A–Z). **Always** run `cast code <address> --rpc-url <rpcUrl>` for every address — if result is `0x` or empty, warn and do not add (or ask for the correct address). List for the user which bridges were updated and which failed validation.
 
 **Form bridge → config**: StargateV2 → stargateV2.json; Relay → relay.json; Across → across.json; Symbiosis → symbiosis.json; Hop, cBridge, Squid, ThorSwap, Mayan, Allbridge, Arbitrum Bridge, Optimism, Polygon Bridge, Omni/Gnosis Bridge, Garden, Eco, Everclear, etc. → corresponding config in `config/`. Gas.zip → Step 6.
+
+### Where to get addresses (examples)
+
+- **StargateV2** (`config/stargateV2.json`): The file documents where to obtain addresses.
+  - **EndpointV2**: `LinkToDeployedToAddresses` in the `endpointV2` object → https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts. Alternative: if you have a TokenMessaging address, call `endpoint()` on it to get EndpointV2.
+  - **TokenMessaging**: `LinkToDeployedToAddresses` in the `tokenMessaging` object → https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/technical-reference/mainnet-contracts; alternative: https://github.com/stargate-protocol/stargate-v2/tree/main/packages/stg-evm-v2/deployments.
+  - Add the new network key under both `endpointV2` and `tokenMessaging` with the addresses; **verify both have code** with `cast code` before adding.
+
+- **Across** (`config/across.json`): The file has comments at the top explaining how to extend it and where to find the SpokePool.
+  - **SpokePool**: `LinkToDeployedToAddresses` at the top of the file → https://github.com/across-protocol/contracts/tree/master/deployments. Use the **acrossSpokePool** address for the chain from that repo.
+  - Structure per network: `"<networkKey>": { "chainId": <number>, "acrossSpokePool": "0x...", "tokensToApprove": [ ... ] }`. For **new** networks, leave `tokensToApprove` **empty** `[]` (comment: we are not deploying AcrossFacetPacked to new chains, so custom token lists are not needed). **Do not change or remove** existing `tokensToApprove` on already-listed networks. **Verify acrossSpokePool has code** with `cast code` before adding.
+
+For other bridges, open the corresponding `config/<bridge>.json` and follow any `LinkToDeployedToAddresses`, `comment`, or inline docs; then validate every contract address with `cast code`.
 
 ---
 
@@ -77,6 +91,7 @@ For each bridge indicated (checkbox true or in column 40): get contract address(
 4. Bridge address no code → do not add until correct address; check docs or column 65.
 5. Target state → tell user to run scriptMaster use case 10 (do not run from command).
 6. Deployer/pauser zero or low balance → fund with native token before deploy; include balances in output.
+7. **Changing `config/whitelist.json` is not allowed** — do not add or edit the new network there; whitelist is managed separately.
 
 ---
 
@@ -103,3 +118,4 @@ For each bridge indicated (checkbox true or in column 40): get contract address(
 | `config/global.json` | **Do not edit** for Permit2/GasZip — keep coreFacets/corePeriphery unchanged; omissions are per-network via the above files. |
 | `config/<bridge>.json` | New network per indicated bridge (validate addresses). |
 | `script/deploy/_targetState.json` | User runs scriptMaster use case 10; do not edit manually. |
+| `config/whitelist.json` | **Do not edit** — changing whitelist.json is not allowed; whitelist is managed separately. |
