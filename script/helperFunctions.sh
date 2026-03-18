@@ -16,10 +16,6 @@ BLUE='\033[1;34m'  # Light blue color
 
 NC='\033[0m' # No color
 
-# MongoDB query retry defaults (used by findContractInMasterLog, findContractInMasterLogByAddress,
-# getContractVersionFromMasterLog, getHighestDeployedContractVersionFromMasterLog, getConstructorArgsFromMasterLog)
-MONGO_MAX_RETRIES=${MONGO_MAX_RETRIES:-3}
-
 # >>>>> logging
 function logContractDeploymentInfo {
   # read function arguments into variables
@@ -214,8 +210,8 @@ function findContractInMasterLog() {
   while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     local MONGO_EXIT_CODE=$?
-    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object
-    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[{]/,$ p')
+    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object (supports indented or compact one-line)
+    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[:space:]]*[{]/,$ p')
 
     if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Strip leading non-JSON so jq sees only the object
@@ -1903,7 +1899,11 @@ function verifyContract() {
       VERIFY_CMD+=("--verifier" "sourcify")
     elif [[ "$VERIFICATION_TYPE" = "etherscan" ]]; then
       # Use etherscan verifier (foundry.toml may also set verifier = "etherscan" for this network)
-      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
+      if [ -z "${!API_KEY}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+        return 1
+      fi
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
       # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
       VERIFY_CMD+=("--verifier" "custom")

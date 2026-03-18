@@ -24,9 +24,11 @@ import {
   pauserWallet,
   whitelistPeripheryFunctions,
 } from '../../config/global.json'
+import type { INetwork } from '../common/types'
 import { DEV_WALLET_ADDRESS } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import {
+  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
   networks,
   type Network,
@@ -137,6 +139,16 @@ const main = defineCommand({
     const globalConfig = await import('../../config/global.json')
     const networksConfig = await import('../../config/networks.json')
 
+    // Optional bypass: config/networks.json skipHealthcheck (see INetwork.skipHealthcheck in script/common/types.ts).
+    // Use only when healthcheck cannot pass otherwise; still run healthcheck manually before merging to verify addresses.
+    const networkEntry = networksConfig[networkLower] as INetwork | undefined
+    if (networkEntry?.skipHealthcheck === true) {
+      consola.info(
+        `Health check bypassed for network '${networkLower}' (skipHealthcheck: true in config/networks.json).`
+      )
+      process.exit(0)
+    }
+
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
 
@@ -148,10 +160,13 @@ const main = defineCommand({
       )
     else {
       const chain = getViemChainForNetworkName(networkLower)
+      const rpcUrl = chain.rpcUrls.default.http[0]
+      const { url: transportUrl, fetchOptions } =
+        getTransportConfigFromRpcUrl(rpcUrl)
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,
-        transport: http(),
+        transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
       })
     }
 
