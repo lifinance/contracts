@@ -7,18 +7,50 @@ import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 import { EnvironmentEnum } from '../../common/types'
-import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import {
+  getEnvVar,
+  getPrivateKeyForEnvironment,
+} from '../../demoScripts/utils/demoScriptHelpers'
 
+import { runPropose } from './propose-to-safe-tron.js'
 import { getEnvironment, waitBetweenDeployments } from './utils.js'
 
+/** Normalize raw owner response from contract to base58. */
+function ownerRawToBase58(tronWeb: TronWeb, ownerRaw: unknown): string {
+  const ownerStr = String(ownerRaw)
+  if (ownerStr.startsWith('T') && ownerStr.length === 34) return ownerStr
+  let hexForConversion = ownerStr
+  if (hexForConversion.startsWith('0x'))
+    hexForConversion = hexForConversion.substring(2)
+  if (!hexForConversion.startsWith('41'))
+    hexForConversion = '41' + hexForConversion
+  if (hexForConversion.length > 42)
+    hexForConversion = hexForConversion.substring(0, 42)
+  else if (hexForConversion.length < 42)
+    hexForConversion = hexForConversion.padEnd(42, '0')
+  return tronWeb.address.fromHex(hexForConversion)
+}
+
+/** Normalize address (hex or base58) to base58. */
+function normalizeNewOwner(tronWeb: TronWeb, newOwner: string): string {
+  if (!newOwner.startsWith('0x') && !newOwner.startsWith('41')) return newOwner
+  const hexAddr = newOwner.startsWith('0x')
+    ? '41' + newOwner.substring(2)
+    : newOwner
+  return tronWeb.address.fromHex(hexAddr)
+}
+
 /**
- * Transfer ownership of the Diamond contract
- * This is a two-step process:
- * 1. Current owner calls transferOwnership(newOwner)
- * 2. New owner calls confirmOwnershipTransfer()
+ * Transfer ownership of the Diamond contract.
+ * Two-step process:
+ * - Step 1: Current owner calls transferOwnership(newOwner)
+ * - Step 2: New owner (pending owner) calls confirmOwnershipTransfer()
+ * Use --step 1 or --step 2 to run only one step.
  */
 async function transferOwnership(options: {
   newOwner: string
+  step?: 1 | 2
+  noPropose?: boolean
   dryRun?: boolean
   confirm?: boolean
   newOwnerPrivateKey?: string
@@ -26,54 +58,64 @@ async function transferOwnership(options: {
   delaySeconds?: number
   verbose?: boolean
 }) {
-  try {
-    // Get environment and determine network
-    const environment = await getEnvironment()
-    const networkName =
-      environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+  const stepOnly = options.step
+  const runStep1 = stepOnly === undefined || stepOnly === 1
+  const runStep2 = stepOnly === undefined ? !!options.confirm : stepOnly === 2
 
-    // Load deployment addresses
-    const fileSuffix =
-      environment === EnvironmentEnum.production ? '' : 'staging.'
-    const deploymentPath = path.join(
-      process.cwd(),
-      'deployments',
-      `${networkName}.${fileSuffix}json`
+  const environment = await getEnvironment()
+  const networkName =
+    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+
+  const fileSuffix =
+    environment === EnvironmentEnum.production ? '' : 'staging.'
+  const deploymentPath = path.join(
+    process.cwd(),
+    'deployments',
+    `${networkName}.${fileSuffix}json`
+  )
+
+  if (!fs.existsSync(deploymentPath))
+    throw new Error(
+      `deployments/${networkName}.${fileSuffix}json not found. Please deploy contracts first.`
     )
 
-    if (!fs.existsSync(deploymentPath))
-      throw new Error(
-        `deployments/${networkName}.${fileSuffix}json not found. Please deploy contracts first.`
-      )
+  const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
+  const diamondAddress = deployments.LiFiDiamond
+  const timelockAddress = deployments.LiFiTimelockController
 
-    const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
-    const diamondAddress = deployments.LiFiDiamond
+  if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
-    if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
+  const networkConfig = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), 'config', 'networks.json'), 'utf8')
+  )
+  const fullHost =
+    networkConfig[networkName]?.rpcUrl || networkConfig[networkName]?.rpc
+  if (!fullHost) throw new Error('Tron RPC URL not found in networks.json')
 
-    // Setup TronWeb for current owner
-    // Use provided currentOwnerPrivateKey if available, otherwise use deployer key
+  const ownershipABI = JSON.parse(
+    fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'out',
+        'OwnershipFacet.sol',
+        'OwnershipFacet.json'
+      ),
+      'utf8'
+    )
+  ).abi
+
+  // ---- Step 1: transferOwnership (current owner) ----
+  if (runStep1) {
+    // Use PRIVATE_KEY_PRODUCTION from .env for production Tron (mainnet)
     const privateKey =
-      options.currentOwnerPrivateKey || getPrivateKeyForEnvironment(environment)
-    const networkConfig = JSON.parse(
-      fs.readFileSync(
-        path.join(process.cwd(), 'config', 'networks.json'),
-        'utf8'
-      )
-    )
-    const fullHost =
-      networkConfig[networkName]?.rpcUrl || networkConfig[networkName]?.rpc
+      options.currentOwnerPrivateKey ||
+      (networkName === 'tron'
+        ? getEnvVar('PRIVATE_KEY_PRODUCTION')
+        : getPrivateKeyForEnvironment(environment))
+    const tronWeb = new TronWeb({ fullHost, privateKey })
 
-    if (!fullHost) throw new Error('Tron RPC URL not found in networks.json')
-
-    const tronWeb = new TronWeb({
-      fullHost,
-      privateKey,
-    })
-
-    if (options.currentOwnerPrivateKey) {
-      consola.info(`   Using provided current owner private key`)
-    }
+    if (options.currentOwnerPrivateKey)
+      consola.info('   Using provided current owner private key')
 
     consola.info(` Connected to: ${fullHost}`)
     consola.info(
@@ -82,83 +124,24 @@ async function transferOwnership(options: {
     consola.info(`🔷 LiFiDiamond: ${diamondAddress}`)
     consola.info(`🎯 New owner: ${options.newOwner}`)
 
-    // Load OwnershipFacet ABI
-    const ownershipABI = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          process.cwd(),
-          'out',
-          'OwnershipFacet.sol',
-          'OwnershipFacet.json'
-        ),
-        'utf8'
-      )
-    ).abi
-
     const diamond = tronWeb.contract(ownershipABI, diamondAddress)
 
-    // Step 1: Check current owner
-    consola.info('\n📋 Step 1: Checking current owner...')
+    consola.info('\n📋 Checking current owner...')
     const currentOwnerRaw = await diamond.owner().call()
-
-    // Convert owner address to base58 for comparison (owner() returns hex)
-    let currentOwnerBase58: string
-    let currentOwnerHex: string
-
-    const ownerStr = String(currentOwnerRaw)
-
-    // Check if it's already in base58 (starts with T)
-    if (ownerStr.startsWith('T') && ownerStr.length === 34) {
-      currentOwnerBase58 = ownerStr
-      currentOwnerHex = tronWeb.address.toHex(ownerStr)
-    } else {
-      // It's in hex format - TronWeb.fromHex expects hex with 41 prefix (no 0x)
-      let hexForConversion = ownerStr
-
-      // Remove 0x prefix if present
-      if (hexForConversion.startsWith('0x')) {
-        hexForConversion = hexForConversion.substring(2)
-      }
-
-      // Ensure it has 41 prefix (Tron address prefix)
-      if (!hexForConversion.startsWith('41')) {
-        hexForConversion = '41' + hexForConversion
-      }
-
-      // Ensure it's exactly 42 characters (41 + 40 hex chars = 20 bytes)
-      if (hexForConversion.length > 42) {
-        hexForConversion = hexForConversion.substring(0, 42)
-      } else if (hexForConversion.length < 42) {
-        hexForConversion = hexForConversion.padEnd(42, '0')
-      }
-
-      // Convert to base58
-      currentOwnerBase58 = tronWeb.address.fromHex(hexForConversion)
-      currentOwnerHex = '0x' + hexForConversion.substring(2) // Remove 41 prefix for display
-    }
-
+    const currentOwnerBase58 = ownerRawToBase58(tronWeb, currentOwnerRaw)
     consola.info(`   Current owner (base58): ${currentOwnerBase58}`)
-    if (options.verbose) {
-      consola.debug(`   Current owner (hex): ${currentOwnerHex}`)
-      consola.debug(`   Raw response: ${JSON.stringify(currentOwnerRaw)}`)
-    }
 
-    // Compare in base58 format
     if (currentOwnerBase58 !== tronWeb.defaultAddress.base58) {
       consola.warn(
-        `   ⚠️  Warning: Deployer address (${tronWeb.defaultAddress.base58}) is not the current owner!`
+        `   ⚠️  Warning: Deployer (${tronWeb.defaultAddress.base58}) is not the current owner (${currentOwnerBase58}).`
       )
-      consola.warn(`   Current owner is: ${currentOwnerBase58}`)
-
-      if (!options.currentOwnerPrivateKey) {
+      if (!options.currentOwnerPrivateKey)
         consola.warn(
-          `   💡 Tip: Use --currentOwnerPrivateKey <key> to use the current owner's private key instead.`
+          '   💡 Use --currentOwnerPrivateKey <key> to use the current owner key.'
         )
-      }
-
       if (!options.dryRun) {
         const shouldContinue = await consola.prompt(
-          'Continue anyway? (this will fail if you are not the owner)',
+          'Continue anyway? (will fail if you are not the owner)',
           { type: 'confirm', default: false }
         )
         if (!shouldContinue) {
@@ -167,174 +150,153 @@ async function transferOwnership(options: {
         }
       }
     } else {
-      consola.success(`   ✅ Deployer address matches current owner!`)
+      consola.success('   ✅ Deployer matches current owner.')
     }
 
-    // Step 2: Normalize and validate new owner address
-    // Normalize to base58 first, then validate (isAddress rejects 0x-prefixed hex)
-    let newOwnerBase58 = options.newOwner
-    if (
-      options.newOwner.startsWith('0x') ||
-      options.newOwner.startsWith('41')
-    ) {
-      // Remove 0x prefix if present before conversion (fromHex expects 41-prefixed hex)
-      const hexAddr = options.newOwner.startsWith('0x')
-        ? '41' + options.newOwner.substring(2)
-        : options.newOwner
-      newOwnerBase58 = tronWeb.address.fromHex(hexAddr)
-      consola.info(`   Converted new owner to base58: ${newOwnerBase58}`)
-    }
-
-    // Validate the normalized address
-    if (!tronWeb.isAddress(newOwnerBase58)) {
+    const newOwnerBase58 = normalizeNewOwner(tronWeb, options.newOwner)
+    if (!tronWeb.isAddress(newOwnerBase58))
       throw new Error(`Invalid new owner address: ${options.newOwner}`)
-    }
+    if (currentOwnerBase58 === newOwnerBase58)
+      throw new Error('New owner cannot be the same as current owner.')
 
-    if (currentOwnerBase58 === newOwnerBase58) {
-      throw new Error('New owner cannot be the same as current owner!')
-    }
-
-    // Step 3: Initiate ownership transfer
-    consola.info('\n📤 Step 2: Initiating ownership transfer...')
+    consola.info(
+      '\n📤 Step 1: Initiating ownership transfer (transferOwnership)...'
+    )
 
     if (options.dryRun) {
-      consola.info('   [DRY RUN] Would call: transferOwnership(newOwner)')
-      consola.info(`   New owner: ${newOwnerBase58}`)
       consola.info(
-        '\n   After this transaction, the new owner must call confirmOwnershipTransfer()'
+        `   [DRY RUN] Would call transferOwnership(${newOwnerBase58})`
+      )
+      consola.info(
+        '   Then run with --step 2 (and --newOwnerPrivateKey if new owner is EOA).'
       )
       return
     }
 
-    // Add delay before transaction
     await waitBetweenDeployments(
       options.delaySeconds ?? 0,
       options.verbose ?? false
     )
 
     try {
-      consola.info(`   Calling transferOwnership(${newOwnerBase58})...`)
-
       const tx = await diamond.transferOwnership(newOwnerBase58).send({
-        feeLimit: 10_000_000, // 10 TRX
+        feeLimit: 10_000_000,
         shouldPollResponse: true,
       })
-
-      consola.success(`   ✅ Ownership transfer initiated!`)
+      consola.success('   ✅ Ownership transfer initiated.')
       consola.info(`   Transaction: ${tx}`)
-      consola.info(
-        `\n   ⚠️  IMPORTANT: The new owner (${newOwnerBase58}) must now call confirmOwnershipTransfer() to complete the transfer.`
-      )
+      if (!runStep2)
+        consola.info(
+          `   Next: run with --step 2. New owner (${newOwnerBase58}) must call confirmOwnershipTransfer().`
+        )
     } catch (error: any) {
       consola.error(`   ❌ Transfer failed: ${error.message || error}`)
       if (error.error) consola.error('   Error details:', error.error)
       throw error
     }
+  }
 
-    // Step 4: Optionally confirm the transfer if new owner's key is provided
-    if (options.confirm && options.newOwnerPrivateKey) {
-      consola.info('\n📥 Step 3: Confirming ownership transfer...')
+  // ---- Step 2: confirmOwnershipTransfer (new owner) ----
+  if (runStep2) {
+    const tronWebForDiamond = new TronWeb({
+      fullHost,
+      privateKey:
+        options.newOwnerPrivateKey || getPrivateKeyForEnvironment(environment),
+    })
+    const pendingOwnerHint = normalizeNewOwner(
+      tronWebForDiamond,
+      options.newOwner
+    )
 
-      // Create TronWeb instance for new owner
-      const newOwnerTronWeb = new TronWeb({
-        fullHost,
-        privateKey: options.newOwnerPrivateKey,
-      })
+    consola.info(
+      '\n📥 Step 2: Confirming ownership transfer (confirmOwnershipTransfer)...'
+    )
+    consola.info(`   Diamond: ${diamondAddress}`)
+    consola.info(
+      `   Caller (must be pending owner): ${tronWebForDiamond.defaultAddress.base58}`
+    )
+    consola.info(`   Expected pending owner: ${pendingOwnerHint}`)
 
-      if (newOwnerTronWeb.defaultAddress.base58 !== newOwnerBase58) {
-        throw new Error(
-          `Private key does not match new owner address! Expected: ${newOwnerBase58}, Got: ${newOwnerTronWeb.defaultAddress.base58}`
+    // If new owner is a contract (e.g. Timelock), we cannot sign; by default create Safe proposal in MongoDB
+    if (
+      !options.newOwnerPrivateKey &&
+      timelockAddress &&
+      pendingOwnerHint === (timelockAddress as string)
+    ) {
+      if (!options.noPropose) {
+        consola.info(
+          '\n   Creating Safe proposal (propose-to-safe-tron) and storing in MongoDB...'
         )
+        await runPropose({ dryRun: options.dryRun })
+        return
       }
-
+      const selector = '0x13af4035' // confirmOwnershipTransfer() selector
       consola.info(
-        `   New owner address: ${newOwnerTronWeb.defaultAddress.base58}`
+        '\n   New owner is the Timelock contract; it must call confirmOwnershipTransfer().'
       )
-
-      const newOwnerDiamond = newOwnerTronWeb.contract(
-        ownershipABI,
-        diamondAddress
+      consola.info(`   Calldata (no args): ${selector}`)
+      consola.info(
+        '   (--noPropose: only instructions.) Propose manually: schedule Timelock operation → target: Diamond, data: 0x13af4035, then execute after delay.'
       )
+      return
+    }
 
-      await waitBetweenDeployments(
-        options.delaySeconds ?? 0,
-        options.verbose ?? false
-      )
-
-      try {
-        consola.info('   Calling confirmOwnershipTransfer()...')
-
-        const confirmTx = await newOwnerDiamond
-          .confirmOwnershipTransfer()
-          .send({
-            feeLimit: 10_000_000, // 10 TRX
-            shouldPollResponse: true,
-          })
-
-        consola.success(`   ✅ Ownership transfer confirmed!`)
-        consola.info(`   Transaction: ${confirmTx}`)
-
-        // Verify new owner
-        const verifiedOwnerRaw = await newOwnerDiamond.owner().call()
-
-        // Convert verified owner from hex to base58 for comparison
-        let verifiedOwnerBase58: string
-        const verifiedOwnerStr = String(verifiedOwnerRaw)
-
-        if (
-          verifiedOwnerStr.startsWith('T') &&
-          verifiedOwnerStr.length === 34
-        ) {
-          verifiedOwnerBase58 = verifiedOwnerStr
-        } else {
-          // It's in hex format - convert to base58
-          let hexForConversion = verifiedOwnerStr
-
-          // Remove 0x prefix if present
-          if (hexForConversion.startsWith('0x')) {
-            hexForConversion = hexForConversion.substring(2)
-          }
-
-          // Ensure it has 41 prefix (Tron address prefix)
-          if (!hexForConversion.startsWith('41')) {
-            hexForConversion = '41' + hexForConversion
-          }
-
-          // Ensure it's exactly 42 characters (41 + 40 hex chars = 20 bytes)
-          if (hexForConversion.length > 42) {
-            hexForConversion = hexForConversion.substring(0, 42)
-          } else if (hexForConversion.length < 42) {
-            hexForConversion = hexForConversion.padEnd(42, '0')
-          }
-
-          // Convert to base58
-          verifiedOwnerBase58 =
-            newOwnerTronWeb.address.fromHex(hexForConversion)
-        }
-
-        if (verifiedOwnerBase58 === newOwnerBase58) {
-          consola.success(`   ✅ Verified: New owner is ${verifiedOwnerBase58}`)
-        } else {
-          consola.warn(
-            `   ⚠️  Warning: Owner verification failed. Expected: ${newOwnerBase58}, Got: ${verifiedOwnerBase58} (raw: ${verifiedOwnerStr})`
-          )
-        }
-      } catch (error: any) {
-        consola.error(`   ❌ Confirmation failed: ${error.message || error}`)
-        if (error.error) consola.error('   Error details:', error.error)
-        throw error
-      }
-    } else if (options.confirm && !options.newOwnerPrivateKey) {
+    if (!options.newOwnerPrivateKey) {
       consola.warn(
-        '\n   ⚠️  --confirm was specified but --newOwnerPrivateKey was not provided.'
+        '   ⚠️  No --newOwnerPrivateKey. For EOA new owner, pass the key. For Timelock, propose the call via Safe.'
       )
-      consola.warn(
-        '   The new owner must manually call confirmOwnershipTransfer() to complete the transfer.'
+      return
+    }
+
+    const newOwnerTronWeb = new TronWeb({
+      fullHost,
+      privateKey: options.newOwnerPrivateKey,
+    })
+    if (newOwnerTronWeb.defaultAddress.base58 !== pendingOwnerHint) {
+      throw new Error(
+        `Private key does not match new owner. Expected: ${pendingOwnerHint}, Got: ${newOwnerTronWeb.defaultAddress.base58}`
       )
     }
-  } catch (error: any) {
-    consola.error('Ownership transfer failed:', error.message || error)
-    throw error
+
+    const newOwnerDiamond = newOwnerTronWeb.contract(
+      ownershipABI,
+      diamondAddress
+    )
+
+    if (options.dryRun) {
+      consola.info('   [DRY RUN] Would call confirmOwnershipTransfer()')
+      return
+    }
+
+    await waitBetweenDeployments(
+      options.delaySeconds ?? 0,
+      options.verbose ?? false
+    )
+
+    try {
+      const confirmTx = await newOwnerDiamond.confirmOwnershipTransfer().send({
+        feeLimit: 10_000_000,
+        shouldPollResponse: true,
+      })
+      consola.success('   ✅ Ownership transfer confirmed.')
+      consola.info(`   Transaction: ${confirmTx}`)
+
+      const verifiedOwnerRaw = await newOwnerDiamond.owner().call()
+      const verifiedOwnerBase58 = ownerRawToBase58(
+        newOwnerTronWeb,
+        verifiedOwnerRaw
+      )
+      if (verifiedOwnerBase58 === pendingOwnerHint)
+        consola.success(`   ✅ Verified: owner is ${verifiedOwnerBase58}`)
+      else
+        consola.warn(
+          `   ⚠️  Verification: expected ${pendingOwnerHint}, got ${verifiedOwnerBase58}`
+        )
+    } catch (error: any) {
+      consola.error(`   ❌ Confirmation failed: ${error.message || error}`)
+      if (error.error) consola.error('   Error details:', error.error)
+      throw error
+    }
   }
 }
 
@@ -342,13 +304,27 @@ async function transferOwnership(options: {
 const main = defineCommand({
   meta: {
     name: 'transfer-ownership',
-    description: 'Transfer ownership of the Tron Diamond contract',
+    description:
+      'Transfer ownership of the Tron Diamond (two-step: transferOwnership then confirmOwnershipTransfer). Use --step to run one step only.',
   },
   args: {
     newOwner: {
       type: 'string',
-      description: 'New owner address (base58 or hex format)',
+      description:
+        'New owner address (base58 or hex). For step 2, the pending owner (e.g. Timelock).',
       required: true,
+    },
+    step: {
+      type: 'string',
+      description:
+        'Run only step 1 (transferOwnership) or step 2 (confirmOwnershipTransfer). Omit to run both (step 2 only if --confirm and --newOwnerPrivateKey).',
+      default: undefined,
+    },
+    noPropose: {
+      type: 'boolean',
+      description:
+        'When --step 2 and new owner is Timelock: skip creating the Safe proposal in MongoDB (default is to propose).',
+      default: false,
     },
     dryRun: {
       type: 'boolean',
@@ -357,19 +333,20 @@ const main = defineCommand({
     },
     confirm: {
       type: 'boolean',
-      description: 'Also confirm the transfer (requires --newOwnerPrivateKey)',
+      description:
+        'When --step is not set, also run step 2 (requires --newOwnerPrivateKey for EOA new owner)',
       default: false,
     },
     newOwnerPrivateKey: {
       type: 'string',
       description:
-        'Private key of the new owner (required if --confirm is used)',
+        'Private key of the new owner. Required for --step 2 when new owner is an EOA. Not used when new owner is Timelock (propose via Safe).',
       default: undefined,
     },
     currentOwnerPrivateKey: {
       type: 'string',
       description:
-        'Private key of the current owner (if different from deployer key)',
+        'Private key of the current owner (default: deployer from env). Used for --step 1.',
       default: undefined,
     },
     delaySeconds: {
@@ -385,8 +362,23 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const stepNum =
+      args.step !== undefined
+        ? args.step === '1'
+          ? 1
+          : args.step === '2'
+          ? 2
+          : undefined
+        : undefined
+    if (args.step !== undefined && stepNum === undefined) {
+      consola.error('Invalid --step. Use 1 or 2.')
+      process.exit(1)
+    }
+
     const options: {
       newOwner: string
+      step?: 1 | 2
+      noPropose?: boolean
       dryRun?: boolean
       confirm?: boolean
       newOwnerPrivateKey?: string
@@ -395,6 +387,8 @@ const main = defineCommand({
       verbose?: boolean
     } = {
       newOwner: args.newOwner,
+      step: stepNum,
+      noPropose: args.noPropose,
       dryRun: args.dryRun,
       confirm: args.confirm,
       newOwnerPrivateKey: args.newOwnerPrivateKey,
@@ -403,7 +397,6 @@ const main = defineCommand({
       verbose: args.verbose,
     }
 
-    // Parse delaySeconds
     if (args.delaySeconds) {
       const parsed = parseInt(args.delaySeconds, 10)
       if (!isNaN(parsed) && parsed >= 0) {
@@ -418,20 +411,23 @@ const main = defineCommand({
     if (args.dryRun)
       consola.info(' Running in DRY RUN mode - no transactions will be sent')
 
-    if (args.confirm && !args.newOwnerPrivateKey) {
-      consola.warn(
-        '⚠️  --confirm was specified but --newOwnerPrivateKey was not provided.'
-      )
-      consola.warn(
-        '   The new owner must manually call confirmOwnershipTransfer() after the transfer is initiated.'
+    if (stepNum === 2 && !args.newOwnerPrivateKey) {
+      consola.info(
+        '--step 2 with no --newOwnerPrivateKey: if new owner is Timelock, Safe proposal is created in MongoDB by default (use --noPropose for calldata-only).'
       )
     }
 
-    consola.start('Starting ownership transfer...')
+    consola.start(
+      stepNum === 1
+        ? 'Running step 1 (transferOwnership)...'
+        : stepNum === 2
+        ? 'Running step 2 (confirmOwnershipTransfer)...'
+        : 'Starting ownership transfer...'
+    )
 
     try {
       await transferOwnership(options)
-      consola.success('✨ Ownership transfer complete!')
+      consola.success('✨ Done.')
       process.exit(0)
     } catch (error) {
       consola.error(

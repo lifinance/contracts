@@ -29,12 +29,55 @@ import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 
 import { TronContractDeployer } from './TronContractDeployer.js'
+import { CREATE_PROXY_SAFETY_MARGIN } from './constants.js'
 import type { IForgeArtifact } from './types.js'
-import { getTronRPCConfig } from './utils.js'
+import {
+  getTronRPCConfig,
+  getAccountAvailableResources,
+  calculateEstimatedCost,
+  estimateContractCallEnergy,
+  promptEnergyRentalReminder,
+  retryWithRateLimit,
+} from './utils.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const SAFE_BASE = path.join(__dirname, '../../../safe/london/out')
 const NETWORK: SupportedChain = 'tron'
+
+/** Temp file for singleton/factory addresses during deploy; removed only when the full run succeeds. Not written to networks.json. */
+const TRON_SAFE_TEMP_PATH = path.join(
+  process.cwd(),
+  'config',
+  '.tron-safe-deploy-temp.json'
+)
+
+interface ITronSafeTemp {
+  safeSingletonAddress?: string
+  safeProxyFactoryAddress?: string
+}
+
+function readTronSafeTemp(): ITronSafeTemp | null {
+  try {
+    if (!fs.existsSync(TRON_SAFE_TEMP_PATH)) return null
+    const raw = fs.readFileSync(TRON_SAFE_TEMP_PATH, 'utf8')
+    const data = JSON.parse(raw) as ITronSafeTemp
+    return data
+  } catch {
+    return null
+  }
+}
+
+function writeTronSafeTemp(data: ITronSafeTemp): void {
+  fs.writeFileSync(TRON_SAFE_TEMP_PATH, JSON.stringify(data, null, 2), 'utf8')
+}
+
+function removeTronSafeTemp(): void {
+  try {
+    if (fs.existsSync(TRON_SAFE_TEMP_PATH)) fs.unlinkSync(TRON_SAFE_TEMP_PATH)
+  } catch {
+    // ignore
+  }
+}
 
 const FACTORY_ABI = [
   {
@@ -45,6 +88,30 @@ const FACTORY_ABI = [
     ],
     name: 'createProxyWithNonce',
     outputs: [{ internalType: 'address', name: 'proxy', type: 'address' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+]
+
+/** Minimal ABI for calling setup() on an existing Safe proxy. */
+const SETUP_ABI = [
+  {
+    inputs: [
+      { internalType: 'address[]', name: '_owners', type: 'address[]' },
+      { internalType: 'uint256', name: '_threshold', type: 'uint256' },
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'bytes', name: 'data', type: 'bytes' },
+      { internalType: 'address', name: 'fallbackHandler', type: 'address' },
+      { internalType: 'address', name: 'paymentToken', type: 'address' },
+      { internalType: 'uint256', name: 'payment', type: 'uint256' },
+      {
+        internalType: 'address payable',
+        name: 'paymentReceiver',
+        type: 'address',
+      },
+    ],
+    name: 'setup',
+    outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
@@ -86,47 +153,255 @@ function evmAddressToTronBase58(tronWeb: TronWeb, evmAddress: string): string {
   return tronWeb.address.fromHex('41' + hex)
 }
 
-/** Encode setup(owners, threshold, zero, 0x, zero, zero, 0, zero) for Safe. Owners and zero must be Tron base58. */
+/** Encode setup(owners, threshold, zero, 0x, zero, zero, 0, zero) for Safe. Uses 0x addresses (EVM-style) so contract ABI encoder accepts them. */
 function encodeSetup(
   tronWeb: TronWeb,
   ownersBase58: string[],
   threshold: number
 ): string {
-  const zeroBase58 = evmAddressToTronBase58(
-    tronWeb,
-    '0x0000000000000000000000000000000000000000'
+  const zeroHex = '0x0000000000000000000000000000000000000000'
+  const ownersHex = ownersBase58.map((b58) =>
+    tronWeb.address.toHex(b58).replace(/^41/, '0x')
   )
   const params = [
-    { type: 'address[]', value: ownersBase58 },
+    { type: 'address[]', value: ownersHex },
     { type: 'uint256', value: threshold },
-    { type: 'address', value: zeroBase58 },
+    { type: 'address', value: zeroHex },
     { type: 'bytes', value: '0x' },
-    { type: 'address', value: zeroBase58 },
-    { type: 'address', value: zeroBase58 },
+    { type: 'address', value: zeroHex },
+    { type: 'address', value: zeroHex },
     { type: 'uint256', value: 0 },
-    { type: 'address', value: zeroBase58 },
+    { type: 'address', value: zeroHex },
   ]
   const types = params.map((p) => p.type)
   const values = params.map((p) => p.value)
   return tronWeb.utils.abi.encodeParams(types, values)
 }
 
-/** Parse ProxyCreation(proxy, singleton) from Tron tx log */
+const PROXY_CREATION_TOPIC =
+  '4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
+
+function normalizeTopic(t: string | undefined): string {
+  if (!t) return ''
+  const hex = String(t).replace(/^0x/i, '').trim()
+  return hex.toLowerCase()
+}
+
+/** Parse ProxyCreation(proxy, singleton) from Tron tx log. Topic1 is proxy address (32-byte padded hex); we return TRON hex (41 + 20 bytes); caller converts to base58 (T...). */
 function parseProxyCreationFromLogs(
   logs: { address?: string; topics?: string[]; data?: string }[]
 ): string | null {
-  const PROXY_CREATION_TOPIC =
-    '4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
   for (const log of logs) {
     const topics = log.topics ?? []
-    const t0 = (topics[0] ?? '').replace(/^0x/i, '')
-    if (t0.toLowerCase() === PROXY_CREATION_TOPIC && topics[1]) {
-      const hex = (topics[1] ?? '').replace(/^0x/i, '')
-      const addrHex = hex.slice(-40)
-      return '41' + addrHex
+    const t0 = normalizeTopic(topics[0])
+    if (t0 !== PROXY_CREATION_TOPIC) continue
+    const t1 = (topics[1] ?? '').replace(/^0x/i, '').trim()
+    if (t1.length >= 40) {
+      const addrHex = t1.slice(-40) // last 20 bytes (40 hex chars)
+      return '41' + addrHex // TRON hex; base58 (T...) via tronWeb.address.fromHex
     }
   }
   return null
+}
+
+/** Fallback: try to get created proxy from TRON internal_transactions (transferTo_address). */
+function parseProxyFromInternalTx(
+  tronWeb: TronWeb,
+  txInfo: {
+    internal_transactions?: Array<{ transferTo_address?: string }>
+  },
+  factoryAddress: string,
+  singletonAddress: string
+): string | null {
+  const internal = txInfo?.internal_transactions
+  if (!Array.isArray(internal)) return null
+  for (const it of internal) {
+    const raw = (it.transferTo_address ?? '')
+      .replace(/^0x/i, '')
+      .replace(/^41/i, '')
+    if (raw.length !== 40) continue
+    const toBase58 = tronWeb.address.fromHex('41' + raw)
+    if (toBase58 !== factoryAddress && toBase58 !== singletonAddress)
+      return toBase58
+  }
+  return null
+}
+
+/**
+ * Call getThreshold() on a Safe proxy and return the value, or null if the call fails.
+ * Used to verify the Safe was properly initialized (threshold should be >= 1).
+ */
+async function verifySafeThreshold(
+  tronWeb: TronWeb,
+  safeAddressBase58: string
+): Promise<number | null> {
+  try {
+    const issuer =
+      (typeof tronWeb.defaultAddress?.base58 === 'string'
+        ? tronWeb.defaultAddress.base58
+        : typeof tronWeb.defaultAddress?.hex === 'string'
+        ? tronWeb.defaultAddress.hex
+        : '') || ''
+    const result = await tronWeb.transactionBuilder.triggerConstantContract(
+      safeAddressBase58,
+      'getThreshold()',
+      {},
+      [],
+      issuer
+    )
+    const hex = result?.constant_result?.[0]
+    if (!hex || typeof hex !== 'string') return null
+    const raw = hex.startsWith('0x') ? hex : `0x${hex}`
+    if (raw.length < 66) return null
+    return Number(BigInt(raw))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Call setup() on an existing Safe proxy (e.g. one that was created but never initialized).
+ * Uses tron.safeAddress from config/networks.json. Does not deploy any new contracts.
+ */
+async function runSetupOnly(args: {
+  tronWeb: TronWeb
+  networksContent: Record<
+    string,
+    {
+      safeAddress?: string
+      safeSingletonAddress?: string
+      safeProxyFactoryAddress?: string
+    }
+  >
+  networksPath: string
+  ownersBase58: string[]
+  ownersEvm: string[]
+  threshold: number
+  dryRun: boolean
+  safetyMargin: number
+}): Promise<void> {
+  const {
+    tronWeb,
+    networksContent,
+    ownersBase58,
+    ownersEvm,
+    threshold,
+    dryRun,
+    safetyMargin,
+  } = args
+  const safeAddress = (
+    networksContent[NETWORK] as { safeAddress?: string }
+  )?.safeAddress?.trim()
+  if (!safeAddress) {
+    throw new Error(
+      `tron.safeAddress is not set in config/networks.json. Set it to the existing Safe proxy address (base58) to run setup only.`
+    )
+  }
+
+  consola.info(
+    'Setup only: calling setup() on existing Safe proxy (no deployment).'
+  )
+  consola.info(`Safe proxy: ${safeAddress}`)
+  consola.info(
+    `Owners: ${ownersBase58.length}, threshold: ${threshold} (from config/global.json)`
+  )
+  ownersEvm.forEach((evmAddr, i) => {
+    consola.info(`  ${i + 1}. ${ownersBase58[i]}  (EVM: ${evmAddr})`)
+  })
+
+  if (dryRun) {
+    consola.info('[DRY RUN] Would call setup() on the Safe proxy.')
+    return
+  }
+
+  await promptEnergyRentalReminder()
+  await sleep(5000)
+
+  const zeroHex = '0x0000000000000000000000000000000000000000'
+  const ownersHex = ownersBase58.map((b58) =>
+    tronWeb.address.toHex(b58).replace(/^41/, '0x')
+  )
+  const setupParamsHex = encodeSetup(tronWeb, ownersBase58, threshold)
+
+  const { rpcUrl } = getTronRPCConfig(NETWORK, false)
+  const deployerBase58 =
+    typeof tronWeb.defaultAddress?.base58 === 'string'
+      ? tronWeb.defaultAddress.base58
+      : ''
+  if (!deployerBase58)
+    throw new Error('Deployer address (base58) not available')
+
+  const estimatedEnergy = await estimateContractCallEnergy({
+    fullHost: rpcUrl,
+    tronWeb,
+    contractAddressBase58: safeAddress,
+    functionSelector:
+      'setup(address[],uint256,address,bytes,address,address,uint256,address)',
+    parameterHex: setupParamsHex,
+    safetyMargin,
+  })
+  const { availableEnergy } = await getAccountAvailableResources(
+    rpcUrl,
+    deployerBase58
+  )
+  const { totalCost } = await calculateEstimatedCost(
+    tronWeb,
+    estimatedEnergy,
+    0
+  )
+  const feeLimitSun = Math.min(
+    Math.max(Math.ceil(Number(tronWeb.toSun(totalCost))), 5_000_000),
+    100_000_000
+  )
+  consola.info(
+    `setup(): estimated energy ${estimatedEnergy}, available ${availableEnergy}; fee limit ${
+      feeLimitSun / 1_000_000
+    } TRX`
+  )
+
+  const safeContract = tronWeb.contract(SETUP_ABI, safeAddress)
+  await sleep(3000)
+  const txId = await retryWithRateLimit(
+    () =>
+      safeContract
+        .setup(
+          ownersHex,
+          threshold,
+          zeroHex,
+          '0x',
+          zeroHex,
+          zeroHex,
+          0,
+          zeroHex
+        )
+        .send({
+          feeLimit: feeLimitSun,
+          shouldPollResponse: true,
+        }),
+    3,
+    10000,
+    (attempt, delay) =>
+      consola.warn(
+        `Rate limit or connection issue, retry ${attempt}/3 in ${
+          delay / 1000
+        }s...`
+      )
+  )
+  const txIdStr = typeof txId === 'string' && txId ? txId : String(txId ?? '')
+  if (!txIdStr) throw new Error('setup() did not return a transaction ID')
+  consola.success(`setup() transaction: ${txIdStr}`)
+
+  await sleep(5000)
+  const onChainThreshold = await verifySafeThreshold(tronWeb, safeAddress)
+  if (onChainThreshold !== null) {
+    if (onChainThreshold === 0) {
+      consola.warn(
+        'getThreshold() still 0 after setup(). Check the transaction; setup may have reverted.'
+      )
+    } else {
+      consola.success(`Verified Safe threshold: ${onChainThreshold}`)
+    }
+  }
 }
 
 async function run(options: {
@@ -134,6 +409,9 @@ async function run(options: {
   dryRun: boolean
   allowOverride: boolean
   safetyMargin: number
+  setupOnly?: boolean
+  safeSingletonAddress?: string
+  safeProxyFactoryAddress?: string
 }) {
   const ownersFromConfig = (globalConfig as { safeOwners?: string[] })
     .safeOwners
@@ -150,6 +428,45 @@ async function run(options: {
     )
   }
 
+  const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
+  const { rpcUrl, headers } = getTronRPCConfig(NETWORK, false)
+  const tronWebConfig: {
+    fullHost: string
+    privateKey: string
+    headers?: Record<string, string>
+  } = { fullHost: rpcUrl, privateKey }
+  if (headers) tronWebConfig.headers = headers
+  const tronWeb = new TronWeb(tronWebConfig)
+  const ownersBase58 = ownersEvm.map((addr) =>
+    evmAddressToTronBase58(tronWeb, addr)
+  )
+
+  const networksPath = path.join(process.cwd(), 'config', 'networks.json')
+  const networksContent = JSON.parse(
+    fs.readFileSync(networksPath, 'utf8')
+  ) as Record<
+    string,
+    {
+      safeAddress?: string
+      safeSingletonAddress?: string
+      safeProxyFactoryAddress?: string
+    }
+  >
+
+  if (options.setupOnly) {
+    await runSetupOnly({
+      tronWeb,
+      networksContent,
+      networksPath,
+      ownersBase58,
+      ownersEvm,
+      threshold,
+      dryRun: options.dryRun,
+      safetyMargin: options.safetyMargin,
+    })
+    return
+  }
+
   const existing = (networks as Record<string, { safeAddress?: string }>)[
     NETWORK
   ]?.safeAddress
@@ -164,15 +481,6 @@ async function run(options: {
     )
   }
 
-  const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
-  const { rpcUrl, headers } = getTronRPCConfig(NETWORK, false)
-  const tronWebConfig: {
-    fullHost: string
-    privateKey: string
-    headers?: Record<string, string>
-  } = { fullHost: rpcUrl, privateKey }
-  if (headers) tronWebConfig.headers = headers
-  const tronWeb = new TronWeb(tronWebConfig)
   const deployer = new TronContractDeployer({
     fullHost: rpcUrl,
     privateKey,
@@ -181,9 +489,6 @@ async function run(options: {
     safetyMargin: options.safetyMargin,
   })
 
-  const ownersBase58 = ownersEvm.map((addr) =>
-    evmAddressToTronBase58(tronWeb, addr)
-  )
   consola.info('Deploying Safe (Gnosis Safe–style) on Tron')
   consola.info(`Deployer: ${tronWeb.defaultAddress.base58}`)
   consola.info(
@@ -203,24 +508,79 @@ async function run(options: {
     return
   }
 
+  await promptEnergyRentalReminder()
+
   // Delay before first RPC to avoid 429 rate limits
-  await sleep(5000)
+  await sleep(10000)
 
-  // 1) Deploy Safe implementation (no constructor)
-  consola.info('Deploying Safe implementation...')
-  const safeResult = await deployer.deployContract(safeArtifact, [])
-  const singletonAddress = safeResult.contractAddress
-  consola.success(`Safe implementation: ${singletonAddress}`)
-  await sleep(5000)
+  const tempState = readTronSafeTemp()
+  const existingSingleton =
+    options.safeSingletonAddress?.trim() ||
+    process.env.TRON_SAFE_SINGLETON_ADDRESS?.trim() ||
+    tempState?.safeSingletonAddress?.trim()
+  const existingFactory =
+    options.safeProxyFactoryAddress?.trim() ||
+    process.env.TRON_SAFE_PROXY_FACTORY_ADDRESS?.trim() ||
+    tempState?.safeProxyFactoryAddress?.trim()
 
-  // 2) Deploy SafeProxyFactory(singleton)
-  consola.info('Deploying SafeProxyFactory...')
-  const factoryResult = await deployer.deployContract(factoryArtifact, [
-    singletonAddress,
-  ])
-  const factoryAddress = factoryResult.contractAddress
-  consola.success(`SafeProxyFactory: ${factoryAddress}`)
-  await sleep(5000)
+  let singletonAddress: string
+  let factoryAddress: string
+
+  if (existingSingleton && existingFactory) {
+    consola.info(
+      `Using existing Safe impl: ${existingSingleton} and Factory: ${existingFactory} (skip deploy)`
+    )
+    singletonAddress = existingSingleton
+    factoryAddress = existingFactory
+    const fromFlagsOrEnv =
+      options.safeSingletonAddress && options.safeProxyFactoryAddress
+    if (fromFlagsOrEnv) {
+      writeTronSafeTemp({
+        safeSingletonAddress: singletonAddress,
+        safeProxyFactoryAddress: factoryAddress,
+      })
+      consola.info(
+        'Saved singleton/factory to temp file for this run (not written to networks.json).'
+      )
+    }
+    await sleep(3000)
+  } else {
+    // 1) Deploy Safe implementation (no constructor)
+    if (!existingSingleton) {
+      consola.info('Deploying Safe implementation...')
+      const safeResult = await deployer.deployContract(safeArtifact, [])
+      singletonAddress = safeResult.contractAddress
+      consola.success(`Safe implementation: ${singletonAddress}`)
+      writeTronSafeTemp({
+        ...readTronSafeTemp(),
+        safeSingletonAddress: singletonAddress,
+      })
+      await sleep(8000)
+    } else {
+      singletonAddress = existingSingleton
+      consola.info(`Using existing Safe implementation: ${singletonAddress}`)
+    }
+
+    // 2) Deploy SafeProxyFactory(singleton)
+    if (!existingFactory) {
+      consola.info('Deploying SafeProxyFactory...')
+      const factoryResult = await deployer.deployContract(factoryArtifact, [
+        singletonAddress,
+      ])
+      factoryAddress = factoryResult.contractAddress
+      consola.success(`SafeProxyFactory: ${factoryAddress}`)
+      writeTronSafeTemp({
+        ...readTronSafeTemp(),
+        safeSingletonAddress: singletonAddress,
+        safeProxyFactoryAddress: factoryAddress,
+      })
+      await sleep(8000)
+    } else {
+      factoryAddress = existingFactory
+      consola.info(`Using existing SafeProxyFactory: ${factoryAddress}`)
+      await sleep(3000)
+    }
+  }
 
   // 3) Encode setup and call createProxyWithNonce (owners in Tron base58 for TVM ABI)
   const initializer = encodeSetup(tronWeb, ownersBase58, threshold)
@@ -236,28 +596,109 @@ async function run(options: {
     factoryAddress
   )
 
-  await sleep(5000)
+  await sleep(8000)
   consola.info('Creating Safe proxy (createProxyWithNonce + setup)...')
-  const createTx = await factoryContract
-    .createProxyWithNonce(singletonAddress, initializer, salt.toString())
-    .send({
-      feeLimit: 50_000_000,
-      shouldPollResponse: true,
-    })
-  consola.info(`Transaction: ${createTx}`)
+
+  // Estimate energy and set fee limit so delegated energy is used first (cheaper deployment)
+  await sleep(5000)
+  const createProxyParamsHex = tronWeb.utils.abi.encodeParams(
+    ['address', 'bytes', 'uint256'],
+    [
+      tronWeb.address.toHex(singletonAddress).replace(/^41/, '0x'),
+      initializer,
+      salt.toString(),
+    ]
+  )
+  const estimatedEnergy = await estimateContractCallEnergy({
+    fullHost: rpcUrl,
+    tronWeb,
+    contractAddressBase58: factoryAddress,
+    functionSelector: 'createProxyWithNonce(address,bytes,uint256)',
+    parameterHex: createProxyParamsHex,
+    safetyMargin: CREATE_PROXY_SAFETY_MARGIN,
+  })
+  const deployerBase58 =
+    typeof tronWeb.defaultAddress.base58 === 'string'
+      ? tronWeb.defaultAddress.base58
+      : ''
+  if (!deployerBase58)
+    throw new Error('Deployer address (base58) not available')
+  const { availableEnergy } = await getAccountAvailableResources(
+    rpcUrl,
+    deployerBase58
+  )
+  const { totalCost } = await calculateEstimatedCost(
+    tronWeb,
+    estimatedEnergy,
+    0
+  )
+  const feeLimitSun = Math.min(
+    Math.max(Math.ceil(Number(tronWeb.toSun(totalCost))), 5_000_000), // min 5 TRX
+    100_000_000
+  ) // max 100 TRX
+  consola.info(
+    `createProxyWithNonce: estimated energy ${estimatedEnergy}, available ${availableEnergy}; fee limit ${
+      feeLimitSun / 1_000_000
+    } TRX (delegation used first)`
+  )
 
   await sleep(5000)
-  const txInfo = await tronWeb.trx.getTransactionInfo(createTx)
+  const singletonHex = tronWeb.address
+    .toHex(singletonAddress)
+    .replace(/^41/, '0x')
+  const createTx = await retryWithRateLimit(
+    () =>
+      factoryContract
+        .createProxyWithNonce(singletonHex, initializer, salt.toString())
+        .send({
+          feeLimit: feeLimitSun,
+          shouldPollResponse: true,
+        }),
+    3,
+    10000,
+    (attempt, delay) =>
+      consola.warn(
+        `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
+          delay / 1000
+        }s...`
+      )
+  )
+  const txId =
+    typeof createTx === 'string' && createTx ? createTx : String(createTx ?? '')
+  if (!txId)
+    throw new Error('createProxyWithNonce did not return a transaction ID')
+  consola.info(`Transaction: ${txId}`)
+
+  await sleep(8000)
+  const txInfo = await tronWeb.trx.getTransactionInfo(txId)
   await sleep(5000)
   const logs = txInfo?.log ?? []
   const proxyHex = parseProxyCreationFromLogs(logs)
+  const fromInternal =
+    !proxyHex && txInfo
+      ? parseProxyFromInternalTx(
+          tronWeb,
+          txInfo,
+          factoryAddress,
+          singletonAddress
+        )
+      : null
   let safeAddress: string
   if (proxyHex) {
-    safeAddress = tronWeb.address.fromHex(proxyHex)
+    safeAddress = tronWeb.address.fromHex(
+      proxyHex.startsWith('41') ? proxyHex : '41' + proxyHex.slice(-40)
+    )
     consola.success(`Safe proxy: ${safeAddress}`)
+  } else if (fromInternal) {
+    safeAddress = fromInternal
+    consola.success(`Safe proxy (from internal tx): ${safeAddress}`)
   } else {
+    const txUrl = `https://tronscan.org/#/transaction/${txId}`
     consola.warn(
-      'Could not parse ProxyCreation event; check transaction on explorer for proxy address.'
+      'Could not parse ProxyCreation event; get the Safe proxy address from the transaction.'
+    )
+    consola.info(
+      `Open: ${txUrl} → "Internal Transactions" or "Event Logs" tab for the new proxy address (base58, starts with T).`
     )
     const manual = await consola.prompt('Enter Safe proxy address (base58):', {
       type: 'text',
@@ -267,19 +708,30 @@ async function run(options: {
     safeAddress = manualStr.trim()
   }
 
-  // Update networks.json
-  const networksPath = path.join(process.cwd(), 'config', 'networks.json')
-  const networksContent = JSON.parse(
-    fs.readFileSync(networksPath, 'utf8')
-  ) as Record<string, unknown>
+  // Verify Safe was initialized: getThreshold() should be >= 1
+  await sleep(2000)
+  const onChainThreshold = await verifySafeThreshold(tronWeb, safeAddress)
+  if (onChainThreshold !== null) {
+    if (onChainThreshold === 0) {
+      consola.warn(
+        'Safe getThreshold() returned 0. The Safe may not be properly initialized (setup() may have failed). Check the deployment transaction and consider redeploying.'
+      )
+    } else {
+      consola.success(`Verified Safe threshold: ${onChainThreshold}`)
+    }
+  }
+
+  // Update networks.json with final Safe proxy address only (do not persist singleton/factory)
   if (
     !networksContent[NETWORK] ||
     typeof networksContent[NETWORK] !== 'object'
   ) {
     throw new Error(`Missing or invalid networks.json entry for ${NETWORK}`)
   }
-  ;(networksContent[NETWORK] as Record<string, unknown>).safeAddress =
-    safeAddress
+  const networkEntry = networksContent[NETWORK] as Record<string, unknown>
+  networkEntry.safeAddress = safeAddress
+  delete networkEntry.safeSingletonAddress
+  delete networkEntry.safeProxyFactoryAddress
   fs.writeFileSync(
     networksPath,
     JSON.stringify(networksContent, null, 2),
@@ -288,6 +740,8 @@ async function run(options: {
   consola.success(
     `Updated config/networks.json: tron.safeAddress = ${safeAddress}`
   )
+  removeTronSafeTemp()
+  consola.info('Removed temp file (deploy completed successfully).')
 }
 
 const main = defineCommand({
@@ -319,6 +773,24 @@ const main = defineCommand({
         'Energy estimate multiplier (default 1.2). Lower (e.g. 1.1) reduces required TRX but may cause deployment to fail if estimate is tight.',
       default: '1.2',
     },
+    safeSingletonAddress: {
+      type: 'string',
+      description:
+        'Existing Safe implementation address (base58). If set with --safeProxyFactoryAddress, skips deploying Safe impl and Factory and only runs createProxyWithNonce.',
+      default: '',
+    },
+    safeProxyFactoryAddress: {
+      type: 'string',
+      description:
+        'Existing SafeProxyFactory address (base58). Use with --safeSingletonAddress to skip deploy and only create the Safe proxy.',
+      default: '',
+    },
+    setupOnly: {
+      type: 'boolean',
+      description:
+        'Only call setup() on the existing Safe at tron.safeAddress (no deployment). Use when the proxy was created but never initialized.',
+      default: false,
+    },
   },
   async run({ args }) {
     const threshold = parseInt(args.threshold, 10)
@@ -337,6 +809,9 @@ const main = defineCommand({
         dryRun: args.dryRun,
         allowOverride: args.allowOverride,
         safetyMargin,
+        setupOnly: args.setupOnly,
+        safeSingletonAddress: args.safeSingletonAddress || undefined,
+        safeProxyFactoryAddress: args.safeProxyFactoryAddress || undefined,
       })
       process.exit(0)
     } catch (error) {

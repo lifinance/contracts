@@ -25,6 +25,7 @@ import { retryWithRateLimit } from '../shared/rateLimit'
 
 import {
   DEFAULT_FEE_LIMIT_TRX,
+  DEFAULT_SAFETY_MARGIN,
   DIAMOND_CUT_ENERGY_MULTIPLIER,
   MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
@@ -62,6 +63,88 @@ export async function readJsonFile<T = Record<string, unknown>>(
 
 // Re-export for callers that still import from tron/utils (used for both Tron and EVM)
 export { isRateLimitError, retryWithRateLimit } from '../shared/rateLimit'
+
+/**
+ * Prompt user to confirm they are aware they can rent energy (e.g. Zinergy.ag, 1 hr) to reduce TRON deployment costs.
+ * Call before starting deployments when not in dry run. If user declines, exits the process.
+ */
+export async function promptEnergyRentalReminder(): Promise<void> {
+  consola.info(
+    'Tip: You can rent energy (e.g. from Zinergy.ag for 1 hour) to reduce TRX burn during deployment. See docs/TronDeploymentCostStrategy.md'
+  )
+  const proceed = await consola.prompt('Continue with deployment?', {
+    type: 'confirm',
+    initial: true,
+  })
+  if (proceed !== true) {
+    consola.info('Deployment cancelled.')
+    process.exit(0)
+  }
+}
+
+/** Parameters for estimating contract call energy via TRON triggerconstantcontract API */
+export interface IEstimateContractCallEnergyParams {
+  fullHost: string
+  tronWeb: TronWeb
+  contractAddressBase58: string
+  functionSelector: string
+  parameterHex: string
+  safetyMargin?: number
+  feeLimitForEstimation?: number
+}
+
+/**
+ * Estimate energy for a contract call via TRON triggerconstantcontract API.
+ * Returns estimated energy with safety margin applied. Use to set feeLimit so delegated energy is used first.
+ */
+export async function estimateContractCallEnergy(
+  params: IEstimateContractCallEnergyParams
+): Promise<number> {
+  const {
+    fullHost,
+    tronWeb,
+    contractAddressBase58,
+    functionSelector,
+    parameterHex,
+    safetyMargin = DEFAULT_SAFETY_MARGIN,
+    feeLimitForEstimation = 1_000_000_000,
+  } = params
+  const apiUrl = fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
+  const ownerAddress =
+    typeof tronWeb.defaultAddress.base58 === 'string'
+      ? tronWeb.defaultAddress.base58
+      : ''
+  if (!ownerAddress)
+    throw new Error('Deployer address (base58) not available for estimation')
+  const payload = {
+    owner_address: ownerAddress,
+    contract_address: contractAddressBase58,
+    function_selector: functionSelector,
+    parameter: parameterHex.replace(/^0x/i, ''),
+    fee_limit: feeLimitForEstimation,
+    call_value: 0,
+    visible: true,
+  }
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`triggerconstantcontract failed: ${res.status} ${text}`)
+  }
+  const result = (await res.json()) as {
+    energy_used?: number
+    result?: { result?: boolean }
+  }
+  if (result.result?.result === false || !result.energy_used) {
+    throw new Error(
+      `No energy estimate (${functionSelector}): ${JSON.stringify(result)}`
+    )
+  }
+  return Math.ceil(result.energy_used * safetyMargin)
+}
 
 /**
  * Load compiled contract artifact from Forge output
@@ -470,6 +553,7 @@ export async function getContractVersion(
     `src/${contractName}.sol`,
     `src/Facets/${contractName}.sol`,
     `src/Periphery/${contractName}.sol`,
+    `src/Security/${contractName}.sol`,
   ]
 
   for (const path of possiblePaths) {

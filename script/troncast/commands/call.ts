@@ -155,21 +155,23 @@ export const callCommand = defineCommand({
         data: `0x${result.constant_result[0]}`,
       })
 
-      // Helper function to convert addresses in the result
-      const convertAddressesToTron = (value: any): any => {
+      // Helper function to convert addresses and BigInt in the result (for JSON-safe output)
+      const convertAddressesToTron = (value: unknown): unknown => {
+        if (typeof value === 'bigint') return value.toString()
         if (typeof value === 'string') {
           // Check if it's a hex address (0x followed by 40 hex chars)
           if (/^0x[a-fA-F0-9]{40}$/i.test(value))
             return tronWeb.address.fromHex(value)
 
           return value
-        } else if (Array.isArray(value))
-          return value.map(convertAddressesToTron)
-        else if (typeof value === 'object' && value !== null) {
-          const converted: any = {}
+        }
+        if (Array.isArray(value)) return value.map(convertAddressesToTron)
+        if (typeof value === 'object' && value !== null) {
+          const converted: Record<string, unknown> = {}
           for (const key in value)
-            converted[key] = convertAddressesToTron(value[key])
-
+            converted[key] = convertAddressesToTron(
+              (value as Record<string, unknown>)[key]
+            )
           return converted
         }
         return value

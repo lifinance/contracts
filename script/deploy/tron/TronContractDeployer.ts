@@ -2,6 +2,7 @@ import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 import { sleep } from '../../utils/delay'
+import { retryWithRateLimit } from '../shared/rateLimit'
 
 import { DEFAULT_SAFETY_MARGIN } from './constants'
 import type {
@@ -123,13 +124,21 @@ export class TronContractDeployer {
       if (this.config.dryRun)
         return this.simulateDeployment(artifact, costEstimate)
 
-      // Execute deployment with dynamic energy limit
-      const deploymentResult = await this.executeDeployment(
-        artifact,
-        constructorParams,
-        costEstimate
-      )
+      // Sleep before broadcast to avoid 429 after estimate + getAccountResources burst
+      await sleep(8000)
 
+      // Execute deployment with dynamic energy limit (retry on 429)
+      const deploymentResult = await retryWithRateLimit(
+        () => this.executeDeployment(artifact, constructorParams, costEstimate),
+        3,
+        10000,
+        (attempt, delay) =>
+          consola.warn(
+            `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
+              delay / 1000
+            }s...`
+          )
+      )
       // Wait for confirmation
       const receipt = await this.waitForTransactionReceipt(
         deploymentResult.transactionId,
