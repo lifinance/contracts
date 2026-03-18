@@ -1,0 +1,3 @@
+# Environment and secrets – AI tools must not read these
+.env
+.env.*
