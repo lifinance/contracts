@@ -29,8 +29,8 @@ jobs:
         id: check_protected_files
         run: |
 
-          ##### get all files modified by this PR
-          FILES="$(git diff --name-only origin/main HEAD)"
+          ##### get only files changed in this PR (merge-base -> HEAD), not files that differ because main moved forward
+          FILES="$(git diff --name-only $(git merge-base origin/main HEAD) HEAD)"
 
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
