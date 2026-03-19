@@ -1627,7 +1627,9 @@ function getContractNameFromNetworkDeployments(
  * Gets contract name from local compiled artifacts (out/) by matching the facet's function selectors.
  * Used when the facet is not yet in deployments/{network}.json (e.g. different branch).
  * @param selectors - Function selectors from the diamond cut for this facet (hex strings or bytes4)
- * @returns Contract name if a single artifact's selectors match, otherwise "Unknown"
+ * @returns Contract name only when unambiguous: exactly one artifact has the same selector set as the
+ *   facet, or exactly one artifact is the smallest strict superset of the facet's selectors. Otherwise
+ *   "Unknown" (including multiple exact matches or a tie for smallest superset).
  */
 function getContractNameFromSelectorsInOut(
   selectors: (string | Uint8Array)[]
@@ -1649,7 +1651,8 @@ function getContractNameFromSelectorsInOut(
     )
     if (facetSet.size === 0) return 'Unknown'
 
-    let best: { name: string; exact: boolean; size: number } | null = null
+    const exactMatchNames: string[] = []
+    const supersetCandidates: { name: string; size: number }[] = []
     const entries = fs.readdirSync(outDir, { withFileTypes: true })
     for (const dirent of entries) {
       if (!dirent.isDirectory() || !dirent.name.endsWith('.sol')) continue
@@ -1665,25 +1668,33 @@ function getContractNameFromSelectorsInOut(
             (v.startsWith('0x') ? v : `0x${v}`).toLowerCase()
           )
         )
-        const exact =
-          facetSet.size === artifactSet.size &&
-          [...facetSet].every((sel) => artifactSet.has(sel))
-        const subset = [...facetSet].every((sel) => artifactSet.has(sel))
+        const isSuperset = [...facetSet].every((sel) => artifactSet.has(sel))
+        if (!isSuperset) continue
+        const exact = facetSet.size === artifactSet.size
         if (exact) {
-          best = { name: contractName, exact: true, size: artifactSet.size }
-          break
+          exactMatchNames.push(contractName)
+          continue
         }
-        if (
-          subset &&
-          (!best || !best.exact) &&
-          (!best || artifactSet.size < best.size)
-        )
-          best = { name: contractName, exact: false, size: artifactSet.size }
+        supersetCandidates.push({ name: contractName, size: artifactSet.size })
       } catch {
         continue
       }
     }
-    return best?.name ?? 'Unknown'
+
+    const [onlyExact] = exactMatchNames
+    if (exactMatchNames.length === 1 && onlyExact !== undefined)
+      return onlyExact
+    if (exactMatchNames.length > 1) return 'Unknown'
+
+    if (supersetCandidates.length === 0) return 'Unknown'
+    const minSupersetSize = Math.min(...supersetCandidates.map((c) => c.size))
+    const smallestSupersets = supersetCandidates.filter(
+      (c) => c.size === minSupersetSize
+    )
+    const [onlySuperset] = smallestSupersets
+    if (smallestSupersets.length === 1 && onlySuperset !== undefined)
+      return onlySuperset.name
+    return 'Unknown'
   } catch {
     return 'Unknown'
   }
@@ -1851,6 +1862,10 @@ export async function decodeDiamondCut(
   for (const mod of sortedModifications) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
+    const actionNum =
+      typeof actionValue === 'bigint'
+        ? Number(actionValue)
+        : (actionValue as number)
     try {
       let facetLine = `Facet Address: \u001b[34m${facetAddress}\u001b[0m`
       if (networkIdForExplorer) {
@@ -1868,7 +1883,9 @@ export async function decodeDiamondCut(
         let contractName = network
           ? getContractNameFromNetworkDeployments(network, facetAddress)
           : 'Unknown'
-        if (contractName === 'Unknown')
+        // Remove (2): facet address is not a live deployable contract and the
+        // selector list may be a partial subset — superset matching is unsafe.
+        if (contractName === 'Unknown' && actionNum !== 2)
           contractName = getContractNameFromSelectorsInOut(selectors)
         consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
