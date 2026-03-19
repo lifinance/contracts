@@ -1865,8 +1865,13 @@ function verifyContract() {
 
   echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
+  # Normalize constructor args: use only the first line to avoid passing multiline values
+  # (e.g. from broadcast JSON or jq output), which forge/etherscan can interpret as
+  # multiple arguments and then reject as invalid ABI encoding.
+  ARGS=$(echo "$ARGS" | head -1 | tr -d '\n')
+
   # Add constructor args if present
-  if [ "$ARGS" != "0x" ]; then
+  if [ "$ARGS" != "0x" ] && [ -n "$ARGS" ]; then
     VERIFY_CMD+=("--constructor-args" "$ARGS")
   fi
 
