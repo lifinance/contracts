@@ -11,6 +11,16 @@ globs:
 - **Test interfaces**: Test files may define inline interfaces as needed for testing purposes.
 - **Separation**: Do not mix interface and implementation in the same file.
 
+## NatSpec ([CONV:INTERFACE-NATSPEC])
+
+Use **single-line `///`** NatSpec (not block `/** */`) for consistency with the majority of interfaces in this folder.
+
+- **Interface-level**: Include, in order: `@title` (match interface name exactly, e.g. `IAcrossSpokePoolV4`), `@notice` (one-line purpose), `@author LI.FI (https://li.fi)`, `@custom:version X.Y.Z`. Add `@dev` when shadowing upstream (e.g. protocol repo path or link).
+- **Enums**: One `@notice` above the enum describing the enum’s purpose.
+- **Structs**: One `@notice` above the struct; optional `@dev` for upstream struct name/path. **Struct members**: prefer **inline `//`** (short phrase on same line as member) when documenting; no `@param` block required for struct members. Omit member comments when fields are obvious.
+- **Functions**: `@notice` (brief behavior), `@param` for every parameter (short phrase each), and `@return` when the function returns a value.
+- Keep NatSpec concise; avoid duplicating the signature in prose.
+
 ## Naming Conventions
 
 - Interfaces must start with `I*` prefix (e.g., `IStargate`, `IEcoPortal`).

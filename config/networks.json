@@ -908,7 +908,7 @@
     "wrappedNativeAddress": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://polygon-rpc.com",
+    "rpcUrl": "https://polygon.drpc.org",
     "verificationType": "etherscan",
     "explorerUrl": "https://polygonscan.com",
     "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=137",
