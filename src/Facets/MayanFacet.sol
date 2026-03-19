@@ -15,7 +15,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.2.2
+/// @custom:version 1.2.3
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -208,6 +208,14 @@ contract MayanFacet is
             let shiftedSelector := shr(224, selector)
             switch shiftedSelector
             // Note: [*bytes32*] = location of receiver address
+            case 0xa3a30834 {
+                // 0xa3a30834 Swift v2::createOrderWithToken(address,uint256,(...,[*bytes32*],...))
+                receiver := mload(add(protocolData, 0x144))
+            }
+            case 0x6147435b {
+                // 0x6147435b Swift v2::createOrderWithSig (gasless orders)
+                receiver := mload(add(protocolData, 0x144))
+            }
             case 0x94454a5d {
                 // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,[*bytes32*],(uint32,bytes32,bytes32))
                 receiver := mload(add(protocolData, 0xa4)) // MayanCircle::bridgeWithFee()
