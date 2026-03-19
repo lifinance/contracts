@@ -32,28 +32,11 @@ import {
 } from '../safe/safe-utils'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from '../safe/timelock-abi'
 
-const CONFIRM_OWNERSHIP_SELECTOR = '0x13af4035' as Hex // confirmOwnershipTransfer()
-
-const SAFE_GET_TX_HASH_ABI = [
-  {
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'data', type: 'bytes' },
-      { name: 'operation', type: 'uint8' },
-      { name: 'safeTxGas', type: 'uint256' },
-      { name: 'baseGas', type: 'uint256' },
-      { name: 'gasPrice', type: 'uint256' },
-      { name: 'gasToken', type: 'address' },
-      { name: 'refundReceiver', type: 'address' },
-      { name: '_nonce', type: 'uint256' },
-    ],
-    name: 'getTransactionHash',
-    outputs: [{ type: 'bytes32' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const
+import {
+  TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
+  TRON_SAFE_GET_TX_HASH_ABI,
+  TRON_ZERO_ADDRESS,
+} from './constants.js'
 
 /** Tron base58 → 20-byte hex (0x + 40) for Mongo/EVM-style storage and Safe ABI. */
 function tronBase58ToEvm20Hex(tronWeb: TronWeb, base58: string): `0x${string}` {
@@ -142,7 +125,7 @@ async function runPropose(options: { dryRun?: boolean }) {
     args: [
       [diamondAddressEvm],
       [0n],
-      [CONFIRM_OWNERSHIP_SELECTOR],
+      [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
       '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex,
       salt,
       minDelayBigInt,
@@ -192,10 +175,8 @@ async function runPropose(options: { dryRun?: boolean }) {
   }
 
   // 3) Get transaction hash from Safe contract (Tron). Pass base58 for addresses; TronWeb encodes for the contract.
-  const zeroBase58 = tronWeb.address.fromHex(
-    '410000000000000000000000000000000000000000'
-  )
-  const safeFullAbi = [...SAFE_GET_TX_HASH_ABI]
+  const zeroBase58 = tronWeb.address.fromHex(TRON_ZERO_ADDRESS)
+  const safeFullAbi = [...TRON_SAFE_GET_TX_HASH_ABI]
   const safeForHash = tronWeb.contract(safeFullAbi, safeAddressBase58)
   let txHashHex: string
   try {

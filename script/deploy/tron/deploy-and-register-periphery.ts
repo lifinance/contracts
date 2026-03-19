@@ -14,12 +14,18 @@ import {
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import { getRPCEnvVarName } from '../../utils/network'
+import { ZERO_ADDRESS } from '../shared/constants.js'
+import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import {
   DEFAULT_SAFETY_MARGIN,
+  REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
+  REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
   REGISTRATION_RETRY_DELAY_MS,
   REGISTRATION_RPC_DELAY_MS,
+  TRON_PERIPHERY_CONTRACTS,
+  TRON_ZERO_ADDRESS,
 } from './constants.js'
 import type { ITronDeploymentConfig } from './types'
 import {
@@ -34,26 +40,10 @@ import {
   logDeployment,
   promptEnergyRentalReminder,
   readJsonFile,
-  retryWithRateLimit,
   saveContractAddress,
   tronAddressToHex,
   updateDiamondJsonPeriphery,
 } from './utils.js'
-
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-
-/** Min/max fee limit for registerPeripheryContract (TRX → SUN). */
-const REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN = 1_000_000 // 1 TRX
-const REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN = 50_000_000 // 50 TRX
-
-// Periphery contracts to deploy
-const PERIPHERY_CONTRACTS = [
-  'ERC20Proxy',
-  'Executor',
-  'FeeCollector',
-  'FeeForwarder',
-  'TokenWrapper',
-]
 
 /**
  * Deploy and register periphery contracts to Tron
@@ -175,7 +165,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       )}`
     )
 
-    // Load configurations (Node-compatible for tsx)
+    // Load configurations
     const globalConfig = await readJsonFile<{
       refundWallet: string
       feeCollectorOwner: string
@@ -258,7 +248,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       const toLoad: string[] =
         onlyContracts !== undefined && onlyContracts.length > 0
           ? onlyContracts
-          : [...PERIPHERY_CONTRACTS, 'LiFiTimelockController']
+          : [...TRON_PERIPHERY_CONTRACTS, 'LiFiTimelockController']
       for (const name of toLoad) {
         const addr = await getContractAddress(network, name)
         if (addr) deployedContracts[name] = addr
@@ -1281,7 +1271,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             if (
               registered &&
               typeof registered === 'string' &&
-              registered !== '410000000000000000000000000000000000000000'
+              registered !== TRON_ZERO_ADDRESS
             ) {
               const registeredBase58 = tronWeb.address.fromHex(registered)
               const currentBase58 = tronWeb.address.fromHex(
@@ -1421,7 +1411,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       // Verify registrations
       consola.info('\n Verifying registrations...')
 
-      for (const name of PERIPHERY_CONTRACTS)
+      for (const name of TRON_PERIPHERY_CONTRACTS)
         try {
           await sleep(REGISTRATION_RPC_DELAY_MS)
           const registered = await retryWithRateLimit(
@@ -1439,7 +1429,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           if (
             registered &&
             typeof registered === 'string' &&
-            registered !== '410000000000000000000000000000000000000000'
+            registered !== TRON_ZERO_ADDRESS
           ) {
             const registeredBase58 = tronWeb.address.fromHex(registered)
             consola.success(`${name}: ${registeredBase58}`)

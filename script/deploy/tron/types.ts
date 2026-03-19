@@ -1,3 +1,39 @@
+import type { TronWeb } from 'tronweb'
+
+/** Parameters for estimating contract call energy via TRON triggerconstantcontract API */
+export interface IEstimateContractCallEnergyParams {
+  fullHost: string
+  tronWeb: TronWeb
+  contractAddressBase58: string
+  functionSelector: string
+  parameterHex: string
+  safetyMargin?: number
+  feeLimitForEstimation?: number
+}
+
+/** Cache entry for TRON energy/bandwidth prices with TTL */
+export interface IPriceCache {
+  energyPrice: number
+  bandwidthPrice: number
+  timestamp: number
+}
+
+/** Response from Tron getaccountresource (snake_case or camelCase from different clients) */
+export interface IAccountResourceResponse {
+  EnergyLimit?: number
+  EnergyUsed?: number
+  NetLimit?: number
+  NetUsed?: number
+  freeNetLimit?: number
+  freeNetUsed?: number
+  energy_limit?: number
+  energy_used?: number
+  net_limit?: number
+  net_used?: number
+  free_net_limit?: number
+  free_net_used?: number
+}
+
 export interface ITronDeploymentConfig {
   fullHost: string
   privateKey: string

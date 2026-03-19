@@ -16,7 +16,6 @@
  */
 import * as fs from 'fs'
 import * as path from 'path'
-import { fileURLToPath } from 'url'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -24,12 +23,20 @@ import { TronWeb } from 'tronweb'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import type { SupportedChain } from '../../common/types'
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
+import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { TronContractDeployer } from './TronContractDeployer.js'
-import { CREATE_PROXY_SAFETY_MARGIN } from './constants.js'
+import {
+  CREATE_PROXY_SAFETY_MARGIN,
+  TRON_DEPLOY_NETWORK,
+  TRON_SAFE_ARTIFACTS_BASE,
+  TRON_SAFE_DEPLOY_TEMP_JSON_PATH,
+  TRON_SAFE_PROXY_CREATION_TOPIC_HEX,
+  TRON_SAFE_PROXY_FACTORY_ABI,
+  TRON_SAFE_SETUP_ABI,
+} from './constants.js'
 import type { IForgeArtifact } from './types.js'
 import {
   getTronRPCConfig,
@@ -37,19 +44,7 @@ import {
   calculateEstimatedCost,
   estimateContractCallEnergy,
   promptEnergyRentalReminder,
-  retryWithRateLimit,
 } from './utils.js'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SAFE_BASE = path.join(__dirname, '../../../safe/london/out')
-const NETWORK: SupportedChain = 'tron'
-
-/** Temp file for singleton/factory addresses during deploy; removed only when the full run succeeds. Not written to networks.json. */
-const TRON_SAFE_TEMP_PATH = path.join(
-  process.cwd(),
-  'config',
-  '.tron-safe-deploy-temp.json'
-)
 
 interface ITronSafeTemp {
   safeSingletonAddress?: string
@@ -58,8 +53,8 @@ interface ITronSafeTemp {
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {
-    if (!fs.existsSync(TRON_SAFE_TEMP_PATH)) return null
-    const raw = fs.readFileSync(TRON_SAFE_TEMP_PATH, 'utf8')
+    if (!fs.existsSync(TRON_SAFE_DEPLOY_TEMP_JSON_PATH)) return null
+    const raw = fs.readFileSync(TRON_SAFE_DEPLOY_TEMP_JSON_PATH, 'utf8')
     const data = JSON.parse(raw) as ITronSafeTemp
     return data
   } catch {
@@ -68,62 +63,33 @@ function readTronSafeTemp(): ITronSafeTemp | null {
 }
 
 function writeTronSafeTemp(data: ITronSafeTemp): void {
-  fs.writeFileSync(TRON_SAFE_TEMP_PATH, JSON.stringify(data, null, 2), 'utf8')
+  fs.writeFileSync(
+    TRON_SAFE_DEPLOY_TEMP_JSON_PATH,
+    JSON.stringify(data, null, 2),
+    'utf8'
+  )
 }
 
 function removeTronSafeTemp(): void {
   try {
-    if (fs.existsSync(TRON_SAFE_TEMP_PATH)) fs.unlinkSync(TRON_SAFE_TEMP_PATH)
+    if (fs.existsSync(TRON_SAFE_DEPLOY_TEMP_JSON_PATH))
+      fs.unlinkSync(TRON_SAFE_DEPLOY_TEMP_JSON_PATH)
   } catch {
     // ignore
   }
 }
 
-const FACTORY_ABI = [
-  {
-    inputs: [
-      { internalType: 'address', name: '_singleton', type: 'address' },
-      { internalType: 'bytes', name: 'initializer', type: 'bytes' },
-      { internalType: 'uint256', name: 'saltNonce', type: 'uint256' },
-    ],
-    name: 'createProxyWithNonce',
-    outputs: [{ internalType: 'address', name: 'proxy', type: 'address' }],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-]
-
-/** Minimal ABI for calling setup() on an existing Safe proxy. */
-const SETUP_ABI = [
-  {
-    inputs: [
-      { internalType: 'address[]', name: '_owners', type: 'address[]' },
-      { internalType: 'uint256', name: '_threshold', type: 'uint256' },
-      { internalType: 'address', name: 'to', type: 'address' },
-      { internalType: 'bytes', name: 'data', type: 'bytes' },
-      { internalType: 'address', name: 'fallbackHandler', type: 'address' },
-      { internalType: 'address', name: 'paymentToken', type: 'address' },
-      { internalType: 'uint256', name: 'payment', type: 'uint256' },
-      {
-        internalType: 'address payable',
-        name: 'paymentReceiver',
-        type: 'address',
-      },
-    ],
-    name: 'setup',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-]
-
 function loadSafeArtifacts(): {
   safe: IForgeArtifact
   factory: IForgeArtifact
 } {
-  const safePath = path.join(SAFE_BASE, 'Safe_flattened.sol', 'Safe.json')
+  const safePath = path.join(
+    TRON_SAFE_ARTIFACTS_BASE,
+    'Safe_flattened.sol',
+    'Safe.json'
+  )
   const factoryPath = path.join(
-    SAFE_BASE,
+    TRON_SAFE_ARTIFACTS_BASE,
     'SafeProxyFactory_flattened.sol',
     'SafeProxyFactory.json'
   )
@@ -178,9 +144,6 @@ function encodeSetup(
   return tronWeb.utils.abi.encodeParams(types, values)
 }
 
-const PROXY_CREATION_TOPIC =
-  '4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
-
 function normalizeTopic(t: string | undefined): string {
   if (!t) return ''
   const hex = String(t).replace(/^0x/i, '').trim()
@@ -194,7 +157,7 @@ function parseProxyCreationFromLogs(
   for (const log of logs) {
     const topics = log.topics ?? []
     const t0 = normalizeTopic(topics[0])
-    if (t0 !== PROXY_CREATION_TOPIC) continue
+    if (t0 !== TRON_SAFE_PROXY_CREATION_TOPIC_HEX) continue
     const t1 = (topics[1] ?? '').replace(/^0x/i, '').trim()
     if (t1.length >= 40) {
       const addrHex = t1.slice(-40) // last 20 bytes (40 hex chars)
@@ -290,7 +253,7 @@ async function runSetupOnly(args: {
     safetyMargin,
   } = args
   const safeAddress = (
-    networksContent[NETWORK] as { safeAddress?: string }
+    networksContent[TRON_DEPLOY_NETWORK] as { safeAddress?: string }
   )?.safeAddress?.trim()
   if (!safeAddress) {
     throw new Error(
@@ -323,7 +286,7 @@ async function runSetupOnly(args: {
   )
   const setupParamsHex = encodeSetup(tronWeb, ownersBase58, threshold)
 
-  const { rpcUrl } = getTronRPCConfig(NETWORK, false)
+  const { rpcUrl } = getTronRPCConfig(TRON_DEPLOY_NETWORK, false)
   const deployerBase58 =
     typeof tronWeb.defaultAddress?.base58 === 'string'
       ? tronWeb.defaultAddress.base58
@@ -359,7 +322,7 @@ async function runSetupOnly(args: {
     } TRX`
   )
 
-  const safeContract = tronWeb.contract(SETUP_ABI, safeAddress)
+  const safeContract = tronWeb.contract(TRON_SAFE_SETUP_ABI, safeAddress)
   await sleep(3000)
   const txId = await retryWithRateLimit(
     () =>
@@ -429,7 +392,7 @@ async function run(options: {
   }
 
   const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
-  const { rpcUrl, headers } = getTronRPCConfig(NETWORK, false)
+  const { rpcUrl, headers } = getTronRPCConfig(TRON_DEPLOY_NETWORK, false)
   const tronWebConfig: {
     fullHost: string
     privateKey: string
@@ -468,7 +431,7 @@ async function run(options: {
   }
 
   const existing = (networks as Record<string, { safeAddress?: string }>)[
-    NETWORK
+    TRON_DEPLOY_NETWORK
   ]?.safeAddress
   if (
     existing &&
@@ -592,7 +555,7 @@ async function run(options: {
     BigInt(Date.now()) ^ BigInt.asUintN(64, BigInt('0x' + deployerHex))
 
   const factoryContract = tronWeb.contract(
-    [...FACTORY_ABI, ...factoryArtifact.abi],
+    [...TRON_SAFE_PROXY_FACTORY_ABI, ...factoryArtifact.abi],
     factoryAddress
   )
 
@@ -723,12 +686,17 @@ async function run(options: {
 
   // Update networks.json with final Safe proxy address only (do not persist singleton/factory)
   if (
-    !networksContent[NETWORK] ||
-    typeof networksContent[NETWORK] !== 'object'
+    !networksContent[TRON_DEPLOY_NETWORK] ||
+    typeof networksContent[TRON_DEPLOY_NETWORK] !== 'object'
   ) {
-    throw new Error(`Missing or invalid networks.json entry for ${NETWORK}`)
+    throw new Error(
+      `Missing or invalid networks.json entry for ${TRON_DEPLOY_NETWORK}`
+    )
   }
-  const networkEntry = networksContent[NETWORK] as Record<string, unknown>
+  const networkEntry = networksContent[TRON_DEPLOY_NETWORK] as Record<
+    string,
+    unknown
+  >
   networkEntry.safeAddress = safeAddress
   delete networkEntry.safeSingletonAddress
   delete networkEntry.safeProxyFactoryAddress

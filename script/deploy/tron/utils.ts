@@ -26,14 +26,24 @@ import {
   DEFAULT_FEE_LIMIT_TRX,
   DEFAULT_SAFETY_MARGIN,
   DIAMOND_CUT_ENERGY_MULTIPLIER,
+  FALLBACK_BANDWIDTH_PRICE_TRX,
+  FALLBACK_ENERGY_PRICE_TRX,
+  A_SIGNATURE,
+  DATA_HEX_PROTOBUF_EXTRA,
+  MAX_RESULT_SIZE_IN_TX,
   MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
+  PRICE_CACHE_TTL_MS,
+  TRON_ZERO_ADDRESS,
 } from './constants'
 import type {
-  IForgeArtifact,
+  IAccountResourceResponse,
   IDeploymentResult,
-  INetworkInfo,
   IDiamondRegistrationResult,
+  IEstimateContractCallEnergyParams,
+  IForgeArtifact,
+  INetworkInfo,
+  IPriceCache,
 } from './types'
 
 /**
@@ -42,7 +52,7 @@ import type {
  */
 export async function promptEnergyRentalReminder(): Promise<void> {
   consola.info(
-    'Tip: You can rent energy (e.g. from Zinergy.ag for 1 hour) to reduce TRX burn during deployment. See docs/TronDeploymentCostStrategy.md'
+    'Tip: You can rent energy (e.g. from Zinergy.ag for 1 hour) to reduce TRX burn during deployment.'
   )
   const proceed = await consola.prompt('Continue with deployment?', {
     type: 'confirm',
@@ -52,17 +62,6 @@ export async function promptEnergyRentalReminder(): Promise<void> {
     consola.info('Deployment cancelled.')
     process.exit(0)
   }
-}
-
-/** Parameters for estimating contract call energy via TRON triggerconstantcontract API */
-export interface IEstimateContractCallEnergyParams {
-  fullHost: string
-  tronWeb: TronWeb
-  contractAddressBase58: string
-  functionSelector: string
-  parameterHex: string
-  safetyMargin?: number
-  feeLimitForEstimation?: number
 }
 
 /**
@@ -585,10 +584,6 @@ export async function getContractVersion(
  * Calculate transaction bandwidth
  */
 export function calculateTransactionBandwidth(transaction: any): number {
-  const DATA_HEX_PROTOBUF_EXTRA = 3
-  const MAX_RESULT_SIZE_IN_TX = 64
-  const A_SIGNATURE = 67
-
   const rawDataLength = transaction.raw_data_hex
     ? transaction.raw_data_hex.length / 2
     : JSON.stringify(transaction.raw_data).length
@@ -1298,8 +1293,7 @@ export async function registerFacetToDiamond(
           currentFacetAddress === 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb' ||
           currentFacetAddress ===
             '0x0000000000000000000000000000000000000000' ||
-          currentFacetAddress ===
-            '410000000000000000000000000000000000000000' ||
+          currentFacetAddress === TRON_ZERO_ADDRESS ||
           currentFacetAddress === ZERO_ADDRESS
 
         if (isZeroAddress) selectorsToAdd.push(selector)
@@ -1409,30 +1403,6 @@ export async function registerFacetToDiamond(
 }
 
 /**
- * Check if a facet is already registered
- */
-export async function checkFacetRegistration(
-  diamond: any,
-  facetAddress: string,
-  tronWeb: any
-): Promise<boolean> {
-  try {
-    const facetsResponse = await diamond.facets().call()
-    const currentFacets = Array.isArray(facetsResponse[0])
-      ? facetsResponse[0]
-      : facetsResponse
-
-    for (const facet of currentFacets) {
-      const registeredAddress = tronWeb.address.fromHex(facet[0])
-      if (registeredAddress === facetAddress) return true
-    }
-    return false
-  } catch {
-    return false
-  }
-}
-
-/**
  * Verify facet registration after diamondCut
  */
 export async function verifyFacetRegistration(
@@ -1466,7 +1436,7 @@ export async function verifyFacetRegistration(
  */
 export function hexToTronAddress(hexAddress: string, tronWeb: any): string {
   if (hexAddress === ZERO_ADDRESS)
-    return tronWeb.address.fromHex('410000000000000000000000000000000000000000')
+    return tronWeb.address.fromHex(TRON_ZERO_ADDRESS)
 
   return tronWeb.address.fromHex(hexAddress.replace('0x', '41'))
 }
@@ -1677,19 +1647,7 @@ Selectors: ${selectors.length} functions
     },
   })
 }
-// Cache for prices with TTL
-interface IPriceCache {
-  energyPrice: number
-  bandwidthPrice: number
-  timestamp: number
-}
-
 let priceCache: IPriceCache | null = null
-const CACHE_TTL = 60 * 60 * 1000 // 1 hour in milliseconds
-
-// Fallback values (in TRX) - only used if API fails
-const FALLBACK_ENERGY_PRICE = 0.00021 // TRX per energy unit
-const FALLBACK_BANDWIDTH_PRICE = 0.001 // TRX per bandwidth point
 
 /**
  * Parse the latest applicable price from Tron's price history string
@@ -1725,7 +1683,7 @@ export async function getCurrentPrices(
   tronWeb: TronWeb
 ): Promise<{ energyPrice: number; bandwidthPrice: number }> {
   // Check cache first
-  if (priceCache && Date.now() - priceCache.timestamp < CACHE_TTL) {
+  if (priceCache && Date.now() - priceCache.timestamp < PRICE_CACHE_TTL_MS) {
     consola.debug('Using cached prices')
     return {
       energyPrice: priceCache.energyPrice,
@@ -1769,33 +1727,10 @@ export async function getCurrentPrices(
 
     // Use fallback values if API fails
     return {
-      energyPrice: FALLBACK_ENERGY_PRICE,
-      bandwidthPrice: FALLBACK_BANDWIDTH_PRICE,
+      energyPrice: FALLBACK_ENERGY_PRICE_TRX,
+      bandwidthPrice: FALLBACK_BANDWIDTH_PRICE_TRX,
     }
   }
-}
-
-/**
- * Clear the price cache (useful for testing or forcing a refresh)
- */
-export function clearPriceCache(): void {
-  priceCache = null
-}
-
-/** Response from Tron getaccountresource (snake_case or camelCase from different clients) */
-interface IAccountResourceResponse {
-  EnergyLimit?: number
-  EnergyUsed?: number
-  NetLimit?: number
-  NetUsed?: number
-  freeNetLimit?: number
-  freeNetUsed?: number
-  energy_limit?: number
-  energy_used?: number
-  net_limit?: number
-  net_used?: number
-  free_net_limit?: number
-  free_net_used?: number
 }
 
 /**

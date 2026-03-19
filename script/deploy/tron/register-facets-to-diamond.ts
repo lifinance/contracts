@@ -10,6 +10,7 @@ import { TronWeb } from 'tronweb'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
+import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
 import {
   getEnvironment,
   updateDiamondJsonBatch,
@@ -84,15 +85,6 @@ function getAllFacetSelectors(): Record<string, string[]> {
 
   return facetSelectors
 }
-
-// Facet groups for split registration if needed
-const FACET_GROUPS = [
-  ['DiamondLoupeFacet'], // Critical - must be first
-  ['OwnershipFacet', 'WithdrawFacet', 'AccessManagerFacet'], // Core management
-  ['WhitelistManagerFacet', 'PeripheryRegistryFacet'], // Configuration
-  ['GenericSwapFacet', 'GenericSwapFacetV3'], // Swap functionality
-  ['CalldataVerificationFacet', 'EmergencyPauseFacet'], // Security
-]
 
 /**
  * Estimate energy for diamondCut transaction using triggerconstantcontract
@@ -559,8 +551,8 @@ async function registerFacetsToDiamond(
       // Register in groups
       consola.info(' Using split registration mode...')
 
-      for (let i = 0; i < FACET_GROUPS.length; i++) {
-        const group = FACET_GROUPS[i]
+      for (let i = 0; i < TRON_DIAMOND_FACET_GROUPS.length; i++) {
+        const group = TRON_DIAMOND_FACET_GROUPS[i]
         if (!group) continue
 
         // Skip DiamondLoupe group if already exists
@@ -570,9 +562,9 @@ async function registerFacetsToDiamond(
         }
 
         consola.info(
-          `\n Processing group ${i + 1}/${FACET_GROUPS.length}: ${group.join(
-            ', '
-          )}`
+          `\n Processing group ${i + 1}/${
+            TRON_DIAMOND_FACET_GROUPS.length
+          }: ${group.join(', ')}`
         )
 
         const success = await registerFacetsBatch(
@@ -590,7 +582,7 @@ async function registerFacetsToDiamond(
           throw new Error(`Failed to register group: ${group.join(', ')}`)
 
         // Small delay between groups
-        if (i < FACET_GROUPS.length - 1 && !options.dryRun) {
+        if (i < TRON_DIAMOND_FACET_GROUPS.length - 1 && !options.dryRun) {
           consola.info(
             ' Waiting 3 seconds before next group using TronGrid RPC...'
           )

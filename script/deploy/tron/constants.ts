@@ -4,6 +4,126 @@
  * For minimizing deployment cost (delegated energy, rental, fee limits), see docs/TronDeploymentCostStrategy.md.
  */
 
+import * as path from 'path'
+import { fileURLToPath } from 'url'
+
+import type { Hex } from 'viem'
+
+import type { SupportedChain } from '../../common/types'
+
+const __tronConstantsDir = path.dirname(fileURLToPath(import.meta.url))
+
+/** Base directory for Safe v1.4.1 Foundry artifacts (`safe/london/out`). */
+export const TRON_SAFE_ARTIFACTS_BASE = path.join(
+  __tronConstantsDir,
+  '../../../safe/london/out'
+)
+
+/** Temp file for singleton/factory addresses during Safe deploy; not written to networks.json. */
+export const TRON_SAFE_DEPLOY_TEMP_JSON_PATH = path.join(
+  process.cwd(),
+  'config',
+  '.tron-safe-deploy-temp.json'
+)
+
+/** `networks.json` / config key for production Tron deployment scripts. */
+export const TRON_DEPLOY_NETWORK: SupportedChain = 'tron'
+
+/** TTL for caching energy and bandwidth prices from the Tron API (ms). */
+export const PRICE_CACHE_TTL_MS = 60 * 60 * 1000
+
+/** Fallback energy price in TRX per energy unit if `getEnergyPrices` fails. */
+export const FALLBACK_ENERGY_PRICE_TRX = 0.00021
+
+/** Fallback bandwidth price in TRX per bandwidth point if `getBandwidthPrices` fails. */
+export const FALLBACK_BANDWIDTH_PRICE_TRX = 0.001
+
+/** Default periphery contracts deployed/registered by deploy-and-register-periphery. */
+export const TRON_PERIPHERY_CONTRACTS = [
+  'ERC20Proxy',
+  'Executor',
+  'FeeCollector',
+  'FeeForwarder',
+  'TokenWrapper',
+] as const
+
+/** Facet batches for split diamondCut registration (order matters). */
+export const TRON_DIAMOND_FACET_GROUPS: string[][] = [
+  ['DiamondLoupeFacet'],
+  ['OwnershipFacet', 'WithdrawFacet', 'AccessManagerFacet'],
+  ['WhitelistManagerFacet', 'PeripheryRegistryFacet'],
+  ['GenericSwapFacet', 'GenericSwapFacetV3'],
+  ['CalldataVerificationFacet', 'EmergencyPauseFacet'],
+]
+
+/** Topic0 for Safe `ProxyCreation` event (no `0x` prefix; lowercase hex). */
+export const TRON_SAFE_PROXY_CREATION_TOPIC_HEX =
+  '4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
+
+/** Minimal ABI for `SafeProxyFactory.createProxyWithNonce`. */
+export const TRON_SAFE_PROXY_FACTORY_ABI = [
+  {
+    inputs: [
+      { internalType: 'address', name: '_singleton', type: 'address' },
+      { internalType: 'bytes', name: 'initializer', type: 'bytes' },
+      { internalType: 'uint256', name: 'saltNonce', type: 'uint256' },
+    ],
+    name: 'createProxyWithNonce',
+    outputs: [{ internalType: 'address', name: 'proxy', type: 'address' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const
+
+/** Minimal ABI for calling `setup` on a Safe proxy. */
+export const TRON_SAFE_SETUP_ABI = [
+  {
+    inputs: [
+      { internalType: 'address[]', name: '_owners', type: 'address[]' },
+      { internalType: 'uint256', name: '_threshold', type: 'uint256' },
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'bytes', name: 'data', type: 'bytes' },
+      { internalType: 'address', name: 'fallbackHandler', type: 'address' },
+      { internalType: 'address', name: 'paymentToken', type: 'address' },
+      { internalType: 'uint256', name: 'payment', type: 'uint256' },
+      {
+        internalType: 'address payable',
+        name: 'paymentReceiver',
+        type: 'address',
+      },
+    ],
+    name: 'setup',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const
+
+/** Function selector for Diamond `confirmOwnershipTransfer()`. */
+export const TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR = '0x13af4035' as Hex
+
+/** Minimal ABI fragment for Safe `getTransactionHash`. */
+export const TRON_SAFE_GET_TX_HASH_ABI = [
+  {
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+      { name: 'operation', type: 'uint8' },
+      { name: 'safeTxGas', type: 'uint256' },
+      { name: 'baseGas', type: 'uint256' },
+      { name: 'gasPrice', type: 'uint256' },
+      { name: 'gasToken', type: 'address' },
+      { name: 'refundReceiver', type: 'address' },
+      { name: '_nonce', type: 'uint256' },
+    ],
+    name: 'getTransactionHash',
+    outputs: [{ type: 'bytes32' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
+
 // Safety margin for energy estimation to prevent transaction failures
 export const DEFAULT_SAFETY_MARGIN = 1.2 // 20% buffer for standard operations
 
@@ -49,3 +169,7 @@ export const REGISTRATION_RPC_DELAY_MS = 8000
 
 // Delay (ms) between retries when registration/verification RPC returns 429
 export const REGISTRATION_RETRY_DELAY_MS = 10000
+
+/** Min/max fee limit (SUN) for registerPeripheryContract prompts and bounds checks. */
+export const REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN = 1_000_000 // 1 TRX
+export const REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN = 50_000_000 // 50 TRX
