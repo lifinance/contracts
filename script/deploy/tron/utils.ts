@@ -1,4 +1,3 @@
-import { readFile } from 'fs/promises'
 import { resolve } from 'path'
 
 import { consola } from 'consola'
@@ -21,7 +20,7 @@ import {
   RETRY_DELAY,
   ZERO_ADDRESS,
 } from '../shared/constants'
-import { retryWithRateLimit } from '../shared/rateLimit'
+import { isRateLimitError } from '../shared/rateLimit'
 
 import {
   DEFAULT_FEE_LIMIT_TRX,
@@ -36,33 +35,6 @@ import type {
   INetworkInfo,
   IDiamondRegistrationResult,
 } from './types'
-
-/**
- * Possible project roots for deployment file resolution (cwd and cwd/contracts when run from monorepo parent).
- */
-function getDeploymentRoots(): string[] {
-  const cwd = process.cwd()
-  const roots = [cwd]
-  if (!cwd.endsWith('contracts')) roots.push(resolve(cwd, 'contracts'))
-  return roots
-}
-
-/** Read JSON file; works with both Bun and Node (tsx). Exported for use in deploy scripts. */
-export async function readJsonFile<T = Record<string, unknown>>(
-  filePath: string
-): Promise<T | null> {
-  try {
-    if (typeof globalThis.Bun !== 'undefined')
-      return (await (globalThis.Bun as typeof Bun).file(filePath).json()) as T
-    const content = await readFile(filePath, 'utf-8')
-    return JSON.parse(content) as T
-  } catch {
-    return null
-  }
-}
-
-// Re-export for callers that still import from tron/utils (used for both Tron and EVM)
-export { isRateLimitError, retryWithRateLimit } from '../shared/rateLimit'
 
 /**
  * Prompt user to confirm they are aware they can rent energy (e.g. Zinergy.ag, 1 hr) to reduce TRON deployment costs.
@@ -221,27 +193,36 @@ export async function checkIsDeployedTron(
   // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
-  try {
-    // TronWeb getContract return type is underspecified; shape includes contract_address when contract exists
-    type GetContractResult = { contract_address?: string } | null
-    const contractInfo = await retryWithRateLimit<GetContractResult>(
-      () => tronWeb.trx.getContract(tronAddress) as Promise<GetContractResult>,
-      MAX_RETRIES,
-      RETRY_DELAY
-    )
-    const address = contractInfo?.contract_address
-    if (address) return true
-    consola.warn(
-      `Contract "${contract}" at ${tronAddress}: getContract returned no contract_address (contract may not exist on-chain).`
-    )
-    return false
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error)
-    consola.warn(
-      `Contract "${contract}" at ${tronAddress}: getContract failed after retries. Reason: ${msg}`
-    )
-    return false
+  type GetContractResult = { contract_address?: string } | null
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAY)
+    try {
+      const contractInfo = (await tronWeb.trx.getContract(
+        tronAddress
+      )) as GetContractResult
+      const address = contractInfo?.contract_address
+      if (address) return true
+      consola.warn(
+        `Contract "${contract}" at ${tronAddress}: getContract returned no contract_address (contract may not exist on-chain).`
+      )
+      return false
+    } catch (error: unknown) {
+      const shouldRetry = isRateLimitError(error) && attempt < MAX_RETRIES
+      if (!shouldRetry) {
+        const msg = error instanceof Error ? error.message : String(error)
+        consola.warn(
+          `Contract "${contract}" at ${tronAddress}: getContract failed after retries. Reason: ${msg}`
+        )
+        return false
+      }
+    }
   }
+
+  consola.warn(
+    `Contract "${contract}" at ${tronAddress}: getContract failed after retries.`
+  )
+  return false
 }
 
 /**
@@ -267,6 +248,36 @@ export async function getEnvironment(): Promise<EnvironmentEnum> {
   return productionValue === 'true'
     ? EnvironmentEnum.production
     : EnvironmentEnum.staging
+}
+
+/**
+ * Candidate repository roots for `deployments/*.json`.
+ * Scripts may run from the `contracts` package directory or a parent workspace path.
+ */
+export function getDeploymentRoots(): string[] {
+  const cwd = resolve(process.cwd())
+  const candidates = [cwd, resolve(cwd, 'contracts'), resolve(cwd, '..')]
+  const seen = new Set<string>()
+  const roots: string[] = []
+  for (const candidate of candidates) {
+    const norm = resolve(candidate)
+    if (!seen.has(norm)) {
+      seen.add(norm)
+      roots.push(norm)
+    }
+  }
+  return roots
+}
+
+/**
+ * Read and parse a JSON file. Returns null if the file is missing or not valid JSON.
+ */
+export async function readJsonFile<T>(filePath: string): Promise<T | null> {
+  try {
+    return (await Bun.file(filePath).json()) as T
+  } catch {
+    return null
+  }
 }
 
 /**

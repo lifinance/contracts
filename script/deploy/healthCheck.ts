@@ -14,12 +14,7 @@ import {
   type PublicClient,
 } from 'viem'
 
-import {
-  coreFacets,
-  corePeriphery,
-  pauserWallet,
-  whitelistPeripheryFunctions,
-} from '../../config/global.json'
+import globalConfig from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
@@ -42,7 +37,7 @@ import {
   parseTroncastNestedArray,
 } from './healthCheckTronUtils'
 import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
-import { isRateLimitError, retryWithRateLimit } from './shared/rateLimit'
+import { isRateLimitError } from './shared/rateLimit'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -79,25 +74,28 @@ export async function execWithRateLimitRetry(
     await sleep(initialDelay)
   }
 
-  return retryWithRateLimit(
-    () => {
-      const [command, ...args] = commandParts
-      if (!command) {
-        return Promise.reject(new Error('No command provided'))
-      }
-      return spawnAndCapture(command, args)
-    },
-    maxRetries,
-    retryDelay,
-    (attempt: number, delay: number) => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
       consola.warn(
-        `Rate limit detected (429). Retrying in ${
-          delay / 1000
+        `Rate limit (429). Retrying in ${
+          retryDelay / 1000
         }s... (attempt ${attempt}/${maxRetries})`
       )
-    },
-    false // Shell commands don't include connection errors in rate limit detection
-  )
+      await sleep(retryDelay)
+    }
+    try {
+      const [command, ...args] = commandParts
+      if (!command) {
+        throw new Error('No command provided')
+      }
+      return await spawnAndCapture(command, args)
+    } catch (error: unknown) {
+      const shouldRetry = isRateLimitError(error) && attempt < maxRetries
+      if (!shouldRetry) throw error
+    }
+  }
+
+  throw new Error('Max retries exceeded')
 }
 
 const errors: string[] = []
@@ -144,7 +142,7 @@ const main = defineCommand({
     if (isTron)
       // Use the Tron-specific utility that filters out GasZipFacet
       coreFacetsToCheck = getTronCoreFacets()
-    else coreFacetsToCheck = coreFacets
+    else coreFacetsToCheck = globalConfig.coreFacets
 
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
@@ -155,15 +153,13 @@ const main = defineCommand({
         nonCoreFacets = Object.keys(productionDiamond).filter((k) => {
           return (
             !coreFacetsToCheck.includes(k) &&
-            !corePeriphery.includes(k) &&
+            !globalConfig.corePeriphery.includes(k) &&
             k !== 'LiFiDiamond' &&
             k.includes('Facet')
           )
         })
       }
     }
-
-    const globalConfig = await import('../../config/global.json')
 
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
@@ -331,7 +327,7 @@ const main = defineCommand({
       facetCheckSkipped = true
 
       // Check if it's a rate limit error (429)
-      if (isRateLimitError(error, false)) {
+      if (isRateLimitError(error)) {
         consola.warn(
           'RPC rate limit reached (429) - skipping facet registration check'
         )
@@ -366,7 +362,9 @@ const main = defineCommand({
       consola.box('Checking deploy status of periphery contracts...')
 
       // Filter periphery contracts for Tron if needed
-      const peripheryToCheck = isTron ? getTronCorePeriphery() : corePeriphery
+      const peripheryToCheck = isTron
+        ? getTronCorePeriphery()
+        : globalConfig.corePeriphery
 
       for (const contract of peripheryToCheck) {
         const isDeployed = await checkAndLogDeployment(
@@ -457,9 +455,13 @@ const main = defineCommand({
         targetState[networkLower]?.production?.LiFiDiamond || {}
       const contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
-          (isTron ? getTronCorePeriphery() : corePeriphery).includes(
+          (isTron
+            ? getTronCorePeriphery()
+            : globalConfig.corePeriphery
+          ).includes(contract) ||
+          Object.keys(globalConfig.whitelistPeripheryFunctions).includes(
             contract
-          ) || Object.keys(whitelistPeripheryFunctions).includes(contract)
+          )
       )
 
       if (contractsToCheck.length > 0) {
@@ -585,37 +587,24 @@ const main = defineCommand({
         const expectedPairs = await getExpectedPairs(
           networkStr as string,
           deployedContracts,
-          environment,
           whitelistConfig,
           isTron
         )
 
-        if (isTron && tronWeb && tronRpcUrl) {
-          await checkWhitelistIntegrity(
-            networkStr as string,
-            environment,
-            expectedPairs,
-            logError,
-            {
-              isTron: true,
-              diamondAddress,
-              tronRpcUrl,
-              tronWeb,
-            }
-          )
-        } else if (publicClient) {
-          await checkWhitelistIntegrity(
-            networkStr as string,
-            environment,
-            expectedPairs,
-            logError,
-            {
-              isTron: false,
-              diamondAddress,
-              publicClient,
-            }
-          )
-        }
+        await checkWhitelistIntegrity(
+          networkStr as string,
+          environment,
+          expectedPairs,
+          logError,
+          diamondAddress,
+          {
+            tronContext:
+              isTron && tronRpcUrl && tronWeb
+                ? { tronRpcUrl, tronWeb }
+                : undefined,
+            evmContext: publicClient ? { publicClient } : undefined,
+          }
+        )
       } else {
         consola.info(
           'No whitelist configuration found for this network, skipping whitelist checks'
@@ -645,7 +634,7 @@ const main = defineCommand({
       )
       refundWallet = getAddress(globalConfig.refundWallet)
       feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
-      pauserWalletAddress = pauserWallet
+      pauserWalletAddress = globalConfig.pauserWallet
     }
 
     //          ╭─────────────────────────────────────────────────────────╮
@@ -1033,7 +1022,6 @@ const checkIsDeployed = async (
 const getExpectedPairs = async (
   network: string,
   deployedContracts: Record<string, Address | string>,
-  _environment: string,
   whitelistConfig: IWhitelistConfig,
   isTron = false
 ): Promise<Array<{ contract: string; selector: Hex }>> => {
@@ -1103,25 +1091,30 @@ const getExpectedPairs = async (
 
 /**
  * Check whitelist integrity by comparing config against on-chain state.
- * Branches inside for Tron vs EVM (same style as checkAndLogDeployment).
+ * @param network - The network name (e.g. 'ethereum', 'tron', 'polygon', etc.)
+ * @param environment - The environment name (e.g. 'production', 'staging')
+ * @param expectedPairs - An array of expected pairs (contract: selector)
+ * @param logError - A function to log errors
+ * @param diamondAddress - The address of the diamond contract
+ * @param context - An object containing the Tron and EVM contexts
  */
 async function checkWhitelistIntegrity(
   network: string,
   environment: string,
   expectedPairs: Array<{ contract: string; selector: Hex }>,
   logError: (msg: string) => void,
-  options: {
-    isTron: boolean
-    diamondAddress: string
-    tronRpcUrl?: string
-    tronWeb?: TronWeb
-    publicClient?: PublicClient
+  diamondAddress: string,
+  context: {
+    tronContext?: { tronRpcUrl: string; tronWeb: TronWeb }
+    evmContext?: { publicClient: PublicClient }
   }
 ): Promise<void> {
-  const { isTron, diamondAddress } = options
-  const tronRpcUrl = options.tronRpcUrl
-  const tronWeb = options.tronWeb
-  const publicClient = options.publicClient
+  const tronRpcUrl = context.tronContext?.tronRpcUrl
+  const tronWeb = context.tronContext?.tronWeb
+  const publicClient = context.evmContext?.publicClient
+
+  const hasTronContext = !!tronRpcUrl && !!tronWeb
+  const hasEvmContext = !!publicClient
 
   consola.box('Checking Whitelist Integrity (Config vs. On-Chain State)...')
 
@@ -1143,7 +1136,7 @@ async function checkWhitelistIntegrity(
 
   let onChainPairSet: Set<string>
 
-  if (isTron && tronWeb && tronRpcUrl) {
+  if (hasTronContext) {
     consola.start('Fetching on-chain whitelist data (Tron)...')
     const onChainDataOutput = await callTronContract(
       diamondAddress,
@@ -1181,7 +1174,7 @@ async function checkWhitelistIntegrity(
         }
       }
     }
-  } else if (publicClient) {
+  } else if (hasEvmContext) {
     consola.start('Fetching on-chain whitelist data (EVM)...')
     const whitelistManager = getContract({
       address: diamondAddress as Address,
@@ -1218,7 +1211,7 @@ async function checkWhitelistIntegrity(
     consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
     let granularFails = 0
 
-    if (isTron && tronWeb) {
+    if (hasTronContext) {
       for (const expectedPair of expectedPairs) {
         try {
           const isWhitelisted = await callTronContractBoolean(
@@ -1246,7 +1239,7 @@ async function checkWhitelistIntegrity(
           granularFails++
         }
       }
-    } else if (publicClient) {
+    } else if (hasEvmContext) {
       const whitelistManager = getContract({
         address: diamondAddress as Address,
         abi: parseAbi([
