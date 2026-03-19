@@ -5,6 +5,7 @@ import {
   type Collection,
   type ObjectId,
   type Document,
+  type Filter,
 } from 'mongodb'
 
 import type { EnvironmentEnum } from '../../common/types'
@@ -69,6 +70,41 @@ export interface IConfig {
 export interface IUpdateConfig extends IConfig {
   /** Path to local JSON deployment log file */
   logFilePath: string
+}
+
+/** Wraps a value in `{ $eq }` so MongoDB treats it as a literal match (blocks operator injection). */
+export function mongoEq<T>(value: T): { $eq: T } {
+  return { $eq: value }
+}
+
+const DEPLOYMENT_QUERY_EQ_KEYS = [
+  'contractName',
+  'network',
+  'version',
+  'address',
+  'optimizerRuns',
+  'salt',
+  'verified',
+  'solcVersion',
+  'evmVersion',
+  'zkSolcVersion',
+  'contractNetworkKey',
+  'contractVersionKey',
+  'timestamp',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof IDeploymentRecord)[]
+
+/** Builds a strict equality filter from partial deployment fields (whitelist only). */
+export function deploymentRecordEqFilter(
+  filters: Partial<IDeploymentRecord>
+): Filter<IDeploymentRecord> {
+  const out: Record<string, { $eq: unknown }> = {}
+  for (const key of DEPLOYMENT_QUERY_EQ_KEYS) {
+    const v = filters[key]
+    if (v !== undefined) out[key] = mongoEq(v)
+  }
+  return out as Filter<IDeploymentRecord>
 }
 
 /**
