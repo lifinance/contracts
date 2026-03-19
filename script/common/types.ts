@@ -44,6 +44,14 @@ export interface INetwork {
    * These flags are appended to the verification command in the order specified.
    */
   customVerificationFlags?: Record<string, string | null>
+  /**
+   * When true, the deployment healthcheck (script/deploy/healthCheck.ts) exits successfully without running checks.
+   * Use only on an exceptional basis when the healthcheck cannot pass otherwise (e.g. core periphery contracts
+   * such as GasZipPeriphery or TokenWrapper are intentionally not deployed on that network).
+   * Before merging: still run the healthcheck manually for that network and verify all addresses and configuration
+   * are correct; this flag only allows CI to pass.
+   */
+  skipHealthcheck?: boolean
 }
 
 /**

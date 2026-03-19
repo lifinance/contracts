@@ -11,6 +11,7 @@ import path from 'path'
 import { consola } from 'consola'
 
 import type { EnvironmentEnum } from '../../common/types'
+import { sleep } from '../../utils/delay'
 
 import {
   type IDeploymentRecord,
@@ -50,8 +51,6 @@ const DEFAULT_LOCK_OPTIONS: Required<ILockOptions> = {
   timeout: 30000,
   staleThreshold: 60000,
 }
-
-import { sleep } from '../../utils/delay'
 
 /**
  * Local file-based cache for deployment records
