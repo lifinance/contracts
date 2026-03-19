@@ -14,7 +14,7 @@ import {
   type PublicClient,
 } from 'viem'
 
-import globalConfig from '../../config/global.json'
+import { corePeriphery } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
@@ -22,6 +22,7 @@ import { sleep } from '../utils/delay'
 import { getRPCEnvVarName } from '../utils/network'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
 import {
+  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
   networks,
 } from '../utils/viemScriptHelpers'
@@ -137,6 +138,26 @@ const main = defineCommand({
       }.json`
     )
 
+    const { default: globalConfig } = await import('../../config/global.json')
+    const { default: networksConfig } = await import(
+      '../../config/networks.json'
+    )
+
+    // Optional bypass: config/networks.json skipHealthcheck (see INetwork.skipHealthcheck in script/common/types.ts).
+    // Use only when healthcheck cannot pass otherwise; still run healthcheck manually before merging to verify addresses.
+    const networkEntry = (
+      networksConfig as Record<
+        string,
+        { skipHealthcheck?: boolean } | undefined
+      >
+    )[networkLower]
+    if (networkEntry?.skipHealthcheck === true) {
+      consola.info(
+        `Health check bypassed for network '${networkLower}' (skipHealthcheck: true in config/networks.json).`
+      )
+      process.exit(0)
+    }
+
     // Get core facets - use Tron-specific filtering if needed
     let coreFacetsToCheck: string[]
     if (isTron)
@@ -147,13 +168,16 @@ const main = defineCommand({
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
     if (environment === 'production') {
-      const productionDiamond =
-        targetState[networkLower]?.production?.LiFiDiamond
-      if (productionDiamond) {
-        nonCoreFacets = Object.keys(productionDiamond).filter((k) => {
+      const networkTarget = targetState[networkLower]?.production
+      if (!networkTarget?.LiFiDiamond) {
+        consola.warn(
+          `Network '${networkLower}' not in target state; skipping non-core facet comparison`
+        )
+      } else {
+        nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter((k) => {
           return (
             !coreFacetsToCheck.includes(k) &&
-            !globalConfig.corePeriphery.includes(k) &&
+            !corePeriphery.includes(k) &&
             k !== 'LiFiDiamond' &&
             k.includes('Facet')
           )
@@ -174,13 +198,23 @@ const main = defineCommand({
       : undefined
 
     if (isTron)
-      tronWeb = initTronWeb('mainnet', undefined, networkConfig.rpcUrl)
+      tronWeb = initTronWeb(
+        'mainnet',
+        undefined,
+        tronRpcUrl ?? networkConfig.rpcUrl
+      )
     else {
       const chain = getViemChainForNetworkName(networkLower)
+      const rpcUrl = chain.rpcUrls.default.http[0]
+      if (!rpcUrl) {
+        throw new Error(`No default RPC URL configured for ${networkLower}`)
+      }
+      const { url: transportUrl, fetchOptions } =
+        getTransportConfigFromRpcUrl(rpcUrl)
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,
-        transport: http(),
+        transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
       })
     }
 

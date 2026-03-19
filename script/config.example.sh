@@ -16,6 +16,11 @@ MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
 MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
 
+# the maximum number of MongoDB query retries (e.g. getContractVersionFromMasterLog,
+# getHighestDeployedContractVersionFromMasterLog, getConstructorArgsFromMasterLog).
+# Used by helperFunctions.sh for deployment-log queries.
+MONGO_MAX_RETRIES=3
+
 # number of max jobs that scripts will do in parallel (e.g. when interacting with multiple networks)
 MAX_CONCURRENT_JOBS=100
 

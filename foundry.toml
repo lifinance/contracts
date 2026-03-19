@@ -78,6 +78,7 @@ nova = "${ETH_NODE_URI_NOVA}"
 mantle = "${ETH_NODE_URI_MANTLE}"
 metis = "${ETH_NODE_URI_METIS}"
 mode = "${ETH_NODE_URI_MODE}"
+morph = "${ETH_NODE_URI_MORPH}"
 nibiru = "${ETH_NODE_URI_NIBIRU}"
 okx = "${ETH_NODE_URI_OKX}"
 opbnb = "${ETH_NODE_URI_OPBNB}"
@@ -96,6 +97,7 @@ superposition = "${ETH_NODE_URI_SUPERPOSITION}"
 swellchain = "${ETH_NODE_URI_SWELLCHAIN}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 telos = "${ETH_NODE_URI_TELOS}"
+tempo = "${ETH_NODE_URI_TEMPO}"
 velas = "${ETH_NODE_URI_VELAS}"
 unichain = "${ETH_NODE_URI_UNICHAIN}"
 vana = "${ETH_NODE_URI_VANA}"
@@ -148,6 +150,7 @@ metis = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
 monad = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=143", verifier = "custom", chain = "143" }
 moonbeam = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1284", chain = "1284" }
+morph = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-api.morph.network/api", chain = "2818", verifier = "blockscout" }
 nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
 optimism = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = "10" }
 opbnb = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=204", chain = "204" }
@@ -166,6 +169,7 @@ superposition = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explo
 swellchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1923", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 telos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://sourcify.dev/server", chain = "40", verifier = "sourcify"}
+tempo = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://contracts.tempo.xyz", verifier = "sourcify", chain = "4217" }
 unichain = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
 vana = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://vanascan.io/api", chain = "1480", verifier = "blockscout" }
 viction = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.vicscan.xyz/api/contract/foundry/verify", chain = "88" }

@@ -21,9 +21,17 @@ globs:
   - `script/utils/delay.ts` - `sleep(ms)` function for delays (MUST use this instead of implementing sleep locally),
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
+  - `script/utils/fetchWithTimeout.ts` (external API fetch with timeout; see [CONV:FETCH-TIMEOUT]),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
 - **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
+
+## External API fetch and timeout ([CONV:FETCH-TIMEOUT])
+
+- **All outbound HTTP requests to external APIs** (e.g. 4byte/Sourcify, relay APIs, explorer APIs, webhooks) **MUST** use the shared `fetchWithTimeout()` helper from `script/utils/fetchWithTimeout.ts`.
+- **Do not use unbounded `fetch(url)`** for external API calls; slow or hung requests can block scripts indefinitely.
+- **Standard pattern**: `fetchWithTimeout(url, init?, timeoutMs?)` — uses an AbortController and clears the timeout in a `finally` block. Default timeout is 10 seconds (`DEFAULT_FETCH_TIMEOUT_MS`). Pass a custom `timeoutMs` only when the use case requires it (e.g. large payloads).
+- When adding or modifying code that calls external HTTP APIs, use `fetchWithTimeout` and handle `AbortError` or timeout in catch blocks as appropriate (e.g. return null, warn, or retry).
 
 ## Types
 
