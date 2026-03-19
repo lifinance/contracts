@@ -57,7 +57,7 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord | null> {
     return this.collection.findOne(
-      { contractName, network },
+      { contractName: { $eq: contractName }, network: { $eq: network } },
       { sort: { timestamp: -1 } }
     )
   }
