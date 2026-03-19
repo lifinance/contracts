@@ -14,6 +14,7 @@ import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
+import { tronAddressToHex } from './tronAddressHelpers'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
@@ -28,7 +29,6 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-  tronAddressToHex,
 } from './utils'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
@@ -101,7 +101,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
     if (!portalTron)
       throw new Error('Eco portal not found for tron in config/eco.json')
 
-    const portal = tronAddressToHex(portalTron, tronWeb)
+    const portal = tronAddressToHex(tronWeb, portalTron)
 
     consola.info('\nEco Configuration:')
     consola.info(`Portal: ${portalTron} (hex: ${portal})`)

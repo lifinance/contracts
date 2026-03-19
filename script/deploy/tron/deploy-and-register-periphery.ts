@@ -27,6 +27,11 @@ import {
   TRON_PERIPHERY_CONTRACTS,
   TRON_ZERO_ADDRESS,
 } from './constants.js'
+import {
+  tronAddressLikeToBase58,
+  tronAddressToHex,
+  tronRegistrationAddressToEvmHex,
+} from './tronAddressHelpers.js'
 import type { ITronDeploymentConfig } from './types'
 import {
   getContractAddress,
@@ -41,7 +46,6 @@ import {
   promptEnergyRentalReminder,
   readJsonFile,
   saveContractAddress,
-  tronAddressToHex,
   updateDiamondJsonPeriphery,
 } from './utils.js'
 
@@ -160,9 +164,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
     consola.info(`\n LiFiDiamond address: ${diamondAddress}`)
     consola.info(
-      `   Base58: ${tronWeb.address.fromHex(
-        diamondAddress.replace('0x', '41')
-      )}`
+      `   Base58: ${tronAddressLikeToBase58(tronWeb, diamondAddress)}`
     )
 
     // Load configurations
@@ -302,8 +304,7 @@ async function deployAndRegisterPeripheryImpl(options: {
               const version = await getContractVersion('ERC20Proxy')
 
               // Constructor: owner address (deployer)
-              const ownerHex =
-                '0x' + tronWeb.address.toHex(networkInfo.address).substring(2)
+              const ownerHex = tronAddressToHex(tronWeb, networkInfo.address)
               const constructorArgs = [ownerHex]
 
               consola.info(
@@ -352,8 +353,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             const artifact = await loadForgeArtifact('ERC20Proxy')
             const version = await getContractVersion('ERC20Proxy')
 
-            const ownerHex =
-              '0x' + tronWeb.address.toHex(networkInfo.address).substring(2)
+            const ownerHex = tronAddressToHex(tronWeb, networkInfo.address)
             const constructorArgs = [ownerHex]
 
             consola.info(
@@ -444,7 +444,7 @@ async function deployAndRegisterPeripheryImpl(options: {
               // Convert addresses to hex format for constructor
               const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
                 ? erc20ProxyAddress
-                : '0x' + tronWeb.address.toHex(erc20ProxyAddress).substring(2)
+                : tronAddressToHex(tronWeb, erc20ProxyAddress)
               const refundWalletHex = globalConfig.refundWallet
 
               const constructorArgs = [erc20ProxyHex, refundWalletHex]
@@ -500,7 +500,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
             const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
               ? erc20ProxyAddress
-              : '0x' + tronWeb.address.toHex(erc20ProxyAddress).substring(2)
+              : tronAddressToHex(tronWeb, erc20ProxyAddress)
             const refundWalletHex = globalConfig.refundWallet
 
             const constructorArgs = [erc20ProxyHex, refundWalletHex]
@@ -848,7 +848,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         // Check if wrapped native address is valid (not zero address)
         const wrappedNativeBase58Check = tronConfig.wrappedNativeAddress
         const wrappedNativeHexCheck = wrappedNativeBase58Check
-          ? '0x' + tronWeb.address.toHex(wrappedNativeBase58Check).substring(2)
+          ? tronAddressToHex(tronWeb, wrappedNativeBase58Check)
           : '0x0000000000000000000000000000000000000000'
 
         if (
@@ -913,8 +913,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
                 // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
                 // Convert to hex, ensuring it's not the zero address
-                const wrappedNativeHex =
-                  '0x' + tronWeb.address.toHex(wrappedNativeBase58).substring(2)
+                const wrappedNativeHex = tronAddressToHex(
+                  tronWeb,
+                  wrappedNativeBase58
+                )
 
                 // Verify it's not zero address
                 if (
@@ -929,10 +931,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
                 // Try to get converter address, default to zero address if not found
                 const converterHex = tronConfig.converterAddress
-                  ? '0x' +
-                    tronWeb.address
-                      .toHex(tronConfig.converterAddress)
-                      .substring(2)
+                  ? tronAddressToHex(tronWeb, tronConfig.converterAddress)
                   : '0x0000000000000000000000000000000000000000'
 
                 const constructorArgs = [
@@ -1005,8 +1004,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
               // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
               // Convert to hex, ensuring it's not the zero address
-              const wrappedNativeHex =
-                '0x' + tronWeb.address.toHex(wrappedNativeBase58).substring(2)
+              const wrappedNativeHex = tronAddressToHex(
+                tronWeb,
+                wrappedNativeBase58
+              )
 
               // Verify it's not zero address
               if (
@@ -1021,10 +1022,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
               // Try to get converter address, default to zero address if not found
               const converterHex = tronConfig.converterAddress
-                ? '0x' +
-                  tronWeb.address
-                    .toHex(tronConfig.converterAddress)
-                    .substring(2)
+                ? tronAddressToHex(tronWeb, tronConfig.converterAddress)
                 : '0x0000000000000000000000000000000000000000'
 
               const constructorArgs = [
@@ -1144,17 +1142,17 @@ async function deployAndRegisterPeripheryImpl(options: {
                   )
                 } else {
                   const safeHex = safeAddress.startsWith('T')
-                    ? tronAddressToHex(safeAddress, tronWeb)
+                    ? tronAddressToHex(tronWeb, safeAddress)
                     : safeAddress.startsWith('0x')
                     ? safeAddress
                     : '0x' + safeAddress
                   const diamondHex = diamondAddress.startsWith('T')
-                    ? tronAddressToHex(diamondAddress, tronWeb)
+                    ? tronAddressToHex(tronWeb, diamondAddress)
                     : diamondAddress.startsWith('0x')
                     ? diamondAddress
                     : '0x' + diamondAddress
                   const cancellerHex = cancellerWallet.startsWith('T')
-                    ? tronAddressToHex(cancellerWallet, tronWeb)
+                    ? tronAddressToHex(tronWeb, cancellerWallet)
                     : cancellerWallet.startsWith('0x')
                     ? cancellerWallet
                     : '0x' + cancellerWallet
@@ -1273,10 +1271,11 @@ async function deployAndRegisterPeripheryImpl(options: {
               typeof registered === 'string' &&
               registered !== TRON_ZERO_ADDRESS
             ) {
-              const registeredBase58 = tronWeb.address.fromHex(registered)
-              const currentBase58 = tronWeb.address.fromHex(
-                address.replace('0x', '41')
+              const registeredBase58 = tronAddressLikeToBase58(
+                tronWeb,
+                registered
               )
+              const currentBase58 = tronAddressLikeToBase58(tronWeb, address)
 
               if (registeredBase58 === currentBase58) {
                 consola.info(`${name} already correctly registered`)
@@ -1304,11 +1303,10 @@ async function deployAndRegisterPeripheryImpl(options: {
             // Estimate energy and set fee limit so delegated energy is used first
             let feeLimitSun = REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN
             try {
-              const addressHex = address.startsWith('T')
-                ? tronWeb.address.toHex(address).replace(/^41/, '0x')
-                : address.startsWith('0x')
-                ? address
-                : '0x' + address.replace(/^41/, '')
+              const addressHex = tronRegistrationAddressToEvmHex(
+                tronWeb,
+                address
+              )
               const registerParamsHex = tronWeb.utils.abi.encodeParams(
                 ['string', 'address'],
                 [name, addressHex]
@@ -1431,16 +1429,19 @@ async function deployAndRegisterPeripheryImpl(options: {
             typeof registered === 'string' &&
             registered !== TRON_ZERO_ADDRESS
           ) {
-            const registeredBase58 = tronWeb.address.fromHex(registered)
+            const registeredBase58 = tronAddressLikeToBase58(
+              tronWeb,
+              registered
+            )
             consola.success(`${name}: ${registeredBase58}`)
 
             // Update tron.diamond.json with successfully registered periphery contract
             const deployedAddress = deployedContracts[name]
             if (deployedAddress && deployedAddress !== 'FAILED') {
-              // Convert to base58 if needed
-              const addressToSave = deployedAddress.startsWith('T')
-                ? deployedAddress
-                : tronWeb.address.fromHex(deployedAddress.replace('0x', '41'))
+              const addressToSave = tronAddressLikeToBase58(
+                tronWeb,
+                deployedAddress
+              )
 
               await updateDiamondJsonPeriphery(addressToSave, name)
             }

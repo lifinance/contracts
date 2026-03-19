@@ -12,6 +12,8 @@ import {
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
+import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
+import { evmHexToTronBase58 } from './tronAddressHelpers.js'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getCoreFacets,
@@ -28,22 +30,6 @@ import {
   updateDiamondJsonBatch,
   waitBetweenDeployments,
 } from './utils.js'
-
-/**
- * Convert hex address to Tron base58 format for display purposes
- * This is a utility function that doesn't require a private key
- */
-async function hexToTronBase58(hexAddress: string): Promise<string> {
-  // Dynamic import used for conditional loading - only when needed
-  const { TronWeb } = await import('tronweb')
-  // Create a minimal TronWeb instance just for address conversion
-  // No private key needed for address format conversion
-  const tronWeb = new TronWeb({
-    fullHost: 'https://api.trongrid.io', // [pre-commit-checker: not a secret]
-  })
-  const tronHexAddress = hexAddress.replace('0x', '41')
-  return tronWeb.address.fromHex(tronHexAddress)
-}
 
 /**
  * Get constructor arguments for a facet
@@ -63,7 +49,7 @@ async function getConstructorArgs(
       throw new Error('pauserWallet not found in config/global.json')
 
     // Convert to base58 for display purposes only
-    const tronBase58 = await hexToTronBase58(pauserWallet)
+    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnly(), pauserWallet)
 
     // Use original hex format (0x...) for constructor args
     // The ABI encoder needs this format for proper encoding
@@ -79,7 +65,7 @@ async function getConstructorArgs(
       )
 
     // Convert to base58 for display purposes only
-    const tronBase58 = await hexToTronBase58(nativeAddress)
+    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnly(), nativeAddress)
 
     consola.info(
       `Using native token address: ${tronBase58} (hex: ${nativeAddress})`

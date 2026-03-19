@@ -37,6 +37,12 @@ import {
   TRON_SAFE_PROXY_FACTORY_ABI,
   TRON_SAFE_SETUP_ABI,
 } from './constants.js'
+import {
+  evm20HexStringToTronBase58,
+  evmHexToTronBase58,
+  tronAddressToHex,
+  tronProxyCreationHexToBase58,
+} from './tronAddressHelpers.js'
 import type { IForgeArtifact } from './types.js'
 import {
   getTronRPCConfig,
@@ -108,17 +114,6 @@ function loadSafeArtifacts(): {
   return { safe, factory }
 }
 
-/**
- * Convert EVM address (0x + 40 hex) to Tron base58.
- * Same 20-byte identity; TronWeb expects base58 for address type when encoding for TVM.
- */
-function evmAddressToTronBase58(tronWeb: TronWeb, evmAddress: string): string {
-  const hex = evmAddress.startsWith('0x') ? evmAddress.slice(2) : evmAddress
-  if (hex.length !== 40)
-    throw new Error(`Invalid EVM address length: ${evmAddress}`)
-  return tronWeb.address.fromHex('41' + hex)
-}
-
 /** Encode setup(owners, threshold, zero, 0x, zero, zero, 0, zero) for Safe. Uses 0x addresses (EVM-style) so contract ABI encoder accepts them. */
 function encodeSetup(
   tronWeb: TronWeb,
@@ -126,9 +121,7 @@ function encodeSetup(
   threshold: number
 ): string {
   const zeroHex = '0x0000000000000000000000000000000000000000'
-  const ownersHex = ownersBase58.map((b58) =>
-    tronWeb.address.toHex(b58).replace(/^41/, '0x')
-  )
+  const ownersHex = ownersBase58.map((b58) => tronAddressToHex(tronWeb, b58))
   const params = [
     { type: 'address[]', value: ownersHex },
     { type: 'uint256', value: threshold },
@@ -183,7 +176,7 @@ function parseProxyFromInternalTx(
       .replace(/^0x/i, '')
       .replace(/^41/i, '')
     if (raw.length !== 40) continue
-    const toBase58 = tronWeb.address.fromHex('41' + raw)
+    const toBase58 = evmHexToTronBase58(tronWeb, '0x' + raw)
     if (toBase58 !== factoryAddress && toBase58 !== singletonAddress)
       return toBase58
   }
@@ -281,9 +274,7 @@ async function runSetupOnly(args: {
   await sleep(5000)
 
   const zeroHex = '0x0000000000000000000000000000000000000000'
-  const ownersHex = ownersBase58.map((b58) =>
-    tronWeb.address.toHex(b58).replace(/^41/, '0x')
-  )
+  const ownersHex = ownersBase58.map((b58) => tronAddressToHex(tronWeb, b58))
   const setupParamsHex = encodeSetup(tronWeb, ownersBase58, threshold)
 
   const { rpcUrl } = getTronRPCConfig(TRON_DEPLOY_NETWORK, false)
@@ -401,7 +392,7 @@ async function run(options: {
   if (headers) tronWebConfig.headers = headers
   const tronWeb = new TronWeb(tronWebConfig)
   const ownersBase58 = ownersEvm.map((addr) =>
-    evmAddressToTronBase58(tronWeb, addr)
+    evm20HexStringToTronBase58(tronWeb, addr)
   )
 
   const networksPath = path.join(process.cwd(), 'config', 'networks.json')
@@ -566,11 +557,7 @@ async function run(options: {
   await sleep(5000)
   const createProxyParamsHex = tronWeb.utils.abi.encodeParams(
     ['address', 'bytes', 'uint256'],
-    [
-      tronWeb.address.toHex(singletonAddress).replace(/^41/, '0x'),
-      initializer,
-      salt.toString(),
-    ]
+    [tronAddressToHex(tronWeb, singletonAddress), initializer, salt.toString()]
   )
   const estimatedEnergy = await estimateContractCallEnergy({
     fullHost: rpcUrl,
@@ -606,9 +593,7 @@ async function run(options: {
   )
 
   await sleep(5000)
-  const singletonHex = tronWeb.address
-    .toHex(singletonAddress)
-    .replace(/^41/, '0x')
+  const singletonHex = tronAddressToHex(tronWeb, singletonAddress)
   const createTx = await retryWithRateLimit(
     () =>
       factoryContract
@@ -648,9 +633,7 @@ async function run(options: {
       : null
   let safeAddress: string
   if (proxyHex) {
-    safeAddress = tronWeb.address.fromHex(
-      proxyHex.startsWith('41') ? proxyHex : '41' + proxyHex.slice(-40)
-    )
+    safeAddress = tronProxyCreationHexToBase58(tronWeb, proxyHex)
     consola.success(`Safe proxy: ${safeAddress}`)
   } else if (fromInternal) {
     safeAddress = fromInternal

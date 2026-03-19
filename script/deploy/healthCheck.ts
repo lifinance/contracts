@@ -209,12 +209,20 @@ const main = defineCommand({
       if (!rpcUrl) {
         throw new Error(`No default RPC URL configured for ${networkLower}`)
       }
-      const { url: transportUrl, fetchOptions } =
-        getTransportConfigFromRpcUrl(rpcUrl)
+      const {
+        url: transportUrl,
+        fetchOptions,
+        retryCount,
+        retryDelay,
+      } = getTransportConfigFromRpcUrl(rpcUrl)
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,
-        transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
+        transport: http(transportUrl, {
+          ...(fetchOptions ? { fetchOptions } : {}),
+          ...(retryCount !== undefined ? { retryCount } : {}),
+          ...(retryDelay !== undefined ? { retryDelay } : {}),
+        }),
       })
     }
 

@@ -11,7 +11,7 @@ import {
   RETRY_DELAY,
 } from './shared/constants'
 import { isRateLimitError } from './shared/rateLimit'
-import { hexToTronAddress } from './tron/utils'
+import { evmHexToTronBase58 } from './tron/tronAddressHelpers'
 
 /**
  * Call Tron contract function using troncast
@@ -81,7 +81,7 @@ export function getTronWallet(
  */
 export function ensureTronAddress(address: string, tronWeb: TronWeb): string {
   if (address.startsWith('0x')) {
-    return hexToTronAddress(address, tronWeb)
+    return evmHexToTronBase58(tronWeb, address)
   }
   return address
 }

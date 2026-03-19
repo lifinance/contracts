@@ -12,6 +12,10 @@ import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptH
 
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
 import {
+  tryTronFacetLoupeAddressToBase58,
+  tronAddressToHex,
+} from './tronAddressHelpers.js'
+import {
   getEnvironment,
   updateDiamondJsonBatch,
   getCurrentPrices,
@@ -222,7 +226,10 @@ async function registerFacetsBatch(
 
       // Check if this facet address is already registered
       for (const facet of currentFacets) {
-        const registeredAddress = tronWeb.address.fromHex(facet[0])
+        const registeredAddress = tryTronFacetLoupeAddressToBase58(
+          tronWeb,
+          facet[0]
+        )
         if (registeredAddress === facetAddress) {
           isRegistered = true
           break
@@ -237,10 +244,7 @@ async function registerFacetsBatch(
       continue
     }
 
-    // Convert base58 to hex for ABI encoding
-    const facetAddressHex = tronWeb.address
-      .toHex(facetAddress)
-      .replace(/^41/, '0x')
+    const facetAddressHex = tronAddressToHex(tronWeb, facetAddress)
 
     // Push as array for TronWeb encoding
     facetCuts.push([
@@ -358,7 +362,10 @@ async function registerFacetsBatch(
           // Check if this facet is actually registered
           let isRegistered = false
           for (const facet of registeredFacets) {
-            const registeredAddress = tronWeb.address.fromHex(facet[0])
+            const registeredAddress = tryTronFacetLoupeAddressToBase58(
+              tronWeb,
+              facet[0]
+            )
             if (registeredAddress === facetAddress) {
               isRegistered = true
               break
@@ -527,12 +534,7 @@ async function registerFacetsToDiamond(
         const facetHex = facet[0]
         const selectors = facet[1]
 
-        let facetBase58: string
-        try {
-          facetBase58 = tronWeb.address.fromHex(facetHex)
-        } catch {
-          facetBase58 = facetHex
-        }
+        const facetBase58 = tryTronFacetLoupeAddressToBase58(tronWeb, facetHex)
 
         const facetName = Object.entries(deployments).find(
           ([_, addr]) => addr === facetBase58
@@ -650,13 +652,10 @@ async function registerFacetsToDiamond(
           const facetHex = facet[0]
           const selectors = facet[1]
 
-          let facetBase58: string
-          try {
-            facetBase58 = tronWeb.address.fromHex(facetHex)
-          } catch {
-            // If conversion fails, show the hex
-            facetBase58 = facetHex
-          }
+          const facetBase58 = tryTronFacetLoupeAddressToBase58(
+            tronWeb,
+            facetHex
+          )
 
           const facetName = Object.entries(deployments).find(
             ([_, addr]) => addr === facetBase58

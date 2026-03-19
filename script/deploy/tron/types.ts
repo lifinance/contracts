@@ -18,6 +18,18 @@ export interface IPriceCache {
   timestamp: number
 }
 
+/** Base shape for viem HTTP RPC transport (URL + optional fetch headers) */
+export interface IViemRpcTransportConfigBase {
+  url: string
+  fetchOptions?: { headers: Record<string, string> }
+}
+
+/** Viem HTTP transport with optional retry tuning (e.g. TronGrid 429 backoff) */
+export interface IViemRpcTransportConfig extends IViemRpcTransportConfigBase {
+  retryCount?: number
+  retryDelay?: number
+}
+
 /** Response from Tron getaccountresource (snake_case or camelCase from different clients) */
 export interface IAccountResourceResponse {
   EnergyLimit?: number

@@ -24,6 +24,8 @@ export const POLL_INTERVAL = 3000 // 3 seconds
  * - Use INTER_CALL_DELAY for delays between individual checks/calls in loops
  * - Use INITIAL_CALL_DELAY before starting a sequence of calls
  * - Use RETRY_DELAY as the default for retry loops and execWithRateLimitRetry
+ * - TronGrid viem JSON-RPC (`applyTronGridViemTransportExtras`): uses RETRY_DELAY as
+ *   `retryDelay` and `MAX_RETRIES + 5` as `retryCount` for HTTP 429 backoff
  */
 
 /**
@@ -50,3 +52,9 @@ export const DEPLOYMENT_FILE_SUFFIX = (environment: string) =>
 
 // Common EVM address
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+/**
+ * `networks.json` / Mongo **network keys** for Tron (mainnet + Shasta) where addresses may be base58 (`T…`).
+ * Used when coercing config strings to viem `Address` / JSON-RPC hex addresses.
+ */
+export const TRON_NETWORK_KEYS = new Set(['tron', 'tronshasta'])

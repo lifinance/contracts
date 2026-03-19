@@ -58,7 +58,7 @@ export const TRON_DIAMOND_FACET_GROUPS: string[][] = [
 
 /** Topic0 for Safe `ProxyCreation` event (no `0x` prefix; lowercase hex). */
 export const TRON_SAFE_PROXY_CREATION_TOPIC_HEX =
-  '4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
+  '4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235' // [pre-commit-checker: not a secret]
 
 /** Minimal ABI for `SafeProxyFactory.createProxyWithNonce`. */
 export const TRON_SAFE_PROXY_FACTORY_ABI = [
@@ -99,8 +99,7 @@ export const TRON_SAFE_SETUP_ABI = [
   },
 ] as const
 
-/** Function selector for Diamond `confirmOwnershipTransfer()`. */
-export const TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR = '0x13af4035' as Hex
+export const TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR = '0x7200b829' as Hex
 
 /** Minimal ABI fragment for Safe `getTransactionHash`. */
 export const TRON_SAFE_GET_TX_HASH_ABI = [

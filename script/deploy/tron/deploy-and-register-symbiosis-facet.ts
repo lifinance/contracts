@@ -14,6 +14,7 @@ import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
+import { evmHexToTronBase58 } from './tronAddressHelpers'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
@@ -28,7 +29,6 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-  hexToTronAddress,
 } from './utils'
 
 /**
@@ -122,8 +122,8 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       )
 
     // Convert addresses to Tron format for display
-    const metaRouterTron = hexToTronAddress(metaRouter, tronWeb)
-    const gatewayTron = hexToTronAddress(gateway, tronWeb)
+    const metaRouterTron = evmHexToTronBase58(tronWeb, metaRouter)
+    const gatewayTron = evmHexToTronBase58(tronWeb, gateway)
 
     consola.info('\nSymbiosis Configuration:')
     consola.info(`MetaRouter: ${metaRouterTron} (hex: ${metaRouter})`)

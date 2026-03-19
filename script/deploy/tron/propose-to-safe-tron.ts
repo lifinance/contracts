@@ -35,15 +35,11 @@ import { TIMELOCK_SCHEDULE_BATCH_ABI } from '../safe/timelock-abi'
 import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
   TRON_SAFE_GET_TX_HASH_ABI,
-  TRON_ZERO_ADDRESS,
 } from './constants.js'
-
-/** Tron base58 → 20-byte hex (0x + 40) for Mongo/EVM-style storage and Safe ABI. */
-function tronBase58ToEvm20Hex(tronWeb: TronWeb, base58: string): `0x${string}` {
-  const hex = tronWeb.address.toHex(base58)
-  const without41 = hex.startsWith('41') ? hex.slice(2) : hex
-  return `0x${without41.padStart(40, '0').slice(-40)}` as `0x${string}`
-}
+import {
+  tronBase58ToEvm20Hex,
+  tronZeroAddressBase58,
+} from './tronAddressHelpers.js'
 
 async function runPropose(options: { dryRun?: boolean }) {
   const networkName = 'tron'
@@ -126,7 +122,7 @@ async function runPropose(options: { dryRun?: boolean }) {
       [diamondAddressEvm],
       [0n],
       [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex,
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // [pre-commit-checker: not a secret]
       salt,
       minDelayBigInt,
     ],
@@ -175,7 +171,7 @@ async function runPropose(options: { dryRun?: boolean }) {
   }
 
   // 3) Get transaction hash from Safe contract (Tron). Pass base58 for addresses; TronWeb encodes for the contract.
-  const zeroBase58 = tronWeb.address.fromHex(TRON_ZERO_ADDRESS)
+  const zeroBase58 = tronZeroAddressBase58(tronWeb)
   const safeFullAbi = [...TRON_SAFE_GET_TX_HASH_ABI]
   const safeForHash = tronWeb.contract(safeFullAbi, safeAddressBase58)
   let txHashHex: string

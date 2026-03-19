@@ -13,6 +13,7 @@ import {
 import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
+import { tronAddressToHex } from './tronAddressHelpers'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
@@ -115,8 +116,7 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       )
 
     // Convert Base58 address to hex format with 0x prefix for constructor arguments
-    const allBridgeAddressHex =
-      '0x' + tronWeb.address.toHex(allBridgeAddress).replace(/^41/, '')
+    const allBridgeAddressHex = tronAddressToHex(tronWeb, allBridgeAddress)
 
     consola.info('\nAllBridge Configuration:')
     consola.info(`AllBridge: ${allBridgeAddress} (${allBridgeAddressHex})`)

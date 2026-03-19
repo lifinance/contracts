@@ -37,11 +37,13 @@ import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
 } from '../../utils/fetchWithTimeout'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
@@ -49,6 +51,8 @@ import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 config()
 
 const networks: Record<string, { safeAddress: string; status: string }> = data
+
+export { normalizeAddressForNetwork }
 
 // Types for Safe transactions
 export enum OperationTypeEnum {
@@ -192,9 +196,14 @@ export class ViemSafe {
     let chain: Chain | undefined = undefined
 
     if (typeof provider === 'string') {
-      const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
+      const { url, fetchOptions, retryCount, retryDelay } =
+        getTransportConfigFromRpcUrl(provider)
       publicClient = createPublicClient({
-        transport: http(url, fetchOptions ? { fetchOptions } : {}),
+        transport: http(url, {
+          ...(fetchOptions ? { fetchOptions } : {}),
+          ...(retryCount !== undefined ? { retryCount } : {}),
+          ...(retryDelay !== undefined ? { retryDelay } : {}),
+        }),
       })
     } else {
       chain = provider
@@ -223,8 +232,13 @@ export class ViemSafe {
     const walletTransport =
       typeof provider === 'string'
         ? (() => {
-            const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
-            return http(url, fetchOptions ? { fetchOptions } : {})
+            const { url, fetchOptions, retryCount, retryDelay } =
+              getTransportConfigFromRpcUrl(provider)
+            return http(url, {
+              ...(fetchOptions ? { fetchOptions } : {}),
+              ...(retryCount !== undefined ? { retryCount } : {}),
+              ...(retryDelay !== undefined ? { retryDelay } : {}),
+            })
           })()
         : http()
     const walletClient = createWalletClient({
@@ -750,7 +764,10 @@ export const initializeSafeTransaction = async (
   const safeTransaction = await safe.createTransaction({
     transactions: [
       {
-        to: txFromMongo.safeTx.data.to as Address,
+        to: normalizeAddressForNetwork(
+          txFromMongo.network,
+          String(txFromMongo.safeTx.data.to)
+        ),
         value: BigInt(txFromMongo.safeTx.data.value),
         data: txFromMongo.safeTx.data.data as Hex,
         operation: txFromMongo.safeTx.data.operation as OperationTypeEnum,
@@ -1249,11 +1266,13 @@ export async function initializeSafeClient(
   safeAddress: Address
 }> {
   const chain = getViemChainForNetworkName(network)
-  const finalSafeAddress =
-    safeAddress || (networks[network.toLowerCase()]?.safeAddress as Address)
+  const rawSafeAddress =
+    safeAddress ?? networks[network.toLowerCase()]?.safeAddress
 
-  if (!finalSafeAddress)
+  if (!rawSafeAddress)
     throw new Error(`No Safe address configured for network ${network}`)
+
+  const finalSafeAddress = normalizeAddressForNetwork(network, rawSafeAddress)
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
@@ -1786,11 +1805,16 @@ export async function decodeDiamondCut(
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
     try {
-      let facetLine = `Facet Address: \u001b[34m${facetAddress}\u001b[0m`
+      const networkKey = network ?? networkIdForExplorer ?? ''
+      const facetDisplay = formatAddressForNetworkCliDisplay(
+        networkKey,
+        String(facetAddress)
+      )
+      let facetLine = `Facet Address: \u001b[34m${facetDisplay}\u001b[0m`
       if (networkIdForExplorer) {
         const explorerUrl = buildExplorerContractPageUrl(
           networkIdForExplorer,
-          facetAddress
+          facetDisplay
         )
         if (explorerUrl) facetLine += ` \u001b[36m${explorerUrl}\u001b[0m`
       }
@@ -1922,16 +1946,24 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   try {
     const rpcUrl = chain.rpcUrls.default.http[0]
     if (!rpcUrl) throw new Error(`No RPC URL for network ${network}`)
-    const { url: transportUrl, fetchOptions } =
-      getTransportConfigFromRpcUrl(rpcUrl)
+    const {
+      url: transportUrl,
+      fetchOptions,
+      retryCount,
+      retryDelay,
+    } = getTransportConfigFromRpcUrl(rpcUrl)
     const publicClient = createPublicClient({
       chain,
-      transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
+      transport: http(transportUrl, {
+        ...(fetchOptions ? { fetchOptions } : {}),
+        ...(retryCount !== undefined ? { retryCount } : {}),
+        ...(retryDelay !== undefined ? { retryDelay } : {}),
+      }),
     })
 
     safeInfo = await getSafeInfoFromContract(
       publicClient,
-      safeAddress as Address
+      normalizeAddressForNetwork(network, safeAddress)
     )
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
@@ -1955,11 +1987,19 @@ export async function wrapWithTimelockSchedule(
   const chain = getViemChainForNetworkName(network)
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
-  const { url: transportUrl, fetchOptions } =
-    getTransportConfigFromRpcUrl(parsedRpcUrl)
+  const {
+    url: transportUrl,
+    fetchOptions,
+    retryCount,
+    retryDelay,
+  } = getTransportConfigFromRpcUrl(parsedRpcUrl)
   const client = createPublicClient({
     chain,
-    transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
+    transport: http(transportUrl, {
+      ...(fetchOptions ? { fetchOptions } : {}),
+      ...(retryCount !== undefined ? { retryCount } : {}),
+      ...(retryDelay !== undefined ? { retryDelay } : {}),
+    }),
   })
 
   // Get the minimum delay from the timelock controller
@@ -2007,7 +2047,7 @@ export async function wrapWithTimelockSchedule(
       [targetAddress], // targets
       [0n], // values
       [originalCalldata], // payloads
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // [pre-commit-checker: not a secret]
       salt, // salt
       minDelay, // delay
     ],

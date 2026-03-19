@@ -13,6 +13,7 @@ import { type Collection } from 'mongodb'
 import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
@@ -289,9 +290,17 @@ const processTxs = async (
 
     // Get target name for display
     const targetName = await getTargetName(tx.safeTx.data.to, network)
+    const toAddrDisplay = formatAddressForNetworkCliDisplay(
+      network,
+      tx.safeTx.data.to
+    )
     const toDisplay = targetName
-      ? `${tx.safeTx.data.to} \u001b[33m${targetName}\u001b[0m`
-      : tx.safeTx.data.to
+      ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
+      : toAddrDisplay
+    const proposerDisplay = formatAddressForNetworkCliDisplay(
+      network,
+      tx.proposer
+    )
 
     consola.info(`Safe Transaction Details:
     Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
@@ -301,7 +310,7 @@ const processTxs = async (
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
     }\u001b[0m
     Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${tx.proposer}\u001b[0m
+    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m
     Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
     Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
       tx.threshold
