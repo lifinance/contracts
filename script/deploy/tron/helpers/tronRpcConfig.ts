@@ -88,9 +88,9 @@ export function buildTronWalletJsonPostHeaders(
 /**
  * Get Tron RPC URL and API key configuration.
  *
- * This function retrieves the RPC URL for Tron network with the following priority:
- * 1. Environment variable (e.g., TRON_RPC_URL, TRONSHASTA_RPC_URL) - highest priority
- * 2. networks.json configuration - fallback
+ * RPC URLs are sourced only from environment variables (see {@link getRPCEnvVarName}),
+ * e.g. `ETH_NODE_URI_TRON`, `ETH_NODE_URI_TRONSHASTA`. There is no fallback to
+ * `networks.json` so privileged scripts cannot silently switch nodes.
  *
  * If the RPC URL is TronGrid (official api.*.trongrid.io host), it automatically retrieves
  * the API key from environment variables and includes it in the headers.
@@ -100,36 +100,21 @@ export function buildTronWalletJsonPostHeaders(
  * @param networkName The network name (e.g., 'tron', 'tronshasta')
  * @param verbose Whether to log debug information about RPC URL and API key source
  * @returns Object containing rpcUrl and headers (with API key if using TronGrid)
- * @throws Error if RPC URL is empty or invalid
+ * @throws Error if the RPC env var is missing or the URL is empty/whitespace
  */
 export function getTronRPCConfig(
   networkName: string,
   verbose = false
 ): { rpcUrl: string; headers?: Record<string, string> } {
-  const networkConfig = getNetworkConfig(networkName)
+  const envVarName = getRPCEnvVarName(networkName)
+  const rpcUrl = getEnvVar(envVarName).trim()
+  if (verbose)
+    consola.debug(`Using RPC URL from environment variable: ${envVarName}`)
 
-  // Get RPC URL from environment variable first, fallback to networks.json
-  let rpcUrl: string
-  try {
-    const envVarName = getRPCEnvVarName(networkName)
-    rpcUrl = getEnvVar(envVarName)
-    if (verbose)
-      consola.debug(`Using RPC URL from environment variable: ${envVarName}`)
-  } catch (error: unknown) {
-    // Fallback to networks.json if env var not set
-    rpcUrl = networkConfig.rpcUrl || networkConfig.rpc
-    if (verbose) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      consola.debug(
-        `RPC URL environment variable not set (${errorMessage}), using value from networks.json: ${rpcUrl}`
-      )
-    }
-  }
-
-  // Validate RPC URL format
-  if (!rpcUrl || rpcUrl.trim() === '') {
-    throw new Error(`RPC URL is empty or invalid for network: ${networkName}`)
+  if (rpcUrl === '') {
+    throw new Error(
+      `RPC URL is empty for network: ${networkName} (env: ${envVarName})`
+    )
   }
 
   // Check if using TronGrid and automatically get API key
