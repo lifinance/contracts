@@ -1,6 +1,7 @@
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 
+import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
 import {
   A_SIGNATURE,
   DATA_HEX_PROTOBUF_EXTRA,
@@ -8,8 +9,11 @@ import {
   FALLBACK_ENERGY_PRICE_TRX,
   MAX_RESULT_SIZE_IN_TX,
   PRICE_CACHE_TTL_MS,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
 } from '../constants'
 import type { IAccountResourceResponse, IPriceCache } from '../types'
+
+import { buildTronWalletJsonPostHeaders } from './tronRpcConfig'
 
 let priceCache: IPriceCache | null = null
 
@@ -124,11 +128,20 @@ export async function getAccountAvailableResources(
   addressBase58: string
 ): Promise<{ availableEnergy: number; availableBandwidth: number }> {
   const url = fullHost.replace(/\/$/, '') + '/wallet/getaccountresource'
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ address: addressBase58, visible: true }),
-  })
+  let res: Response
+  try {
+    res = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: buildTronWalletJsonPostHeaders(fullHost),
+        body: JSON.stringify({ address: addressBase58, visible: true }),
+      },
+      TRON_WALLET_API_FETCH_TIMEOUT_MS
+    )
+  } catch {
+    return { availableEnergy: 0, availableBandwidth: 0 }
+  }
   if (!res.ok) {
     return { availableEnergy: 0, availableBandwidth: 0 }
   }
