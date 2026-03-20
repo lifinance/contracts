@@ -3,7 +3,11 @@
  * These constants are not network-specific and apply across the entire project
  */
 
-import type { EVMVersion } from '../../common/types'
+import {
+  EnvironmentEnum,
+  type DeploymentFileSuffixInput,
+  type EVMVersion,
+} from '../../common/types'
 
 /**
  * Minimum number of signatures required for Safe multisig transactions
@@ -49,8 +53,12 @@ export const INITIAL_CALL_DELAY = 2000 // 2s
 export const RETRY_DELAY = 2000 // 2s
 
 // File paths
-export const DEPLOYMENT_FILE_SUFFIX = (environment: string) =>
-  environment === 'production' ? '' : 'staging.'
+export const DEPLOYMENT_FILE_SUFFIX = (
+  environment: DeploymentFileSuffixInput
+): '' | 'staging.' =>
+  environment === EnvironmentEnum.production || environment === 'production'
+    ? ''
+    : 'staging.'
 
 // Common EVM address
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
