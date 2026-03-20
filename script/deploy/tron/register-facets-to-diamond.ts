@@ -5,12 +5,16 @@ import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 
-import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
+import {
+  TRON_DIAMOND_FACET_GROUPS,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+} from './constants.js'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
   tryTronFacetLoupeAddressToBase58,
   tronAddressToHex,
@@ -20,7 +24,6 @@ import {
   updateDiamondJsonBatch,
   getCurrentPrices,
   waitBetweenDeployments,
-  getTronGridAPIKey,
 } from './utils.js'
 
 /**
@@ -126,7 +129,7 @@ async function estimateDiamondCutEnergy(
       contract_address: diamondAddress, // Use base58 format for Tron API
       function_selector: functionSelector,
       parameter: encodedParams.replace('0x', ''),
-      fee_limit: 1000000000, // High limit for estimation only
+      fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
       call_value: 0,
       visible: true,
     }
@@ -452,15 +455,11 @@ async function registerFacetsToDiamond(
 
     if (!fullHost) throw new Error('Tron RPC URL not found in networks.json')
 
-    const apiKey = getTronGridAPIKey(false)
-    const tronWebConfig: any = {
-      fullHost,
+    const tronWeb = createTronWeb({
+      rpcUrl: fullHost,
+      networkKey: networkName as TronTvmNetworkName,
       privateKey,
-    }
-    if (apiKey) {
-      tronWebConfig.headers = { 'TRON-PRO-API-KEY': apiKey }
-    }
-    const tronWeb = new TronWeb(tronWebConfig)
+    })
 
     consola.info(` Connected to: ${fullHost}`)
     consola.info(`👛 Deployer: ${tronWeb.defaultAddress.base58}`)

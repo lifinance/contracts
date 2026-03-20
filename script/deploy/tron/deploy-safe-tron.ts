@@ -19,7 +19,7 @@ import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
+import type { TronWeb } from 'tronweb'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
@@ -37,6 +37,11 @@ import {
   TRON_SAFE_PROXY_FACTORY_ABI,
   TRON_SAFE_SETUP_ABI,
 } from './constants.js'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import {
+  createTronWeb,
+  resolveTronWebRpcUrlToFullHost,
+} from './helpers/tronWebFactory.js'
 import {
   evm20HexStringToTronBase58,
   evmHexToTronBase58,
@@ -221,6 +226,7 @@ async function verifySafeThreshold(
  */
 async function runSetupOnly(args: {
   tronWeb: TronWeb
+  tronFullHost: string
   networksContent: Record<
     string,
     {
@@ -238,6 +244,7 @@ async function runSetupOnly(args: {
 }): Promise<void> {
   const {
     tronWeb,
+    tronFullHost,
     networksContent,
     ownersBase58,
     ownersEvm,
@@ -277,7 +284,6 @@ async function runSetupOnly(args: {
   const ownersHex = ownersBase58.map((b58) => tronAddressToHex(tronWeb, b58))
   const setupParamsHex = encodeSetup(tronWeb, ownersBase58, threshold)
 
-  const { rpcUrl } = getTronRPCConfig(TRON_DEPLOY_NETWORK, false)
   const deployerBase58 =
     typeof tronWeb.defaultAddress?.base58 === 'string'
       ? tronWeb.defaultAddress.base58
@@ -286,7 +292,7 @@ async function runSetupOnly(args: {
     throw new Error('Deployer address (base58) not available')
 
   const estimatedEnergy = await estimateContractCallEnergy({
-    fullHost: rpcUrl,
+    fullHost: tronFullHost,
     tronWeb,
     contractAddressBase58: safeAddress,
     functionSelector:
@@ -295,7 +301,7 @@ async function runSetupOnly(args: {
     safetyMargin,
   })
   const { availableEnergy } = await getAccountAvailableResources(
-    rpcUrl,
+    tronFullHost,
     deployerBase58
   )
   const { totalCost } = await calculateEstimatedCost(
@@ -383,14 +389,15 @@ async function run(options: {
   }
 
   const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
-  const { rpcUrl, headers } = getTronRPCConfig(TRON_DEPLOY_NETWORK, false)
-  const tronWebConfig: {
-    fullHost: string
-    privateKey: string
-    headers?: Record<string, string>
-  } = { fullHost: rpcUrl, privateKey }
-  if (headers) tronWebConfig.headers = headers
-  const tronWeb = new TronWeb(tronWebConfig)
+  const tvmKey = TRON_DEPLOY_NETWORK as TronTvmNetworkName
+  const { rpcUrl, headers } = getTronRPCConfig(tvmKey, false)
+  const tronFullHost = resolveTronWebRpcUrlToFullHost(rpcUrl, tvmKey)
+  const tronWeb = createTronWeb({
+    rpcUrl,
+    networkKey: tvmKey,
+    privateKey,
+    headers,
+  })
   const ownersBase58 = ownersEvm.map((addr) =>
     evm20HexStringToTronBase58(tronWeb, addr)
   )
@@ -410,6 +417,7 @@ async function run(options: {
   if (options.setupOnly) {
     await runSetupOnly({
       tronWeb,
+      tronFullHost,
       networksContent,
       networksPath,
       ownersBase58,
@@ -437,6 +445,7 @@ async function run(options: {
 
   const deployer = new TronContractDeployer({
     fullHost: rpcUrl,
+    tvmNetworkKey: tvmKey,
     privateKey,
     headers,
     dryRun: options.dryRun,
@@ -560,7 +569,7 @@ async function run(options: {
     [tronAddressToHex(tronWeb, singletonAddress), initializer, salt.toString()]
   )
   const estimatedEnergy = await estimateContractCallEnergy({
-    fullHost: rpcUrl,
+    fullHost: tronFullHost,
     tronWeb,
     contractAddressBase58: factoryAddress,
     functionSelector: 'createProxyWithNonce(address,bytes,uint256)',
@@ -574,7 +583,7 @@ async function run(options: {
   if (!deployerBase58)
     throw new Error('Deployer address (base58) not available')
   const { availableEnergy } = await getAccountAvailableResources(
-    rpcUrl,
+    tronFullHost,
     deployerBase58
   )
   const { totalCost } = await calculateEstimatedCost(

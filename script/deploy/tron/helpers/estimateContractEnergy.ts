@@ -1,4 +1,7 @@
-import { DEFAULT_SAFETY_MARGIN } from '../constants'
+import {
+  DEFAULT_SAFETY_MARGIN,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+} from '../constants'
 import type { IEstimateContractCallEnergyParams } from '../types'
 
 /**
@@ -15,7 +18,7 @@ export async function estimateContractCallEnergy(
     functionSelector,
     parameterHex,
     safetyMargin = DEFAULT_SAFETY_MARGIN,
-    feeLimitForEstimation = 1_000_000_000,
+    feeLimitForEstimation = TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
   } = params
   const apiUrl = fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
   const ownerAddress =
@@ -28,7 +31,7 @@ export async function estimateContractCallEnergy(
     owner_address: ownerAddress,
     contract_address: contractAddressBase58,
     function_selector: functionSelector,
-    parameter: parameterHex.replace(/^0x/i, ''),
+    parameter: parameterHex,
     fee_limit: feeLimitForEstimation,
     call_value: 0,
     visible: true,

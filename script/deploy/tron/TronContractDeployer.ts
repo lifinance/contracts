@@ -1,10 +1,16 @@
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
 import { sleep } from '../../utils/delay'
 import { retryWithRateLimit } from '../shared/rateLimit'
 
-import { DEFAULT_SAFETY_MARGIN } from './constants'
+import {
+  DEFAULT_SAFETY_MARGIN,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+} from './constants'
+import {
+  createTronWeb,
+  resolveTronWebRpcUrlToFullHost,
+} from './helpers/tronWebFactory'
 import type {
   ITronDeploymentConfig,
   ITronCostEstimate,
@@ -17,20 +23,22 @@ import {
   getAccountAvailableResources,
 } from './utils'
 
-// Import TronWeb - the simple approach that was working
-
 export class TronContractDeployer {
   private tronWeb: any
   private config: ITronDeploymentConfig
 
   public constructor(config: ITronDeploymentConfig) {
-    // Validate Tron private key format (allow optional "0x" prefix)
-    const rawKey = config.privateKey?.replace(/^0x/i, '')
-    if (!rawKey || !/^[0-9A-Fa-f]{64}$/.test(rawKey))
+    const pk = (config.privateKey ?? '').trim()
+    if (!pk || !/^0x?[0-9A-Fa-f]{64}$/.test(pk))
       throw new Error(
         'Invalid Tron private key format. Expected a 64-character hexadecimal string (with or without "0x" prefix). ' +
           'Example: 0x1234...abcd or 1234...abcd'
       )
+
+    const resolvedFullHost = resolveTronWebRpcUrlToFullHost(
+      config.fullHost ?? '',
+      config.tvmNetworkKey
+    )
 
     this.config = {
       safetyMargin: DEFAULT_SAFETY_MARGIN,
@@ -41,12 +49,15 @@ export class TronContractDeployer {
       userFeePercentage: 100,
       originEnergyLimit: 0,
       ...config,
-      privateKey: rawKey,
+      fullHost: resolvedFullHost,
+      privateKey: pk,
     }
 
-    this.tronWeb = new TronWeb({
-      fullHost: this.config.fullHost,
+    this.tronWeb = createTronWeb({
+      rpcUrl: resolvedFullHost,
       privateKey: this.config.privateKey,
+      headers: this.config.headers,
+      verbose: this.config.verbose,
     })
 
     if (this.config.verbose)
@@ -291,7 +302,7 @@ export class TronContractDeployer {
         contract_address: null, // null for deployment estimation
         function_selector: null, // null for deployment estimation
         parameter: '', // Empty for deployment
-        fee_limit: 1000000000, // High limit for estimation only
+        fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
         call_value: 0,
         data: deploymentData, // Contract bytecode + constructor params
         visible: true,

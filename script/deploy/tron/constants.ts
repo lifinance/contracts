@@ -169,6 +169,31 @@ export const REGISTRATION_RPC_DELAY_MS = 8000
 // Delay (ms) between retries when registration/verification RPC returns 429
 export const REGISTRATION_RETRY_DELAY_MS = 10000
 
+/**
+ * 50 TRX in SUN — shared bound for script fee limits (periphery registration cap, Safe exec default).
+ */
+export const TRON_SCRIPT_FEE_LIMIT_50_TRX_SUN = 50_000_000
+
 /** Min/max fee limit (SUN) for registerPeripheryContract prompts and bounds checks. */
 export const REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN = 1_000_000 // 1 TRX
-export const REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN = 50_000_000 // 50 TRX
+export const REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN =
+  TRON_SCRIPT_FEE_LIMIT_50_TRX_SUN
+
+/** Default `fee_limit` (SUN) for Safe `execTransaction` via `wallet/triggersmartcontract`. */
+export const TRON_SAFE_EXEC_DEFAULT_FEE_LIMIT_SUN =
+  TRON_SCRIPT_FEE_LIMIT_50_TRX_SUN
+
+/** Env var overriding {@link TRON_SAFE_EXEC_DEFAULT_FEE_LIMIT_SUN} (positive integer SUN). */
+export const TRON_SAFE_EXEC_FEE_LIMIT_SUN_ENV =
+  'TRON_SAFE_EXEC_FEE_LIMIT_SUN' as const
+
+/** Poll interval (ms) after broadcasting Safe exec while waiting for `getTransactionInfo`. */
+export const TRON_SAFE_EXEC_CONFIRM_POLL_MS = 2_000
+
+/** Default max wait (ms) for Tron Safe exec confirmation polling (Tron indexing is slower than typical EVM). */
+export const TRON_SAFE_EXEC_CONFIRM_TIMEOUT_MS_DEFAULT = 100_000
+
+/**
+ * High `fee_limit` (SUN) for `wallet/triggerconstantcontract` estimation / deployment simulation only.
+ */
+export const TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN = 1_000_000_000

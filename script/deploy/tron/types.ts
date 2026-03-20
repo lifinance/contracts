@@ -1,4 +1,30 @@
 import type { TronWeb } from 'tronweb'
+import type { Address, Hex } from 'viem'
+
+/** Tron TVM network keys in `config/networks.json` (mainnet / Shasta). */
+export type TronTvmNetworkName = 'tron' | 'tronshasta'
+
+/** Result of broadcasting Safe `execTransaction` on Tron via TronWeb. */
+export interface IExecuteSafeExecTronWebResult {
+  txId: string
+  hash: Hex
+}
+
+/** Params for Tron Safe `execTransaction` broadcast (signing key supplied separately). */
+export interface ITronSafeExecParams {
+  networkName: TronTvmNetworkName
+  safeAddressEvm: Address
+  to: Address
+  value: bigint
+  data: Hex
+  operation: number
+  signatures: Hex
+  confirmTimeoutMs?: number
+}
+
+export type IBroadcastTronSafeExecParams = ITronSafeExecParams & {
+  privateKeyHex: string
+}
 
 /** Parameters for estimating contract call energy via TRON triggerconstantcontract API */
 export interface IEstimateContractCallEnergyParams {
@@ -47,7 +73,13 @@ export interface IAccountResourceResponse {
 }
 
 export interface ITronDeploymentConfig {
+  /**
+   * Tron RPC URL (env / `networks.json`). May include `/jsonrpc`; when `tvmNetworkKey` is set,
+   * it is normalized for TronWeb and wallet HTTP APIs.
+   */
   fullHost: string
+  /** When set with a Tron TVM network key, {@link fullHost} is normalized (e.g. strip `/jsonrpc`). */
+  tvmNetworkKey?: TronTvmNetworkName
   privateKey: string
   feeLimit?: number
   userFeePercentage?: number

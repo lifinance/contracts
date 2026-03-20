@@ -20,16 +20,17 @@ import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
   MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
   TRON_ZERO_ADDRESS,
 } from './constants'
 import { getContractVersion } from './helpers/getContractVersion'
 import { loadForgeArtifact } from './helpers/loadForgeArtifact'
 import { getCurrentPrices } from './helpers/tronPricing'
-import { getTronGridAPIKey } from './helpers/tronRpcConfig'
 import {
   getTronWebCodecFullHost,
   getTronWebCodecOnly,
 } from './helpers/tronWebCodecOnly'
+import { createTronWebReadOnly } from './helpers/tronWebFactory'
 import {
   tronAddressToHex,
   tryTronFacetLoupeAddressToBase58,
@@ -694,7 +695,7 @@ export async function checkExistingDeployment(
  * @param seconds Number of seconds to wait
  * @param verbose Whether to log the wait message
  * @param tronWeb Optional TronWeb instance (if not provided, will create a minimal one)
- * @param fullHost Optional RPC host URL (if not provided, will use default)
+ * @param fullHost Optional Tron RPC URL (if not provided, will use default)
  * @param headers Optional headers for API key authentication
  */
 export async function waitBetweenDeployments(
@@ -719,22 +720,15 @@ export async function waitBetweenDeployments(
   // Use provided TronWeb or create a minimal one for RPC calls
   let rpcTronWeb = tronWeb
   if (!rpcTronWeb && fullHost) {
-    const TronWeb = (await import('tronweb')).TronWeb
-    const config: any = { fullHost }
-    if (headers) {
-      config.headers = headers
-    }
-    rpcTronWeb = new TronWeb(config)
+    rpcTronWeb = createTronWebReadOnly({
+      rpcUrl: fullHost,
+      headers,
+    })
   } else if (!rpcTronWeb) {
-    // Fallback: same fullHost resolution as codec TronWeb (ETH_NODE_URI_TRON / networks.json)
-    const TronWeb = (await import('tronweb')).TronWeb
-    const config: any = { fullHost: getTronWebCodecFullHost() }
-    // Try to get API key for fallback case
-    const apiKey = getTronGridAPIKey(verbose)
-    if (apiKey) {
-      config.headers = { 'TRON-PRO-API-KEY': apiKey }
-    }
-    rpcTronWeb = new TronWeb(config)
+    rpcTronWeb = createTronWebReadOnly({
+      rpcUrl: getTronWebCodecFullHost(),
+      verbose,
+    })
   }
 
   // Make lightweight RPC calls to wait (getNowBlock is a lightweight call)
@@ -894,7 +888,7 @@ export async function estimateDiamondCutEnergy(
       contract_address: diamondAddress,
       function_selector: functionSelector,
       parameter: encodedParams.replace('0x', ''),
-      fee_limit: 1000000000,
+      fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
       call_value: 0,
       visible: true,
     }

@@ -57,6 +57,12 @@ export function getTronGridAPIKey(verbose = false): string | undefined {
   return undefined
 }
 
+/** Whether `rpcUrl` points at TronGrid (API key sent as `TRON-PRO-API-KEY`). */
+export function isTronGridRpcUrl(rpcUrl: string): boolean {
+  const u = rpcUrl.toLowerCase()
+  return u.includes('trongrid.io') || u.includes('trongrid')
+}
+
 /**
  * Get Tron RPC URL and API key configuration.
  *
@@ -105,8 +111,7 @@ export function getTronRPCConfig(
   }
 
   // Check if using TronGrid and automatically get API key
-  const isTronGrid =
-    rpcUrl.includes('trongrid.io') || rpcUrl.includes('trongrid')
+  const isTronGrid = isTronGridRpcUrl(rpcUrl)
   let headers: Record<string, string> | undefined
 
   if (isTronGrid) {

@@ -12,7 +12,9 @@ import {
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
 import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
 import { evmHexToTronBase58 } from './tronAddressHelpers.js'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
@@ -110,7 +112,6 @@ async function deployCoreFacetsImpl(options: {
 
   // Get RPC URL and API key configuration (automatically handles TronGrid API key)
   const { rpcUrl, headers } = getTronRPCConfig(networkName, options.verbose)
-  const apiKey = headers?.['TRON-PRO-API-KEY']
 
   consola.info(`RPC URL: ${rpcUrl}`)
 
@@ -134,6 +135,7 @@ async function deployCoreFacetsImpl(options: {
   // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: networkName as TronTvmNetworkName,
     privateKey,
     verbose: options.verbose,
     dryRun: options.dryRun,
@@ -149,16 +151,13 @@ async function deployCoreFacetsImpl(options: {
   const networkInfo = await deployer.getNetworkInfo()
   displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-  // Initialize TronWeb for balance validation with API key header if provided
-  const { TronWeb } = await import('tronweb')
-  const tronWebConfig: any = {
-    fullHost: rpcUrl,
+  const tronWeb = createTronWeb({
+    rpcUrl,
+    networkKey: networkName as TronTvmNetworkName,
     privateKey,
-  }
-  if (apiKey) {
-    tronWebConfig.headers = { 'TRON-PRO-API-KEY': apiKey }
-  }
-  const tronWeb = new TronWeb(tronWebConfig)
+    headers,
+    verbose: options.verbose,
+  })
 
   // Validate balance
   await validateBalance(tronWeb, MIN_BALANCE_WARNING)
@@ -310,10 +309,11 @@ async function deployCoreFacetsImpl(options: {
       const ownerAddress = networkInfo.address
 
       // Convert to hex format for constructor
-      const { TronWeb } = await import('tronweb')
-      const tronWeb = new TronWeb({
-        fullHost: rpcUrl,
+      const tronWeb = createTronWeb({
+        rpcUrl,
+        networkKey: networkName as TronTvmNetworkName,
         privateKey,
+        verbose: options.verbose,
       })
       const ownerHexRaw = tronWeb.address.toHex(ownerAddress)
       const ownerHex = ownerHexRaw.startsWith('0x')

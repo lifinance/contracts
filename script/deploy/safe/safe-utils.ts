@@ -1,9 +1,8 @@
 /**
  * Safe Utilities
  *
- * This module provides utilities for interacting with Gnosis Safe contracts
- * using Viem. It includes classes and functions for creating, signing, and
- * executing transactions, as well as managing Safe configuration and MongoDB interactions.
+ * Provides Gnosis Safe helpers using viem (EVM JSON-RPC) and {@link SafeClient},
+ * which also exposes TronWeb for Tron TVM broadcast
  */
 
 import * as fs from 'fs'
@@ -12,6 +11,7 @@ import * as path from 'path'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
+import type { TronWeb } from 'tronweb'
 import {
   createPublicClient,
   createWalletClient,
@@ -43,7 +43,13 @@ import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+import { TronWalletClient } from '../tron/helpers/TronWalletClient'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
+import {
+  getTronNetworkKeyForChainId,
+  isTronTvmChainId,
+  type TronTvmNetworkName,
+} from '../tron/helpers/tronTvmChain'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
@@ -127,13 +133,11 @@ export const retry = async <T>(
 }
 
 /**
- * ViemSafe class
- *
- * A wrapper around Viem clients that provides Safe-specific functionality.
- * This class handles Safe contract interactions including transaction creation,
- * signing, and execution.
+ * Safe client for scripts: viem for EVM JSON-RPC (reads, signing, non-Tron execution)
+ * plus optional {@link TronWalletClient} for Tron TVM broadcast (`wallet/triggersmartcontract`).
+ * The same private key backs both paths when initialized from `privateKey`.
  */
-export class ViemSafe {
+export class SafeClient {
   /**
    * Public client for read operations
    * @private
@@ -158,16 +162,23 @@ export class ViemSafe {
    */
   public account: Account
 
+  /**
+   * Tron broadcast/signing client when `init` received a raw `privateKey` (same key as viem account).
+   */
+  private readonly tronWalletClient?: TronWalletClient
+
   public constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     safeAddress: Address,
-    account: Account
+    account: Account,
+    tronWalletClient?: TronWalletClient
   ) {
     this.publicClient = publicClient
     this.walletClient = walletClient
     this.safeAddress = safeAddress
     this.account = account
+    this.tronWalletClient = tronWalletClient
   }
 
   public static async init(options: {
@@ -181,7 +192,7 @@ export class ViemSafe {
       accountIndex?: number
     }
     account?: Account
-  }): Promise<ViemSafe> {
+  }): Promise<SafeClient> {
     const {
       privateKey,
       safeAddress,
@@ -215,15 +226,21 @@ export class ViemSafe {
 
     // Get account - either use pre-created, from private key, or create new Ledger connection
     let account
-    if (preCreatedAccount) account = preCreatedAccount
-    else if (useLedger) {
+    let tronWalletClient: TronWalletClient | undefined
+    if (preCreatedAccount) {
+      account = preCreatedAccount
+    } else if (useLedger) {
       // Dynamically import the Ledger module to avoid dependency issues
       const { getLedgerAccount } = await import('./ledger')
       const ledgerResult = await getLedgerAccount(ledgerOptions)
       account = ledgerResult.account
-    } else if (privateKey)
-      account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
-    else
+    } else if (privateKey) {
+      const pkForViem = (
+        privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`
+      ) as Hex
+      account = privateKeyToAccount(pkForViem)
+      tronWalletClient = new TronWalletClient(privateKey)
+    } else
       throw new Error(
         'Either privateKey, useLedger, or account must be provided'
       )
@@ -247,12 +264,36 @@ export class ViemSafe {
       transport: walletTransport,
     })
 
-    return new ViemSafe(publicClient, walletClient, safeAddress, account)
+    return new SafeClient(
+      publicClient,
+      walletClient,
+      safeAddress,
+      account,
+      tronWalletClient
+    )
   }
 
   // Get Safe address
   public getAddress(): Address {
     return this.safeAddress
+  }
+
+  public async getChainId(): Promise<number> {
+    return this.publicClient.getChainId()
+  }
+
+  /**
+   * TronWeb client for this account’s key (Tron full-node HTTP). Same key as viem on Tron TVM.
+   * @throws If the client was created with Ledger only or without a raw private key.
+   */
+  public getTronWeb(networkName: TronTvmNetworkName): TronWeb {
+    if (!this.tronWalletClient)
+      throw new Error(
+        'TronWeb requires a private-key-backed client (same key as EVM). ' +
+          'Use privateKey in init, or use a deployer key when executing on Tron.'
+      )
+
+    return this.tronWalletClient.getTronWeb(networkName)
   }
 
   // Get nonce from Safe contract (replaces getNonce from Safe SDK)
@@ -595,8 +636,10 @@ export class ViemSafe {
     return vValue === 27 || vValue === 28 || vValue === 31 || vValue === 32
   }
 
-  // Format signatures as bytes for contract submission
-  private formatSignatures(signatures: Map<string, ISafeSignature>): Hex {
+  /**
+   * Format signatures as bytes for contract submission (sorted by signer address).
+   */
+  public formatSignatures(signatures: Map<string, ISafeSignature>): Hex {
     if (!signatures.size) return '0x' as Hex
 
     try {
@@ -650,7 +693,37 @@ export class ViemSafe {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
-      // Submit the transaction
+      const chainId = await this.publicClient.getChainId()
+      if (isTronTvmChainId(chainId)) {
+        if (!this.tronWalletClient)
+          throw new Error(
+            'Tron Safe execution uses TronWeb (native protocol) and requires a private-key signer. ' +
+              'Use "Execute with Deployer", or run confirm-safe-tx with --no-ledger and PRIVATE_KEY_PRODUCTION / SAFE_SIGNER_PRIVATE_KEY in .env. ' +
+              'Ledger-only execution cannot broadcast Safe exec through the Tron HTTP API from this script.'
+          )
+
+        const networkKey = getTronNetworkKeyForChainId(chainId)
+        if (!networkKey)
+          throw new Error(
+            `Tron chain ID ${chainId} is not mapped to tron/tronshasta`
+          )
+
+        const { hash } = await this.tronWalletClient.executeSafeExecTransaction(
+          {
+            networkName: networkKey,
+            safeAddressEvm: this.safeAddress,
+            to: safeTx.data.to,
+            value: safeTx.data.value,
+            data: safeTx.data.data,
+            operation: safeTx.data.operation,
+            signatures,
+          }
+        )
+
+        return { hash }
+      }
+
+      // Submit the transaction (EVM JSON-RPC)
       const txHash = await this.walletClient.writeContract({
         account: this.account,
         chain: null,
@@ -745,20 +818,23 @@ export class ViemSafe {
     } catch (error: unknown) {
       // Don't throw on cleanup errors, just log them
       const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.warn(`Warning during ViemSafe cleanup: ${errorMsg}`)
+      consola.warn(`Warning during SafeClient cleanup: ${errorMsg}`)
     }
   }
 }
 
+/** @deprecated Use {@link SafeClient}. */
+export type ViemSafe = SafeClient
+
 /**
  * Initializes a SafeTransaction from MongoDB document data
  * @param txFromMongo - Transaction document from MongoDB
- * @param safe - ViemSafe instance
+ * @param safe - SafeClient instance
  * @returns Initialized SafeTransaction with signatures
  */
 export const initializeSafeTransaction = async (
   txFromMongo: ISafeTxDocument,
-  safe: ViemSafe
+  safe: SafeClient
 ): Promise<ISafeTransaction> => {
   // Create a new transaction using our viem-based Safe implementation
   const safeTransaction = await safe.createTransaction({
@@ -1246,7 +1322,7 @@ export async function getPendingTransactionsByNetwork(
  * @param rpcUrl - Optional RPC URL override
  * @param useLedger - Whether to use a Ledger device for signing
  * @param ledgerOptions - Options for Ledger connection
- * @returns Initialized ViemSafe instance and chain information
+ * @returns Initialized SafeClient instance and chain information
  */
 export async function initializeSafeClient(
   network: string,
@@ -1261,7 +1337,7 @@ export async function initializeSafeClient(
   safeAddress?: Address,
   account?: Account
 ): Promise<{
-  safe: ViemSafe
+  safe: SafeClient
   chain: Chain
   safeAddress: Address
 }> {
@@ -1279,7 +1355,7 @@ export async function initializeSafeClient(
 
   // Initialize Safe with Viem
   try {
-    const safe = await ViemSafe.init({
+    const safe = await SafeClient.init({
       provider: parsedRpcUrl,
       privateKey,
       safeAddress: finalSafeAddress,

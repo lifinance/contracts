@@ -2,7 +2,6 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
@@ -14,6 +13,8 @@ import { getRPCEnvVarName } from '../../utils/network'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain'
+import { createTronWeb } from './helpers/tronWebFactory'
 import { evmHexToTronBase58 } from './tronAddressHelpers'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
@@ -80,6 +81,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
   // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: networkName as TronTvmNetworkName,
     privateKey,
     verbose,
     dryRun,
@@ -98,8 +100,9 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     displayNetworkInfo(networkInfo, environment, rpcUrl)
 
     // Initialize TronWeb
-    const tronWeb = new TronWeb({
-      fullHost: rpcUrl,
+    const tronWeb = createTronWeb({
+      rpcUrl,
+      networkKey: networkName as TronTvmNetworkName,
       privateKey,
     })
 

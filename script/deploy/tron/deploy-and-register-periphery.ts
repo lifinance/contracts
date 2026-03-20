@@ -4,7 +4,6 @@ import { resolve } from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
@@ -27,6 +26,8 @@ import {
   TRON_PERIPHERY_CONTRACTS,
   TRON_ZERO_ADDRESS,
 } from './constants.js'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
   tronAddressLikeToBase58,
   tronAddressToHex,
@@ -117,15 +118,18 @@ async function deployAndRegisterPeripheryImpl(options: {
     process.exit(1)
   }
 
-  // Initialize TronWeb with RPC from networks.json
-  const tronWeb = new TronWeb({
-    fullHost: rpcUrl,
+  const tvmKey = networkName as TronTvmNetworkName
+
+  const tronWeb = createTronWeb({
+    rpcUrl,
+    networkKey: tvmKey,
     privateKey,
   })
 
   // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: tvmKey,
     privateKey,
     verbose,
     dryRun,

@@ -4,7 +4,6 @@ import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
 import { EnvironmentEnum } from '../../common/types'
 import {
@@ -14,6 +13,8 @@ import {
 
 import { TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR } from './constants.js'
 import { formatAddressForNetworkCliDisplay } from './helpers/formatAddressForCliDisplay.js'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
 import { runPropose } from './propose-to-safe-tron.js'
 import { tronAddressLikeToBase58 } from './tronAddressHelpers.js'
 import { getEnvironment, waitBetweenDeployments } from './utils.js'
@@ -92,7 +93,11 @@ async function transferOwnershipToTimelock(options: {
       (networkName === 'tron'
         ? getEnvVar('PRIVATE_KEY_PRODUCTION')
         : getPrivateKeyForEnvironment(environment))
-    const tronWeb = new TronWeb({ fullHost, privateKey })
+    const tronWeb = createTronWeb({
+      rpcUrl: fullHost,
+      networkKey: networkName as TronTvmNetworkName,
+      privateKey,
+    })
 
     if (options.currentOwnerPrivateKey)
       consola.info('   Using provided current owner private key')

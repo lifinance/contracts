@@ -14,6 +14,11 @@ import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
+import { tronScanTransactionUrl } from '../tron/helpers/tronScanUrls'
+import {
+  getTronNetworkKeyForChainId,
+  isTronTvmChainId,
+} from '../tron/helpers/tronTvmChain'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
@@ -38,7 +43,7 @@ import {
   type IAugmentedSafeTxDocument,
   type ISafeTransaction,
   type ISafeTxDocument,
-  type ViemSafe,
+  type SafeClient,
 } from './safe-utils'
 
 dotenv.config()
@@ -151,7 +156,7 @@ const processTxs = async (
    */
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
-    safeClient: ViemSafe = safe
+    safeClient: SafeClient = safe
   ) {
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
@@ -183,7 +188,19 @@ const processTxs = async (
         )
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
-      consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
+      if (isTronTvmChainId(chain.id)) {
+        const tvmKey = getTronNetworkKeyForChainId(chain.id)
+        const txIdDisplay = executionHash.replace(/^0x/i, '').toLowerCase()
+        consola.info(`   - Execution Hash: \u001b[33m${txIdDisplay}\u001b[0m`)
+        if (tvmKey)
+          consola.info(
+            `   - TronScan:       \u001b[36m${tronScanTransactionUrl(
+              tvmKey,
+              txIdDisplay
+            )}\u001b[0m`
+          )
+      } else
+        consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
       consola.log(' ')
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
@@ -418,7 +435,7 @@ const processTxs = async (
           }
         )
         consola.success('Transaction signed and stored in MongoDB')
-        await executeTransaction(signedTx)
+        await executeTransaction(signedTx, safe)
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
@@ -498,7 +515,7 @@ const processTxs = async (
     if (action === 'Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
-        await executeTransaction(safeTransaction)
+        await executeTransaction(safeTransaction, safe)
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }

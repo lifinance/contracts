@@ -17,7 +17,6 @@ import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
@@ -36,6 +35,8 @@ import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
   tronBase58ToEvm20Hex,
   tronZeroAddressBase58,
@@ -65,7 +66,11 @@ async function runPropose(options: { dryRun?: boolean }) {
   if (!fullHost) throw new Error('Tron RPC URL not found')
 
   const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
-  const tronWeb = new TronWeb({ fullHost, privateKey })
+  const tronWeb = createTronWeb({
+    rpcUrl: fullHost,
+    networkKey: networkName as TronTvmNetworkName,
+    privateKey,
+  })
   const proposerBase58 =
     typeof tronWeb.defaultAddress.base58 === 'string'
       ? tronWeb.defaultAddress.base58
