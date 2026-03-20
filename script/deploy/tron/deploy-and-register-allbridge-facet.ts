@@ -187,7 +187,7 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     consola.info('\nRegistering AllBridgeFacet to Diamond...')
 
     // Get diamond address
-    const diamondAddress = await getContractAddress('tron', 'LiFiDiamond')
+    const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
     // Get selectors for display

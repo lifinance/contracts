@@ -277,7 +277,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
         try {
           // Check if already deployed
-          const existingAddress = await getContractAddress('tron', 'ERC20Proxy')
+          const existingAddress = await getContractAddress(
+            network,
+            'ERC20Proxy'
+          )
           if (existingAddress && !dryRun) {
             consola.warn(
               `  ERC20Proxy is already deployed at: ${existingAddress}`
@@ -339,14 +342,14 @@ async function deployAndRegisterPeripheryImpl(options: {
               if (!dryRun) {
                 await logDeployment(
                   'ERC20Proxy',
-                  'tron',
+                  network,
                   result.contractAddress,
                   version,
                   '0x',
                   false
                 )
                 await saveContractAddress(
-                  'tron',
+                  network,
                   'ERC20Proxy',
                   result.contractAddress
                 )
@@ -386,14 +389,14 @@ async function deployAndRegisterPeripheryImpl(options: {
             if (!dryRun) {
               await logDeployment(
                 'ERC20Proxy',
-                'tron',
+                network,
                 result.contractAddress,
                 version,
                 '0x',
                 false
               )
               await saveContractAddress(
-                'tron',
+                network,
                 'ERC20Proxy',
                 result.contractAddress
               )
@@ -412,7 +415,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         consola.info('\n Deploying Executor...')
 
         try {
-          const existingAddress = await getContractAddress('tron', 'Executor')
+          const existingAddress = await getContractAddress(network, 'Executor')
           if (existingAddress && !dryRun) {
             consola.warn(
               `  Executor is already deployed at: ${existingAddress}`
@@ -441,7 +444,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
               const erc20ProxyAddress =
                 deployedContracts['ERC20Proxy'] ||
-                (await getContractAddress('tron', 'ERC20Proxy'))
+                (await getContractAddress(network, 'ERC20Proxy'))
               if (!erc20ProxyAddress)
                 throw new Error('ERC20Proxy address not found')
 
@@ -478,14 +481,14 @@ async function deployAndRegisterPeripheryImpl(options: {
               if (!dryRun) {
                 await logDeployment(
                   'Executor',
-                  'tron',
+                  network,
                   result.contractAddress,
                   version,
                   '0x',
                   false
                 )
                 await saveContractAddress(
-                  'tron',
+                  network,
                   'Executor',
                   result.contractAddress
                 )
@@ -498,7 +501,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
             const erc20ProxyAddress =
               deployedContracts['ERC20Proxy'] ||
-              (await getContractAddress('tron', 'ERC20Proxy'))
+              (await getContractAddress(network, 'ERC20Proxy'))
             if (!erc20ProxyAddress)
               throw new Error('ERC20Proxy address not found')
 
@@ -534,14 +537,14 @@ async function deployAndRegisterPeripheryImpl(options: {
             if (!dryRun) {
               await logDeployment(
                 'Executor',
-                'tron',
+                network,
                 result.contractAddress,
                 version,
                 '0x',
                 false
               )
               await saveContractAddress(
-                'tron',
+                network,
                 'Executor',
                 result.contractAddress
               )
@@ -567,7 +570,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
         try {
           const existingAddress = await getContractAddress(
-            'tron',
+            network,
             'FeeCollector'
           )
           if (existingAddress && !dryRun) {
@@ -628,14 +631,14 @@ async function deployAndRegisterPeripheryImpl(options: {
               if (!dryRun) {
                 await logDeployment(
                   'FeeCollector',
-                  'tron',
+                  network,
                   result.contractAddress,
                   version,
                   '0x',
                   false
                 )
                 await saveContractAddress(
-                  'tron',
+                  network,
                   'FeeCollector',
                   result.contractAddress
                 )
@@ -675,14 +678,14 @@ async function deployAndRegisterPeripheryImpl(options: {
             if (!dryRun) {
               await logDeployment(
                 'FeeCollector',
-                'tron',
+                network,
                 result.contractAddress,
                 version,
                 '0x',
                 false
               )
               await saveContractAddress(
-                'tron',
+                network,
                 'FeeCollector',
                 result.contractAddress
               )
@@ -708,7 +711,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
         try {
           const existingAddress = await getContractAddress(
-            'tron',
+            network,
             'FeeForwarder'
           )
           if (existingAddress && !dryRun) {
@@ -770,14 +773,14 @@ async function deployAndRegisterPeripheryImpl(options: {
               if (!dryRun) {
                 await logDeployment(
                   'FeeForwarder',
-                  'tron',
+                  network,
                   result.contractAddress,
                   version,
                   '0x',
                   false
                 )
                 await saveContractAddress(
-                  'tron',
+                  network,
                   'FeeForwarder',
                   result.contractAddress
                 )
@@ -818,14 +821,14 @@ async function deployAndRegisterPeripheryImpl(options: {
             if (!dryRun) {
               await logDeployment(
                 'FeeForwarder',
-                'tron',
+                network,
                 result.contractAddress,
                 version,
                 '0x',
                 false
               )
               await saveContractAddress(
-                'tron',
+                network,
                 'FeeForwarder',
                 result.contractAddress
               )
@@ -874,7 +877,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         } else
           try {
             const existingAddress = await getContractAddress(
-              'tron',
+              network,
               'TokenWrapper'
             )
             if (existingAddress && !dryRun) {
@@ -912,7 +915,7 @@ async function deployAndRegisterPeripheryImpl(options: {
                 const wrappedNativeBase58 = tronConfig.wrappedNativeAddress
                 if (!wrappedNativeBase58)
                   throw new Error(
-                    'wrappedNativeAddress not found for tron in networks.json'
+                    `wrappedNativeAddress not found for ${network} in networks.json`
                   )
 
                 // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
@@ -981,14 +984,14 @@ async function deployAndRegisterPeripheryImpl(options: {
                 if (!dryRun) {
                   await logDeployment(
                     'TokenWrapper',
-                    'tron',
+                    network,
                     result.contractAddress,
                     version,
                     '0x',
                     false
                   )
                   await saveContractAddress(
-                    'tron',
+                    network,
                     'TokenWrapper',
                     result.contractAddress
                   )
@@ -1003,7 +1006,7 @@ async function deployAndRegisterPeripheryImpl(options: {
               const wrappedNativeBase58 = tronConfig.wrappedNativeAddress
               if (!wrappedNativeBase58)
                 throw new Error(
-                  'wrappedNativeAddress not found for tron in networks.json'
+                  `wrappedNativeAddress not found for ${network} in networks.json`
                 )
 
               // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
@@ -1071,14 +1074,14 @@ async function deployAndRegisterPeripheryImpl(options: {
               if (!dryRun) {
                 await logDeployment(
                   'TokenWrapper',
-                  'tron',
+                  network,
                   result.contractAddress,
                   version,
                   '0x',
                   false
                 )
                 await saveContractAddress(
-                  'tron',
+                  network,
                   'TokenWrapper',
                   result.contractAddress
                 )
@@ -1107,7 +1110,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         if (safeAddress) {
           try {
             const existingTimelock = await getContractAddress(
-              'tron',
+              network,
               'LiFiTimelockController'
             )
             let deployTimelock = !existingTimelock
@@ -1196,14 +1199,14 @@ async function deployAndRegisterPeripheryImpl(options: {
                   if (!dryRun) {
                     await logDeployment(
                       'LiFiTimelockController',
-                      'tron',
+                      network,
                       result.contractAddress,
                       version,
                       '0x',
                       false
                     )
                     await saveContractAddress(
-                      'tron',
+                      network,
                       'LiFiTimelockController',
                       result.contractAddress
                     )
@@ -1447,7 +1450,7 @@ async function deployAndRegisterPeripheryImpl(options: {
                 deployedAddress
               )
 
-              await updateDiamondJsonPeriphery(addressToSave, name)
+              await updateDiamondJsonPeriphery(addressToSave, name, network)
             }
           } else consola.warn(`  ${name}: Not registered`)
         } catch (error: any) {
