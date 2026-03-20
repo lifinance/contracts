@@ -4272,6 +4272,8 @@ function checkDeployRequirements() {
       KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
       # replace '<ENVIRONMENT>' with actual environment, if needed
       KEY_IN_FILE=${KEY_IN_FILE//<ENVIRONMENT>/$ENVIRONMENT}
+      # jq cannot resolve keys that start with a digit (e.g. "0g"); use bracket notation
+      KEY_IN_FILE=$(echo "$KEY_IN_FILE" | sed -E 's/\.([0-9][^.]*)/.["\1"]/g')
 
       # get full config file path
       CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"
@@ -4683,8 +4685,8 @@ function getValueFromJSONFile() {
     return 1
   fi
 
-  # extract and return value from file
-  VALUE=$(cat "$FILE_PATH" | jq -r ".$KEY")
+  # extract and return value: try direct key lookup first (handles flat keys with dots), then path lookup (handles dotted paths and keys like "0g")
+  VALUE=$(jq -r --arg key "$KEY" '(.[$key] // getpath($key | split("."))) // empty' "$FILE_PATH")
   echo "$VALUE"
 }
 function compareAddresses() {

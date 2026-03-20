@@ -39,40 +39,81 @@ deployAndStoreCREATE3Factory() {
   # deploy CREATE3Factory
   echo "Trying to deploy CREATE3Factory now"
   echo ""
-  local PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
 
-  # Set gas estimate multiplier (default to 200 if not set in .env)
-  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
-    GAS_ESTIMATE_MULTIPLIER=200
-  fi
-
-  # Add skip simulation flag based on environment variable
+  [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]] && GAS_ESTIMATE_MULTIPLIER=200
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-  # Execute, parse, and check return code
-  if ! executeAndParse \
-    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast $SKIP_SIMULATION_FLAG --slow --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+  FACTORY_ADDRESS=""
+  local PRIVATE_KEY
+  PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || return 1
+
+  # 1) Try forge script (works for chains in Foundry's alloy-chains list)
+  if executeAndParse \
+    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
     "true" \
-    "❌ Deployment of CREATE3Factory failed on network $NETWORK" \
+    "" \
     "return"; then
-    unset PRIVATE_KEY
-    return 1
-  fi
-  unset PRIVATE_KEY
-
-  # Extract deployed-to address from parsed return data
-  FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
-	if [[ $? -ne 0 ]]; then
-		error "❌ Could not extract deployed address from raw return data"
-		return 1
-	fi
-
-  if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null"  ]]; then
-    error "Failed to obtain deployed contract address for CREATE3Factory on $NETWORK ($ENVIRONMENT)"
-    return 1
+    FACTORY_ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
   fi
 
-	echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
+  # 2) Fallback when chain is not in Foundry's alloy-chains: deploy same bytecode as the Solidity
+  #    script (from forge build) via cast send --create, so the .s.sol script remains the single source of truth.
+  if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null" ]]; then
+    if [[ "${STDERR_CONTENT:-}" == *"Chain"* && "${STDERR_CONTENT:-}" == *"not supported"* ]]; then
+      echo "[info] Chain not in Foundry list; deploying via cast send --create"
+      local RPC_URL
+      RPC_URL=$(getRPCUrl "$NETWORK") || return 1
+      if ! forge build --contracts lib/create3-factory/src/CREATE3Factory.sol --silent; then
+        error "CREATE3Factory build failed; fix the build before deploying."
+        return 1
+      fi
+      local ARTIFACT="out/CREATE3Factory.sol/CREATE3Factory.json"
+      [[ ! -f "$ARTIFACT" ]] && ARTIFACT="out/lib/create3-factory/src/CREATE3Factory.sol/CREATE3Factory.json"
+      if [[ ! -f "$ARTIFACT" ]]; then
+        error "CREATE3Factory artifact not found. Run: forge build"
+        return 1
+      fi
+      local BYTECODE
+      BYTECODE=$(jq -r '.bytecode.object // empty' "$ARTIFACT")
+      if [[ -z "$BYTECODE" || "$BYTECODE" == "null" ]]; then
+        error "Could not read bytecode from $ARTIFACT"
+        return 1
+      fi
+      local TX_OUTPUT
+      TX_OUTPUT=$(cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" --legacy --create "$BYTECODE" --json 2>&1) || {
+        error "cast send failed: $TX_OUTPUT"
+        return 1
+      }
+      # cast may print log lines before the JSON; use last line or first {...} for jq
+      local TX_JSON
+      TX_JSON=$(echo "$TX_OUTPUT" | grep -E '^\s*\{' | head -1)
+      [[ -z "$TX_JSON" ]] && TX_JSON=$(echo "$TX_OUTPUT" | tail -1)
+      local TX_HASH
+      TX_HASH=$(echo "$TX_JSON" | jq -r '.transactionHash // empty' 2>/dev/null)
+      [[ -z "$TX_HASH" ]] && TX_HASH=$(echo "$TX_OUTPUT" | grep -oE '0x[a-fA-F0-9]{64}' | head -1)
+      if [[ -z "$TX_HASH" ]]; then
+        error "Could not get tx hash from cast send"
+        return 1
+      fi
+      local RECEIPT_OUTPUT
+      RECEIPT_OUTPUT=$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json 2>/dev/null)
+      local RECEIPT_JSON
+      RECEIPT_JSON=$(echo "$RECEIPT_OUTPUT" | grep -E '^\s*\{' | head -1)
+      [[ -z "$RECEIPT_JSON" ]] && RECEIPT_JSON=$(echo "$RECEIPT_OUTPUT" | tail -1)
+      FACTORY_ADDRESS=$(echo "$RECEIPT_JSON" | jq -r '.contractAddress // empty' 2>/dev/null)
+    fi
+  fi
+
+  if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null" ]]; then
+    if [[ -n "${STDERR_CONTENT:-}" ]]; then
+      error "❌ Deployment failed on $NETWORK. Last stderr: ${STDERR_CONTENT:0:500}"
+    else
+      error "Failed to obtain CREATE3Factory address on $NETWORK ($ENVIRONMENT)"
+    fi
+    return 1
+  fi
+
+  echo "✅ Successfully deployed to address $FACTORY_ADDRESS"
 
   # check if network exists in networks.json
   if ! jq -e --arg net "$NETWORK" '.[$net]' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
