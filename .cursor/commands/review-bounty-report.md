@@ -83,8 +83,8 @@ List each claim clearly so every one can be checked.
 
 ### 2. Code and docs (codebase)
 
-- Map each claim to `src/`, `docs/`, and inline comments.
-- Use **code and storage layout as source of truth**; use comments for intent and known limitations.
+- Map each claim to `src/`, **contract-specific** documentation under `docs/` when it exists (e.g. `EcoFacet.sol` → `docs/EcoFacet.md`), and **all** inline commentary: NatSpec (`@notice`, `@dev`, `@param`, `@return`, etc.) and non-NatSpec block or line comments. Do not skip or skim comments—they often document behavior, invariants, and deliberate design choices.
+- Use **code and storage layout as source of truth**; use comments for intent, rationale, and known limitations.
 - For every claim, note: **supporting** evidence (file:line or doc section), **contradicting** evidence, **missing** evidence (e.g. "reporter says X but no code path shown").
 - If the report references specific files or functions, open them and verify.
 
