@@ -15,6 +15,51 @@ contract TestMayanFacet is MayanFacet, TestWhitelistManagerBase {
     constructor(IMayan _bridge) MayanFacet(_bridge) {}
 }
 
+/// @notice Mirrors Mayan Swift v2 encoders for `abi.encodeCall` fixtures (no on-chain deployment).
+interface ISwiftV2Encode {
+    struct OrderParams {
+        uint8 payloadType;
+        bytes32 trader;
+        bytes32 destAddr;
+        uint16 destChainId;
+        bytes32 referrerAddr;
+        bytes32 tokenOut;
+        uint64 minAmountOut;
+        uint64 gasDrop;
+        uint64 cancelFee;
+        uint64 refundFee;
+        uint64 deadline;
+        uint8 referrerBps;
+        uint8 auctionMode;
+        bytes32 random;
+    }
+
+    struct PermitParams {
+        uint256 value;
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
+    function createOrderWithToken(
+        address tokenIn,
+        uint256 amountIn,
+        OrderParams calldata params,
+        bytes calldata customPayload
+    ) external;
+
+    function createOrderWithSig(
+        address tokenIn,
+        uint256 amountIn,
+        OrderParams calldata params,
+        bytes calldata customPayload,
+        uint256 submissionFee,
+        bytes calldata signedOrderHash,
+        PermitParams calldata permitParams
+    ) external;
+}
+
 /// @notice This contract exposes _parseReceiver and _replaceInputAmount for testing purposes.
 contract TestMayanFacetExposed is MayanFacet {
     constructor(IMayan _mayan) MayanFacet(_mayan) {}
@@ -595,20 +640,88 @@ contract MayanFacetTest is TestBaseFacet {
             "parse receiver test failure for createOrderWithToken"
         );
 
-        // test for 0xa3a30834 Swift v2::createOrderWithToken
-        protocolData = vm.parseBytes(
-            "0xa3a30834000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b400000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        // Swift v2 shared OrderParams (destAddr at calldata 0x84 for both selectors)
+        ISwiftV2Encode.OrderParams memory swiftV2Order = ISwiftV2Encode
+            .OrderParams({
+                payloadType: 1,
+                trader: bytes32(
+                    uint256(
+                        uint160(0xaf88d065e77c8cC2239327C5EDb3A432268e5831)
+                    )
+                ),
+                destAddr: bytes32(uint256(uint160(expectedReceiver))),
+                destChainId: 1,
+                referrerAddr: bytes32(0),
+                tokenOut: bytes32(0),
+                minAmountOut: 0,
+                gasDrop: 0,
+                cancelFee: 0,
+                refundFee: 0,
+                deadline: 0,
+                referrerBps: 0,
+                auctionMode: 0,
+                random: bytes32(0)
+            });
+
+        // test for 0xa3a30834 Swift v2 createOrderWithToken (abi.encodeCall)
+        protocolData = abi.encodeCall(
+            ISwiftV2Encode.createOrderWithToken,
+            (
+                address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831),
+                uint256(0x4c4b40),
+                swiftV2Order,
+                bytes("")
+            )
         );
         receiver = testFacet.testParseReceiver(protocolData);
         assertEq(
             address(uint160(uint256(receiver))),
             expectedReceiver,
-            "parse receiver test failure for Swift v2 createOrderWithToken"
+            "parse receiver test failure for Swift v2 createOrderWithToken (encodeCall)"
         );
 
-        // test for 0x6147435b Swift v2::createOrderWithSig (gasless orders) — same calldata layout as createOrderWithToken, receiver at 0x144
+        // test for 0xa3a30834 Swift v2 createOrderWithToken (backend/SDK calldata sample, full tail)
         protocolData = vm.parseBytes(
-            "0x6147435b000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b400000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            "0xa3a30834000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000001e84800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000b2ec0ec355243846fccb716f35796a3330c64e551ccbd4fdcd76cd2e3ba8d05205c012ecd28743f14359a7151b64da60a1679ece0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a5aa6e2171b416e1d27ec53ca8c13db3f91a89cdce010e60afedb22717bd63192f54145a3f965a33bb82d2c7029eb2ce1e20826400000000000000000000000000000000000000000000000000000000001e0d22000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025e700000000000000000000000000000000000000000000000000000000000027460000000000000000000000000000000000000000000000000000000069bbf77900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a347d8417de9cc392e0ff115d03e2f444aba6c92bb6e29e1ec9fd4def237a0bd00000000000000000000000000000000000000000000000000000000000002200000000000000000000000000000000000000000000000000000000000000000"
+        );
+        receiver = testFacet.testParseReceiver(protocolData);
+        assertEq(
+            receiver,
+            hex"1ccbd4fdcd76cd2e3ba8d05205c012ecd28743f14359a7151b64da60a1679ece",
+            "parse receiver: Swift v2 backend sample destAddr (bytes32)"
+        );
+        bytes32 wordAt0xc4;
+        assembly {
+            let p := add(protocolData, 0x20)
+            wordAt0xc4 := mload(add(p, 0xc4))
+        }
+
+        assertEq(
+            address(uint160(uint256(wordAt0xc4))),
+            0xA5aa6E2171b416E1D27ec53Ca8C13DB3F91A89CD,
+            "referrerAddr word at 0xc4 (OrderParams field order)"
+        );
+
+        // test for 0x6147435b Swift v2 createOrderWithSig (abi.encodeCall; on-chain bytes often nested in forwardERC20)
+        ISwiftV2Encode.PermitParams memory permit = ISwiftV2Encode
+            .PermitParams({
+                value: 0,
+                deadline: 0,
+                v: 0,
+                r: bytes32(0),
+                s: bytes32(0)
+            });
+        protocolData = abi.encodeCall(
+            ISwiftV2Encode.createOrderWithSig,
+            (
+                address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831),
+                uint256(0x4c4b40),
+                swiftV2Order,
+                bytes(""),
+                uint256(0),
+                bytes(""),
+                permit
+            )
         );
         receiver = testFacet.testParseReceiver(protocolData);
         assertEq(

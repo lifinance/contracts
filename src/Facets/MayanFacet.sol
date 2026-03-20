@@ -15,7 +15,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.2.3
+/// @custom:version 1.2.4
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -209,12 +209,14 @@ contract MayanFacet is
             switch shiftedSelector
             // Note: [*bytes32*] = location of receiver address
             case 0xa3a30834 {
-                // 0xa3a30834 Swift v2::createOrderWithToken(address,uint256,(...,[*bytes32*],...))
-                receiver := mload(add(protocolData, 0x144))
+                // 0xa3a30834 createOrderWithToken(address tokenIn,uint256 amountIn,(uint8 payloadType,bytes32 trader,bytes32 destAddr,uint16 destChainId,bytes32 referrerAddr,bytes32 tokenOut,uint64 minAmountOut,uint64 gasDrop,uint64 cancelFee,uint64 refundFee,uint64 deadline,uint8 referrerBps,uint8 auctionMode,bytes32 random) params,bytes customPayload)
+                // destAddr is the 3rd word of OrderParams; tuple starts at calldata 0x44 -> destAddr at 0x84; mem: +0x20 length prefix -> mload at 0xa4
+                receiver := mload(add(protocolData, 0xa4))
             }
             case 0x6147435b {
-                // 0x6147435b Swift v2::createOrderWithSig (gasless orders)
-                receiver := mload(add(protocolData, 0x144))
+                // 0x6147435b createOrderWithSig(address tokenIn,uint256 amountIn,(uint8 payloadType,bytes32 trader,bytes32 destAddr,uint16 destChainId,bytes32 referrerAddr,bytes32 tokenOut,uint64 minAmountOut,uint64 gasDrop,uint64 cancelFee,uint64 refundFee,uint64 deadline,uint8 referrerBps,uint8 auctionMode,bytes32 random) params,bytes customPayload,uint256 submissionFee,bytes signedOrderHash,(uint256 value,uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitParams)
+                // destAddr is the 3rd word of OrderParams; tuple starts at calldata 0x44 -> destAddr at 0x84; mem: +0x20 length prefix -> mload at 0xa4
+                receiver := mload(add(protocolData, 0xa4))
             }
             case 0x94454a5d {
                 // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,[*bytes32*],(uint32,bytes32,bytes32))
