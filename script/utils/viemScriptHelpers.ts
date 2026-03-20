@@ -13,7 +13,7 @@ import {
   type INetworksObject,
   type SupportedChain,
 } from '../common/types'
-import { applyTronGridViemTransportExtras } from '../deploy/tron/helpers/tronGridViemTransport'
+import { applyTronGridViemTransportExtras } from '../deploy/tron/helpers/tronGridTransport'
 import { tronJsonRpcUrlForViem } from '../deploy/tron/helpers/tronJsonRpcForViem'
 
 import { getDeployments } from './deploymentHelpers'

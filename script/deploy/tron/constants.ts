@@ -29,6 +29,11 @@ export const TRON_SAFE_DEPLOY_TEMP_JSON_PATH = path.join(
 /** `networks.json` / config key for production Tron deployment scripts. */
 export const TRON_DEPLOY_NETWORK: SupportedChain = 'tron'
 
+/**
+ * HTTP header name for TronGrid authenticated full-node and JSON-RPC requests.
+ */
+export const TRON_PRO_API_KEY_HEADER = 'TRON-PRO-API-KEY' as const
+
 /** TTL for caching energy and bandwidth prices from the Tron API (ms). */
 export const PRICE_CACHE_TTL_MS = 60 * 60 * 1000
 
@@ -197,3 +202,9 @@ export const TRON_SAFE_EXEC_CONFIRM_TIMEOUT_MS_DEFAULT = 100_000
  * High `fee_limit` (SUN) for `wallet/triggerconstantcontract` estimation / deployment simulation only.
  */
 export const TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN = 1_000_000_000
+
+/**
+ * Timeout (ms) for direct Tron full-node `wallet/*` HTTP calls (e.g. `triggerconstantcontract`).
+ * Higher than the default external HTTP timeout because estimation payloads can be slow on TronGrid.
+ */
+export const TRON_WALLET_API_FETCH_TIMEOUT_MS = 30_000

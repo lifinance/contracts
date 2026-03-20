@@ -8,11 +8,14 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js'
 
 import {
   TRON_DIAMOND_FACET_GROUPS,
   TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
 } from './constants.js'
+import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig.js'
 import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
@@ -146,14 +149,24 @@ async function estimateDiamondCutEnergy(
       visible: payload.visible,
     })
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
+    let response: Response
+    try {
+      response = await fetchWithTimeout(
+        apiUrl,
+        {
+          method: 'POST',
+          headers: buildTronWalletJsonPostHeaders(fullHost),
+          body: JSON.stringify(payload),
+        },
+        TRON_WALLET_API_FETCH_TIMEOUT_MS
+      )
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError')
+        throw new Error(
+          `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
+        )
+      throw e
+    }
 
     if (!response.ok) {
       const errorText = await response.text()

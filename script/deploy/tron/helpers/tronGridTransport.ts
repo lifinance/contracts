@@ -1,4 +1,5 @@
 import { MAX_RETRIES, RETRY_DELAY } from '../../shared/constants'
+import { TRON_PRO_API_KEY_HEADER } from '../constants'
 import type {
   IViemRpcTransportConfig,
   IViemRpcTransportConfigBase,
@@ -25,7 +26,7 @@ export function applyTronGridViemTransportExtras(
       ...fetchOptions,
       headers: {
         ...fetchOptions?.headers,
-        'TRON-PRO-API-KEY': apiKey,
+        [TRON_PRO_API_KEY_HEADER]: apiKey,
       },
     }
   }

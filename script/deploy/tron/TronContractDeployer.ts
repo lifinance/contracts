@@ -1,12 +1,15 @@
 import { consola } from 'consola'
 
 import { sleep } from '../../utils/delay'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { retryWithRateLimit } from '../shared/rateLimit'
 
 import {
   DEFAULT_SAFETY_MARGIN,
   TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
 } from './constants'
+import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig'
 import {
   createTronWeb,
   resolveTronWebRpcUrlToFullHost,
@@ -319,14 +322,27 @@ export class TronContractDeployer {
         )
       }
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+      let response: Response
+      try {
+        response = await fetchWithTimeout(
+          apiUrl,
+          {
+            method: 'POST',
+            headers: buildTronWalletJsonPostHeaders(
+              this.config.fullHost,
+              this.config.verbose ?? false
+            ),
+            body: JSON.stringify(payload),
+          },
+          TRON_WALLET_API_FETCH_TIMEOUT_MS
+        )
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError')
+          throw new Error(
+            `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
+          )
+        throw e
+      }
 
       if (!response.ok) {
         const errorText = await response.text()

@@ -3,6 +3,7 @@ import { consola } from 'consola'
 import networks from '../../../../config/networks.json'
 import { getEnvVar } from '../../../demoScripts/utils/demoScriptHelpers'
 import { getRPCEnvVarName } from '../../../utils/network'
+import { TRON_PRO_API_KEY_HEADER } from '../constants'
 
 /**
  * Get network configuration from config/networks.json
@@ -64,6 +65,31 @@ export function isTronGridRpcUrl(rpcUrl: string): boolean {
 }
 
 /**
+ * JSON POST headers for Tron `wallet/*` HTTP APIs when using {@link fetchWithTimeout} outside TronWeb.
+ * Merges TronGrid `TRON-PRO-API-KEY` when `fullHost` targets TronGrid (same rules as TronWeb config).
+ */
+export function buildTronWalletJsonPostHeaders(
+  fullHost: string,
+  verbose = false
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    'content-type': 'application/json',
+  }
+  if (isTronGridRpcUrl(fullHost)) {
+    const apiKey = getTronGridAPIKey(verbose)
+    if (apiKey) headers[TRON_PRO_API_KEY_HEADER] = apiKey
+    else if (verbose) {
+      consola.warn(
+        '⚠️  Using TronGrid RPC but no API key found. ' +
+          'Set TRONGRID_API_KEY in .env to avoid rate limiting.'
+      )
+    }
+  }
+  return headers
+}
+
+/**
  * Get Tron RPC URL and API key configuration.
  *
  * This function retrieves the RPC URL for Tron network with the following priority:
@@ -117,10 +143,10 @@ export function getTronRPCConfig(
   if (isTronGrid) {
     const apiKey = getTronGridAPIKey(verbose)
     if (apiKey) {
-      headers = { 'TRON-PRO-API-KEY': apiKey }
+      headers = { [TRON_PRO_API_KEY_HEADER]: apiKey }
       if (verbose)
         consola.debug(
-          'TronGrid API key will be set as header: TRON-PRO-API-KEY'
+          `TronGrid API key will be set as header: ${TRON_PRO_API_KEY_HEADER}`
         )
     } else if (verbose) {
       consola.warn(

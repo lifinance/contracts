@@ -6,6 +6,7 @@ import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { spawnAndCapture } from '../../utils/spawnAndCapture'
 import {
   INITIAL_CALL_DELAY,
@@ -21,11 +22,13 @@ import {
   MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
   TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
   TRON_ZERO_ADDRESS,
 } from './constants'
 import { getContractVersion } from './helpers/getContractVersion'
 import { loadForgeArtifact } from './helpers/loadForgeArtifact'
 import { getCurrentPrices } from './helpers/tronPricing'
+import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig'
 import {
   getTronWebCodecFullHost,
   getTronWebCodecOnly,
@@ -893,14 +896,24 @@ export async function estimateDiamondCutEnergy(
       visible: true,
     }
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
+    let response: Response
+    try {
+      response = await fetchWithTimeout(
+        apiUrl,
+        {
+          method: 'POST',
+          headers: buildTronWalletJsonPostHeaders(fullHost),
+          body: JSON.stringify(payload),
+        },
+        TRON_WALLET_API_FETCH_TIMEOUT_MS
+      )
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError')
+        throw new Error(
+          `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
+        )
+      throw e
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1315,7 +1328,7 @@ export { parseTroncastFacetsOutput } from './helpers/parseTroncastFacetsOutput'
 export {
   applyTronGridViemTransportExtras,
   isTronGridRpcUrl,
-} from './helpers/tronGridViemTransport'
+} from './helpers/tronGridTransport'
 export { formatAddressForNetworkCliDisplay } from './helpers/formatAddressForCliDisplay'
 export {
   getTronWebCodecFullHost,

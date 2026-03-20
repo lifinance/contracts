@@ -1,8 +1,12 @@
+import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
 import {
   DEFAULT_SAFETY_MARGIN,
   TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
 } from '../constants'
 import type { IEstimateContractCallEnergyParams } from '../types'
+
+import { buildTronWalletJsonPostHeaders } from './tronRpcConfig'
 
 /**
  * Estimate energy for a contract call via TRON triggerconstantcontract API.
@@ -36,11 +40,24 @@ export async function estimateContractCallEnergy(
     call_value: 0,
     visible: true,
   }
-  const res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { accept: 'application/json', 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+  let res: Response
+  try {
+    res = await fetchWithTimeout(
+      apiUrl,
+      {
+        method: 'POST',
+        headers: buildTronWalletJsonPostHeaders(fullHost),
+        body: JSON.stringify(payload),
+      },
+      TRON_WALLET_API_FETCH_TIMEOUT_MS
+    )
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError')
+      throw new Error(
+        `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
+      )
+    throw e
+  }
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`triggerconstantcontract failed: ${res.status} ${text}`)
