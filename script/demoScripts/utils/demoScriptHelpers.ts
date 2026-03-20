@@ -785,28 +785,21 @@ export const setupEnvironment = async (
 
   const viemChain = getViemChainForNetworkName(chain)
 
-  const {
-    url: rpcHttpUrl,
-    fetchOptions,
-    retryCount,
-    retryDelay,
-  } = getTransportConfigFromRpcUrl(RPC_URL)
-  const httpOpts = {
-    ...(fetchOptions ? { fetchOptions } : {}),
-    ...(retryCount !== undefined ? { retryCount } : {}),
-    ...(retryDelay !== undefined ? { retryDelay } : {}),
-  }
+  // Support RPC URLs with embedded credentials (user:pass@host); viem requires auth via header
+  const { url: transportUrl, fetchOptions } =
+    getTransportConfigFromRpcUrl(RPC_URL)
+  const transport = http(transportUrl, fetchOptions ? { fetchOptions } : {})
 
   const publicClient = createPublicClient({
     chain: viemChain,
-    transport: http(rpcHttpUrl, httpOpts),
+    transport,
   })
 
   const walletAccount = privateKeyToAccount(typedPrivateKey)
 
   const walletClient = createWalletClient({
     chain: viemChain,
-    transport: http(rpcHttpUrl, httpOpts),
+    transport,
     account: walletAccount,
   })
 

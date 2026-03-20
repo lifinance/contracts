@@ -5116,6 +5116,60 @@
         ]
       }
     ],
+    "0g": [
+      {
+        "name": "FeeCollector",
+        "address": "0x4A01A8bb2C374D654681aEef71Cf367b8716F7B1",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xB5226A52e389723B83fAeF615D1a8e097de51b51",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x60eDeCC4183Af6DA9bEbD406980bB60326958eb1",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0xd74D6f76730d97C5524b79F03Ed0F503C3897e1b",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
     "abstract": [
       {
         "name": "FeeCollector",
