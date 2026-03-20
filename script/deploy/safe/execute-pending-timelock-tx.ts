@@ -27,11 +27,13 @@ import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
   SlackNotifier,
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
+import { TRON_NETWORK_KEYS } from '../shared/constants'
 
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
@@ -632,7 +634,15 @@ async function processNetwork(
       }
     }
 
-    const timelockAddress = deploymentData.LiFiTimelockController as Address
+    const timelockAddress = normalizeAddressForNetwork(
+      network.name,
+      deploymentData.LiFiTimelockController
+    )
+
+    if (TRON_NETWORK_KEYS.has(network.name.toLowerCase()))
+      consola.info(
+        `[${network.name}] Tron: timelock ${deploymentData.LiFiTimelockController} → viem ${timelockAddress} (ETH_NODE_URI_TRON + TronGrid transport from setupEnvironment)`
+      )
 
     const { publicClient, walletClient } = await setupEnvironment(
       network.name as SupportedChain,
@@ -1187,7 +1197,7 @@ async function executeOperation(
     // Use the salt from the operation if available, otherwise use default
     const salt =
       operation.salt ||
-      ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex)
+      ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex) // [pre-commit-checker: not a secret]
 
     if (isDryRun) {
       // Simulate the transaction

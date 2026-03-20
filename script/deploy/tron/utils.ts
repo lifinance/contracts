@@ -1,84 +1,65 @@
 import { resolve } from 'path'
 
 import { consola } from 'consola'
-import type { TronWeb } from 'tronweb'
 
-import globalConfig from '../../../config/global.json'
-import networks from '../../../config/networks.json'
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+import { spawnAndCapture } from '../../utils/spawnAndCapture'
 import {
-  getEnvVar,
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
+  INITIAL_CALL_DELAY,
+  MAX_RETRIES,
+  RETRY_DELAY,
+  ZERO_ADDRESS,
+} from '../shared/constants'
+import { isRateLimitError } from '../shared/rateLimit'
 
 import {
-  DIAMOND_CUT_ENERGY_MULTIPLIER,
-  ZERO_ADDRESS,
-  MIN_BALANCE_REGISTRATION,
   DEFAULT_FEE_LIMIT_TRX,
+  DIAMOND_CUT_ENERGY_MULTIPLIER,
+  MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
+  TRON_ZERO_ADDRESS,
 } from './constants'
+import { getContractVersion } from './helpers/getContractVersion'
+import { loadForgeArtifact } from './helpers/loadForgeArtifact'
+import { getCurrentPrices } from './helpers/tronPricing'
+import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig'
+import {
+  getTronWebCodecFullHost,
+  getTronWebCodecOnly,
+} from './helpers/tronWebCodecOnly'
+import { createTronWebReadOnly } from './helpers/tronWebFactory'
+import {
+  tronAddressToHex,
+  tryTronFacetLoupeAddressToBase58,
+} from './tronAddressHelpers'
 import type {
-  IForgeArtifact,
   IDeploymentResult,
-  INetworkInfo,
   IDiamondRegistrationResult,
+  INetworkInfo,
 } from './types'
 
-// Re-export constants for backward compatibility
-export { DEFAULT_SAFETY_MARGIN } from './constants'
-
 /**
- * Load compiled contract artifact from Forge output
+ * Prompt user to confirm they are aware they can rent energy (e.g. Zinergy.ag, 1 hr) to reduce TRON deployment costs.
+ * Call before starting deployments when not in dry run. If user declines, exits the process.
  */
-export async function loadForgeArtifact(
-  contractName: string
-): Promise<IForgeArtifact> {
-  const artifactPath = resolve(
-    process.cwd(),
-    `out/${contractName}.sol/${contractName}.json`
+export async function promptEnergyRentalReminder(): Promise<void> {
+  consola.info(
+    'Tip: You can rent energy (e.g. from Zinergy.ag for 1 hour) to reduce TRX burn during deployment.'
   )
-
-  try {
-    const artifact = await Bun.file(artifactPath).json()
-
-    if (!artifact.abi || !artifact.bytecode?.object)
-      throw new Error(
-        `Invalid artifact for ${contractName}: missing ABI or bytecode`
-      )
-
-    consola.info(`Loaded ${contractName} from: ${artifactPath}`)
-    return artifact
-  } catch (error: any) {
-    throw new Error(`Failed to load ${contractName} artifact: ${error.message}`)
+  const proceed = await consola.prompt('Continue with deployment?', {
+    type: 'confirm',
+    initial: true,
+  })
+  if (proceed !== true) {
+    consola.info('Deployment cancelled.')
+    process.exit(0)
   }
-}
-
-/**
- * Get list of core facets from global config
- */
-export function getCoreFacets(): string[] {
-  const facets = (globalConfig as any).coreFacets || []
-  // Filter out GasZipFacet for TRON deployment
-  return facets.filter((facet: string) => facet !== 'GasZipFacet')
-}
-
-/**
- * Get list of core periphery contracts for Tron deployment
- * Filters out contracts that are not deployed on Tron
- */
-export function getTronCorePeriphery(): string[] {
-  const periphery = (globalConfig as any).corePeriphery || []
-  // Filter out contracts not deployed on Tron
-  return periphery.filter(
-    (contract: string) =>
-      contract !== 'LiFiTimelockController' && // Tron doesn't use Timelock yet
-      contract !== 'GasZipPeriphery' && // Not deployed on Tron
-      contract !== 'LiFiDEXAggregator' && // Not deployed on Tron
-      contract !== 'Permit2Proxy' // Not deployed on Tron
-  )
 }
 
 /**
@@ -93,16 +74,49 @@ export async function checkIsDeployedTron(
   deployedContracts: Record<string, string>,
   tronWeb: any
 ): Promise<boolean> {
-  if (!deployedContracts[contract]) return false
-
-  try {
-    // For Tron, addresses in deployments are already in Tron format
-    const tronAddress = deployedContracts[contract]
-    const contractInfo = await tronWeb.trx.getContract(tronAddress)
-    return contractInfo && contractInfo.contract_address
-  } catch {
+  if (!deployedContracts[contract]) {
+    consola.warn(
+      `Contract "${contract}" not found in deployments file. Ensure deployments/tron.json (or .staging) contains this contract.`
+    )
     return false
   }
+
+  // For Tron, addresses in deployments are already in Tron format
+  const tronAddress = deployedContracts[contract]
+
+  // Add initial delay for Tron to avoid rate limits
+  await sleep(INITIAL_CALL_DELAY)
+
+  type GetContractResult = { contract_address?: string } | null
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAY)
+    try {
+      const contractInfo = (await tronWeb.trx.getContract(
+        tronAddress
+      )) as GetContractResult
+      const address = contractInfo?.contract_address
+      if (address) return true
+      consola.warn(
+        `Contract "${contract}" at ${tronAddress}: getContract returned no contract_address (contract may not exist on-chain).`
+      )
+      return false
+    } catch (error: unknown) {
+      const shouldRetry = isRateLimitError(error) && attempt < MAX_RETRIES
+      if (!shouldRetry) {
+        const msg = error instanceof Error ? error.message : String(error)
+        consola.warn(
+          `Contract "${contract}" at ${tronAddress}: getContract failed after retries. Reason: ${msg}`
+        )
+        return false
+      }
+    }
+  }
+
+  consola.warn(
+    `Contract "${contract}" at ${tronAddress}: getContract failed after retries.`
+  )
+  return false
 }
 
 /**
@@ -115,30 +129,73 @@ export async function checkIsDeployedTron(
  * @returns The command output
  */
 export async function executeShellCommand(command: string): Promise<string> {
-  const proc = Bun.spawn(['bash', '-c', command], {
-    cwd: process.cwd(),
-    env: process.env,
-  })
-
-  const output = await new Response(proc.stdout).text()
-  const exitCode = await proc.exited
-
-  if (exitCode !== 0)
-    throw new Error(`Command failed with exit code ${exitCode}: ${command}`)
-
-  return output.trim()
+  return spawnAndCapture('bash', ['-c', command])
 }
 
 /**
  * Get deployment environment from config.sh
  */
 export async function getEnvironment(): Promise<EnvironmentEnum> {
-  const productionValue = await executeShellCommand(
-    'source script/config.sh && echo $PRODUCTION'
-  )
+  const productionValue = (
+    await executeShellCommand('source script/config.sh && echo $PRODUCTION')
+  ).trim()
   return productionValue === 'true'
     ? EnvironmentEnum.production
     : EnvironmentEnum.staging
+}
+
+/**
+ * Candidate repository roots for `deployments/*.json`.
+ * Scripts may run from the `contracts` package directory or a parent workspace path.
+ */
+export function getDeploymentRoots(): string[] {
+  const cwd = resolve(process.cwd())
+  const candidates = [cwd, resolve(cwd, 'contracts'), resolve(cwd, '..')]
+  const seen = new Set<string>()
+  const roots: string[] = []
+  for (const candidate of candidates) {
+    const norm = resolve(candidate)
+    if (!seen.has(norm)) {
+      seen.add(norm)
+      roots.push(norm)
+    }
+  }
+  return roots
+}
+
+/**
+ * Pick where to write `deployments/*.json` so parent-workspace cwd matches reads in
+ * {@link getContractAddress} (existing file or `deployments/`), not only candidate order.
+ */
+async function pickDeploymentRootForWrites(
+  network: SupportedChain,
+  fileSuffix: string
+): Promise<string> {
+  const roots = getDeploymentRoots()
+  const envDeploymentPath = `deployments/${network}.${fileSuffix}json`
+
+  for (const candidate of roots)
+    if (await Bun.file(resolve(candidate, envDeploymentPath)).exists())
+      return candidate
+
+  for (const candidate of roots)
+    if (await Bun.file(resolve(candidate, 'deployments')).exists())
+      return candidate
+
+  const fallback = roots[0]
+  if (!fallback) throw new Error('No deployment root available')
+  return fallback
+}
+
+/**
+ * Read and parse a JSON file. Returns null if the file is missing or not valid JSON.
+ */
+export async function readJsonFile<T>(filePath: string): Promise<T | null> {
+  try {
+    return (await Bun.file(filePath).json()) as T
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -200,8 +257,9 @@ export async function saveContractAddress(
   const environment = await getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
+  const root = await pickDeploymentRootForWrites(network, fileSuffix)
   const deploymentFile = resolve(
-    process.cwd(),
+    root,
     `deployments/${network}.${fileSuffix}json`
   )
 
@@ -220,7 +278,8 @@ export async function saveContractAddress(
 }
 
 /**
- * Get contract address from deployments file
+ * Get contract address from deployments file.
+ * Tries env-specific file first, then base network file; for Tron also tries alternate roots (e.g. cwd vs cwd/contracts).
  */
 export async function getContractAddress(
   network: SupportedChain,
@@ -229,18 +288,29 @@ export async function getContractAddress(
   const environment = await getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
-  const deploymentFile = resolve(
-    process.cwd(),
-    `deployments/${network}.${fileSuffix}json`
-  )
+  const roots = getDeploymentRoots()
 
-  try {
-    const deployments = await Bun.file(deploymentFile).json()
-    return deployments[contract] || null
-  } catch {
-    // File doesn't exist or can't be read
-    return null
+  const filesToTry: string[] = []
+  for (const root of roots) {
+    filesToTry.push(resolve(root, `deployments/${network}.${fileSuffix}json`))
+    filesToTry.push(resolve(root, `deployments/${network}.json`))
   }
+  // When staging Tron, mainnet deployment may be the only file
+  if (network === 'tronshasta')
+    for (const root of roots)
+      filesToTry.push(resolve(root, 'deployments/tron.json'))
+
+  for (const deploymentFile of filesToTry) {
+    const deployments = await readJsonFile<Record<string, string>>(
+      deploymentFile
+    )
+    if (deployments) {
+      const address = deployments[contract] || null
+      if (address) return address
+    }
+  }
+
+  return null
 }
 
 /**
@@ -274,178 +344,6 @@ export async function saveDiamondDeployment(
     }
 
   await Bun.write(diamondFile, JSON.stringify(diamondData, null, 2))
-}
-
-/**
- * Get network configuration from config/networks.json
- */
-export function getNetworkConfig(networkName: string): any {
-  const networkConfig = (networks as any)[networkName]
-  if (!networkConfig)
-    throw new Error(`Network configuration not found for: ${networkName}`)
-
-  return networkConfig
-}
-
-/**
- * Get TronGrid API key from environment variables.
- *
- * Official Tron RPC (TronGrid) requires the API key to be sent in HTTP headers
- * (specifically as 'TRON-PRO-API-KEY' header), NOT in the URI/URL itself.
- *
- * This function checks for the TRONGRID_API_KEY environment variable.
- *
- * @param verbose Whether to log debug information about API key source
- * @returns The API key string, or undefined if not set
- */
-export function getTronGridAPIKey(verbose = false): string | undefined {
-  const envVarName = 'TRONGRID_API_KEY'
-
-  // First try using getEnvVar (which handles .env files properly)
-  try {
-    const apiKey = getEnvVar(envVarName)
-    if (apiKey && apiKey.trim() !== '') {
-      if (verbose)
-        consola.debug(
-          `Using TronGrid API key from environment variable: ${envVarName}`
-        )
-      return apiKey
-    }
-  } catch {
-    // Continue to check process.env directly
-  }
-
-  // Also check process.env directly
-  const apiKey = process.env[envVarName]
-  if (apiKey && apiKey.trim() !== '') {
-    if (verbose)
-      consola.debug(`Using TronGrid API key from process.env: ${envVarName}`)
-    return apiKey
-  }
-
-  if (verbose)
-    consola.debug('TronGrid API key not found in environment variables')
-
-  return undefined
-}
-
-/**
- * Get Tron RPC URL and API key configuration.
- *
- * This function retrieves the RPC URL for Tron network with the following priority:
- * 1. Environment variable (e.g., TRON_RPC_URL, TRONSHASTA_RPC_URL) - highest priority
- * 2. networks.json configuration - fallback
- *
- * If the RPC URL is TronGrid (contains 'trongrid.io'), it automatically retrieves
- * the API key from environment variables and includes it in the headers.
- *
- * The API key is sent in HTTP headers as 'TRON-PRO-API-KEY', NOT in the URI/URL itself.
- *
- * @param networkName The network name (e.g., 'tron', 'tronshasta')
- * @param verbose Whether to log debug information about RPC URL and API key source
- * @returns Object containing rpcUrl and headers (with API key if using TronGrid)
- * @throws Error if RPC URL is empty or invalid
- */
-export function getTronRPCConfig(
-  networkName: string,
-  verbose = false
-): { rpcUrl: string; headers?: Record<string, string> } {
-  const networkConfig = getNetworkConfig(networkName)
-
-  // Get RPC URL from environment variable first, fallback to networks.json
-  let rpcUrl: string
-  try {
-    const envVarName = getRPCEnvVarName(networkName)
-    rpcUrl = getEnvVar(envVarName)
-    if (verbose)
-      consola.debug(`Using RPC URL from environment variable: ${envVarName}`)
-  } catch (error: unknown) {
-    // Fallback to networks.json if env var not set
-    rpcUrl = networkConfig.rpcUrl || networkConfig.rpc
-    if (verbose) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      consola.debug(
-        `RPC URL environment variable not set (${errorMessage}), using value from networks.json: ${rpcUrl}`
-      )
-    }
-  }
-
-  // Validate RPC URL format
-  if (!rpcUrl || rpcUrl.trim() === '') {
-    throw new Error(`RPC URL is empty or invalid for network: ${networkName}`)
-  }
-
-  // Check if using TronGrid and automatically get API key
-  const isTronGrid =
-    rpcUrl.includes('trongrid.io') || rpcUrl.includes('trongrid')
-  let headers: Record<string, string> | undefined
-
-  if (isTronGrid) {
-    const apiKey = getTronGridAPIKey(verbose)
-    if (apiKey) {
-      headers = { 'TRON-PRO-API-KEY': apiKey }
-      if (verbose)
-        consola.debug(
-          'TronGrid API key will be set as header: TRON-PRO-API-KEY'
-        )
-    } else if (verbose) {
-      consola.warn(
-        '⚠️  Using TronGrid RPC but no API key found. ' +
-          'Set TRONGRID_API_KEY in .env to avoid rate limiting.'
-      )
-    }
-  }
-
-  return { rpcUrl, headers }
-}
-
-/**
- * Get contract version from source file
- */
-export async function getContractVersion(
-  contractName: string
-): Promise<string> {
-  const possiblePaths = [
-    `src/${contractName}.sol`,
-    `src/Facets/${contractName}.sol`,
-    `src/Periphery/${contractName}.sol`,
-  ]
-
-  for (const path of possiblePaths) {
-    const fullPath = resolve(process.cwd(), path)
-    try {
-      const content = await Bun.file(fullPath).text()
-      const versionMatch = content.match(/@custom:version\s+(\S+)/)
-      if (versionMatch && versionMatch[1]) return versionMatch[1]
-    } catch {
-      // Try next path
-    }
-  }
-
-  throw new Error(`Could not find version for ${contractName}`)
-}
-
-/**
- * Calculate transaction bandwidth
- */
-export function calculateTransactionBandwidth(transaction: any): number {
-  const DATA_HEX_PROTOBUF_EXTRA = 3
-  const MAX_RESULT_SIZE_IN_TX = 64
-  const A_SIGNATURE = 67
-
-  const rawDataLength = transaction.raw_data_hex
-    ? transaction.raw_data_hex.length / 2
-    : JSON.stringify(transaction.raw_data).length
-
-  const signatureCount = transaction.signature?.length || 1
-
-  return (
-    rawDataLength +
-    DATA_HEX_PROTOBUF_EXTRA +
-    MAX_RESULT_SIZE_IN_TX +
-    signatureCount * A_SIGNATURE
-  )
 }
 
 /**
@@ -822,7 +720,7 @@ export async function checkExistingDeployment(
  * @param seconds Number of seconds to wait
  * @param verbose Whether to log the wait message
  * @param tronWeb Optional TronWeb instance (if not provided, will create a minimal one)
- * @param fullHost Optional RPC host URL (if not provided, will use default)
+ * @param fullHost Optional Tron RPC URL (if not provided, will use default)
  * @param headers Optional headers for API key authentication
  */
 export async function waitBetweenDeployments(
@@ -847,23 +745,15 @@ export async function waitBetweenDeployments(
   // Use provided TronWeb or create a minimal one for RPC calls
   let rpcTronWeb = tronWeb
   if (!rpcTronWeb && fullHost) {
-    const TronWeb = (await import('tronweb')).TronWeb
-    const config: any = { fullHost }
-    if (headers) {
-      config.headers = headers
-    }
-    rpcTronWeb = new TronWeb(config)
+    rpcTronWeb = createTronWebReadOnly({
+      rpcUrl: fullHost,
+      headers,
+    })
   } else if (!rpcTronWeb) {
-    // Fallback to default TronGrid if nothing provided
-    const TronWeb = (await import('tronweb')).TronWeb
-    const fallbackRpcUrl = 'https://api.trongrid.io' // [pre-commit-checker: not a secret]
-    const config: any = { fullHost: fallbackRpcUrl }
-    // Try to get API key for fallback case
-    const apiKey = getTronGridAPIKey(verbose)
-    if (apiKey) {
-      config.headers = { 'TRON-PRO-API-KEY': apiKey }
-    }
-    rpcTronWeb = new TronWeb(config)
+    rpcTronWeb = createTronWebReadOnly({
+      rpcUrl: getTronWebCodecFullHost(),
+      verbose,
+    })
   }
 
   // Make lightweight RPC calls to wait (getNowBlock is a lightweight call)
@@ -875,7 +765,7 @@ export async function waitBetweenDeployments(
 
       if (i < numCalls - 1) {
         // Wait between calls (except for the last one)
-        await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+        await sleep(delayPerCall)
       }
     } catch (error) {
       // If RPC call fails, fall back to simple timeout
@@ -884,7 +774,7 @@ export async function waitBetweenDeployments(
           `RPC call failed during wait, using timeout fallback: ${error}`
         )
       }
-      await new Promise((resolve) => setTimeout(resolve, delayPerCall))
+      await sleep(delayPerCall)
     }
   }
 }
@@ -956,15 +846,7 @@ export async function encodeConstructorArgs(args: any[]): Promise<string> {
   if (args.length === 0) return '0x'
 
   try {
-    const TronWeb = (await import('tronweb')).TronWeb
-    const rpcUrl = 'https://api.trongrid.io' // [pre-commit-checker: not a secret]
-    const config: any = { fullHost: rpcUrl }
-    // Get API key for TronGrid (though not needed for encoding, following pattern)
-    const apiKey = getTronGridAPIKey(false)
-    if (apiKey) {
-      config.headers = { 'TRON-PRO-API-KEY': apiKey }
-    }
-    const tronWeb = new TronWeb(config)
+    const tronWeb = getTronWebCodecOnly()
 
     // Determine types based on argument values
     const types: string[] = args.map((arg) => {
@@ -1031,19 +913,29 @@ export async function estimateDiamondCutEnergy(
       contract_address: diamondAddress,
       function_selector: functionSelector,
       parameter: encodedParams.replace('0x', ''),
-      fee_limit: 1000000000,
+      fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
       call_value: 0,
       visible: true,
     }
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
+    let response: Response
+    try {
+      response = await fetchWithTimeout(
+        apiUrl,
+        {
+          method: 'POST',
+          headers: buildTronWalletJsonPostHeaders(fullHost),
+          body: JSON.stringify(payload),
+        },
+        TRON_WALLET_API_FETCH_TIMEOUT_MS
+      )
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError')
+        throw new Error(
+          `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
+        )
+      throw e
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1121,10 +1013,7 @@ export async function registerFacetToDiamond(
     const selectors = await getFacetSelectors(facetName)
     consola.info(`Found ${selectors.length} function selectors`)
 
-    // Convert facet address to hex for encoding
-    const facetAddressHex = tronWeb.address
-      .toHex(facetAddress)
-      .replace(/^41/, '0x')
+    const facetAddressHex = tronAddressToHex(tronWeb, facetAddress)
 
     // Check each selector and group by action needed
     const selectorsToAdd = []
@@ -1143,8 +1032,7 @@ export async function registerFacetToDiamond(
           currentFacetAddress === 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb' ||
           currentFacetAddress ===
             '0x0000000000000000000000000000000000000000' ||
-          currentFacetAddress ===
-            '410000000000000000000000000000000000000000' ||
+          currentFacetAddress === TRON_ZERO_ADDRESS ||
           currentFacetAddress === ZERO_ADDRESS
 
         if (isZeroAddress) selectorsToAdd.push(selector)
@@ -1254,30 +1142,6 @@ export async function registerFacetToDiamond(
 }
 
 /**
- * Check if a facet is already registered
- */
-export async function checkFacetRegistration(
-  diamond: any,
-  facetAddress: string,
-  tronWeb: any
-): Promise<boolean> {
-  try {
-    const facetsResponse = await diamond.facets().call()
-    const currentFacets = Array.isArray(facetsResponse[0])
-      ? facetsResponse[0]
-      : facetsResponse
-
-    for (const facet of currentFacets) {
-      const registeredAddress = tronWeb.address.fromHex(facet[0])
-      if (registeredAddress === facetAddress) return true
-    }
-    return false
-  } catch {
-    return false
-  }
-}
-
-/**
  * Verify facet registration after diamondCut
  */
 export async function verifyFacetRegistration(
@@ -1294,7 +1158,7 @@ export async function verifyFacetRegistration(
     : facetsResponse
 
   for (const facet of facets) {
-    const facetBase58 = tronWeb.address.fromHex(facet[0])
+    const facetBase58 = tryTronFacetLoupeAddressToBase58(tronWeb, facet[0])
     if (facetBase58 === facetAddress) {
       consola.success(
         `${facetName} registered successfully with ${facet[1].length} functions`
@@ -1304,62 +1168,6 @@ export async function verifyFacetRegistration(
   }
 
   return false
-}
-
-/**
- * Convert hex address to Tron base58 format
- */
-export function hexToTronAddress(hexAddress: string, tronWeb: any): string {
-  if (hexAddress === ZERO_ADDRESS)
-    return tronWeb.address.fromHex('410000000000000000000000000000000000000000')
-
-  return tronWeb.address.fromHex(hexAddress.replace('0x', '41'))
-}
-
-/**
- * Convert Tron base58 address to hex format for EVM-style contract calls
- *
- * Tron addresses in hex format start with '41' (Tron's address prefix), but for
- * EVM-style contract calls we need a standard 20-byte address (40 hex chars).
- * This function removes the '41' prefix and ensures the result is exactly 42
- * characters: '0x' + 40 hex characters.
- *
- * @param tronAddress - Tron address in base58 format (e.g., "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ")
- * @param tronWeb - TronWeb instance
- * @returns Hex address in EVM format (e.g., "0xde3e18dcd11a6a7721cf3b5bad46eb47e0b88b82")
- */
-export function tronAddressToHex(tronAddress: string, tronWeb: any): string {
-  let hex = tronWeb.address.toHex(tronAddress)
-
-  // Remove '0x' prefix if present
-  if (hex.startsWith('0x')) {
-    hex = hex.substring(2)
-  }
-
-  // Remove '41' prefix (Tron address prefix) if present
-  // Tron addresses in hex format start with '41', but EVM-style calls need 20-byte addresses
-  if (hex.startsWith('41')) {
-    hex = hex.substring(2)
-  }
-
-  // Ensure exactly 40 hex characters (20 bytes)
-  if (hex.length > 40) {
-    hex = hex.substring(0, 40)
-  } else if (hex.length < 40) {
-    hex = hex.padStart(40, '0')
-  }
-
-  const result = '0x' + hex
-
-  // Final validation: must be exactly 42 characters
-  if (result.length !== 42) {
-    throw new Error(
-      `Invalid address conversion: expected 42 characters, got ${result.length}. ` +
-        `Input: ${tronAddress}, Output: ${result}`
-    )
-  }
-
-  return result
 }
 
 /**
@@ -1522,153 +1330,27 @@ Selectors: ${selectors.length} functions
     },
   })
 }
-// Cache for prices with TTL
-interface IPriceCache {
-  energyPrice: number
-  bandwidthPrice: number
-  timestamp: number
-}
 
-let priceCache: IPriceCache | null = null
-const CACHE_TTL = 60 * 60 * 1000 // 1 hour in milliseconds
-
-// Fallback values (in TRX) - only used if API fails
-const FALLBACK_ENERGY_PRICE = 0.00021 // TRX per energy unit
-const FALLBACK_BANDWIDTH_PRICE = 0.001 // TRX per bandwidth point
-
-/**
- * Parse the latest applicable price from Tron's price history string
- * Format: "timestamp1:price1,timestamp2:price2,..."
- * Returns the price in SUN for the most recent timestamp that's not in the future
- */
-function parseLatestPrice(priceString: string): number {
-  const now = Date.now()
-  const prices = priceString.split(',').map((entry) => {
-    const parts = entry.split(':')
-    const timestamp = Number(parts[0] || 0)
-    const price = Number(parts[1] || 0)
-    return { timestamp, price }
-  })
-
-  // Sort by timestamp descending
-  prices.sort((a, b) => b.timestamp - a.timestamp)
-
-  // Find the most recent price that's not in the future
-  for (const { timestamp, price } of prices) if (timestamp <= now) return price
-
-  // If all timestamps are in the future (shouldn't happen), use the oldest one
-  const lastPrice = prices[prices.length - 1]
-  return lastPrice ? lastPrice.price : 0
-}
-
-/**
- * Get current energy and bandwidth prices from the Tron network
- * Prices are returned in TRX (not SUN)
- * Results are cached for 1 hour to reduce API calls
- */
-export async function getCurrentPrices(
-  tronWeb: TronWeb
-): Promise<{ energyPrice: number; bandwidthPrice: number }> {
-  // Check cache first
-  if (priceCache && Date.now() - priceCache.timestamp < CACHE_TTL) {
-    consola.debug('Using cached prices')
-    return {
-      energyPrice: priceCache.energyPrice,
-      bandwidthPrice: priceCache.bandwidthPrice,
-    }
-  }
-
-  try {
-    consola.debug('Fetching current prices from Tron network...')
-
-    const [energyPricesStr, bandwidthPricesStr] = await Promise.all([
-      tronWeb.trx.getEnergyPrices(),
-      tronWeb.trx.getBandwidthPrices(),
-    ])
-
-    // Parse the price strings to get the latest applicable prices
-    const energyPriceSun = parseLatestPrice(energyPricesStr)
-    const bandwidthPriceSun = parseLatestPrice(bandwidthPricesStr)
-
-    // Convert from SUN to TRX (1 TRX = 1,000,000 SUN)
-    const energyPrice = energyPriceSun / 1_000_000
-    const bandwidthPrice = bandwidthPriceSun / 1_000_000
-
-    // Update cache
-    priceCache = {
-      energyPrice,
-      bandwidthPrice,
-      timestamp: Date.now(),
-    }
-
-    consola.debug(
-      `Current prices - Energy: ${energyPrice} TRX, Bandwidth: ${bandwidthPrice} TRX`
-    )
-
-    return { energyPrice, bandwidthPrice }
-  } catch (error) {
-    consola.warn(
-      'Failed to fetch current prices from network, using fallback values:',
-      error
-    )
-
-    // Use fallback values if API fails
-    return {
-      energyPrice: FALLBACK_ENERGY_PRICE,
-      bandwidthPrice: FALLBACK_BANDWIDTH_PRICE,
-    }
-  }
-}
-
-/**
- * Clear the price cache (useful for testing or forcing a refresh)
- */
-export function clearPriceCache(): void {
-  priceCache = null
-}
-
-/**
- * Calculate the estimated cost in TRX based on energy and bandwidth usage
- */
-export async function calculateEstimatedCost(
-  tronWeb: TronWeb,
-  estimatedEnergy: number,
-  estimatedBandwidth = 0
-): Promise<{ energyCost: number; bandwidthCost: number; totalCost: number }> {
-  const { energyPrice, bandwidthPrice } = await getCurrentPrices(tronWeb)
-
-  const energyCost = estimatedEnergy * energyPrice
-  const bandwidthCost = estimatedBandwidth * bandwidthPrice
-  const totalCost = energyCost + bandwidthCost
-
-  return {
-    energyCost,
-    bandwidthCost,
-    totalCost,
-  }
-}
-
-/**
- * Parse troncast facets output
- * Format: [[TAddr1 [0xsel1 0xsel2]] [TAddr2 [0xsel3]]]
- */
-export function parseTroncastFacetsOutput(
-  output: string
-): Array<[string, string[]]> {
-  // Remove outer brackets and clean up the string
-  const cleaned = output.trim().slice(1, -1)
-
-  // Regular expression to match [address [selectors]]
-  const facetRegex = /\[([T][A-Za-z0-9]{33})\s+\[((?:0x[a-fA-F0-9]+\s*)*)\]\]/g
-  const facets: Array<[string, string[]]> = []
-
-  let match
-  while ((match = facetRegex.exec(cleaned)) !== null) {
-    const address = match[1] || ''
-    const selectorsStr = match[2]?.trim() || ''
-    const selectors = selectorsStr ? selectorsStr.split(/\s+/) : []
-    if (address) facets.push([address, selectors])
-  }
-
-  return facets
-}
+export { estimateContractCallEnergy } from './helpers/estimateContractEnergy'
+export { loadForgeArtifact } from './helpers/loadForgeArtifact'
+export { getCoreFacets, getTronCorePeriphery } from './helpers/tronGlobalFacets'
+export {
+  getNetworkConfig,
+  getTronGridAPIKey,
+  getTronRPCConfig,
+} from './helpers/tronRpcConfig'
+export { getContractVersion } from './helpers/getContractVersion'
+export {
+  calculateEstimatedCost,
+  calculateTransactionBandwidth,
+  getAccountAvailableResources,
+  getCurrentPrices,
+} from './helpers/tronPricing'
+export { parseTroncastFacetsOutput } from './helpers/parseTroncastFacetsOutput'
+export { applyTronGridViemTransportExtras } from './helpers/tronGridTransport'
+export { isTronGridRpcUrl } from './helpers/isTronGridRpcUrl'
+export { formatAddressForNetworkCliDisplay } from './helpers/formatAddressForCliDisplay'
+export {
+  getTronWebCodecFullHost,
+  getTronWebCodecOnly,
+} from './helpers/tronWebCodecOnly'

@@ -1,6 +1,19 @@
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
+import { sleep } from '../../utils/delay'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+import { retryWithRateLimit } from '../shared/rateLimit'
+
+import {
+  DEFAULT_SAFETY_MARGIN,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
+} from './constants'
+import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig'
+import {
+  createTronWeb,
+  resolveTronWebRpcUrlToFullHost,
+} from './helpers/tronWebFactory'
 import type {
   ITronDeploymentConfig,
   ITronCostEstimate,
@@ -8,25 +21,27 @@ import type {
   IForgeArtifact,
 } from './types'
 import {
-  DEFAULT_SAFETY_MARGIN,
   calculateTransactionBandwidth,
   calculateEstimatedCost,
+  getAccountAvailableResources,
 } from './utils'
-
-// Import TronWeb - the simple approach that was working
 
 export class TronContractDeployer {
   private tronWeb: any
   private config: ITronDeploymentConfig
 
   public constructor(config: ITronDeploymentConfig) {
-    // Validate Tron private key format (allow optional "0x" prefix)
-    const rawKey = config.privateKey?.replace(/^0x/i, '')
-    if (!rawKey || !/^[0-9A-Fa-f]{64}$/.test(rawKey))
+    const pk = (config.privateKey ?? '').trim()
+    if (!pk || !/^0x?[0-9A-Fa-f]{64}$/.test(pk))
       throw new Error(
         'Invalid Tron private key format. Expected a 64-character hexadecimal string (with or without "0x" prefix). ' +
           'Example: 0x1234...abcd or 1234...abcd'
       )
+
+    const resolvedFullHost = resolveTronWebRpcUrlToFullHost(
+      config.fullHost ?? '',
+      config.tvmNetworkKey
+    )
 
     this.config = {
       safetyMargin: DEFAULT_SAFETY_MARGIN,
@@ -37,12 +52,15 @@ export class TronContractDeployer {
       userFeePercentage: 100,
       originEnergyLimit: 0,
       ...config,
-      privateKey: rawKey,
+      fullHost: resolvedFullHost,
+      privateKey: pk,
     }
 
-    this.tronWeb = new TronWeb({
-      fullHost: this.config.fullHost,
+    this.tronWeb = createTronWeb({
+      rpcUrl: resolvedFullHost,
       privateKey: this.config.privateKey,
+      headers: this.config.headers,
+      verbose: this.config.verbose,
     })
 
     if (this.config.verbose)
@@ -64,29 +82,77 @@ export class TronContractDeployer {
     constructorParams: any[] = []
   ): Promise<ITronDeploymentResult> {
     try {
+      // Delay before first RPC to avoid 429 rate limits when called in sequence
+      await sleep(2000)
+
       // Estimate deployment cost
       const costEstimate = await this.estimateCost(artifact, constructorParams)
 
-      if (this.config.verbose)
-        consola.debug('Estimated deployment cost:', {
-          energy: costEstimate.energy,
-          bandwidth: costEstimate.bandwidth,
-          totalTrx: costEstimate.totalTrx.toFixed(4),
-        })
+      // Log cost breakdown so user can verify estimate (helps debug 429/balance issues)
+      consola.info('Cost estimate:', {
+        energy: costEstimate.energy,
+        bandwidth: costEstimate.bandwidth,
+        energyCostTrx: costEstimate.breakdown.energyCost.toFixed(4),
+        bandwidthCostTrx: costEstimate.breakdown.bandwidthCost.toFixed(4),
+        totalTrx: costEstimate.totalTrx.toFixed(4),
+        safetyMargin: costEstimate.breakdown.safetyMargin,
+      })
 
-      // Validate account balance
-      await this.validateAccountBalance(costEstimate.totalTrx)
+      await sleep(2000)
+
+      // Reduce required TRX by the portion covered by delegated energy/bandwidth
+      const address = this.tronWeb.defaultAddress.base58
+      const { availableEnergy, availableBandwidth } =
+        await getAccountAvailableResources(this.config.fullHost, address)
+      const energyPrice =
+        costEstimate.energy > 0
+          ? costEstimate.breakdown.energyCost / costEstimate.energy
+          : 0
+      const bandwidthPrice =
+        costEstimate.bandwidth > 0
+          ? costEstimate.breakdown.bandwidthCost / costEstimate.bandwidth
+          : 0
+      const energyCovered = Math.min(costEstimate.energy, availableEnergy)
+      const bandwidthCovered = Math.min(
+        costEstimate.bandwidth,
+        availableBandwidth
+      )
+      const trxCoveredByDelegation =
+        energyCovered * energyPrice + bandwidthCovered * bandwidthPrice
+      const requiredTrx = Math.max(
+        0,
+        costEstimate.totalTrx - trxCoveredByDelegation
+      )
+      if (trxCoveredByDelegation > 0) {
+        consola.info(
+          `Delegated resources: ${availableEnergy} energy, ${availableBandwidth} bandwidth → ` +
+            `~${trxCoveredByDelegation.toFixed(
+              2
+            )} TRX covered. Required TRX: ${requiredTrx.toFixed(4)}`
+        )
+      }
+
+      // Validate account balance (only the TRX not covered by delegation)
+      await this.validateAccountBalance(requiredTrx)
 
       if (this.config.dryRun)
         return this.simulateDeployment(artifact, costEstimate)
 
-      // Execute deployment with dynamic energy limit
-      const deploymentResult = await this.executeDeployment(
-        artifact,
-        constructorParams,
-        costEstimate
-      )
+      // Sleep before broadcast to avoid 429 after estimate + getAccountResources burst
+      await sleep(8000)
 
+      // Execute deployment with dynamic energy limit (retry on 429)
+      const deploymentResult = await retryWithRateLimit(
+        () => this.executeDeployment(artifact, constructorParams, costEstimate),
+        3,
+        10000,
+        (attempt, delay) =>
+          consola.warn(
+            `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
+              delay / 1000
+            }s...`
+          )
+      )
       // Wait for confirmation
       const receipt = await this.waitForTransactionReceipt(
         deploymentResult.transactionId,
@@ -119,11 +185,13 @@ export class TronContractDeployer {
         artifact,
         constructorParams
       )
+      await sleep(2000)
 
       const estimatedBandwidth = await this.estimateBandwidth(
         artifact,
         constructorParams
       )
+      await sleep(2000)
 
       // Get current prices from the network
       const { energyCost, bandwidthCost, totalCost } =
@@ -237,7 +305,7 @@ export class TronContractDeployer {
         contract_address: null, // null for deployment estimation
         function_selector: null, // null for deployment estimation
         parameter: '', // Empty for deployment
-        fee_limit: 1000000000, // High limit for estimation only
+        fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
         call_value: 0,
         data: deploymentData, // Contract bytecode + constructor params
         visible: true,
@@ -254,14 +322,27 @@ export class TronContractDeployer {
         )
       }
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+      let response: Response
+      try {
+        response = await fetchWithTimeout(
+          apiUrl,
+          {
+            method: 'POST',
+            headers: buildTronWalletJsonPostHeaders(
+              this.config.fullHost,
+              this.config.verbose ?? false
+            ),
+            body: JSON.stringify(payload),
+          },
+          TRON_WALLET_API_FETCH_TIMEOUT_MS
+        )
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError')
+          throw new Error(
+            `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
+          )
+        throw e
+      }
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -471,7 +552,7 @@ export class TronContractDeployer {
           consola.warn(`Retry ${retries}/${maxRetries} for transaction receipt`)
       }
 
-      await this.sleep(pollInterval)
+      await sleep(pollInterval)
     }
 
     throw new Error(`Transaction confirmation timeout after ${timeoutMs}ms`)
@@ -498,12 +579,7 @@ export class TronContractDeployer {
     }
   }
 
-  /**
-   * Sleep helper
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
+  // sleep is now imported from utils/delay.ts
 
   /**
    * Get network info

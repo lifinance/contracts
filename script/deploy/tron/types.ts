@@ -1,5 +1,85 @@
-export interface ITronDeploymentConfig {
+import type { TronWeb } from 'tronweb'
+import type { Address, Hex } from 'viem'
+
+/** Tron TVM network keys in `config/networks.json` (mainnet / Shasta). */
+export type TronTvmNetworkName = 'tron' | 'tronshasta'
+
+/** Result of broadcasting Safe `execTransaction` on Tron via TronWeb. */
+export interface IExecuteSafeExecTronWebResult {
+  txId: string
+  hash: Hex
+}
+
+/** Params for Tron Safe `execTransaction` broadcast (signing key supplied separately). */
+export interface ITronSafeExecParams {
+  networkName: TronTvmNetworkName
+  safeAddressEvm: Address
+  to: Address
+  value: bigint
+  data: Hex
+  operation: number
+  signatures: Hex
+  confirmTimeoutMs?: number
+}
+
+export type IBroadcastTronSafeExecParams = ITronSafeExecParams & {
+  privateKeyHex: string
+}
+
+/** Parameters for estimating contract call energy via TRON triggerconstantcontract API */
+export interface IEstimateContractCallEnergyParams {
   fullHost: string
+  tronWeb: TronWeb
+  contractAddressBase58: string
+  functionSelector: string
+  parameterHex: string
+  safetyMargin?: number
+  feeLimitForEstimation?: number
+}
+
+/** Cache entry for TRON energy/bandwidth prices with TTL */
+export interface IPriceCache {
+  energyPrice: number
+  bandwidthPrice: number
+  timestamp: number
+}
+
+/** Base shape for viem HTTP RPC transport (URL + optional fetch headers) */
+export interface IViemRpcTransportConfigBase {
+  url: string
+  fetchOptions?: { headers: Record<string, string> }
+}
+
+/** Viem HTTP transport with optional retry tuning (e.g. TronGrid 429 backoff) */
+export interface IViemRpcTransportConfig extends IViemRpcTransportConfigBase {
+  retryCount?: number
+  retryDelay?: number
+}
+
+/** Response from Tron getaccountresource (snake_case or camelCase from different clients) */
+export interface IAccountResourceResponse {
+  EnergyLimit?: number
+  EnergyUsed?: number
+  NetLimit?: number
+  NetUsed?: number
+  freeNetLimit?: number
+  freeNetUsed?: number
+  energy_limit?: number
+  energy_used?: number
+  net_limit?: number
+  net_used?: number
+  free_net_limit?: number
+  free_net_used?: number
+}
+
+export interface ITronDeploymentConfig {
+  /**
+   * Tron RPC URL (env / `networks.json`). May include `/jsonrpc`; when `tvmNetworkKey` is set,
+   * it is normalized for TronWeb and wallet HTTP APIs.
+   */
+  fullHost: string
+  /** When set with a Tron TVM network key, {@link fullHost} is normalized (e.g. strip `/jsonrpc`). */
+  tvmNetworkKey?: TronTvmNetworkName
   privateKey: string
   feeLimit?: number
   userFeePercentage?: number
