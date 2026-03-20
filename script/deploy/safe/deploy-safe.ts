@@ -74,9 +74,14 @@ import {
 // Local imports last, in alphabetical order
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import type { SupportedChain } from '../../common/types'
-import { EnvironmentEnum } from '../../common/types'
+import {
+  EnvironmentEnum,
+  type EVMVersion,
+  type SupportedChain,
+} from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
+import { EVM_VERSIONS } from '../shared/constants'
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -177,12 +182,6 @@ async function compareDeployedBytecode(
   return ok
 }
 
-import { sleep } from '../../utils/delay'
-
-// At the top of the file, add new type for EVM versions
-type EVMVersion = 'london' | 'cancun'
-
-// Modify the command arguments to include EVM version
 const main = defineCommand({
   meta: {
     name: 'deploy-safe',
@@ -321,17 +320,18 @@ const main = defineCommand({
     let evmVersion: EVMVersion = 'cancun' // Default to cancun
 
     if (args.evmVersion) {
-      // If explicitly specified via CLI
-      if (!['london', 'cancun'].includes(args.evmVersion))
+      const v = args.evmVersion.toLowerCase()
+      if (!(EVM_VERSIONS as readonly string[]).includes(v))
         throw new Error(
-          'Invalid EVM version. Must be either "london" or "cancun"'
+          `Invalid EVM version. Must be one of: ${EVM_VERSIONS.join(', ')}`
         )
 
-      evmVersion = args.evmVersion as EVMVersion
-    } else if (networkConfig?.deployedWithEvmVersion)
-      // Use network-specific version if available
-      evmVersion =
-        networkConfig.deployedWithEvmVersion.toLowerCase() as EVMVersion
+      evmVersion = v as EVMVersion
+    } else if (networkConfig?.deployedWithEvmVersion) {
+      const v = networkConfig.deployedWithEvmVersion.toLowerCase()
+      if ((EVM_VERSIONS as readonly string[]).includes(v))
+        evmVersion = v as EVMVersion
+    }
 
     consola.info(`Using EVM version: ${evmVersion}`)
 

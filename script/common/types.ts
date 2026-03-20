@@ -2,6 +2,12 @@ import type networks from '../../config/networks.json'
 
 export type SupportedChain = keyof typeof networks
 
+/**
+ * Subset of EVM hardfork labels used for Safe local bytecode (`safe/london` vs `safe/cancun`)
+ * and `networks.json` → `deployedWithEvmVersion`.
+ */
+export type EVMVersion = 'london' | 'cancun'
+
 export interface INetworksObject {
   [key: string]: Omit<INetwork, 'id'>
 }

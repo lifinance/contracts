@@ -3,6 +3,8 @@
  * These constants are not network-specific and apply across the entire project
  */
 
+import type { EVMVersion } from '../../common/types'
+
 /**
  * Minimum number of signatures required for Safe multisig transactions
  * This threshold ensures adequate security for critical operations
@@ -52,6 +54,11 @@ export const DEPLOYMENT_FILE_SUFFIX = (environment: string) =>
 
 // Common EVM address
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+export const EVM_VERSIONS = [
+  'london',
+  'cancun',
+] as const satisfies readonly EVMVersion[]
 
 /**
  * `networks.json` / Mongo **network keys** for Tron (mainnet + Shasta) where addresses may be base58 (`T…`).

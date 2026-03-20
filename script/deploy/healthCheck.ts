@@ -16,7 +16,6 @@ import {
 
 import { corePeriphery } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
 import { getRPCEnvVarName } from '../utils/network'
@@ -194,7 +193,8 @@ const main = defineCommand({
     }
 
     const tronRpcUrl = isTron
-      ? getEnvVar(getRPCEnvVarName(networkLower)) || networkConfig.rpcUrl
+      ? process.env[getRPCEnvVarName(networkLower)]?.trim() ||
+        networkConfig.rpcUrl
       : undefined
 
     if (isTron)
