@@ -2,16 +2,16 @@ import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
 
-import { sleep } from '../utils/delay'
-import { spawnAndCapture } from '../utils/spawnAndCapture'
-
+import { sleep } from '../../utils/delay'
+import { spawnAndCapture } from '../../utils/spawnAndCapture'
 import {
   INITIAL_CALL_DELAY,
   MAX_RETRIES,
   RETRY_DELAY,
-} from './shared/constants'
-import { isRateLimitError } from './shared/rateLimit'
-import { hexToTronAddress } from './tron/utils'
+} from '../shared/constants'
+import { isRateLimitError } from '../shared/rateLimit'
+
+import { hexToTronAddress } from './utils'
 
 /**
  * Call Tron contract function using troncast
