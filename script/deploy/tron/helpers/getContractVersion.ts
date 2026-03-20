@@ -1,4 +1,7 @@
-import { resolve } from 'path'
+import { relative, resolve } from 'path'
+
+/** Solidity-style contract name (no path segments, so reads stay under `src/`). */
+const CONTRACT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 /**
  * Get contract version from source file
@@ -6,6 +9,15 @@ import { resolve } from 'path'
 export async function getContractVersion(
   contractName: string
 ): Promise<string> {
+  if (!CONTRACT_NAME_RE.test(contractName)) {
+    throw new Error(
+      `Invalid contract name "${contractName}": expected a Solidity identifier`
+    )
+  }
+
+  const projectRoot = resolve(process.cwd())
+  const srcRoot = resolve(projectRoot, 'src')
+
   const possiblePaths = [
     `src/${contractName}.sol`,
     `src/Facets/${contractName}.sol`,
@@ -13,8 +25,12 @@ export async function getContractVersion(
     `src/Security/${contractName}.sol`,
   ]
 
-  for (const path of possiblePaths) {
-    const fullPath = resolve(process.cwd(), path)
+  for (const relativePath of possiblePaths) {
+    const fullPath = resolve(projectRoot, relativePath)
+    const underSrc = relative(srcRoot, fullPath)
+    if (underSrc.startsWith('..') || underSrc === '') {
+      continue
+    }
     try {
       const content = await Bun.file(fullPath).text()
       const versionMatch = content.match(/@custom:version\s+(\S+)/)

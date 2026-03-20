@@ -63,6 +63,20 @@ function safeNormalizeAddress(address: string): string {
   }
 }
 
+/** Lowercase 0x identity for comparisons; supports Tron base58 in deployment JSON. */
+function deploymentAddressKeyForComparison(
+  network: string,
+  raw: string
+): string | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  try {
+    return normalizeAddressForNetwork(network, trimmed).toLowerCase()
+  } catch {
+    return undefined
+  }
+}
+
 function computeSelectorFromSignature(signature: string): string {
   const hash = keccak256(stringToHex(signature))
   return `0x${hash.slice(2, 10)}`
@@ -172,34 +186,23 @@ export async function getTargetName(
           : (deploymentsUnknown as unknown)
       if (isRecord(deployments)) {
         const diamond = deployments.LiFiDiamond
-        if (typeof diamond === 'string' && diamond.startsWith('0x')) {
-          try {
-            const diamondAddress = getAddress(diamond as Address).toLowerCase()
-            if (diamondAddress === normalizedAddress) return '(LiFiDiamond)'
-          } catch {
-            // ignore
-          }
+        if (typeof diamond === 'string') {
+          const diamondKey = deploymentAddressKeyForComparison(network, diamond)
+          if (diamondKey === normalizedAddress) return '(LiFiDiamond)'
         }
         const timelock = deployments.LiFiTimelockController
-        if (typeof timelock === 'string' && timelock.startsWith('0x')) {
-          try {
-            const timelockAddress = getAddress(
-              timelock as Address
-            ).toLowerCase()
-            if (timelockAddress === normalizedAddress)
-              return '(LiFiTimelockController)'
-          } catch {
-            // ignore
-          }
+        if (typeof timelock === 'string') {
+          const timelockKey = deploymentAddressKeyForComparison(
+            network,
+            timelock
+          )
+          if (timelockKey === normalizedAddress)
+            return '(LiFiTimelockController)'
         }
         for (const [name, value] of Object.entries(deployments)) {
-          if (typeof value !== 'string' || !value.startsWith('0x')) continue
-          try {
-            const addr = getAddress(value as Address).toLowerCase()
-            if (addr === normalizedAddress) return `(${name})`
-          } catch {
-            // ignore
-          }
+          if (typeof value !== 'string') continue
+          const addr = deploymentAddressKeyForComparison(network, value)
+          if (addr === normalizedAddress) return `(${name})`
         }
       }
     } catch {
@@ -248,9 +251,12 @@ async function getPeripheryDeploymentCheckSuffix(
   peripheryName: string,
   peripheryAddress: string
 ): Promise<string> {
-  let providedAddress: Address
+  let providedNormalized: Address
   try {
-    providedAddress = getAddress(peripheryAddress as Address)
+    providedNormalized = normalizeAddressForNetwork(
+      network,
+      peripheryAddress.trim()
+    )
   } catch {
     return ` \u001b[31m(❌ invalid periphery address)\u001b[0m`
   }
@@ -259,17 +265,17 @@ async function getPeripheryDeploymentCheckSuffix(
   const expectedRaw = deployments[peripheryName]
   if (typeof expectedRaw !== 'string' || !expectedRaw)
     return ` \u001b[90m(no deployments entry for '${peripheryName}')\u001b[0m`
-  let expectedAddress: Address
+  let expectedNormalized: Address
   try {
-    expectedAddress = getAddress(expectedRaw as Address)
+    expectedNormalized = normalizeAddressForNetwork(network, expectedRaw.trim())
   } catch {
     return ` \u001b[31m(❌ invalid deployments address for '${peripheryName}')\u001b[0m`
   }
-  if (expectedAddress.toLowerCase() === providedAddress.toLowerCase())
+  if (expectedNormalized.toLowerCase() === providedNormalized.toLowerCase())
     return ` \u001b[32m(✅ matches deployments)\u001b[0m`
   const expectedDisplay = formatAddressForNetworkCliDisplay(
     network,
-    expectedAddress
+    expectedNormalized
   )
   return ` \u001b[31m(❌ mismatch: expected ${expectedDisplay})\u001b[0m`
 }
