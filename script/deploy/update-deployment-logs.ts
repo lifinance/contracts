@@ -26,8 +26,10 @@ import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 
 import { createDefaultCache } from './shared/deployment-cache'
 import {
+  deploymentRecordEqFilter,
   type IDeploymentRecord,
   type IUpdateConfig,
+  mongoEq,
   RecordTransformer,
 } from './shared/mongo-log-utils'
 
@@ -185,10 +187,10 @@ class DeploymentLogManager {
     if (!this.collection) throw new Error('Collection not initialized')
 
     const filter = {
-      contractName: record.contractName,
-      network: record.network,
-      version: record.version,
-      address: record.address,
+      contractName: mongoEq(record.contractName),
+      network: mongoEq(record.network),
+      version: mongoEq(record.version),
+      address: mongoEq(record.address),
     }
 
     const update = {
@@ -227,10 +229,10 @@ class DeploymentLogManager {
     const operations = records.map((record) => ({
       updateOne: {
         filter: {
-          contractName: record.contractName,
-          network: record.network,
-          version: record.version,
-          address: record.address,
+          contractName: mongoEq(record.contractName),
+          network: mongoEq(record.network),
+          version: mongoEq(record.version),
+          address: mongoEq(record.address),
         },
         update: {
           $set: {
@@ -438,10 +440,10 @@ class DeploymentLogManager {
             return {
               deleteOne: {
                 filter: {
-                  contractName: record.contractName,
-                  network: record.network,
-                  version: record.version,
-                  address: record.address,
+                  contractName: mongoEq(record.contractName),
+                  network: mongoEq(record.network),
+                  version: mongoEq(record.version),
+                  address: mongoEq(record.address),
                 },
               },
             }
@@ -492,10 +494,10 @@ class DeploymentLogManager {
     if (!this.collection) throw new Error('Collection not initialized')
 
     const filter = {
-      contractName,
-      network,
-      version,
-      address,
+      contractName: mongoEq(contractName),
+      network: mongoEq(network),
+      version: mongoEq(version),
+      address: mongoEq(address),
     }
 
     const updateDoc = {
@@ -520,7 +522,7 @@ class DeploymentLogManager {
   ): Promise<IDeploymentRecord[]> {
     if (!this.collection) throw new Error('Collection not initialized')
 
-    return this.collection.find(filters).toArray()
+    return this.collection.find(deploymentRecordEqFilter(filters)).toArray()
   }
 
   public async getLatestDeployment(
@@ -530,7 +532,7 @@ class DeploymentLogManager {
     if (!this.collection) throw new Error('Collection not initialized')
 
     return this.collection.findOne(
-      { contractName, network },
+      { contractName: mongoEq(contractName), network: mongoEq(network) },
       { sort: { timestamp: -1 } }
     )
   }
