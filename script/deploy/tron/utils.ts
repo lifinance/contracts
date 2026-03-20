@@ -164,6 +164,30 @@ export function getDeploymentRoots(): string[] {
 }
 
 /**
+ * Pick where to write `deployments/*.json` so parent-workspace cwd matches reads in
+ * {@link getContractAddress} (existing file or `deployments/`), not only candidate order.
+ */
+async function pickDeploymentRootForWrites(
+  network: SupportedChain,
+  fileSuffix: string
+): Promise<string> {
+  const roots = getDeploymentRoots()
+  const envDeploymentPath = `deployments/${network}.${fileSuffix}json`
+
+  for (const candidate of roots)
+    if (await Bun.file(resolve(candidate, envDeploymentPath)).exists())
+      return candidate
+
+  for (const candidate of roots)
+    if (await Bun.file(resolve(candidate, 'deployments')).exists())
+      return candidate
+
+  const fallback = roots[0]
+  if (!fallback) throw new Error('No deployment root available')
+  return fallback
+}
+
+/**
  * Read and parse a JSON file. Returns null if the file is missing or not valid JSON.
  */
 export async function readJsonFile<T>(filePath: string): Promise<T | null> {
@@ -233,9 +257,7 @@ export async function saveContractAddress(
   const environment = await getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
-  const roots = getDeploymentRoots()
-  const root = roots[0]
-  if (!root) throw new Error('No deployment root available')
+  const root = await pickDeploymentRootForWrites(network, fileSuffix)
   const deploymentFile = resolve(
     root,
     `deployments/${network}.${fileSuffix}json`
