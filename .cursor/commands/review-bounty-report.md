@@ -27,7 +27,7 @@ Perform a structured, skeptical review of a Cantina bug bounty submission. Chall
 
 ### In-Scope
 
-- **Smart contracts**: Repo `github.com/lifinance/contracts`, latest commit, files `src/*`.
+- **Smart contracts**: Repo `github.com/lifinance/contracts`, latest commit, files `src/**/*.sol`.
 - **Case-by-case**: Vulnerabilities in components not explicitly listed but that pose risk to user funds, user data, or system integrity.
 
 ### Out-of-Scope (abbreviated; check full program for exhaustive list)
@@ -100,7 +100,7 @@ List each claim clearly so every one can be checked.
 ### 4. Scope check
 
 - For each claim, check against:
-  - In-scope targets (repo `src/*`, scan.li.fi, li.fi, portal.li.fi, li.quest/*, and case-by-case clause).
+  - In-scope targets (repo `src/**/*.sol`, scan.li.fi, li.fi, portal.li.fi, li.quest/*, and case-by-case clause).
   - The full out-of-scope list (bridge/DEX exclusions, contract exclusions, web exclusions, doc/minor).
 - Output: **In scope?** Yes / No / Unclear, with a short reason (e.g. "Self-crafted calldata", "Third-party bridge bug", "Known in audit X").
 
