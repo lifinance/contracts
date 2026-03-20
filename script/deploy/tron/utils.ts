@@ -1347,10 +1347,8 @@ export {
   getCurrentPrices,
 } from './helpers/tronPricing'
 export { parseTroncastFacetsOutput } from './helpers/parseTroncastFacetsOutput'
-export {
-  applyTronGridViemTransportExtras,
-  isTronGridRpcUrl,
-} from './helpers/tronGridTransport'
+export { applyTronGridViemTransportExtras } from './helpers/tronGridTransport'
+export { isTronGridRpcUrl } from './helpers/isTronGridRpcUrl'
 export { formatAddressForNetworkCliDisplay } from './helpers/formatAddressForCliDisplay'
 export {
   getTronWebCodecFullHost,

@@ -7,12 +7,9 @@ import { TronWeb } from 'tronweb'
 import { TRON_PRO_API_KEY_HEADER } from '../constants'
 import type { TronTvmNetworkName } from '../types'
 
+import { isTronGridRpcUrl } from './isTronGridRpcUrl'
 import { tronWebFullHostFromRpcUrl } from './tronJsonRpcForViem'
-import {
-  getTronGridAPIKey,
-  getTronRPCConfig,
-  isTronGridRpcUrl,
-} from './tronRpcConfig'
+import { getTronGridAPIKey, getTronRPCConfig } from './tronRpcConfig'
 
 /**
  * Normalize RPC URL (env / `networks.json`) to TronWeb’s native HTTP root.

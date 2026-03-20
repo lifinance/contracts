@@ -5,6 +5,8 @@ import { getEnvVar } from '../../../demoScripts/utils/demoScriptHelpers'
 import { getRPCEnvVarName } from '../../../utils/network'
 import { TRON_PRO_API_KEY_HEADER } from '../constants'
 
+import { isTronGridRpcUrl } from './isTronGridRpcUrl'
+
 /**
  * Get network configuration from config/networks.json
  */
@@ -58,12 +60,6 @@ export function getTronGridAPIKey(verbose = false): string | undefined {
   return undefined
 }
 
-/** Whether `rpcUrl` points at TronGrid (API key sent as `TRON-PRO-API-KEY`). */
-export function isTronGridRpcUrl(rpcUrl: string): boolean {
-  const u = rpcUrl.toLowerCase()
-  return u.includes('trongrid.io') || u.includes('trongrid')
-}
-
 /**
  * JSON POST headers for Tron `wallet/*` HTTP APIs when using {@link fetchWithTimeout} outside TronWeb.
  * Merges TronGrid `TRON-PRO-API-KEY` when `fullHost` targets TronGrid (same rules as TronWeb config).
@@ -96,7 +92,7 @@ export function buildTronWalletJsonPostHeaders(
  * 1. Environment variable (e.g., TRON_RPC_URL, TRONSHASTA_RPC_URL) - highest priority
  * 2. networks.json configuration - fallback
  *
- * If the RPC URL is TronGrid (contains 'trongrid.io'), it automatically retrieves
+ * If the RPC URL is TronGrid (official api.*.trongrid.io host), it automatically retrieves
  * the API key from environment variables and includes it in the headers.
  *
  * The API key is sent in HTTP headers as 'TRON-PRO-API-KEY', NOT in the URI/URL itself.

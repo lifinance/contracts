@@ -5,10 +5,7 @@ import type {
   IViemRpcTransportConfigBase,
 } from '../types'
 
-export function isTronGridRpcUrl(urlString: string): boolean {
-  const lower = urlString.toLowerCase()
-  return lower.includes('trongrid.io') || lower.includes('trongrid')
-}
+import { isTronGridRpcUrl } from './isTronGridRpcUrl'
 
 /**
  * TronGrid JSON-RPC: optional `TRON-PRO-API-KEY`, plus viem HTTP retries tuned with
