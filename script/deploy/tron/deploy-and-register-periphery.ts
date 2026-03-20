@@ -35,6 +35,7 @@ import {
 } from './tronAddressHelpers.js'
 import type { ITronDeploymentConfig } from './types'
 import {
+  checkExistingDeployment,
   getContractAddress,
   getContractVersion,
   getEnvironment,
@@ -277,89 +278,36 @@ async function deployAndRegisterPeripheryImpl(options: {
 
         try {
           // Check if already deployed
-          const existingAddress = await getContractAddress(
+          const erc20Deployment = await checkExistingDeployment(
             network,
-            'ERC20Proxy'
+            'ERC20Proxy',
+            dryRun
           )
-          if (existingAddress && !dryRun) {
-            consola.warn(
-              `  ERC20Proxy is already deployed at: ${existingAddress}`
+
+          if (
+            erc20Deployment.exists &&
+            erc20Deployment.address &&
+            !erc20Deployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing ERC20Proxy at: ${erc20Deployment.address}`
             )
-            const shouldRedeploy = await consola.prompt(
-              'Redeploy ERC20Proxy?',
-              {
-                type: 'confirm',
-                initial: false,
-              }
-            )
+            deployedContracts['ERC20Proxy'] = erc20Deployment.address
 
-            if (!shouldRedeploy) {
-              consola.info(`Using existing ERC20Proxy at: ${existingAddress}`)
-              deployedContracts['ERC20Proxy'] = existingAddress
-
-              const version = await getContractVersion('ERC20Proxy')
-              deploymentResults.push({
-                contract: 'ERC20Proxy',
-                address: existingAddress,
-                txId: 'existing',
-                cost: 0,
-                version,
-              })
-            } else {
-              // Deploy new ERC20Proxy
-              const artifact = await loadForgeArtifact('ERC20Proxy')
-              const version = await getContractVersion('ERC20Proxy')
-
-              // Constructor: owner address (deployer)
-              const ownerHex = tronAddressToHex(tronWeb, networkInfo.address)
-              const constructorArgs = [ownerHex]
-
-              consola.info(
-                ` Using owner: ${networkInfo.address} (hex: ${ownerHex})`
-              )
-              consola.info(`Version: ${version}`)
-
-              const result = await deployer.deployContract(
-                artifact,
-                constructorArgs
-              )
-
-              deployedContracts['ERC20Proxy'] = result.contractAddress
-              deploymentResults.push({
-                contract: 'ERC20Proxy',
-                address: result.contractAddress,
-                txId: result.transactionId,
-                cost: result.actualCost.trxCost,
-                version,
-              })
-
-              consola.success(
-                ` ERC20Proxy deployed to: ${result.contractAddress}`
-              )
-              consola.info(`Transaction: ${result.transactionId}`)
-              consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-              if (!dryRun) {
-                await logDeployment(
-                  'ERC20Proxy',
-                  network,
-                  result.contractAddress,
-                  version,
-                  '0x',
-                  false
-                )
-                await saveContractAddress(
-                  network,
-                  'ERC20Proxy',
-                  result.contractAddress
-                )
-              }
-            }
-          } else if (!existingAddress) {
-            // Deploy new ERC20Proxy (no existing deployment)
+            const version = await getContractVersion('ERC20Proxy')
+            deploymentResults.push({
+              contract: 'ERC20Proxy',
+              address: erc20Deployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Deploy new ERC20Proxy (no existing deployment or redeploy requested)
             const artifact = await loadForgeArtifact('ERC20Proxy')
             const version = await getContractVersion('ERC20Proxy')
 
+            // Constructor: owner address (deployer)
             const ownerHex = tronAddressToHex(tronWeb, networkInfo.address)
             const constructorArgs = [ownerHex]
 
@@ -382,7 +330,9 @@ async function deployAndRegisterPeripheryImpl(options: {
               version,
             })
 
-            consola.success(`ERC20Proxy deployed to: ${result.contractAddress}`)
+            consola.success(
+              ` ERC20Proxy deployed to: ${result.contractAddress}`
+            )
             consola.info(`Transaction: ${result.transactionId}`)
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
@@ -415,87 +365,33 @@ async function deployAndRegisterPeripheryImpl(options: {
         consola.info('\n Deploying Executor...')
 
         try {
-          const existingAddress = await getContractAddress(network, 'Executor')
-          if (existingAddress && !dryRun) {
-            consola.warn(
-              `  Executor is already deployed at: ${existingAddress}`
+          // Check if already deployed
+          const executorDeployment = await checkExistingDeployment(
+            network,
+            'Executor',
+            dryRun
+          )
+
+          if (
+            executorDeployment.exists &&
+            executorDeployment.address &&
+            !executorDeployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing Executor at: ${executorDeployment.address}`
             )
-            const shouldRedeploy = await consola.prompt('Redeploy Executor?', {
-              type: 'confirm',
-              initial: false,
+            deployedContracts['Executor'] = executorDeployment.address
+
+            const version = await getContractVersion('Executor')
+            deploymentResults.push({
+              contract: 'Executor',
+              address: executorDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
             })
-
-            if (!shouldRedeploy) {
-              consola.info(`Using existing Executor at: ${existingAddress}`)
-              deployedContracts['Executor'] = existingAddress
-
-              const version = await getContractVersion('Executor')
-              deploymentResults.push({
-                contract: 'Executor',
-                address: existingAddress,
-                txId: 'existing',
-                cost: 0,
-                version,
-              })
-            } else {
-              // Deploy new Executor
-              const artifact = await loadForgeArtifact('Executor')
-              const version = await getContractVersion('Executor')
-
-              const erc20ProxyAddress =
-                deployedContracts['ERC20Proxy'] ||
-                (await getContractAddress(network, 'ERC20Proxy'))
-              if (!erc20ProxyAddress)
-                throw new Error('ERC20Proxy address not found')
-
-              // Convert addresses to hex format for constructor
-              const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
-                ? erc20ProxyAddress
-                : tronAddressToHex(tronWeb, erc20ProxyAddress)
-              const refundWalletHex = globalConfig.refundWallet
-
-              const constructorArgs = [erc20ProxyHex, refundWalletHex]
-
-              consola.info(`Using ERC20Proxy: ${erc20ProxyAddress}`)
-              consola.info(`Using refundWallet: ${refundWalletHex}`)
-              consola.info(`Version: ${version}`)
-
-              const result = await deployer.deployContract(
-                artifact,
-                constructorArgs
-              )
-
-              deployedContracts['Executor'] = result.contractAddress
-              deploymentResults.push({
-                contract: 'Executor',
-                address: result.contractAddress,
-                txId: result.transactionId,
-                cost: result.actualCost.trxCost,
-                version,
-              })
-
-              consola.success(`Executor deployed to: ${result.contractAddress}`)
-              consola.info(`Transaction: ${result.transactionId}`)
-              consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-              if (!dryRun) {
-                await logDeployment(
-                  'Executor',
-                  network,
-                  result.contractAddress,
-                  version,
-                  '0x',
-                  false
-                )
-                await saveContractAddress(
-                  network,
-                  'Executor',
-                  result.contractAddress
-                )
-              }
-            }
-          } else if (!existingAddress) {
-            // Deploy new Executor (no existing deployment)
+          } else {
+            // Deploy new Executor (no existing deployment or redeploy requested)
             const artifact = await loadForgeArtifact('Executor')
             const version = await getContractVersion('Executor')
 
@@ -505,6 +401,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             if (!erc20ProxyAddress)
               throw new Error('ERC20Proxy address not found')
 
+            // Convert addresses to hex format for constructor
             const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
               ? erc20ProxyAddress
               : tronAddressToHex(tronWeb, erc20ProxyAddress)
@@ -569,83 +466,33 @@ async function deployAndRegisterPeripheryImpl(options: {
         consola.info('\n Deploying FeeCollector...')
 
         try {
-          const existingAddress = await getContractAddress(
+          // Check if already deployed
+          const feeCollectorDeployment = await checkExistingDeployment(
             network,
-            'FeeCollector'
+            'FeeCollector',
+            dryRun
           )
-          if (existingAddress && !dryRun) {
-            consola.warn(
-              `  FeeCollector is already deployed at: ${existingAddress}`
+
+          if (
+            feeCollectorDeployment.exists &&
+            feeCollectorDeployment.address &&
+            !feeCollectorDeployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing FeeCollector at: ${feeCollectorDeployment.address}`
             )
-            const shouldRedeploy = await consola.prompt(
-              'Redeploy FeeCollector?',
-              {
-                type: 'confirm',
-                initial: false,
-              }
-            )
+            deployedContracts['FeeCollector'] = feeCollectorDeployment.address
 
-            if (!shouldRedeploy) {
-              consola.info(`Using existing FeeCollector at: ${existingAddress}`)
-              deployedContracts['FeeCollector'] = existingAddress
-
-              const version = await getContractVersion('FeeCollector')
-              deploymentResults.push({
-                contract: 'FeeCollector',
-                address: existingAddress,
-                txId: 'existing',
-                cost: 0,
-                version,
-              })
-            } else {
-              // Deploy new FeeCollector
-              const artifact = await loadForgeArtifact('FeeCollector')
-              const version = await getContractVersion('FeeCollector')
-
-              const feeCollectorOwnerHex = globalConfig.feeCollectorOwner
-              const constructorArgs = [feeCollectorOwnerHex]
-
-              consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
-              consola.info(`Version: ${version}`)
-
-              const result = await deployer.deployContract(
-                artifact,
-                constructorArgs
-              )
-
-              deployedContracts['FeeCollector'] = result.contractAddress
-              deploymentResults.push({
-                contract: 'FeeCollector',
-                address: result.contractAddress,
-                txId: result.transactionId,
-                cost: result.actualCost.trxCost,
-                version,
-              })
-
-              consola.success(
-                ` FeeCollector deployed to: ${result.contractAddress}`
-              )
-              consola.info(`Transaction: ${result.transactionId}`)
-              consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-              if (!dryRun) {
-                await logDeployment(
-                  'FeeCollector',
-                  network,
-                  result.contractAddress,
-                  version,
-                  '0x',
-                  false
-                )
-                await saveContractAddress(
-                  network,
-                  'FeeCollector',
-                  result.contractAddress
-                )
-              }
-            }
-          } else if (!existingAddress) {
-            // Deploy new FeeCollector (no existing deployment)
+            const version = await getContractVersion('FeeCollector')
+            deploymentResults.push({
+              contract: 'FeeCollector',
+              address: feeCollectorDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Deploy new FeeCollector (no existing deployment or redeploy requested)
             const artifact = await loadForgeArtifact('FeeCollector')
             const version = await getContractVersion('FeeCollector')
 
@@ -710,83 +557,33 @@ async function deployAndRegisterPeripheryImpl(options: {
         consola.info('\n Deploying FeeForwarder...')
 
         try {
-          const existingAddress = await getContractAddress(
+          // Check if already deployed
+          const feeForwarderDeployment = await checkExistingDeployment(
             network,
-            'FeeForwarder'
+            'FeeForwarder',
+            dryRun
           )
-          if (existingAddress && !dryRun) {
-            consola.warn(
-              `  FeeForwarder is already deployed at: ${existingAddress}`
+
+          if (
+            feeForwarderDeployment.exists &&
+            feeForwarderDeployment.address &&
+            !feeForwarderDeployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing FeeForwarder at: ${feeForwarderDeployment.address}`
             )
-            const shouldRedeploy = await consola.prompt(
-              'Redeploy FeeForwarder?',
-              {
-                type: 'confirm',
-                initial: false,
-              }
-            )
+            deployedContracts['FeeForwarder'] = feeForwarderDeployment.address
 
-            if (!shouldRedeploy) {
-              consola.info(`Using existing FeeForwarder at: ${existingAddress}`)
-              deployedContracts['FeeForwarder'] = existingAddress
-
-              const version = await getContractVersion('FeeForwarder')
-              deploymentResults.push({
-                contract: 'FeeForwarder',
-                address: existingAddress,
-                txId: 'existing',
-                cost: 0,
-                version,
-              })
-            } else {
-              const artifact = await loadForgeArtifact('FeeForwarder')
-              const version = await getContractVersion('FeeForwarder')
-
-              const withdrawWallet = globalConfig.withdrawWallet
-              const constructorArgs = [withdrawWallet]
-
-              consola.info(
-                `Using withdrawWallet as contract owner: ${withdrawWallet}`
-              )
-              consola.info(`Version: ${version}`)
-
-              const result = await deployer.deployContract(
-                artifact,
-                constructorArgs
-              )
-
-              deployedContracts['FeeForwarder'] = result.contractAddress
-              deploymentResults.push({
-                contract: 'FeeForwarder',
-                address: result.contractAddress,
-                txId: result.transactionId,
-                cost: result.actualCost.trxCost,
-                version,
-              })
-
-              consola.success(
-                ` FeeForwarder deployed to: ${result.contractAddress}`
-              )
-              consola.info(`Transaction: ${result.transactionId}`)
-              consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-              if (!dryRun) {
-                await logDeployment(
-                  'FeeForwarder',
-                  network,
-                  result.contractAddress,
-                  version,
-                  '0x',
-                  false
-                )
-                await saveContractAddress(
-                  network,
-                  'FeeForwarder',
-                  result.contractAddress
-                )
-              }
-            }
-          } else if (!existingAddress) {
+            const version = await getContractVersion('FeeForwarder')
+            deploymentResults.push({
+              contract: 'FeeForwarder',
+              address: feeForwarderDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Deploy new FeeForwarder (no existing deployment or redeploy requested)
             const artifact = await loadForgeArtifact('FeeForwarder')
             const version = await getContractVersion('FeeForwarder')
 
@@ -876,132 +673,37 @@ async function deployAndRegisterPeripheryImpl(options: {
           })
         } else
           try {
-            const existingAddress = await getContractAddress(
+            // Check if already deployed
+            const tokenWrapperDeployment = await checkExistingDeployment(
               network,
-              'TokenWrapper'
+              'TokenWrapper',
+              dryRun
             )
-            if (existingAddress && !dryRun) {
-              consola.warn(
-                `  TokenWrapper is already deployed at: ${existingAddress}`
+
+            if (
+              tokenWrapperDeployment.exists &&
+              tokenWrapperDeployment.address &&
+              !tokenWrapperDeployment.shouldRedeploy
+            ) {
+              consola.info(
+                `Using existing TokenWrapper at: ${tokenWrapperDeployment.address}`
               )
-              const shouldRedeploy = await consola.prompt(
-                'Redeploy TokenWrapper?',
-                {
-                  type: 'confirm',
-                  initial: false,
-                }
-              )
+              deployedContracts['TokenWrapper'] = tokenWrapperDeployment.address
 
-              if (!shouldRedeploy) {
-                consola.info(
-                  `Using existing TokenWrapper at: ${existingAddress}`
-                )
-                deployedContracts['TokenWrapper'] = existingAddress
-
-                const version = await getContractVersion('TokenWrapper')
-                deploymentResults.push({
-                  contract: 'TokenWrapper',
-                  address: existingAddress,
-                  txId: 'existing',
-                  cost: 0,
-                  version,
-                })
-              } else {
-                // Deploy new TokenWrapper
-                const artifact = await loadForgeArtifact('TokenWrapper')
-                const version = await getContractVersion('TokenWrapper')
-
-                // Get wrapped native address from networks.json (tronConfig already loaded)
-                const wrappedNativeBase58 = tronConfig.wrappedNativeAddress
-                if (!wrappedNativeBase58)
-                  throw new Error(
-                    `wrappedNativeAddress not found for ${network} in networks.json`
-                  )
-
-                // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
-                // Convert to hex, ensuring it's not the zero address
-                const wrappedNativeHex = tronAddressToHex(
-                  tronWeb,
-                  wrappedNativeBase58
-                )
-
-                // Verify it's not zero address
-                if (
-                  wrappedNativeHex ===
-                  '0x0000000000000000000000000000000000000000'
-                )
-                  throw new Error(
-                    `Invalid wrapped native address conversion: ${wrappedNativeBase58} -> ${wrappedNativeHex}`
-                  )
-
-                const refundWalletHex = globalConfig.refundWallet
-
-                // Try to get converter address, default to zero address if not found
-                const converterHex = tronConfig.converterAddress
-                  ? tronAddressToHex(tronWeb, tronConfig.converterAddress)
-                  : '0x0000000000000000000000000000000000000000'
-
-                const constructorArgs = [
-                  wrappedNativeHex,
-                  converterHex,
-                  refundWalletHex,
-                ]
-
-                consola.info(
-                  ` Using wrappedNative: ${wrappedNativeBase58} (hex: ${wrappedNativeHex})`
-                )
-                consola.info(
-                  `Using converter: ${
-                    converterHex ===
-                    '0x0000000000000000000000000000000000000000'
-                      ? 'None (zero address)'
-                      : converterHex
-                  }`
-                )
-                consola.info(`Using refundWallet: ${refundWalletHex}`)
-                consola.info(`Version: ${version}`)
-
-                const result = await deployer.deployContract(
-                  artifact,
-                  constructorArgs
-                )
-
-                deployedContracts['TokenWrapper'] = result.contractAddress
-                deploymentResults.push({
-                  contract: 'TokenWrapper',
-                  address: result.contractAddress,
-                  txId: result.transactionId,
-                  cost: result.actualCost.trxCost,
-                  version,
-                })
-
-                consola.success(
-                  ` TokenWrapper deployed to: ${result.contractAddress}`
-                )
-                consola.info(`Transaction: ${result.transactionId}`)
-                consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-                if (!dryRun) {
-                  await logDeployment(
-                    'TokenWrapper',
-                    network,
-                    result.contractAddress,
-                    version,
-                    '0x',
-                    false
-                  )
-                  await saveContractAddress(
-                    network,
-                    'TokenWrapper',
-                    result.contractAddress
-                  )
-                }
-              }
-            } else if (!existingAddress) {
-              // Deploy new TokenWrapper (no existing deployment)
+              const version = await getContractVersion('TokenWrapper')
+              deploymentResults.push({
+                contract: 'TokenWrapper',
+                address: tokenWrapperDeployment.address,
+                txId: 'existing',
+                cost: 0,
+                version,
+              })
+            } else {
+              // Deploy new TokenWrapper (no existing deployment or redeploy requested)
               const artifact = await loadForgeArtifact('TokenWrapper')
               const version = await getContractVersion('TokenWrapper')
 
+              // Get wrapped native address from networks.json (tronConfig already loaded)
               // Use tronConfig that was already loaded at the beginning
               const wrappedNativeBase58 = tronConfig.wrappedNativeAddress
               if (!wrappedNativeBase58)
@@ -1109,28 +811,22 @@ async function deployAndRegisterPeripheryImpl(options: {
         const safeAddress = (tronConfig.safeAddress ?? '').trim()
         if (safeAddress) {
           try {
-            const existingTimelock = await getContractAddress(
+            // Check if already deployed
+            const timelockDeployment = await checkExistingDeployment(
               network,
-              'LiFiTimelockController'
+              'LiFiTimelockController',
+              dryRun
             )
-            let deployTimelock = !existingTimelock
-            if (existingTimelock && !dryRun) {
-              consola.warn(
-                `  LiFiTimelockController already deployed at: ${existingTimelock}`
-              )
-              const shouldRedeploy = await consola.prompt(
-                'Redeploy LiFiTimelockController?',
-                { type: 'confirm', initial: false }
-              )
-              if (!shouldRedeploy) {
-                consola.info('Skipping LiFiTimelockController deployment.')
-                deployedContracts['LiFiTimelockController'] = existingTimelock
-              }
-              deployTimelock = shouldRedeploy
-            }
-            if (existingTimelock && dryRun) deployTimelock = false
 
-            if (deployTimelock) {
+            if (
+              timelockDeployment.exists &&
+              timelockDeployment.address &&
+              !timelockDeployment.shouldRedeploy
+            ) {
+              consola.info('Skipping LiFiTimelockController deployment.')
+              deployedContracts['LiFiTimelockController'] =
+                timelockDeployment.address
+            } else {
               const timelockConfig = await readJsonFile<{ minDelay: number }>(
                 resolve(process.cwd(), 'config/timelockController.json')
               )
@@ -1214,7 +910,10 @@ async function deployAndRegisterPeripheryImpl(options: {
                 }
               }
             }
-            if (deployTimelock && !dryRun) await sleep(8000)
+
+            const attemptedTimelockDeploy =
+              !timelockDeployment.exists || timelockDeployment.shouldRedeploy
+            if (attemptedTimelockDeploy && !dryRun) await sleep(8000)
           } catch (error: any) {
             consola.error(
               ` Failed to deploy LiFiTimelockController:`,
