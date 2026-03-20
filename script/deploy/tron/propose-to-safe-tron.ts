@@ -108,12 +108,12 @@ async function runPropose(options: { dryRun?: boolean }) {
   const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
   let minDelayBigInt: bigint
   try {
-    const minDelayHex = await timelock.getMinDelay().call()
-    const hexStr =
-      typeof minDelayHex === 'string'
-        ? minDelayHex
-        : minDelayHex?.toString?.() ?? '0'
-    minDelayBigInt = BigInt(hexStr.startsWith('0x') ? hexStr : '0x' + hexStr)
+    const minDelayRes = await timelock.getMinDelay().call()
+    const valueStr =
+      typeof minDelayRes === 'string'
+        ? minDelayRes
+        : minDelayRes?.toString?.() ?? '0'
+    minDelayBigInt = BigInt(valueStr)
   } catch (e) {
     consola.warn('Could not read getMinDelay from Timelock, using 3600')
     minDelayBigInt = 3600n
@@ -147,9 +147,9 @@ async function runPropose(options: { dryRun?: boolean }) {
   let chainNonceBigInt: bigint
   try {
     const nonceRes = await safeContract.nonce().call()
-    const hexStr =
+    const valueStr =
       typeof nonceRes === 'string' ? nonceRes : nonceRes?.toString?.() ?? '0'
-    chainNonceBigInt = BigInt(hexStr.startsWith('0x') ? hexStr : '0x' + hexStr)
+    chainNonceBigInt = BigInt(valueStr)
   } catch (e) {
     throw new Error(
       'Failed to read Safe nonce on Tron: ' +

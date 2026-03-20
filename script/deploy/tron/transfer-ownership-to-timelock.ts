@@ -43,9 +43,10 @@ async function transferOwnershipToTimelock(options: {
   const networkName =
     environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
 
-  const fileSuffix =
-    environment === EnvironmentEnum.production ? '' : 'staging.'
-  const deploymentFileName = `${networkName}.${fileSuffix}json`
+  const deploymentFileName =
+    environment === EnvironmentEnum.production
+      ? 'tron.json'
+      : 'tron.staging.json'
   const deploymentPath = path.join(
     process.cwd(),
     'deployments',
