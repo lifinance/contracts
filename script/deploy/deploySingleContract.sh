@@ -373,6 +373,12 @@ deploySingleContract() {
   fi
   
   CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
+  # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
+  CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
+  if [[ ! "$CONSTRUCTOR_ARGS" =~ ^0x[0-9a-fA-F]*$ ]] || (( ${#CA_HEX_PAYLOAD} % 2 != 0 )); then
+    CONSTRUCTOR_ARGS="0x"
+  fi
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already
