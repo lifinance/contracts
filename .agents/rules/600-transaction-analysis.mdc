@@ -26,4 +26,4 @@ If partially matched (e.g., hash but no network), ask for missing info before en
 
 ## Transaction Analysis Mode
 
-When activated, use `.cursor/commands/analyze-tx.mdc` for complete workflow, rules, and policies.
+When activated, use `.agents/commands/analyze-tx.md` for complete workflow, rules, and policies.

@@ -27,7 +27,7 @@ Rules and commands have a single source of truth. Never edit the symlink targets
 ```
 
 When you add or edit a rule, **always work in `.agents/rules/`**.
-When you add or edit a command, **always work in `.cursor/commands/`**.
+When you add or edit a command, **always work in `.agents/commands/`**.
 
 ## Hybrid Frontmatter (both tools, one file)
 
@@ -102,7 +102,7 @@ Before adding a new guideline:
 
 ## Naming Conventions + Uniqueness Check
 
-- Follow `.cursor/rules/README.md` as the **single source of truth** for numbering ranges and naming.
+- Follow `.agents/rules/README.md` as the **single source of truth** for numbering ranges and naming.
 - Uniqueness checks before committing:
   - No duplicate numeric prefixes (e.g., no two `105-*` files).
   - `name:` fields are unique within `.agents/rules/` and within `.agents/commands/`.
@@ -120,10 +120,10 @@ Before adding a new guideline:
 
 ## Adding a New Rule (step by step)
 
-1. Determine scope → pick numbering range from `.cursor/rules/README.md`.
+1. Determine scope → pick numbering range from `.agents/rules/README.md`.
 2. Create `.agents/rules/<NNN>-<name>.mdc` with hybrid frontmatter.
 3. Symlinks are already in place — no action needed for `.cursor/rules/` or `.claude/rules/`.
-4. Update `.cursor/rules/README.md` table (name, range, description).
+4. Update `.agents/rules/README.md` table (name, range, description).
 5. Run validation steps below.
 
 ## Adding a New Command/Skill (step by step)
@@ -141,7 +141,7 @@ Before adding a new guideline:
 
 - **Symlink integrity**: `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all entries should be symlinks (`->`) pointing into `.agents/rules/`.
 - **Skill symlinks**: `ls -l .claude/skills/*/SKILL.md` — all should point into `.agents/commands/`.
-- **README accuracy**: `.cursor/rules/README.md` table reflects all files in `.agents/rules/`.
+- **README accuracy**: `.agents/rules/README.md` table reflects all files in `.agents/rules/`.
 - **Stale references**: grep `.agents/rules/` and `.agents/commands/` for references to removed files.
 - **Activation sanity check**:
   - Editing a facet (`src/Facets/*.sol`) → pulls facet + Solidity baseline + architecture/security.
