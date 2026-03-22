@@ -3,6 +3,8 @@ name: Receiver contracts
 description: Requirements and patterns for receiver contracts in Periphery
 globs:
   - 'src/Periphery/Receiver*.sol'
+paths:
+  - 'src/Periphery/Receiver*.sol'
 ---
 
 - **Purpose**: Receiver contracts handle cross-chain bridge completion on destination chains. They receive tokens from bridge protocols, execute swaps via Executor, and emit completion/recovery events.

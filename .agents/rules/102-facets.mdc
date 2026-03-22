@@ -3,6 +3,8 @@ name: Diamond facets
 description: Facet-only requirements and validations
 globs:
   - 'src/Facets/**/*.sol'
+paths:
+  - 'src/Facets/**/*.sol'
 ---
 
 ## Facet Requirements ([CONV:FACET-REQS])

@@ -3,6 +3,8 @@ name: Solidity tests
 description: Foundry test structure, naming, and expectations
 globs:
   - 'test/**/*.t.sol'
+paths:
+  - 'test/**/*.t.sol'
 ---
 
 ## Test Structure ([CONV:TESTS])

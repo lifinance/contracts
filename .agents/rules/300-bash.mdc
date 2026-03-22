@@ -3,6 +3,8 @@ name: Bash scripts
 description: Deployment bash structure and safety
 globs:
   - '**/*.sh'
+paths:
+  - '**/*.sh'
 ---
 
 ## Bash Deployment Framework

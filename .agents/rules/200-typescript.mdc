@@ -3,7 +3,8 @@ name: TypeScript scripts
 description: TS scripting, helpers, lint/tests
 globs:
   - 'script/**/*.ts'
-  - 'tasks/**/*.ts'
+paths:
+  - 'script/**/*.ts'
 ---
 
 ## TypeScript Script Conventions

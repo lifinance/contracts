@@ -5,8 +5,12 @@ globs:
   - '.github/workflows/**/*.yml'
   - '.github/workflows/**/*.yaml'
   - '.github/**/*.yml'
+  - '.github/**/*.yaml'alwaysApply: false
+paths:
+  - '.github/workflows/**/*.yml'
+  - '.github/workflows/**/*.yaml'
+  - '.github/**/*.yml'
   - '.github/**/*.yaml'
-alwaysApply: false
 ---
 
 ## GitHub Actions Conventions

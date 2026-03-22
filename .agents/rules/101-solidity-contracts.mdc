@@ -5,6 +5,8 @@ globs:
   - 'src/**/*.sol'
   - '!src/**/*.s.sol'
   - '!src/**/*.t.sol'
+paths:
+  - 'src/**/*.sol'
 ---
 
 - Do not modify production contracts in `src/` unless explicitly requested; changes to production logic could introduce bugs and may be overlooked.

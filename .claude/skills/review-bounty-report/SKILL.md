@@ -1,0 +1,1 @@
+../../../.cursor/commands/review-bounty-report.md

@@ -3,6 +3,8 @@ name: Gas and performance
 description: Gas-efficiency guidance aligned with existing patterns
 globs:
   - 'src/**/*.sol'
+paths:
+  - 'src/**/*.sol'
 ---
 
 - Follow gas-related best practices in existing facets before introducing new micro-optimizations.

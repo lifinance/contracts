@@ -3,6 +3,8 @@ name: Safe decode scripts
 description: Safe/timelock decode and display conventions for script/deploy/safe
 globs:
   - 'script/deploy/safe/**/*.ts'
+paths:
+  - 'script/deploy/safe/**/*.ts'
 ---
 
 ## Safe Decode and Display ([CONV:SAFE-DECODE])

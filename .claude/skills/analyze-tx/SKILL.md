@@ -1,0 +1,1 @@
+../../../.cursor/commands/analyze-tx.md

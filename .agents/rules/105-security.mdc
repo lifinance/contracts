@@ -5,7 +5,10 @@ globs:
   - 'src/**/*.sol'
   - 'script/**/*.sol'
   - 'script/**/*.ts'
-  - 'test/**/*.t.sol'
+paths:
+  - 'src/**/*.sol'
+  - 'script/**/*.sol'
+  - 'script/**/*.ts'
 ---
 
 - Validate all external inputs and configuration (including script/env values) explicitly; prefer existing validation helpers (e.g., `Validatable`, config readers) over ad-hoc checks.

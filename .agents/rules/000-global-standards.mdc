@@ -15,6 +15,3 @@ alwaysApply: true
 - **Design**: When multiple valid approaches exist, name ≥2 with tradeoffs; prefer minimal diffs unless conventions/security justify larger refactor.
 - **Uncertainty**: Flag assumptions/risky edges; don't guess; ask one concise question.
 
-
-
-fdsfad

@@ -3,6 +3,8 @@ name: Solidity interfaces
 description: Interface-only rules for Solidity interfaces in src/Interfaces
 globs:
   - 'src/Interfaces/**/*.sol'
+paths:
+  - 'src/Interfaces/**/*.sol'
 ---
 
 ## Interface File Requirements

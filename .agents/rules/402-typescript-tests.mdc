@@ -3,6 +3,8 @@ name: TypeScript tests
 description: Bun test structure, coverage, and expectations for `.test.ts`
 globs:
   - '**/*.test.ts'
+paths:
+  - '**/*.test.ts'
 ---
 
 ## TypeScript Tests

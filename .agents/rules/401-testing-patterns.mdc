@@ -4,7 +4,9 @@ description: Cross-language testing, coverage, and structure expectations
 globs:
   - 'test/**/*.t.sol'
   - '**/*.test.ts'
-  - 'script/**/*.ts'
+paths:
+  - 'test/**/*.t.sol'
+  - '**/*.test.ts'
 ---
 
 ## Testing Workflow

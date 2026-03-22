@@ -5,8 +5,12 @@ globs:
   - 'audit/**/*.json'
   - 'audit/**/*.pdf'
   - '.github/workflows/**/*audit*.yml'
+  - '.github/workflows/**/*version*.yml'alwaysApply: false
+paths:
+  - 'audit/**/*.json'
+  - 'audit/**/*.pdf'
+  - '.github/workflows/**/*audit*.yml'
   - '.github/workflows/**/*version*.yml'
-alwaysApply: false
 ---
 
 ## File Structure
