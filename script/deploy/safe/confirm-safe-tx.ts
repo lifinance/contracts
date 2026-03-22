@@ -14,11 +14,6 @@ import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
-import { tronScanTransactionUrl } from '../tron/helpers/tronScanUrls'
-import {
-  getTronNetworkKeyForChainId,
-  isTronTvmChainId,
-} from '../tron/helpers/tronTvmChain'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
@@ -188,19 +183,12 @@ const processTxs = async (
         )
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
-      if (isTronTvmChainId(chain.id)) {
-        const tvmKey = getTronNetworkKeyForChainId(chain.id)
-        const txIdDisplay = executionHash.replace(/^0x/i, '').toLowerCase()
-        consola.info(`   - Execution Hash: \u001b[33m${txIdDisplay}\u001b[0m`)
-        if (tvmKey)
-          consola.info(
-            `   - TronScan:       \u001b[36m${tronScanTransactionUrl(
-              tvmKey,
-              txIdDisplay
-            )}\u001b[0m`
-          )
-      } else
-        consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
+      const displayHash = exec.displayHash ?? executionHash
+      consola.info(`   - Execution Hash: \u001b[33m${displayHash}\u001b[0m`)
+      if (exec.explorerUrl)
+        consola.info(
+          `   - Explorer:       \u001b[36m${exec.explorerUrl}\u001b[0m`
+        )
       consola.log(' ')
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)

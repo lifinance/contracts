@@ -1,5 +1,8 @@
 /**
- * Broadcast Gnosis Safe `execTransaction` on Tron via TronWeb + `wallet/triggersmartcontract`.
+ * Broadcast contract calls on Tron via TronWeb + `wallet/triggersmartcontract`.
+ *
+ * {@link broadcastTronContractCall} is the generic helper (any contract, any calldata).
+ * {@link broadcastTronSafeExecTransaction} wraps it for Gnosis Safe `execTransaction`.
  */
 
 import { consola } from 'consola'
@@ -17,6 +20,7 @@ import { evmHexToTronBase58 } from '../tronAddressHelpers'
 import type {
   IBroadcastTronSafeExecParams,
   IExecuteSafeExecTronWebResult,
+  TronTvmNetworkName,
 } from '../types'
 
 import { tronScanTransactionUrl } from './tronScanUrls'
@@ -27,7 +31,7 @@ export type {
   ITronSafeExecParams,
 } from '../types'
 
-function parseSafeExecFeeLimitSun(): number {
+function parseFeeLimitSun(): number {
   const raw = process.env[TRON_SAFE_EXEC_FEE_LIMIT_SUN_ENV]?.trim()
   if (raw === undefined || raw === '')
     return TRON_SAFE_EXEC_DEFAULT_FEE_LIMIT_SUN
@@ -40,61 +44,59 @@ function parseSafeExecFeeLimitSun(): number {
   return n
 }
 
-function tronTxIdToExecutionHashHex(txId: string): Hex {
+function tronTxIdToHex(txId: string): Hex {
   const hex = txId.startsWith('0x') ? txId.slice(2) : txId
-  if (/^[0-9a-fA-F]{64}$/.test(hex)) return `0x${hex.toLowerCase()}` as Hex
-
-  return `0x${hex}` as Hex
+  return `0x${hex.toLowerCase()}` as Hex
 }
 
-export async function broadcastTronSafeExecTransaction(
-  params: IBroadcastTronSafeExecParams
-): Promise<IExecuteSafeExecTronWebResult> {
+// ── Generic contract-call broadcast ──────────────────────────────────────────
+
+export interface IBroadcastTronContractCallParams {
+  networkKey: TronTvmNetworkName
+  privateKeyHex: string
+  contractAddress: Address
+  calldata: Hex
+  callValue?: bigint
+  confirmTimeoutMs?: number
+}
+
+export interface IBroadcastTronContractCallResult {
+  txId: string
+  hash: Hex
+}
+
+/**
+ * Broadcast an arbitrary contract call on Tron via TronWeb `wallet/triggersmartcontract`.
+ * Signs with the given private key, broadcasts, and polls for indexing confirmation.
+ */
+export async function broadcastTronContractCall(
+  params: IBroadcastTronContractCallParams
+): Promise<IBroadcastTronContractCallResult> {
   const tronWeb = createTronWebForTvmNetworkKey({
-    networkKey: params.networkName,
+    networkKey: params.networkKey,
     privateKey: params.privateKeyHex,
   })
 
-  const ownerCheck = tronWeb.defaultAddress.base58
-  if (typeof ownerCheck !== 'string' || !ownerCheck.startsWith('T'))
+  const ownerBase58 = tronWeb.defaultAddress.base58 as string
+  if (!ownerBase58?.startsWith('T'))
     throw new Error('TronWeb defaultAddress.base58 missing after init')
 
-  const calldata = encodeFunctionData({
-    abi: SAFE_SINGLETON_ABI,
-    functionName: 'execTransaction',
-    args: [
-      params.to,
-      params.value,
-      params.data,
-      params.operation,
-      0n,
-      0n,
-      0n,
-      '0x0000000000000000000000000000000000000000' as Address,
-      '0x0000000000000000000000000000000000000000' as Address,
-      params.signatures,
-    ],
-  })
-  const dataHexNo0x = calldata.slice(2)
-
-  const ownerBase58 = tronWeb.defaultAddress.base58 as string
-  const safeBase58 = evmHexToTronBase58(tronWeb, params.safeAddressEvm)
-  const contractAddressHex = tronWeb.address.toHex(safeBase58)
+  const contractBase58 = evmHexToTronBase58(tronWeb, params.contractAddress)
+  const contractAddressHex = tronWeb.address.toHex(contractBase58)
   const ownerAddressHex = tronWeb.address.toHex(ownerBase58)
+  const dataHexNo0x = params.calldata.slice(2)
+  const feeLimit = parseFeeLimitSun()
 
   const callValue =
-    params.value > 0n
+    params.callValue && params.callValue > 0n
       ? (() => {
-          if (params.value > BigInt(Number.MAX_SAFE_INTEGER))
+          if (params.callValue > BigInt(Number.MAX_SAFE_INTEGER))
             throw new Error(
-              '[tron] Safe exec `value` too large for Tron trigger call_value; use 0 or a smaller amount.'
+              '[tron] call_value too large for Tron trigger; use 0 or a smaller amount.'
             )
-
-          return Number(params.value)
+          return Number(params.callValue)
         })()
       : 0
-
-  const feeLimit = parseSafeExecFeeLimitSun()
 
   const triggerResult = (await tronWeb.fullNode.request(
     'wallet/triggersmartcontract',
@@ -111,13 +113,12 @@ export async function broadcastTronSafeExecTransaction(
     transaction?: unknown
   }
 
-  if (!triggerResult?.result?.result) {
+  if (!triggerResult?.result?.result)
     throw new Error(
       `wallet/triggersmartcontract failed: ${JSON.stringify(
         triggerResult?.result ?? triggerResult
       )}`
     )
-  }
 
   const transaction = triggerResult.transaction
   if (!transaction)
@@ -142,8 +143,8 @@ export async function broadcastTronSafeExecTransaction(
   const txId = (
     txIdRaw.startsWith('0x') ? txIdRaw.slice(2) : txIdRaw
   ).toLowerCase()
-  const hash = tronTxIdToExecutionHashHex(txId)
-  const tronScanUrl = tronScanTransactionUrl(params.networkName, txId)
+  const hash = tronTxIdToHex(txId)
+  const tronScanUrl = tronScanTransactionUrl(params.networkKey, txId)
   consola.info(`Blockchain Transaction Hash (Tron): \u001b[33m${txId}\u001b[0m`)
   consola.info(`TronScan: \u001b[36m${tronScanUrl}\u001b[0m`)
 
@@ -167,4 +168,36 @@ export async function broadcastTronSafeExecTransaction(
     )
 
   return { txId, hash }
+}
+
+// ── Safe execTransaction wrapper ─────────────────────────────────────────────
+
+export async function broadcastTronSafeExecTransaction(
+  params: IBroadcastTronSafeExecParams
+): Promise<IExecuteSafeExecTronWebResult> {
+  const calldata = encodeFunctionData({
+    abi: SAFE_SINGLETON_ABI,
+    functionName: 'execTransaction',
+    args: [
+      params.to,
+      params.value,
+      params.data,
+      params.operation,
+      0n,
+      0n,
+      0n,
+      '0x0000000000000000000000000000000000000000' as Address,
+      '0x0000000000000000000000000000000000000000' as Address,
+      params.signatures,
+    ],
+  })
+
+  return broadcastTronContractCall({
+    networkKey: params.networkName,
+    privateKeyHex: params.privateKeyHex,
+    contractAddress: params.safeAddressEvm,
+    calldata,
+    callValue: params.value,
+    confirmTimeoutMs: params.confirmTimeoutMs,
+  })
 }

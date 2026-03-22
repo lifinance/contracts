@@ -13,8 +13,8 @@ import {
   type INetworksObject,
   type SupportedChain,
 } from '../common/types'
+import { TRON_NETWORK_KEYS } from '../deploy/shared/constants'
 import { applyTronGridViemTransportExtras } from '../deploy/tron/helpers/tronGridTransport'
-import { tronJsonRpcUrlForViem } from '../deploy/tron/helpers/tronJsonRpcForViem'
 
 import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
@@ -176,7 +176,13 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Could not find RPC URL for network ${networkName}, please add one with the key ${envKey} to your .env file`
     )
 
-  const rpcUrl = tronJsonRpcUrlForViem(networkName, rpcUrlRaw)
+  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
+  let rpcUrl = rpcUrlRaw
+  if (
+    TRON_NETWORK_KEYS.has(networkName.toLowerCase()) &&
+    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
+  )
+    rpcUrl = `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
 
   const chainConfig: Parameters<typeof defineChain>[0] = {
     id: network.chainId,

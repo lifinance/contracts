@@ -26,7 +26,6 @@ import {
   type Chain,
   type Hex,
   type PublicClient,
-  type TransactionReceipt,
   type WalletClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -51,6 +50,7 @@ import {
   type TronTvmNetworkName,
 } from '../tron/helpers/tronTvmChain'
 
+import type { IChainExecutionResult, IChainExecutor } from './chain-executor'
 import { SAFE_SINGLETON_ABI } from './config'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 
@@ -166,6 +166,11 @@ export class SafeClient {
    * Tron broadcast/signing client when `init` received a raw `privateKey` (same key as viem account).
    */
   private readonly tronWalletClient?: TronWalletClient
+
+  /**
+   * Chain-specific executor, lazy-initialised on first `executeTransaction` call.
+   */
+  private chainExecutor?: IChainExecutor
 
   public constructor(
     publicClient: PublicClient,
@@ -682,108 +687,60 @@ export class SafeClient {
   }
 
   /**
-   * Executes a Safe transaction
+   * Executes a Safe transaction via the chain-specific executor.
    * @param safeTx - The transaction to execute
-   * @returns Object containing the transaction hash and optional receipt
+   * @returns Object containing the transaction hash, optional receipt, and display metadata
    * @throws Error if execution fails
    */
   public async executeTransaction(
     safeTx: ISafeTransaction
-  ): Promise<{ hash: Hex; receipt?: TransactionReceipt }> {
+  ): Promise<IChainExecutionResult> {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
 
-      const chainId = await this.publicClient.getChainId()
-      if (isTronTvmChainId(chainId)) {
-        if (!this.tronWalletClient)
-          throw new Error(
-            'Tron Safe execution uses TronWeb (native protocol) and requires a private-key signer. ' +
-              'Use "Execute with Deployer", or run confirm-safe-tx with --no-ledger and PRIVATE_KEY_PRODUCTION / SAFE_SIGNER_PRIVATE_KEY in .env. ' +
-              'Ledger-only execution cannot broadcast Safe exec through the Tron HTTP API from this script.'
+      // Lazy-init the chain executor on first call (getChainId is async)
+      if (!this.chainExecutor) {
+        const chainId = await this.publicClient.getChainId()
+
+        if (isTronTvmChainId(chainId)) {
+          if (!this.tronWalletClient)
+            throw new Error(
+              'Tron Safe execution uses TronWeb (native protocol) and requires a private-key signer. ' +
+                'Use "Execute with Deployer", or run confirm-safe-tx with --no-ledger and PRIVATE_KEY_PRODUCTION / SAFE_SIGNER_PRIVATE_KEY in .env. ' +
+                'Ledger-only execution cannot broadcast Safe exec through the Tron HTTP API from this script.'
+            )
+
+          const networkKey = getTronNetworkKeyForChainId(chainId)
+          if (!networkKey)
+            throw new Error(
+              `Tron chain ID ${chainId} is not mapped to tron/tronshasta`
+            )
+
+          const { TronChainExecutor } = await import(
+            './executors/tron-executor'
           )
-
-        const networkKey = getTronNetworkKeyForChainId(chainId)
-        if (!networkKey)
-          throw new Error(
-            `Tron chain ID ${chainId} is not mapped to tron/tronshasta`
+          this.chainExecutor = new TronChainExecutor(
+            this.tronWalletClient,
+            networkKey
           )
-
-        const { hash } = await this.tronWalletClient.executeSafeExecTransaction(
-          {
-            networkName: networkKey,
-            safeAddressEvm: this.safeAddress,
-            to: safeTx.data.to,
-            value: safeTx.data.value,
-            data: safeTx.data.data,
-            operation: safeTx.data.operation,
-            signatures,
-          }
-        )
-
-        return { hash }
-      }
-
-      // Submit the transaction (EVM JSON-RPC)
-      const txHash = await this.walletClient.writeContract({
-        account: this.account,
-        chain: null,
-        address: this.safeAddress,
-        abi: SAFE_SINGLETON_ABI,
-        functionName: 'execTransaction',
-        args: [
-          safeTx.data.to,
-          safeTx.data.value,
-          safeTx.data.data,
-          safeTx.data.operation,
-          0n, // safeTxGas
-          0n, // baseGas
-          0n, // gasPrice
-          '0x0000000000000000000000000000000000000000' as Address, // gasToken
-          '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
-          signatures,
-        ],
-      })
-
-      consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
-
-      // Try to get receipt with 30 second timeout
-      let receipt: TransactionReceipt | null = null
-
-      try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
-        )
-
-        const receiptPromise = this.publicClient.waitForTransactionReceipt({
-          hash: txHash,
-        })
-
-        receipt = (await Promise.race([
-          receiptPromise,
-          timeoutPromise,
-        ])) as TransactionReceipt
-
-        // If we got a receipt, check its status
-        if (receipt.status === 'success') return { hash: txHash, receipt }
-        else
-          throw new Error(`Transaction failed with status: ${receipt.status}`)
-      } catch (timeoutError: unknown) {
-        const errorMsg =
-          timeoutError instanceof Error
-            ? timeoutError.message
-            : String(timeoutError)
-        if (errorMsg.includes('timeout')) {
-          // Timeout reached - return optimistically with warning
-          consola.warn(
-            `⚠️  Transaction submitted but confirmation timed out after 30 seconds`
+        } else {
+          const { EvmChainExecutor } = await import('./executors/evm-executor')
+          this.chainExecutor = new EvmChainExecutor(
+            this.walletClient,
+            this.publicClient,
+            this.account
           )
-          consola.warn(`   Transaction hash: ${txHash}`)
-          consola.warn(`   Please manually verify transaction status later`)
-          return { hash: txHash }
         }
-        // Some other error occurred
-        else throw timeoutError
       }
+
+      return await this.chainExecutor.executeTransaction({
+        safeAddress: this.safeAddress,
+        to: safeTx.data.to,
+        value: safeTx.data.value,
+        data: safeTx.data.data,
+        operation: safeTx.data.operation,
+        signatures,
+      })
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       if (errorMsg.includes('execution reverted'))
