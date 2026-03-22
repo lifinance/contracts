@@ -17,6 +17,7 @@
       "Bash(bash -lc 'source script/helperFunctions.sh*)",
       "Bash(jq *)",
       "Bash(wc *)",
+      "Bash(ls *)",
       "Read",
       "Write",
       "Edit",
@@ -37,6 +38,28 @@
       "Bash(mongorestore *)",
       "Bash(mongoexport *)",
       "Bash(mongoimport *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/hooks/post-edit-format.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/hooks/post-edit-validate.sh"
+          }
+        ]
+      }
     ]
   }
 }
