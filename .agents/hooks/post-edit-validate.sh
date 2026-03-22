@@ -11,8 +11,8 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 ROOT=$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null || pwd)
 cd "$ROOT" || exit 0
 
-# Resolve relative path from repo root
-REL=$(realpath --relative-to="$ROOT" "$FILE" 2>/dev/null || echo "$FILE")
+# Resolve path relative to repo root (macOS-compatible)
+REL="${FILE#$ROOT/}"
 
 case "$FILE" in
   *.sol)
