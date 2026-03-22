@@ -1,0 +1,54 @@
+---
+name: Receiver contracts
+description: Requirements and patterns for receiver contracts in Periphery
+globs:
+  - 'src/Periphery/Receiver*.sol'
+---
+
+- **Purpose**: Receiver contracts handle cross-chain bridge completion on destination chains. They receive tokens from bridge protocols, execute swaps via Executor, and emit completion/recovery events.
+
+- **Inheritance**: Must inherit from `ILiFi` and `WithdrawablePeriphery`. May implement bridge-specific interfaces (e.g., `ILayerZeroComposer` for StargateV2).
+
+- **Storage**:
+
+  - `IExecutor public immutable executor` - Executor contract for performing swaps
+  - Bridge-specific authorized caller (e.g., `address public immutable spokepool`, `chainflipVault`, `endpointV2`)
+  - Bridge-specific configuration (e.g., `recoverGas` for StargateV2, protocol-specific constants)
+
+- **Authorization**: Implement modifier(s) to restrict external entry point to bridge protocol only (e.g., `onlySpokepool()`, `onlyChainflipVault()`, `onlyEndpointV2()`). Revert with `UnAuthorized()` if unauthorized.
+
+- **Constructor**:
+
+  - Parameters: `address _owner`, `address _executor`, and bridge-specific addresses
+  - Validate all parameters (check for `address(0)`) and revert with `InvalidConfig()` if invalid
+  - Initialize immutables and call `WithdrawablePeriphery(_owner)`
+
+- **External entry point**: Bridge-specific function (e.g., `handleV3AcrossMessage`, `lzCompose`, `cfReceive`) that:
+
+  - Is protected by bridge-specific authorization modifier
+  - Decodes bridge message to extract: `bytes32 transactionId`, `LibSwap.SwapData[] memory swapData`, `address receiver`
+  - Calls internal `_swapAndCompleteBridgeTokens()` with decoded data and received token/amount
+
+- **Internal swap logic** (`_swapAndCompleteBridgeTokens`):
+
+  - Parameters: `bytes32 _transactionId`, `LibSwap.SwapData[] memory _swapData`, `address assetId`, `address payable receiver`, `uint256 amount`
+  - Handle native vs ERC20 tokens:
+    - **ERC20**: Use `safeApproveWithRetry()` or `safeIncreaseAllowance()` to approve executor, reset to 0 after
+    - **Native**: Pass `value: amount` when calling executor
+  - Call `executor.swapAndCompleteBridgeTokens()` in try-catch block
+  - **On success**: Executor emits `LiFiTransferCompleted`; no action needed
+  - **On failure**: Transfer raw bridged tokens directly to receiver and emit `LiFiTransferRecovered` with `_transactionId`, `assetId`, `receiver`, `amount`, `block.timestamp`
+  - For native tokens with gas checks (e.g., StargateV2): Check `gasleft()` before executing; if insufficient, send tokens directly and emit `LiFiTransferRecovered`
+
+- **Events**:
+
+  - **NEVER** emit `LiFiTransferStarted` (reserved for facets)
+  - **NEVER** emit `LiFiTransferCompleted` (reserved for Executor contract)
+  - **ONLY** emit `LiFiTransferRecovered` when swaps fail and raw bridged tokens are sent to receiver
+  - Event signature: `LiFiTransferRecovered(bytes32 indexed transactionId, address receivingAssetId, address receiver, uint256 amount, uint256 timestamp)`
+
+- **Receive function**: Must implement `receive() external payable {}` to handle native token transfers from bridges.
+
+- **Libraries**: Use `LibAsset` for asset operations, `LibSwap` for swap data structures, `SafeTransferLib` from solady for safe transfers.
+
+- **Error handling**: Use try-catch for executor calls; always have fallback to send raw tokens on failure. Reset approvals to 0 after operations.

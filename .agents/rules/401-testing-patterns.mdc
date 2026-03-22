@@ -1,0 +1,15 @@
+---
+name: Testing discipline
+description: Cross-language testing, coverage, and structure expectations
+globs:
+  - 'test/**/*.t.sol'
+  - '**/*.test.ts'
+  - 'script/**/*.ts'
+---
+
+## Testing Workflow
+
+- Prefer adding or updating tests alongside logic changes.
+- Keep tests structured as setup → execute → assert.
+- Assert _specific_ failure conditions (avoid overly-broad "catch-all" assertions).
+- After modifications, clearly state which test commands (Foundry/Bun) were (or were not) run.
