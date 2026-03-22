@@ -5,7 +5,8 @@ globs:
   - '.github/workflows/**/*.yml'
   - '.github/workflows/**/*.yaml'
   - '.github/**/*.yml'
-  - '.github/**/*.yaml'alwaysApply: false
+  - '.github/**/*.yaml'
+alwaysApply: false # for Cursor
 paths:
   - '.github/workflows/**/*.yml'
   - '.github/workflows/**/*.yaml'

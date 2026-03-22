@@ -14,7 +14,6 @@
       "Bash(git show *)",
       "Bash(git stash list)",
       "Bash(bash -n *)",
-      "Bash(bash -lc 'source script/helperFunctions.sh*)",
       "Bash(jq *)",
       "Bash(wc *)",
       "Bash(ls *)",

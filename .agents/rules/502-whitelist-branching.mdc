@@ -3,7 +3,8 @@ name: Whitelist config branching strategy
 description: Ensure whitelist config files are only changed in main branch to prevent segregation
 globs:
   - 'config/whitelist.json'
-  - 'config/composerWhitelist.json'alwaysApply: false
+  - 'config/composerWhitelist.json'
+alwaysApply: false # for Cursor
 paths:
   - 'config/whitelist.json'
   - 'config/composerWhitelist.json'

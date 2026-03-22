@@ -5,7 +5,8 @@ globs:
   - 'audit/**/*.json'
   - 'audit/**/*.pdf'
   - '.github/workflows/**/*audit*.yml'
-  - '.github/workflows/**/*version*.yml'alwaysApply: false
+  - '.github/workflows/**/*version*.yml'
+alwaysApply: false # for Cursor
 paths:
   - 'audit/**/*.json'
   - 'audit/**/*.pdf'

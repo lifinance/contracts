@@ -4,7 +4,8 @@ description: How to structure JSON config files in config/ for deployments and d
 globs:
   - 'config/**/*.json'
   - 'script/deploy/**/*.s.sol'
-  - 'script/deploy/resources/deployRequirements.json'alwaysApply: false
+  - 'script/deploy/resources/deployRequirements.json'
+alwaysApply: false # for Cursor
 paths:
   - 'config/**/*.json'
   - 'script/deploy/**/*.s.sol'
