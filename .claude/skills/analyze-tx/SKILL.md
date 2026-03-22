@@ -1,1 +1,1 @@
-../../../.cursor/commands/analyze-tx.md
+../../../.agents/commands/analyze-tx.md

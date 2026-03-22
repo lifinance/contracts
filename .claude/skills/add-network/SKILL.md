@@ -1,1 +1,1 @@
-../../../.cursor/commands/add-network.md
+../../../.agents/commands/add-network.md

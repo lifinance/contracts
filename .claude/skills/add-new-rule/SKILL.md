@@ -1,1 +1,1 @@
-../../../.cursor/commands/add-new-rule.md
+../../../.agents/commands/add-new-rule.md

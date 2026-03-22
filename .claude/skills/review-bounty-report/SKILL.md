@@ -1,1 +1,1 @@
-../../../.cursor/commands/review-bounty-report.md
+../../../.agents/commands/review-bounty-report.md

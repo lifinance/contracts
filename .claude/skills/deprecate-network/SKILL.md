@@ -1,1 +1,1 @@
-../../../.cursor/commands/deprecate-network.md
+../../../.agents/commands/deprecate-network.md

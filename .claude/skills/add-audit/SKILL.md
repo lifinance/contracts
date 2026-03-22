@@ -1,1 +1,1 @@
-../../../.cursor/commands/add-audit.md
+../../../.agents/commands/add-audit.md
