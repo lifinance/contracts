@@ -3649,11 +3649,11 @@ function getPrivateKey() {
 
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
-# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts
-# - Staging / Tron: send directly via universalCast sendRaw. When sending directly, timelock is never used.
+# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
+# - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
 #   network, environment, target, calldata: required
-#   timelock: only when proposing; "true" = wrap in timelock, "false" = propose without; ignored when sending directly
+#   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
 function sendOrPropose() {
   local NETWORK="$1"
@@ -3675,8 +3675,32 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Tron or EVM staging: direct send via universalCast sendRaw
+  # Tron: production + not direct-to-diamond → propose to Safe (optionally via timelock); else direct send
   if isTronNetwork "$NETWORK"; then
+    if [[ "$ENVIRONMENT" == "production" ]] && [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]]; then
+      local SAFE_SIGNER_KEY
+      if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
+        SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
+      else
+        SAFE_SIGNER_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+          error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
+          return 1
+        }
+      fi
+      local PROPOSE_TRON_CMD=(
+        bunx tsx script/deploy/tron/propose-to-safe-tron.ts
+        --to "$TARGET"
+        --calldata "$CALLDATA"
+        --privateKey "$SAFE_SIGNER_KEY"
+      )
+      if [[ "$TIMELOCK" == "true" ]]; then
+        PROPOSE_TRON_CMD+=(--timelock)
+      else
+        PROPOSE_TRON_CMD+=(--direct)
+      fi
+      "${PROPOSE_TRON_CMD[@]}"
+      return $?
+    fi
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi

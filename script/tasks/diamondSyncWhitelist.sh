@@ -133,7 +133,10 @@ function diamondSyncWhitelist {
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
       fi
       
-      local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
+      local TIMELOCK_FLAG="false"
+      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+        TIMELOCK_FLAG="true"
+      fi
       echoSyncDebug "Send args: $SEND_ARGS"
       
       local OUTPUT
@@ -211,17 +214,6 @@ function diamondSyncWhitelist {
       echo "config/whitelist.json"
     else
       echo "config/whitelist.staging.json"
-    fi
-  }
-
-  # Determine timelock flag based on network and environment
-  function getTimelockFlag {
-    local NET="$1"
-    local ENV="$2"
-    if [[ "$ENV" == "production" ]] && ! isTronNetwork "$NET"; then
-      echo "true"
-    else
-      echo "false"
     fi
   }
 
@@ -942,8 +934,6 @@ function diamondSyncWhitelist {
         # EVM: use bracket notation for cast
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$REMOVE_SELECTORS_ARRAY] false"
       fi
-
-      local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
       
       echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
       local REMOVE_ATTEMPTS=1
@@ -1113,7 +1103,6 @@ function diamondSyncWhitelist {
           SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS_ARRAY] true"
         fi
 
-        local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
         echoSyncStep "📤 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES: Processing $BATCH_COUNT pairs..."
 
         local ATTEMPTS=1

@@ -2,12 +2,18 @@
 /**
  * Propose to Safe (Tron)
  *
- * Creates a Safe transaction proposal on Tron (e.g. schedule Timelock → Diamond.confirmOwnershipTransfer)
- * and stores it in MongoDB. Use for step 2 of ownership transfer when the new owner is the Timelock.
+ * Creates a Safe transaction proposal on Tron and stores it in MongoDB.
+ *
+ * Modes:
+ * - Default (no --to/--calldata): schedule Timelock.scheduleBatch → Diamond.confirmOwnershipTransfer()
+ *   (ownership transfer step when the new owner is the Timelock).
+ * - Generic (--to + --calldata): schedule Timelock.scheduleBatch → target contract call, or with --direct,
+ *   Safe → target with calldata (no timelock). Used by sendOrPropose for production governance (e.g. whitelist sync).
  *
  * Usage:
  *   bun run script/deploy/tron/propose-to-safe-tron.ts
  *   bun run script/deploy/tron/propose-to-safe-tron.ts --dryRun
+ *   bun run script/deploy/tron/propose-to-safe-tron.ts --to <base58> --calldata 0x... [--timelock|--direct] --privateKey 0x...
  */
 
 import 'dotenv/config'
@@ -42,7 +48,23 @@ import {
   tronZeroAddressBase58,
 } from './tronAddressHelpers.js'
 
-async function runPropose(options: { dryRun?: boolean }) {
+export interface IProposeToSafeTronOptions {
+  dryRun?: boolean
+  /** Base58 contract address for generic proposals */
+  to?: string
+  /** Hex calldata for generic proposals */
+  calldata?: Hex
+  /**
+   * When true (default for generic), Safe calls Timelock.scheduleBatch(Diamond, payload).
+   * When false, use --direct instead (Safe calls target directly).
+   */
+  timelock?: boolean
+  /** When true with generic mode, Safe → target with calldata (no timelock schedule). */
+  direct?: boolean
+  privateKey?: string
+}
+
+async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName = 'tron'
   const deploymentPath = path.join(process.cwd(), 'deployments', 'tron.json')
   if (!fs.existsSync(deploymentPath))
@@ -62,7 +84,16 @@ async function runPropose(options: { dryRun?: boolean }) {
   if (!safeAddressBase58)
     throw new Error('tron.safeAddress not set in config/networks.json')
 
-  const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
+  const genericMode = Boolean(options.to && options.calldata)
+  if ((options.to && !options.calldata) || (!options.to && options.calldata)) {
+    throw new Error(
+      'Generic mode requires both --to (base58) and --calldata (0x...), or neither for ownership mode'
+    )
+  }
+  if (options.direct && options.timelock)
+    throw new Error('Use either --direct or --timelock, not both')
+
+  const privateKey = options.privateKey ?? getEnvVar('PRIVATE_KEY_PRODUCTION')
   const tronWeb = createTronWebForTvmNetworkKey({
     networkKey: networkName as TronTvmNetworkName,
     privateKey,
@@ -73,7 +104,7 @@ async function runPropose(options: { dryRun?: boolean }) {
       : ''
   if (!proposerBase58)
     throw new Error(
-      'TronWeb defaultAddress.base58 missing after loading PRIVATE_KEY_PRODUCTION'
+      'TronWeb defaultAddress.base58 missing after loading private key'
     )
 
   const chainId = networks[networkName].chainId as number
@@ -90,8 +121,18 @@ async function runPropose(options: { dryRun?: boolean }) {
   consola.info(`Timelock: ${timelockAddressBase58}`)
   consola.info(`Diamond: ${diamondAddressBase58}`)
   consola.info(`Proposer: ${proposerBase58}`)
+  if (genericMode) {
+    consola.info(`Mode: generic proposal → ${options.to}`)
+    consola.info(
+      `Timelock wrap: ${
+        options.direct ? 'no (--direct)' : 'yes (scheduleBatch)'
+      }`
+    )
+  } else {
+    consola.info('Mode: ownership (confirmOwnershipTransfer via Timelock)')
+  }
 
-  // 1) Get min delay from Timelock
+  // 1) Get min delay from Timelock (needed for scheduleBatch)
   const timelockAbi = [
     {
       inputs: [],
@@ -119,18 +160,62 @@ async function runPropose(options: { dryRun?: boolean }) {
   }
 
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
-  const scheduleBatchCalldata = encodeFunctionData({
-    abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-    functionName: 'scheduleBatch',
-    args: [
-      [diamondAddressEvm],
-      [0n],
-      [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // [pre-commit-checker: not a secret]
-      salt,
-      minDelayBigInt,
-    ],
-  })
+  const predecessor =
+    '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
+
+  let safeTxToBase58: string
+  let safeTxDataHex: Hex
+  let hashToBase58: string
+  let dryRunDescription: string
+
+  if (!genericMode) {
+    const scheduleBatchCalldata = encodeFunctionData({
+      abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+      functionName: 'scheduleBatch',
+      args: [
+        [diamondAddressEvm],
+        [0n],
+        [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
+        predecessor,
+        salt,
+        minDelayBigInt,
+      ],
+    })
+    safeTxToBase58 = timelockAddressBase58
+    safeTxDataHex = scheduleBatchCalldata
+    hashToBase58 = timelockAddressBase58
+    dryRunDescription =
+      'scheduleBatch(Diamond, confirmOwnershipTransfer selector)'
+  } else {
+    const innerCalldata = options.calldata as Hex
+    const targetBase58 = options.to as string
+    const targetEvm = tronBase58ToEvm20Hex(tronWeb, targetBase58)
+    const useDirect = options.direct === true
+
+    if (!useDirect) {
+      const scheduleBatchCalldata = encodeFunctionData({
+        abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+        functionName: 'scheduleBatch',
+        args: [
+          [targetEvm],
+          [0n],
+          [innerCalldata],
+          predecessor,
+          salt,
+          minDelayBigInt,
+        ],
+      })
+      safeTxToBase58 = timelockAddressBase58
+      safeTxDataHex = scheduleBatchCalldata
+      hashToBase58 = timelockAddressBase58
+      dryRunDescription = `scheduleBatch(${targetBase58}, custom calldata)`
+    } else {
+      safeTxToBase58 = targetBase58
+      safeTxDataHex = innerCalldata
+      hashToBase58 = targetBase58
+      dryRunDescription = `direct Safe → ${targetBase58} (no timelock)`
+    }
+  }
 
   // 2) Get current Safe nonce on chain
   const safeAbiNonce = [
@@ -166,10 +251,15 @@ async function runPropose(options: { dryRun?: boolean }) {
     chainNonceBigInt
   )
 
+  const safeTxToEvm =
+    safeTxToBase58 === timelockAddressBase58
+      ? timelockAddressEvm
+      : tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
+
   const safeTxData = {
-    to: timelockAddressEvm,
+    to: safeTxToEvm,
     value: 0n,
-    data: scheduleBatchCalldata,
+    data: safeTxDataHex,
     operation: OperationTypeEnum.Call,
     nonce: nextNonce,
   }
@@ -182,9 +272,9 @@ async function runPropose(options: { dryRun?: boolean }) {
   try {
     const res = await safeForHash
       .getTransactionHash(
-        timelockAddressBase58,
+        hashToBase58,
         '0',
-        scheduleBatchCalldata,
+        safeTxDataHex,
         0,
         '0',
         '0',
@@ -211,8 +301,8 @@ async function runPropose(options: { dryRun?: boolean }) {
 
   if (options.dryRun) {
     consola.info('[DRY RUN] Would store proposal:')
-    consola.info('  to: ' + timelockAddressEvm)
-    consola.info('  data: scheduleBatch(Diamond, confirmOwnershipTransfer())')
+    consola.info('  to: ' + String(safeTxData.to))
+    consola.info('  data: ' + dryRunDescription)
     consola.info('  nonce: ' + nextNonce.toString())
     consola.info('  safeTxHash: ' + txHashBytes32)
     await mongoClient.close()
@@ -281,7 +371,7 @@ const main = defineCommand({
   meta: {
     name: 'propose-to-safe-tron',
     description:
-      'Propose Diamond confirmOwnershipTransfer (via Timelock) to Tron Safe and store in MongoDB',
+      'Propose transactions to Tron Safe (ownership via Timelock, or generic calldata with optional timelock wrap)',
   },
   args: {
     dryRun: {
@@ -289,10 +379,67 @@ const main = defineCommand({
       description: 'Do not write to MongoDB',
       default: false,
     },
+    to: {
+      type: 'string',
+      description:
+        'Base58 target contract for generic mode (required with --calldata)',
+      required: false,
+    },
+    calldata: {
+      type: 'string',
+      description: 'Hex calldata for generic mode (required with --to)',
+      required: false,
+    },
+    timelock: {
+      type: 'boolean',
+      description:
+        'Generic mode: wrap in Timelock.scheduleBatch (default when generic)',
+      default: false,
+    },
+    direct: {
+      type: 'boolean',
+      description:
+        'Generic mode: propose Safe → target directly without timelock (mutually exclusive with --timelock)',
+      default: false,
+    },
+    privateKey: {
+      type: 'string',
+      description:
+        'Override signer key (default: PRIVATE_KEY_PRODUCTION from .env)',
+      required: false,
+    },
   },
   async run({ args }) {
     try {
-      await runPropose({ dryRun: args.dryRun })
+      const hasGeneric = Boolean(args.to && args.calldata)
+      let timelockWrap: boolean | undefined
+      let direct: boolean | undefined
+      if (hasGeneric) {
+        if (!args.calldata.startsWith('0x'))
+          throw new Error('--calldata must start with 0x')
+        if (args.timelock && args.direct)
+          throw new Error('Use either --timelock or --direct, not both')
+        if (args.direct) {
+          direct = true
+          timelockWrap = false
+        } else if (args.timelock) {
+          timelockWrap = true
+          direct = false
+        } else {
+          // Default for generic: wrap in timelock (matches EVM propose-to-safe --timelock)
+          timelockWrap = true
+          direct = false
+        }
+      }
+
+      await runPropose({
+        dryRun: args.dryRun,
+        to: args.to,
+        calldata: args.calldata as Hex | undefined,
+        timelock: timelockWrap,
+        direct,
+        privateKey: args.privateKey,
+      })
       process.exit(0)
     } catch (e) {
       consola.error(e instanceof Error ? e.message : e)
