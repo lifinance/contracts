@@ -129,10 +129,10 @@ export class DeploymentLogger {
       // Write to MongoDB (primary source)
       await collection.updateOne(
         {
-          contractName: record.contractName,
-          network: record.network,
-          version: record.version,
-          address: record.address,
+          contractName: { $eq: record.contractName },
+          network: { $eq: record.network },
+          version: { $eq: record.version },
+          address: { $eq: record.address },
         },
         {
           $set: {
