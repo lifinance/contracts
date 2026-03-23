@@ -27,6 +27,8 @@ import {
 } from '../utils/viemScriptHelpers'
 
 import targetStateImport from './_targetState.json'
+import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
+import { isRateLimitError } from './shared/rateLimit'
 import {
   callTronContract,
   callTronContractBoolean,
@@ -35,9 +37,7 @@ import {
   normalizeSelector,
   checkOwnershipTron,
   parseTroncastNestedArray,
-} from './healthCheckTronUtils'
-import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
-import { isRateLimitError } from './shared/rateLimit'
+} from './tron/tronUtils'
 import {
   checkIsDeployedTron,
   getCoreFacets as getTronCoreFacets,
@@ -51,7 +51,7 @@ const targetState = targetStateImport as TargetState
  * Execute a command with retry logic for rate limit errors (429)
  * Uses spawn to avoid shell interpretation issues with special characters
  *
- * NOTE: For Tron contract calls, prefer using callTronContract() from healthCheckTronUtils.ts
+ * NOTE: For Tron contract calls, prefer using callTronContract() from tron/tronUtils.ts
  * which is specialized for troncast and includes proper delay handling.
  *
  * This function is primarily used for EVM contract calls via cast.

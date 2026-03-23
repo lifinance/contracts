@@ -30,8 +30,6 @@ export const POLL_INTERVAL = 3000 // 3 seconds
  * - Use INTER_CALL_DELAY for delays between individual checks/calls in loops
  * - Use INITIAL_CALL_DELAY before starting a sequence of calls
  * - Use RETRY_DELAY as the default for retry loops and execWithRateLimitRetry
- * - TronGrid viem JSON-RPC (`tronGridTransport` / `applyTronGridViemTransportExtras`): uses RETRY_DELAY as
- *   `retryDelay` and `MAX_RETRIES + 5` as `retryCount` for HTTP 429 backoff
  */
 
 /**
