@@ -84,66 +84,58 @@ function diamondUpdatePeriphery() {
   # initialize LAST_CALL variable that will be used to exit the script (only when ERROR_ON_EXIT flag is true)
   local LAST_CALL=0
 
-  # loop through all periphery contracts
+  # loop through all periphery contracts (no target state check; same as facet update flow)
   for CONTRACT in $CONTRACTS; do
-    # check if contract is in target state, otherwise skip iteration
-    TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
+    # get contract address from deploy log
+    local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
 
-    # only continue if contract was found in target state (only required for production environment)
-    if [[ "$?" -eq 0 || "$ENVIRONMENT" == "staging" ]]; then
-      # get contract address from deploy log
-      local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
+    # check if address available, otherwise throw error and skip iteration
+    if [ "$CONTRACT_ADDRESS" != "0x" ]; then
+      # verify function selectors match their signatures in global.json
+      local GLOBAL_JSON="config/global.json"
+      if [ -f "$GLOBAL_JSON" ]; then
+        local SELECTOR_DATA=$(jq -r --arg CONTRACT "$CONTRACT" '.whitelistPeripheryFunctions[$CONTRACT] // [] | .[] | "\(.signature)|\(.selector)"' "$GLOBAL_JSON" 2>/dev/null)
 
-      # check if address available, otherwise throw error and skip iteration
-      if [ "$CONTRACT_ADDRESS" != "0x" ]; then
-        # verify function selectors match their signatures in global.json
-        local GLOBAL_JSON="config/global.json"
-        if [ -f "$GLOBAL_JSON" ]; then
-          local SELECTOR_DATA=$(jq -r --arg CONTRACT "$CONTRACT" '.whitelistPeripheryFunctions[$CONTRACT] // [] | .[] | "\(.signature)|\(.selector)"' "$GLOBAL_JSON" 2>/dev/null)
-
-          if [ -n "$SELECTOR_DATA" ]; then
-            local VERIFICATION_FAILED=false
-            while IFS='|' read -r SIGNATURE EXPECTED_SELECTOR; do
-              if [ -n "$SIGNATURE" ] && [ -n "$EXPECTED_SELECTOR" ]; then
-                if ! verifySelectorMatchesSignature "$SIGNATURE" "$EXPECTED_SELECTOR"; then
-                  local CALCULATED=$(cast sig "$SIGNATURE" 2>/dev/null)
-                  error "Selector mismatch for $CONTRACT:"
-                  error "  Signature: $SIGNATURE"
-                  error "  Expected selector: $EXPECTED_SELECTOR"
-                  error "  Calculated selector: $CALCULATED"
-                  VERIFICATION_FAILED=true
-                fi
+        if [ -n "$SELECTOR_DATA" ]; then
+          local VERIFICATION_FAILED=false
+          while IFS='|' read -r SIGNATURE EXPECTED_SELECTOR; do
+            if [ -n "$SIGNATURE" ] && [ -n "$EXPECTED_SELECTOR" ]; then
+              if ! verifySelectorMatchesSignature "$SIGNATURE" "$EXPECTED_SELECTOR"; then
+                local CALCULATED=$(cast sig "$SIGNATURE" 2>/dev/null)
+                error "Selector mismatch for $CONTRACT:"
+                error "  Signature: $SIGNATURE"
+                error "  Expected selector: $EXPECTED_SELECTOR"
+                error "  Calculated selector: $CALCULATED"
+                VERIFICATION_FAILED=true
               fi
-            done <<< "$SELECTOR_DATA"
-
-            if [ "$VERIFICATION_FAILED" = true ]; then
-              error "Function selector verification failed for $CONTRACT. Please fix global.json before proceeding."
-              LAST_CALL=1
-              continue
             fi
+          done <<< "$SELECTOR_DATA"
+
+          if [ "$VERIFICATION_FAILED" = true ]; then
+            error "Function selector verification failed for $CONTRACT. Please fix global.json before proceeding."
+            LAST_CALL=1
+            continue
           fi
         fi
+      fi
 
-        # check if has already been added to diamond
-        KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
+      # check if has already been added to diamond
+      KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
 
-        if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
-          # register contract
-          register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
-          LAST_CALL=$?
+      if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
+        # register contract
+        register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
+        LAST_CALL=$?
 
-          if [ $LAST_CALL -eq 0 ]; then
-            echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
-          fi
-        else
-          echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
+        if [ $LAST_CALL -eq 0 ]; then
+          echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
         fi
       else
-        warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
-        LAST_CALL=1
+        echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
       fi
     else
-      warning "contract $CONTRACT not found in target state file. ACTION REQUIRED: Update target state file and try again if this contract should be included."
+      warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
+      LAST_CALL=1
     fi
   done
 
