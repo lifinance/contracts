@@ -40,7 +40,7 @@ export function getTronGridAPIKey(verbose = false): string | undefined {
         consola.debug(
           `Using TronGrid API key from environment variable: ${envVarName}`
         )
-      return apiKey
+      return apiKey.trim()
     }
   } catch {
     // Continue to check process.env directly
@@ -51,7 +51,7 @@ export function getTronGridAPIKey(verbose = false): string | undefined {
   if (apiKey && apiKey.trim() !== '') {
     if (verbose)
       consola.debug(`Using TronGrid API key from process.env: ${envVarName}`)
-    return apiKey
+    return apiKey.trim()
   }
 
   if (verbose)

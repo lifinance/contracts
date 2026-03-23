@@ -480,7 +480,7 @@ const main = defineCommand({
       }
     } else {
       consola.info(
-        'Skipping Executor aauthorization check for staging environment because Executor is not deployed'
+        'Skipping Executor authorization check for staging environment because Executor is not deployed'
       )
     }
 

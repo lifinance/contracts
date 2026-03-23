@@ -153,22 +153,11 @@ export interface IDeploymentResult {
   status?: 'success' | 'failed' | 'existing'
 }
 
-export interface IFacetCut {
-  facetAddress: string
-  action: number // 0 = Add, 1 = Replace, 2 = Remove
-  functionSelectors: string[]
-}
-
 export interface INetworkInfo {
   network: string
   block: number
   address: string
   balance: number
-}
-
-export interface IConstructorConfig {
-  facetName: string
-  args: any[]
 }
 
 export interface IDiamondRegistrationResult {

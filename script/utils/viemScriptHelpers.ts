@@ -17,6 +17,7 @@ import { TRON_NETWORK_KEYS } from '../deploy/shared/constants'
 import { applyTronGridViemTransportExtras } from '../deploy/tron/helpers/tronGridTransport'
 
 import { getDeployments } from './deploymentHelpers'
+import { getRPCEnvVarName } from './network'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
 
 dotenv.config()
@@ -167,17 +168,16 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Chain ${networkName} does not exist. Please check that the network exists in 'config/networks.json'`
     )
 
-  // Construct the environment variable key dynamically
-  const envKey = `ETH_NODE_URI_${networkName.toUpperCase()}`
-  const rpcUrlRaw = process.env[envKey] || network.rpcUrl // Use .env value if available, otherwise fallback
+  const envKey = getRPCEnvVarName(networkName)
+  const rpcUrlRaw = process.env[envKey]
 
-  if (!rpcUrlRaw)
+  if (!rpcUrlRaw?.trim())
     throw new Error(
-      `Could not find RPC URL for network ${networkName}, please add one with the key ${envKey} to your .env file`
+      `Could not find RPC URL for network ${networkName}, please set ${envKey} in your environment`
     )
 
   // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
-  let rpcUrl = rpcUrlRaw
+  let rpcUrl = rpcUrlRaw.trim()
   if (
     TRON_NETWORK_KEYS.has(networkName.toLowerCase()) &&
     !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')

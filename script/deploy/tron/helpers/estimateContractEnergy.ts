@@ -66,7 +66,11 @@ export async function estimateContractCallEnergy(
     energy_used?: number
     result?: { result?: boolean }
   }
-  if (result.result?.result === false || !result.energy_used) {
+  if (
+    result.result?.result === false ||
+    result.energy_used === undefined ||
+    result.energy_used === null
+  ) {
     throw new Error(
       `No energy estimate (${functionSelector}): ${JSON.stringify(result)}`
     )

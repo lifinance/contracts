@@ -151,11 +151,14 @@ export async function broadcastTronContractCall(
   const timeoutMs =
     params.confirmTimeoutMs ?? TRON_SAFE_EXEC_CONFIRM_TIMEOUT_MS_DEFAULT
   const start = Date.now()
+  let txInfo: { id?: string; receipt?: { result?: string } } | undefined
   while (Date.now() - start < timeoutMs) {
     try {
       const info = await tronWeb.trx.getTransactionInfo(txId)
-      if (info && typeof info === 'object' && (info as { id?: string }).id)
+      if (info && typeof info === 'object' && (info as { id?: string }).id) {
+        txInfo = info as { id?: string; receipt?: { result?: string } }
         break
+      }
     } catch {
       // not yet indexed
     }
@@ -165,6 +168,12 @@ export async function broadcastTronContractCall(
   if (Date.now() - start >= timeoutMs)
     consola.warn(
       `⚠️  Tron tx confirmation timed out after ${timeoutMs}ms; check ${tronScanUrl}`
+    )
+
+  // Check receipt status — reverted TVM calls are indexed but have result === 'FAILED'
+  if (txInfo?.receipt?.result === 'FAILED')
+    throw new Error(
+      `Tron transaction reverted (FAILED): ${txId} — check ${tronScanUrl}`
     )
 
   return { txId, hash }

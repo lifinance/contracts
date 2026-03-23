@@ -96,18 +96,6 @@ export interface IWhitelistConfig {
 }
 
 /**
- * Function type for getting expected whitelist pairs from configuration
- * Used in health check scripts to compare config vs on-chain state
- */
-export type GetExpectedPairsFunction = (
-  network: string,
-  deployedContracts: Record<string, string | `0x${string}`>,
-  environment: string,
-  whitelistConfig: IWhitelistConfig,
-  isTron?: boolean
-) => Promise<Array<{ contract: string; selector: `0x${string}` }>>
-
-/**
  * Target state JSON structure for health checks
  * Maps network names to their production/staging deployment states
  */

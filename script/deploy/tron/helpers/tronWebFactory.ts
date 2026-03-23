@@ -12,7 +12,7 @@ import { tronWebFullHostFromRpcUrl } from './tronJsonRpcForViem'
 import { getTronGridAPIKey, getTronRPCConfig } from './tronRpcConfig'
 
 /**
- * Normalize RPC URL (env / `networks.json`) to TronWeb’s native HTTP root.
+ * Normalize RPC URL from env to TronWeb’s native HTTP root.
  * With `networkKey` `tron` / `tronshasta`, strips `/jsonrpc`; otherwise trims trailing slashes only.
  */
 export function resolveTronWebRpcUrlToFullHost(
@@ -28,7 +28,7 @@ export function resolveTronWebRpcUrlToFullHost(
 
 export interface ICreateTronWebOptions {
   /**
-   * RPC URL as in env / `networks.json` (may end with `/jsonrpc` or trailing slashes).
+   * RPC URL as in env (may end with `/jsonrpc` or trailing slashes).
    * When `networkKey` is `tron` or `tronshasta`, normalized to TronWeb’s native HTTP root
    * via {@link tronWebFullHostFromRpcUrl}. Otherwise only trailing slashes are trimmed.
    */

@@ -33,6 +33,7 @@ import {
   tronAddressToHex,
   tronRegistrationAddressToEvmHex,
 } from './tronAddressHelpers.js'
+import { getTronWallet } from './tronUtils.js'
 import type { ITronDeploymentConfig } from './types'
 import {
   checkExistingDeployment,
@@ -172,15 +173,20 @@ async function deployAndRegisterPeripheryImpl(options: {
       `   Base58: ${tronAddressLikeToBase58(tronWeb, diamondAddress)}`
     )
 
-    // Load configurations
+    // Load configurations (Tron-prefixed keys preferred via getTronWallet — matches healthCheck.ts)
     const globalConfig = await readJsonFile<{
       refundWallet: string
       feeCollectorOwner: string
       withdrawWallet: string
-      deployerWalletTron?: string
       deployerWallet?: string
+      deployerWalletTron?: string
+      refundWalletTron?: string
+      feeCollectorOwnerTron?: string
+      withdrawWalletTron?: string
     }>(resolve(process.cwd(), 'config/global.json'))
     if (!globalConfig) throw new Error('Failed to load config/global.json')
+
+    const globalConfigRecord = globalConfig as Record<string, unknown>
 
     if (!options.registerOnly) {
       consola.info('\n Deployment Plan:')
@@ -405,7 +411,10 @@ async function deployAndRegisterPeripheryImpl(options: {
             const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
               ? erc20ProxyAddress
               : tronAddressToHex(tronWeb, erc20ProxyAddress)
-            const refundWalletHex = globalConfig.refundWallet
+            const refundWalletHex = tronRegistrationAddressToEvmHex(
+              tronWeb,
+              getTronWallet(globalConfigRecord, 'refundWallet')
+            )
 
             const constructorArgs = [erc20ProxyHex, refundWalletHex]
 
@@ -496,7 +505,10 @@ async function deployAndRegisterPeripheryImpl(options: {
             const artifact = await loadForgeArtifact('FeeCollector')
             const version = await getContractVersion('FeeCollector')
 
-            const feeCollectorOwnerHex = globalConfig.feeCollectorOwner
+            const feeCollectorOwnerHex = tronRegistrationAddressToEvmHex(
+              tronWeb,
+              getTronWallet(globalConfigRecord, 'feeCollectorOwner')
+            )
             const constructorArgs = [feeCollectorOwnerHex]
 
             consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
@@ -587,7 +599,10 @@ async function deployAndRegisterPeripheryImpl(options: {
             const artifact = await loadForgeArtifact('FeeForwarder')
             const version = await getContractVersion('FeeForwarder')
 
-            const withdrawWallet = globalConfig.withdrawWallet
+            const withdrawWallet = tronRegistrationAddressToEvmHex(
+              tronWeb,
+              getTronWallet(globalConfigRecord, 'withdrawWallet')
+            )
             const constructorArgs = [withdrawWallet]
 
             consola.info(
@@ -727,7 +742,10 @@ async function deployAndRegisterPeripheryImpl(options: {
                   `Invalid wrapped native address conversion: ${wrappedNativeBase58} -> ${wrappedNativeHex}`
                 )
 
-              const refundWalletHex = globalConfig.refundWallet
+              const refundWalletHex = tronRegistrationAddressToEvmHex(
+                tronWeb,
+                getTronWallet(globalConfigRecord, 'refundWallet')
+              )
 
               // Try to get converter address, default to zero address if not found
               const converterHex = tronConfig.converterAddress
@@ -830,15 +848,24 @@ async function deployAndRegisterPeripheryImpl(options: {
               const timelockConfig = await readJsonFile<{ minDelay: number }>(
                 resolve(process.cwd(), 'config/timelockController.json')
               )
-              if (!timelockConfig?.minDelay) {
+              if (
+                timelockConfig?.minDelay === undefined ||
+                timelockConfig?.minDelay === null ||
+                Number.isNaN(Number(timelockConfig.minDelay))
+              ) {
                 consola.warn(
                   '  config/timelockController.json missing or invalid minDelay; skipping LiFiTimelockController.'
                 )
               } else {
-                const cancellerWallet =
-                  globalConfig.deployerWalletTron ??
-                  globalConfig.deployerWallet ??
-                  ''
+                let cancellerWallet: string
+                try {
+                  cancellerWallet = getTronWallet(
+                    globalConfigRecord,
+                    'deployerWallet'
+                  )
+                } catch {
+                  cancellerWallet = ''
+                }
                 if (!cancellerWallet) {
                   consola.warn(
                     '  global.json missing deployerWalletTron/deployerWallet; skipping LiFiTimelockController.'

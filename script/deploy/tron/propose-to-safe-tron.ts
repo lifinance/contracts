@@ -36,7 +36,7 @@ import {
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
 import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
-import { createTronWeb } from './helpers/tronWebFactory.js'
+import { createTronWebForTvmNetworkKey } from './helpers/tronWebFactory.js'
 import {
   tronBase58ToEvm20Hex,
   tronZeroAddressBase58,
@@ -62,12 +62,8 @@ async function runPropose(options: { dryRun?: boolean }) {
   if (!safeAddressBase58)
     throw new Error('tron.safeAddress not set in config/networks.json')
 
-  const fullHost = networks[networkName]?.rpcUrl || networks[networkName]?.rpc
-  if (!fullHost) throw new Error('Tron RPC URL not found')
-
   const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
-  const tronWeb = createTronWeb({
-    rpcUrl: fullHost,
+  const tronWeb = createTronWebForTvmNetworkKey({
     networkKey: networkName as TronTvmNetworkName,
     privateKey,
   })
@@ -115,8 +111,11 @@ async function runPropose(options: { dryRun?: boolean }) {
         : minDelayRes?.toString?.() ?? '0'
     minDelayBigInt = BigInt(valueStr)
   } catch (e) {
-    consola.warn('Could not read getMinDelay from Timelock, using 3600')
-    minDelayBigInt = 3600n
+    throw new Error(
+      `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
+        e instanceof Error ? e.message : String(e)
+      }`
+    )
   }
 
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
@@ -205,7 +204,9 @@ async function runPropose(options: { dryRun?: boolean }) {
   }
 
   const txHashBytes32 = (
-    txHashHex.length === 66 ? txHashHex : txHashHex.padStart(66, '0').slice(-66)
+    txHashHex.length === 66
+      ? txHashHex
+      : `0x${txHashHex.replace(/^0x/, '').padStart(64, '0')}`
   ) as Hex
 
   if (options.dryRun) {

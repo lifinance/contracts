@@ -2,6 +2,7 @@ import { TronWeb } from 'tronweb'
 
 import networksConfig from '../../../../config/networks.json'
 import type { INetworksObject } from '../../../common/types'
+import { getRPCEnvVarName } from '../../../utils/network'
 import { TRON_NETWORK_KEYS } from '../../shared/constants'
 import { TRON_DEPLOY_NETWORK } from '../constants'
 
@@ -14,8 +15,8 @@ const tronWebCodecByNetwork = new Map<string, TronWeb>()
 /**
  * TronWeb `fullHost` for codec-only usage, from the same source as viem
  * (`getViemChainForNetworkName` in `script/utils/viemScriptHelpers.ts`):
- * `ETH_NODE_URI_<NETWORK>` (e.g. `ETH_NODE_URI_TRON`) or `networks.json` `rpcUrl`,
- * with `/jsonrpc` stripped for Tron networks (native HTTP API root).
+ * `ETH_NODE_URI_<NETWORK>` only (see {@link getRPCEnvVarName}), with `/jsonrpc`
+ * stripped for Tron networks (native HTTP API root).
  *
  * @param networkName `tron` or `tronshasta` (case-insensitive)
  */
@@ -34,12 +35,12 @@ export function getTronWebCodecFullHostForNetwork(networkName: string): string {
     )
   }
 
-  const envKey = `ETH_NODE_URI_${key.toUpperCase()}`
-  const rpcUrlRaw = process.env[envKey] || network.rpcUrl
+  const envKey = getRPCEnvVarName(key)
+  const rpcUrlRaw = process.env[envKey]
 
-  if (!rpcUrlRaw) {
+  if (!rpcUrlRaw?.trim()) {
     throw new Error(
-      `Could not find RPC URL for network ${key}, please add one with the key ${envKey} to your .env file`
+      `Could not find RPC URL for network ${key}, please set ${envKey} in your environment`
     )
   }
 
@@ -56,7 +57,7 @@ export function getTronWebCodecFullHost(): string {
 
 /**
  * Shared TronWeb for address / ABI codec helpers only (no private key), keyed by network.
- * `fullHost` comes from {@link getTronWebCodecFullHostForNetwork} (`.env` + `networks.json`).
+ * `fullHost` comes from {@link getTronWebCodecFullHostForNetwork} (RPC env only).
  */
 export function getTronWebCodecOnlyForNetwork(networkName: string): TronWeb {
   const key = networkName.toLowerCase()

@@ -40,7 +40,7 @@ import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { TRON_NETWORK_KEYS } from '../../deploy/shared/constants'
-import { node_url } from '../../utils/network'
+import { getRPCEnvVarName, node_url } from '../../utils/network'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
@@ -739,7 +739,7 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
  * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
  */
 const getRpcUrl = (chain: SupportedChain) => {
-  const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
+  const envKey = getRPCEnvVarName(chain)
   return getEnvVar(envKey)
 }
 
