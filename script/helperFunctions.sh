@@ -65,6 +65,7 @@ function logContractDeploymentInfo {
     return 1
   fi
 
+  # update-deployment-logs.ts add: upserts MongoDB then invalidates the local deployment cache
   echoDebug "logging deployment to MongoDB"
 
   # Build MongoDB command as array for safe execution
@@ -284,21 +285,12 @@ function findContractInMasterLogByAddress() {
       # Validate that MONGO_RESULT is valid JSON
       if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
         # Convert MongoDB result to expected format
-        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName // empty')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version // empty')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address // empty')
 
-        # If version missing/empty in record, try to resolve by contract name from master log
-        if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
-          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" 2>/dev/null) || true
-        fi
-        # Final fallback: @custom:version from local Solidity (works even when Mongo/cache miss)
-        if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
-          VERSION=$(getCurrentContractVersion "$CONTRACT_NAME" 2>/dev/null) || true
-        fi
-
-        # Check for valid contract name and version (version can be empty string but not null)
-        if [[ "$CONTRACT_NAME" != "null" && "$CONTRACT_NAME" != "" ]]; then
+        # Version may be empty for legacy rows; never infer from @custom:version or other deployments 
+        if [[ -n "$CONTRACT_NAME" ]]; then
           # Facet object key must match facetAddresses() casing from the caller (TARGET_ADDRESS)
           local JSON_ENTRY="{\"$TARGET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
           echo "$JSON_ENTRY"
@@ -867,13 +859,7 @@ function saveDiamondFacets() {
         if [[ -z "${NAME:-}" ]]; then
           NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS" 2>/dev/null) || true
         fi
-        # Version from MongoDB, then @custom:version from Solidity if still empty
-        if [[ -z "${VERSION:-}" && -n "${NAME:-}" ]]; then
-          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$NAME" 2>/dev/null) || true
-        fi
-        if [[ -z "${VERSION:-}" && -n "${NAME:-}" ]]; then
-          VERSION=$(getCurrentContractVersion "$NAME" 2>/dev/null) || true
-        fi
+        # Version only from Mongo (above) or preserved from diamond file; do not infer from source or other deployments
         JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"${NAME:-}\", \"Version\": \"${VERSION:-}\"}}"
       fi
       echo "$JSON_ENTRY" >"$FACETS_DIR/${FACET_ADDRESS}.json"
@@ -2570,10 +2556,13 @@ function updateAllContractsToTargetState() {
               # known by diamond
               # extract version
               #ADDRESS=$(echo "$CONTRACT_INFO" | jq -r 'keys[]' ) # TODO: remove
-              KNOWN_VERSION=$(echo "$CONTRACT_INFO" | jq -r '.[].Version')
+              KNOWN_VERSION=$(echo "$CONTRACT_INFO" | jq -r '.[].Version // empty')
 
-              # check if current version matches with target version
-              if [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
+              # Empty/unknown deployed version must not be treated as up-to-date
+              if [[ -z "$KNOWN_VERSION" || "$KNOWN_VERSION" == "null" ]]; then
+                echo "[info]     unknown deployed version for $CONTRACT; deployment check required" # TODO: remove
+                DEPLOYMENT_REQUIRED=true
+              elif [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
                 echo "[info]     versions do not match ($TARGET_VERSION!=$KNOWN_VERSION)" # TODO: remove
                 DEPLOYMENT_REQUIRED=true
               else
