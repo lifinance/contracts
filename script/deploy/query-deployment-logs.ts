@@ -110,7 +110,7 @@ class DeploymentLogQuerier {
     address: string,
     network: string
   ): Promise<IDeploymentRecord | null> {
-    return this.collection.findOne({ address, network })
+    return this.collection.findOne({ address: { $eq: address }, network: { $eq: network } })
   }
 
   public async filterDeployments(filters: {
