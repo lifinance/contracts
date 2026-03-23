@@ -304,10 +304,10 @@ function diamondSyncWhitelist {
       TRON_ENV=$(getTronEnv "$NETWORK")
     fi
 
-    # Determine if this network will use proposals (Safe) vs direct sends
-    local IS_PROPOSAL=false
+    # sendOrPropose: propose vs send is decided by SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only used when proposing (wrap in timelock).
+    local TIMELOCK_FLAG=false
     if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" && "$IS_TRON" != "true" ]]; then
-      IS_PROPOSAL=true
+      TIMELOCK_FLAG=true
     fi
 
     # Fetch contract address
@@ -963,12 +963,6 @@ function diamondSyncWhitelist {
           sleep 3
         fi
 
-        # sendOrPropose: propose vs send is decided by SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only used when proposing (wrap in timelock).
-        local TIMELOCK_FLAG="false"
-        if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-          TIMELOCK_FLAG="true"
-        fi
-
         echoSyncDebug "Send args for removal: $SEND_ARGS"
 
         local REMOVE_OUTPUT
@@ -979,7 +973,7 @@ function diamondSyncWhitelist {
         if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
 
         if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
-          if [[ "$IS_PROPOSAL" == "true" ]]; then
+          if [[ "$TIMELOCK_FLAG" == "true" ]]; then
             printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal proposal submitted successfully!"
           else
             printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
@@ -1136,12 +1130,6 @@ function diamondSyncWhitelist {
             sleep 3
           fi
 
-          # sendOrPropose: propose vs send from SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only when proposing (wrap in timelock).
-          local TIMELOCK_FLAG="false"
-          if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-            TIMELOCK_FLAG="true"
-          fi
-
           echoSyncDebug "Send args for batch addition: $SEND_ARGS"
 
           local OUTPUT
@@ -1151,7 +1139,7 @@ function diamondSyncWhitelist {
           if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
 
           if [[ $EXIT_CODE -eq 0 ]]; then
-            if [[ "$IS_PROPOSAL" == "true" ]]; then
+            if [[ "$TIMELOCK_FLAG" == "true" ]]; then
               printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES proposal submitted!"
             else
               printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
@@ -1186,15 +1174,14 @@ function diamondSyncWhitelist {
       fi
 
       # All batches succeeded - verify final state
-      if [[ "$IS_PROPOSAL" == "true" ]]; then
+      if [[ "$TIMELOCK_FLAG" == "true" ]]; then
         printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batch proposals submitted successfully!"
       else
         printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batches completed successfully!"
       fi
 
-      # Skip verification when we proposed (production, SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true): state changes only after proposal is executed
-      # Run verification when we sent directly (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)
-      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+      # Skip verification when we proposed: state changes only after proposal is executed
+      if [[ "$TIMELOCK_FLAG" == "true" ]]; then
         printf '\033[0;36m%s\033[0m\n' "ℹ️  [$NETWORK] Skipping verification - proposals require signing and execution before state changes"
         return 0
       fi
@@ -1274,7 +1261,7 @@ function diamondSyncWhitelist {
       fi
     else
       if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
-        if [[ "$IS_PROPOSAL" == "true" ]]; then
+        if [[ "$TIMELOCK_FLAG" == "true" ]]; then
           printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were proposed for removal"
         else
           printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were removed"
