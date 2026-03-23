@@ -218,7 +218,7 @@ function diamondSyncWhitelist {
   function getTimelockFlag {
     local NET="$1"
     local ENV="$2"
-    if [[ "$ENV" == "production" ]] && ! isTronNetwork "$NET"; then
+    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTronNetwork "$NET"; then
       echo "true"
     else
       echo "false"
@@ -949,8 +949,6 @@ function diamondSyncWhitelist {
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$REMOVE_SELECTORS_ARRAY] false"
       fi
 
-      local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
-      
       echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
       local REMOVE_ATTEMPTS=1
       local REMOVE_SUCCESS=false
@@ -1117,7 +1115,6 @@ function diamondSyncWhitelist {
           SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS_ARRAY] true"
         fi
 
-        local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
         echoSyncStep "📤 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES: Processing $BATCH_COUNT pairs..."
 
         local ATTEMPTS=1
