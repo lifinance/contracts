@@ -120,7 +120,7 @@ const main = defineCommand({
 
         // Update (or create) the document by merging the new RPC endpoint
         await collection.updateOne(
-          { chainName },
+          { chainName: { $eq: chainName } },
           {
             $set: { lastUpdated: new Date() },
             $push: {
