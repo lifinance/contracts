@@ -228,14 +228,6 @@
       "0xF158ac0983D6D4eF8Ef65De7B39585B8381Fe570": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
-      },
-      "0x6A8E5E547E4393E44A99511c6284D299b69e2588": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
-      },
-      "0xAfd4f3d211B74F6c89DAEDf1D364bd289bF35Be9": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
