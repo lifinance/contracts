@@ -28,6 +28,11 @@ const config: IConfig = {
   databaseName: 'contract-deployments',
 }
 
+/** Escapes a string for safe use as a literal inside a MongoDB regex pattern. */
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 class DeploymentLogQuerier {
   private client: MongoClient
   private db!: Db
@@ -57,7 +62,7 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord | null> {
     return this.collection.findOne(
-      { contractName, network },
+      { contractName: { $eq: contractName }, network: { $eq: network } },
       { sort: { timestamp: -1 } }
     )
   }
@@ -79,8 +84,8 @@ class DeploymentLogQuerier {
     }
   }> {
     const filter: Record<string, unknown> = {}
-    if (contractName) filter.contractName = contractName
-    if (network) filter.network = network
+    if (contractName) filter.contractName = { $eq: contractName }
+    if (network) filter.network = { $eq: network }
 
     const skip = (page - 1) * limit
     const total = await this.collection.countDocuments(filter)
@@ -110,14 +115,20 @@ class DeploymentLogQuerier {
     address: string,
     network: string
   ): Promise<IDeploymentRecord | null> {
-    const n = network.trim()
-    const a = address.trim()
-    const exact = await this.collection.findOne({ address: a, network: n })
+    const n =
+      typeof network === 'string' ? network.trim() : String(network).trim()
+    const a =
+      typeof address === 'string' ? address.trim() : String(address).trim()
+    const exact = await this.collection.findOne({
+      address: { $eq: a },
+      network: { $eq: n },
+    })
     if (exact) return exact
     // facetAddresses() is often all-lowercase; Mongo may store checksummed addresses
+    const safePattern = escapeRegexLiteral(a)
     return this.collection.findOne({
-      network: n,
-      address: { $regex: `^${a}$`, $options: 'i' },
+      network: { $eq: n },
+      address: { $regex: `^${safePattern}$`, $options: 'i' },
     })
   }
 
@@ -130,10 +141,11 @@ class DeploymentLogQuerier {
   }): Promise<IDeploymentRecord[]> {
     const query: Record<string, unknown> = {}
 
-    if (filters.contractName) query.contractName = filters.contractName
-    if (filters.network) query.network = filters.network
-    if (filters.version) query.version = filters.version
-    if (filters.verified !== undefined) query.verified = filters.verified
+    if (filters.contractName) query.contractName = { $eq: filters.contractName }
+    if (filters.network) query.network = { $eq: filters.network }
+    if (filters.version) query.version = { $eq: filters.version }
+    if (filters.verified !== undefined)
+      query.verified = { $eq: filters.verified }
 
     return this.collection
       .find(query)
@@ -147,7 +159,10 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord[]> {
     return this.collection
-      .find({ contractName, network })
+      .find({
+        contractName: { $eq: contractName },
+        network: { $eq: network },
+      })
       .sort({ timestamp: -1 })
       .toArray()
   }
