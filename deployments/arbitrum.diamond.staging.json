@@ -216,6 +216,10 @@
       "0x0083D417852d8650Ca9c7eAFF882cfF92eFd6Eae": {
         "Name": "MayanFacet",
         "Version": ""
+      },
+      "0xc5C34A7A86e9C6B37A8E9F266c26660d5A12f5dD": {
+        "Name": "MayanFacet",
+        "Version": ""
       }
     },
     "Periphery": {
