@@ -1,8 +1,11 @@
 #!/bin/bash
 #
 
-# load env variables
+# load env variables — export all assignments so Bun/Node children inherit MONGODB_URI, RPC URLs, etc.
+set -a
+# shellcheck disable=SC1091
 source .env
+set +a
 
 # load script
 source script/config.sh
@@ -236,6 +239,7 @@ function findContractInMasterLog() {
   echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
   return 1
 }
+
 function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -288,10 +292,15 @@ function findContractInMasterLogByAddress() {
         if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
           VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" 2>/dev/null) || true
         fi
+        # Final fallback: @custom:version from local Solidity (works even when Mongo/cache miss)
+        if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+          VERSION=$(getCurrentContractVersion "$CONTRACT_NAME" 2>/dev/null) || true
+        fi
 
         # Check for valid contract name and version (version can be empty string but not null)
         if [[ "$CONTRACT_NAME" != "null" && "$CONTRACT_NAME" != "" ]]; then
-          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
+          # Facet object key must match facetAddresses() casing from the caller (TARGET_ADDRESS)
+          local JSON_ENTRY="{\"$TARGET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
           echo "$JSON_ENTRY"
           return 0
         fi
@@ -467,6 +476,7 @@ function getUnverifiedContractsFromMongo() {
   local ENVIRONMENT="$1"
 
   echoDebug "Getting unverified contracts from MongoDB"
+
   bun script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --verified=false \
@@ -857,9 +867,12 @@ function saveDiamondFacets() {
         if [[ -z "${NAME:-}" ]]; then
           NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS" 2>/dev/null) || true
         fi
-        # Version only from MongoDB (with retries inside getHighestDeployedContractVersionFromMasterLog)
+        # Version from MongoDB, then @custom:version from Solidity if still empty
         if [[ -z "${VERSION:-}" && -n "${NAME:-}" ]]; then
           VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$NAME" 2>/dev/null) || true
+        fi
+        if [[ -z "${VERSION:-}" && -n "${NAME:-}" ]]; then
+          VERSION=$(getCurrentContractVersion "$NAME" 2>/dev/null) || true
         fi
         JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"${NAME:-}\", \"Version\": \"${VERSION:-}\"}}"
       fi

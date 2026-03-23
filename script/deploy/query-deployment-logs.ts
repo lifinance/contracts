@@ -110,7 +110,15 @@ class DeploymentLogQuerier {
     address: string,
     network: string
   ): Promise<IDeploymentRecord | null> {
-    return this.collection.findOne({ address, network })
+    const n = network.trim()
+    const a = address.trim()
+    const exact = await this.collection.findOne({ address: a, network: n })
+    if (exact) return exact
+    // facetAddresses() is often all-lowercase; Mongo may store checksummed addresses
+    return this.collection.findOne({
+      network: n,
+      address: { $regex: `^${a}$`, $options: 'i' },
+    })
   }
 
   public async filterDeployments(filters: {
