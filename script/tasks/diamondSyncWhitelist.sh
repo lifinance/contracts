@@ -304,6 +304,12 @@ function diamondSyncWhitelist {
       TRON_ENV=$(getTronEnv "$NETWORK")
     fi
 
+    # Determine if this network will use proposals (Safe) vs direct sends
+    local IS_PROPOSAL=false
+    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" && "$IS_TRON" != "true" ]]; then
+      IS_PROPOSAL=true
+    fi
+
     # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
     local GET_ADDRESS_EXIT_CODE=$?
@@ -973,7 +979,11 @@ function diamondSyncWhitelist {
         if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
 
         if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
+          if [[ "$IS_PROPOSAL" == "true" ]]; then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal proposal submitted successfully!"
+          else
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
+          fi
           REMOVE_SUCCESS=true
           break
         else
@@ -1141,7 +1151,11 @@ function diamondSyncWhitelist {
           if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
 
           if [[ $EXIT_CODE -eq 0 ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
+            if [[ "$IS_PROPOSAL" == "true" ]]; then
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES proposal submitted!"
+            else
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
+            fi
             BATCH_TX_SUCCESS=true
             break
           else
@@ -1172,7 +1186,11 @@ function diamondSyncWhitelist {
       fi
 
       # All batches succeeded - verify final state
-      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batches completed successfully!"
+      if [[ "$IS_PROPOSAL" == "true" ]]; then
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batch proposals submitted successfully!"
+      else
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batches completed successfully!"
+      fi
 
       # Skip verification when we proposed (production, SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true): state changes only after proposal is executed
       # Run verification when we sent directly (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)
@@ -1256,7 +1274,11 @@ function diamondSyncWhitelist {
       fi
     else
       if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
-        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were removed"
+        if [[ "$IS_PROPOSAL" == "true" ]]; then
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were proposed for removal"
+        else
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were removed"
+        fi
       else
         printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Skipped - all contract-selector pairs are already whitelisted and no obsolete pairs found"
       fi
