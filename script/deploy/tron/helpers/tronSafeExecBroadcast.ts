@@ -18,15 +18,18 @@ import {
 } from '../constants'
 import { evmHexToTronBase58 } from '../tronAddressHelpers'
 import type {
+  IBroadcastTronContractCallParams,
+  IBroadcastTronContractCallResult,
   IBroadcastTronSafeExecParams,
   IExecuteSafeExecTronWebResult,
-  TronTvmNetworkName,
 } from '../types'
 
 import { tronScanTransactionUrl } from './tronScanUrls'
 import { createTronWebForTvmNetworkKey } from './tronWebFactory'
 
 export type {
+  IBroadcastTronContractCallParams,
+  IBroadcastTronContractCallResult,
   IExecuteSafeExecTronWebResult,
   ITronSafeExecParams,
 } from '../types'
@@ -50,20 +53,6 @@ function tronTxIdToHex(txId: string): Hex {
 }
 
 // ── Generic contract-call broadcast ──────────────────────────────────────────
-
-export interface IBroadcastTronContractCallParams {
-  networkKey: TronTvmNetworkName
-  privateKeyHex: string
-  contractAddress: Address
-  calldata: Hex
-  callValue?: bigint
-  confirmTimeoutMs?: number
-}
-
-export interface IBroadcastTronContractCallResult {
-  txId: string
-  hash: Hex
-}
 
 /**
  * Broadcast an arbitrary contract call on Tron via TronWeb `wallet/triggersmartcontract`.

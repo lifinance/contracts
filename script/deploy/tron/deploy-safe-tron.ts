@@ -48,7 +48,7 @@ import {
   tronAddressToHex,
   tronProxyCreationHexToBase58,
 } from './tronAddressHelpers.js'
-import type { IForgeArtifact } from './types.js'
+import type { IForgeArtifact, ITronSafeTemp } from './types.js'
 import {
   getTronRPCConfig,
   getAccountAvailableResources,
@@ -56,11 +56,6 @@ import {
   estimateContractCallEnergy,
   promptEnergyRentalReminder,
 } from './utils.js'
-
-interface ITronSafeTemp {
-  safeSingletonAddress?: string
-  safeProxyFactoryAddress?: string
-}
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {

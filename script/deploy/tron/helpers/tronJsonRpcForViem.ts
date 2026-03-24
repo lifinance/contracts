@@ -4,7 +4,7 @@
  * deploy/tron/utils.ts → demoScriptHelpers → viemScriptHelpers).
  */
 
-import { TRON_NETWORK_KEYS } from '../../shared/constants'
+import { isTronNetworkKey } from '../../shared/tron-network-keys'
 
 /**
  * TronWeb `fullHost` expects the native full-node root URL, not the JSON-RPC
@@ -14,7 +14,7 @@ export function tronWebFullHostFromRpcUrl(
   networkKey: string,
   rpcUrl: string
 ): string {
-  if (!TRON_NETWORK_KEYS.has(networkKey.toLowerCase())) {
+  if (!isTronNetworkKey(networkKey)) {
     return rpcUrl.replace(/\/+$/, '')
   }
   const base = rpcUrl.replace(/\/+$/, '')

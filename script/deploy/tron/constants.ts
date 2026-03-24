@@ -19,7 +19,7 @@ export const TRON_SAFE_ARTIFACTS_BASE = path.join(
   '../../../safe/london/out'
 )
 
-/** Temp file for singleton/factory addresses during Safe deploy; not written to networks.json. */
+/** Temp file for singleton/factory addresses during Safe deploy; */
 export const TRON_SAFE_DEPLOY_TEMP_JSON_PATH = path.join(
   process.cwd(),
   'config',

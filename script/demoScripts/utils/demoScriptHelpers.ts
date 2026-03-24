@@ -39,7 +39,7 @@ import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
-import { TRON_NETWORK_KEYS } from '../../deploy/shared/constants'
+import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
 import { getRPCEnvVarName, node_url } from '../../utils/network'
 import {
   getTransportConfigFromRpcUrl,
@@ -783,7 +783,7 @@ export const setupEnvironment = async (
   let RPC_URL = customRpcUrl || getRpcUrl(chain)
   // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
   if (
-    TRON_NETWORK_KEYS.has(chain.toLowerCase()) &&
+    isTronNetworkKey(chain) &&
     !RPC_URL.replace(/\/+$/, '').endsWith('/jsonrpc')
   )
     RPC_URL = `${RPC_URL.replace(/\/+$/, '')}/jsonrpc`

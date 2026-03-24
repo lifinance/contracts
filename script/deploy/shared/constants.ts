@@ -65,9 +65,3 @@ export const EVM_VERSIONS = [
   'london',
   'cancun',
 ] as const satisfies readonly EVMVersion[]
-
-/**
- * `networks.json` / Mongo **network keys** for Tron (mainnet + Shasta) where addresses may be base58 (`T…`).
- * Used when coercing config strings to viem `Address` / JSON-RPC hex addresses.
- */
-export const TRON_NETWORK_KEYS = new Set(['tron', 'tronshasta'])

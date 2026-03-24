@@ -5,7 +5,7 @@
 import { TronWeb } from 'tronweb'
 
 import { TRON_PRO_API_KEY_HEADER } from '../constants'
-import type { TronTvmNetworkName } from '../types'
+import type { ICreateTronWebOptions, TronTvmNetworkName } from '../types'
 
 import { isTronGridRpcUrl } from './isTronGridRpcUrl'
 import { tronWebFullHostFromRpcUrl } from './tronJsonRpcForViem'
@@ -26,25 +26,7 @@ export function resolveTronWebRpcUrlToFullHost(
   return raw.replace(/\/+$/, '')
 }
 
-export interface ICreateTronWebOptions {
-  /**
-   * RPC URL as in env (may end with `/jsonrpc` or trailing slashes).
-   * When `networkKey` is `tron` or `tronshasta`, normalized to TronWeb’s native HTTP root
-   * via {@link tronWebFullHostFromRpcUrl}. Otherwise only trailing slashes are trimmed.
-   */
-  rpcUrl: string
-  networkKey?: TronTvmNetworkName
-  privateKey?: string
-  headers?: Record<string, string>
-  /**
-   * Optional TronGrid PRO API key. Used only when `headers` does not already set
-   * `TRON-PRO-API-KEY`. If still unset and the resolved host looks like TronGrid, the key is
-   * taken from the environment via {@link getTronGridAPIKey} (e.g. `TRONGRID_API_KEY`).
-   */
-  tronProApiKey?: string
-  /** Passed to {@link getTronGridAPIKey} when resolving the key from the environment. */
-  verbose?: boolean
-}
+export type { ICreateTronWebOptions } from '../types'
 
 export function createTronWeb(options: ICreateTronWebOptions): TronWeb {
   const fullHost = resolveTronWebRpcUrlToFullHost(

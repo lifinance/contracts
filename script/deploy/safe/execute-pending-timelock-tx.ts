@@ -36,7 +36,7 @@ import {
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
-import { TRON_NETWORK_KEYS } from '../shared/constants'
+import { isTronNetworkKey } from '../shared/tron-network-keys'
 import { broadcastTronContractCall } from '../tron/helpers/tronSafeExecBroadcast'
 import type { TronTvmNetworkName } from '../tron/types'
 
@@ -644,10 +644,8 @@ async function processNetwork(
       deploymentData.LiFiTimelockController
     )
 
-    if (TRON_NETWORK_KEYS.has(network.name.toLowerCase()))
-      consola.info(
-        `[${network.name}] Tron: timelock ${deploymentData.LiFiTimelockController} → viem ${timelockAddress} (ETH_NODE_URI_TRON + TronGrid transport from setupEnvironment)`
-      )
+    // `timelockAddress` is viem-ready checksummed hex (Tron deployment JSON may use base58; see normalizeAddressForNetwork).
+    // Tron RPC: `setupEnvironment` below uses ETH_NODE_URI_TRON with TronGrid transport for public/wallet clients.
 
     const { publicClient, walletClient } = await setupEnvironment(
       network.name as SupportedChain,
@@ -1249,48 +1247,13 @@ async function executeOperation(
       // Send the actual transaction
       consola.info(`${networkPrefix} 📤 Submitting transaction...`)
 
-      const isTron =
-        networkName !== undefined &&
-        TRON_NETWORK_KEYS.has(networkName.toLowerCase())
-
-      const callData = isBatch
-        ? encodeFunctionData({
-            abi: TIMELOCK_ABI,
-            functionName: 'executeBatch',
-            args: [
-              operation.targets,
-              operation.values,
-              operation.payloads,
-              operation.predecessor,
-              salt,
-            ],
-          })
-        : encodeFunctionData({
-            abi: TIMELOCK_ABI,
-            functionName: 'execute',
-            args: [
-              primaryTarget,
-              primaryValue,
-              primaryPayload,
-              operation.predecessor,
-              salt,
-            ],
-          })
+      const isTron = isTronNetworkKey(networkName)
 
       let hash: Hex
       if (isTron) {
-        // Tron: use TronWeb native protocol (viem writeContract fails — no eth_getTransactionCount)
-        const tronResult = await broadcastTronContractCall({
-          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
-          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
-          contractAddress: timelockAddress,
-          calldata: callData,
-        })
-        hash = tronResult.hash
-      } else {
-        hash = isBatch
-          ? await walletClient.writeContract({
-              address: timelockAddress,
+        // Tron: use TronWeb for broadcast (viem writeContract fails - no eth_getTransactionCount)
+        const callData = isBatch
+          ? encodeFunctionData({
               abi: TIMELOCK_ABI,
               functionName: 'executeBatch',
               args: [
@@ -1300,11 +1263,8 @@ async function executeOperation(
                 operation.predecessor,
                 salt,
               ],
-              account: walletClient.account || null,
-              chain: walletClient.chain || null,
             })
-          : await walletClient.writeContract({
-              address: timelockAddress,
+          : encodeFunctionData({
               abi: TIMELOCK_ABI,
               functionName: 'execute',
               args: [
@@ -1314,14 +1274,49 @@ async function executeOperation(
                 operation.predecessor,
                 salt,
               ],
-              account: walletClient.account || null,
-              chain: walletClient.chain || null,
             })
+        const tronResult = await broadcastTronContractCall({
+          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
+          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
+          contractAddress: timelockAddress,
+          calldata: callData,
+        })
+        hash = tronResult.hash
+      } else if (isBatch) {
+        hash = await walletClient.writeContract({
+          address: timelockAddress,
+          abi: TIMELOCK_ABI,
+          functionName: 'executeBatch',
+          args: [
+            operation.targets,
+            operation.values,
+            operation.payloads,
+            operation.predecessor,
+            salt,
+          ],
+          account: walletClient.account || null,
+          chain: walletClient.chain || null,
+        })
+      } else {
+        hash = await walletClient.writeContract({
+          address: timelockAddress,
+          abi: TIMELOCK_ABI,
+          functionName: 'execute',
+          args: [
+            primaryTarget,
+            primaryValue,
+            primaryPayload,
+            operation.predecessor,
+            salt,
+          ],
+          account: walletClient.account || null,
+          chain: walletClient.chain || null,
+        })
       }
 
       consola.info(`${networkPrefix}    Transaction hash: ${hash}`)
 
-      // For Tron, broadcastTronContractCall already polls for confirmation
+      let gasUsed: bigint | undefined
       if (!isTron) {
         consola.info(`${networkPrefix}    Waiting for confirmation...`)
         const receipt = await publicClient.waitForTransactionReceipt({ hash })
@@ -1332,52 +1327,27 @@ async function executeOperation(
           )
           return 'failed'
         }
-
-        // Send Slack notification if enabled
-        if (slackNotifier && networkName)
-          try {
-            await slackNotifier.notifyOperationExecuted({
-              network: networkName,
-              operation: {
-                id: operation.id,
-                target: primaryTarget,
-                value: primaryValue,
-                data: primaryPayload,
-                functionName: operation.functionName,
-              },
-              status: 'success',
-              transactionHash: hash,
-              gasUsed: receipt.gasUsed,
-            })
-          } catch (error) {
-            consola.warn(
-              'Failed to send operation success notification:',
-              error
-            )
-          }
-      } else {
-        // Tron: send Slack notification without gas info
-        if (slackNotifier && networkName)
-          try {
-            await slackNotifier.notifyOperationExecuted({
-              network: networkName,
-              operation: {
-                id: operation.id,
-                target: primaryTarget,
-                value: primaryValue,
-                data: primaryPayload,
-                functionName: operation.functionName,
-              },
-              status: 'success',
-              transactionHash: hash,
-            })
-          } catch (error) {
-            consola.warn(
-              'Failed to send operation success notification:',
-              error
-            )
-          }
+        gasUsed = receipt.gasUsed
       }
+
+      if (slackNotifier && networkName)
+        try {
+          await slackNotifier.notifyOperationExecuted({
+            network: networkName,
+            operation: {
+              id: operation.id,
+              target: primaryTarget,
+              value: primaryValue,
+              data: primaryPayload,
+              functionName: operation.functionName,
+            },
+            status: 'success',
+            transactionHash: hash,
+            gasUsed,
+          })
+        } catch (error) {
+          consola.warn('Failed to send operation success notification:', error)
+        }
 
       consola.success(
         `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
@@ -1493,18 +1463,15 @@ async function rejectOperation(
       // Send the actual cancellation transaction
       consola.info(`📤 Submitting cancellation transaction...`)
 
-      const isTron =
-        networkName !== undefined &&
-        TRON_NETWORK_KEYS.has(networkName.toLowerCase())
-
-      const cancelCalldata = encodeFunctionData({
-        abi: TIMELOCK_ABI,
-        functionName: 'cancel',
-        args: [operation.id],
-      })
+      const isTron = isTronNetworkKey(networkName)
 
       let hash: Hex
       if (isTron) {
+        const cancelCalldata = encodeFunctionData({
+          abi: TIMELOCK_ABI,
+          functionName: 'cancel',
+          args: [operation.id],
+        })
         const tronResult = await broadcastTronContractCall({
           networkKey: networkName.toLowerCase() as TronTvmNetworkName,
           privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
@@ -1519,7 +1486,7 @@ async function rejectOperation(
           functionName: 'cancel',
           args: [operation.id],
           account: walletClient.account || null,
-          chain: null,
+          chain: walletClient.chain || null,
         })
       }
 

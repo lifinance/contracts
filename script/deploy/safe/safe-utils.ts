@@ -1,8 +1,9 @@
 /**
  * Safe Utilities
  *
- * Provides Gnosis Safe helpers using viem (EVM JSON-RPC) and {@link SafeClient},
- * which also exposes TronWeb for Tron TVM broadcast
+ * This module provides utilities for interacting with Gnosis Safe contracts
+ * using Viem and TronWeb. It includes classes and functions for creating, signing, and
+ * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
 import * as fs from 'fs'
@@ -11,7 +12,6 @@ import * as path from 'path'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
-import type { TronWeb } from 'tronweb'
 import {
   createPublicClient,
   createWalletClient,
@@ -47,7 +47,6 @@ import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddress
 import {
   getTronNetworkKeyForChainId,
   isTronTvmChainId,
-  type TronTvmNetworkName,
 } from '../tron/helpers/tronTvmChain'
 
 import type { IChainExecutionResult, IChainExecutor } from './chain-executor'
@@ -285,20 +284,6 @@ export class SafeClient {
 
   public async getChainId(): Promise<number> {
     return this.publicClient.getChainId()
-  }
-
-  /**
-   * TronWeb client for this account’s key (Tron full-node HTTP). Same key as viem on Tron TVM.
-   * @throws If the client was created with Ledger only or without a raw private key.
-   */
-  public getTronWeb(networkName: TronTvmNetworkName): TronWeb {
-    if (!this.tronWalletClient)
-      throw new Error(
-        'TronWeb requires a private-key-backed client (same key as EVM). ' +
-          'Use privateKey in init, or use a deployer key when executing on Tron.'
-      )
-
-    return this.tronWalletClient.getTronWeb(networkName)
   }
 
   // Get nonce from Safe contract (replaces getNonce from Safe SDK)

@@ -47,22 +47,7 @@ import {
   tronBase58ToEvm20Hex,
   tronZeroAddressBase58,
 } from './tronAddressHelpers.js'
-
-export interface IProposeToSafeTronOptions {
-  dryRun?: boolean
-  /** Base58 contract address for generic proposals */
-  to?: string
-  /** Hex calldata for generic proposals */
-  calldata?: Hex
-  /**
-   * When true (default for generic), Safe calls Timelock.scheduleBatch(Diamond, payload).
-   * When false, use --direct instead (Safe calls target directly).
-   */
-  timelock?: boolean
-  /** When true with generic mode, Safe → target with calldata (no timelock schedule). */
-  direct?: boolean
-  privateKey?: string
-}
+import type { IProposeToSafeTronOptions } from './types.js'
 
 async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName = 'tron'

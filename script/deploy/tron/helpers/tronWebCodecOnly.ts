@@ -3,7 +3,7 @@ import { TronWeb } from 'tronweb'
 import networksConfig from '../../../../config/networks.json'
 import type { INetworksObject } from '../../../common/types'
 import { getRPCEnvVarName } from '../../../utils/network'
-import { TRON_NETWORK_KEYS } from '../../shared/constants'
+import { isTronNetworkKey } from '../../shared/tron-network-keys'
 import { TRON_DEPLOY_NETWORK } from '../constants'
 
 import { tronWebFullHostFromRpcUrl } from './tronJsonRpcForViem'
@@ -22,7 +22,7 @@ const tronWebCodecByNetwork = new Map<string, TronWeb>()
  */
 export function getTronWebCodecFullHostForNetwork(networkName: string): string {
   const key = networkName.toLowerCase()
-  if (!TRON_NETWORK_KEYS.has(key)) {
+  if (!isTronNetworkKey(key)) {
     throw new Error(
       `getTronWebCodecFullHostForNetwork: expected a Tron network key, got ${networkName}`
     )
@@ -61,7 +61,7 @@ export function getTronWebCodecFullHost(): string {
  */
 export function getTronWebCodecOnlyForNetwork(networkName: string): TronWeb {
   const key = networkName.toLowerCase()
-  if (!TRON_NETWORK_KEYS.has(key)) {
+  if (!isTronNetworkKey(key)) {
     throw new Error(
       `getTronWebCodecOnlyForNetwork: expected a Tron network key, got ${networkName}`
     )

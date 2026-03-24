@@ -1,6 +1,6 @@
 import { getAddress, type Address } from 'viem'
 
-import { TRON_NETWORK_KEYS } from '../../shared/constants'
+import { isTronNetworkKey } from '../../shared/tron-network-keys'
 import {
   evmHexToTronBase58,
   tronAddressLikeToBase58,
@@ -17,7 +17,7 @@ export function formatAddressForNetworkCliDisplay(
   address: string
 ): string {
   const key = networkKey.toLowerCase()
-  if (!TRON_NETWORK_KEYS.has(key)) return address
+  if (!isTronNetworkKey(key)) return address
 
   const codec = getTronWebCodecOnly()
   const trimmed = address.trim()
