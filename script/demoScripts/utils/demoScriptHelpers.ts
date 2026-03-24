@@ -40,7 +40,10 @@ import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { node_url } from '../../utils/network'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import {
+  getTransportConfigFromRpcUrl,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
 
 config()
 
@@ -782,16 +785,21 @@ export const setupEnvironment = async (
 
   const viemChain = getViemChainForNetworkName(chain)
 
+  // Support RPC URLs with embedded credentials (user:pass@host); viem requires auth via header
+  const { url: transportUrl, fetchOptions } =
+    getTransportConfigFromRpcUrl(RPC_URL)
+  const transport = http(transportUrl, fetchOptions ? { fetchOptions } : {})
+
   const publicClient = createPublicClient({
     chain: viemChain,
-    transport: http(RPC_URL),
+    transport,
   })
 
   const walletAccount = privateKeyToAccount(typedPrivateKey)
 
   const walletClient = createWalletClient({
     chain: viemChain,
-    transport: http(RPC_URL),
+    transport,
     account: walletAccount,
   })
 

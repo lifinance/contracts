@@ -17,6 +17,7 @@ import { TronWeb } from 'tronweb'
 
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import { getRPCEnvVarName } from '../../utils/network'
+import { sleep } from '../../utils/delay'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
 
@@ -72,7 +73,7 @@ export async function waitForConfirmation(
     } catch (error) {
       // Transaction not yet confirmed
     }
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    await sleep(2000)
   }
 
   throw new Error(`Transaction ${txId} not confirmed within ${timeout}ms`)
