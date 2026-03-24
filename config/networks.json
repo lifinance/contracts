@@ -1344,7 +1344,8 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs"
+    "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs",
+    "devNotes": "TRX spend drops sharply if you rent energy instead of only burning TRX. https://www.zinergy.ag/ aggregates multiple providers; https://catfee.io/ has been cheaper in practice with fewer UI issues. Best for bursts (deployments or many txs within ~1h); anecdotal ~50–60% savings vs burning TRX alone."
   },
   "tronshasta": {
     "name": "tronshasta",
