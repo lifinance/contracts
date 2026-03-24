@@ -1,9 +1,14 @@
 #!/bin/bash
 #
 
-# load env variables — export all assignments so Bun/Node children inherit MONGODB_URI, RPC URLs, etc.
+# Load .env into the shell, and export each assignment for child processes.
+#
+# `source .env` only defines shell variables. Subprocesses (bun/tsx deployment scripts,
+# cast, forge, etc.) inherit the environment, not unexported shell variables. Dotenv-style
+# files usually use `KEY=value` without `export`, so those would be invisible to children.
+# `set -a` (allexport) marks every assignment as exported until `set +a`; we limit that
+# to this file read so later `source`d scripts do not export unrelated locals by default.
 set -a
-# shellcheck disable=SC1091
 source .env
 set +a
 
