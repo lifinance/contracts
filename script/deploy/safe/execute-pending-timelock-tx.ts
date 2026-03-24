@@ -26,6 +26,7 @@ import data from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import {
   SlackNotifier,
   type INetworkResult,
@@ -1477,11 +1478,14 @@ async function decodeFunctionCall(data: Hex): Promise<string | null> {
   if (!data || data === '0x') return null
   try {
     const selector = data.substring(0, 10)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
+    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
+    const response = await fetchWithTimeout(url)
+    const responseData = (await response.json()) as {
+      ok?: boolean
+      result?: { function?: Record<string, { name: string }[] | null> }
+    }
     if (responseData.ok && responseData.result?.function?.[selector])
-      return responseData.result.function[selector][0].name
+      return responseData.result.function[selector]?.[0]?.name ?? null
     return null
   } catch (error) {
     consola.warn('Error decoding function call:', error)

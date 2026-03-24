@@ -1,0 +1,6 @@
+# Environment and secrets – Cursor must never read these
+.env
+.env.*
+
+# Allow the example template (no secrets) for variable-name reference only
+!.env.example
