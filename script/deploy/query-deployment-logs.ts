@@ -10,7 +10,7 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { MongoClient, type Db, type Collection } from 'mongodb'
+import { MongoClient, type Db, type Collection, type Filter } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
@@ -19,6 +19,7 @@ import { CachedDeploymentQuerier } from './shared/cached-deployment-querier'
 import {
   type IDeploymentRecord,
   type IConfig,
+  mongoEq,
   ValidationUtils,
 } from './shared/mongo-log-utils'
 
@@ -62,7 +63,7 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord | null> {
     return this.collection.findOne(
-      { contractName: { $eq: contractName }, network: { $eq: network } },
+      { contractName: mongoEq(contractName), network: mongoEq(network) },
       { sort: { timestamp: -1 } }
     )
   }
@@ -83,9 +84,9 @@ class DeploymentLogQuerier {
       hasPrev: boolean
     }
   }> {
-    const filter: Record<string, unknown> = {}
-    if (contractName) filter.contractName = { $eq: contractName }
-    if (network) filter.network = { $eq: network }
+    const filter: Filter<IDeploymentRecord> = {}
+    if (contractName) filter.contractName = mongoEq(contractName)
+    if (network) filter.network = mongoEq(network)
 
     const skip = (page - 1) * limit
     const total = await this.collection.countDocuments(filter)
@@ -120,14 +121,14 @@ class DeploymentLogQuerier {
     const a =
       typeof address === 'string' ? address.trim() : String(address).trim()
     const exact = await this.collection.findOne({
-      address: { $eq: a },
-      network: { $eq: n },
+      address: mongoEq(a),
+      network: mongoEq(n),
     })
     if (exact) return exact
     // facetAddresses() is often all-lowercase; Mongo may store checksummed addresses
     const safePattern = escapeRegexLiteral(a)
     return this.collection.findOne({
-      network: { $eq: n },
+      network: mongoEq(n),
       address: { $regex: `^${safePattern}$`, $options: 'i' },
     })
   }
@@ -139,13 +140,13 @@ class DeploymentLogQuerier {
     verified?: boolean
     limit?: number
   }): Promise<IDeploymentRecord[]> {
-    const query: Record<string, unknown> = {}
+    const query: Filter<IDeploymentRecord> = {}
 
-    if (filters.contractName) query.contractName = { $eq: filters.contractName }
-    if (filters.network) query.network = { $eq: filters.network }
-    if (filters.version) query.version = { $eq: filters.version }
+    if (filters.contractName) query.contractName = mongoEq(filters.contractName)
+    if (filters.network) query.network = mongoEq(filters.network)
+    if (filters.version) query.version = mongoEq(filters.version)
     if (filters.verified !== undefined)
-      query.verified = { $eq: filters.verified }
+      query.verified = mongoEq(filters.verified)
 
     return this.collection
       .find(query)
@@ -160,8 +161,8 @@ class DeploymentLogQuerier {
   ): Promise<IDeploymentRecord[]> {
     return this.collection
       .find({
-        contractName: { $eq: contractName },
-        network: { $eq: network },
+        contractName: mongoEq(contractName),
+        network: mongoEq(network),
       })
       .sort({ timestamp: -1 })
       .toArray()
