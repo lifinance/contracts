@@ -98,6 +98,17 @@
       ]
     }
   ],
+  "linea": [
+    {
+      "address": "0xEc7689CB608E22B21D83D53eBb48F29FE8177B87",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "lisk": [
     {
       "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",

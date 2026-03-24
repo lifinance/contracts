@@ -11,17 +11,27 @@ globs:
 - TS scripts use `.eslintrc.cjs` rules, `bunx tsx`, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`).
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
+- **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore` in new files. Existing files with these directives are technical debt to be resolved. When creating new files or refactoring existing ones, properly type all code and fix type errors instead of suppressing them.
 
 ## Code Quality
 
 - Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
 - When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
+  - `script/utils/delay.ts` - `sleep(ms)` function for delays (MUST use this instead of implementing sleep locally),
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
+  - `script/utils/fetchWithTimeout.ts` (external API fetch with timeout; see [CONV:FETCH-TIMEOUT]),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
 - **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
+
+## External API fetch and timeout ([CONV:FETCH-TIMEOUT])
+
+- **All outbound HTTP requests to external APIs** (e.g. 4byte/Sourcify, relay APIs, explorer APIs, webhooks) **MUST** use the shared `fetchWithTimeout()` helper from `script/utils/fetchWithTimeout.ts`.
+- **Do not use unbounded `fetch(url)`** for external API calls; slow or hung requests can block scripts indefinitely.
+- **Standard pattern**: `fetchWithTimeout(url, init?, timeoutMs?)` — uses an AbortController and clears the timeout in a `finally` block. Default timeout is 10 seconds (`DEFAULT_FETCH_TIMEOUT_MS`). Pass a custom `timeoutMs` only when the use case requires it (e.g. large payloads).
+- When adding or modifying code that calls external HTTP APIs, use `fetchWithTimeout` and handle `AbortError` or timeout in catch blocks as appropriate (e.g. return null, warn, or retry).
 
 ## Types
 

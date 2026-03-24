@@ -422,10 +422,10 @@ deployAllContracts() {
       echo "Ownership transfer to LiFiTimelockController ($TIMELOCK_ADDRESS) initiated"
       echo ""
 
-      # Step 2: confirmOwnershipTransfer() — always propose on EVM (Tron: direct send, no Safe).
-      # Bash sendOrPropose (used by universalCast "send") does NOT check SEND_PROPOSALS_DIRECTLY_TO_DIAMOND; for EVM production it always calls propose-to-safe.ts.
+      # Step 2: confirmOwnershipTransfer() — must propose to Safe (timelock-wrapped); never send directly.
+      # If SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true, sendOrPropose would send directly and Diamond would revert NotPendingOwner (only timelock can confirm).
       echo "Proposing confirmOwnershipTransfer() to multisig ($SAFE_ADDRESS) via LiFiTimelockController ($TIMELOCK_ADDRESS)..."
-      universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" "" "true" "$PRIVATE_KEY_PRODUCTION"
+      SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "confirmOwnershipTransfer()" "" "true" "$PRIVATE_KEY_PRODUCTION"
       checkFailure $? "propose confirmOwnershipTransfer to Safe"
       echo "Acceptance of ownership transfer proposed to multisig ($SAFE_ADDRESS)"
       echo ""

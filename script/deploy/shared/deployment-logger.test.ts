@@ -295,8 +295,8 @@ describe('deployment-logger', () => {
       const [filter, update, options] = calls[0] as any[]
 
       // Verify filter
-      expect(filter.contractName).toBe(deployment.contractName)
-      expect(filter.network).toBe(deployment.network)
+      expect(filter.contractName).toEqual({ $eq: deployment.contractName })
+      expect(filter.network).toEqual({ $eq: deployment.network })
 
       // Verify $set does not have createdAt
       expect(update.$set).not.toHaveProperty('createdAt')

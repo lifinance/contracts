@@ -24,6 +24,7 @@ import {
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 
 import { decodeDiamondCut } from './safe-utils'
@@ -591,24 +592,34 @@ export async function decodeTransactionData(
       consola.warn(`Error reading diamond ABI: ${error}`)
     }
 
-    // Fallback to external API
-    consola.info(`${pre}No local ABI found, fetching from openchain.xyz...`)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
+    // Fallback to external API (Sourcify 4byte; same response shape as openchain.xyz)
+    consola.info(
+      `${pre}No local ABI found, fetching from 4byte.sourcify.dev...`
+    )
+    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
+    const response = await fetchWithTimeout(url)
+    const responseData = (await response.json()) as unknown
 
+    const resultFn = (
+      responseData as {
+        result?: {
+          function?: Record<string, { name: string; args?: unknown }[]>
+        }
+      } | null
+    )?.result?.function?.[selector]
+    const fn = Array.isArray(resultFn) ? resultFn[0] : undefined
     if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
+      typeof responseData === 'object' &&
+      responseData !== null &&
+      (responseData as { ok?: boolean }).ok &&
+      fn?.name
     ) {
-      const functionName = responseData.result.function[selector][0].name
+      const functionName = fn.name
 
       try {
         const decodedData = {
           functionName,
-          args: responseData.result.function[selector][0].args,
+          args: fn.args,
         }
 
         return {
@@ -705,7 +716,7 @@ export async function formatDecodedTxDataForDisplay(
     }
     if (!decoded && functionName) {
       try {
-        // Dynamic signature from openchain; parseAbi may throw for invalid format
+        // Dynamic signature from 4byte/Sourcify; parseAbi may throw for invalid format
         const sig = `function ${functionName}`
         const abiInterface = parseAbi([sig] as [string])
         decoded = decodeFunctionData({ abi: abiInterface, data })

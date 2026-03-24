@@ -1,3 +1,8 @@
+/**
+ * Tron-specific constants
+ * These constants are tightly coupled to Tron network mechanics and should not be used for other networks
+ */
+
 // Safety margin for energy estimation to prevent transaction failures
 export const DEFAULT_SAFETY_MARGIN = 1.5 // 50% buffer for standard operations
 
@@ -17,11 +22,6 @@ export const MIN_BALANCE_WARNING = 100 // Minimum TRX balance before warning is 
 // Tron requires contracts to have resources delegated for user transactions
 export const MIN_BALANCE_REGISTRATION = 5 // Minimum TRX balance for resource registration
 
-// Timeouts and retries
-export const CONFIRMATION_TIMEOUT = 120000 // 2 minutes
-export const MAX_RETRIES = 3
-export const POLL_INTERVAL = 3000 // 3 seconds
-
 // Bandwidth calculation constants
 // Used to calculate transaction bandwidth consumption on Tron
 // Formula: rawDataLength + DATA_HEX_PROTOBUF_EXTRA + MAX_RESULT_SIZE_IN_TX + (signatures * A_SIGNATURE)
@@ -37,10 +37,5 @@ export const MAX_RESULT_SIZE_IN_TX = 64
 // Size of a single ECDSA signature in bytes on Tron
 export const A_SIGNATURE = 67
 
-// File paths
-export const DEPLOYMENT_FILE_SUFFIX = (environment: string) =>
-  environment === 'production' ? '' : 'staging.'
-
-// Common addresses
-export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+// Tron-specific zero address (41 prefix instead of 0x)
 export const TRON_ZERO_ADDRESS = '410000000000000000000000000000000000000000'

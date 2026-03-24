@@ -35,6 +35,7 @@ import {
   DatabaseConnectionManager,
   type IDeploymentRecord,
   type IConfig,
+  mongoEq,
 } from './mongo-log-utils'
 
 /**
@@ -129,10 +130,10 @@ export class DeploymentLogger {
       // Write to MongoDB (primary source)
       await collection.updateOne(
         {
-          contractName: record.contractName,
-          network: record.network,
-          version: record.version,
-          address: record.address,
+          contractName: mongoEq(record.contractName),
+          network: mongoEq(record.network),
+          version: mongoEq(record.version),
+          address: mongoEq(record.address),
         },
         {
           $set: {
@@ -215,10 +216,10 @@ export class DeploymentLogger {
         return {
           updateOne: {
             filter: {
-              contractName: record.contractName,
-              network: record.network,
-              version: record.version,
-              address: record.address,
+              contractName: mongoEq(record.contractName),
+              network: mongoEq(record.network),
+              version: mongoEq(record.version),
+              address: mongoEq(record.address),
             },
             update: {
               $set: {

@@ -2,6 +2,7 @@
   "gasZipRouters": {
     "--- list_of_router_addresses ---": "https://dev.gas.zip/gas/chain-support/inbound",
     "mainnet": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "0g": "0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
     "abstract": "0x252fb662e4D7435D2a5DED8EC94d8932CF76C178",
     "arbitrum": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "apechain": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",

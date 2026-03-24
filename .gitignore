@@ -64,6 +64,9 @@ test/solidity/TestPlayground.t.sol
 # -----------------------------------------------------------------------------
 .aider*
 .claude*
+!.claude/
+!.claude/settings.json
+.claude/settings.local.json
 .copilot*
 .direnv/
 .cursorrules

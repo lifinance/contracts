@@ -248,13 +248,15 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # Add network-specific flags for megaeth
-    if [[ "$NETWORK" == "megaeth" ]]; then
-      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
-      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
+    # Add network-specific deploy flags from networks.json (customDeployFlags)
+    ADDITIONAL_FLAGS=""
+    local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
+    if [[ -f "$NETWORKS_JSON" ]]; then
+      ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
+    fi
+    # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
+    if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
       SKIP_SIMULATION_FLAG=""
-    else
-      MEGAETH_FLAGS=""
     fi
 
     # Execute, parse, and check return code
@@ -266,7 +268,7 @@ deploySingleContract() {
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $MEGAETH_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 

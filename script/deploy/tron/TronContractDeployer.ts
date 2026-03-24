@@ -12,6 +12,7 @@ import {
   calculateTransactionBandwidth,
   calculateEstimatedCost,
 } from './utils'
+import { sleep } from '../../utils/delay'
 
 // Import TronWeb - the simple approach that was working
 
@@ -471,7 +472,7 @@ export class TronContractDeployer {
           consola.warn(`Retry ${retries}/${maxRetries} for transaction receipt`)
       }
 
-      await this.sleep(pollInterval)
+      await sleep(pollInterval)
     }
 
     throw new Error(`Transaction confirmation timeout after ${timeoutMs}ms`)
@@ -498,12 +499,7 @@ export class TronContractDeployer {
     }
   }
 
-  /**
-   * Sleep helper
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
+  // sleep is now imported from utils/delay.ts
 
   /**
    * Get network info

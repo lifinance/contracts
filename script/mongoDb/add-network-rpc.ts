@@ -3,6 +3,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 
+import { mongoEq } from '../deploy/shared/mongo-log-utils'
+
 const main = defineCommand({
   meta: {
     name: 'add-network-rpc',
@@ -46,7 +48,7 @@ const main = defineCommand({
       const collection = db.collection('RpcEndpoints')
 
       // Check if there's an existing document for the given chainName
-      const existingDoc = await collection.findOne({ chainName })
+      const existingDoc = await collection.findOne({ chainName: mongoEq(chainName) })
 
       // Check if the RPC endpoint already exists for the given chain
       if (existingDoc?.rpcs) {
@@ -70,7 +72,7 @@ const main = defineCommand({
 
           // Update the priority of the existing RPC endpoint
           await collection.updateOne(
-            { chainName },
+            { chainName: mongoEq(chainName) },
             {
               $set: {
                 lastUpdated: new Date(),
@@ -120,7 +122,7 @@ const main = defineCommand({
 
         // Update (or create) the document by merging the new RPC endpoint
         await collection.updateOne(
-          { chainName },
+          { chainName: mongoEq(chainName) },
           {
             $set: { lastUpdated: new Date() },
             $push: {

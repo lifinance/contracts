@@ -222,5 +222,10 @@
       "0xf55bec9cafdbe8730f096aa55dad6d22d44099df",
       "0xf9af83fc41e0cc2af2fba93644d542df6ea0f2b7"
     ]
+  },
+  "tempo": {
+    "chainId": 4217,
+    "acrossSpokePool": "0x2d4710F04Da90184255782d3715224A6C776955D",
+    "tokensToApprove": []
   }
 }

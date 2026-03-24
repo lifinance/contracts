@@ -1,0 +1,6 @@
+# Environment and secrets – AI tools must not read these
+.env
+.env.*
+
+# Allow the example template (no secrets) for variable-name reference only
+!.env.example

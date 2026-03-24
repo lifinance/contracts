@@ -33,6 +33,38 @@ const colors = {
 export const networks: INetworksObject = networksConfig
 
 /**
+ * Parses an RPC URL and, if it contains embedded credentials (user:pass@host),
+ * returns a URL without credentials plus fetchOptions with Basic auth header.
+ * The viem library cannot handle user:pass@host in the URL; it only supports
+ * authentication via the Authorization header, so this helper is required for
+ * auth-protected RPC endpoints.
+ */
+export function getTransportConfigFromRpcUrl(rpcUrl: string): {
+  url: string
+  fetchOptions?: { headers: Record<string, string> }
+} {
+  try {
+    const url = new URL(rpcUrl)
+    if (!url.username) return { url: rpcUrl }
+    const cleanUrl = `${url.protocol}//${url.hostname}${
+      url.port ? `:${url.port}` : ''
+    }${url.pathname}${url.search}`
+    const encoded = Buffer.from(
+      `${decodeURIComponent(url.username)}:${decodeURIComponent(
+        url.password || ''
+      )}`,
+      'utf8'
+    ).toString('base64')
+    return {
+      url: cleanUrl,
+      fetchOptions: { headers: { Authorization: `Basic ${encoded}` } },
+    }
+  } catch {
+    return { url: rpcUrl }
+  }
+}
+
+/**
  * Builds a block explorer address URL for a given network and address.
  *
  * For most EVM explorers we use the default `/address/<address>` pattern.
