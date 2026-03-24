@@ -10,7 +10,7 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { MongoClient, type Db, type Collection } from 'mongodb'
+import { MongoClient, type Db, type Collection, type Filter } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
@@ -19,6 +19,7 @@ import { CachedDeploymentQuerier } from './shared/cached-deployment-querier'
 import {
   type IDeploymentRecord,
   type IConfig,
+  mongoEq,
   ValidationUtils,
 } from './shared/mongo-log-utils'
 
@@ -57,7 +58,7 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord | null> {
     return this.collection.findOne(
-      { contractName, network },
+      { contractName: mongoEq(contractName), network: mongoEq(network) },
       { sort: { timestamp: -1 } }
     )
   }
@@ -78,9 +79,9 @@ class DeploymentLogQuerier {
       hasPrev: boolean
     }
   }> {
-    const filter: Record<string, unknown> = {}
-    if (contractName) filter.contractName = contractName
-    if (network) filter.network = network
+    const filter: Filter<IDeploymentRecord> = {}
+    if (contractName) filter.contractName = mongoEq(contractName)
+    if (network) filter.network = mongoEq(network)
 
     const skip = (page - 1) * limit
     const total = await this.collection.countDocuments(filter)
@@ -110,7 +111,10 @@ class DeploymentLogQuerier {
     address: string,
     network: string
   ): Promise<IDeploymentRecord | null> {
-    return this.collection.findOne({ address, network })
+    return this.collection.findOne({
+      address: mongoEq(address),
+      network: mongoEq(network),
+    })
   }
 
   public async filterDeployments(filters: {
@@ -120,12 +124,13 @@ class DeploymentLogQuerier {
     verified?: boolean
     limit?: number
   }): Promise<IDeploymentRecord[]> {
-    const query: Record<string, unknown> = {}
+    const query: Filter<IDeploymentRecord> = {}
 
-    if (filters.contractName) query.contractName = filters.contractName
-    if (filters.network) query.network = filters.network
-    if (filters.version) query.version = filters.version
-    if (filters.verified !== undefined) query.verified = filters.verified
+    if (filters.contractName) query.contractName = mongoEq(filters.contractName)
+    if (filters.network) query.network = mongoEq(filters.network)
+    if (filters.version) query.version = mongoEq(filters.version)
+    if (filters.verified !== undefined)
+      query.verified = mongoEq(filters.verified)
 
     return this.collection
       .find(query)
@@ -139,7 +144,10 @@ class DeploymentLogQuerier {
     network: string
   ): Promise<IDeploymentRecord[]> {
     return this.collection
-      .find({ contractName, network })
+      .find({
+        contractName: mongoEq(contractName),
+        network: mongoEq(network),
+      })
       .sort({ timestamp: -1 })
       .toArray()
   }
