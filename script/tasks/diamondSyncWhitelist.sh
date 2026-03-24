@@ -305,10 +305,7 @@ function diamondSyncWhitelist {
     fi
 
     # sendOrPropose: propose vs send is decided by SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only used when proposing (wrap in timelock).
-    local TIMELOCK_FLAG=false
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" && "$IS_TRON" != "true" ]]; then
-      TIMELOCK_FLAG=true
-    fi
+    local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
 
     # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
