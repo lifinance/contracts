@@ -39,7 +39,8 @@ import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
-import { node_url } from '../../utils/network'
+import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
+import { getRPCEnvVarName, node_url } from '../../utils/network'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
@@ -87,7 +88,7 @@ export const ADDRESS_USDT_OPT = '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58'
 export const ADDRESS_USDC_ARB = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 export const ADDRESS_USDT_ARB = '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'
 export const ADDRESS_USDC_SOL_BYTES32 =
-  '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61'
+  '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61' // [pre-commit-checker: not a secret]
 export const ADDRESS_USDC_SOL = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 export const ADDRESS_USDCe_OPT = '0x7F5c764cBc14f9669B88837ca1490cCa17c31607'
 export const ADDRESS_WETH_ETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
@@ -738,7 +739,7 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
  * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
  */
 const getRpcUrl = (chain: SupportedChain) => {
-  const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
+  const envKey = getRPCEnvVarName(chain)
   return getEnvVar(envKey)
 }
 
@@ -779,7 +780,13 @@ export const setupEnvironment = async (
   customRpcUrl?: string
 ) => {
   // Use customRpcUrl if provided, otherwise fallback to getRpcUrl
-  const RPC_URL = customRpcUrl || getRpcUrl(chain)
+  let RPC_URL = customRpcUrl || getRpcUrl(chain)
+  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
+  if (
+    isTronNetworkKey(chain) &&
+    !RPC_URL.replace(/\/+$/, '').endsWith('/jsonrpc')
+  )
+    RPC_URL = `${RPC_URL.replace(/\/+$/, '')}/jsonrpc`
   const PRIVATE_KEY = getPrivateKeyForEnvironment(environment)
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 

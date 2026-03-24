@@ -2,6 +2,12 @@ import type networks from '../../config/networks.json'
 
 export type SupportedChain = keyof typeof networks
 
+/**
+ * Subset of EVM hardfork labels used for Safe local bytecode (`safe/london` vs `safe/cancun`)
+ * and `networks.json` → `deployedWithEvmVersion`.
+ */
+export type EVMVersion = 'london' | 'cancun'
+
 export interface INetworksObject {
   [key: string]: Omit<INetwork, 'id'>
 }
@@ -10,6 +16,15 @@ export enum EnvironmentEnum {
   'staging',
   'production',
 }
+
+/**
+ * Environment value for deployment artifact filenames (`''` vs `'staging.'` prefix).
+ * CLI/config often use `'production' | 'staging'`; scripts typically use {@link EnvironmentEnum} (numeric).
+ */
+export type DeploymentFileSuffixInput =
+  | EnvironmentEnum
+  | keyof typeof EnvironmentEnum
+  | string
 
 export interface INetwork {
   name: string
@@ -79,18 +94,6 @@ export interface IWhitelistConfig {
     }>
   >
 }
-
-/**
- * Function type for getting expected whitelist pairs from configuration
- * Used in health check scripts to compare config vs on-chain state
- */
-export type GetExpectedPairsFunction = (
-  network: string,
-  deployedContracts: Record<string, string | `0x${string}`>,
-  environment: string,
-  whitelistConfig: IWhitelistConfig,
-  isTron?: boolean
-) => Promise<Array<{ contract: string; selector: `0x${string}` }>>
 
 /**
  * Target state JSON structure for health checks

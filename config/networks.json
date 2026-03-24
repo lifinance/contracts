@@ -1339,7 +1339,7 @@
     "explorerUrl": "https://tronscan.org",
     "explorerApiUrl": "https://apilist.tronscan.org/api",
     "multicallAddress": "TEazPvZwDjDtFeJupyo7QunvnrnUjPH8ED",
-    "safeAddress": "",
+    "safeAddress": "TG7unADV9rXUNzH1Q1FkEnqhQ3xxJdXeBs",
     "gasZipChainId": 75,
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",

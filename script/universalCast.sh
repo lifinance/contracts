@@ -65,11 +65,12 @@ function universalCall() {
 #   TARGET      - Contract address to call
 #   SIGNATURE   - Function signature (e.g., "transfer(address,uint256)")
 #   ARGS        - Optional: Arguments for cast calldata (space-separated, arrays in brackets)
-#   TIMELOCK    - Optional: "true" to wrap in timelock (EVM production only)
+#   TIMELOCK    - Optional: "true" to wrap in timelock scheduleBatch (EVM/Tron production proposals)
 #   PRIVATE_KEY_OVERRIDE - Optional: hex key; when set, use instead of getPrivateKey(network, environment)
 #
 # Routing (handled by sendOrPropose):
-#   - Tron (any env): Direct send via troncast (no Safe/timelock support)
+#   - Tron production (unless SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true): Propose via propose-to-safe-tron.ts (timelock wrap when TIMELOCK=true)
+#   - Tron staging / SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: Direct send via troncast
 #   - EVM production: Propose to Safe via propose-to-safe.ts (optional timelock)
 #   - EVM staging: Direct send via cast
 #

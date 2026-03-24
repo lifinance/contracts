@@ -126,8 +126,7 @@ class DeploymentLogQuerier {
   }): Promise<IDeploymentRecord[]> {
     const query: Filter<IDeploymentRecord> = {}
 
-    if (filters.contractName)
-      query.contractName = mongoEq(filters.contractName)
+    if (filters.contractName) query.contractName = mongoEq(filters.contractName)
     if (filters.network) query.network = mongoEq(filters.network)
     if (filters.version) query.version = mongoEq(filters.version)
     if (filters.verified !== undefined)

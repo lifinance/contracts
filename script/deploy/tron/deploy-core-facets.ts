@@ -12,6 +12,10 @@ import {
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
+import { evmHexToTronBase58 } from './tronAddressHelpers.js'
 import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getCoreFacets,
@@ -28,22 +32,6 @@ import {
   updateDiamondJsonBatch,
   waitBetweenDeployments,
 } from './utils.js'
-
-/**
- * Convert hex address to Tron base58 format for display purposes
- * This is a utility function that doesn't require a private key
- */
-async function hexToTronBase58(hexAddress: string): Promise<string> {
-  // Dynamic import used for conditional loading - only when needed
-  const { TronWeb } = await import('tronweb')
-  // Create a minimal TronWeb instance just for address conversion
-  // No private key needed for address format conversion
-  const tronWeb = new TronWeb({
-    fullHost: 'https://api.trongrid.io', // [pre-commit-checker: not a secret]
-  })
-  const tronHexAddress = hexAddress.replace('0x', '41')
-  return tronWeb.address.fromHex(tronHexAddress)
-}
 
 /**
  * Get constructor arguments for a facet
@@ -63,7 +51,7 @@ async function getConstructorArgs(
       throw new Error('pauserWallet not found in config/global.json')
 
     // Convert to base58 for display purposes only
-    const tronBase58 = await hexToTronBase58(pauserWallet)
+    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnly(), pauserWallet)
 
     // Use original hex format (0x...) for constructor args
     // The ABI encoder needs this format for proper encoding
@@ -79,7 +67,7 @@ async function getConstructorArgs(
       )
 
     // Convert to base58 for display purposes only
-    const tronBase58 = await hexToTronBase58(nativeAddress)
+    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnly(), nativeAddress)
 
     consola.info(
       `Using native token address: ${tronBase58} (hex: ${nativeAddress})`
@@ -124,7 +112,6 @@ async function deployCoreFacetsImpl(options: {
 
   // Get RPC URL and API key configuration (automatically handles TronGrid API key)
   const { rpcUrl, headers } = getTronRPCConfig(networkName, options.verbose)
-  const apiKey = headers?.['TRON-PRO-API-KEY']
 
   consola.info(`RPC URL: ${rpcUrl}`)
 
@@ -148,6 +135,7 @@ async function deployCoreFacetsImpl(options: {
   // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: networkName as TronTvmNetworkName,
     privateKey,
     verbose: options.verbose,
     dryRun: options.dryRun,
@@ -163,16 +151,13 @@ async function deployCoreFacetsImpl(options: {
   const networkInfo = await deployer.getNetworkInfo()
   displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-  // Initialize TronWeb for balance validation with API key header if provided
-  const { TronWeb } = await import('tronweb')
-  const tronWebConfig: any = {
-    fullHost: rpcUrl,
+  const tronWeb = createTronWeb({
+    rpcUrl,
+    networkKey: networkName as TronTvmNetworkName,
     privateKey,
-  }
-  if (apiKey) {
-    tronWebConfig.headers = { 'TRON-PRO-API-KEY': apiKey }
-  }
-  const tronWeb = new TronWeb(tronWebConfig)
+    headers,
+    verbose: options.verbose,
+  })
 
   // Validate balance
   await validateBalance(tronWeb, MIN_BALANCE_WARNING)
@@ -324,10 +309,11 @@ async function deployCoreFacetsImpl(options: {
       const ownerAddress = networkInfo.address
 
       // Convert to hex format for constructor
-      const { TronWeb } = await import('tronweb')
-      const tronWeb = new TronWeb({
-        fullHost: rpcUrl,
+      const tronWeb = createTronWeb({
+        rpcUrl,
+        networkKey: networkName as TronTvmNetworkName,
         privateKey,
+        verbose: options.verbose,
       })
       const ownerHexRaw = tronWeb.address.toHex(ownerAddress)
       const ownerHex = ownerHexRaw.startsWith('0x')

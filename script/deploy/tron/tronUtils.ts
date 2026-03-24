@@ -11,7 +11,7 @@ import {
 } from '../shared/constants'
 import { isRateLimitError } from '../shared/rateLimit'
 
-import { hexToTronAddress } from './utils'
+import { evmHexToTronBase58, tronAddressToHex } from './tronAddressHelpers'
 
 /**
  * Call Tron contract function using troncast
@@ -81,7 +81,7 @@ export function getTronWallet(
  */
 export function ensureTronAddress(address: string, tronWeb: TronWeb): string {
   if (address.startsWith('0x')) {
-    return hexToTronAddress(address, tronWeb)
+    return evmHexToTronBase58(tronWeb, address)
   }
   return address
 }
@@ -227,10 +227,10 @@ export async function checkOwnershipTron(
       // Convert expectedOwner to Tron format if it's in EVM format (0x...)
       // This handles cases where getTronWallet falls back to EVM address
       const expectedOwnerTron = ensureTronAddress(expectedOwner, tronWeb)
-      const expectedOwnerLower = expectedOwnerTron.toLowerCase()
-      const actualOwnerLower = ownerAddress.toLowerCase()
+      const expectedOwnerHex = tronAddressToHex(tronWeb, expectedOwnerTron)
+      const actualOwnerHex = tronAddressToHex(tronWeb, ownerAddress)
 
-      if (actualOwnerLower !== expectedOwnerLower) {
+      if (actualOwnerHex !== expectedOwnerHex) {
         logError(
           `${name} owner is ${ownerAddress}, expected ${expectedOwnerTron}`
         )

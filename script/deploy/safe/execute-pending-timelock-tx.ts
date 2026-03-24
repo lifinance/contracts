@@ -24,14 +24,21 @@ import {
 
 import data from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
-import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import {
+  getEnvVar,
+  setupEnvironment,
+} from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
   SlackNotifier,
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
+import { isTronNetworkKey } from '../shared/tron-network-keys'
+import { broadcastTronContractCall } from '../tron/helpers/tronSafeExecBroadcast'
+import type { TronTvmNetworkName } from '../tron/types'
 
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
@@ -632,7 +639,13 @@ async function processNetwork(
       }
     }
 
-    const timelockAddress = deploymentData.LiFiTimelockController as Address
+    const timelockAddress = normalizeAddressForNetwork(
+      network.name,
+      deploymentData.LiFiTimelockController
+    )
+
+    // `timelockAddress` is viem-ready checksummed hex (Tron deployment JSON may use base58; see normalizeAddressForNetwork).
+    // Tron RPC: `setupEnvironment` below uses ETH_NODE_URI_TRON with TronGrid transport for public/wallet clients.
 
     const { publicClient, walletClient } = await setupEnvironment(
       network.name as SupportedChain,
@@ -692,7 +705,8 @@ async function processNetwork(
           walletClient,
           timelockAddress,
           operation,
-          isDryRun
+          isDryRun,
+          network.name
         )
         operationsProcessed++
         if (rejectResult === 'rejected') operationsRejected++
@@ -1164,7 +1178,8 @@ async function executeOperation(
         walletClient,
         timelockAddress,
         operation,
-        isDryRun
+        isDryRun,
+        networkName
       )
       return 'rejected'
     }
@@ -1187,7 +1202,7 @@ async function executeOperation(
     // Use the salt from the operation if available, otherwise use default
     const salt =
       operation.salt ||
-      ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex)
+      ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex) // [pre-commit-checker: not a secret]
 
     if (isDryRun) {
       // Simulate the transaction
@@ -1231,94 +1246,133 @@ async function executeOperation(
     } else {
       // Send the actual transaction
       consola.info(`${networkPrefix} 📤 Submitting transaction...`)
-      const hash = isBatch
-        ? await walletClient.writeContract({
-            address: timelockAddress,
-            abi: TIMELOCK_ABI,
-            functionName: 'executeBatch',
-            args: [
-              operation.targets,
-              operation.values,
-              operation.payloads,
-              operation.predecessor,
-              salt,
-            ],
-            account: walletClient.account || null,
-            chain: walletClient.chain || null,
-          })
-        : await walletClient.writeContract({
-            address: timelockAddress,
-            abi: TIMELOCK_ABI,
-            functionName: 'execute',
-            args: [
-              primaryTarget,
-              primaryValue,
-              primaryPayload,
-              operation.predecessor,
-              salt,
-            ],
-            account: walletClient.account || null,
-            chain: walletClient.chain || null,
-          })
+
+      const isTron = isTronNetworkKey(networkName)
+
+      let hash: Hex
+      if (isTron) {
+        // Tron: use TronWeb for broadcast (viem writeContract fails - no eth_getTransactionCount)
+        const callData = isBatch
+          ? encodeFunctionData({
+              abi: TIMELOCK_ABI,
+              functionName: 'executeBatch',
+              args: [
+                operation.targets,
+                operation.values,
+                operation.payloads,
+                operation.predecessor,
+                salt,
+              ],
+            })
+          : encodeFunctionData({
+              abi: TIMELOCK_ABI,
+              functionName: 'execute',
+              args: [
+                primaryTarget,
+                primaryValue,
+                primaryPayload,
+                operation.predecessor,
+                salt,
+              ],
+            })
+        const tronResult = await broadcastTronContractCall({
+          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
+          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
+          contractAddress: timelockAddress,
+          calldata: callData,
+        })
+        hash = tronResult.hash
+      } else if (isBatch) {
+        hash = await walletClient.writeContract({
+          address: timelockAddress,
+          abi: TIMELOCK_ABI,
+          functionName: 'executeBatch',
+          args: [
+            operation.targets,
+            operation.values,
+            operation.payloads,
+            operation.predecessor,
+            salt,
+          ],
+          account: walletClient.account || null,
+          chain: walletClient.chain || null,
+        })
+      } else {
+        hash = await walletClient.writeContract({
+          address: timelockAddress,
+          abi: TIMELOCK_ABI,
+          functionName: 'execute',
+          args: [
+            primaryTarget,
+            primaryValue,
+            primaryPayload,
+            operation.predecessor,
+            salt,
+          ],
+          account: walletClient.account || null,
+          chain: walletClient.chain || null,
+        })
+      }
 
       consola.info(`${networkPrefix}    Transaction hash: ${hash}`)
-      consola.info(`${networkPrefix}    Waiting for confirmation...`)
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      let gasUsed: bigint | undefined
+      if (!isTron) {
+        consola.info(`${networkPrefix}    Waiting for confirmation...`)
+        const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 'success') {
-        consola.success(
-          `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
-        )
+        if (receipt.status !== 'success') {
+          consola.error(
+            `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
+          )
+          return 'failed'
+        }
+        gasUsed = receipt.gasUsed
+      }
 
-        // Send Slack notification if enabled
-        if (slackNotifier && networkName)
+      if (slackNotifier && networkName)
+        try {
+          await slackNotifier.notifyOperationExecuted({
+            network: networkName,
+            operation: {
+              id: operation.id,
+              target: primaryTarget,
+              value: primaryValue,
+              data: primaryPayload,
+              functionName: operation.functionName,
+            },
+            status: 'success',
+            transactionHash: hash,
+            gasUsed,
+          })
+        } catch (error) {
+          consola.warn('Failed to send operation success notification:', error)
+        }
+
+      consola.success(
+        `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
+      )
+
+      // Update MongoDB to mark the operation as executed
+      if (operation.mongoId)
+        try {
+          const { client, pendingTransactions } = await getSafeMongoCollection()
           try {
-            await slackNotifier.notifyOperationExecuted({
-              network: networkName,
-              operation: {
-                id: operation.id,
-                target: primaryTarget,
-                value: primaryValue,
-                data: primaryPayload,
-                functionName: operation.functionName,
-              },
-              status: 'success',
-              transactionHash: hash,
-              gasUsed: receipt.gasUsed,
-            })
-          } catch (error) {
-            consola.warn(
-              'Failed to send operation success notification:',
-              error
+            await pendingTransactions.updateOne(
+              { _id: operation.mongoId },
+              { $set: { timelockIsExecuted: true } }
             )
-          }
-
-        // Update MongoDB to mark the operation as executed
-        if (operation.mongoId)
-          try {
-            const { client, pendingTransactions } =
-              await getSafeMongoCollection()
-            try {
-              await pendingTransactions.updateOne(
-                { _id: operation.mongoId },
-                { $set: { timelockIsExecuted: true } }
-              )
-              consola.info(
-                `${networkPrefix} Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
-              )
-            } finally {
-              await client.close()
-            }
-          } catch (error) {
-            consola.warn(
-              `${networkPrefix} Failed to update MongoDB document: ${error}`
+            consola.info(
+              `${networkPrefix} Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
             )
+          } finally {
+            await client.close()
           }
-      } else
-        consola.error(
-          `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
-        )
+        } catch (error) {
+          consola.warn(
+            `${networkPrefix} Failed to update MongoDB document: ${error}`
+          )
+        }
     }
 
     return 'executed'
@@ -1359,7 +1413,8 @@ async function rejectOperation(
   walletClient: WalletClient,
   timelockAddress: Address,
   operation: ITimelockOperation,
-  isDryRun: boolean
+  isDryRun: boolean,
+  networkName?: string
 ): Promise<'rejected' | 'failed'> {
   consola.info(`\n❌ Rejecting operation: ${operation.id}`)
   const callCount = operation.targets.length
@@ -1407,47 +1462,67 @@ async function rejectOperation(
     } else {
       // Send the actual cancellation transaction
       consola.info(`📤 Submitting cancellation transaction...`)
-      const hash = await walletClient.writeContract({
-        address: timelockAddress,
-        abi: TIMELOCK_ABI,
-        functionName: 'cancel',
-        args: [operation.id],
-        account: walletClient.account || null,
-        chain: null,
-      })
+
+      const isTron = isTronNetworkKey(networkName)
+
+      let hash: Hex
+      if (isTron) {
+        const cancelCalldata = encodeFunctionData({
+          abi: TIMELOCK_ABI,
+          functionName: 'cancel',
+          args: [operation.id],
+        })
+        const tronResult = await broadcastTronContractCall({
+          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
+          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
+          contractAddress: timelockAddress,
+          calldata: cancelCalldata,
+        })
+        hash = tronResult.hash
+      } else {
+        hash = await walletClient.writeContract({
+          address: timelockAddress,
+          abi: TIMELOCK_ABI,
+          functionName: 'cancel',
+          args: [operation.id],
+          account: walletClient.account || null,
+          chain: walletClient.chain || null,
+        })
+      }
 
       consola.info(`   Transaction hash: ${hash}`)
-      consola.info(`   Waiting for confirmation...`)
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      if (!isTron) {
+        consola.info(`   Waiting for confirmation...`)
+        const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 'success') {
-        consola.success(`✅ Operation ${operation.id} cancelled successfully`)
-
-        // Update MongoDB to mark the operation as executed (cancelled counts as executed)
-        if (operation.mongoId)
-          try {
-            const { client, pendingTransactions } =
-              await getSafeMongoCollection()
-            try {
-              await pendingTransactions.updateOne(
-                { _id: operation.mongoId },
-                { $set: { timelockIsExecuted: true } }
-              )
-              consola.info(
-                `Updated MongoDB document ${operation.mongoId} to mark timelock as cancelled`
-              )
-            } finally {
-              await client.close()
-            }
-          } catch (error) {
-            consola.warn(`Failed to update MongoDB document: ${error}`)
-          }
-        return 'rejected'
-      } else {
-        consola.error(`❌ Cancellation failed for operation ${operation.id}`)
-        return 'failed'
+        if (receipt.status !== 'success') {
+          consola.error(`❌ Cancellation failed for operation ${operation.id}`)
+          return 'failed'
+        }
       }
+
+      consola.success(`✅ Operation ${operation.id} cancelled successfully`)
+
+      // Update MongoDB to mark the operation as executed (cancelled counts as executed)
+      if (operation.mongoId)
+        try {
+          const { client, pendingTransactions } = await getSafeMongoCollection()
+          try {
+            await pendingTransactions.updateOne(
+              { _id: operation.mongoId },
+              { $set: { timelockIsExecuted: true } }
+            )
+            consola.info(
+              `Updated MongoDB document ${operation.mongoId} to mark timelock as cancelled`
+            )
+          } finally {
+            await client.close()
+          }
+        } catch (error) {
+          consola.warn(`Failed to update MongoDB document: ${error}`)
+        }
+      return 'rejected'
     }
   } catch (error) {
     consola.error(`Failed to cancel operation ${operation.id}:`, error)

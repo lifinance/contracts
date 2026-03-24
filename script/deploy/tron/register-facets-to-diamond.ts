@@ -5,17 +5,28 @@ import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js'
 
+import {
+  TRON_DIAMOND_FACET_GROUPS,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
+} from './constants.js'
+import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig.js'
+import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
+import {
+  tryTronFacetLoupeAddressToBase58,
+  tronAddressToHex,
+} from './tronAddressHelpers.js'
 import {
   getEnvironment,
   updateDiamondJsonBatch,
   getCurrentPrices,
   waitBetweenDeployments,
-  getTronGridAPIKey,
 } from './utils.js'
 
 /**
@@ -85,15 +96,6 @@ function getAllFacetSelectors(): Record<string, string[]> {
   return facetSelectors
 }
 
-// Facet groups for split registration if needed
-const FACET_GROUPS = [
-  ['DiamondLoupeFacet'], // Critical - must be first
-  ['OwnershipFacet', 'WithdrawFacet', 'AccessManagerFacet'], // Core management
-  ['WhitelistManagerFacet', 'PeripheryRegistryFacet'], // Configuration
-  ['GenericSwapFacet', 'GenericSwapFacetV3'], // Swap functionality
-  ['CalldataVerificationFacet', 'EmergencyPauseFacet'], // Security
-]
-
 /**
  * Estimate energy for diamondCut transaction using triggerconstantcontract
  */
@@ -130,7 +132,7 @@ async function estimateDiamondCutEnergy(
       contract_address: diamondAddress, // Use base58 format for Tron API
       function_selector: functionSelector,
       parameter: encodedParams.replace('0x', ''),
-      fee_limit: 1000000000, // High limit for estimation only
+      fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
       call_value: 0,
       visible: true,
     }
@@ -147,14 +149,24 @@ async function estimateDiamondCutEnergy(
       visible: payload.visible,
     })
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
+    let response: Response
+    try {
+      response = await fetchWithTimeout(
+        apiUrl,
+        {
+          method: 'POST',
+          headers: buildTronWalletJsonPostHeaders(fullHost),
+          body: JSON.stringify(payload),
+        },
+        TRON_WALLET_API_FETCH_TIMEOUT_MS
+      )
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError')
+        throw new Error(
+          `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
+        )
+      throw e
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -230,7 +242,10 @@ async function registerFacetsBatch(
 
       // Check if this facet address is already registered
       for (const facet of currentFacets) {
-        const registeredAddress = tronWeb.address.fromHex(facet[0])
+        const registeredAddress = tryTronFacetLoupeAddressToBase58(
+          tronWeb,
+          facet[0]
+        )
         if (registeredAddress === facetAddress) {
           isRegistered = true
           break
@@ -245,10 +260,7 @@ async function registerFacetsBatch(
       continue
     }
 
-    // Convert base58 to hex for ABI encoding
-    const facetAddressHex = tronWeb.address
-      .toHex(facetAddress)
-      .replace(/^41/, '0x')
+    const facetAddressHex = tronAddressToHex(tronWeb, facetAddress)
 
     // Push as array for TronWeb encoding
     facetCuts.push([
@@ -366,7 +378,10 @@ async function registerFacetsBatch(
           // Check if this facet is actually registered
           let isRegistered = false
           for (const facet of registeredFacets) {
-            const registeredAddress = tronWeb.address.fromHex(facet[0])
+            const registeredAddress = tryTronFacetLoupeAddressToBase58(
+              tronWeb,
+              facet[0]
+            )
             if (registeredAddress === facetAddress) {
               isRegistered = true
               break
@@ -453,15 +468,11 @@ async function registerFacetsToDiamond(
 
     if (!fullHost) throw new Error('Tron RPC URL not found in networks.json')
 
-    const apiKey = getTronGridAPIKey(false)
-    const tronWebConfig: any = {
-      fullHost,
+    const tronWeb = createTronWeb({
+      rpcUrl: fullHost,
+      networkKey: networkName as TronTvmNetworkName,
       privateKey,
-    }
-    if (apiKey) {
-      tronWebConfig.headers = { 'TRON-PRO-API-KEY': apiKey }
-    }
-    const tronWeb = new TronWeb(tronWebConfig)
+    })
 
     consola.info(` Connected to: ${fullHost}`)
     consola.info(`👛 Deployer: ${tronWeb.defaultAddress.base58}`)
@@ -535,12 +546,7 @@ async function registerFacetsToDiamond(
         const facetHex = facet[0]
         const selectors = facet[1]
 
-        let facetBase58: string
-        try {
-          facetBase58 = tronWeb.address.fromHex(facetHex)
-        } catch {
-          facetBase58 = facetHex
-        }
+        const facetBase58 = tryTronFacetLoupeAddressToBase58(tronWeb, facetHex)
 
         const facetName = Object.entries(deployments).find(
           ([_, addr]) => addr === facetBase58
@@ -559,8 +565,8 @@ async function registerFacetsToDiamond(
       // Register in groups
       consola.info(' Using split registration mode...')
 
-      for (let i = 0; i < FACET_GROUPS.length; i++) {
-        const group = FACET_GROUPS[i]
+      for (let i = 0; i < TRON_DIAMOND_FACET_GROUPS.length; i++) {
+        const group = TRON_DIAMOND_FACET_GROUPS[i]
         if (!group) continue
 
         // Skip DiamondLoupe group if already exists
@@ -570,9 +576,9 @@ async function registerFacetsToDiamond(
         }
 
         consola.info(
-          `\n Processing group ${i + 1}/${FACET_GROUPS.length}: ${group.join(
-            ', '
-          )}`
+          `\n Processing group ${i + 1}/${
+            TRON_DIAMOND_FACET_GROUPS.length
+          }: ${group.join(', ')}`
         )
 
         const success = await registerFacetsBatch(
@@ -590,7 +596,7 @@ async function registerFacetsToDiamond(
           throw new Error(`Failed to register group: ${group.join(', ')}`)
 
         // Small delay between groups
-        if (i < FACET_GROUPS.length - 1 && !options.dryRun) {
+        if (i < TRON_DIAMOND_FACET_GROUPS.length - 1 && !options.dryRun) {
           consola.info(
             ' Waiting 3 seconds before next group using TronGrid RPC...'
           )
@@ -658,13 +664,10 @@ async function registerFacetsToDiamond(
           const facetHex = facet[0]
           const selectors = facet[1]
 
-          let facetBase58: string
-          try {
-            facetBase58 = tronWeb.address.fromHex(facetHex)
-          } catch {
-            // If conversion fails, show the hex
-            facetBase58 = facetHex
-          }
+          const facetBase58 = tryTronFacetLoupeAddressToBase58(
+            tronWeb,
+            facetHex
+          )
 
           const facetName = Object.entries(deployments).find(
             ([_, addr]) => addr === facetBase58
