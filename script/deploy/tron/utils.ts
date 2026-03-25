@@ -6,7 +6,6 @@ import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
-import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { spawnAndCapture } from '../../utils/spawnAndCapture'
 import {
   INITIAL_CALL_DELAY,
@@ -22,13 +21,11 @@ import {
   DIAMOND_CUT_ENERGY_MULTIPLIER,
   MIN_BALANCE_REGISTRATION,
   MIN_BALANCE_WARNING,
-  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
-  TRON_WALLET_API_FETCH_TIMEOUT_MS,
   TRON_ZERO_ADDRESS,
 } from './constants'
+import { estimateContractCallEnergy } from './helpers/estimateContractEnergy'
 import { loadForgeArtifact } from './helpers/loadForgeArtifact'
 import { getCurrentPrices } from './helpers/tronPricing'
-import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig'
 import {
   getTronWebCodecFullHost,
   getTronWebCodecOnly,
@@ -895,77 +892,23 @@ export async function estimateDiamondCutEnergy(
   facetCuts: any[],
   fullHost: string
 ): Promise<number> {
-  try {
-    consola.info('Estimating energy for diamondCut...')
+  consola.info('Estimating energy for diamondCut...')
 
-    const encodedParams = tronWeb.utils.abi.encodeParams(
+  const encodedParams = tronWeb.utils.abi
+    .encodeParams(
       ['(address,uint8,bytes4[])[]', 'address', 'bytes'],
       [facetCuts, ZERO_ADDRESS, '0x']
     )
+    .replace(/^0x/, '')
 
-    const functionSelector =
-      'diamondCut((address,uint8,bytes4[])[],address,bytes)'
-    const apiUrl =
-      fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
-
-    const payload = {
-      owner_address: tronWeb.defaultAddress.base58,
-      contract_address: diamondAddress,
-      function_selector: functionSelector,
-      parameter: encodedParams.replace('0x', ''),
-      fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
-      call_value: 0,
-      visible: true,
-    }
-
-    let response: Response
-    try {
-      response = await fetchWithTimeout(
-        apiUrl,
-        {
-          method: 'POST',
-          headers: buildTronWalletJsonPostHeaders(fullHost),
-          body: JSON.stringify(payload),
-        },
-        TRON_WALLET_API_FETCH_TIMEOUT_MS
-      )
-    } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError')
-        throw new Error(
-          `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
-        )
-      throw e
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API call failed: ${response.status} - ${errorText}`)
-    }
-
-    const result = await response.json()
-
-    if (result.result?.result === false)
-      throw new Error(
-        `Energy estimation failed: ${
-          result.result?.message || JSON.stringify(result)
-        }`
-      )
-
-    if (result.energy_used) {
-      const estimatedEnergy = Math.ceil(
-        result.energy_used * DIAMOND_CUT_ENERGY_MULTIPLIER
-      )
-      consola.info(
-        `Energy estimate: ${result.energy_used} (with ${DIAMOND_CUT_ENERGY_MULTIPLIER}x safety: ${estimatedEnergy})`
-      )
-      return estimatedEnergy
-    }
-
-    throw new Error('No energy estimation returned')
-  } catch (error: any) {
-    consola.error('Failed to estimate energy:', error.message)
-    throw error
-  }
+  return estimateContractCallEnergy({
+    fullHost,
+    tronWeb,
+    contractAddressBase58: diamondAddress,
+    functionSelector: 'diamondCut((address,uint8,bytes4[])[],address,bytes)',
+    parameterHex: encodedParams,
+    safetyMargin: DIAMOND_CUT_ENERGY_MULTIPLIER,
+  })
 }
 
 /**
@@ -1331,7 +1274,10 @@ Selectors: ${selectors.length} functions
   })
 }
 
-export { estimateContractCallEnergy } from './helpers/estimateContractEnergy'
+export {
+  estimateContractCallEnergy,
+  estimateEnergyAndFeeLimit,
+} from './helpers/estimateContractEnergy'
 export { loadForgeArtifact } from './helpers/loadForgeArtifact'
 export { getTronCorePeriphery } from './helpers/tronContractLists'
 export { getCoreFacets } from '../shared/globalContractLists'

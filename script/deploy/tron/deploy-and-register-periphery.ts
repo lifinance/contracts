@@ -40,9 +40,7 @@ import {
   getContractVersion,
   getEnvironment,
   getNetworkConfig,
-  getAccountAvailableResources,
-  calculateEstimatedCost,
-  estimateContractCallEnergy,
+  estimateEnergyAndFeeLimit,
   loadForgeArtifact,
   getTronCorePeriphery,
   logDeployment,
@@ -1045,9 +1043,9 @@ async function deployAndRegisterPeripheryImpl(options: {
                 [name, addressHex]
               )
               await sleep(REGISTRATION_RPC_DELAY_MS)
-              const estimatedEnergy = await retryWithRateLimit(
+              const result = await retryWithRateLimit(
                 () =>
-                  estimateContractCallEnergy({
+                  estimateEnergyAndFeeLimit({
                     fullHost: rpcUrl,
                     tronWeb,
                     contractAddressBase58: diamondAddress,
@@ -1055,6 +1053,9 @@ async function deployAndRegisterPeripheryImpl(options: {
                       'registerPeripheryContract(string,address)',
                     parameterHex: registerParamsHex,
                     safetyMargin: DEFAULT_SAFETY_MARGIN,
+                    minFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
+                    maxFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
+                    label: `  ${name}`,
                   }),
                 3,
                 REGISTRATION_RETRY_DELAY_MS,
@@ -1065,41 +1066,7 @@ async function deployAndRegisterPeripheryImpl(options: {
                     }s...`
                   )
               )
-              const deployerBase58 =
-                typeof tronWeb.defaultAddress.base58 === 'string'
-                  ? tronWeb.defaultAddress.base58
-                  : ''
-              if (deployerBase58) {
-                await sleep(REGISTRATION_RPC_DELAY_MS)
-                const { availableEnergy } = await retryWithRateLimit(
-                  () => getAccountAvailableResources(rpcUrl, deployerBase58),
-                  3,
-                  REGISTRATION_RETRY_DELAY_MS,
-                  (attempt, delay) =>
-                    consola.warn(
-                      `Rate limit (429), retry ${attempt}/3 in ${
-                        delay / 1000
-                      }s...`
-                    )
-                )
-                const { totalCost } = await calculateEstimatedCost(
-                  tronWeb,
-                  estimatedEnergy,
-                  0
-                )
-                feeLimitSun = Math.min(
-                  Math.max(
-                    Math.ceil(Number(tronWeb.toSun(totalCost))),
-                    REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN
-                  ),
-                  REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN
-                )
-                consola.info(
-                  `  ${name}: estimated energy ${estimatedEnergy}, available ${availableEnergy}; fee limit ${
-                    feeLimitSun / 1_000_000
-                  } TRX`
-                )
-              }
+              feeLimitSun = result.feeLimitSun
             } catch (err: unknown) {
               consola.warn(
                 `  Energy estimate failed, using ${
