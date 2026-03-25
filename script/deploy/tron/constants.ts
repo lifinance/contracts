@@ -43,15 +43,6 @@ export const FALLBACK_ENERGY_PRICE_TRX = 0.00021
 /** Fallback bandwidth price in TRX per bandwidth point if `getBandwidthPrices` fails. */
 export const FALLBACK_BANDWIDTH_PRICE_TRX = 0.001
 
-/** Default periphery contracts deployed/registered by deploy-and-register-periphery. */
-export const TRON_PERIPHERY_CONTRACTS = [
-  'ERC20Proxy',
-  'Executor',
-  'FeeCollector',
-  'FeeForwarder',
-  'TokenWrapper',
-] as const
-
 /** Facet batches for split diamondCut registration (order matters). */
 export const TRON_DIAMOND_FACET_GROUPS: string[][] = [
   ['DiamondLoupeFacet'],

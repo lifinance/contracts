@@ -23,7 +23,6 @@ import {
   REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
   REGISTRATION_RETRY_DELAY_MS,
   REGISTRATION_RPC_DELAY_MS,
-  TRON_PERIPHERY_CONTRACTS,
   TRON_ZERO_ADDRESS,
 } from './constants.js'
 import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
@@ -45,6 +44,7 @@ import {
   calculateEstimatedCost,
   estimateContractCallEnergy,
   loadForgeArtifact,
+  getTronCorePeriphery,
   logDeployment,
   promptEnergyRentalReminder,
   readJsonFile,
@@ -261,7 +261,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       const toLoad: string[] =
         onlyContracts !== undefined && onlyContracts.length > 0
           ? onlyContracts
-          : [...TRON_PERIPHERY_CONTRACTS, 'LiFiTimelockController']
+          : getTronCorePeriphery()
       for (const name of toLoad) {
         const addr = await getContractAddress(network, name)
         if (addr) deployedContracts[name] = addr
@@ -1142,7 +1142,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       // Verify registrations
       consola.info('\n Verifying registrations...')
 
-      for (const name of TRON_PERIPHERY_CONTRACTS)
+      for (const name of getTronCorePeriphery())
         try {
           await sleep(REGISTRATION_RPC_DELAY_MS)
           const registered = await retryWithRateLimit(
