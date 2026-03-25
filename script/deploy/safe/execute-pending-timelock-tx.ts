@@ -12,7 +12,7 @@ import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { type ObjectId } from 'mongodb'
-import type { Address, Hex, PublicClient, WalletClient } from 'viem'
+import type { Address, Hex, PublicClient } from 'viem'
 import {
   decodeFunctionData,
   encodeAbiParameters,
@@ -24,10 +24,7 @@ import {
 
 import data from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
-import {
-  getEnvVar,
-  setupEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
@@ -35,10 +32,9 @@ import {
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
-import { isTronNetworkKey } from '../shared/tron-network-keys'
-import { broadcastTronContractCall } from '../tron/helpers/tronSafeExecBroadcast'
-import type { TronTvmNetworkName } from '../tron/types'
 
+import type { IChainCaller } from './chain-executor'
+import { createChainCaller } from './executors/create-chain-caller'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 import {
@@ -612,6 +608,13 @@ async function processNetwork(
       rpcUrlOverride
     )
 
+    const chainCaller = await createChainCaller({
+      networkName: network.name,
+      walletClient,
+      publicClient,
+      privateKeyHex: process.env.PRIVATE_KEY_PRODUCTION,
+    })
+
     const { readyOperations, totalPendingCount, notScheduledOperations } =
       await getPendingOperations(
         publicClient,
@@ -659,12 +662,10 @@ async function processNetwork(
     for (const operation of readyOperations)
       if (rejectAll) {
         const rejectResult = await rejectOperation(
-          publicClient,
-          walletClient,
+          chainCaller,
           timelockAddress,
           operation,
-          isDryRun,
-          network.name
+          isDryRun
         )
         operationsProcessed++
         if (rejectResult === 'rejected') operationsRejected++
@@ -674,8 +675,7 @@ async function processNetwork(
         const isInteractive = !executeAll && !rejectAll
 
         const result = await executeOperation(
-          publicClient,
-          walletClient,
+          chainCaller,
           timelockAddress,
           operation,
           isDryRun,
@@ -1038,8 +1038,7 @@ async function getPendingOperations(
 }
 
 async function executeOperation(
-  publicClient: PublicClient,
-  walletClient: WalletClient,
+  chainCaller: IChainCaller,
   timelockAddress: Address,
   operation: ITimelockOperation,
   isDryRun: boolean,
@@ -1089,14 +1088,7 @@ async function executeOperation(
 
     if (action === 'Reject') {
       // Call rejectOperation and return
-      await rejectOperation(
-        publicClient,
-        walletClient,
-        timelockAddress,
-        operation,
-        isDryRun,
-        networkName
-      )
+      await rejectOperation(chainCaller, timelockAddress, operation, isDryRun)
       return 'rejected'
     }
 
@@ -1128,14 +1120,14 @@ async function executeOperation(
         ],
       })
 
-      const gasEstimate = await publicClient.estimateGas({
-        account: walletClient.account?.address || '0x0',
+      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
         to: timelockAddress,
         data: callData,
-        value: 0n,
       })
 
-      consola.info(`${networkPrefix}    Estimated gas: ${gasEstimate}`)
+      consola.info(
+        `${networkPrefix}    Estimated ${resourceLabel}: ${estimatedResource}`
+      )
       consola.success(
         `${networkPrefix} ✅ [DRY RUN] Transaction simulation successful`
       )
@@ -1143,61 +1135,34 @@ async function executeOperation(
       // Send the actual transaction
       consola.info(`${networkPrefix} 📤 Submitting transaction...`)
 
-      const isTron = isTronNetworkKey(networkName)
+      const callData = encodeFunctionData({
+        abi: TIMELOCK_ABI,
+        functionName: 'executeBatch',
+        args: [
+          operation.targets,
+          operation.values,
+          operation.payloads,
+          operation.predecessor,
+          salt,
+        ],
+      })
 
-      let hash: Hex
-      if (isTron) {
-        // Tron: use TronWeb for broadcast (viem writeContract fails - no eth_getTransactionCount)
-        const callData = encodeFunctionData({
-          abi: TIMELOCK_ABI,
-          functionName: 'executeBatch',
-          args: [
-            operation.targets,
-            operation.values,
-            operation.payloads,
-            operation.predecessor,
-            salt,
-          ],
-        })
-        const tronResult = await broadcastTronContractCall({
-          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
-          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
-          contractAddress: timelockAddress,
-          calldata: callData,
-        })
-        hash = tronResult.hash
-      } else {
-        hash = await walletClient.writeContract({
-          address: timelockAddress,
-          abi: TIMELOCK_ABI,
-          functionName: 'executeBatch',
-          args: [
-            operation.targets,
-            operation.values,
-            operation.payloads,
-            operation.predecessor,
-            salt,
-          ],
-          account: walletClient.account || null,
-          chain: walletClient.chain || null,
-        })
+      const result = await chainCaller.call({
+        to: timelockAddress,
+        data: callData,
+      })
+
+      consola.info(`${networkPrefix}    Transaction hash: ${result.hash}`)
+
+      if (result.receipt && result.receipt.status !== 'success') {
+        consola.error(
+          `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
+        )
+        return 'failed'
       }
 
-      consola.info(`${networkPrefix}    Transaction hash: ${hash}`)
-
-      let gasUsed: bigint | undefined
-      if (!isTron) {
-        consola.info(`${networkPrefix}    Waiting for confirmation...`)
-        const receipt = await publicClient.waitForTransactionReceipt({ hash })
-
-        if (receipt.status !== 'success') {
-          consola.error(
-            `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
-          )
-          return 'failed'
-        }
-        gasUsed = receipt.gasUsed
-      }
+      const { hash } = result
+      const gasUsed = result.gasUsed
 
       if (slackNotifier && networkName)
         try {
@@ -1278,12 +1243,10 @@ async function executeOperation(
 }
 
 async function rejectOperation(
-  publicClient: PublicClient,
-  walletClient: WalletClient,
+  chainCaller: IChainCaller,
   timelockAddress: Address,
   operation: ITimelockOperation,
-  isDryRun: boolean,
-  networkName?: string
+  isDryRun: boolean
 ): Promise<'rejected' | 'failed'> {
   consola.info(`\n❌ Rejecting operation: ${operation.id}`)
   const callCount = operation.targets.length
@@ -1304,62 +1267,40 @@ async function rejectOperation(
       // Simulate the cancellation
       consola.info(`🔍 [DRY RUN] Simulating cancellation...`)
 
-      // Try to simulate the transaction
-      const gasEstimate = await publicClient.estimateGas({
-        account: walletClient.account?.address || '0x0',
-        to: timelockAddress,
-        data: encodeFunctionData({
-          abi: TIMELOCK_ABI,
-          functionName: 'cancel',
-          args: [operation.id],
-        }),
-        value: 0n,
+      const cancelCalldata = encodeFunctionData({
+        abi: TIMELOCK_ABI,
+        functionName: 'cancel',
+        args: [operation.id],
       })
 
-      consola.info(`   Estimated gas: ${gasEstimate}`)
+      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
+        to: timelockAddress,
+        data: cancelCalldata,
+      })
+
+      consola.info(`   Estimated ${resourceLabel}: ${estimatedResource}`)
       consola.success(`✅ [DRY RUN] Cancellation simulation successful`)
       return 'rejected'
     } else {
       // Send the actual cancellation transaction
       consola.info(`📤 Submitting cancellation transaction...`)
 
-      const isTron = isTronNetworkKey(networkName)
+      const cancelCalldata = encodeFunctionData({
+        abi: TIMELOCK_ABI,
+        functionName: 'cancel',
+        args: [operation.id],
+      })
 
-      let hash: Hex
-      if (isTron) {
-        const cancelCalldata = encodeFunctionData({
-          abi: TIMELOCK_ABI,
-          functionName: 'cancel',
-          args: [operation.id],
-        })
-        const tronResult = await broadcastTronContractCall({
-          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
-          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
-          contractAddress: timelockAddress,
-          calldata: cancelCalldata,
-        })
-        hash = tronResult.hash
-      } else {
-        hash = await walletClient.writeContract({
-          address: timelockAddress,
-          abi: TIMELOCK_ABI,
-          functionName: 'cancel',
-          args: [operation.id],
-          account: walletClient.account || null,
-          chain: walletClient.chain || null,
-        })
-      }
+      const result = await chainCaller.call({
+        to: timelockAddress,
+        data: cancelCalldata,
+      })
 
-      consola.info(`   Transaction hash: ${hash}`)
+      consola.info(`   Transaction hash: ${result.hash}`)
 
-      if (!isTron) {
-        consola.info(`   Waiting for confirmation...`)
-        const receipt = await publicClient.waitForTransactionReceipt({ hash })
-
-        if (receipt.status !== 'success') {
-          consola.error(`❌ Cancellation failed for operation ${operation.id}`)
-          return 'failed'
-        }
+      if (result.receipt && result.receipt.status !== 'success') {
+        consola.error(`❌ Cancellation failed for operation ${operation.id}`)
+        return 'failed'
       }
 
       consola.success(`✅ Operation ${operation.id} cancelled successfully`)
