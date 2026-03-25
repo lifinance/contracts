@@ -3,51 +3,55 @@
     "Facets": {
       "0x81Aa26F9c9b9d5DE24b61b36dD602da7755aC769": {
         "Name": "DiamondCutFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xe60F67d9963977C929eF6Dc465c9874290F746aa": {
         "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x037E643C2ABf0A065eB19554b096CFc11328de33": {
         "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xe44bd998661194534CAAEa44dAb7512e7Fc11D52": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": ""
       },
       "0xF610Ad5028e9ac3b0E3bBF0761d3EFae994F341e": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
+        "Version": ""
       },
       "0xCC66A5dBcD2528E93FFA515a849132e9C3F2F5A2": {
         "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xbc140b5ecE539c2A73878badC5014F33F5fe0d83": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": ""
       },
       "0x23Abcd6a3B11A161B044EEe5448ACc1c71a280A0": {
         "Name": "OwnershipFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xffdF032efC87a5ae95a133637d8F10A5C8e9AC0c": {
         "Name": "PeripheryRegistryFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xb0AF986eACb968B7bf0116C0AC1769D47E97cb40": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.1.0"
+        "Version": ""
       },
       "0xf8c32B42ddA2CEE4085Bb762FaaA83f34FE6Ad7A": {
         "Name": "WithdrawFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x71e7fF4A8186CC3DA73e39BFd918Bb27DFb688c2": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": ""
+      },
+      "0xbebB7c41C6cF40D1CaDcB80e14f997c3567Ac6B8": {
+        "Name": "PolymerCCTPFacet",
+        "Version": ""
       }
     },
     "Periphery": {
