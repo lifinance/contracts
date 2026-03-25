@@ -16,10 +16,6 @@ BLUE='\033[1;34m'  # Light blue color
 
 NC='\033[0m' # No color
 
-# MongoDB query retry defaults (used by findContractInMasterLog, findContractInMasterLogByAddress,
-# getContractVersionFromMasterLog, getHighestDeployedContractVersionFromMasterLog, getConstructorArgsFromMasterLog)
-MONGO_MAX_RETRIES=${MONGO_MAX_RETRIES:-3}
-
 # >>>>> logging
 function logContractDeploymentInfo {
   # read function arguments into variables
@@ -214,8 +210,8 @@ function findContractInMasterLog() {
   while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     local MONGO_EXIT_CODE=$?
-    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object
-    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[{]/,$ p')
+    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object (supports indented or compact one-line)
+    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[:space:]]*[{]/,$ p')
 
     if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Strip leading non-JSON so jq sees only the object
@@ -1869,9 +1865,19 @@ function verifyContract() {
 
   echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
-  # Add constructor args if present
-  if [ "$ARGS" != "0x" ]; then
+  # Normalize constructor args: use only the first line to avoid passing multiline values
+  # (e.g. from broadcast JSON or jq output), which forge/etherscan can interpret as
+  # multiple arguments and then reject as invalid ABI encoding.
+  ARGS=$(echo "$ARGS" | head -1 | tr -d '\n')
+
+  # Add constructor args only if valid ABI-encoded hex (0x + even number of hex digits).
+  # Reject anything else so forge verify-contract never receives malformed --constructor-args.
+  if [[ -z "$ARGS" || "$ARGS" == "0x" ]]; then
+    :
+  elif [[ "$ARGS" =~ ^0x([0-9a-fA-F]{2})+$ ]]; then
     VERIFY_CMD+=("--constructor-args" "$ARGS")
+  else
+    warning "Skipping invalid constructor args for verify-contract (expected 0x-prefixed hex with an even number of hex digits); not passing --constructor-args."
   fi
 
   # Get API key and determine verification method
@@ -1903,7 +1909,11 @@ function verifyContract() {
       VERIFY_CMD+=("--verifier" "sourcify")
     elif [[ "$VERIFICATION_TYPE" = "etherscan" ]]; then
       # Use etherscan verifier (foundry.toml may also set verifier = "etherscan" for this network)
-      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
+      if [ -z "${!API_KEY}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+        return 1
+      fi
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
       # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
       VERIFY_CMD+=("--verifier" "custom")
@@ -4296,6 +4306,8 @@ function checkDeployRequirements() {
       KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
       # replace '<ENVIRONMENT>' with actual environment, if needed
       KEY_IN_FILE=${KEY_IN_FILE//<ENVIRONMENT>/$ENVIRONMENT}
+      # jq cannot resolve keys that start with a digit (e.g. "0g"); use bracket notation
+      KEY_IN_FILE=$(echo "$KEY_IN_FILE" | sed -E 's/\.([0-9][^.]*)/.["\1"]/g')
 
       # get full config file path
       CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"
@@ -4707,8 +4719,8 @@ function getValueFromJSONFile() {
     return 1
   fi
 
-  # extract and return value from file
-  VALUE=$(cat "$FILE_PATH" | jq -r ".$KEY")
+  # extract and return value: try direct key lookup first (handles flat keys with dots), then path lookup (handles dotted paths and keys like "0g")
+  VALUE=$(jq -r --arg key "$KEY" '(.[$key] // getpath($key | split("."))) // empty' "$FILE_PATH")
   echo "$VALUE"
 }
 function compareAddresses() {

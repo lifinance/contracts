@@ -5,9 +5,11 @@ import {
   type Collection,
   type ObjectId,
   type Document,
+  type Filter,
 } from 'mongodb'
 
 import type { EnvironmentEnum } from '../../common/types'
+import { sleep } from '../../utils/delay'
 
 /**
  * Represents a deployment record stored in MongoDB
@@ -71,6 +73,41 @@ export interface IUpdateConfig extends IConfig {
   logFilePath: string
 }
 
+/** Wraps a value in `{ $eq }` so MongoDB treats it as a literal match (blocks operator injection). */
+export function mongoEq<T>(value: T): { $eq: T } {
+  return { $eq: value }
+}
+
+const DEPLOYMENT_QUERY_EQ_KEYS = [
+  'contractName',
+  'network',
+  'version',
+  'address',
+  'optimizerRuns',
+  'salt',
+  'verified',
+  'solcVersion',
+  'evmVersion',
+  'zkSolcVersion',
+  'contractNetworkKey',
+  'contractVersionKey',
+  'timestamp',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof IDeploymentRecord)[]
+
+/** Builds a strict equality filter from partial deployment fields (whitelist only). */
+export function deploymentRecordEqFilter(
+  filters: Partial<IDeploymentRecord>
+): Filter<IDeploymentRecord> {
+  const out: Record<string, { $eq: unknown }> = {}
+  for (const key of DEPLOYMENT_QUERY_EQ_KEYS) {
+    const v = filters[key]
+    if (v !== undefined) out[key] = mongoEq(v)
+  }
+  return out as Filter<IDeploymentRecord>
+}
+
 /**
  * Singleton class for managing MongoDB database connections
  * Provides a shared connection instance to avoid connection overhead
@@ -128,7 +165,7 @@ export class DatabaseConnectionManager {
 
         const delay = Math.pow(2, retryCount) * 1000
         consola.warn(`MongoDB connection failed, retrying in ${delay}ms...`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await sleep(delay)
       }
   }
 

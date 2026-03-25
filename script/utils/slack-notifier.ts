@@ -5,6 +5,8 @@ import { formatEther } from 'viem'
 import networksConfig from '../../config/networks.json'
 import type { SupportedChain } from '../common/types'
 
+import { sleep } from './delay'
+
 interface ISlackMessage {
   text: string
   blocks?: Record<string, unknown>[]
@@ -124,7 +126,7 @@ export class SlackNotifier {
             'Failed to send Slack notification after retries:',
             error
           )
-        else await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
+        else await sleep(1000 * (i + 1))
       }
   }
 
