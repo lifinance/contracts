@@ -13,6 +13,7 @@ import {
 
 import networksConfig from '../config/networks.json'
 
+import type { DeployedEvmVersionLabel } from './common/types'
 import { initTronWeb } from './troncast/utils/tronweb'
 import { node_url } from './utils/network'
 
@@ -34,7 +35,7 @@ interface INetworkConfig {
   safeAddress: string
   gasZipChainId: number
   isZkEVM: boolean
-  deployedWithEvmVersion: string
+  deployedWithEvmVersion: DeployedEvmVersionLabel
   deployedWithSolcVersion: string
   create3Factory?: string
   devNotes?: string

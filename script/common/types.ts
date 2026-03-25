@@ -2,11 +2,19 @@ import type networks from '../../config/networks.json'
 
 export type SupportedChain = keyof typeof networks
 
+type NetworkRow = (typeof networks)[keyof typeof networks]
+
 /**
- * Subset of EVM hardfork labels used for Safe local bytecode (`safe/london` vs `safe/cancun`)
- * and `networks.json` → `deployedWithEvmVersion`.
+ * Every distinct `deployedWithEvmVersion` value in `config/networks.json`.
  */
-export type EVMVersion = 'london' | 'cancun'
+export type DeployedEvmVersionLabel = NetworkRow['deployedWithEvmVersion']
+
+/**
+ * EVM hardfork labels used across scripts and config (e.g. `networks.json` → `deployedWithEvmVersion`,
+ * validated fork names for deploy tooling, artifact paths such as `safe/<fork>/`).
+ * Union is derived from `networks.json`, excluding placeholders (`n/a`, empty).
+ */
+export type EVMVersion = Exclude<Lowercase<DeployedEvmVersionLabel>, 'n/a' | ''>
 
 export interface INetworksObject {
   [key: string]: Omit<INetwork, 'id'>
@@ -40,7 +48,7 @@ export interface INetwork {
   explorerApiUrl: string
   multicallAddress: string
   safeAddress: string
-  deployedWithEvmVersion: string
+  deployedWithEvmVersion: DeployedEvmVersionLabel
   deployedWithSolcVersion: string
   gasZipChainId: number
   id: string
