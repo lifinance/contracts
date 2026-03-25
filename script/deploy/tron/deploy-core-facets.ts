@@ -309,12 +309,6 @@ async function deployCoreFacetsImpl(options: {
       const ownerAddress = networkInfo.address
 
       // Convert to hex format for constructor
-      const tronWeb = createTronWeb({
-        rpcUrl,
-        networkKey: networkName as TronTvmNetworkName,
-        privateKey,
-        verbose: options.verbose,
-      })
       const ownerHexRaw = tronWeb.address.toHex(ownerAddress)
       const ownerHex = ownerHexRaw.startsWith('0x')
         ? ownerHexRaw
