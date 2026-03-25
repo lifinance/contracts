@@ -14,6 +14,7 @@ import {
   RETRY_DELAY,
   ZERO_ADDRESS,
 } from '../shared/constants'
+import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
 import {
@@ -25,7 +26,6 @@ import {
   TRON_WALLET_API_FETCH_TIMEOUT_MS,
   TRON_ZERO_ADDRESS,
 } from './constants'
-import { getContractVersion } from './helpers/getContractVersion'
 import { loadForgeArtifact } from './helpers/loadForgeArtifact'
 import { getCurrentPrices } from './helpers/tronPricing'
 import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig'
@@ -1339,7 +1339,7 @@ export {
   getTronGridAPIKey,
   getTronRPCConfig,
 } from './helpers/tronRpcConfig'
-export { getContractVersion } from './helpers/getContractVersion'
+export { getContractVersion } from '../shared/getContractVersion'
 export {
   calculateEstimatedCost,
   calculateTransactionBandwidth,
