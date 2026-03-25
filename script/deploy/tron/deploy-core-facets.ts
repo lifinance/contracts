@@ -163,7 +163,7 @@ async function deployCoreFacetsImpl(options: {
   await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
   // Get core facets list
-  const coreFacets = getCoreFacets()
+  const coreFacets = getCoreFacets({ exclude: ['GasZipFacet'] })
 
   // Add LiFiDiamond to the contracts list for confirmation
   const allContracts = [...coreFacets, 'LiFiDiamond']

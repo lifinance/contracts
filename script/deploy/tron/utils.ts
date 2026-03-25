@@ -1333,7 +1333,8 @@ Selectors: ${selectors.length} functions
 
 export { estimateContractCallEnergy } from './helpers/estimateContractEnergy'
 export { loadForgeArtifact } from './helpers/loadForgeArtifact'
-export { getCoreFacets, getTronCorePeriphery } from './helpers/tronGlobalFacets'
+export { getTronCorePeriphery } from './helpers/tronContractLists'
+export { getCoreFacets } from '../shared/globalContractLists'
 export {
   getNetworkConfig,
   getTronGridAPIKey,

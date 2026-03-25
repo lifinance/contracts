@@ -28,6 +28,7 @@ import {
 
 import targetStateImport from './_targetState.json'
 import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
+import { getCoreFacets } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import {
   callTronContract,
@@ -40,7 +41,6 @@ import {
 } from './tron/tronUtils'
 import {
   checkIsDeployedTron,
-  getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
   parseTroncastFacetsOutput,
 } from './tron/utils'
@@ -161,7 +161,7 @@ const main = defineCommand({
     let coreFacetsToCheck: string[]
     if (isTron)
       // Use the Tron-specific utility that filters out GasZipFacet
-      coreFacetsToCheck = getTronCoreFacets()
+      coreFacetsToCheck = getCoreFacets({ exclude: ['GasZipFacet'] })
     else coreFacetsToCheck = globalConfig.coreFacets
 
     // For staging, skip targetState checks as targetState is only for production
