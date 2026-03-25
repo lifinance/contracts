@@ -4825,6 +4825,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xc702A522d2a953306aa7c60aAAb73A68723f4B13",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "TokenWrapper",
         "address": "0x60eDeCC4183Af6DA9bEbD406980bB60326958eb1",
         "selectors": [
@@ -8955,6 +8969,46 @@
       {
         "name": "LiFiDEXAggregator",
         "address": "0xEfD58f4D96e21c7e2F7f07CdCD21fe131b11254b",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
+    "tempo": [
+      {
+        "name": "FeeCollector",
+        "address": "0x856305Ab6259E1E83FeE6a66b01672E9CfB84055",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xb421420EEf363d62108D040b70F0A8d580708AD1",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0xB141CfAe0951be61eeE8b5F57DAa094D81b54e1C",
         "selectors": [
           {
             "selector": "0x2646478b",

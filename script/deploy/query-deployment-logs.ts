@@ -29,6 +29,11 @@ const config: IConfig = {
   databaseName: 'contract-deployments',
 }
 
+/** Escapes a string for safe use as a literal inside a MongoDB regex pattern. */
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 class DeploymentLogQuerier {
   private client: MongoClient
   private db!: Db
@@ -111,9 +116,20 @@ class DeploymentLogQuerier {
     address: string,
     network: string
   ): Promise<IDeploymentRecord | null> {
+    const n =
+      typeof network === 'string' ? network.trim() : String(network).trim()
+    const a =
+      typeof address === 'string' ? address.trim() : String(address).trim()
+    const exact = await this.collection.findOne({
+      address: mongoEq(a),
+      network: mongoEq(n),
+    })
+    if (exact) return exact
+    // facetAddresses() is often all-lowercase; Mongo may store checksummed addresses
+    const safePattern = escapeRegexLiteral(a)
     return this.collection.findOne({
-      address: mongoEq(address),
-      network: mongoEq(network),
+      network: mongoEq(n),
+      address: { $regex: `^${safePattern}$`, $options: 'i' },
     })
   }
 
@@ -126,8 +142,7 @@ class DeploymentLogQuerier {
   }): Promise<IDeploymentRecord[]> {
     const query: Filter<IDeploymentRecord> = {}
 
-    if (filters.contractName)
-      query.contractName = mongoEq(filters.contractName)
+    if (filters.contractName) query.contractName = mongoEq(filters.contractName)
     if (filters.network) query.network = mongoEq(filters.network)
     if (filters.version) query.version = mongoEq(filters.version)
     if (filters.verified !== undefined)
