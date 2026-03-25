@@ -1865,9 +1865,19 @@ function verifyContract() {
 
   echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
-  # Add constructor args if present
-  if [ "$ARGS" != "0x" ]; then
+  # Normalize constructor args: use only the first line to avoid passing multiline values
+  # (e.g. from broadcast JSON or jq output), which forge/etherscan can interpret as
+  # multiple arguments and then reject as invalid ABI encoding.
+  ARGS=$(echo "$ARGS" | head -1 | tr -d '\n')
+
+  # Add constructor args only if valid ABI-encoded hex (0x + even number of hex digits).
+  # Reject anything else so forge verify-contract never receives malformed --constructor-args.
+  if [[ -z "$ARGS" || "$ARGS" == "0x" ]]; then
+    :
+  elif [[ "$ARGS" =~ ^0x([0-9a-fA-F]{2})+$ ]]; then
     VERIFY_CMD+=("--constructor-args" "$ARGS")
+  else
+    warning "Skipping invalid constructor args for verify-contract (expected 0x-prefixed hex with an even number of hex digits); not passing --constructor-args."
   fi
 
   # Get API key and determine verification method
