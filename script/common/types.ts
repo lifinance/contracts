@@ -21,18 +21,15 @@ export interface INetworksObject {
 }
 
 export enum EnvironmentEnum {
-  'staging',
-  'production',
+  production = 'production',
+  staging = 'staging',
 }
 
 /**
  * Environment value for deployment artifact filenames (`''` vs `'staging.'` prefix).
- * CLI/config often use `'production' | 'staging'`; scripts typically use {@link EnvironmentEnum} (numeric).
+ * Accepts {@link EnvironmentEnum} or arbitrary `string` (e.g. raw CLI args).
  */
-export type DeploymentFileSuffixInput =
-  | EnvironmentEnum
-  | keyof typeof EnvironmentEnum
-  | string
+export type DeploymentFileSuffixInput = EnvironmentEnum | string
 
 export interface INetwork {
   name: string

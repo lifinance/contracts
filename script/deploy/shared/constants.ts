@@ -55,9 +55,7 @@ export const RETRY_DELAY = 2000 // 2s
 export const DEPLOYMENT_FILE_SUFFIX = (
   environment: DeploymentFileSuffixInput
 ): '' | 'staging.' =>
-  environment === EnvironmentEnum.production || environment === 'production'
-    ? ''
-    : 'staging.'
+  environment === EnvironmentEnum.production ? '' : 'staging.'
 
 // Common EVM address
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
