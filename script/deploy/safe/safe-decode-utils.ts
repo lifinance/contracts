@@ -542,9 +542,6 @@ export async function formatTimelockScheduleBatch(
 const ABI_DIAMOND_CUT = parseAbi([
   'function diamondCut((address,uint8,bytes4[])[],address,bytes)',
 ])
-const ABI_SCHEDULE = parseAbi([
-  'function schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
-])
 const ABI_SCHEDULE_BATCH = parseAbi([
   'function scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
 ])
@@ -680,8 +677,6 @@ function getAbiForKnownFunction(functionName: string): Abi | null {
   switch (name) {
     case 'diamondCut':
       return ABI_DIAMOND_CUT
-    case 'schedule':
-      return ABI_SCHEDULE
     case 'scheduleBatch':
       return ABI_SCHEDULE_BATCH
     case 'batchSetContractSelectorWhitelist':
@@ -786,32 +781,6 @@ export async function formatDecodedTxDataForDisplay(
           indent: pre + '  ',
         })
       }
-      return
-    }
-
-    const scheduleArgs =
-      decoded?.functionName === 'schedule' ? decoded.args : undefined
-    if (scheduleArgs && scheduleArgs.length >= 6) {
-      log('Timelock Schedule Details:')
-      log('-'.repeat(80))
-      const [target, value, innerData, predecessor, salt, delay] = scheduleArgs
-      const targetStr = String(target)
-      const targetName = await getTargetName(target as Address, network)
-      const targetAddrDisplay = formatAddressForNetworkCliDisplay(
-        network,
-        targetStr
-      )
-      const targetDisplay = targetName
-        ? `${targetAddrDisplay} \u001b[33m${targetName}\u001b[0m`
-        : targetAddrDisplay
-      log(`Target:      \u001b[32m${targetDisplay}\u001b[0m`)
-      log(`Value:       \u001b[32m${value}\u001b[0m`)
-      log(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
-      log(`Salt:        \u001b[32m${salt}\u001b[0m`)
-      log(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
-      log('-'.repeat(80))
-      if (innerData && innerData !== '0x')
-        await formatDecodedTxDataForDisplay(innerData as Hex, context)
       return
     }
 

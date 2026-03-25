@@ -29,7 +29,6 @@ import {
   setupEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
   SlackNotifier,
@@ -43,10 +42,8 @@ import type { TronTvmNetworkName } from '../tron/types'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 import {
-  TIMELOCK_SCHEDULE_ABI,
   TIMELOCK_SCHEDULE_BATCH_ABI,
   TIMELOCK_SCHEDULE_BATCH_SELECTOR,
-  TIMELOCK_SCHEDULE_SELECTOR,
 } from './timelock-abi'
 
 // Define interfaces for network configuration
@@ -106,15 +103,6 @@ interface ITimelockOperation {
   salt?: Hex
   mongoId?: ObjectId
   functionName?: string | null
-  /**
-   * Which TimelockController execute variant must be used for this operation.
-   * NOTE: In OpenZeppelin TimelockController, `schedule/execute` and `scheduleBatch/executeBatch`
-   * use different operation IDs, so we must preserve this distinction for legacy entries.
-   *
-   * Going forward, scripts should create timelock proposals via scheduleBatch (batch-of-one),
-   * which keeps the operator flow consistent.
-   */
-  executionMethod: 'execute' | 'executeBatch'
   /** Call list (always present; batch-of-one for single-call ops). */
   targets: readonly Address[]
   values: readonly bigint[]
@@ -449,31 +437,6 @@ const cmd = defineCommand({
 })
 
 /**
- * Computes operation ID by hashing the schedule parameters (excluding delay)
- * This matches the Solidity hashOperation function
- */
-function computeOperationId(
-  target: string,
-  value: bigint,
-  data: Hex,
-  predecessor: Hex,
-  salt: Hex
-): Hex {
-  const encoded = encodeAbiParameters(
-    [
-      { name: 'target', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'data', type: 'bytes' },
-      { name: 'predecessor', type: 'bytes32' },
-      { name: 'salt', type: 'bytes32' },
-    ],
-    [target as Hex, value, data, predecessor, salt]
-  )
-
-  return keccak256(encoded)
-}
-
-/**
  * Computes operation ID for a batch schedule (matches Solidity hashOperationBatch)
  */
 function computeOperationIdBatch(
@@ -540,15 +503,13 @@ async function checkOperationStatus(
 }
 
 /**
- * Fetches Safe transactions with schedule or scheduleBatch data that haven't been executed in timelock
+ * Fetches Safe transactions with scheduleBatch data that haven't been executed in timelock
  */
 async function fetchPendingTimelockTransactions(
   networkName: string
 ): Promise<ISafeTxDocumentWithId[]> {
   const { client, pendingTransactions } = await getSafeMongoCollection()
 
-  const scheduleSelectorRegex =
-    TIMELOCK_SCHEDULE_SELECTOR.slice(2).toLowerCase()
   const batchSelectorRegex =
     TIMELOCK_SCHEDULE_BATCH_SELECTOR.slice(2).toLowerCase()
 
@@ -556,10 +517,7 @@ async function fetchPendingTimelockTransactions(
     const txs = await pendingTransactions
       .find({
         network: networkName.toLowerCase(),
-        $or: [
-          { 'safeTx.data.data': { $regex: `^0x${scheduleSelectorRegex}` } },
-          { 'safeTx.data.data': { $regex: `^0x${batchSelectorRegex}` } },
-        ],
+        'safeTx.data.data': { $regex: `^0x${batchSelectorRegex}` },
         status: 'executed',
         timelockIsExecuted: { $ne: true },
       })
@@ -823,16 +781,14 @@ async function getPendingOperations(
     if (!quiet) consola.info(msg, ...rest)
   }
 
-  // Fetch Safe transactions with schedule or scheduleBatch data from MongoDB
+  // Fetch Safe transactions with scheduleBatch data from MongoDB
   log(
-    `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching Safe transactions with schedule/scheduleBatch data from MongoDB...`
+    `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching Safe transactions with scheduleBatch data from MongoDB...`
   )
   const safeTxs = await fetchPendingTimelockTransactions(networkName)
 
   if (safeTxs.length === 0) {
-    log(
-      `[${networkName}] No Safe transactions with schedule/scheduleBatch data found`
-    )
+    log(`[${networkName}] No Safe transactions with scheduleBatch data found`)
     return {
       readyOperations: [],
       totalPendingCount: 0,
@@ -841,7 +797,7 @@ async function getPendingOperations(
   }
 
   log(
-    `[${networkName}] Found ${safeTxs.length} Safe transaction(s) with schedule/scheduleBatch data`
+    `[${networkName}] Found ${safeTxs.length} Safe transaction(s) with scheduleBatch data`
   )
 
   const readyOperations = []
@@ -865,85 +821,59 @@ async function getPendingOperations(
         }
 
         const selector = dataField.slice(0, 10).toLowerCase()
-        let opId: Hex
-        let predecessor: Hex
-        let salt: Hex
-        let delay: bigint
-        let targets: readonly Address[]
-        let values: readonly bigint[]
-        let payloads: readonly Hex[]
-        let executionMethod: ITimelockOperation['executionMethod']
 
-        if (selector === TIMELOCK_SCHEDULE_SELECTOR.toLowerCase()) {
-          const decoded = decodeFunctionData({
-            abi: TIMELOCK_SCHEDULE_ABI,
-            data: dataField,
-          })
-          const args = decoded.args as [Address, bigint, Hex, Hex, Hex, bigint]
-          const [target, value, innerData, pred, s, d] = args
-          predecessor = pred
-          salt = s
-          delay = d
-          targets = [target]
-          values = [value]
-          payloads = [innerData]
-          executionMethod = 'execute'
-          opId = computeOperationId(target, value, innerData, predecessor, salt)
-        } else if (
-          selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
-        ) {
-          const decoded = decodeFunctionData({
-            abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-            data: dataField,
-          })
-          const args = decoded.args as [
-            readonly Address[],
-            readonly bigint[],
-            readonly Hex[],
-            Hex,
-            Hex,
-            bigint
-          ]
-          const [targetsArr, valuesArr, payloadsArr, pred, s, d] = args
-          if (
-            targetsArr.length === 0 ||
-            valuesArr.length === 0 ||
-            payloadsArr.length === 0
-          ) {
-            consola.warn(
-              `[${networkName}] Transaction ${tx._id} scheduleBatch has empty arrays; skipping.`
-            )
-            continue
-          }
-          if (
-            targetsArr.length !== valuesArr.length ||
-            valuesArr.length !== payloadsArr.length
-          ) {
-            consola.warn(
-              `[${networkName}] Transaction ${tx._id} scheduleBatch has inconsistent array lengths (targets=${targetsArr.length}, values=${valuesArr.length}, payloads=${payloadsArr.length}); skipping.`
-            )
-            continue
-          }
-          targets = targetsArr
-          values = valuesArr
-          payloads = payloadsArr
-          predecessor = pred
-          salt = s
-          delay = d
-          executionMethod = 'executeBatch'
-          opId = computeOperationIdBatch(
-            targetsArr,
-            valuesArr,
-            payloadsArr,
-            predecessor,
-            salt
-          )
-        } else {
+        if (selector !== TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()) {
           consola.warn(
             `[${networkName}] Transaction ${tx._id} has unknown selector ${selector}; skipping.`
           )
           continue
         }
+
+        const decoded = decodeFunctionData({
+          abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+          data: dataField,
+        })
+        const args = decoded.args as [
+          readonly Address[],
+          readonly bigint[],
+          readonly Hex[],
+          Hex,
+          Hex,
+          bigint
+        ]
+        const [targetsArr, valuesArr, payloadsArr, pred, s, d] = args
+        if (
+          targetsArr.length === 0 ||
+          valuesArr.length === 0 ||
+          payloadsArr.length === 0
+        ) {
+          consola.warn(
+            `[${networkName}] Transaction ${tx._id} scheduleBatch has empty arrays; skipping.`
+          )
+          continue
+        }
+        if (
+          targetsArr.length !== valuesArr.length ||
+          valuesArr.length !== payloadsArr.length
+        ) {
+          consola.warn(
+            `[${networkName}] Transaction ${tx._id} scheduleBatch has inconsistent array lengths (targets=${targetsArr.length}, values=${valuesArr.length}, payloads=${payloadsArr.length}); skipping.`
+          )
+          continue
+        }
+        const targets: readonly Address[] = targetsArr
+        const values: readonly bigint[] = valuesArr
+        const payloads: readonly Hex[] = payloadsArr
+        const predecessor: Hex = pred
+        const salt: Hex = s
+        const delay: bigint = d
+        const opId = computeOperationIdBatch(
+          targetsArr,
+          valuesArr,
+          payloadsArr,
+          predecessor,
+          salt
+        )
 
         // If a specific operation ID is provided, check only that one
         if (specificOperationId && opId !== specificOperationId) continue
@@ -1006,7 +936,6 @@ async function getPendingOperations(
           delay,
           salt,
           mongoId: tx._id,
-          executionMethod,
           targets,
           values,
           payloads,
@@ -1015,19 +944,12 @@ async function getPendingOperations(
         if (status.isReady) {
           const callCount = targets.length
           log(
-            `[${networkName}] ✅ Operation ${opId} is ready for execution${
-              executionMethod === 'executeBatch'
-                ? ` (batch of ${callCount} calls)`
-                : ''
-            }`
+            `[${networkName}] ✅ Operation ${opId} is ready for execution (batch of ${callCount} calls)`
           )
 
           let functionName: string | null = null
           try {
-            functionName =
-              executionMethod === 'executeBatch'
-                ? `batch (${callCount} calls)`
-                : await decodeFunctionCall(payloads[0] as Hex)
+            functionName = `batch (${callCount} calls)`
           } catch {}
 
           readyOperations.push({
@@ -1053,10 +975,7 @@ async function getPendingOperations(
 
           let functionName: string | null = null
           try {
-            functionName =
-              executionMethod === 'executeBatch'
-                ? `batch (${targets.length} calls)`
-                : await decodeFunctionCall(payloads[0] as Hex)
+            functionName = `batch (${targets.length} calls)`
           } catch {}
 
           readyOperations.push({
@@ -1132,16 +1051,13 @@ async function executeOperation(
 ): Promise<'executed' | 'rejected' | 'skipped' | 'failed'> {
   const networkPrefix = networkName ? `[${networkName}]` : ''
   const callCount = operation.targets.length
-  const isBatch = operation.executionMethod === 'executeBatch'
   const primaryTarget = operation.targets[0]
   const primaryValue = operation.values[0]
   const primaryPayload = operation.payloads[0]
   if (!primaryTarget || primaryValue === undefined || !primaryPayload)
     throw new Error('Invalid operation: missing target/value/payload')
   consola.info(
-    `\n${networkPrefix} ⚡ Processing operation: ${operation.id}${
-      isBatch ? ` (batch of ${callCount} calls)` : ''
-    }`
+    `\n${networkPrefix} ⚡ Processing operation: ${operation.id} (batch of ${callCount} calls)`
   )
   consola.info(`${networkPrefix}    Batch details:`)
   const decodeContext =
@@ -1188,16 +1104,8 @@ async function executeOperation(
   }
 
   try {
-    // Show function name: use existing (e.g. batch) or decode for single call
-    if (operation.functionName) {
+    if (operation.functionName)
       consola.info(`${networkPrefix}    Function: ${operation.functionName}`)
-    } else if (!isBatch) {
-      const functionName = await decodeFunctionCall(primaryPayload)
-      if (functionName) {
-        consola.info(`${networkPrefix}    Function: ${functionName}`)
-        operation.functionName = functionName
-      }
-    }
 
     // Use the salt from the operation if available, otherwise use default
     const salt =
@@ -1208,29 +1116,17 @@ async function executeOperation(
       // Simulate the transaction
       consola.info(`${networkPrefix} 🔍 [DRY RUN] Simulating execution...`)
 
-      const callData = isBatch
-        ? encodeFunctionData({
-            abi: TIMELOCK_ABI,
-            functionName: 'executeBatch',
-            args: [
-              operation.targets,
-              operation.values,
-              operation.payloads,
-              operation.predecessor,
-              salt,
-            ],
-          })
-        : encodeFunctionData({
-            abi: TIMELOCK_ABI,
-            functionName: 'execute',
-            args: [
-              primaryTarget,
-              primaryValue,
-              primaryPayload,
-              operation.predecessor,
-              salt,
-            ],
-          })
+      const callData = encodeFunctionData({
+        abi: TIMELOCK_ABI,
+        functionName: 'executeBatch',
+        args: [
+          operation.targets,
+          operation.values,
+          operation.payloads,
+          operation.predecessor,
+          salt,
+        ],
+      })
 
       const gasEstimate = await publicClient.estimateGas({
         account: walletClient.account?.address || '0x0',
@@ -1252,39 +1148,7 @@ async function executeOperation(
       let hash: Hex
       if (isTron) {
         // Tron: use TronWeb for broadcast (viem writeContract fails - no eth_getTransactionCount)
-        const callData = isBatch
-          ? encodeFunctionData({
-              abi: TIMELOCK_ABI,
-              functionName: 'executeBatch',
-              args: [
-                operation.targets,
-                operation.values,
-                operation.payloads,
-                operation.predecessor,
-                salt,
-              ],
-            })
-          : encodeFunctionData({
-              abi: TIMELOCK_ABI,
-              functionName: 'execute',
-              args: [
-                primaryTarget,
-                primaryValue,
-                primaryPayload,
-                operation.predecessor,
-                salt,
-              ],
-            })
-        const tronResult = await broadcastTronContractCall({
-          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
-          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
-          contractAddress: timelockAddress,
-          calldata: callData,
-        })
-        hash = tronResult.hash
-      } else if (isBatch) {
-        hash = await walletClient.writeContract({
-          address: timelockAddress,
+        const callData = encodeFunctionData({
           abi: TIMELOCK_ABI,
           functionName: 'executeBatch',
           args: [
@@ -1294,18 +1158,23 @@ async function executeOperation(
             operation.predecessor,
             salt,
           ],
-          account: walletClient.account || null,
-          chain: walletClient.chain || null,
         })
+        const tronResult = await broadcastTronContractCall({
+          networkKey: networkName.toLowerCase() as TronTvmNetworkName,
+          privateKeyHex: getEnvVar('PRIVATE_KEY_PRODUCTION'),
+          contractAddress: timelockAddress,
+          calldata: callData,
+        })
+        hash = tronResult.hash
       } else {
         hash = await walletClient.writeContract({
           address: timelockAddress,
           abi: TIMELOCK_ABI,
-          functionName: 'execute',
+          functionName: 'executeBatch',
           args: [
-            primaryTarget,
-            primaryValue,
-            primaryPayload,
+            operation.targets,
+            operation.values,
+            operation.payloads,
             operation.predecessor,
             salt,
           ],
@@ -1423,22 +1292,13 @@ async function rejectOperation(
   const primaryPayload = operation.payloads[0]
   if (!primaryTarget || primaryValue === undefined || !primaryPayload)
     throw new Error('Invalid operation: missing target/value/payload')
-  consola.info(
-    `   Calls: ${callCount}${
-      operation.executionMethod === 'executeBatch' ? ' (batch)' : ''
-    }`
-  )
+  consola.info(`   Calls: ${callCount} (batch)`)
   consola.info(`   Target: ${primaryTarget}`)
   consola.info(`   Value: ${formatEther(primaryValue)} ETH`)
   consola.info(`   Data: ${primaryPayload}`)
 
   try {
-    // Try to decode the function call
-    const functionName =
-      operation.executionMethod === 'executeBatch'
-        ? `batch (${callCount} calls)`
-        : await decodeFunctionCall(primaryPayload)
-    if (functionName) consola.info(`   Function: ${functionName}`)
+    consola.info(`   Function: batch (${callCount} calls)`)
 
     if (isDryRun) {
       // Simulate the cancellation
@@ -1546,26 +1406,6 @@ function formatTimeRemaining(seconds: bigint): string {
   result += `${secs}s`
 
   return result
-}
-
-// Helper to resolve function name by selector (used when building operation list)
-async function decodeFunctionCall(data: Hex): Promise<string | null> {
-  if (!data || data === '0x') return null
-  try {
-    const selector = data.substring(0, 10)
-    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetchWithTimeout(url)
-    const responseData = (await response.json()) as {
-      ok?: boolean
-      result?: { function?: Record<string, { name: string }[] | null> }
-    }
-    if (responseData.ok && responseData.result?.function?.[selector])
-      return responseData.result.function[selector]?.[0]?.name ?? null
-    return null
-  } catch (error) {
-    consola.warn('Error decoding function call:', error)
-    return null
-  }
 }
 
 runMain(cmd)
