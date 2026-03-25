@@ -62,9 +62,8 @@ function safeNormalizeAddress(address: string): string {
     return address.toLowerCase()
   }
 }
-
-/** Lowercase 0x identity for comparisons; supports Tron base58 in deployment JSON. */
-function deploymentAddressKeyForComparison(
+/** Normalizes a raw address from deployment JSON to a lowercase comparable string; returns undefined on failure. */
+function normalizeDeploymentAddress(
   network: string,
   raw: string
 ): string | undefined {
@@ -187,21 +186,18 @@ export async function getTargetName(
       if (isRecord(deployments)) {
         const diamond = deployments.LiFiDiamond
         if (typeof diamond === 'string') {
-          const diamondKey = deploymentAddressKeyForComparison(network, diamond)
+          const diamondKey = normalizeDeploymentAddress(network, diamond)
           if (diamondKey === normalizedAddress) return '(LiFiDiamond)'
         }
         const timelock = deployments.LiFiTimelockController
         if (typeof timelock === 'string') {
-          const timelockKey = deploymentAddressKeyForComparison(
-            network,
-            timelock
-          )
+          const timelockKey = normalizeDeploymentAddress(network, timelock)
           if (timelockKey === normalizedAddress)
             return '(LiFiTimelockController)'
         }
         for (const [name, value] of Object.entries(deployments)) {
           if (typeof value !== 'string') continue
-          const addr = deploymentAddressKeyForComparison(network, value)
+          const addr = normalizeDeploymentAddress(network, value)
           if (addr === normalizedAddress) return `(${name})`
         }
       }
