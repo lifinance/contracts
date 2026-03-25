@@ -3,8 +3,8 @@ pragma solidity ^0.8.17;
 
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
-import { LibSwap, TestBase, ILiFi } from "../utils/TestBase.sol";
-import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { LibSwap, TestBase, ILiFi, ERC20 } from "../utils/TestBase.sol";
+import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed, AlreadyInitialized, InvalidConfig, OnlyContractOwner, NotInitialized } from "lifi/Errors/GenericErrors.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub OptimismBridgeFacet Contract
@@ -40,13 +40,15 @@ contract OptimismBridgeFacetTest is TestBase {
     ILiFi.BridgeData internal validBridgeData;
     OptimismBridgeFacet.OptimismData internal validOptimismData;
 
+    event OptimismBridgeRegistered(address indexed assetId, address bridge);
+
     function setUp() public {
         customBlockNumberForForking = 15876510;
         initTestBase();
 
         optimismBridgeFacet = new TestOptimismBridgeFacet();
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = optimismBridgeFacet
             .startBridgeTokensViaOptimismBridge
             .selector;
@@ -59,6 +61,9 @@ contract OptimismBridgeFacetTest is TestBase {
             .selector;
         functionSelectors[4] = optimismBridgeFacet
             .removeAllowedContractSelector
+            .selector;
+        functionSelectors[5] = optimismBridgeFacet
+            .registerOptimismBridge
             .selector;
 
         addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
@@ -206,6 +211,73 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
+    function testRevertToInitWhenAlreadyInitialized() public {
+        OptimismBridgeFacet.Config[]
+            memory configs = new OptimismBridgeFacet.Config[](1);
+        configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
+
+        // Re-initialization should fail
+        vm.expectRevert(AlreadyInitialized.selector);
+        optimismBridgeFacet.initOptimism(
+            configs,
+            IL1StandardBridge(STANDARD_BRIDGE)
+        );
+    }
+
+    function testRevertToInitWhenInvalidConfig() public {
+        _mockUninitialized();
+
+        OptimismBridgeFacet.Config[]
+            memory configs = new OptimismBridgeFacet.Config[](1);
+        configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, address(0));
+
+        // Initialization should fail
+        vm.expectRevert(InvalidConfig.selector);
+        optimismBridgeFacet.initOptimism(
+            configs,
+            IL1StandardBridge(STANDARD_BRIDGE)
+        );
+    }
+
+    function testRevertToRegisterWhenNotOwner() public {
+        // non-owner
+        vm.startPrank(DAI_L1_HOLDER);
+
+        vm.expectRevert(OnlyContractOwner.selector);
+        optimismBridgeFacet.registerOptimismBridge(address(1), address(2));
+
+        vm.stopPrank();
+    }
+
+    function testRevertToRegisterWhenNotInitialized() public {
+        _mockUninitialized();
+
+        vm.expectRevert(NotInitialized.selector);
+        optimismBridgeFacet.registerOptimismBridge(address(1), address(2));
+    }
+
+    function testRevertToRegisterWhenInvvalidConfig() public {
+        vm.expectRevert(InvalidConfig.selector);
+        optimismBridgeFacet.registerOptimismBridge(address(1), address(0));
+    }
+
+    function testCanBridgeNativeAsset() public {
+        vm.startPrank(DAI_L1_HOLDER);
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1e18;
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        optimismBridgeFacet.startBridgeTokensViaOptimismBridge{
+            value: bridgeData.minAmount
+        }(bridgeData, validOptimismData);
+
+        vm.stopPrank();
+    }
+
     function testCanBridgeERC20Tokens() public {
         vm.startPrank(DAI_L1_HOLDER);
         dai.approve(
@@ -215,6 +287,31 @@ contract OptimismBridgeFacetTest is TestBase {
 
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
             validBridgeData,
+            validOptimismData
+        );
+        vm.stopPrank();
+    }
+
+    function testCanBridgeSNX() public {
+        address snxToken = 0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F;
+        address snxBridge = 0x39Ea01a0298C315d149a490E34B59Dbf2EC7e48F;
+
+        // register custom SNX bridge
+        optimismBridgeFacet.registerOptimismBridge(snxToken, snxBridge);
+
+        // approve SNX
+        address snxHolder = 0xF977814e90dA44bFA03b6295A0616a897441aceC;
+        vm.startPrank(snxHolder);
+        ERC20(snxToken).approve(
+            address(optimismBridgeFacet),
+            validBridgeData.minAmount
+        );
+
+        // bridge SNX
+        bridgeData.sendingAssetId = snxToken;
+        validOptimismData.isSynthetix = true;
+        optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
+            bridgeData,
             validOptimismData
         );
         vm.stopPrank();
@@ -266,5 +363,23 @@ contract OptimismBridgeFacetTest is TestBase {
         );
 
         vm.stopPrank();
+    }
+
+    function testRegisterOptimismBridge() public {
+        address assetId = makeAddr("asset");
+        address bridge = makeAddr("bridge");
+        optimismBridgeFacet.registerOptimismBridge(assetId, bridge);
+
+        vm.expectEmit(true, true, true, true, address(optimismBridgeFacet));
+        emit OptimismBridgeRegistered(assetId, bridge);
+
+        optimismBridgeFacet.registerOptimismBridge(assetId, bridge);
+    }
+
+    function _mockUninitialized() internal {
+        // Clear the initialization slot to mock the uninitialized state
+        bytes32 baseSlot = keccak256("com.lifi.facets.optimism");
+        bytes32 initializedSlot = bytes32(uint256(baseSlot) + 1);
+        vm.store(address(diamond), initializedSlot, bytes32(uint256(0)));
     }
 }
