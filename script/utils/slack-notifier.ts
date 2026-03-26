@@ -4,6 +4,7 @@ import { formatEther } from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import type { SupportedChain } from '../common/types'
+
 import { sleep } from './delay'
 
 interface ISlackMessage {
