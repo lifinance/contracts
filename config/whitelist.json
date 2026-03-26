@@ -4692,6 +4692,54 @@
           }
         ]
       }
+    },
+    {
+      "name": "Bitget",
+      "key": "bitget",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/bitget.svg",
+      "webUrl": "https://www.bitget.com/",
+      "contracts": {
+        "mainnet": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "bsc": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "polygon": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "base": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "arbitrum": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
