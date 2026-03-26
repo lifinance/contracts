@@ -77,6 +77,7 @@ import networks from '../../../config/networks.json'
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -176,8 +177,6 @@ async function compareDeployedBytecode(
   }
   return ok
 }
-
-import { sleep } from '../../utils/delay'
 
 // At the top of the file, add new type for EVM versions
 type EVMVersion = 'london' | 'cancun'

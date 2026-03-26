@@ -16,8 +16,8 @@ import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
 import { sleep } from '../../utils/delay'
+import { getRPCEnvVarName } from '../../utils/network'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
 
