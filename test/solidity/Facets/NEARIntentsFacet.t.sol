@@ -932,6 +932,14 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             );
         customNearData.refundRecipient = refundRecipient;
 
+        // Compute exact expected positive slippage (deterministic on pinned fork)
+        uint256[] memory amountsOut = uniswap.getAmountsOut(
+            amountInWithSlippage,
+            path
+        );
+        uint256 expectedPositiveSlippage = amountsOut[1] -
+            bridgeData.minAmount;
+
         uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
         uint256 refundRecipientBalanceBefore = usdc.balanceOf(refundRecipient);
 
@@ -960,11 +968,11 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             depositBalanceBefore + bridgeData.minAmount
         );
 
-        // Positive slippage must have been refunded
-        assertGt(
-            usdc.balanceOf(refundRecipient),
-            refundRecipientBalanceBefore,
-            "Refund recipient should receive positive slippage"
+        // Exact positive slippage must have been refunded
+        assertEq(
+            usdc.balanceOf(refundRecipient) - refundRecipientBalanceBefore,
+            expectedPositiveSlippage,
+            "Refund recipient should receive exact positive slippage"
         );
     }
 
