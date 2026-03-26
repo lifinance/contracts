@@ -79,6 +79,16 @@ globs:
   - Use **only** `DEV_WALLET_ADDRESS` from `script/demoScripts/utils/demoScriptHelpers.ts` (it reads `config/global.json` → `devWallet`). Do not use `globalConfig.devWallet` elsewhere.
   - Do not add or use separate constants for the same EVM dev wallet (e.g. no `ADDRESS_DEV_WALLET_V5`-style aliases).
 
+## Inline Documentation
+
+Add comments only where the code doesn't speak for itself. Avoid restating what the code does — explain *why* or *when*.
+
+- **Module header**: Every new TS file MUST open with a `/** … */` block that states: (1) what the module does, (2) who should use it / when to import it. One to three sentences max.
+- **Exported functions/classes**: Use JSDoc with `@param`, `@returns`, and `@throws` for every exported function. Include a `@remarks` or leading sentence only when the behaviour is non-obvious (e.g. side effects, retry semantics, chain-specific restrictions).
+- **Constants**: Magic numbers and timeout/delay values MUST have an inline `// <value + unit>` comment (e.g. `// 2 minutes`) AND, when the value is policy-driven (rate limits, thresholds), a short sentence explaining the policy.
+- **Complex logic**: Add a single inline comment before a non-obvious block (e.g. binary search, bit manipulation, quirky API workaround). Skip comments for idiomatic loops, straightforward conditionals, and standard library calls.
+- **Do NOT add**: comments that merely restate the type, variable name, or an obviously named function; changelog/author notes (use git); section dividers like `// --- Helpers ---`.
+
 ## CLI and Logging
 
 - CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
