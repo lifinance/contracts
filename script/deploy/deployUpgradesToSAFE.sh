@@ -2,7 +2,6 @@
 
 deployUpgradesToSAFE() {
   source .env
-  source script/config.sh
   source script/helperFunctions.sh
 
   ENVIRONMENT=$1
