@@ -1,6 +1,6 @@
 import { TronWeb } from 'tronweb'
 
-import { getRPCEnvVarName } from '../../../utils/network'
+import { getRPCEnvVarName } from '../../../utils/utils'
 import { isTronNetworkKey } from '../../shared/tron-network-keys'
 import { TRON_DEPLOY_NETWORK } from '../constants'
 

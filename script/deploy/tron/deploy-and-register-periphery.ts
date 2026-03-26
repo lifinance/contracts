@@ -12,7 +12,7 @@ import {
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 

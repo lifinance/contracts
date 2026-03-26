@@ -1330,6 +1330,7 @@ export async function callTronContractBoolean(
   params: Array<{ type: string; value: string }>,
   abiFunction: string
 ): Promise<boolean> {
+  // Add initial delay for Tron to avoid rate limits
   await sleep(INITIAL_CALL_DELAY)
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -1343,6 +1344,7 @@ export async function callTronContractBoolean(
         tronWeb.defaultAddress?.base58 || tronWeb.defaultAddress?.hex || ''
       )
 
+      // Check if call was successful
       if (!result?.result?.result) {
         const errorMsg = result?.constant_result?.[0]
           ? tronWeb.toUtf8(result.constant_result[0])
@@ -1350,6 +1352,7 @@ export async function callTronContractBoolean(
         throw new Error(`Call failed: ${errorMsg}`)
       }
 
+      // Decode boolean result using viem's decodeFunctionResult
       const constantResult = result.constant_result?.[0]
       if (!constantResult) {
         throw new Error('No result returned from contract call')
@@ -1482,6 +1485,8 @@ export async function checkOwnershipTron(
 
       const ownerAddress = parseTronAddressOutput(ownerOutput)
 
+      // Convert expectedOwner to Tron format if it's in EVM format (0x...)
+      // This handles cases where getTronWallet falls back to EVM address
       const expectedOwnerTron = ensureTronAddress(expectedOwner, tronWeb)
       const expectedOwnerHex = tronAddressToHex(tronWeb, expectedOwnerTron)
       const actualOwnerHex = tronAddressToHex(tronWeb, ownerAddress)
@@ -1508,7 +1513,7 @@ export {
 export { loadForgeArtifact } from './helpers/loadForgeArtifact'
 export { getTronCorePeriphery } from './helpers/tronContractLists'
 export { getCoreFacets } from '../shared/globalContractLists'
-export { getNetworkConfig } from '../../utils/network'
+export { getNetworkConfig } from '../../utils/utils'
 export { getTronGridAPIKey, getTronRPCConfig } from './helpers/tronRpcConfig'
 export { getContractVersion } from '../shared/getContractVersion'
 export {

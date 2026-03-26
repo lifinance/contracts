@@ -3,7 +3,7 @@ import path from 'path'
 
 import { config } from 'dotenv'
 
-import { getNetworkConfig } from './network'
+import { getNetworkConfig } from './utils'
 
 config()
 

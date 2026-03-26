@@ -9,7 +9,7 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'

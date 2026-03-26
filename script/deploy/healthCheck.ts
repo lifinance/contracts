@@ -18,8 +18,8 @@ import { corePeriphery } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
-import { getRPCEnvVarName, getNetworkConfig } from '../utils/network'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
+import { getRPCEnvVarName, getNetworkConfig } from '../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,

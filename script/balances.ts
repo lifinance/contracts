@@ -15,7 +15,7 @@ import networksConfig from '../config/networks.json'
 
 import type { DeployedEvmVersionLabel } from './common/types'
 import { initTronWeb } from './troncast/utils/tronweb'
-import { node_url } from './utils/network'
+import { node_url } from './utils/utils'
 
 // Load networks configuration
 

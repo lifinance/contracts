@@ -9,7 +9,7 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import type { TronTvmNetworkName } from './helpers/tronTvmChain'
