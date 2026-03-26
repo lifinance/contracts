@@ -882,14 +882,41 @@ contract NEARIntentsFacetTest is TestBaseFacet {
     }
 
     function test_PositiveSlippageRefundedToRefundRecipient() public {
-        // Setup swap from DAI to USDC with potential positive slippage
         bridgeData.hasSourceSwaps = true;
-
-        // Use a specific refund recipient (different from sender for clarity)
         address refundRecipient = address(0xBEEF);
 
-        // Reset swap data
-        setDefaultSwapDataSingleDAItoUSDC();
+        // Build a swap that produces MORE USDC than bridgeData.minAmount
+        delete swapData;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+
+        uint256[] memory amounts = uniswap.getAmountsIn(
+            defaultUSDCAmount,
+            path
+        );
+        uint256 amountIn = amounts[0];
+        // Feed 10% more DAI so Uniswap returns > defaultUSDCAmount
+        uint256 amountInWithSlippage = (amountIn * 110) / 100;
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountInWithSlippage,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountInWithSlippage,
+                    defaultUSDCAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
 
         vm.startPrank(USER_SENDER);
         dai.approve(address(diamond), swapData[0].fromAmount);
@@ -933,14 +960,12 @@ contract NEARIntentsFacetTest is TestBaseFacet {
             depositBalanceBefore + bridgeData.minAmount
         );
 
-        // If there was positive slippage, refund recipient should receive it
-        uint256 refundRecipientBalanceAfter = usdc.balanceOf(refundRecipient);
-        if (refundRecipientBalanceAfter > refundRecipientBalanceBefore) {
-            // Positive slippage was refunded
-            assertTrue(
-                refundRecipientBalanceAfter > refundRecipientBalanceBefore
-            );
-        }
+        // Positive slippage must have been refunded
+        assertGt(
+            usdc.balanceOf(refundRecipient),
+            refundRecipientBalanceBefore,
+            "Refund recipient should receive positive slippage"
+        );
     }
 
     function test_NonEVMBridgeWithNativeTokens() public {
