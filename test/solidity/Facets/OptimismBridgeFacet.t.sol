@@ -256,7 +256,7 @@ contract OptimismBridgeFacetTest is TestBase {
         optimismBridgeFacet.registerOptimismBridge(address(1), address(2));
     }
 
-    function testRevertToRegisterWhenInvvalidConfig() public {
+    function testRevertToRegisterWhenInvalidConfig() public {
         vm.expectRevert(InvalidConfig.selector);
         optimismBridgeFacet.registerOptimismBridge(address(1), address(0));
     }
@@ -308,12 +308,14 @@ contract OptimismBridgeFacetTest is TestBase {
         );
 
         // bridge SNX
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
         bridgeData.sendingAssetId = snxToken;
         validOptimismData.isSynthetix = true;
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
             bridgeData,
             validOptimismData
         );
+
         vm.stopPrank();
     }
 
