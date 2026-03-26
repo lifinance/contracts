@@ -1,14 +1,10 @@
 import { TronWeb } from 'tronweb'
 
-import networksConfig from '../../../../config/networks.json'
-import type { INetworksObject } from '../../../common/types'
 import { getRPCEnvVarName } from '../../../utils/network'
 import { isTronNetworkKey } from '../../shared/tron-network-keys'
 import { TRON_DEPLOY_NETWORK } from '../constants'
 
 import { tronWebFullHostFromRpcUrl } from './tronJsonRpcForViem'
-
-const networks = networksConfig as INetworksObject
 
 const tronWebCodecByNetwork = new Map<string, TronWeb>()
 
@@ -25,13 +21,6 @@ export function getTronWebCodecFullHostForNetwork(networkName: string): string {
   if (!isTronNetworkKey(key)) {
     throw new Error(
       `getTronWebCodecFullHostForNetwork: expected a Tron network key, got ${networkName}`
-    )
-  }
-
-  const network = networks[key as keyof INetworksObject]
-  if (!network) {
-    throw new Error(
-      `Chain ${key} does not exist. Please check that the network exists in 'config/networks.json'`
     )
   }
 

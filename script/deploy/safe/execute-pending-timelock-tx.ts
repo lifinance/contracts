@@ -598,9 +598,6 @@ async function processNetwork(
       deploymentData.LiFiTimelockController
     )
 
-    // `timelockAddress` is viem-ready checksummed hex (Tron deployment JSON may use base58; see normalizeAddressForNetwork).
-    // Tron RPC: `setupEnvironment` below uses ETH_NODE_URI_TRON with TronGrid transport for public/wallet clients.
-
     const { publicClient, walletClient } = await setupEnvironment(
       network.name as SupportedChain,
       null,

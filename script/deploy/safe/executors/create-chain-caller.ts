@@ -1,7 +1,7 @@
 /**
  * Factory for creating a chain-agnostic {@link IChainCaller}.
  *
- * Picks EVM vs Tron based on the network name so that calling scripts
+ * Picks chain based on the network name so that calling scripts
  * never branch on chain type.
  */
 

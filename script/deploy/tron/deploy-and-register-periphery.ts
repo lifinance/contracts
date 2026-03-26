@@ -32,8 +32,6 @@ import {
   tronAddressToHex,
   tronRegistrationAddressToEvmHex,
 } from './tronAddressHelpers.js'
-import { getTronWallet } from './tronUtils.js'
-import type { ITronDeploymentConfig } from './types'
 import {
   checkExistingDeployment,
   getContractAddress,
@@ -48,7 +46,9 @@ import {
   readJsonFile,
   saveContractAddress,
   updateDiamondJsonPeriphery,
-} from './utils.js'
+  getTronWallet,
+} from './tronUtils.js'
+import type { ITronDeploymentConfig } from './types'
 
 /**
  * Deploy and register periphery contracts to Tron

@@ -53,6 +53,7 @@ export interface INetwork {
   safeApiUrl?: string
   safeWebUrl?: string
   create3Factory?: string
+  converterAddress?: string
   devNotes?: string
   /**
    * Custom verification flags to pass to forge verify-contract command.

@@ -22,7 +22,7 @@ import {
   updateDiamondJsonBatch,
   getCurrentPrices,
   waitBetweenDeployments,
-} from './utils.js'
+} from './tronUtils.js'
 
 /**
  * Extract function selectors from compiled artifact

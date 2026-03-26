@@ -18,12 +18,11 @@ import { corePeriphery } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
-import { getRPCEnvVarName } from '../utils/network'
+import { getRPCEnvVarName, getNetworkConfig } from '../utils/network'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
-  networks,
 } from '../utils/viemScriptHelpers'
 
 import targetStateImport from './_targetState.json'
@@ -38,12 +37,10 @@ import {
   normalizeSelector,
   checkOwnershipTron,
   parseTroncastNestedArray,
-} from './tron/tronUtils'
-import {
   checkIsDeployedTron,
   getTronCorePeriphery,
   parseTroncastFacetsOutput,
-} from './tron/utils'
+} from './tron/tronUtils'
 
 const targetState = targetStateImport as TargetState
 
@@ -187,10 +184,7 @@ const main = defineCommand({
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
 
-    const networkConfig = networks[networkLower]
-    if (!networkConfig) {
-      throw new Error(`Network config not found for ${networkLower}`)
-    }
+    const networkConfig = getNetworkConfig(networkLower)
 
     const tronRpcUrl = isTron
       ? process.env[getRPCEnvVarName(networkLower)]?.trim() ||

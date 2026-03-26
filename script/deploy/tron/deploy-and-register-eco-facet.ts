@@ -16,7 +16,6 @@ import { MIN_BALANCE_WARNING } from './constants'
 import type { TronTvmNetworkName } from './helpers/tronTvmChain'
 import { createTronWeb } from './helpers/tronWebFactory'
 import { tronAddressToHex } from './tronAddressHelpers'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
   getEnvironment,
@@ -30,7 +29,8 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-} from './utils'
+} from './tronUtils'
+import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   consola.start('TRON EcoFacet Deployment & Registration')

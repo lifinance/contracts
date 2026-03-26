@@ -17,7 +17,7 @@ import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import { runPropose } from './propose-to-safe-tron.js'
 import { tronAddressLikeToBase58 } from './tronAddressHelpers.js'
-import { getEnvironment, waitBetweenDeployments } from './utils.js'
+import { getEnvironment, waitBetweenDeployments } from './tronUtils.js'
 
 /**
  * Transfer LiFi Diamond ownership to `LiFiTimelockController` from the Tron deployments file.

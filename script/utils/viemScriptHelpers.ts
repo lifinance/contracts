@@ -17,8 +17,8 @@ import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
 import { applyTronGridViemTransportExtras } from '../deploy/tron/helpers/tronGridTransport'
 
 import { getDeployments } from './deploymentHelpers'
-import { getRPCEnvVarName } from './network'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
+import { getRPCEnvVarName } from './utils'
 
 dotenv.config()
 

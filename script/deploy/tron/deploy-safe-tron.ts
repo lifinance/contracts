@@ -48,12 +48,12 @@ import {
   tronAddressToHex,
   tronProxyCreationHexToBase58,
 } from './tronAddressHelpers.js'
-import type { IForgeArtifact, ITronSafeTemp } from './types.js'
 import {
   getTronRPCConfig,
   estimateEnergyAndFeeLimit,
   promptEnergyRentalReminder,
-} from './utils.js'
+} from './tronUtils.js'
+import type { IForgeArtifact, ITronSafeTemp } from './types.js'
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {

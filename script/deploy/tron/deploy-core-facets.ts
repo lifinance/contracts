@@ -16,7 +16,6 @@ import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
 import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import { evmHexToTronBase58 } from './tronAddressHelpers.js'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getCoreFacets,
   saveDiamondDeployment,
@@ -31,7 +30,8 @@ import {
   displayNetworkInfo,
   updateDiamondJsonBatch,
   waitBetweenDeployments,
-} from './utils.js'
+} from './tronUtils.js'
+import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 
 /**
  * Get constructor arguments for a facet
