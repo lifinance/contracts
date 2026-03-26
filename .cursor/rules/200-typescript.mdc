@@ -22,6 +22,9 @@ globs:
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
   - `script/utils/fetchWithTimeout.ts` (external API fetch with timeout; see [CONV:FETCH-TIMEOUT]),
+  - `script/utils/normalizeAddressStringForViem.ts` — `normalizeAddressForNetwork()` for network-aware address conversion (handles Tron base58, hex, and EVM; see [CONV:ADDR-NORMALIZE]),
+  - `script/deploy/shared/globalContractLists.ts` — `getCoreFacets()` / `getCorePeriphery()` for config-driven contract name arrays (use instead of hardcoding),
+  - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
 - **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
@@ -41,10 +44,25 @@ globs:
   - Domain-specific types: colocated in domain-specific files (e.g., Tron types in `script/deploy/tron/types.ts`, Safe types in `script/deploy/safe/safe-utils.ts`).
   - Script-specific types: inline in the script file if only used locally.
 - **Reuse existing types**: Prefer importing and reusing existing types over defining duplicates.
+- **Config-derived types**: Prefer deriving types from config schemas (e.g., `EVMVersion` from `networks.json`) over manually maintained union types. See `script/common/types.ts` for examples.
 - **Naming conventions** (enforced by `.eslintrc.cjs`):
   - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by ESLint.
   - Type aliases use PascalCase without prefix (e.g., `SupportedChain`, `HexString`).
   - Enums use PascalCase with `Enum` suffix (e.g., `EnvironmentEnum`).
+
+## Multi-chain patterns
+
+### Address normalization ([CONV:ADDR-NORMALIZE])
+
+- When converting raw addresses (base58 `T…`, hex `41…`, or `0x…`) to viem `Address`, use `normalizeAddressForNetwork()` from `script/utils/normalizeAddressStringForViem.ts`. It handles Tron base58 detection automatically and always returns a checksummed viem `Address`.
+
+### Tron network detection ([CONV:TRON-NETWORK-KEY])
+
+- Use `isTronNetworkKey(networkName)` from `script/deploy/shared/tron-network-keys.ts` as the sole mechanism for Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly. For Tron-specific conventions, see `202-tron-scripts.mdc`.
+
+### Dynamic imports for chain modules
+
+- When a module is only needed for one chain (e.g., TronWeb, Tron executor), use `await import('./path')` instead of top-level imports. This prevents loading chain-specific dependencies when running on other chains. See `create-chain-caller.ts` for the pattern.
 
 ## Demo Scripts
 
