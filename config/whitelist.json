@@ -7105,6 +7105,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEc7689CB608E22B21D83D53eBb48F29FE8177B87",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "lisk": [
