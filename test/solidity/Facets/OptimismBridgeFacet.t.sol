@@ -370,7 +370,6 @@ contract OptimismBridgeFacetTest is TestBase {
     function testRegisterOptimismBridge() public {
         address assetId = makeAddr("asset");
         address bridge = makeAddr("bridge");
-        optimismBridgeFacet.registerOptimismBridge(assetId, bridge);
 
         vm.expectEmit(true, true, true, true, address(optimismBridgeFacet));
         emit OptimismBridgeRegistered(assetId, bridge);
