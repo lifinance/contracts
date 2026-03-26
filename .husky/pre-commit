@@ -45,6 +45,8 @@ KNOWN_FALSE_POSITIVES=(
   "none"
   ""
   "verifyContract"
+  "foundry.toml"
+  "50000000000"
 )
 EXCLUDED_PATHS=(
   "deployments/_deployments_log_file.json"
@@ -320,6 +322,11 @@ prepare_env_secrets() {
     done
 
     if [ -z "$VALUE" ] || [ "$IS_FALSE_POSITIVE" = true ]; then
+      continue
+    fi
+
+    # Skip short values — they match too broadly and are never real secrets
+    if [ ${#VALUE} -lt 8 ]; then
       continue
     fi
 
