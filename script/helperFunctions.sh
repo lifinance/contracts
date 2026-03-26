@@ -3675,47 +3675,13 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Tron: production + not direct-to-diamond → propose to Safe (optionally via timelock); else direct send
-  if isTronNetwork "$NETWORK"; then
-    if [[ "$ENVIRONMENT" == "production" ]] && [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]]; then
-      local SAFE_SIGNER_KEY
-      if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
-        SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
-      else
-        SAFE_SIGNER_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
-          error "sendOrPropose: Failed to get private key for $NETWORK and $ENVIRONMENT"
-          return 1
-        }
-      fi
-      local PROPOSE_TRON_CMD=(
-        bunx tsx script/deploy/tron/propose-to-safe-tron.ts
-        --to "$TARGET"
-        --calldata "$CALLDATA"
-        --privateKey "$SAFE_SIGNER_KEY"
-      )
-      if [[ "$TIMELOCK" == "true" ]]; then
-        PROPOSE_TRON_CMD+=(--timelock)
-      else
-        PROPOSE_TRON_CMD+=(--direct)
-      fi
-      "${PROPOSE_TRON_CMD[@]}"
-      return $?
-    fi
+  # Non-production or direct-to-diamond: send directly for all networks
+  if [[ "$ENVIRONMENT" != "production" ]] || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]]; then
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi
 
-  if [[ "$ENVIRONMENT" != "production" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
-  # EVM production: SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true sends directly; otherwise propose to Safe
-  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
+  # Resolve private key
   local SAFE_SIGNER_KEY
   if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
     SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
@@ -3725,6 +3691,25 @@ function sendOrPropose() {
       return 1
     }
   fi
+
+  # Tron: propose to Safe via tron script
+  if isTronNetwork "$NETWORK"; then
+    local PROPOSE_TRON_CMD=(
+      bunx tsx script/deploy/tron/propose-to-safe-tron.ts
+      --to "$TARGET"
+      --calldata "$CALLDATA"
+      --privateKey "$SAFE_SIGNER_KEY"
+    )
+    if [[ "$TIMELOCK" == "true" ]]; then
+      PROPOSE_TRON_CMD+=(--timelock)
+    else
+      PROPOSE_TRON_CMD+=(--direct)
+    fi
+    "${PROPOSE_TRON_CMD[@]}"
+    return $?
+  fi
+
+  # EVM: propose to Safe
   local PROPOSE_CMD=(
     bunx tsx script/deploy/safe/propose-to-safe.ts
     --network "$NETWORK"

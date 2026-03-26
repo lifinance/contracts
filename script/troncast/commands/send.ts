@@ -9,7 +9,7 @@ import {
   getEnvironment,
   getPrivateKey,
   loadForgeArtifact,
-} from '../../deploy/tron/utils'
+} from '../../deploy/tron/tronUtils'
 import type { Environment, ITransactionReceipt } from '../types'
 import { formatGasUsage, formatReceipt } from '../utils/formatter'
 import {

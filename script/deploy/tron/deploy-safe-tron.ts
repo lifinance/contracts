@@ -48,14 +48,12 @@ import {
   tronAddressToHex,
   tronProxyCreationHexToBase58,
 } from './tronAddressHelpers.js'
-import type { IForgeArtifact, ITronSafeTemp } from './types.js'
 import {
   getTronRPCConfig,
-  getAccountAvailableResources,
-  calculateEstimatedCost,
-  estimateContractCallEnergy,
+  estimateEnergyAndFeeLimit,
   promptEnergyRentalReminder,
-} from './utils.js'
+} from './tronUtils.js'
+import type { IForgeArtifact, ITronSafeTemp } from './types.js'
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {
@@ -286,7 +284,7 @@ async function runSetupOnly(args: {
   if (!deployerBase58)
     throw new Error('Deployer address (base58) not available')
 
-  const estimatedEnergy = await estimateContractCallEnergy({
+  const { feeLimitSun } = await estimateEnergyAndFeeLimit({
     fullHost: tronFullHost,
     tronWeb,
     contractAddressBase58: safeAddress,
@@ -294,25 +292,10 @@ async function runSetupOnly(args: {
       'setup(address[],uint256,address,bytes,address,address,uint256,address)',
     parameterHex: setupParamsHex,
     safetyMargin,
+    minFeeLimitSun: 5_000_000,
+    maxFeeLimitSun: 100_000_000,
+    label: 'setup()',
   })
-  const { availableEnergy } = await getAccountAvailableResources(
-    tronFullHost,
-    deployerBase58
-  )
-  const { totalCost } = await calculateEstimatedCost(
-    tronWeb,
-    estimatedEnergy,
-    0
-  )
-  const feeLimitSun = Math.min(
-    Math.max(Math.ceil(Number(tronWeb.toSun(totalCost))), 5_000_000),
-    100_000_000
-  )
-  consola.info(
-    `setup(): estimated energy ${estimatedEnergy}, available ${availableEnergy}; fee limit ${
-      feeLimitSun / 1_000_000
-    } TRX`
-  )
 
   const safeContract = tronWeb.contract(TRON_SAFE_SETUP_ABI, safeAddress)
   await sleep(3000)
@@ -563,38 +546,17 @@ async function run(options: {
     ['address', 'bytes', 'uint256'],
     [tronAddressToHex(tronWeb, singletonAddress), initializer, salt.toString()]
   )
-  const estimatedEnergy = await estimateContractCallEnergy({
+  const { feeLimitSun } = await estimateEnergyAndFeeLimit({
     fullHost: tronFullHost,
     tronWeb,
     contractAddressBase58: factoryAddress,
     functionSelector: 'createProxyWithNonce(address,bytes,uint256)',
     parameterHex: createProxyParamsHex,
     safetyMargin: CREATE_PROXY_SAFETY_MARGIN,
+    minFeeLimitSun: 5_000_000,
+    maxFeeLimitSun: 100_000_000,
+    label: 'createProxyWithNonce',
   })
-  const deployerBase58 =
-    typeof tronWeb.defaultAddress.base58 === 'string'
-      ? tronWeb.defaultAddress.base58
-      : ''
-  if (!deployerBase58)
-    throw new Error('Deployer address (base58) not available')
-  const { availableEnergy } = await getAccountAvailableResources(
-    tronFullHost,
-    deployerBase58
-  )
-  const { totalCost } = await calculateEstimatedCost(
-    tronWeb,
-    estimatedEnergy,
-    0
-  )
-  const feeLimitSun = Math.min(
-    Math.max(Math.ceil(Number(tronWeb.toSun(totalCost))), 5_000_000), // min 5 TRX
-    100_000_000
-  ) // max 100 TRX
-  consola.info(
-    `createProxyWithNonce: estimated energy ${estimatedEnergy}, available ${availableEnergy}; fee limit ${
-      feeLimitSun / 1_000_000
-    } TRX (delegation used first)`
-  )
 
   await sleep(5000)
   const singletonHex = tronAddressToHex(tronWeb, singletonAddress)

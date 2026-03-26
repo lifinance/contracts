@@ -9,13 +9,12 @@ import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import type { TronTvmNetworkName } from './helpers/tronTvmChain'
 import { createTronWeb } from './helpers/tronWebFactory'
 import { tronAddressToHex } from './tronAddressHelpers'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
   getContractVersion,
   getEnvironment,
@@ -29,7 +28,8 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-} from './utils'
+} from './tronUtils'
+import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 
 /**
  * Deploy and register AllBridgeFacet to Tron

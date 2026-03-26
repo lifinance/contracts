@@ -62,9 +62,8 @@ function safeNormalizeAddress(address: string): string {
     return address.toLowerCase()
   }
 }
-
-/** Lowercase 0x identity for comparisons; supports Tron base58 in deployment JSON. */
-function deploymentAddressKeyForComparison(
+/** Normalizes a raw address from deployment JSON to a lowercase comparable string; returns undefined on failure. */
+function normalizeDeploymentAddress(
   network: string,
   raw: string
 ): string | undefined {
@@ -187,21 +186,18 @@ export async function getTargetName(
       if (isRecord(deployments)) {
         const diamond = deployments.LiFiDiamond
         if (typeof diamond === 'string') {
-          const diamondKey = deploymentAddressKeyForComparison(network, diamond)
+          const diamondKey = normalizeDeploymentAddress(network, diamond)
           if (diamondKey === normalizedAddress) return '(LiFiDiamond)'
         }
         const timelock = deployments.LiFiTimelockController
         if (typeof timelock === 'string') {
-          const timelockKey = deploymentAddressKeyForComparison(
-            network,
-            timelock
-          )
+          const timelockKey = normalizeDeploymentAddress(network, timelock)
           if (timelockKey === normalizedAddress)
             return '(LiFiTimelockController)'
         }
         for (const [name, value] of Object.entries(deployments)) {
           if (typeof value !== 'string') continue
-          const addr = deploymentAddressKeyForComparison(network, value)
+          const addr = normalizeDeploymentAddress(network, value)
           if (addr === normalizedAddress) return `(${name})`
         }
       }
@@ -542,9 +538,6 @@ export async function formatTimelockScheduleBatch(
 const ABI_DIAMOND_CUT = parseAbi([
   'function diamondCut((address,uint8,bytes4[])[],address,bytes)',
 ])
-const ABI_SCHEDULE = parseAbi([
-  'function schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
-])
 const ABI_SCHEDULE_BATCH = parseAbi([
   'function scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
 ])
@@ -680,8 +673,6 @@ function getAbiForKnownFunction(functionName: string): Abi | null {
   switch (name) {
     case 'diamondCut':
       return ABI_DIAMOND_CUT
-    case 'schedule':
-      return ABI_SCHEDULE
     case 'scheduleBatch':
       return ABI_SCHEDULE_BATCH
     case 'batchSetContractSelectorWhitelist':
@@ -786,32 +777,6 @@ export async function formatDecodedTxDataForDisplay(
           indent: pre + '  ',
         })
       }
-      return
-    }
-
-    const scheduleArgs =
-      decoded?.functionName === 'schedule' ? decoded.args : undefined
-    if (scheduleArgs && scheduleArgs.length >= 6) {
-      log('Timelock Schedule Details:')
-      log('-'.repeat(80))
-      const [target, value, innerData, predecessor, salt, delay] = scheduleArgs
-      const targetStr = String(target)
-      const targetName = await getTargetName(target as Address, network)
-      const targetAddrDisplay = formatAddressForNetworkCliDisplay(
-        network,
-        targetStr
-      )
-      const targetDisplay = targetName
-        ? `${targetAddrDisplay} \u001b[33m${targetName}\u001b[0m`
-        : targetAddrDisplay
-      log(`Target:      \u001b[32m${targetDisplay}\u001b[0m`)
-      log(`Value:       \u001b[32m${value}\u001b[0m`)
-      log(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
-      log(`Salt:        \u001b[32m${salt}\u001b[0m`)
-      log(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
-      log('-'.repeat(80))
-      if (innerData && innerData !== '0x')
-        await formatDecodedTxDataForDisplay(innerData as Hex, context)
       return
     }
 

@@ -1,3 +1,6 @@
+import { consola } from 'consola'
+import type { TronWeb } from 'tronweb'
+
 import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
 import {
   DEFAULT_SAFETY_MARGIN,
@@ -6,6 +9,10 @@ import {
 } from '../constants'
 import type { IEstimateContractCallEnergyParams } from '../types'
 
+import {
+  calculateEstimatedCost,
+  getAccountAvailableResources,
+} from './tronPricing'
 import { buildTronWalletJsonPostHeaders } from './tronRpcConfig'
 
 /**
@@ -76,4 +83,74 @@ export async function estimateContractCallEnergy(
     )
   }
   return Math.ceil(result.energy_used * safetyMargin)
+}
+
+/**
+ * Estimate energy for a contract call, fetch available resources, calculate cost,
+ * and derive a clamped fee limit (in SUN). Consolidates the repeated
+ * "estimate → resources → cost → feeLimit" pipeline used across deployment scripts.
+ */
+export async function estimateEnergyAndFeeLimit(params: {
+  fullHost: string
+  tronWeb: TronWeb
+  contractAddressBase58: string
+  functionSelector: string
+  parameterHex: string
+  safetyMargin?: number
+  minFeeLimitSun: number
+  maxFeeLimitSun: number
+  label?: string
+}): Promise<{
+  estimatedEnergy: number
+  availableEnergy: number
+  feeLimitSun: number
+}> {
+  const {
+    fullHost,
+    tronWeb,
+    contractAddressBase58,
+    functionSelector,
+    parameterHex,
+    safetyMargin,
+    minFeeLimitSun,
+    maxFeeLimitSun,
+    label,
+  } = params
+
+  const estimatedEnergy = await estimateContractCallEnergy({
+    fullHost,
+    tronWeb,
+    contractAddressBase58,
+    functionSelector,
+    parameterHex,
+    safetyMargin,
+  })
+
+  const deployerBase58 =
+    typeof tronWeb.defaultAddress.base58 === 'string'
+      ? tronWeb.defaultAddress.base58
+      : ''
+  const { availableEnergy } = deployerBase58
+    ? await getAccountAvailableResources(fullHost, deployerBase58)
+    : { availableEnergy: 0 }
+
+  const { totalCost } = await calculateEstimatedCost(
+    tronWeb,
+    estimatedEnergy,
+    0
+  )
+
+  const feeLimitSun = Math.min(
+    Math.max(Math.ceil(Number(tronWeb.toSun(totalCost))), minFeeLimitSun),
+    maxFeeLimitSun
+  )
+
+  if (label)
+    consola.info(
+      `${label}: estimated energy ${estimatedEnergy}, available ${availableEnergy}; fee limit ${
+        feeLimitSun / 1_000_000
+      } TRX`
+    )
+
+  return { estimatedEnergy, availableEnergy, feeLimitSun }
 }

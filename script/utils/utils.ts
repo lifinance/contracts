@@ -1,5 +1,17 @@
 import 'dotenv/config'
 
+import networksConfig from '../../config/networks.json'
+import type { INetwork, INetworksObject } from '../common/types'
+
+const networks: INetworksObject = networksConfig
+
+export function getNetworkConfig(networkName: string): Omit<INetwork, 'id'> {
+  const networkConfig = networks[networkName]
+  if (!networkConfig)
+    throw new Error(`Network configuration not found for: ${networkName}`)
+  return networkConfig
+}
+
 export function node_url(networkName: string): string {
   if (networkName) {
     const uri = process.env['ETH_NODE_URI_' + networkName.toUpperCase()]

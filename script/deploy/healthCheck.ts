@@ -18,16 +18,16 @@ import { corePeriphery } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
-import { getRPCEnvVarName } from '../utils/network'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
+import { getRPCEnvVarName, getNetworkConfig } from '../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
-  networks,
 } from '../utils/viemScriptHelpers'
 
 import targetStateImport from './_targetState.json'
 import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
+import { getCoreFacets } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import {
   callTronContract,
@@ -37,13 +37,10 @@ import {
   normalizeSelector,
   checkOwnershipTron,
   parseTroncastNestedArray,
-} from './tron/tronUtils'
-import {
   checkIsDeployedTron,
-  getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
   parseTroncastFacetsOutput,
-} from './tron/utils'
+} from './tron/tronUtils'
 
 const targetState = targetStateImport as TargetState
 
@@ -161,7 +158,7 @@ const main = defineCommand({
     let coreFacetsToCheck: string[]
     if (isTron)
       // Use the Tron-specific utility that filters out GasZipFacet
-      coreFacetsToCheck = getTronCoreFacets()
+      coreFacetsToCheck = getCoreFacets({ exclude: ['GasZipFacet'] })
     else coreFacetsToCheck = globalConfig.coreFacets
 
     // For staging, skip targetState checks as targetState is only for production
@@ -187,10 +184,7 @@ const main = defineCommand({
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
 
-    const networkConfig = networks[networkLower]
-    if (!networkConfig) {
-      throw new Error(`Network config not found for ${networkLower}`)
-    }
+    const networkConfig = getNetworkConfig(networkLower)
 
     const tronRpcUrl = isTron
       ? process.env[getRPCEnvVarName(networkLower)]?.trim() ||

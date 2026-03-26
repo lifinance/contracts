@@ -17,7 +17,7 @@ import { TronWeb } from 'tronweb'
 
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
 

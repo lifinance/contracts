@@ -79,8 +79,7 @@ function diamondSyncWhitelist {
     NETWORKS=("$NETWORK")
   fi
 
-    # Execute a whitelist batch operation (add or remove)
-  # Handles both Tron staging (direct troncast) and EVM/Tron production (calldata + sendOrPropose)
+  # Execute a whitelist batch operation (add or remove)
   function executeWhitelistBatch {
     local BATCH_CONTRACTS="$1"    # comma-separated
     local BATCH_SELECTORS="$2"    # comma-separated
@@ -107,7 +106,7 @@ function diamondSyncWhitelist {
       
       if [[ "$IS_TRON" == "true" ]]; then
         if [[ "$ENVIRONMENT" == "production" ]]; then
-          # Tron production: convert base58 addresses to hex for calldata
+          # Tron : convert base58 addresses to hex for calldata
           if ! CONTRACTS_FOR_SEND=$(convertTronAddressesToHex "$BATCH_CONTRACTS"); then
             printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex"
             echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
@@ -119,7 +118,7 @@ function diamondSyncWhitelist {
             echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
             return 1
           fi
-          # Production uses bracket notation for cast calldata
+          # Tron: Uses bracket notation for cast calldata
           SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
         else
           # Tron staging: use JSON array format

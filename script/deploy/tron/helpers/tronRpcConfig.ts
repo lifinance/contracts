@@ -1,22 +1,10 @@
 import { consola } from 'consola'
 
-import networks from '../../../../config/networks.json'
 import { getEnvVar } from '../../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../../utils/network'
+import { getRPCEnvVarName } from '../../../utils/utils'
 import { TRON_PRO_API_KEY_HEADER } from '../constants'
 
 import { isTronGridRpcUrl } from './isTronGridRpcUrl'
-
-/**
- * Get network configuration from config/networks.json
- */
-export function getNetworkConfig(networkName: string): any {
-  const networkConfig = (networks as any)[networkName]
-  if (!networkConfig)
-    throw new Error(`Network configuration not found for: ${networkName}`)
-
-  return networkConfig
-}
 
 /**
  * Get TronGrid API key from environment variables.

@@ -17,8 +17,8 @@ import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
 import { applyTronGridViemTransportExtras } from '../deploy/tron/helpers/tronGridTransport'
 
 import { getDeployments } from './deploymentHelpers'
-import { getRPCEnvVarName } from './network'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
+import { getRPCEnvVarName } from './utils'
 
 dotenv.config()
 
@@ -405,13 +405,14 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
 }
 
 /**
- * Casts a string environment to EnvironmentEnum
+ * Parses and validates a user-supplied environment string.
  * @param environment - The environment string
- * @returns EnvironmentEnumvalue
+ * @returns The corresponding {@link EnvironmentEnum} member
  */
 export function castEnv(environment: string): EnvironmentEnum {
-  if (environment === 'production') return EnvironmentEnum.production
-  if (environment === 'staging') return EnvironmentEnum.staging
+  if (environment === EnvironmentEnum.production)
+    return EnvironmentEnum.production
+  if (environment === EnvironmentEnum.staging) return EnvironmentEnum.staging
   throw new Error(`Invalid environment: ${environment}`)
 }
 

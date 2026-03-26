@@ -14,17 +14,17 @@ import {
   createTronWeb,
   resolveTronWebRpcUrlToFullHost,
 } from './helpers/tronWebFactory'
+import {
+  calculateTransactionBandwidth,
+  calculateEstimatedCost,
+  getAccountAvailableResources,
+} from './tronUtils'
 import type {
   ITronDeploymentConfig,
   ITronCostEstimate,
   ITronDeploymentResult,
   IForgeArtifact,
 } from './types'
-import {
-  calculateTransactionBandwidth,
-  calculateEstimatedCost,
-  getAccountAvailableResources,
-} from './utils'
 
 export class TronContractDeployer {
   private tronWeb: any

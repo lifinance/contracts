@@ -3,6 +3,7 @@
  * These constants are not network-specific and apply across the entire project
  */
 
+import networks from '../../../config/networks.json'
 import {
   EnvironmentEnum,
   type DeploymentFileSuffixInput,
@@ -54,14 +55,23 @@ export const RETRY_DELAY = 2000 // 2s
 export const DEPLOYMENT_FILE_SUFFIX = (
   environment: DeploymentFileSuffixInput
 ): '' | 'staging.' =>
-  environment === EnvironmentEnum.production || environment === 'production'
-    ? ''
-    : 'staging.'
+  environment === EnvironmentEnum.production ? '' : 'staging.'
 
 // Common EVM address
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
-export const EVM_VERSIONS = [
-  'london',
-  'cancun',
-] as const satisfies readonly EVMVersion[]
+/**
+ * Distinct non-placeholder EVM fork labels from `config/networks.json`, lowercased and sorted.
+ * Used for Safe fallback bytecode selection and `--evmVersion` validation.
+ */
+export const EVM_VERSIONS: readonly EVMVersion[] = Object.freeze(
+  Array.from(
+    new Set(
+      Object.values(networks).map((n) =>
+        n.deployedWithEvmVersion.trim().toLowerCase()
+      )
+    )
+  )
+    .filter((v) => v !== '' && v !== 'n/a')
+    .sort() as EVMVersion[]
+)
