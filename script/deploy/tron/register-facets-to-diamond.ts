@@ -8,9 +8,10 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { getCurrentPrices } from './helpers/tronPricing.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
   tryTronFacetLoupeAddressToBase58,
@@ -18,11 +19,9 @@ import {
 } from './tronAddressHelpers.js'
 import {
   estimateDiamondCutEnergy,
-  getEnvironment,
-  updateDiamondJsonBatch,
-  getCurrentPrices,
   waitBetweenDeployments,
 } from './tronUtils.js'
+import type { TronTvmNetworkName } from './types.js'
 
 /**
  * Extract function selectors from compiled artifact

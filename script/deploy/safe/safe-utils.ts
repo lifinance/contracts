@@ -57,8 +57,6 @@ config()
 
 const networks: Record<string, { safeAddress: string; status: string }> = data
 
-export { normalizeAddressForNetwork }
-
 // Types for Safe transactions
 export enum OperationTypeEnum {
   Call = 0,

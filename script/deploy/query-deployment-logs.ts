@@ -1014,4 +1014,4 @@ const main = defineCommand({
 // Run the CLI
 runMain(main)
 
-export { DeploymentLogQuerier, IDeploymentRecord }
+export { DeploymentLogQuerier }

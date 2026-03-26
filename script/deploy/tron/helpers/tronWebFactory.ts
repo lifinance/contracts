@@ -26,8 +26,6 @@ export function resolveTronWebRpcUrlToFullHost(
   return raw.replace(/\/+$/, '')
 }
 
-export type { ICreateTronWebOptions } from '../types'
-
 export function createTronWeb(options: ICreateTronWebOptions): TronWeb {
   const fullHost = resolveTronWebRpcUrlToFullHost(
     options.rpcUrl,

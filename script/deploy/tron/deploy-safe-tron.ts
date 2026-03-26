@@ -37,7 +37,8 @@ import {
   TRON_SAFE_PROXY_FACTORY_ABI,
   TRON_SAFE_SETUP_ABI,
 } from './constants.js'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { estimateEnergyAndFeeLimit } from './helpers/estimateContractEnergy.js'
+import { getTronRPCConfig } from './helpers/tronRpcConfig.js'
 import {
   createTronWeb,
   resolveTronWebRpcUrlToFullHost,
@@ -48,12 +49,12 @@ import {
   tronAddressToHex,
   tronProxyCreationHexToBase58,
 } from './tronAddressHelpers.js'
-import {
-  getTronRPCConfig,
-  estimateEnergyAndFeeLimit,
-  promptEnergyRentalReminder,
-} from './tronUtils.js'
-import type { IForgeArtifact, ITronSafeTemp } from './types.js'
+import { promptEnergyRentalReminder } from './tronUtils.js'
+import type {
+  IForgeArtifact,
+  ITronSafeTemp,
+  TronTvmNetworkName,
+} from './types.js'
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {

@@ -1,3 +1,8 @@
+/**
+ * Shared TypeScript types used across deploy scripts and utilities.
+ * Import from here instead of defining duplicates in individual script files.
+ */
+
 import type networks from '../../config/networks.json'
 
 export type SupportedChain = keyof typeof networks
@@ -16,10 +21,12 @@ export type DeployedEvmVersionLabel = NetworkRow['deployedWithEvmVersion']
  */
 export type EVMVersion = Exclude<Lowercase<DeployedEvmVersionLabel>, 'n/a' | ''>
 
+/** Map of network name → network config (without the runtime-derived `id` field). */
 export interface INetworksObject {
   [key: string]: Omit<INetwork, 'id'>
 }
 
+/** Deployment environment: controls which private key, deployment file suffix, and MongoDB collection are used. */
 export enum EnvironmentEnum {
   production = 'production',
   staging = 'staging',
@@ -118,3 +125,19 @@ export type TargetState = Record<
     }
   }
 >
+
+export interface IDeploymentResult {
+  contract: string
+  address: string
+  txId: string
+  cost: number
+  version: string
+  status?: 'success' | 'failed' | 'existing'
+}
+
+export interface INetworkInfo {
+  network: string
+  block: number
+  address: string
+  balance: number
+}
