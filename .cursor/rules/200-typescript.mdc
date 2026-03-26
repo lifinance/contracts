@@ -27,6 +27,7 @@ globs:
   - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
+- **No barrel re-exports**: In every TypeScript module, import symbols from the file where they are defined. Do not add `export { ... } from '...'` or `export * from '...'` aggregator patterns solely to re-export other modules (e.g. `script/deploy/tron/tronUtils.ts` should only export symbols defined in that file). If a file’s purpose is a single public entrypoint (rare), document it explicitly in the module header.
 - **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
 
 ## External API fetch and timeout ([CONV:FETCH-TIMEOUT])
