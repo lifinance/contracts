@@ -4,7 +4,7 @@
 
 import type { TronWalletClient } from '../../tron/helpers/TronWalletClient'
 import { tronScanTransactionUrl } from '../../tron/helpers/tronScanUrls'
-import type { TronTvmNetworkName } from '../../tron/helpers/tronTvmChain'
+import type { TronTvmNetworkName } from '../../tron/types'
 import type {
   IChainExecutionParams,
   IChainExecutionResult,

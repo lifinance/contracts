@@ -1,6 +1,6 @@
 /**
  * Tron TVM wallet for scripts: same secp256k1 key as viem’s local account, TronWeb + full-node HTTP.
- * Re-exports chain and Safe-exec types/helpers used with {@link TronWalletClient}.
+ * Import related types from `../types` and chain helpers from `./tronTvmChain` at call sites.
  */
 
 import type { TronWeb } from 'tronweb'
@@ -13,13 +13,6 @@ import type {
 
 import { broadcastTronSafeExecTransaction } from './tronSafeExecBroadcast'
 import { createTronWebForTvmNetworkKey } from './tronWebFactory'
-
-export type {
-  IExecuteSafeExecTronWebResult,
-  ITronSafeExecParams,
-  TronTvmNetworkName,
-} from '../types'
-export { getTronNetworkKeyForChainId, isTronTvmChainId } from './tronTvmChain'
 
 export class TronWalletClient {
   private readonly privateKeyHex: string

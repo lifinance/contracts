@@ -8,7 +8,7 @@
 import type { Account, PublicClient, WalletClient } from 'viem'
 
 import { isTronNetworkKey } from '../../shared/tron-network-keys'
-import type { TronTvmNetworkName } from '../../tron/helpers/tronTvmChain'
+import type { TronTvmNetworkName } from '../../tron/types'
 import type { IChainCaller } from '../chain-executor'
 
 export interface ICreateChainCallerParams {

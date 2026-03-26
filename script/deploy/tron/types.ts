@@ -196,22 +196,6 @@ export interface IForgeArtifact {
   }
 }
 
-export interface IDeploymentResult {
-  contract: string
-  address: string
-  txId: string
-  cost: number
-  version: string
-  status?: 'success' | 'failed' | 'existing'
-}
-
-export interface INetworkInfo {
-  network: string
-  block: number
-  address: string
-  balance: number
-}
-
 export interface IDiamondRegistrationResult {
   success: boolean
   transactionId?: string
