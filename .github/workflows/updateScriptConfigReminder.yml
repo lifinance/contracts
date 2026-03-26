@@ -1,12 +1,11 @@
 name: Notify SmartContract channel when .env.example changes
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - '.env.example'
-    types:
-      - opened
-      - synchronize
 
 permissions:
   contents: read # required to evaluate changed files and trigger based on path filters
@@ -21,4 +20,4 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
           payload: |
-            text: "Hey team, please update your .env file (see .env.example for latest changes)"
+            text: "Hey team, please update your .env file (see <https://github.com/lifinance/contracts/blob/main/.env.example|.env.example> for latest changes)"
