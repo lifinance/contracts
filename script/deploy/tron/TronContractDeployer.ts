@@ -1,17 +1,16 @@
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
+import { sleep } from '../../utils/delay'
+
+import { DEFAULT_SAFETY_MARGIN } from './constants'
 import type {
   ITronDeploymentConfig,
   ITronCostEstimate,
   ITronDeploymentResult,
   IForgeArtifact,
 } from './types'
-import {
-  DEFAULT_SAFETY_MARGIN,
-  calculateTransactionBandwidth,
-  calculateEstimatedCost,
-} from './utils'
+import { calculateTransactionBandwidth, calculateEstimatedCost } from './utils'
 
 // Import TronWeb - the simple approach that was working
 
@@ -471,7 +470,7 @@ export class TronContractDeployer {
           consola.warn(`Retry ${retries}/${maxRetries} for transaction receipt`)
       }
 
-      await this.sleep(pollInterval)
+      await sleep(pollInterval)
     }
 
     throw new Error(`Transaction confirmation timeout after ${timeoutMs}ms`)
@@ -498,12 +497,7 @@ export class TronContractDeployer {
     }
   }
 
-  /**
-   * Sleep helper
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
+  // sleep is now imported from utils/delay.ts
 
   /**
    * Get network info

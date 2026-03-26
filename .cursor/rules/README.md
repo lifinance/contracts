@@ -73,6 +73,7 @@ Custom commands live in `.cursor/commands/` and are invoked via `/...` in Cursor
 | `add-new-rule.md` | `/add-new-rule`                   | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation) |
 | `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
+| `review-bounty-report.md` | `/review-bounty-report` | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
 
 ## Transaction Analysis
 

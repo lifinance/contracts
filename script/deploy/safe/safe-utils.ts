@@ -39,6 +39,7 @@ import {
 } from '../../utils/fetchWithTimeout'
 import {
   buildExplorerContractPageUrl,
+  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 
@@ -190,11 +191,12 @@ export class ViemSafe {
     let publicClient: PublicClient
     let chain: Chain | undefined = undefined
 
-    if (typeof provider === 'string')
+    if (typeof provider === 'string') {
+      const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
       publicClient = createPublicClient({
-        transport: http(provider),
+        transport: http(url, fetchOptions ? { fetchOptions } : {}),
       })
-    else {
+    } else {
       chain = provider
       publicClient = createPublicClient({
         chain: chain,
@@ -218,10 +220,17 @@ export class ViemSafe {
       )
 
     // Create wallet client with the account and chain
+    const walletTransport =
+      typeof provider === 'string'
+        ? (() => {
+            const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
+            return http(url, fetchOptions ? { fetchOptions } : {})
+          })()
+        : http()
     const walletClient = createWalletClient({
       account,
       chain,
-      transport: http(typeof provider === 'string' ? provider : undefined),
+      transport: walletTransport,
     })
 
     return new ViemSafe(publicClient, walletClient, safeAddress, account)
@@ -1247,11 +1256,12 @@ export async function initializeSafeClient(
     throw new Error(`No Safe address configured for network ${network}`)
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
+  if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
 
   // Initialize Safe with Viem
   try {
     const safe = await ViemSafe.init({
-      provider: parsedRpcUrl as string,
+      provider: parsedRpcUrl,
       privateKey,
       safeAddress: finalSafeAddress,
       useLedger,
@@ -1613,6 +1623,83 @@ function getContractNameFromNetworkDeployments(
   }
 }
 
+/**
+ * Gets contract name from local compiled artifacts (out/) by matching the facet's function selectors.
+ * Used when the facet is not yet in deployments/{network}.json (e.g. different branch).
+ * @param selectors - Function selectors from the diamond cut for this facet (hex strings or bytes4)
+ * @returns Contract name only when unambiguous: exactly one artifact has the same selector set as the
+ *   facet, or exactly one artifact is the smallest strict superset of the facet's selectors. Otherwise
+ *   "Unknown" (including multiple exact matches or a tie for smallest superset).
+ */
+function getContractNameFromSelectorsInOut(
+  selectors: (string | Uint8Array)[]
+): string {
+  const projectRoot = process.cwd()
+  const outDir = path.join(projectRoot, 'out')
+  try {
+    if (!fs.existsSync(outDir)) return 'Unknown'
+    const facetSet = new Set(
+      selectors.map((s) => {
+        const hex =
+          typeof s === 'string'
+            ? s.startsWith('0x')
+              ? s
+              : `0x${s}`
+            : `0x${Buffer.from(s).toString('hex')}`
+        return hex.toLowerCase()
+      })
+    )
+    if (facetSet.size === 0) return 'Unknown'
+
+    const exactMatchNames: string[] = []
+    const supersetCandidates: { name: string; size: number }[] = []
+    const entries = fs.readdirSync(outDir, { withFileTypes: true })
+    for (const dirent of entries) {
+      if (!dirent.isDirectory() || !dirent.name.endsWith('.sol')) continue
+      const contractName = dirent.name.slice(0, -4)
+      const jsonPath = path.join(outDir, dirent.name, `${contractName}.json`)
+      if (!fs.existsSync(jsonPath)) continue
+      try {
+        const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
+        const identifiers = raw?.methodIdentifiers
+        if (!identifiers || typeof identifiers !== 'object') continue
+        const artifactSet = new Set(
+          (Object.values(identifiers) as string[]).map((v) =>
+            (v.startsWith('0x') ? v : `0x${v}`).toLowerCase()
+          )
+        )
+        const isSuperset = [...facetSet].every((sel) => artifactSet.has(sel))
+        if (!isSuperset) continue
+        const exact = facetSet.size === artifactSet.size
+        if (exact) {
+          exactMatchNames.push(contractName)
+          continue
+        }
+        supersetCandidates.push({ name: contractName, size: artifactSet.size })
+      } catch {
+        continue
+      }
+    }
+
+    const [onlyExact] = exactMatchNames
+    if (exactMatchNames.length === 1 && onlyExact !== undefined)
+      return onlyExact
+    if (exactMatchNames.length > 1) return 'Unknown'
+
+    if (supersetCandidates.length === 0) return 'Unknown'
+    const minSupersetSize = Math.min(...supersetCandidates.map((c) => c.size))
+    const smallestSupersets = supersetCandidates.filter(
+      (c) => c.size === minSupersetSize
+    )
+    const [onlySuperset] = smallestSupersets
+    if (smallestSupersets.length === 1 && onlySuperset !== undefined)
+      return onlySuperset.name
+    return 'Unknown'
+  } catch {
+    return 'Unknown'
+  }
+}
+
 /** Base URL for 4byte signature lookup (Sourcify; openchain.xyz-compatible API). */
 const FOURBYTE_LOOKUP_BASE =
   'https://api.4byte.sourcify.dev/signature-database/v1/lookup'
@@ -1775,6 +1862,10 @@ export async function decodeDiamondCut(
   for (const mod of sortedModifications) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
+    const actionNum =
+      typeof actionValue === 'bigint'
+        ? Number(actionValue)
+        : (actionValue as number)
     try {
       let facetLine = `Facet Address: \u001b[34m${facetAddress}\u001b[0m`
       if (networkIdForExplorer) {
@@ -1789,9 +1880,13 @@ export async function decodeDiamondCut(
 
       // Use selector map for efficient lookup
       if (selectorMap) {
-        const contractName = network
+        let contractName = network
           ? getContractNameFromNetworkDeployments(network, facetAddress)
           : 'Unknown'
+        // Remove (2): facet address is not a live deployable contract and the
+        // selector list may be a partial subset — superset matching is unsafe.
+        if (contractName === 'Unknown' && actionNum !== 2)
+          contractName = getContractNameFromSelectorsInOut(selectors)
         consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
         for (const selector of selectors) {
@@ -1910,10 +2005,13 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
   let safeInfo
   try {
-    // Create a public client for read operations
+    const rpcUrl = chain.rpcUrls.default.http[0]
+    if (!rpcUrl) throw new Error(`No RPC URL for network ${network}`)
+    const { url: transportUrl, fetchOptions } =
+      getTransportConfigFromRpcUrl(rpcUrl)
     const publicClient = createPublicClient({
       chain,
-      transport: http(chain.rpcUrls.default.http[0]),
+      transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
     })
 
     safeInfo = await getSafeInfoFromContract(
@@ -1941,9 +2039,12 @@ export async function wrapWithTimelockSchedule(
 ): Promise<{ calldata: Hex; targetAddress: Address }> {
   const chain = getViemChainForNetworkName(network)
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
+  if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
+  const { url: transportUrl, fetchOptions } =
+    getTransportConfigFromRpcUrl(parsedRpcUrl)
   const client = createPublicClient({
     chain,
-    transport: http(parsedRpcUrl),
+    transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
   })
 
   // Get the minimum delay from the timelock controller

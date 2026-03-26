@@ -531,87 +531,6 @@
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/velora.svg",
       "webUrl": "https://www.velora.xyz/",
       "contracts": {
-        "mainnet": [
-          {
-            "address": "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x216b4b4ba9f3e719726886d34a177484278bfcae",
-            "functions": {}
-          }
-        ],
-        "optimism": [
-          {
-            "address": "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x216b4b4ba9f3e719726886d34a177484278bfcae",
-            "functions": {}
-          }
-        ],
-        "bsc": [
-          {
-            "address": "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x216b4b4ba9f3e719726886d34a177484278bfcae",
-            "functions": {}
-          }
-        ],
         "gnosis": [
           {
             "address": "0x6a000f20005980200259b80c5102003040001068",
@@ -629,206 +548,6 @@
               "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
             }
-          }
-        ],
-        "unichain": [
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          }
-        ],
-        "polygon": [
-          {
-            "address": "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x216b4b4ba9f3e719726886d34a177484278bfcae",
-            "functions": {}
-          }
-        ],
-        "sonic": [
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          }
-        ],
-        "fantom": [
-          {
-            "address": "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x216b4b4ba9f3e719726886d34a177484278bfcae",
-            "functions": {}
-          }
-        ],
-        "polygonzkevm": [
-          {
-            "address": "0xb83b554730d29ce4cb55bb42206c3e2c03e4a40a",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0xc8a21fcd5a100c3ecc037c97e2f9c53a8d3a02a1",
-            "functions": {}
-          }
-        ],
-        "base": [
-          {
-            "address": "0x59c7c832e96d2568bea6db468c1aadcbbda08a52",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x93aaae79a53759cd164340e4c8766e4db5331cd7",
-            "functions": {}
-          }
-        ],
-        "arbitrum": [
-          {
-            "address": "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x216b4b4ba9f3e719726886d34a177484278bfcae",
-            "functions": {}
-          }
-        ],
-        "avalanche": [
-          {
-            "address": "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
-            "functions": {}
-          },
-          {
-            "address": "0x6a000f20005980200259b80c5102003040001068",
-            "functions": {
-              "0xe3ead59e": "swapExactAmountIn(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd85ca173": "swapExactAmountInOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0x1a01c532": "swapExactAmountInOnCurveV1((uint256,uint256,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe37ed256": "swapExactAmountInOnCurveV2((uint256,uint256,uint256,address,address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes)",
-              "0xe8bb3b6c": "swapExactAmountInOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x876a02f6": "swapExactAmountInOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x7f457675": "swapExactAmountOut(address,(address,address,uint256,uint256,uint256,bytes32,address),uint256,bytes,bytes)",
-              "0xd6ed22e6": "swapExactAmountOutOnBalancerV2((uint256,uint256,uint256,bytes32,uint256),uint256,bytes,bytes)",
-              "0xa76f4eb6": "swapExactAmountOutOnUniswapV2((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0x5e94e28d": "swapExactAmountOutOnUniswapV3((address,address,uint256,uint256,uint256,bytes32,address,bytes),uint256,bytes)",
-              "0xda35bb0d": "swapOnAugustusRFQTryBatchFill((uint256,uint256,uint8,bytes32,address),((uint256,uint128,address,address,address,address,uint256,uint256),bytes,uint256,bytes,bytes)[],bytes)",
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)"
-            }
-          },
-          {
-            "address": "0x216b4b4ba9f3e719726886d34a177484278bfcae",
-            "functions": {}
           }
         ]
       }
@@ -1234,26 +953,6 @@
             }
           }
         ],
-        "mode": [
-          {
-            "address": "0x7e15eb462cdc67cf92af1f7102465a8f8c784874",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
         "arbitrum": [
           {
             "address": "0xa669e7a0d4b3e4fa48af2de86bd4cd7126be4e13",
@@ -1297,26 +996,6 @@
         "linea": [
           {
             "address": "0x2d8879046f1559e53eb052e949e9544bcb72f414",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "scroll": [
-          {
-            "address": "0xbfe03c9e20a9fc0b37de01a172f207004935e0b1",
             "functions": {
               "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
               "0x83bd37f9": "swapCompact()",
@@ -5013,6 +4692,54 @@
           }
         ]
       }
+    },
+    {
+      "name": "Bitget",
+      "key": "bitget",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/bitget.svg",
+      "webUrl": "https://www.bitget.com/",
+      "contracts": {
+        "mainnet": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "bsc": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "polygon": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "base": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "arbitrum": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
@@ -5112,6 +4839,74 @@
           {
             "selector": "0x00a32e6c",
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      }
+    ],
+    "0g": [
+      {
+        "name": "FeeCollector",
+        "address": "0x4A01A8bb2C374D654681aEef71Cf367b8716F7B1",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xB5226A52e389723B83fAeF615D1a8e097de51b51",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xc702A522d2a953306aa7c60aAAb73A68723f4B13",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x60eDeCC4183Af6DA9bEbD406980bB60326958eb1",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0xd74D6f76730d97C5524b79F03Ed0F503C3897e1b",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       }
@@ -7310,6 +7105,16 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEc7689CB608E22B21D83D53eBb48F29FE8177B87",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "lisk": [
@@ -9222,6 +9027,46 @@
       {
         "name": "LiFiDEXAggregator",
         "address": "0xEfD58f4D96e21c7e2F7f07CdCD21fe131b11254b",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
+    "tempo": [
+      {
+        "name": "FeeCollector",
+        "address": "0x856305Ab6259E1E83FeE6a66b01672E9CfB84055",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xb421420EEf363d62108D040b70F0A8d580708AD1",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0xB141CfAe0951be61eeE8b5F57DAa094D81b54e1C",
         "selectors": [
           {
             "selector": "0x2646478b",

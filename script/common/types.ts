@@ -44,4 +44,68 @@ export interface INetwork {
    * These flags are appended to the verification command in the order specified.
    */
   customVerificationFlags?: Record<string, string | null>
+  /**
+   * When true, the deployment healthcheck (script/deploy/healthCheck.ts) exits successfully without running checks.
+   * Use only on an exceptional basis when the healthcheck cannot pass otherwise (e.g. core periphery contracts
+   * such as GasZipPeriphery or TokenWrapper are intentionally not deployed on that network).
+   * Before merging: still run the healthcheck manually for that network and verify all addresses and configuration
+   * are correct; this flag only allows CI to pass.
+   */
+  skipHealthcheck?: boolean
 }
+
+/**
+ * Whitelist configuration structure for DEX and Periphery contracts
+ * Used in health check scripts to validate on-chain whitelist state
+ */
+export interface IWhitelistConfig {
+  DEXS: Array<{
+    name: string
+    key: string
+    contracts?: Record<
+      string,
+      Array<{
+        address: string
+        functions?: Record<string, string>
+      }>
+    >
+  }>
+  PERIPHERY?: Record<
+    string,
+    Array<{
+      name: string
+      address: string
+      selectors: Array<{ selector: string; signature: string }>
+    }>
+  >
+}
+
+/**
+ * Function type for getting expected whitelist pairs from configuration
+ * Used in health check scripts to compare config vs on-chain state
+ */
+export type GetExpectedPairsFunction = (
+  network: string,
+  deployedContracts: Record<string, string | `0x${string}`>,
+  environment: string,
+  whitelistConfig: IWhitelistConfig,
+  isTron?: boolean
+) => Promise<Array<{ contract: string; selector: `0x${string}` }>>
+
+/**
+ * Target state JSON structure for health checks
+ * Maps network names to their production/staging deployment states
+ */
+export type TargetState = Record<
+  string,
+  {
+    production?: {
+      LiFiDiamond?: Record<string, string>
+      [key: string]: Record<string, string> | undefined
+    }
+    staging?: {
+      LiFiDiamond?: Record<string, string>
+      [key: string]: Record<string, string> | undefined
+    }
+  }
+>

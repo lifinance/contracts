@@ -300,5 +300,10 @@
       "0x4b9eb6c0b6ea15176bbf62841c6b2a8a398cb656",
       "0x493257fd37edb34451f62edf8d2a0c418852ba4c"
     ]
+  },
+  "tempo": {
+    "chainId": 4217,
+    "acrossSpokePool": "0x2d4710F04Da90184255782d3715224A6C776955D",
+    "tokensToApprove": []
   }
 }
