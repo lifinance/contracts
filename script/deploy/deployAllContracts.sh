@@ -364,7 +364,7 @@ deployAllContracts() {
   if [[ $START_STAGE -le 11 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Run health check only"
-    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    bun run healthcheck --network "$NETWORK" --environment "$ENVIRONMENT"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
 
     # Pause and ask user if they want to continue with ownership transfer
