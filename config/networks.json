@@ -1385,7 +1385,7 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": ""
+    "create3Factory": "0x0646828A29Cc814454eD97b7b89c9B72D03Ac167"
   },
   "zksync": {
     "name": "zksync",

@@ -1,0 +1,75 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x3cc89Fe25d9939BE67065917DaF3D7E95Ccb71Df": {
+        "Name": "DiamondCutFacet",
+        "Version": ""
+      },
+      "0xd178BAF8fC90fC23D2c9a682Bdb325F5c67De091": {
+        "Name": "DiamondLoupeFacet",
+        "Version": ""
+      },
+      "0x2b0B9531678435B770B34a181A858D620Ac396C8": {
+        "Name": "AccessManagerFacet",
+        "Version": ""
+      },
+      "0x97C460C00f19dF24E58B4255f74CadEDe0c1A8ba": {
+        "Name": "CalldataVerificationFacet",
+        "Version": ""
+      },
+      "0x2EFAe1F4951C2d3bA71317b0fc6A333F83610804": {
+        "Name": "EmergencyPauseFacet",
+        "Version": ""
+      },
+      "0x4eDe54ba3c312c841573C573FCcc195dCA5B5Ecf": {
+        "Name": "GenericSwapFacet",
+        "Version": ""
+      },
+      "0xd508814ee8475658889a91759481D21816880Ad6": {
+        "Name": "GenericSwapFacetV3",
+        "Version": ""
+      },
+      "0x22197947060a617dbf2a4be985b63bD19eEeF092": {
+        "Name": "OwnershipFacet",
+        "Version": ""
+      },
+      "0x5c4d803003C6c20bF4C36B8A4d617C0b08774631": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": ""
+      },
+      "0x67e45B67B1A1c7dB65E5B3F38D9614C37717A273": {
+        "Name": "WhitelistManagerFacet",
+        "Version": ""
+      },
+      "0x53128d65F387484F9313B01129069Ef7F7607039": {
+        "Name": "WithdrawFacet",
+        "Version": ""
+      },
+      "0xA63a1F1c88c6C5435A449D1B73a4c4fD4700af13": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": ""
+      },
+      "0x7D51DEaa90632B71087ffb164306fA192302B933": {
+        "Name": "PolymerCCTPFacet",
+        "Version": ""
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0xFe5D08163565096eEbd95de3feBBe184078F3717",
+      "Executor": "0xeAc56FE1d1B9B76CF514d1e9b8936d1c671F80eC",
+      "FeeCollector": "",
+      "FeeForwarder": "",
+      "GasZipPeriphery": "",
+      "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
+      "Patcher": "",
+      "Permit2Proxy": "",
+      "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
+      "ReceiverChainflip": "",
+      "ReceiverOIF": "",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": ""
+    }
+  }
+}
