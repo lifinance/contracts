@@ -1265,7 +1265,7 @@ function diamondSyncWhitelist {
 
   # Run networks in parallel with concurrency control
   if [[ -z $MAX_CONCURRENT_JOBS ]]; then
-    echo "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    echo "Your .env file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
     exit 1
   fi
 

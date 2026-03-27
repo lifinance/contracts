@@ -157,13 +157,10 @@ export async function executeShellCommand(command: string): Promise<string> {
 }
 
 /**
- * Get deployment environment from config.sh
+ * Get deployment environment from .env
  */
 export async function getEnvironment(): Promise<EnvironmentEnum> {
-  const productionValue = await executeShellCommand(
-    'source script/config.sh && echo $PRODUCTION'
-  )
-  return productionValue === 'true'
+  return process.env.PRODUCTION === 'true'
     ? EnvironmentEnum.production
     : EnvironmentEnum.staging
 }

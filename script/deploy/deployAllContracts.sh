@@ -4,7 +4,6 @@ deployAllContracts() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployAllContracts"
 
   # load required resources
-  source script/config.sh
   source script/helperFunctions.sh
   source script/deploy/deployAndStoreCREATE3Factory.sh
   source script/deploy/deployCoreFacets.sh

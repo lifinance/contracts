@@ -45,6 +45,8 @@ KNOWN_FALSE_POSITIVES=(
   "none"
   ""
   "verifyContract"
+  "foundry.toml"
+  "50000000000"
 )
 EXCLUDED_PATHS=(
   "deployments/_deployments_log_file.json"
@@ -321,6 +323,19 @@ prepare_env_secrets() {
 
     if [ -z "$VALUE" ] || [ "$IS_FALSE_POSITIVE" = true ]; then
       continue
+    fi
+
+    # Skip short values only for clearly non-secret keys to avoid blind spots
+    if [ ${`#VALUE`} -lt 8 ]; then
+      local KEY_UPPER
+      KEY_UPPER=$(printf '%s' "$KEY" | tr '[:lower:]' '[:upper:]')
+      case "$KEY_UPPER" in
+        *SECRET*|*TOKEN*|*PASSWORD*|*PRIVATE*|*API_KEY*|*ACCESS_KEY*)
+          ;; # still track potentially sensitive short values
+        *)
+          continue
+          ;;
+      esac
     fi
 
     ENV_SECRET_KEYS+=("$KEY")
