@@ -367,6 +367,116 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.stopPrank();
     }
 
+    function testCanSwapAndBridgeNativeTokens() public {
+        vm.startPrank(USDC_HOLDER);
+
+        usdc.approve(
+            address(optimismBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
+
+        // Swap USDC to native ETH
+        address[] memory path = new address[](2);
+        path[0] = USDC_ADDRESS;
+        path[1] = address(weth);
+
+        uint256 amountOut = 1 ether;
+
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            USDC_ADDRESS,
+            address(0),
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapTokensForExactETH.selector,
+                amountOut,
+                amountIn,
+                path,
+                address(optimismBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = amountOut;
+        bridgeData.hasSourceSwaps = true;
+
+        optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge(
+            bridgeData,
+            swapData,
+            validOptimismData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testCanSwapAndBridgeSNX() public {
+        address snxToken = 0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F;
+        address snxBridge = 0x39Ea01a0298C315d149a490E34B59Dbf2EC7e48F;
+
+        optimismBridgeFacet.registerOptimismBridge(snxToken, snxBridge);
+
+        vm.startPrank(USDC_HOLDER);
+
+        usdc.approve(
+            address(optimismBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
+
+        // Swap USDC to SNX
+        address[] memory path = new address[](2);
+        path[0] = USDC_ADDRESS;
+        path[1] = snxToken;
+
+        uint256 amountOut = 1 * 10 ** 18;
+
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            USDC_ADDRESS,
+            snxToken,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOut,
+                path,
+                address(optimismBridgeFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.sendingAssetId = snxToken;
+        bridgeData.minAmount = amountOut;
+        bridgeData.hasSourceSwaps = true;
+
+        OptimismBridgeFacet.OptimismData
+            memory snxOptimismData = OptimismBridgeFacet.OptimismData(
+                address(0),
+                L2_GAS,
+                true
+            );
+
+        optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge(
+            bridgeData,
+            swapData,
+            snxOptimismData
+        );
+
+        vm.stopPrank();
+    }
+
     function testRegisterOptimismBridge() public {
         address assetId = makeAddr("asset");
         address bridge = makeAddr("bridge");
