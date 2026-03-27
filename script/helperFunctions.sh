@@ -1,5 +1,5 @@
 #!/bin/bash
-#
+# Changelog test: demo change in .sh (not included in contract changelog)
 
 # Load .env into the shell, and export each assignment for child processes.
 #
