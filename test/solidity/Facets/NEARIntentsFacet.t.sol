@@ -398,6 +398,20 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_QuoteAlreadyConsumed_Swap() public {
+        bridgeData.hasSourceSwaps = true;
+        nearIntentsFacet.setQuoteConsumed(validNearData.quoteId);
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(QuoteAlreadyConsumed.selector);
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_QuoteExpired() public {
         // Setup expired quote - deadline in the past
         uint256 expiredDeadline = block.timestamp - 1;
@@ -432,6 +446,22 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.expectRevert(QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_QuoteExpired_Swap() public {
+        bridgeData.hasSourceSwaps = true;
+
+        // Move time forward past deadline
+        vm.warp(validNearData.deadline + 1);
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(QuoteExpired.selector);
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
             validNearData
         );
         vm.stopPrank();
@@ -876,6 +906,28 @@ contract NEARIntentsFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidNonEVMReceiver.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidNonEVMReceiver_Swap() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.hasSourceSwaps = true;
+
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
             validNearData
         );
         vm.stopPrank();
