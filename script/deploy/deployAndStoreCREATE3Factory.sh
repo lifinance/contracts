@@ -44,7 +44,6 @@ deployAndStoreCREATE3Factory() {
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
   FACTORY_ADDRESS=""
-  local PRIVATE_KEY
   PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
     error "Failed to load PRIVATE_KEY for network $NETWORK (environment: $ENVIRONMENT)"
     return 1
