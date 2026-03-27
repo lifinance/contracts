@@ -1367,8 +1367,8 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": ""
   },
-  "optimismSepolia": {
-    "name": "optimismSepolia",
+  "optimismsepolia": {
+    "name": "optimismsepolia",
     "chainId": 11155420,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
