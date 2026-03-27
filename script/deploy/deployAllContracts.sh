@@ -142,14 +142,18 @@ deployAllContracts() {
       fi
     fi
 
-    # deploy SAFE
-    SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
-    if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
-      echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
-      bun deploy-safe --network "$NETWORK"
-      checkFailure $? "deploy Safe Proxy instance to network $NETWORK"
+    # deploy SAFE (production only)
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
+      if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+        echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
+        bun deploy-safe --network "$NETWORK"
+        checkFailure $? "deploy Safe Proxy instance to network $NETWORK"
+      else
+        echo "SAFE already deployed for $NETWORK (safeAddress: $SAFE_ADDRESS), skipping deployment."
+      fi
     else
-      echo "SAFE already deployed for $NETWORK (safeAddress: $SAFE_ADDRESS), skipping deployment."
+      echo "[info] Skipping Safe deployment (not required for $ENVIRONMENT environment)"
     fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 1 completed"
