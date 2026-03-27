@@ -104,11 +104,10 @@ deployAllContracts() {
   if [[ $START_STAGE -le 1 ]]; then
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 1: Initial setup and CREATE3Factory deployment"
 
-    # add RPC URL to MongoDB
-    # only add the RPC URL if no CREATE3Factory is deployed yet (if a CREATE3Factory is deployed that means we added an RPC already before)
-    CREATE3_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.create3Factory")
-    if [[ -z "$CREATE3_ADDRESS" || "$CREATE3_ADDRESS" == "null" ]]; then
-      echo ""
+    # add RPC URL to MongoDB (only if not already in .env)
+    local RPC_KEY
+    RPC_KEY=$(getRPCEnvVarName "$NETWORK")
+    if [[ -z "${!RPC_KEY:-}" ]]; then
       echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
       bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
       bun fetch-rpcs
