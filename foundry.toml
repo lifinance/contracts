@@ -112,6 +112,7 @@ scroll = "${ETH_NODE_URI_SCROLL}"
 
 # testnets
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
+optimismsepolia = "${ETH_NODE_URI_OPTIMISMSEPOLIA}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
@@ -181,3 +182,6 @@ worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.ethersca
 xdc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=50", chain = "50" }
 xlayer = { key = "${OKLINK_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/xlayer", chain = "196", verifier = "oklink" }
 zksync = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://zksync2-mainnet-explorer.zksync.io/contract_verification", chain = "324", verifier = "zksync" }
+
+# testnets
+optimismsepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155420", chain = "11155420" }

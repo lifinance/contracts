@@ -1152,7 +1152,7 @@ function checkRequiredVariablesInDotEnv() {
     }
 
     # Match lines starting with "network = { key ="
-    tolower($0) ~ "^" network " *= *\\{ *key *= *" {
+    tolower($0) ~ "^" tolower(network) " *= *\\{ *key *= *" {
       n = split($0, parts, "\"");  # Split by double quotes
       for (i = 1; i <= n; i++) {
         if (index(parts[i], "${") == 1) {  # Look for ${...}

@@ -91,7 +91,7 @@
     "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
   },
-  "optimismSepolia": {
+  "optimismsepolia": {
     "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
     "usdc": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
     "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
