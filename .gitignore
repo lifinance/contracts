@@ -69,7 +69,6 @@ test/solidity/TestPlayground.t.sol
 .claude/settings.local.json
 .copilot*
 .direnv/
-.cursorrules
 
 AGENTS.md
 CLAUDE.md
