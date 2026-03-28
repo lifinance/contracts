@@ -97,6 +97,35 @@
       }
     }
   },
+  "AcrossV4SwapFacet": {
+    "configData": {
+      "_spokePoolPeriphery": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.spokePoolPeriphery",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_sponsoredOftSrcPeriphery": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.sponsoredOftSrcPeriphery",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_sponsoredCctpSrcPeriphery": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.sponsoredCctpSrcPeriphery",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_backendSigner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "AllBridgeFacet": {
     "configData": {
       "_allBridge": {
@@ -727,8 +756,8 @@
   "NEARIntentsFacet": {
     "configData": {
       "_backendSigner": {
-        "configFileName": "nearintents.json",
-        "keyInConfigFile": ".<ENVIRONMENT>.backendSigner",
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
         "allowToDeployWithZeroAddress": "false"
       }
     }
