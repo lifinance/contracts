@@ -307,9 +307,7 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
-    }
-  ],
-  "linea": [
+    },
     {
       "address": "0xEc7689CB608E22B21D83D53eBb48F29FE8177B87",
       "functionSelectors": [
