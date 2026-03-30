@@ -1,7 +1,54 @@
 {
+  "mainnet": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x9f12686Cba2383150E869A8e5C2ededdcf7Ab4f9",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "arbitrum": [
     {
       "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -19,11 +66,47 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "base": [
     {
       "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x847E5fF14E18cdE8fc289839bC7C747B922159BF",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -41,11 +124,47 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x198d7ABc54098c01939747392903E80CE6081022",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x37D7676182b2baC5aFB258015308B302380c3486",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "bsc": [
     {
       "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -63,11 +182,47 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "gnosis": [
     {
       "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -85,6 +240,24 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x5F9fC9331FA3bd2229780c6511e8eBCf9bdF9cC5",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xdBEdD49105f4Db6ddC68922f37E364F14F600609",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "katana": [
@@ -96,9 +269,45 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x81cfb09a90f427841A14B460192b41d86eA8855E",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x20809B474cD7DDf7c1e127b95D2Ef699034992a1",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "linea": [
+    {
+      "address": "0x250a288C100EFab2704ED095CFc740918b40b56f",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x48AE957c2e836068A490DEBc16cCb3E55D5448bE",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
     {
       "address": "0xEc7689CB608E22B21D83D53eBb48F29FE8177B87",
       "functionSelectors": [
@@ -118,11 +327,18 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
-    }
-  ],
-  "mainnet": [
+    },
     {
-      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x7EBd42b33Cd721D2189d84BeB0B088296c8Ee5d9",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -140,11 +356,18 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
-    }
-  ],
-  "optimism": [
+    },
     {
-      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -153,75 +376,27 @@
       ]
     }
   ],
-  "plume": [
+  "megaeth": [
     {
-      "address": "0x125d9e76cDAF61B352548e39567382a2AAa1d378",
+      "address": "0x875Bd979B56605aE2c5Ea8CAb53e064F832b6C34",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
-    }
-  ],
-  "polygon": [
+    },
     {
-      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
-    }
-  ],
-  "scroll": [
+    },
     {
-      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
-      "functionSelectors": [
-        {
-          "selector": "0x00a32e6c",
-          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-        }
-      ]
-    }
-  ],
-  "soneium": [
-    {
-      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
-      "functionSelectors": [
-        {
-          "selector": "0x00a32e6c",
-          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-        }
-      ]
-    }
-  ],
-  "sonic": [
-    {
-      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
-      "functionSelectors": [
-        {
-          "selector": "0x00a32e6c",
-          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-        }
-      ]
-    }
-  ],
-  "unichain": [
-    {
-      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
-      "functionSelectors": [
-        {
-          "selector": "0x00a32e6c",
-          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-        }
-      ]
-    }
-  ],
-  "worldchain": [
-    {
-      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "address": "0xBff32fED35bD573D7bFeE160DFb2e1c022068458",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -239,11 +414,250 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x0ae4Ff0E7944F3123a75cf4Fb137BAa67D667617",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
-  "megaeth": [
+  "optimism": [
     {
-      "address": "0x875Bd979B56605aE2c5Ea8CAb53e064F832b6C34",
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xcAc1866fBeE6b6d216F8421e8eF4B4EDdc93b123",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "plume": [
+    {
+      "address": "0x125d9e76cDAF61B352548e39567382a2AAa1d378",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x5ba2b6E1d00E0A0927A52FF776726E0d3D1d8E49",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x0BF34f68455bf315d65C68191C289f4e8D981e1D",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "polygon": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "scroll": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "soneium": [
+    {
+      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x70724E33E2ad6c0D9330b9BD93a0aa88192C112c",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xEb2873B297Bbc26231Ac262835201C08F1d46568",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "sonic": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x67908C6c1190EbAbe81Ac17cDe93d4bCf6635B27",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "unichain": [
+    {
+      "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x70724E33E2ad6c0D9330b9BD93a0aa88192C112c",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xEb2873B297Bbc26231Ac262835201C08F1d46568",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "worldchain": [
+    {
+      "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x7EBd42b33Cd721D2189d84BeB0B088296c8Ee5d9",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",

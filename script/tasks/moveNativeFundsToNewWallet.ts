@@ -52,12 +52,12 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import type { INetwork } from '../common/types'
+import { sleep } from '../utils/delay'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
   networks,
 } from '../utils/viemScriptHelpers'
-import { sleep } from '../utils/delay'
 
 // ANSI color codes
 const RED = '\x1b[31m'
