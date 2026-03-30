@@ -98,6 +98,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "arbitrumnova": {
+    "name": "arbitrumnova",
+    "chainId": 42170,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x722E8BdD2ce80A4422E880164f2079488e115365",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://arbitrum-nova-rpc.publicnode.com",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://arbitrum-nova.blockscout.com",
+    "explorerApiUrl": "https://arbitrum-nova.blockscout.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeAddress": "0xFa51bDc81ebB187C347559D1D7E564a713013e82",
+    "gasZipChainId": 53,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d"
+  },
   "arctestnet": {
     "name": "arctestnet",
     "chainId": 5042002,
