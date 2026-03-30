@@ -57,8 +57,8 @@
     "Periphery": {
       "ERC20Proxy": "0xFe5D08163565096eEbd95de3feBBe184078F3717",
       "Executor": "0xeAc56FE1d1B9B76CF514d1e9b8936d1c671F80eC",
-      "FeeCollector": "",
-      "FeeForwarder": "",
+      "FeeCollector": "0x1f4f48e7370F2c8e6F2112B4482302BA2e094Cbc",
+      "FeeForwarder": "0xbb5FBc819F6c81c2DaaF4ACcEe603c70e9206d36",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
@@ -69,7 +69,7 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "",
-      "TokenWrapper": ""
+      "TokenWrapper": "0xa63AfCa66140E02AC19cB4a4f9b6F65D8413362f"
     }
   }
 }
