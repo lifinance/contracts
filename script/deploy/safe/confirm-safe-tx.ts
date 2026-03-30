@@ -415,24 +415,36 @@ const processTxs = async (
     ].includes(action)
 
     if (isExecuteAction && nonceStatus === 'future') {
+      // Check if there is actually a pending proposal for the blocking nonce in the DB
+      const blockingPendingTx = await pendingTransactions.findOne({
+        safeAddress: txSafeAddress,
+        network: network.toLowerCase(),
+        chainId: chain.id,
+        status: 'pending',
+        'safeTx.data.nonce': Number(expectedNonce),
+      })
+
       consola.warn('')
       consola.warn('='.repeat(80))
       consola.warn('⚠  GS026 WARNING — THIS TRANSACTION WILL REVERT')
       consola.warn('='.repeat(80))
       consola.warn(
-        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
+        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
       )
       consola.warn(
-        `  The Safe will try to execute nonce ${expectedNonce} first and reject this one with GS026.`
+        `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
       )
-      consola.warn(
-        `  Nonce ${expectedNonce} must be executed before this transaction can succeed.`
-      )
-      if (expectedNonce === onChainNonce) {
+      if (blockingPendingTx) {
+        consola.warn(
+          `  A pending proposal for nonce ${expectedNonce} exists in the database — execute that one first.`
+        )
+      } else {
         consola.warn(
           `  There is no pending proposal for nonce ${expectedNonce} in the database.`
         )
-        consola.warn(`  You need to re-create and sign that proposal first.`)
+        consola.warn(
+          `  You need to re-create a proposal with nonce \u001b[33m${expectedNonce}\u001b[0m and execute it first.`
+        )
       }
       consola.warn('='.repeat(80))
       consola.warn('')
