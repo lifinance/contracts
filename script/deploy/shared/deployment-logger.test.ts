@@ -197,7 +197,7 @@ describe('deployment-logger', () => {
 
       expect(async () => {
         await logDeployment(createMockDeployment(), 'staging')
-      }).toThrow('MONGODB_URI is required but not set')
+      }).toThrow('Missing required environment variable: MONGODB_URI')
     })
 
     it('should throw error with empty MONGODB_URI', async () => {
@@ -205,7 +205,7 @@ describe('deployment-logger', () => {
 
       expect(async () => {
         await logDeployment(createMockDeployment(), 'staging')
-      }).toThrow('MONGODB_URI is required but not set')
+      }).toThrow('Missing required environment variable: MONGODB_URI')
     })
 
     it('should construct singleton when MONGODB_URI is set', async () => {
@@ -295,8 +295,8 @@ describe('deployment-logger', () => {
       const [filter, update, options] = calls[0] as any[]
 
       // Verify filter
-      expect(filter.contractName).toBe(deployment.contractName)
-      expect(filter.network).toBe(deployment.network)
+      expect(filter.contractName).toEqual({ $eq: deployment.contractName })
+      expect(filter.network).toEqual({ $eq: deployment.network })
 
       // Verify $set does not have createdAt
       expect(update.$set).not.toHaveProperty('createdAt')

@@ -77,6 +77,7 @@ import networks from '../../../config/networks.json'
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -175,12 +176,6 @@ async function compareDeployedBytecode(
     consola.debug('Expected :', expected.slice(0, 100), '…')
   }
   return ok
-}
-
-const sleep = (ms: number): Promise<void> => {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms)
-  })
 }
 
 // At the top of the file, add new type for EVM versions

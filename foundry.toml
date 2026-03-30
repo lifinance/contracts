@@ -38,9 +38,11 @@ zksync = { zksolc = '1.5.15' }
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
+0g = "${ETH_NODE_URI_0G}"
 abstract = "${ETH_NODE_URI_ABSTRACT}"
 apechain = "${ETH_NODE_URI_APECHAIN}"
 arbitrum = "${ETH_NODE_URI_ARBITRUM}"
+arbitrumnova = "${ETH_NODE_URI_ARBITRUMNOVA}"
 avalanche = "${ETH_NODE_URI_AVALANCHE}"
 base = "${ETH_NODE_URI_BASE}"
 berachain = "${ETH_NODE_URI_BERACHAIN}"
@@ -98,6 +100,7 @@ superposition = "${ETH_NODE_URI_SUPERPOSITION}"
 swellchain = "${ETH_NODE_URI_SWELLCHAIN}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 telos = "${ETH_NODE_URI_TELOS}"
+tempo = "${ETH_NODE_URI_TEMPO}"
 velas = "${ETH_NODE_URI_VELAS}"
 unichain = "${ETH_NODE_URI_UNICHAIN}"
 vana = "${ETH_NODE_URI_VANA}"
@@ -113,9 +116,11 @@ localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
+0g = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://chainscan.0g.ai/api/", chain = "16661", verifier = "blockscout" }
 abstract = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://abscan.org/contract_verification", chain = "2741", verifier = "zksync" }
 apechain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=33139", chain = "33139" }
 arbitrum = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42161", chain = "42161" }
+arbitrumnova = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://arbitrum-nova.blockscout.com/api", chain = "42170", verifier = "blockscout" }
 avalanche = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=43114", chain = "43114" }
 base = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=8453", chain = "8453" }
 berachain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=80094", chain = "80094" }
@@ -170,6 +175,7 @@ superposition = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explo
 swellchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1923", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 telos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://sourcify.dev/server", chain = "40", verifier = "sourcify"}
+tempo = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://contracts.tempo.xyz", verifier = "sourcify", chain = "4217" }
 unichain = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
 vana = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://vanascan.io/api", chain = "1480", verifier = "blockscout" }
 viction = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.vicscan.xyz/api/contract/foundry/verify", chain = "88" }

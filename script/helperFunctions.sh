@@ -1,8 +1,16 @@
 #!/bin/bash
 #
 
-# load env variables
+# Load .env into the shell, and export each assignment for child processes.
+#
+# `source .env` only defines shell variables. Subprocesses (bun/tsx deployment scripts,
+# cast, forge, etc.) inherit the environment, not unexported shell variables. Dotenv-style
+# files usually use `KEY=value` without `export`, so those would be invisible to children.
+# `set -a` (allexport) marks every assignment as exported until `set +a`; we limit that
+# to this file read so later `source`d scripts do not export unrelated locals by default.
+set -a
 source .env
+set +a
 
 # load script
 source script/config.sh
@@ -15,10 +23,6 @@ GRAY='\033[0;37m'  # Light gray color
 BLUE='\033[1;34m'  # Light blue color
 
 NC='\033[0m' # No color
-
-# MongoDB query retry defaults (used by findContractInMasterLog, findContractInMasterLogByAddress,
-# getContractVersionFromMasterLog, getHighestDeployedContractVersionFromMasterLog, getConstructorArgsFromMasterLog)
-MONGO_MAX_RETRIES=${MONGO_MAX_RETRIES:-3}
 
 # >>>>> logging
 function logContractDeploymentInfo {
@@ -66,6 +70,7 @@ function logContractDeploymentInfo {
     return 1
   fi
 
+  # update-deployment-logs.ts add: upserts MongoDB then invalidates the local deployment cache
   echoDebug "logging deployment to MongoDB"
 
   # Build MongoDB command as array for safe execution
@@ -214,8 +219,8 @@ function findContractInMasterLog() {
   while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
     MONGO_RESULT=$(queryMongoDeployment "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     local MONGO_EXIT_CODE=$?
-    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object
-    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[{]/,$ p')
+    # Script may prefix JSON with consola [debug]/[info] on stdout; keep only the JSON object (supports indented or compact one-line)
+    [[ -n "$MONGO_RESULT" ]] && MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^[[:space:]]*[{]/,$ p')
 
     if [[ $MONGO_EXIT_CODE -eq 0 && -n "$MONGO_RESULT" ]]; then
       # Strip leading non-JSON so jq sees only the object
@@ -240,6 +245,7 @@ function findContractInMasterLog() {
   echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
   return 1
 }
+
 function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -284,18 +290,14 @@ function findContractInMasterLogByAddress() {
       # Validate that MONGO_RESULT is valid JSON
       if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
         # Convert MongoDB result to expected format
-        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName // empty')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version // empty')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address // empty')
 
-        # If version missing/empty in record, try to resolve by contract name from master log
-        if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
-          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" 2>/dev/null) || true
-        fi
-
-        # Check for valid contract name and version (version can be empty string but not null)
-        if [[ "$CONTRACT_NAME" != "null" && "$CONTRACT_NAME" != "" ]]; then
-          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
+        # Version may be empty for legacy rows; never infer from @custom:version or other deployments 
+        if [[ -n "$CONTRACT_NAME" ]]; then
+          # Facet object key must match facetAddresses() casing from the caller (TARGET_ADDRESS)
+          local JSON_ENTRY="{\"$TARGET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
           echo "$JSON_ENTRY"
           return 0
         fi
@@ -471,6 +473,7 @@ function getUnverifiedContractsFromMongo() {
   local ENVIRONMENT="$1"
 
   echoDebug "Getting unverified contracts from MongoDB"
+
   bun script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --verified=false \
@@ -861,10 +864,7 @@ function saveDiamondFacets() {
         if [[ -z "${NAME:-}" ]]; then
           NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS" 2>/dev/null) || true
         fi
-        # Version only from MongoDB (with retries inside getHighestDeployedContractVersionFromMasterLog)
-        if [[ -z "${VERSION:-}" && -n "${NAME:-}" ]]; then
-          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$NAME" 2>/dev/null) || true
-        fi
+        # Version only from Mongo (above) or preserved from diamond file; do not infer from source or other deployments
         JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"${NAME:-}\", \"Version\": \"${VERSION:-}\"}}"
       fi
       echo "$JSON_ENTRY" >"$FACETS_DIR/${FACET_ADDRESS}.json"
@@ -1869,9 +1869,19 @@ function verifyContract() {
 
   echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
-  # Add constructor args if present
-  if [ "$ARGS" != "0x" ]; then
+  # Normalize constructor args: use only the first line to avoid passing multiline values
+  # (e.g. from broadcast JSON or jq output), which forge/etherscan can interpret as
+  # multiple arguments and then reject as invalid ABI encoding.
+  ARGS=$(echo "$ARGS" | head -1 | tr -d '\n')
+
+  # Add constructor args only if valid ABI-encoded hex (0x + even number of hex digits).
+  # Reject anything else so forge verify-contract never receives malformed --constructor-args.
+  if [[ -z "$ARGS" || "$ARGS" == "0x" ]]; then
+    :
+  elif [[ "$ARGS" =~ ^0x([0-9a-fA-F]{2})+$ ]]; then
     VERIFY_CMD+=("--constructor-args" "$ARGS")
+  else
+    warning "Skipping invalid constructor args for verify-contract (expected 0x-prefixed hex with an even number of hex digits); not passing --constructor-args."
   fi
 
   # Get API key and determine verification method
@@ -1903,7 +1913,11 @@ function verifyContract() {
       VERIFY_CMD+=("--verifier" "sourcify")
     elif [[ "$VERIFICATION_TYPE" = "etherscan" ]]; then
       # Use etherscan verifier (foundry.toml may also set verifier = "etherscan" for this network)
-      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
+      if [ -z "${!API_KEY}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+        return 1
+      fi
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
       # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
       VERIFY_CMD+=("--verifier" "custom")
@@ -2557,10 +2571,13 @@ function updateAllContractsToTargetState() {
               # known by diamond
               # extract version
               #ADDRESS=$(echo "$CONTRACT_INFO" | jq -r 'keys[]' ) # TODO: remove
-              KNOWN_VERSION=$(echo "$CONTRACT_INFO" | jq -r '.[].Version')
+              KNOWN_VERSION=$(echo "$CONTRACT_INFO" | jq -r '.[].Version // empty')
 
-              # check if current version matches with target version
-              if [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
+              # Empty/unknown deployed version must not be treated as up-to-date
+              if [[ -z "$KNOWN_VERSION" || "$KNOWN_VERSION" == "null" ]]; then
+                echo "[info]     unknown deployed version for $CONTRACT; deployment check required" # TODO: remove
+                DEPLOYMENT_REQUIRED=true
+              elif [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
                 echo "[info]     versions do not match ($TARGET_VERSION!=$KNOWN_VERSION)" # TODO: remove
                 DEPLOYMENT_REQUIRED=true
               else
@@ -4272,6 +4289,8 @@ function checkDeployRequirements() {
       KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
       # replace '<ENVIRONMENT>' with actual environment, if needed
       KEY_IN_FILE=${KEY_IN_FILE//<ENVIRONMENT>/$ENVIRONMENT}
+      # jq cannot resolve keys that start with a digit (e.g. "0g"); use bracket notation
+      KEY_IN_FILE=$(echo "$KEY_IN_FILE" | sed -E 's/\.([0-9][^.]*)/.["\1"]/g')
 
       # get full config file path
       CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"
@@ -4683,8 +4702,8 @@ function getValueFromJSONFile() {
     return 1
   fi
 
-  # extract and return value from file
-  VALUE=$(cat "$FILE_PATH" | jq -r ".$KEY")
+  # extract and return value: try direct key lookup first (handles flat keys with dots), then path lookup (handles dotted paths and keys like "0g")
+  VALUE=$(jq -r --arg key "$KEY" '(.[$key] // getpath($key | split("."))) // empty' "$FILE_PATH")
   echo "$VALUE"
 }
 function compareAddresses() {
