@@ -257,15 +257,6 @@ const processTxs = async (
     )
   ).then((txs: IAugmentedSafeTxDocument[]) =>
     txs.filter((tx) => {
-      // Skip expired nonces (already consumed on-chain) — warn and auto-remove
-      if (BigInt(tx.safeTx.data.nonce) < onChainNonce) {
-        consola.warn(
-          `Skipping transaction with expired nonce ${tx.safeTx.data.nonce} ` +
-            `(on-chain nonce is ${onChainNonce}) — this transaction can never be executed`
-        )
-        return false
-      }
-
       // If the transaction has enough signatures to execute AND the current signer has signed,
       // still show it so they can execute it
       if (tx.canExecute) return true
@@ -294,12 +285,7 @@ const processTxs = async (
   })) {
     // Recompute nonce status dynamically — expectedNonce advances after each successful execution
     const txNonce = BigInt(tx.safeTx.data.nonce)
-    const nonceStatus =
-      txNonce < expectedNonce
-        ? 'expired'
-        : txNonce === expectedNonce
-        ? 'current'
-        : 'future'
+    const nonceStatus = txNonce === expectedNonce ? 'current' : 'future'
 
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
@@ -317,8 +303,7 @@ const processTxs = async (
       ? `${tx.safeTx.data.to} \u001b[33m${targetName}\u001b[0m`
       : tx.safeTx.data.to
 
-    const nonceColor =
-      nonceStatus === 'current' ? '32' : nonceStatus === 'future' ? '33' : '31'
+    const nonceColor = nonceStatus === 'current' ? '32' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
     const nonceWarning =
       nonceStatus === 'future' && tx.canExecute
