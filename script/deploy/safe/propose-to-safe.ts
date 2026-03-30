@@ -23,6 +23,7 @@ import {
   isAddressASafeOwner,
   storeTransactionInMongoDB,
   wrapWithTimelockSchedule,
+  type ISafeTxDocument,
 } from './safe-utils'
 
 /**
@@ -216,14 +217,88 @@ const main = defineCommand({
       finalCalldata = wrappedTransaction.calldata
     }
 
-    // Get the next nonce
+    // Get on-chain nonce and next nonce (accounts for pending proposals)
+    const onChainNonce = await safe.getNonce()
     const nextNonce = await getNextNonce(
       pendingTransactions,
       safeAddress,
       args.network,
       chain.id,
-      await safe.getNonce()
+      onChainNonce
     )
+
+    // Check for existing pending proposals at the target nonce
+    // This prevents accidentally stacking proposals without realizing it
+    const existingAtNonce = await pendingTransactions
+      .find({
+        safeAddress,
+        network: args.network.toLowerCase(),
+        chainId: chain.id,
+        status: 'pending',
+        'safeTx.data.nonce': Number(nextNonce),
+      })
+      .toArray()
+
+    if (existingAtNonce.length > 0) {
+      const existing = existingAtNonce[0] as ISafeTxDocument
+      const sigCount = existing.safeTx.signatures
+        ? Object.keys(
+            existing.safeTx.signatures as unknown as Record<string, unknown>
+          ).length
+        : 0
+      consola.warn('')
+      consola.warn('='.repeat(80))
+      consola.warn(
+        `A pending proposal already exists at nonce ${nextNonce} for this Safe on ${args.network}:`
+      )
+      consola.warn(`  To:         ${existing.safeTx.data.to}`)
+      consola.warn(`  Proposer:   ${existing.proposer}`)
+      consola.warn(
+        `  Proposed:   ${
+          existing.timestamp instanceof Date
+            ? existing.timestamp.toISOString()
+            : existing.timestamp
+        }`
+      )
+      consola.warn(`  Signatures: ${sigCount}`)
+      consola.warn(`  Tx Hash:    ${existing.safeTxHash}`)
+      consola.warn('='.repeat(80))
+      consola.warn('')
+      consola.warn(
+        'Replacing this proposal will DELETE the existing one and all its signatures.'
+      )
+      consola.warn('The other signers will need to re-sign the new proposal.')
+      consola.warn('')
+
+      const confirmReplace = await consola.prompt(
+        'Do you want to REPLACE the existing proposal?',
+        {
+          type: 'select',
+          options: [
+            'No — keep the existing proposal (abort)',
+            'Yes — replace it with the new proposal',
+          ],
+        }
+      )
+
+      if (confirmReplace.startsWith('No')) {
+        consola.info('Keeping existing proposal — no changes made')
+        await mongoClient.close()
+        return
+      }
+
+      // Delete the existing proposal(s) at this nonce
+      const deleteResult = await pendingTransactions.deleteMany({
+        safeAddress,
+        network: args.network.toLowerCase(),
+        chainId: chain.id,
+        status: 'pending',
+        'safeTx.data.nonce': Number(nextNonce),
+      })
+      consola.success(
+        `Deleted ${deleteResult.deletedCount} existing proposal(s) at nonce ${nextNonce}`
+      )
+    }
 
     // Create and sign the Safe transaction
     const safeTransaction = await safe.createTransaction({
@@ -245,6 +320,7 @@ const main = defineCommand({
     consola.info('Safe Address', safeAddress)
     consola.info('Network', chain.name)
     consola.info('Proposing transaction to', finalTo)
+    consola.info('Nonce', nextNonce.toString())
     if (args.timelock) {
       consola.info('Original target was', args.to)
       consola.info('Transaction wrapped in timelock schedule call')

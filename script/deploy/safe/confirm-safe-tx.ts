@@ -345,24 +345,15 @@ const processTxs = async (
       ? storedResponses[tx.safeTx.data.data]
       : undefined
 
-    // Block execution for future nonces — would revert with GS026 on-chain
-    const canExecuteNonce = nonceStatus === 'current'
-    if (nonceStatus === 'future')
-      consola.warn(
-        `Execution disabled: tx nonce is ${tx.safeTx.data.nonce} but expected nonce is ${expectedNonce}. ` +
-          `Nonce ${expectedNonce} must be executed first. Signing is still allowed.`
-      )
-
     // Determine available actions based on signature status
+    // Execute options are shown regardless of nonce status — GS026 risk is explained at execution time
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
         options.push('Sign')
 
-        // Check if signing with current user + deployer (if needed) would meet threshold
         if (
-          canExecuteNonce &&
           shouldShowSignAndExecuteWithDeployer(
             tx.safeTransaction,
             tx.threshold,
@@ -372,7 +363,7 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
-      if (canExecuteNonce && tx.canExecute) {
+      if (tx.canExecute) {
         options.push('Execute')
         options.push('Execute with Deployer')
       }
@@ -387,15 +378,10 @@ const processTxs = async (
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
         options.push('Sign')
-        if (
-          canExecuteNonce &&
-          wouldMeetThreshold(tx.safeTransaction, tx.threshold)
-        )
+        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
           options.push('Sign & Execute')
 
-        // Check if signing with current user + deployer (if needed) would meet threshold
         if (
-          canExecuteNonce &&
           shouldShowSignAndExecuteWithDeployer(
             tx.safeTransaction,
             tx.threshold,
@@ -405,10 +391,7 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
-      if (
-        canExecuteNonce &&
-        hasEnoughSignatures(tx.safeTransaction, tx.threshold)
-      ) {
+      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
         options.push('Execute')
         options.push('Execute with Deployer')
       }
@@ -422,6 +405,51 @@ const processTxs = async (
     }
 
     if (action === 'Do Nothing') continue
+
+    // If user chose an execute action but nonce is not current, warn clearly and confirm
+    const isExecuteAction = [
+      'Execute',
+      'Execute with Deployer',
+      'Sign & Execute',
+      'Sign and Execute With Deployer',
+    ].includes(action)
+
+    if (isExecuteAction && nonceStatus === 'future') {
+      consola.warn('')
+      consola.warn('='.repeat(80))
+      consola.warn('⚠  GS026 WARNING — THIS TRANSACTION WILL REVERT')
+      consola.warn('='.repeat(80))
+      consola.warn(
+        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
+      )
+      consola.warn(
+        `  The Safe will try to execute nonce ${expectedNonce} first and reject this one with GS026.`
+      )
+      consola.warn(
+        `  Nonce ${expectedNonce} must be executed before this transaction can succeed.`
+      )
+      if (expectedNonce === onChainNonce) {
+        consola.warn(
+          `  There is no pending proposal for nonce ${expectedNonce} in the database.`
+        )
+        consola.warn(`  You need to re-create and sign that proposal first.`)
+      }
+      consola.warn('='.repeat(80))
+      consola.warn('')
+
+      const proceed = await consola.prompt(
+        'Proceed anyway? (will revert with GS026)',
+        {
+          type: 'select',
+          options: ['No — abort execution', 'Yes — execute anyway'],
+        }
+      )
+
+      if (proceed.startsWith('No')) {
+        consola.info('Execution aborted')
+        continue
+      }
+    }
 
     // eslint-disable-next-line require-atomic-updates
     storedResponses[tx.safeTx.data.data] = action
