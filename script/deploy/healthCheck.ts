@@ -41,7 +41,6 @@ import {
 } from './tron/tronUtils'
 import {
   checkIsDeployedTron,
-  getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
   parseTroncastFacetsOutput,
 } from './tron/utils'
@@ -158,12 +157,16 @@ const main = defineCommand({
       process.exit(0)
     }
 
-    // Get core facets - use Tron-specific filtering if needed
-    let coreFacetsToCheck: string[]
-    if (isTron)
-      // Use the Tron-specific utility that filters out GasZipFacet
-      coreFacetsToCheck = getTronCoreFacets()
-    else coreFacetsToCheck = globalConfig.coreFacets
+    // Get core facets - skip GasZipFacet for Tron or networks without GasZip support
+    let coreFacetsToCheck: string[] = globalConfig.coreFacets
+    const networkGasZipConfig = (
+      networksConfig as Record<string, { gasZipChainId?: number } | undefined>
+    )[networkLower]
+    if (isTron || networkGasZipConfig?.gasZipChainId === 0) {
+      coreFacetsToCheck = coreFacetsToCheck.filter(
+        (f: string) => f !== 'GasZipFacet'
+      )
+    }
 
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
