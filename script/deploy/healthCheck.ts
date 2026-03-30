@@ -422,11 +422,19 @@ const main = defineCommand({
     }
 
     // Load whitelist config (staging or production)
-    const whitelistConfig = await import(
-      `../../config/whitelist${
-        environment === 'staging' ? '.staging' : ''
-      }.json`
-    )
+    // whitelist.staging.json is gitignored, so gracefully skip if unavailable in staging
+    let whitelistConfig: any = { DEXS: [], PERIPHERY: {} }
+    if (environment === 'staging') {
+      try {
+        whitelistConfig = await import('../../config/whitelist.staging.json')
+      } catch {
+        consola.info(
+          'whitelist.staging.json not found, skipping whitelist checks'
+        )
+      }
+    } else {
+      whitelistConfig = await import('../../config/whitelist.json')
+    }
 
     // Check Executor authorization in ERC20Proxy
     if (environment === 'production') {
