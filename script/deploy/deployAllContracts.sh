@@ -365,6 +365,7 @@ deployAllContracts() {
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Run health check only"
     bun run healthcheck --network "$NETWORK" --environment "$ENVIRONMENT"
+    checkFailure $? "run health check for $NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
 
     # Pause and ask user if they want to continue with ownership transfer
