@@ -219,19 +219,23 @@ const processTxs = async (
     }
   }
 
-  // Get current threshold
+  // Get current threshold and on-chain nonce
   let threshold
+  let onChainNonce: bigint
   try {
-    threshold = Number(await safe.getThreshold())
+    ;[threshold, onChainNonce] = await Promise.all([
+      safe.getThreshold().then(Number),
+      safe.getNonce(),
+    ])
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    consola.error(`Failed to get threshold: ${errorMsg}`)
+    consola.error(`Failed to get threshold/nonce: ${errorMsg}`)
     throw new Error(
-      `Could not get threshold for Safe ${safeAddress} on ${network}`
+      `Could not get threshold/nonce for Safe ${safeAddress} on ${network}`
     )
   }
 
-  // Filter and augment transactions with signature status
+  // Filter and augment transactions with signature status and nonce validation
   const txs = await Promise.all(
     pendingTxs.map(
       async (tx: ISafeTxDocument): Promise<IAugmentedSafeTxDocument> => {
@@ -253,6 +257,15 @@ const processTxs = async (
     )
   ).then((txs: IAugmentedSafeTxDocument[]) =>
     txs.filter((tx) => {
+      // Skip expired nonces (already consumed on-chain) — warn and auto-remove
+      if (BigInt(tx.safeTx.data.nonce) < onChainNonce) {
+        consola.warn(
+          `Skipping transaction with expired nonce ${tx.safeTx.data.nonce} ` +
+            `(on-chain nonce is ${onChainNonce}) — this transaction can never be executed`
+        )
+        return false
+      }
+
       // If the transaction has enough signatures to execute AND the current signer has signed,
       // still show it so they can execute it
       if (tx.canExecute) return true
@@ -272,11 +285,22 @@ const processTxs = async (
 
   // Sort transactions by nonce in ascending order to process them in sequence
   // This ensures we handle transactions in the correct order as required by the Safe
+  // Track expected nonce so sequential executions within a single run work correctly
+  let expectedNonce = onChainNonce
   for (const tx of txs.sort((a, b) => {
     if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
     return 0
   })) {
+    // Recompute nonce status dynamically — expectedNonce advances after each successful execution
+    const txNonce = BigInt(tx.safeTx.data.nonce)
+    const nonceStatus =
+      txNonce < expectedNonce
+        ? 'expired'
+        : txNonce === expectedNonce
+        ? 'current'
+        : 'future'
+
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
@@ -293,8 +317,17 @@ const processTxs = async (
       ? `${tx.safeTx.data.to} \u001b[33m${targetName}\u001b[0m`
       : tx.safeTx.data.to
 
+    const nonceColor =
+      nonceStatus === 'current' ? '32' : nonceStatus === 'future' ? '33' : '31'
+    const nonceWarning =
+      nonceStatus === 'future'
+        ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
+        : ''
+
     consola.info(`Safe Transaction Details:
-    Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
+    Nonce:           \u001b[${nonceColor}m${
+      tx.safeTx.data.nonce
+    }\u001b[0m${nonceWarning}
     To:              \u001b[32m${toDisplay}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
@@ -312,6 +345,14 @@ const processTxs = async (
       ? storedResponses[tx.safeTx.data.data]
       : undefined
 
+    // Block execution for future nonces — would revert with GS026 on-chain
+    const canExecuteNonce = nonceStatus === 'current'
+    if (nonceStatus === 'future')
+      consola.warn(
+        `Execution disabled: tx nonce is ${tx.safeTx.data.nonce} but expected nonce is ${expectedNonce}. ` +
+          `Nonce ${expectedNonce} must be executed first. Signing is still allowed.`
+      )
+
     // Determine available actions based on signature status
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
@@ -321,6 +362,7 @@ const processTxs = async (
 
         // Check if signing with current user + deployer (if needed) would meet threshold
         if (
+          canExecuteNonce &&
           shouldShowSignAndExecuteWithDeployer(
             tx.safeTransaction,
             tx.threshold,
@@ -330,7 +372,7 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
-      if (tx.canExecute) {
+      if (canExecuteNonce && tx.canExecute) {
         options.push('Execute')
         options.push('Execute with Deployer')
       }
@@ -345,11 +387,15 @@ const processTxs = async (
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
         options.push('Sign')
-        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
+        if (
+          canExecuteNonce &&
+          wouldMeetThreshold(tx.safeTransaction, tx.threshold)
+        )
           options.push('Sign & Execute')
 
         // Check if signing with current user + deployer (if needed) would meet threshold
         if (
+          canExecuteNonce &&
           shouldShowSignAndExecuteWithDeployer(
             tx.safeTransaction,
             tx.threshold,
@@ -359,7 +405,10 @@ const processTxs = async (
           options.push('Sign and Execute With Deployer')
       }
 
-      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
+      if (
+        canExecuteNonce &&
+        hasEnoughSignatures(tx.safeTransaction, tx.threshold)
+      ) {
         options.push('Execute')
         options.push('Execute with Deployer')
       }
@@ -410,6 +459,7 @@ const processTxs = async (
         )
         consola.success('Transaction signed and stored in MongoDB')
         await executeTransaction(signedTx)
+        expectedNonce++
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
@@ -479,6 +529,7 @@ const processTxs = async (
         }
 
         await executeWithDeployer(finalTx)
+        expectedNonce++
       } catch (error) {
         consola.error(
           'Error signing and executing transaction with deployer:',
@@ -490,6 +541,7 @@ const processTxs = async (
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         await executeTransaction(safeTransaction)
+        expectedNonce++
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
@@ -509,6 +561,7 @@ const processTxs = async (
         )
         consola.info('Executing transaction with deployer wallet...')
         await executeTransaction(safeTransaction, deployerSafe)
+        expectedNonce++
       } catch (error) {
         consola.error('Error executing with deployer:', error)
       }
