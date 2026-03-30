@@ -5,6 +5,12 @@
 import type { Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import type {
+  IChainCallParams,
+  IChainCallResult,
+  IChainCaller,
+  IChainSimulateResult,
+} from '../../../common/types'
 import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
 import {
   TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
@@ -21,12 +27,6 @@ import {
 } from '../../tron/helpers/tronWebFactory'
 import { evmHexToTronBase58 } from '../../tron/tronAddressHelpers'
 import type { TronTvmNetworkName } from '../../tron/types'
-import type {
-  IChainCallParams,
-  IChainCallResult,
-  IChainCaller,
-  IChainSimulateResult,
-} from '../chain-executor'
 
 export class TronChainCaller implements IChainCaller {
   public readonly senderAddress: Address

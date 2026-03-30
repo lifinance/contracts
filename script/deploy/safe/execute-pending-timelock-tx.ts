@@ -23,7 +23,11 @@ import {
 } from 'viem'
 
 import data from '../../../config/networks.json'
-import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import {
+  EnvironmentEnum,
+  type IChainCaller,
+  type SupportedChain,
+} from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
@@ -33,7 +37,6 @@ import {
   type IProcessingStats,
 } from '../../utils/slack-notifier'
 
-import type { IChainCaller } from './chain-executor'
 import { createChainCaller } from './executors/create-chain-caller'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'

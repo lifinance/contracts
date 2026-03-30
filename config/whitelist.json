@@ -4692,6 +4692,62 @@
           }
         ]
       }
+    },
+    {
+      "name": "Bitget",
+      "key": "bitget",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/bitget.svg",
+      "webUrl": "https://www.bitget.com/",
+      "contracts": {
+        "mainnet": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "bsc": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "polygon": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "morph": [
+          {
+            "address": "0xc0ce9a3b911f2f52f93f6bf35475be703998aa67",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "base": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "arbitrum": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
@@ -4793,6 +4849,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9f12686Cba2383150E869A8e5C2ededdcf7Ab4f9",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "0g": [
@@ -4821,6 +4897,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xc702A522d2a953306aa7c60aAAb73A68723f4B13",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -5061,6 +5151,94 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      }
+    ],
+    "arbitrumnova": [
+      {
+        "name": "FeeCollector",
+        "address": "0x949343d563394016CE0c52bB6511DFE5aEec8e8a",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xD23FB66108971325f302bF0f209216D705adF987",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x2e6369861FA79bD1e6349513aEE19EF45E56179F",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x1dE7889C440d4fefA0e5F4F83A021f6F41cDf26b",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x3089b3b207E051b2c035c6163874732a18F28bbd",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
       }
     ],
     "avalanche": [
@@ -5155,6 +5333,26 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -5261,6 +5459,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x847E5fF14E18cdE8fc289839bC7C747B922159BF",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "berachain": [
@@ -5333,6 +5551,26 @@
       {
         "name": "Composer",
         "address": "0x37C407e4adeAD6b1E2Fe89673Ecd66e3f371eE9D",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x198d7ABc54098c01939747392903E80CE6081022",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x37D7676182b2baC5aFB258015308B302380c3486",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -5689,6 +5927,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "celo": [
@@ -5761,6 +6019,26 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -6343,6 +6621,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "gravity": [
@@ -6551,6 +6849,26 @@
       {
         "name": "Composer",
         "address": "0xd6FEa938eF552Eb52507cdc1ac2AB5987792F0C2",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x5F9fC9331FA3bd2229780c6511e8eBCf9bdF9cC5",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xdBEdD49105f4Db6ddC68922f37E364F14F600609",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -6907,6 +7225,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x81cfb09a90f427841A14B460192b41d86eA8855E",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x20809B474cD7DDf7c1e127b95D2Ef699034992a1",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "lens": [
@@ -7043,6 +7381,36 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x250a288C100EFab2704ED095CFc740918b40b56f",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x48AE957c2e836068A490DEBc16cCb3E55D5448bE",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEc7689CB608E22B21D83D53eBb48F29FE8177B87",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "lisk": [
@@ -7115,6 +7483,26 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x7EBd42b33Cd721D2189d84BeB0B088296c8Ee5d9",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -7199,6 +7587,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "megaeth": [
@@ -7271,6 +7679,26 @@
       {
         "name": "Composer",
         "address": "0x875Bd979B56605aE2c5Ea8CAb53e064F832b6C34",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xBff32fED35bD573D7bFeE160DFb2e1c022068458",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -7485,6 +7913,26 @@
       {
         "name": "Composer",
         "address": "0x875Bd979B56605aE2c5Ea8CAb53e064F832b6C34",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0ae4Ff0E7944F3123a75cf4Fb137BAa67D667617",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -7855,6 +8303,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xcAc1866fBeE6b6d216F8421e8eF4B4EDdc93b123",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "plasma": [
@@ -8001,6 +8469,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x5ba2b6E1d00E0A0927A52FF776726E0d3D1d8E49",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0BF34f68455bf315d65C68191C289f4e8D981e1D",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "polygon": [
@@ -8095,6 +8583,26 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -8315,6 +8823,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "sei": [
@@ -8475,6 +9003,26 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x70724E33E2ad6c0D9330b9BD93a0aa88192C112c",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEb2873B297Bbc26231Ac262835201C08F1d46568",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "sonic": [
@@ -8547,6 +9095,26 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x67908C6c1190EbAbe81Ac17cDe93d4bCf6635B27",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -8963,6 +9531,46 @@
         ]
       }
     ],
+    "tempo": [
+      {
+        "name": "FeeCollector",
+        "address": "0x856305Ab6259E1E83FeE6a66b01672E9CfB84055",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0xb421420EEf363d62108D040b70F0A8d580708AD1",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0xB141CfAe0951be61eeE8b5F57DAa094D81b54e1C",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      }
+    ],
     "tron": [
       {
         "name": "FeeCollector",
@@ -9091,6 +9699,26 @@
       {
         "name": "Composer",
         "address": "0x0BafD94063457C10224cD28141dB175cE7787aca",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x70724E33E2ad6c0D9330b9BD93a0aa88192C112c",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xEb2873B297Bbc26231Ac262835201C08F1d46568",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -9305,6 +9933,26 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x7EBd42b33Cd721D2189d84BeB0B088296c8Ee5d9",
         "selectors": [
           {
             "selector": "0x00a32e6c",

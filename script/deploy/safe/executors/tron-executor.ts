@@ -2,14 +2,14 @@
  * Tron TVM chain executor — broadcasts Safe `execTransaction` via TronWeb native protocol.
  */
 
-import type { TronWalletClient } from '../../tron/helpers/TronWalletClient'
-import { tronScanTransactionUrl } from '../../tron/helpers/tronScanUrls'
-import type { TronTvmNetworkName } from '../../tron/types'
 import type {
   IChainExecutionParams,
   IChainExecutionResult,
   IChainExecutor,
-} from '../chain-executor'
+} from '../../../common/types'
+import type { TronWalletClient } from '../../tron/helpers/TronWalletClient'
+import { tronScanTransactionUrl } from '../../tron/helpers/tronScanUrls'
+import type { TronTvmNetworkName } from '../../tron/types'
 
 export class TronChainExecutor implements IChainExecutor {
   public constructor(
