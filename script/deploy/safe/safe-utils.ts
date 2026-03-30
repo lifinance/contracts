@@ -1163,7 +1163,7 @@ export async function getNextNonce(
   chainId: number,
   currentNonce: bigint
 ): Promise<bigint> {
-  const pendingTxs = await pendingTransactions
+  const latestTx = await pendingTransactions
     .find({
       safeAddress,
       network: network.toLowerCase(),
@@ -1174,33 +1174,11 @@ export async function getNextNonce(
     .limit(1)
     .toArray()
 
-  if (pendingTxs.length > 0) {
-    const tx = pendingTxs[0]
+  if (latestTx.length > 0) {
+    const tx = latestTx[0]
     if (!tx) throw new Error('Latest transaction not found')
-    const pendingNonce = BigInt(tx.safeTx?.data?.nonce || 0)
-    const nextFromPending = pendingNonce + 1n
-    // Use whichever is higher: the on-chain nonce or the next nonce after
-    // the latest pending tx. This prevents using stale pending tx nonces
-    // when the on-chain nonce has already advanced past them.
-    const selectedNonce =
-      nextFromPending > currentNonce ? nextFromPending : currentNonce
-    consola.info(
-      `[getNextNonce] Found pending tx for ${network} (safe=${safeAddress.slice(
-        0,
-        10
-      )}...): ` +
-        `pendingNonce=${pendingNonce}, onChainNonce=${currentNonce}, ` +
-        `using=${selectedNonce}`
-    )
-    return selectedNonce
+    return BigInt(tx.safeTx?.data?.nonce || 0) + 1n
   }
-
-  consola.info(
-    `[getNextNonce] No pending txs for ${network} (safe=${safeAddress.slice(
-      0,
-      10
-    )}...), ` + `using onChainNonce=${currentNonce}`
-  )
   return currentNonce
 }
 
