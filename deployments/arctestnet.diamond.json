@@ -49,9 +49,9 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.1"
       },
-      "0xbebB7c41C6cF40D1CaDcB80e14f997c3567Ac6B8": {
+      "0x9a01A05F3Ce4B36c88bfE40F546D4F856B177875": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       }
     },
     "Periphery": {
@@ -60,8 +60,8 @@
       "FeeCollector": "0x949343d563394016CE0c52bB6511DFE5aEec8e8a",
       "FeeForwarder": "0xD23FB66108971325f302bF0f209216D705adF987",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3089b3b207E051b2c035c6163874732a18F28bbd",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "0x36C800D4472fBb888D034Aa74778f481aEE01FEc",
       "ReceiverAcrossV3": "",
