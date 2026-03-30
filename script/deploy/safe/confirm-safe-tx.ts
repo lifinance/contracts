@@ -319,8 +319,9 @@ const processTxs = async (
 
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'future' ? '33' : '31'
+    // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
     const nonceWarning =
-      nonceStatus === 'future'
+      nonceStatus === 'future' && tx.canExecute
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
@@ -353,6 +354,7 @@ const processTxs = async (
       if (!tx.hasSignedAlready) {
         options.push('Sign')
 
+        // Check if signing with current user + deployer (if needed) would meet threshold
         if (
           shouldShowSignAndExecuteWithDeployer(
             tx.safeTransaction,
@@ -381,6 +383,7 @@ const processTxs = async (
         if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
           options.push('Sign & Execute')
 
+        // Check if signing with current user + deployer (if needed) would meet threshold
         if (
           shouldShowSignAndExecuteWithDeployer(
             tx.safeTransaction,
