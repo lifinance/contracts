@@ -17,7 +17,7 @@ import type {
   IChainCallResult,
   IChainCaller,
   IChainSimulateResult,
-} from '../chain-executor'
+} from '../../../common/types'
 
 export class EvmChainCaller implements IChainCaller {
   public readonly senderAddress: Address

@@ -15,7 +15,7 @@ import type {
   IChainExecutionParams,
   IChainExecutionResult,
   IChainExecutor,
-} from '../chain-executor'
+} from '../../../common/types'
 import { SAFE_SINGLETON_ABI } from '../config'
 
 export class EvmChainExecutor implements IChainExecutor {

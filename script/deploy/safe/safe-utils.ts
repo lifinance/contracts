@@ -31,6 +31,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
+import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
 import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -49,7 +50,6 @@ import {
   isTronTvmChainId,
 } from '../tron/helpers/tronTvmChain'
 
-import type { IChainExecutionResult, IChainExecutor } from './chain-executor'
 import { SAFE_SINGLETON_ABI } from './config'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 
