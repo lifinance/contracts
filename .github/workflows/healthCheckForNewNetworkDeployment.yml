@@ -59,6 +59,11 @@ jobs:
           else
             echo "New networks detected: $ADDED_NETWORKS"
             echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
+
+            # Build a JSON map of {network: type} so later steps know if a network is a testnet
+            NETWORK_TYPES=$(jq -c --argjson nets "$ADDED_NETWORKS" \
+              '[ $nets[] as $n | { ($n): (.[$n].type // "mainnet") } ] | add' config/networks.json)
+            echo "network_types=$NETWORK_TYPES" >> $GITHUB_ENV
           fi
 
       - name: Validate Network Deployment Files
@@ -68,6 +73,14 @@ jobs:
           for network in $(echo $added_networks | jq -r '.[]'); do
             echo "🔍 Checking files for network: $network"
 
+            # Determine if this is a testnet
+            NET_TYPE=$(echo "$network_types" | jq -r --arg n "$network" '.[$n] // "mainnet"')
+            if [[ "$NET_TYPE" == "testnet" ]]; then
+              DEPLOY_FILE="deployments/${network}.staging.json"
+            else
+              DEPLOY_FILE="deployments/${network}.json"
+            fi
+
             # Check if network exists in _targetState.json
             if ! jq -e 'has("'"$network"'")' script/deploy/_targetState.json > /dev/null; then
               echo "❌ Error: Network '$network' not found in script/deploy/_targetState.json"
@@ -76,12 +89,12 @@ jobs:
               echo "✅ Confirmed: Network '$network' exists in script/deploy/_targetState.json"
             fi
 
-            # Check if deployments/{network}.json file exists
-            if [[ ! -f "deployments/$network.json" ]]; then
-              echo "❌ Error: Missing deployment file: deployments/$network.json"
+            # Check if deployment file exists
+            if [[ ! -f "$DEPLOY_FILE" ]]; then
+              echo "❌ Error: Missing deployment file: $DEPLOY_FILE"
               exit 1
             else
-              echo "✅ Confirmed: Deployment file: deployments/$network.json exists"
+              echo "✅ Confirmed: Deployment file: $DEPLOY_FILE exists"
             fi
           done
 
@@ -130,7 +143,16 @@ jobs:
           set -e
           for network in $(echo $added_networks | jq -r '.[]'); do
             echo "🔍 Checking network: $network"
-            if bun run script/deploy/healthCheck.ts --network "$network"; then
+
+            # Pass --environment staging for testnet networks
+            NET_TYPE=$(echo "$network_types" | jq -r --arg n "$network" '.[$n] // "mainnet"')
+            if [[ "$NET_TYPE" == "testnet" ]]; then
+              ENV_FLAG="--environment staging"
+            else
+              ENV_FLAG=""
+            fi
+
+            if bun run script/deploy/healthCheck.ts --network "$network" $ENV_FLAG; then
               echo "✅ $network is fine."
             else
               echo "❌ Health check failed for $network. Exiting..."
