@@ -5,13 +5,16 @@
 
 import 'dotenv/config'
 
-import { resolve } from 'path'
+import { readFileSync } from 'fs'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
 import type { Hex } from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import type {
+  EVMVersion,
   IDeploymentResult,
   INetwork,
   INetworkInfo,
@@ -19,6 +22,11 @@ import type {
   SupportedChain,
 } from '../common/types'
 import { EnvironmentEnum } from '../common/types'
+import {
+  EVM_VERSIONS,
+  FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK,
+  FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK,
+} from '../deploy/shared/constants'
 import { getContractVersion } from '../deploy/shared/getContractVersion'
 
 import { spawnAndCapture } from './spawnAndCapture'
@@ -61,6 +69,61 @@ export function node_url(networkName: string): string {
     )
 
   return uri
+}
+
+const FOUNDRY_TOML_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../foundry.toml'
+)
+
+function readFoundryProfileDefaultSection(): string {
+  const toml = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
+  const parts = toml.split(/^\[(?!profile\.default\])/m)
+  return parts[0] ?? ''
+}
+
+/**
+ * Returns `solc_version` from `[profile.default]` in `foundry.toml` (e.g. `0.8.29`), or
+ * `FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK` from `constants.ts` if missing/unreadable.
+ */
+export function getFoundryDefaultSolcVersion(): string {
+  try {
+    const defaultSection = readFoundryProfileDefaultSection()
+    const match = defaultSection.match(/solc_version\s*=\s*['"]([^'"]+)['"]/)
+    if (match?.[1]) return match[1]
+  } catch {
+    consola.warn(
+      `Could not read foundry.toml, defaulting SOLC version to ${JSON.stringify(
+        FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK
+      )}`
+    )
+  }
+  return FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK
+}
+
+/**
+ * Returns `evm_version` from `[profile.default]` in `foundry.toml`, validated against `EVM_VERSIONS`
+ * in `constants.ts`, or `FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK` on failure.
+ */
+export function getFoundryDefaultEvmVersion(): EVMVersion {
+  try {
+    const defaultSection = readFoundryProfileDefaultSection()
+    if (!defaultSection) return FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK
+    const match = defaultSection.match(/evm_version\s*=\s*['"](\w+)['"]/)
+    if (match?.[1]) {
+      const v = match[1].toLowerCase()
+      if ((EVM_VERSIONS as readonly string[]).includes(v))
+        return v as EVMVersion
+      consola.warn(
+        `foundry.toml evm_version '${v}' not in known EVM_VERSIONS, falling back to '${FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK}'`
+      )
+    }
+  } catch {
+    consola.warn(
+      `Could not read foundry.toml, defaulting EVM version to ${FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK}`
+    )
+  }
+  return FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK
 }
 
 /**
@@ -197,6 +260,8 @@ export async function logDeployment(
 
   const environmentString =
     environment === EnvironmentEnum.production ? 'production' : 'staging'
+  const solcVersion = getFoundryDefaultSolcVersion()
+  const evmVersion = getFoundryDefaultEvmVersion()
   const logCommand = [
     'script/helperFunctions.sh',
     'logDeployment',
@@ -210,8 +275,8 @@ export async function logDeployment(
     escapeShellArg(address),
     escapeShellArg(String(verified)),
     escapeShellArg(''),
-    escapeShellArg('0.8.17'),
-    escapeShellArg('cancun'), // Using EVM version from foundry.toml, though Tron actually uses TVM
+    escapeShellArg(solcVersion),
+    escapeShellArg(evmVersion),
     escapeShellArg(''),
   ].join(' ')
 

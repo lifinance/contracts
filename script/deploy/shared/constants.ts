@@ -78,3 +78,14 @@ export const EVM_VERSIONS: readonly EVMVersion[] = Object.freeze(
     .filter((v) => v !== '' && v !== 'n/a')
     .sort() as EVMVersion[]
 )
+
+/**
+ * Fallback when `foundry.toml` is unreadable or `evm_version` is not in {@link EVM_VERSIONS}.
+ * Used by {@link getFoundryDefaultEvmVersion} in `script/utils/utils.ts`.
+ */
+export const FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK: EVMVersion = 'cancun'
+
+/**
+ * Passed to deployment logging when `solc_version` cannot be read from `foundry.toml` (optional Mongo field).
+ */
+export const FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK = ''
