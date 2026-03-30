@@ -148,10 +148,11 @@ const processTxs = async (
    * @param safeTransaction - The transaction to execute
    * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
+  // Returns true if the transaction was mined (receipt received), false if only submitted
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
     safeClient: ViemSafe = safe
-  ) {
+  ): Promise<boolean> {
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
     try {
@@ -184,6 +185,8 @@ const processTxs = async (
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
       consola.log(' ')
+
+      return !!exec.receipt
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error('❌ Error executing Safe transaction:')
@@ -486,8 +489,7 @@ const processTxs = async (
           }
         )
         consola.success('Transaction signed and stored in MongoDB')
-        await executeTransaction(signedTx)
-        expectedNonce++
+        if (await executeTransaction(signedTx)) expectedNonce++
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
@@ -549,15 +551,8 @@ const processTxs = async (
           )
 
         // Step 5: Execute with deployer using shared executeTransaction function
-        const executeWithDeployer = async (
-          safeTransaction: ISafeTransaction
-        ) => {
-          consola.info('Executing transaction with deployer wallet...')
-          await executeTransaction(safeTransaction, deployerSafe)
-        }
-
-        await executeWithDeployer(finalTx)
-        expectedNonce++
+        consola.info('Executing transaction with deployer wallet...')
+        if (await executeTransaction(finalTx, deployerSafe)) expectedNonce++
       } catch (error) {
         consola.error(
           'Error signing and executing transaction with deployer:',
@@ -568,8 +563,7 @@ const processTxs = async (
     if (action === 'Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
-        await executeTransaction(safeTransaction)
-        expectedNonce++
+        if (await executeTransaction(safeTransaction)) expectedNonce++
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
@@ -588,8 +582,8 @@ const processTxs = async (
           txSafeAddress
         )
         consola.info('Executing transaction with deployer wallet...')
-        await executeTransaction(safeTransaction, deployerSafe)
-        expectedNonce++
+        if (await executeTransaction(safeTransaction, deployerSafe))
+          expectedNonce++
       } catch (error) {
         consola.error('Error executing with deployer:', error)
       }
