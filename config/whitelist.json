@@ -4723,6 +4723,14 @@
             }
           }
         ],
+        "morph": [
+          {
+            "address": "0xc0ce9a3b911f2f52f93f6bf35475be703998aa67",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
         "base": [
           {
             "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
@@ -7371,6 +7379,26 @@
           {
             "selector": "0x2646478b",
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x250a288C100EFab2704ED095CFc740918b40b56f",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x48AE957c2e836068A490DEBc16cCb3E55D5448bE",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       },
