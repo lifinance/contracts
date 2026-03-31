@@ -52,6 +52,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import type { INetwork } from '../common/types'
+import { sleep } from '../utils/delay'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
@@ -1019,14 +1020,14 @@ async function transferNativeTokensOnNetwork(
             logError(
               `  [${networkName}] ❌ Attempt ${attempt}/${MAX_RETRIES} failed (extracted required gas: ${errorValues.requiredGas}, will retry with ${extractedGasLimit})`
             )
-            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+            await sleep(1000 * attempt)
             continue
           }
         } else if (!shouldEstimateGas) {
           // Fallback to estimating gas
           shouldEstimateGas = true
           if (attempt < MAX_RETRIES) {
-            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+            await sleep(1000 * attempt)
             continue
           }
         } else {
@@ -1057,7 +1058,7 @@ async function transferNativeTokensOnNetwork(
 
       // Wait before retry
       if (attempt < MAX_RETRIES) {
-        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+        await sleep(1000 * attempt)
       }
     }
   }
