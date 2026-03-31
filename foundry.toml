@@ -85,6 +85,7 @@ nibiru = "${ETH_NODE_URI_NIBIRU}"
 okx = "${ETH_NODE_URI_OKX}"
 opbnb = "${ETH_NODE_URI_OPBNB}"
 optimism = "${ETH_NODE_URI_OPTIMISM}"
+pharos = "${ETH_NODE_URI_PHAROS}"
 plasma = "${ETH_NODE_URI_PLASMA}"
 plume = "${ETH_NODE_URI_PLUME}"
 polygon = "${ETH_NODE_URI_POLYGON}"
@@ -158,6 +159,7 @@ morph = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-api.
 nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
 optimism = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = "10" }
 opbnb = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=204", chain = "204" }
+pharos = { key = "${PHAROS_SOCIALSCAN_API_KEY}", url = "https://api.socialscan.io/pharos-mainnet/v1/explorer/command_api/contract", chain = "1672", verifier = "custom" }
 plasma = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/9745/etherscan", chain = "9745" }
 plume = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-plume-mainnet-1.t.conduit.xyz/api", verifier = "blockscout", chain = "98866" }
 polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = "137" }
