@@ -12,6 +12,7 @@ import { ISpokePoolPeriphery } from "lifi/Interfaces/ISpokePoolPeriphery.sol";
 import { ISponsoredOFTSrcPeriphery } from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
 import { ISponsoredCCTPSrcPeriphery } from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Minimal stub facet (for Diamond addFacet)
 contract TestAcrossV4SwapFacetSponsoredRefunds is
@@ -241,6 +242,58 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
             usdt.balanceOf(refundRecipient),
             refundBalanceBefore + refundAmount
         );
+    }
+
+    function testRevert_SponsoredOft_PositiveSlippage_WhenRefundRecipientZero()
+        public
+    {
+        address refundRecipient = address(0);
+        (
+            ISponsoredOFTSrcPeriphery.Quote memory quote,
+            ,
+            bytes memory peripheryCallData
+        ) = _decodeSponsoredOftWithRefundRecipient(refundRecipient);
+
+        uint256 quotedAmount = quote.signedParams.amountLD;
+        uint256 swapOutputAmount = quotedAmount + 1;
+
+        _setSwapDataDaiToTokenAndDeployMockDex(
+            ADDRESS_USDT,
+            quotedAmount,
+            swapOutputAmount,
+            address(diamond)
+        );
+
+        ILiFi.BridgeData memory localBridgeData;
+        localBridgeData.transactionId = "someId";
+        localBridgeData.bridge = "acrossV4Swap";
+        localBridgeData.integrator = "";
+        localBridgeData.referrer = address(0);
+        localBridgeData.sendingAssetId = ADDRESS_USDT;
+        localBridgeData.receiver = address(
+            uint160(uint256(quote.signedParams.finalRecipient))
+        );
+        localBridgeData.minAmount = quotedAmount;
+        localBridgeData.destinationChainId = 999;
+        localBridgeData.hasSourceSwaps = true;
+        localBridgeData.hasDestinationCall = false;
+
+        AcrossV4SwapFacet.AcrossV4SwapFacetData memory facetData;
+        facetData.swapApiTarget = AcrossV4SwapFacet
+            .SwapApiTarget
+            .SponsoredOFTSrcPeriphery;
+        facetData.callData = peripheryCallData;
+        facetData.signature = "";
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(diamond), swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap{
+            value: 0.01 ether
+        }(localBridgeData, swapData, facetData);
+        vm.stopPrank();
     }
 
     function test_SponsoredCctp_PositiveSlippage_RefundsToRefundRecipient()

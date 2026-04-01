@@ -448,16 +448,11 @@ contract AcrossV4SwapFacet is
             revert InformationMismatch();
         }
 
-        // If this is the positive-slippage path, refund any surplus and bridge the originally quoted amount.
-        // We MUST NOT change the signed quote amount, otherwise the signature would become invalid.
+        uint256 refundAmount;
+        // Positive slippage handling: we MUST NOT change the signed quote amount. Instead, we keep the
+        // originally quoted amount as the effective `minAmount` and refund any surplus after validations.
         if (_preSwapAmount != 0) {
-            uint256 refundAmount = _bridgeData.minAmount - _preSwapAmount;
-            // Refund to quote refundRecipient (Across-sponsored refunds are paid to this address).
-            LibAsset.transferERC20(
-                _bridgeData.sendingAssetId,
-                quote.unsignedParams.refundRecipient,
-                refundAmount
-            );
+            refundAmount = _bridgeData.minAmount - _preSwapAmount;
             _bridgeData.minAmount = _preSwapAmount;
         }
 
@@ -474,6 +469,16 @@ contract AcrossV4SwapFacet is
 
         // Validate amount matches bridgeData
         _validateAmount(quote.signedParams.amountLD, _bridgeData.minAmount);
+
+        // Refund any surplus only after all validations have passed.
+        if (_preSwapAmount != 0) {
+            // Refund to quote refundRecipient (Across-sponsored refunds are paid to this address).
+            LibAsset.transferERC20(
+                _bridgeData.sendingAssetId,
+                quote.unsignedParams.refundRecipient,
+                refundAmount
+            );
+        }
 
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
@@ -508,15 +513,11 @@ contract AcrossV4SwapFacet is
             revert InvalidCallData();
         }
 
-        // If this is the positive-slippage path, refund any surplus and bridge the originally quoted amount.
-        // We MUST NOT change the signed quote amount, otherwise the signature would become invalid.
+        uint256 refundAmount;
+        // Positive slippage handling: we MUST NOT change the signed quote amount. Instead, we keep the
+        // originally quoted amount as the effective `minAmount` and refund any surplus after validations.
         if (_preSwapAmount != 0) {
-            uint256 refundAmount = _bridgeData.minAmount - _preSwapAmount;
-            LibAsset.transferERC20(
-                _bridgeData.sendingAssetId,
-                refundRecipient,
-                refundAmount
-            );
+            refundAmount = _bridgeData.minAmount - _preSwapAmount;
             _bridgeData.minAmount = _preSwapAmount;
         }
 
@@ -544,6 +545,15 @@ contract AcrossV4SwapFacet is
         address burnToken = address(uint160(uint256(quote.burnToken)));
         if (burnToken != _bridgeData.sendingAssetId) {
             revert InformationMismatch();
+        }
+
+        // Refund any surplus only after all validations have passed.
+        if (_preSwapAmount != 0) {
+            LibAsset.transferERC20(
+                _bridgeData.sendingAssetId,
+                refundRecipient,
+                refundAmount
+            );
         }
 
         LibAsset.maxApproveERC20(
