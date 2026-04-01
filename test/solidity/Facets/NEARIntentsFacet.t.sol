@@ -381,6 +381,20 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.stopPrank();
     }
 
+    function testRevert_QuoteAlreadyConsumed_Swap() public {
+        bridgeData.hasSourceSwaps = true;
+        nearIntentsFacet.setQuoteConsumed(validNearData.quoteId);
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(QuoteAlreadyConsumed.selector);
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_QuoteExpired() public {
         // Setup expired quote - deadline in the past
         uint256 expiredDeadline = block.timestamp - 1;
@@ -402,6 +416,22 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_QuoteExpired_Swap() public {
+        bridgeData.hasSourceSwaps = true;
+
+        // Move time forward past deadline
+        vm.warp(validNearData.deadline + 1);
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(QuoteExpired.selector);
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
             validNearData
         );
         vm.stopPrank();
@@ -851,15 +881,64 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.stopPrank();
     }
 
-    function test_PositiveSlippageRefundedToRefundRecipient() public {
-        // Setup swap from DAI to USDC with potential positive slippage
+    function testRevert_InvalidNonEVMReceiver_Swap() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.hasSourceSwaps = true;
 
-        // Use a specific refund recipient (different from sender for clarity)
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function test_PositiveSlippageRefundedToRefundRecipient() public {
+        bridgeData.hasSourceSwaps = true;
         address refundRecipient = address(0xBEEF);
 
-        // Reset swap data
-        setDefaultSwapDataSingleDAItoUSDC();
+        // Build a swap that produces MORE USDC than bridgeData.minAmount
+        delete swapData;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+
+        uint256[] memory amounts = uniswap.getAmountsIn(
+            defaultUSDCAmount,
+            path
+        );
+        uint256 amountIn = amounts[0];
+        // Feed 10% more DAI so Uniswap returns > defaultUSDCAmount
+        uint256 amountInWithSlippage = (amountIn * 110) / 100;
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountInWithSlippage,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountInWithSlippage,
+                    defaultUSDCAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
 
         vm.startPrank(USER_SENDER);
         dai.approve(address(diamond), swapData[0].fromAmount);
@@ -874,6 +953,14 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
                 990 * 10 ** 6
             );
         customNearData.refundRecipient = refundRecipient;
+
+        // Compute exact expected positive slippage (deterministic on pinned fork)
+        uint256[] memory amountsOut = uniswap.getAmountsOut(
+            amountInWithSlippage,
+            path
+        );
+        uint256 expectedPositiveSlippage = amountsOut[1] -
+            bridgeData.minAmount;
 
         uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
         uint256 refundRecipientBalanceBefore = usdc.balanceOf(refundRecipient);
@@ -903,14 +990,12 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             depositBalanceBefore + bridgeData.minAmount
         );
 
-        // If there was positive slippage, refund recipient should receive it
-        uint256 refundRecipientBalanceAfter = usdc.balanceOf(refundRecipient);
-        if (refundRecipientBalanceAfter > refundRecipientBalanceBefore) {
-            // Positive slippage was refunded
-            assertTrue(
-                refundRecipientBalanceAfter > refundRecipientBalanceBefore
-            );
-        }
+        // Exact positive slippage must have been refunded
+        assertEq(
+            usdc.balanceOf(refundRecipient) - refundRecipientBalanceBefore,
+            expectedPositiveSlippage,
+            "Refund recipient should receive exact positive slippage"
+        );
     }
 
     function test_NonEVMBridgeWithNativeTokens() public {
