@@ -89,19 +89,22 @@ const __dirname = dirname(__filename)
 
 function getFoundryEvmVersion(): EVMVersion {
   try {
-    const toml = readFileSync(join(__dirname, '../../../foundry.toml'), 'utf8')
-    // Keep only content up to the first section header that is NOT [profile.default],
-    // so we stay within [profile.default].
-    const parts = toml.split(/^\[(?!profile\.default\])/m)
-    const defaultSection = parts[0]
-    if (!defaultSection) return 'cancun'
-    const match = defaultSection.match(/evm_version\s*=\s*['"](\w+)['"]/)
-    if (match?.[1]) {
-      const v = match[1].toLowerCase()
-      if ((EVM_VERSIONS as readonly string[]).includes(v))
-        return v as EVMVersion
+    const foundryConfig = Bun.TOML.parse(
+      readFileSync(join(__dirname, '../../../foundry.toml'), 'utf8')
+    ) as {
+      profile?: {
+        default?: {
+          evm_version?: string
+        }
+      }
+    }
+    const evmVersion =
+      foundryConfig.profile?.default?.evm_version?.toLowerCase()
+    if (evmVersion) {
+      if ((EVM_VERSIONS as readonly string[]).includes(evmVersion))
+        return evmVersion as EVMVersion
       consola.warn(
-        `foundry.toml evm_version '${v}' not in known EVM_VERSIONS, falling back to 'cancun'`
+        `foundry.toml evm_version '${evmVersion}' not in known EVM_VERSIONS, falling back to 'cancun'`
       )
     }
   } catch {
