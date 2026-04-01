@@ -267,6 +267,7 @@
       }
     }
   },
+  "basesepolia": {},
   "berachain": {
     "production": {
       "LiFiDiamond": {
