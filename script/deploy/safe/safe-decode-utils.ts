@@ -392,20 +392,18 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
   return null
 }
 
-function formatDecodedArg(arg: unknown): string {
+function formatDecodedArg(arg: unknown, network?: string): string {
   if (arg === undefined || arg === null) return String(arg)
   if (typeof arg === 'bigint') return arg.toString()
   if (typeof arg === 'object') return JSON.stringify(arg)
-  return String(arg)
-}
-
-function formatDecodedCliArg(network: string, arg: unknown): string {
-  if (arg === undefined || arg === null) return String(arg)
-  if (typeof arg === 'bigint') return arg.toString()
-  if (typeof arg === 'object' && arg !== null) return JSON.stringify(arg)
   const s = String(arg)
-  if (s.startsWith('0x') && /^0x[a-fA-F0-9]{40}$/.test(s))
+  if (
+    network !== undefined &&
+    s.startsWith('0x') &&
+    /^0x[a-fA-F0-9]{40}$/.test(s)
+  ) {
     return formatAddressForNetworkCliDisplay(network, s)
+  }
   return s
 }
 
@@ -435,10 +433,7 @@ function tryFormatDiamondPayload(
         (inputs[i] && typeof inputs[i] === 'object' && 'name' in inputs[i]
           ? (inputs[i] as { name: string }).name
           : undefined) ?? `arg${i}`
-      const value =
-        network !== undefined
-          ? formatDecodedCliArg(network, arg)
-          : formatDecodedArg(arg)
+      const value = formatDecodedArg(arg, network)
       return `${paramName}=${value}`
     })
     return `${name}(${parts.join(', ')})`
@@ -829,10 +824,7 @@ export async function formatDecodedTxDataForDisplay(
         log('Decoded Arguments:')
         args.forEach((arg: unknown, index: number) => {
           log(
-            `  [${index}]: \u001b[33m${formatDecodedCliArg(
-              network,
-              arg
-            )}\u001b[0m`
+            `  [${index}]: \u001b[33m${formatDecodedArg(arg, network)}\u001b[0m`
           )
         })
       } else {
