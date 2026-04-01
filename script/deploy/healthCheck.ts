@@ -431,21 +431,6 @@ const main = defineCommand({
       )
     }
 
-    // Load whitelist config (staging or production)
-    // whitelist.staging.json is gitignored, so gracefully skip if unavailable in staging
-    let whitelistConfig: any = { DEXS: [], PERIPHERY: {} }
-    if (environment === 'staging') {
-      try {
-        whitelistConfig = await import('../../config/whitelist.staging.json')
-      } catch {
-        consola.info(
-          'whitelist.staging.json not found, skipping whitelist checks'
-        )
-      }
-    } else {
-      whitelistConfig = await import('../../config/whitelist.json')
-    }
-
     // Check Executor authorization in ERC20Proxy
     if (environment === 'production') {
       if (isTron && tronWeb) {
@@ -623,6 +608,23 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                   Check whitelisted addresses           │
     //          ╰─────────────────────────────────────────────────────────╯
+    // Load whitelist config (staging or production)
+    // whitelist.staging.json is gitignored, so gracefully skip if unavailable in staging
+    let whitelistConfig: any = { DEXS: [], PERIPHERY: {} }
+    if (environment === 'staging') {
+      try {
+        const mod = await import('../../config/whitelist.staging.json')
+        whitelistConfig = mod.default
+      } catch {
+        consola.info(
+          'whitelist.staging.json not found, skipping whitelist checks'
+        )
+      }
+    } else {
+      const mod = await import('../../config/whitelist.json')
+      whitelistConfig = mod.default
+    }
+
     // Check if whitelist configuration exists for this network
     try {
       const hasDexWhitelistConfig =
