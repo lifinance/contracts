@@ -65,6 +65,15 @@ contract AcrossV4SwapFacet is
     bytes32 private constant ACROSS_V4_SWAP_PAYLOAD_TYPEHASH =
         0xb62acc761ee932340747d9b4a076ede3e00bcbc7b32d4d6c1ab72546e5e5b154;
 
+    // EIP-712 domain separator constants
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
+        keccak256(
+            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+        );
+    bytes32 private constant NAME_HASH =
+        keccak256(bytes("LI.FI Across V4 Swap Facet"));
+    bytes32 private constant VERSION_HASH = keccak256(bytes("1"));
+
     /// @notice The address of the backend signer that is authorized to sign the AcrossV4SwapPayload
     address internal immutable BACKEND_SIGNER;
 
@@ -801,11 +810,9 @@ contract AcrossV4SwapFacet is
         return
             keccak256(
                 abi.encode(
-                    keccak256(
-                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                    ),
-                    keccak256(bytes("LI.FI Across V4 Swap Facet")),
-                    keccak256(bytes("1")),
+                    EIP712_DOMAIN_TYPEHASH,
+                    NAME_HASH,
+                    VERSION_HASH,
                     block.chainid,
                     address(this) // This will be the diamond's address at runtime
                 )
