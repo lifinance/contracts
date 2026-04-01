@@ -157,12 +157,17 @@ const main = defineCommand({
       process.exit(0)
     }
 
-    // Get core facets - skip GasZipFacet for Tron or networks without GasZip support
-    let coreFacetsToCheck: string[] = globalConfig.coreFacets
+    // Skip GasZip checks for networks where the integration is intentionally unsupported.
     const networkGasZipConfig = (
       networksConfig as Record<string, { gasZipChainId?: number } | undefined>
     )[networkLower]
-    if (isTron || networkGasZipConfig?.gasZipChainId === 0) {
+    const supportsGasZip =
+      !isTron &&
+      !!networkGasZipConfig?.gasZipChainId &&
+      networkGasZipConfig.gasZipChainId > 0
+
+    let coreFacetsToCheck: string[] = globalConfig.coreFacets
+    if (!supportsGasZip) {
       coreFacetsToCheck = coreFacetsToCheck.filter(
         (f: string) => f !== 'GasZipFacet'
       )
@@ -398,10 +403,15 @@ const main = defineCommand({
     if (environment === 'production') {
       consola.box('Checking deploy status of periphery contracts...')
 
-      // Filter periphery contracts for Tron if needed
-      const peripheryToCheck = isTron
+      // Filter optional periphery contracts that are intentionally absent on this network.
+      let peripheryToCheck = isTron
         ? getTronCorePeriphery()
         : globalConfig.corePeriphery
+      if (!supportsGasZip) {
+        peripheryToCheck = peripheryToCheck.filter(
+          (contract) => contract !== 'GasZipPeriphery'
+        )
+      }
 
       for (const contract of peripheryToCheck) {
         const isDeployed = await checkAndLogDeployment(
@@ -498,7 +508,7 @@ const main = defineCommand({
       // Only check contracts that are expected to be deployed according to target state
       const targetStateContracts =
         targetState[networkLower]?.production?.LiFiDiamond || {}
-      const contractsToCheck = Object.keys(targetStateContracts).filter(
+      let contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
           (isTron
             ? getTronCorePeriphery()
@@ -508,6 +518,11 @@ const main = defineCommand({
             contract
           )
       )
+      if (!supportsGasZip) {
+        contractsToCheck = contractsToCheck.filter(
+          (contract) => contract !== 'GasZipPeriphery'
+        )
+      }
 
       if (contractsToCheck.length > 0) {
         if (isTron && tronWeb && tronRpcUrl) {
