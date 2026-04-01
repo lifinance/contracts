@@ -100,19 +100,20 @@ function getFoundryEvmVersion(): EVMVersion {
     }
     const evmVersion =
       foundryConfig.profile?.default?.evm_version?.toLowerCase()
-    if (evmVersion) {
-      if ((EVM_VERSIONS as readonly string[]).includes(evmVersion))
-        return evmVersion as EVMVersion
-      consola.warn(
-        `foundry.toml evm_version '${evmVersion}' not in known EVM_VERSIONS, falling back to 'cancun'`
-      )
+    if (!evmVersion) {
+      throw new Error('Missing [profile.default].evm_version in foundry.toml')
     }
-  } catch {
-    consola.warn(
-      'Could not read foundry.toml, defaulting EVM version to cancun'
+    if ((EVM_VERSIONS as readonly string[]).includes(evmVersion))
+      return evmVersion as EVMVersion
+    throw new Error(
+      `foundry.toml evm_version '${evmVersion}' is not in known EVM_VERSIONS`
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Failed to determine EVM version from foundry.toml: ${message}`
     )
   }
-  return 'cancun'
 }
 
 dotenv.config()
@@ -550,7 +551,13 @@ async function deployLocalContracts(
   walletClient: any,
   evmVersion: EVMVersion
 ) {
-  const basePath = evmVersion === 'london' ? 'london' : 'cancun'
+  if (evmVersion !== 'london' && evmVersion !== 'cancun') {
+    throw new Error(
+      `No local Safe artifacts available for EVM version '${evmVersion}'`
+    )
+  }
+
+  const basePath = evmVersion
 
   const SAFE_ARTIFACT = JSON.parse(
     readFileSync(
