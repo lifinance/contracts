@@ -176,7 +176,7 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "london",
     "deployedWithSolcVersion": "0.8.17",
-    "create3Factory": ""
+    "create3Factory": "0xC82c6745E1fDB81cD67fe05cbe7e5B35dC47ac1B"
   },
   "berachain": {
     "name": "berachain",
