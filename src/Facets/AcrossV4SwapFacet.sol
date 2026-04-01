@@ -140,12 +140,21 @@ contract AcrossV4SwapFacet is
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // For calldata-driven flows that forward native fees, don't rely on `msg.value` after swaps.
+        // Track the pre-call balance so we can compute how much native is actually available to forward.
+        uint256 preCallNativeBalance = address(this).balance - msg.value;
+
         _verifySignatureIfRequired(_bridgeData, _acrossV4SwapFacetData);
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _acrossV4SwapFacetData, 0);
+        _startBridge(
+            _bridgeData,
+            _acrossV4SwapFacetData,
+            0,
+            preCallNativeBalance
+        );
     }
 
     /// @notice Performs a swap before bridging via Across using the Swap API
@@ -165,6 +174,8 @@ contract AcrossV4SwapFacet is
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        uint256 preCallNativeBalance = address(this).balance - msg.value;
+
         // The signature is intentionally verified with the pre-swap `minAmount` and original calldata.
         _verifySignatureIfRequired(_bridgeData, _acrossV4SwapFacetData);
 
@@ -181,10 +192,20 @@ contract AcrossV4SwapFacet is
         // these helpers were introduced to prevent stack-too-deep error
         if (_bridgeData.minAmount > preSwapAmount) {
             // non-zero sentinel: enables positive-slippage handling
-            _startBridge(_bridgeData, _acrossV4SwapFacetData, preSwapAmount);
+            _startBridge(
+                _bridgeData,
+                _acrossV4SwapFacetData,
+                preSwapAmount,
+                preCallNativeBalance
+            );
         } else {
             // zero sentinel: no positive-slippage handling
-            _startBridge(_bridgeData, _acrossV4SwapFacetData, 0);
+            _startBridge(
+                _bridgeData,
+                _acrossV4SwapFacetData,
+                0,
+                preCallNativeBalance
+            );
         }
     }
 
@@ -197,7 +218,8 @@ contract AcrossV4SwapFacet is
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         AcrossV4SwapFacetData calldata _acrossV4SwapFacetData,
-        uint256 _preSwapAmount
+        uint256 _preSwapAmount,
+        uint256 _preCallNativeBalance
     ) internal {
         SwapApiTarget swapApiTarget = _acrossV4SwapFacetData.swapApiTarget;
         bytes calldata callData = _acrossV4SwapFacetData.callData;
@@ -216,7 +238,12 @@ contract AcrossV4SwapFacet is
                 _preSwapAmount
             );
         } else if (swapApiTarget == SwapApiTarget.SponsoredOFTSrcPeriphery) {
-            _callSponsoredOftDeposit(_bridgeData, callData, _preSwapAmount);
+            _callSponsoredOftDeposit(
+                _bridgeData,
+                callData,
+                _preSwapAmount,
+                _preCallNativeBalance
+            );
         } else if (swapApiTarget == SwapApiTarget.SponsoredCCTPSrcPeriphery) {
             _callSponsoredCctpDepositForBurn(
                 _bridgeData,
@@ -447,7 +474,8 @@ contract AcrossV4SwapFacet is
     function _callSponsoredOftDeposit(
         ILiFi.BridgeData memory _bridgeData,
         bytes calldata _callData,
-        uint256 _preSwapAmount
+        uint256 _preSwapAmount,
+        uint256 _preCallNativeBalance
     ) internal {
         // Sponsored OFT flow: sendingAssetId must match the periphery's accepted token (implies ERC20, not native).
         if (
@@ -508,8 +536,14 @@ contract AcrossV4SwapFacet is
             _bridgeData.minAmount
         );
 
+        // Forward only the native value that is actually available from this call.
+        // This avoids reverting when `msg.value` was partially spent during source swaps.
+        // It also avoids accidentally forwarding unrelated pre-existing ETH sitting on the diamond.
+        uint256 availableNative = address(this).balance -
+            _preCallNativeBalance;
+
         ISponsoredOFTSrcPeriphery(SPONSORED_OFT_SRC_PERIPHERY).deposit{
-            value: msg.value
+            value: availableNative
         }(quote, signature);
     }
 
