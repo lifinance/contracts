@@ -160,12 +160,7 @@ export class SafeClient {
   public account: Account
 
   /**
-   * Tron broadcast/signing client when `init` received a raw `privateKey` (same key as viem account).
-   */
-  private readonly tronWalletClient?: TronWalletClient
-
-  /**
-   * Chain-specific executor, lazy-initialised on first `executeTransaction` call.
+   * Chain-specific executor selected during client initialization.
    */
   private chainExecutor?: IChainExecutor
 
@@ -174,13 +169,52 @@ export class SafeClient {
     walletClient: WalletClient,
     safeAddress: Address,
     account: Account,
-    tronWalletClient?: TronWalletClient
+    chainExecutor?: IChainExecutor
   ) {
     this.publicClient = publicClient
     this.walletClient = walletClient
     this.safeAddress = safeAddress
     this.account = account
-    this.tronWalletClient = tronWalletClient
+    this.chainExecutor = chainExecutor
+  }
+
+  /**
+   * Creates the chain-specific Safe executor for the connected network.
+   * @param publicClient - Public client used to detect the current chain
+   * @param walletClient - Wallet client used for EVM execution
+   * @param account - Account used for signing and broadcasting
+   * @param tronWalletClient - Optional Tron signer required for TVM execution
+   * @returns Executor implementation matching the connected chain
+   * @throws Error if a Tron executor is required but no Tron signer is available
+   */
+  private static async createChainExecutor(
+    publicClient: PublicClient,
+    walletClient: WalletClient,
+    account: Account,
+    tronWalletClient?: TronWalletClient
+  ): Promise<IChainExecutor> {
+    const chainId = await publicClient.getChainId()
+
+    if (isTronTvmChainId(chainId)) {
+      if (!tronWalletClient)
+        throw new Error(
+          'Tron Safe execution uses TronWeb (native protocol) and requires a private-key signer. ' +
+            'Use "Execute with Deployer", or run confirm-safe-tx with --no-ledger and PRIVATE_KEY_PRODUCTION / SAFE_SIGNER_PRIVATE_KEY in .env. ' +
+            'Ledger-only execution cannot broadcast Safe exec through the Tron HTTP API from this script.'
+        )
+
+      const networkKey = getTronNetworkKeyForChainId(chainId)
+      if (!networkKey)
+        throw new Error(
+          `Tron chain ID ${chainId} is not mapped to tron/tronshasta`
+        )
+
+      const { TronChainExecutor } = await import('./executors/tron-executor')
+      return new TronChainExecutor(tronWalletClient, networkKey)
+    }
+
+    const { EvmChainExecutor } = await import('./executors/evm-executor')
+    return new EvmChainExecutor(walletClient, publicClient, account)
   }
 
   public static async init(options: {
@@ -266,12 +300,19 @@ export class SafeClient {
       transport: walletTransport,
     })
 
+    const chainExecutor = await SafeClient.createChainExecutor(
+      publicClient,
+      walletClient,
+      account,
+      tronWalletClient
+    )
+
     return new SafeClient(
       publicClient,
       walletClient,
       safeAddress,
       account,
-      tronWalletClient
+      chainExecutor
     )
   }
 
@@ -680,43 +721,12 @@ export class SafeClient {
   ): Promise<IChainExecutionResult> {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
+      if (!this.chainExecutor)
+        throw new Error(
+          'Safe client is missing a chain executor. Initialize the client via SafeClient.init().'
+        )
 
-      // Lazy-init the chain executor on first call (getChainId is async)
-      if (!this.chainExecutor) {
-        const chainId = await this.publicClient.getChainId()
-
-        if (isTronTvmChainId(chainId)) {
-          if (!this.tronWalletClient)
-            throw new Error(
-              'Tron Safe execution uses TronWeb (native protocol) and requires a private-key signer. ' +
-                'Use "Execute with Deployer", or run confirm-safe-tx with --no-ledger and PRIVATE_KEY_PRODUCTION / SAFE_SIGNER_PRIVATE_KEY in .env. ' +
-                'Ledger-only execution cannot broadcast Safe exec through the Tron HTTP API from this script.'
-            )
-
-          const networkKey = getTronNetworkKeyForChainId(chainId)
-          if (!networkKey)
-            throw new Error(
-              `Tron chain ID ${chainId} is not mapped to tron/tronshasta`
-            )
-
-          const { TronChainExecutor } = await import(
-            './executors/tron-executor'
-          )
-          this.chainExecutor = new TronChainExecutor(
-            this.tronWalletClient,
-            networkKey
-          )
-        } else {
-          const { EvmChainExecutor } = await import('./executors/evm-executor')
-          this.chainExecutor = new EvmChainExecutor(
-            this.walletClient,
-            this.publicClient,
-            this.account
-          )
-        }
-      }
-
-      return await this.chainExecutor.executeTransaction({
+      const executionResult = await this.chainExecutor.executeTransaction({
         safeAddress: this.safeAddress,
         to: safeTx.data.to,
         value: safeTx.data.value,
@@ -724,6 +734,7 @@ export class SafeClient {
         operation: safeTx.data.operation,
         signatures,
       })
+      return executionResult
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       if (errorMsg.includes('execution reverted'))
