@@ -1,16 +1,18 @@
 {
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
-  "refundWalletTron": "TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD",
   "feeCollectorOwner": "0xC06ebbefD94032B85424D51906e2A335EFAe264B",
-  "feeCollectorOwnerTron": "TTWhPqF38FneGGN1smz3m5LsNJQYx4mgQy",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
-  "withdrawWalletTron": "TAjanapKoCE1ky3L4Qzndnv3YAUmDwCLdZ",
   "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
-  "pauserWalletTron": "TVFfcsjqBskfjZV6gMSsqqgvtUG4cz5Jjx",
   "deployerWallet": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
-  "deployerWalletTron": "TS8EymUNucdNwseZMcLZRzTLy7Yz768yeD",
   "devWallet": "0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3",
-  "devWalletTron": "TN9wGbAaoHUmh2u6GQSZq7LCPbquoY3FvU",
+  "tronWallets": {
+    "refundWallet": "TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD",
+    "feeCollectorOwner": "TTWhPqF38FneGGN1smz3m5LsNJQYx4mgQy",
+    "withdrawWallet": "TAjanapKoCE1ky3L4Qzndnv3YAUmDwCLdZ",
+    "pauserWallet": "TVFfcsjqBskfjZV6gMSsqqgvtUG4cz5Jjx",
+    "deployerWallet": "TS8EymUNucdNwseZMcLZRzTLy7Yz768yeD",
+    "devWallet": "TN9wGbAaoHUmh2u6GQSZq7LCPbquoY3FvU"
+  },
   "approvedSelectorsForRefundWallet": [
     {
       "selector": "0x0d19e519",

@@ -590,6 +590,51 @@ export async function callTronContract(
 }
 
 /**
+ * Get Tron wallet address from globalConfig.tronWallets, falling back to EVM format if Tron version doesn't exist
+ */
+export function getTronWallet(
+  globalConfig: Record<string, unknown>,
+  walletName: string
+): string {
+  const tronConfig = globalConfig.tronWallets as
+    | Record<string, unknown>
+    | undefined
+  const tronValue = tronConfig?.[walletName]
+  const fallbackValue = globalConfig[walletName]
+
+  if (typeof tronValue === 'string') return tronValue
+  if (typeof fallbackValue === 'string') return fallbackValue
+
+  throw new Error(`Wallet '${walletName}' not found in config`)
+}
+
+/**
+ * Convert address to Tron format if it's in EVM format (0x...)
+ */
+export function ensureTronAddress(address: string, tronWeb: TronWeb): string {
+  if (address.startsWith('0x')) {
+    return evmHexToTronBase58(tronWeb, address)
+  }
+  return address
+}
+
+/**
+ * Parse address result from callTronContract output
+ */
+export function parseTronAddressOutput(output: string): string {
+  return output.trim().replace(/^["']|["']$/g, '')
+}
+
+/**
+ * Normalize selector to Hex format (ensure 0x prefix)
+ */
+export function normalizeSelector(selector: string): Hex {
+  return selector.startsWith('0x')
+    ? (selector as Hex)
+    : (`0x${selector}` as Hex)
+}
+
+/**
  * Call Tron contract function using TronWeb and decode boolean result
  */
 export async function callTronContractBoolean(
@@ -641,40 +686,6 @@ export async function callTronContractBoolean(
   }
 
   throw new Error('Max retries exceeded')
-}
-
-/**
- * Get Tron wallet address from globalConfig, falling back to EVM format if Tron version doesn't exist
- */
-export function getTronWallet(
-  globalConfig: Record<string, unknown>,
-  walletName: string
-): string {
-  const tronKey = `${walletName}Tron`
-  const tronValue = globalConfig[tronKey]
-  const fallbackValue = globalConfig[walletName]
-
-  if (typeof tronValue === 'string') return tronValue
-  if (typeof fallbackValue === 'string') return fallbackValue
-
-  throw new Error(`Wallet '${walletName}' not found in config`)
-}
-
-/**
- * Convert address to Tron format if it's in EVM format (0x...)
- */
-export function ensureTronAddress(address: string, tronWeb: TronWeb): string {
-  if (address.startsWith('0x')) {
-    return evmHexToTronBase58(tronWeb, address)
-  }
-  return address
-}
-
-/**
- * Parse address result from callTronContract output
- */
-export function parseTronAddressOutput(output: string): string {
-  return output.trim().replace(/^["']|["']$/g, '')
 }
 
 /**
