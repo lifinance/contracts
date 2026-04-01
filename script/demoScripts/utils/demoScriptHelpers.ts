@@ -740,7 +740,17 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
  */
 const getRpcUrl = (chain: SupportedChain) => {
   const envKey = getRPCEnvVarName(chain)
-  return getEnvVar(envKey)
+  let rpcUrl = getEnvVar(envKey)
+
+  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc.
+  if (
+    isTronNetworkKey(chain) &&
+    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
+  ) {
+    rpcUrl = `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
+  }
+
+  return rpcUrl
 }
 
 /**
@@ -780,13 +790,7 @@ export const setupEnvironment = async (
   customRpcUrl?: string
 ) => {
   // Use customRpcUrl if provided, otherwise fallback to getRpcUrl
-  let RPC_URL = customRpcUrl || getRpcUrl(chain)
-  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
-  if (
-    isTronNetworkKey(chain) &&
-    !RPC_URL.replace(/\/+$/, '').endsWith('/jsonrpc')
-  )
-    RPC_URL = `${RPC_URL.replace(/\/+$/, '')}/jsonrpc`
+  const RPC_URL = customRpcUrl || getRpcUrl(chain)
   const PRIVATE_KEY = getPrivateKeyForEnvironment(environment)
   const typedPrivateKey = normalizePrivateKey(PRIVATE_KEY)
 
