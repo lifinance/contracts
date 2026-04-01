@@ -503,6 +503,11 @@ contract AcrossV4SwapFacet is
                 (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes, address)
             );
 
+        // Validate refundRecipient to prevent lost funds in the positive-slippage path
+        if (refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         // If this is the positive-slippage path, refund any surplus and bridge the originally quoted amount.
         // We MUST NOT change the signed quote amount, otherwise the signature would become invalid.
         if (_preSwapAmount != 0) {

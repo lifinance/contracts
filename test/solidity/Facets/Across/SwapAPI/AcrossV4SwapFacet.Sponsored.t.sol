@@ -438,6 +438,47 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
+    function testRevert_SponsoredCctp_WhenRefundRecipientZero() public {
+        (
+            ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
+            bytes memory signature
+        ) = abi.decode(
+                SPONSORED_CCTP_CALLDATA,
+                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+            );
+
+        ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
+            transactionId: "someId",
+            bridge: "acrossV4Swap",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: USDC_ARBITRUM,
+            receiver: address(uint160(uint256(quote.finalRecipient))),
+            minAmount: quote.amount,
+            destinationChainId: 999,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+
+        deal(USDC_ARBITRUM, USER_SENDER, localBridgeData.minAmount);
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(acrossV4SwapFacet), localBridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
+            localBridgeData,
+            AcrossV4SwapFacet.AcrossV4SwapFacetData({
+                swapApiTarget: AcrossV4SwapFacet
+                    .SwapApiTarget
+                    .SponsoredCCTPSrcPeriphery,
+                callData: abi.encode(quote, signature, address(0)),
+                signature: ""
+            })
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_SponsoredCctp_WhenBurnTokenMismatch() public {
         (
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
