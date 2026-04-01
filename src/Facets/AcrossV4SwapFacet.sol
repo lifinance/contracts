@@ -253,14 +253,12 @@ contract AcrossV4SwapFacet is
                 _preSwapAmount,
                 _preCallNativeBalance
             );
-        } else if (swapApiTarget == SwapApiTarget.SponsoredCCTPSrcPeriphery) {
+        } else {
             _callSponsoredCctpDepositForBurn(
                 _bridgeData,
                 callData,
                 _preSwapAmount
             );
-        } else {
-            revert InvalidCallData();
         }
 
         emit LiFiTransferStarted(_bridgeData);
