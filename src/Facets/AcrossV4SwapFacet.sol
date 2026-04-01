@@ -770,7 +770,7 @@ contract AcrossV4SwapFacet is
         if (_chainId == 1) return 30101; // Ethereum
         if (_chainId == 10) return 30111; // OP Mainnet
         if (_chainId == 30) return 30333; // Rootstock
-        if (_chainId == 50) return 30136; // XDC
+        if (_chainId == 50) return 30365; // XDC
         if (_chainId == 56) return 30102; // BNB Smart Chain
         if (_chainId == 100) return 30145; // Gnosis
         if (_chainId == 122) return 30138; // Fuse
@@ -796,7 +796,7 @@ contract AcrossV4SwapFacet is
         if (_chainId == 81457) return 30243; // Blast
         if (_chainId == 8453) return 30184; // Base
         if (_chainId == 81224) return 30323; // Codex
-        if (_chainId == 98866) return 30318; // Plume
+        if (_chainId == 98866) return 30370; // Plume
         if (_chainId == 167000) return 30290; // Taiko
         if (_chainId == LIFI_CHAIN_ID_SOLANA) return 30168; // Solana
         revert InvalidCallData();
