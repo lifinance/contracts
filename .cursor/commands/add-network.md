@@ -38,8 +38,8 @@ Insert new network **alphabetically** (mainnet first, then A–Z). Fields: name,
 
 ## Step 3: `foundry.toml`
 
-- **RPC**: `[rpc_endpoints]` add `{networkKey} = "${ETH_NODE_URI_{NETWORK_KEY}}"` (alphabetical). 
-**DRPC (if network is on chainlist)**: (1) Open https://drpc.org/chainlist and find the network; (2) extract the DRPC chain name (slug, e.g. `ethereum`, `bsc`); (3) construct the URL prefix `https://<slug>.drpc.org/`; (4) ask the user to attach their API key (to form the complete URL); (5) print the command for them using the **all-lowercase networkKey** (e.g. `optimismsepolia`, not `optimismSepolia` — matching the convention in config/networks.json): `bun add-network-rpc --network <networkKey> --rpc-url <complete URL>`; (6) after storing in MongoDB, run `fetch-rpcs` to populate `.env`. Do **not** manually edit `.env` — it is populated from MongoDB via `fetch-rpcs`.
+- **RPC**: `[rpc_endpoints]` add `{networkKey} = "${ETH_NODE_URI_{NETWORK_KEY}}"` (alphabetical).
+- **DRPC (if network is on chainlist)**: (1) Open https://drpc.org/chainlist and find the network; (2) extract the DRPC chain name (slug, e.g. `ethereum`, `bsc`); (3) construct the URL prefix `https://<slug>.drpc.org/`; (4) ask the user to attach their API key (to form the complete URL); (5) print the command for them using the **all-lowercase networkKey** (e.g. `optimismsepolia`, not `optimismSepolia` — matching the convention in config/networks.json): `bun add-network-rpc --network <networkKey> --rpc-url <complete URL>`; (6) after storing in MongoDB, run `fetch-rpcs` to populate `.env`. Do **not** manually edit `.env` — it is populated from MongoDB via `fetch-rpcs`.
 - **Etherscan**: If chain in https://api.etherscan.io/v2/chainlist, add `{networkKey} = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid={chainId}", chain = "{chainId}" }`. Else use explorerApiUrl + verificationType; for blockscout/zksync/oklink/sourcify/custom add `verifier = "<type>"` and appropriate key. Insert alphabetically.
 
 ---
