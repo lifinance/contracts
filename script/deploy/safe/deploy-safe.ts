@@ -81,40 +81,12 @@ import {
 } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
+import { getFoundryDefaultEvmVersion } from '../../utils/utils'
 import { EVM_VERSIONS } from '../shared/constants'
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-
-function getFoundryEvmVersion(): EVMVersion {
-  try {
-    const foundryConfig = Bun.TOML.parse(
-      readFileSync(join(__dirname, '../../../foundry.toml'), 'utf8')
-    ) as {
-      profile?: {
-        default?: {
-          evm_version?: string
-        }
-      }
-    }
-    const evmVersion =
-      foundryConfig.profile?.default?.evm_version?.toLowerCase()
-    if (!evmVersion) {
-      throw new Error('Missing [profile.default].evm_version in foundry.toml')
-    }
-    if ((EVM_VERSIONS as readonly string[]).includes(evmVersion))
-      return evmVersion as EVMVersion
-    throw new Error(
-      `foundry.toml evm_version '${evmVersion}' is not in known EVM_VERSIONS`
-    )
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(
-      `Failed to determine EVM version from foundry.toml: ${message}`
-    )
-  }
-}
 
 dotenv.config()
 
@@ -346,7 +318,7 @@ const main = defineCommand({
 
     // Determine EVM version
     const networkConfig = networks[networkName]
-    let evmVersion: EVMVersion = getFoundryEvmVersion()
+    let evmVersion: EVMVersion = getFoundryDefaultEvmVersion()
 
     if (args.evmVersion) {
       const v = args.evmVersion.toLowerCase()

@@ -21,12 +21,12 @@ import {
   getTronRPCConfig,
 } from '../../tron/helpers/tronRpcConfig'
 import { broadcastTronContractCall } from '../../tron/helpers/tronSafeExecBroadcast'
-import type { TronTvmNetworkName } from '../../tron/helpers/tronTvmChain'
 import {
   createTronWebForTvmNetworkKey,
   resolveTronWebRpcUrlToFullHost,
 } from '../../tron/helpers/tronWebFactory'
 import { evmHexToTronBase58 } from '../../tron/tronAddressHelpers'
+import type { TronTvmNetworkName } from '../../tron/types'
 
 export class TronChainCaller implements IChainCaller {
   public readonly senderAddress: Address

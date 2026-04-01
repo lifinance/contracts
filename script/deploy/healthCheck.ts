@@ -19,7 +19,11 @@ import type { IWhitelistConfig, TargetState } from '../common/types'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
-import { getRPCEnvVarName, getNetworkConfig } from '../utils/utils'
+import {
+  getNetworkConfig,
+  getRPCEnvVarName,
+  normalizeSelector,
+} from '../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
@@ -29,17 +33,16 @@ import targetStateImport from './_targetState.json'
 import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
 import { getCoreFacets } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
+import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
+import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
 import {
   callTronContract,
   callTronContractBoolean,
   ensureTronAddress,
   getTronWallet,
-  normalizeSelector,
   checkOwnershipTron,
   parseTroncastNestedArray,
   checkIsDeployedTron,
-  getTronCorePeriphery,
-  parseTroncastFacetsOutput,
 } from './tron/tronUtils'
 
 const targetState = targetStateImport as TargetState

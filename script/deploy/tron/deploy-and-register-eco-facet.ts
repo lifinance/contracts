@@ -3,34 +3,35 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
-import type { SupportedChain } from '../../common/types'
+import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/utils'
-
-import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain'
-import { createTronWeb } from './helpers/tronWebFactory'
-import { tronAddressToHex } from './tronAddressHelpers'
 import {
-  getContractVersion,
+  getRPCEnvVarName,
   getEnvironment,
   getContractAddress,
   checkExistingDeployment,
-  deployContractWithLogging,
-  registerFacetToDiamond,
   confirmDeployment,
   printDeploymentSummary,
-  validateBalance,
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
+} from '../../utils/utils'
+import { getContractVersion } from '../shared/getContractVersion'
+
+import { TronContractDeployer } from './TronContractDeployer'
+import { MIN_BALANCE_WARNING } from './constants'
+import { createTronWeb } from './helpers/tronWebFactory'
+import { tronAddressToHex } from './tronAddressHelpers'
+import {
+  deployContractWithLogging,
+  registerFacetToDiamond,
+  validateBalance,
 } from './tronUtils'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   consola.start('TRON EcoFacet Deployment & Registration')

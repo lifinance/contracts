@@ -25,10 +25,11 @@ import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
-import { decodeDiamondCut, normalizeAddressForNetwork } from './safe-utils'
+import { decodeDiamondCut } from './safe-utils'
 
 export interface IFormatDecodedTxContext {
   chainId: number

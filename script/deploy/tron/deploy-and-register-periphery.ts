@@ -12,8 +12,19 @@ import {
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
-import { getRPCEnvVarName } from '../../utils/utils'
+import {
+  getRPCEnvVarName,
+  checkExistingDeployment,
+  getContractAddress,
+  getEnvironment,
+  getNetworkConfig,
+  logDeployment,
+  readJsonFile,
+  saveContractAddress,
+  updateDiamondJsonPeriphery,
+} from '../../utils/utils'
 import { ZERO_ADDRESS } from '../shared/constants.js'
+import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { TronContractDeployer } from './TronContractDeployer'
@@ -25,30 +36,17 @@ import {
   REGISTRATION_RPC_DELAY_MS,
   TRON_ZERO_ADDRESS,
 } from './constants.js'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { estimateEnergyAndFeeLimit } from './helpers/estimateContractEnergy.js'
+import { loadForgeArtifact } from './helpers/loadForgeArtifact.js'
+import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
   tronAddressLikeToBase58,
   tronAddressToHex,
   tronRegistrationAddressToEvmHex,
 } from './tronAddressHelpers.js'
-import {
-  checkExistingDeployment,
-  getContractAddress,
-  getContractVersion,
-  getEnvironment,
-  getNetworkConfig,
-  estimateEnergyAndFeeLimit,
-  loadForgeArtifact,
-  getTronCorePeriphery,
-  logDeployment,
-  promptEnergyRentalReminder,
-  readJsonFile,
-  saveContractAddress,
-  updateDiamondJsonPeriphery,
-  getTronWallet,
-} from './tronUtils.js'
-import type { ITronDeploymentConfig } from './types'
+import { promptEnergyRentalReminder, getTronWallet } from './tronUtils.js'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
 
 /**
  * Deploy and register periphery contracts to Tron
@@ -1043,7 +1041,9 @@ async function deployAndRegisterPeripheryImpl(options: {
                 [name, addressHex]
               )
               await sleep(REGISTRATION_RPC_DELAY_MS)
-              const result = await retryWithRateLimit(
+              const result = await retryWithRateLimit<
+                Awaited<ReturnType<typeof estimateEnergyAndFeeLimit>>
+              >(
                 () =>
                   estimateEnergyAndFeeLimit({
                     fullHost: rpcUrl,

@@ -1,3 +1,8 @@
+/**
+ * Viem-based script helpers: chain construction, explorer URL builders, deployment file readers,
+ * and interactive CLI prompts (search/multiselect). Import lower-level RPC helpers from `utils.ts`.
+ */
+
 import * as fs from 'fs'
 import * as path from 'path'
 import readline from 'readline'
@@ -160,6 +165,15 @@ export const buildExplorerContractPageUrl = (
   }
 }
 
+/**
+ * Builds a viem `Chain` object for the given network name using `config/networks.json`.
+ * Appends `/jsonrpc` to TronGrid RPC URLs so viem's JSON-RPC transport works correctly.
+ * Includes `multicall3` contract address when configured for the network.
+ *
+ * @param networkName - Key from `config/networks.json` (e.g. `'arbitrum'`, `'tron'`).
+ * @returns A viem `Chain` object ready for use with `createPublicClient` / `createWalletClient`.
+ * @throws If the network is not in config or the RPC env var is missing/empty.
+ */
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]
 
@@ -215,6 +229,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
   return chain
 }
 
+/** Returns all networks from `config/networks.json` as an array, adding the map key as `id`. */
 export const getAllNetworksArray = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = Object.entries(networksConfig).map(([key, value]) => ({
@@ -225,7 +240,7 @@ export const getAllNetworksArray = (): INetwork[] => {
   return networkArray
 }
 
-// removes all networks with "status='inactive'"
+/** Returns only networks with `status === 'active'` from `config/networks.json`. */
 export const getAllActiveNetworks = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = getAllNetworksArray()

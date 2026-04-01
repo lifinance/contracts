@@ -1,3 +1,7 @@
+/**
+ * Shared TypeScript types used across deploy scripts and utilities.
+ * Import from here instead of defining duplicates in individual script files.
+ */
 import type { Address, Hex, TransactionReceipt } from 'viem'
 
 import type networks from '../../config/networks.json'
@@ -18,10 +22,12 @@ export type DeployedEvmVersionLabel = NetworkRow['deployedWithEvmVersion']
  */
 export type EVMVersion = Exclude<Lowercase<DeployedEvmVersionLabel>, 'n/a' | ''>
 
+/** Map of network name → network config (without the runtime-derived `id` field). */
 export interface INetworksObject {
   [key: string]: Omit<INetwork, 'id'>
 }
 
+/** Deployment environment: controls which private key, deployment file suffix, and MongoDB collection are used. */
 export enum EnvironmentEnum {
   production = 'production',
   staging = 'staging',
@@ -77,6 +83,20 @@ export interface INetwork {
   skipHealthcheck?: boolean
 }
 
+/** Parsed subset of `foundry.toml` used by script helpers that read default compiler/EVM settings. */
+export interface IFoundryTomlConfig {
+  profile?: {
+    default?: {
+      solc_version?: string
+      evm_version?: string
+    }
+  }
+}
+
+export type IFoundryProfileDefaultConfig = NonNullable<
+  NonNullable<IFoundryTomlConfig['profile']>['default']
+>
+
 /**
  * Whitelist configuration structure for DEX and Periphery contracts
  * Used in health check scripts to validate on-chain whitelist state
@@ -120,6 +140,22 @@ export type TargetState = Record<
     }
   }
 >
+
+export interface IDeploymentResult {
+  contract: string
+  address: string
+  txId: string
+  cost: number
+  version: string
+  status?: 'success' | 'failed' | 'existing'
+}
+
+export interface INetworkInfo {
+  network: string
+  block: number
+  address: string
+  balance: number
+}
 
 /** Parameters passed to the executor — the chain-agnostic subset of a Safe transaction. */
 export interface IChainExecutionParams {

@@ -3,35 +3,36 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
-import type { SupportedChain } from '../../common/types'
+import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import {
+  saveDiamondDeployment,
+  getEnvironment,
+  checkExistingDeployment,
+  confirmDeployment,
+  printDeploymentSummary,
+  displayNetworkInfo,
+  updateDiamondJsonBatch,
+} from '../../utils/utils'
+import { getContractVersion } from '../shared/getContractVersion'
+import { getCoreFacets } from '../shared/globalContractLists'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { getTronRPCConfig } from './helpers/tronRpcConfig.js'
 import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import { evmHexToTronBase58 } from './tronAddressHelpers.js'
 import {
-  getCoreFacets,
-  saveDiamondDeployment,
-  getContractVersion,
-  getEnvironment,
-  getTronRPCConfig,
-  checkExistingDeployment,
   deployContractWithLogging,
-  confirmDeployment,
-  printDeploymentSummary,
   validateBalance,
-  displayNetworkInfo,
-  updateDiamondJsonBatch,
   waitBetweenDeployments,
 } from './tronUtils.js'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
 
 /**
  * Get constructor arguments for a facet

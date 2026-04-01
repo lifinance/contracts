@@ -5,8 +5,6 @@
 import networks from '../../../../config/networks.json'
 import type { TronTvmNetworkName } from '../types'
 
-export type { TronTvmNetworkName }
-
 export function getTronNetworkKeyForChainId(
   chainId: number
 ): TronTvmNetworkName | null {

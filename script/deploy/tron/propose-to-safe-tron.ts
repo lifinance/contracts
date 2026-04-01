@@ -41,13 +41,12 @@ import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
 import { createTronWebForTvmNetworkKey } from './helpers/tronWebFactory.js'
 import {
   tronBase58ToEvm20Hex,
   tronZeroAddressBase58,
 } from './tronAddressHelpers.js'
-import type { IProposeToSafeTronOptions } from './types.js'
+import type { IProposeToSafeTronOptions, TronTvmNetworkName } from './types.js'
 
 async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName = 'tron'
@@ -146,7 +145,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
 
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
   const predecessor =
-    '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
+    '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex // [pre-commit-checker: not a secret]
 
   let safeTxToBase58: string
   let safeTxDataHex: Hex
