@@ -4887,26 +4887,6 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x9f12686Cba2383150E869A8e5C2ededdcf7Ab4f9",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "0g": [
@@ -5209,26 +5189,6 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "arbitrumnova": [
@@ -5417,26 +5377,6 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "base": [
@@ -5557,26 +5497,6 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x847E5fF14E18cdE8fc289839bC7C747B922159BF",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "berachain": [
@@ -5649,26 +5569,6 @@
       {
         "name": "Composer",
         "address": "0x37C407e4adeAD6b1E2Fe89673Ecd66e3f371eE9D",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x198d7ABc54098c01939747392903E80CE6081022",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x37D7676182b2baC5aFB258015308B302380c3486",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -6065,26 +5965,6 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "celo": [
@@ -6157,26 +6037,6 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -6799,26 +6659,6 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
       }
     ],
     "gravity": [
@@ -7027,26 +6867,6 @@
       {
         "name": "Composer",
         "address": "0xd6FEa938eF552Eb52507cdc1ac2AB5987792F0C2",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x5F9fC9331FA3bd2229780c6511e8eBCf9bdF9cC5",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xdBEdD49105f4Db6ddC68922f37E364F14F600609",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -8495,26 +8315,6 @@
       {
         "name": "Composer",
         "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xcAc1866fBeE6b6d216F8421e8eF4B4EDdc93b123",
         "selectors": [
           {
             "selector": "0x00a32e6c",
