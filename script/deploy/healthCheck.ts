@@ -41,7 +41,6 @@ import {
 } from './tron/tronUtils'
 import {
   checkIsDeployedTron,
-  getCoreFacets as getTronCoreFacets,
   getTronCorePeriphery,
   parseTroncastFacetsOutput,
 } from './tron/utils'
@@ -158,12 +157,21 @@ const main = defineCommand({
       process.exit(0)
     }
 
-    // Get core facets - use Tron-specific filtering if needed
-    let coreFacetsToCheck: string[]
-    if (isTron)
-      // Use the Tron-specific utility that filters out GasZipFacet
-      coreFacetsToCheck = getTronCoreFacets()
-    else coreFacetsToCheck = globalConfig.coreFacets
+    // Skip GasZip checks for networks where the integration is intentionally unsupported.
+    const networkGasZipConfig = (
+      networksConfig as Record<string, { gasZipChainId?: number } | undefined>
+    )[networkLower]
+    const supportsGasZip =
+      !isTron &&
+      !!networkGasZipConfig?.gasZipChainId &&
+      networkGasZipConfig.gasZipChainId > 0
+
+    let coreFacetsToCheck: string[] = globalConfig.coreFacets
+    if (!supportsGasZip) {
+      coreFacetsToCheck = coreFacetsToCheck.filter(
+        (f: string) => f !== 'GasZipFacet'
+      )
+    }
 
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
@@ -395,10 +403,15 @@ const main = defineCommand({
     if (environment === 'production') {
       consola.box('Checking deploy status of periphery contracts...')
 
-      // Filter periphery contracts for Tron if needed
-      const peripheryToCheck = isTron
+      // Filter optional periphery contracts that are intentionally absent on this network.
+      let peripheryToCheck = isTron
         ? getTronCorePeriphery()
         : globalConfig.corePeriphery
+      if (!supportsGasZip) {
+        peripheryToCheck = peripheryToCheck.filter(
+          (contract) => contract !== 'GasZipPeriphery'
+        )
+      }
 
       for (const contract of peripheryToCheck) {
         const isDeployed = await checkAndLogDeployment(
@@ -417,13 +430,6 @@ const main = defineCommand({
         'Skipping core periphery deployment checks for staging environment'
       )
     }
-
-    // Load whitelist config (staging or production)
-    const whitelistConfig = await import(
-      `../../config/whitelist${
-        environment === 'staging' ? '.staging' : ''
-      }.json`
-    )
 
     // Check Executor authorization in ERC20Proxy
     if (environment === 'production') {
@@ -487,7 +493,7 @@ const main = defineCommand({
       // Only check contracts that are expected to be deployed according to target state
       const targetStateContracts =
         targetState[networkLower]?.production?.LiFiDiamond || {}
-      const contractsToCheck = Object.keys(targetStateContracts).filter(
+      let contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
           (isTron
             ? getTronCorePeriphery()
@@ -497,6 +503,11 @@ const main = defineCommand({
             contract
           )
       )
+      if (!supportsGasZip) {
+        contractsToCheck = contractsToCheck.filter(
+          (contract) => contract !== 'GasZipPeriphery'
+        )
+      }
 
       if (contractsToCheck.length > 0) {
         if (isTron && tronWeb && tronRpcUrl) {
@@ -597,6 +608,23 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                   Check whitelisted addresses           │
     //          ╰─────────────────────────────────────────────────────────╯
+    // Load whitelist config (staging or production)
+    // whitelist.staging.json is gitignored, so gracefully skip if unavailable in staging
+    let whitelistConfig: any = { DEXS: [], PERIPHERY: {} }
+    if (environment === 'staging') {
+      try {
+        const mod = await import('../../config/whitelist.staging.json')
+        whitelistConfig = mod.default
+      } catch {
+        consola.info(
+          'whitelist.staging.json not found, skipping whitelist checks'
+        )
+      }
+    } else {
+      const mod = await import('../../config/whitelist.json')
+      whitelistConfig = mod.default
+    }
+
     // Check if whitelist configuration exists for this network
     try {
       const hasDexWhitelistConfig =
