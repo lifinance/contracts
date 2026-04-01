@@ -38,6 +38,13 @@ contract TestAcrossV4SwapFacet is AcrossV4SwapFacet, TestWhitelistManagerBase {
     ) external pure returns (uint32) {
         return _chainIdToCctpDomainId(_chainId);
     }
+
+    /// @dev Exposes internal LayerZero eid mapping for unit tests.
+    function exposed_chainIdToLzEid(
+        uint256 _chainId
+    ) external pure returns (uint32) {
+        return _chainIdToLzEid(_chainId);
+    }
 }
 
 contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
@@ -966,6 +973,72 @@ contract AcrossV4SwapFacetTest is
         assertEq(mockPeriphery.lastSwapTokenAmount(), amount);
     }
 
+    function testRevert_SpokePoolPeriphery_NativeAsset_WhenCalldataNotWrappedNative()
+        public
+    {
+        uint256 amount = 1 ether;
+
+        ILiFi.BridgeData memory localBridgeData = bridgeData;
+        localBridgeData.bridge = "acrossV4Swap";
+        localBridgeData.destinationChainId = 42161;
+        localBridgeData.hasSourceSwaps = false;
+        localBridgeData.sendingAssetId = address(0);
+        localBridgeData.receiver = USER_RECEIVER;
+        localBridgeData.minAmount = amount;
+
+        ISpokePoolPeriphery.BaseDepositData
+            memory depositData = ISpokePoolPeriphery.BaseDepositData({
+                inputToken: address(0xCAFE), // must be WRAPPED_NATIVE for native flows
+                outputToken: bytes32(0),
+                outputAmount: 0,
+                depositor: USER_SENDER,
+                recipient: _convertAddressToBytes32(USER_RECEIVER),
+                destinationChainId: localBridgeData.destinationChainId,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 3600),
+                exclusivityParameter: 0,
+                message: ""
+            });
+
+        ISpokePoolPeriphery.SwapAndDepositData
+            memory swapAndDepositData = ISpokePoolPeriphery
+                .SwapAndDepositData({
+                    submissionFees: ISpokePoolPeriphery.Fees({
+                        amount: 0,
+                        recipient: address(0)
+                    }),
+                    depositData: depositData,
+                    swapToken: address(0xBEEF), // must be WRAPPED_NATIVE for native flows
+                    exchange: address(0),
+                    transferType: ISpokePoolPeriphery.TransferType.Approval,
+                    swapTokenAmount: amount,
+                    minExpectedInputTokenAmount: 0,
+                    routerCalldata: "",
+                    enableProportionalAdjustment: false,
+                    spokePool: SPOKE_POOL,
+                    nonce: 0
+                });
+
+        bytes memory callData = abi.encode(swapAndDepositData);
+
+        vm.deal(USER_SENDER, 10 ether);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{ value: amount }(
+            localBridgeData,
+            _facetData(
+                localBridgeData,
+                AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery,
+                callData,
+                address(acrossV4SwapFacet)
+            )
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_SpokePool_WhenInputAmountMismatch() public {
         ILiFi.BridgeData memory localBridgeData = bridgeData;
         localBridgeData.sendingAssetId = USDC_MAINNET;
@@ -1463,6 +1536,91 @@ contract AcrossV4SwapFacetTest is
         vm.stopPrank();
     }
 
+    function test_CanBridgeViaSwapApiCalldata_SpokePool_NativeAsset() public {
+        ILiFi.BridgeData memory localBridgeData = bridgeData;
+        localBridgeData.sendingAssetId = address(0);
+        localBridgeData.receiver = USER_RECEIVER;
+        localBridgeData.minAmount = 0.01 ether;
+        localBridgeData.destinationChainId = 42161;
+
+        IAcrossSpokePoolV4.DepositParams memory params;
+        params.depositor = _convertAddressToBytes32(USER_SENDER);
+        params.recipient = _convertAddressToBytes32(USER_RECEIVER);
+        params.inputToken = _convertAddressToBytes32(WETH);
+        params.outputToken = _convertAddressToBytes32(USDC_ARBITRUM);
+        params.inputAmount = localBridgeData.minAmount;
+        params.outputAmount = 1;
+        params.destinationChainId = localBridgeData.destinationChainId;
+        params.exclusiveRelayer = bytes32(0);
+        params.quoteTimestamp = uint32(block.timestamp);
+        params.fillDeadline = uint32(block.timestamp + 3600);
+        params.exclusivityParameter = 0;
+        params.message = "";
+
+        vm.deal(USER_SENDER, 10 ether);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectEmit(true, true, true, true, address(acrossV4SwapFacet));
+        emit LiFiTransferStarted(localBridgeData);
+
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{
+            value: localBridgeData.minAmount
+        }(
+            localBridgeData,
+            _facetData(
+                localBridgeData,
+                AcrossV4SwapFacet.SwapApiTarget.SpokePool,
+                abi.encode(params),
+                address(acrossV4SwapFacet)
+            )
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SpokePool_NativeAsset_WhenInputTokenNotWrappedNative()
+        public
+    {
+        ILiFi.BridgeData memory localBridgeData = bridgeData;
+        localBridgeData.sendingAssetId = address(0);
+        localBridgeData.receiver = USER_RECEIVER;
+        localBridgeData.minAmount = 0.01 ether;
+        localBridgeData.destinationChainId = 42161;
+
+        IAcrossSpokePoolV4.DepositParams memory params;
+        params.depositor = _convertAddressToBytes32(USER_SENDER);
+        params.recipient = _convertAddressToBytes32(USER_RECEIVER);
+        params.inputToken = _convertAddressToBytes32(address(0xBEEF));
+        params.outputToken = _convertAddressToBytes32(USDC_ARBITRUM);
+        params.inputAmount = localBridgeData.minAmount;
+        params.outputAmount = 1;
+        params.destinationChainId = localBridgeData.destinationChainId;
+        params.exclusiveRelayer = bytes32(0);
+        params.quoteTimestamp = uint32(block.timestamp);
+        params.fillDeadline = uint32(block.timestamp + 3600);
+        params.exclusivityParameter = 0;
+        params.message = "";
+
+        vm.deal(USER_SENDER, 10 ether);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{
+            value: localBridgeData.minAmount
+        }(
+            localBridgeData,
+            _facetData(
+                localBridgeData,
+                AcrossV4SwapFacet.SwapApiTarget.SpokePool,
+                abi.encode(params),
+                address(acrossV4SwapFacet)
+            )
+        );
+
+        vm.stopPrank();
+    }
+
     function test_chainIdToCctpDomainId_AllMappedChainIds() public {
         TestAcrossV4SwapFacet facet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
@@ -1538,6 +1696,68 @@ contract AcrossV4SwapFacetTest is
 
         vm.expectRevert(InvalidCallData.selector);
         facet.exposed_chainIdToCctpDomainId(2);
+    }
+
+    function test_chainIdToLzEid_AllMappedChainIds() public {
+        TestAcrossV4SwapFacet facet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
+            SPOKE_POOL,
+            WETH,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY,
+            backendSigner
+        );
+
+        // Keep these assertions aligned with `AcrossV4SwapFacet._chainIdToLzEid`.
+        assertEq(uint256(facet.exposed_chainIdToLzEid(1)), 30101); // Ethereum
+        assertEq(uint256(facet.exposed_chainIdToLzEid(10)), 30111); // OP Mainnet
+        assertEq(uint256(facet.exposed_chainIdToLzEid(30)), 30333); // Rootstock
+        assertEq(uint256(facet.exposed_chainIdToLzEid(50)), 30365); // XDC
+        assertEq(uint256(facet.exposed_chainIdToLzEid(56)), 30102); // BNB Smart Chain
+        assertEq(uint256(facet.exposed_chainIdToLzEid(100)), 30145); // Gnosis
+        assertEq(uint256(facet.exposed_chainIdToLzEid(122)), 30138); // Fuse
+        assertEq(uint256(facet.exposed_chainIdToLzEid(130)), 30320); // Unichain
+        assertEq(uint256(facet.exposed_chainIdToLzEid(137)), 30109); // Polygon PoS
+        assertEq(uint256(facet.exposed_chainIdToLzEid(143)), 30390); // Monad
+        assertEq(uint256(facet.exposed_chainIdToLzEid(146)), 30332); // Sonic
+        assertEq(uint256(facet.exposed_chainIdToLzEid(196)), 30274); // X Layer
+        assertEq(uint256(facet.exposed_chainIdToLzEid(324)), 30165); // zkSync Era
+        assertEq(uint256(facet.exposed_chainIdToLzEid(480)), 30319); // World Chain
+        assertEq(uint256(facet.exposed_chainIdToLzEid(999)), 30367); // HyperEVM
+        assertEq(uint256(facet.exposed_chainIdToLzEid(1088)), 30151); // Metis
+        assertEq(uint256(facet.exposed_chainIdToLzEid(1101)), 30158); // Polygon zkEVM
+        assertEq(uint256(facet.exposed_chainIdToLzEid(1284)), 30126); // Moonbeam
+        assertEq(uint256(facet.exposed_chainIdToLzEid(1329)), 30280); // Sei
+        assertEq(uint256(facet.exposed_chainIdToLzEid(1337)), 30367); // HyperCore
+        assertEq(uint256(facet.exposed_chainIdToLzEid(42161)), 30110); // Arbitrum
+        assertEq(uint256(facet.exposed_chainIdToLzEid(43114)), 30106); // Avalanche
+        assertEq(uint256(facet.exposed_chainIdToLzEid(34443)), 30260); // Mode
+        assertEq(uint256(facet.exposed_chainIdToLzEid(534352)), 30214); // Scroll
+        assertEq(uint256(facet.exposed_chainIdToLzEid(57073)), 30339); // Ink
+        assertEq(uint256(facet.exposed_chainIdToLzEid(59144)), 30183); // Linea
+        assertEq(uint256(facet.exposed_chainIdToLzEid(81457)), 30243); // Blast
+        assertEq(uint256(facet.exposed_chainIdToLzEid(8453)), 30184); // Base
+        assertEq(uint256(facet.exposed_chainIdToLzEid(81224)), 30323); // Codex
+        assertEq(uint256(facet.exposed_chainIdToLzEid(98866)), 30370); // Plume
+        assertEq(uint256(facet.exposed_chainIdToLzEid(167000)), 30290); // Taiko
+        assertEq(
+            uint256(facet.exposed_chainIdToLzEid(1151111081099710)),
+            30168
+        ); // Solana
+    }
+
+    function testRevert_chainIdToLzEid_WhenChainIdNotMapped() public {
+        TestAcrossV4SwapFacet facet = new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
+            SPOKE_POOL,
+            WETH,
+            SPONSORED_OFT_SRC_PERIPHERY,
+            SPONSORED_CCTP_SRC_PERIPHERY,
+            backendSigner
+        );
+
+        vm.expectRevert(InvalidCallData.selector);
+        facet.exposed_chainIdToLzEid(2);
     }
 
     /// Base test overrides: default TestBaseFacet flow (USDC/DAI->USDC swap) does not align with
