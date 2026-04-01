@@ -60,14 +60,16 @@ export async function callTronContract(
 }
 
 /**
- * Get Tron wallet address from globalConfig, falling back to EVM format if Tron version doesn't exist
+ * Get Tron wallet address from globalConfig.tronWallets, falling back to EVM format if Tron version doesn't exist
  */
 export function getTronWallet(
   globalConfig: Record<string, unknown>,
   walletName: string
 ): string {
-  const tronKey = `${walletName}Tron`
-  const tronValue = globalConfig[tronKey]
+  const tronConfig = globalConfig.tronWallets as
+    | Record<string, unknown>
+    | undefined
+  const tronValue = tronConfig?.[walletName]
   const fallbackValue = globalConfig[walletName]
 
   if (typeof tronValue === 'string') return tronValue

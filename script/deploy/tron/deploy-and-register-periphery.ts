@@ -173,16 +173,18 @@ async function deployAndRegisterPeripheryImpl(options: {
       `   Base58: ${tronAddressLikeToBase58(tronWeb, diamondAddress)}`
     )
 
-    // Load configurations (Tron-prefixed keys preferred via getTronWallet — matches healthCheck.ts)
+    // Load configurations (Tron addresses under globalConfig.tronWallets via getTronWallet)
     const globalConfig = await readJsonFile<{
       refundWallet: string
       feeCollectorOwner: string
       withdrawWallet: string
       deployerWallet?: string
-      deployerWalletTron?: string
-      refundWalletTron?: string
-      feeCollectorOwnerTron?: string
-      withdrawWalletTron?: string
+      tronWallets?: {
+        refundWallet?: string
+        feeCollectorOwner?: string
+        withdrawWallet?: string
+        deployerWallet?: string
+      }
     }>(resolve(process.cwd(), 'config/global.json'))
     if (!globalConfig) throw new Error('Failed to load config/global.json')
 
@@ -868,7 +870,7 @@ async function deployAndRegisterPeripheryImpl(options: {
                 }
                 if (!cancellerWallet) {
                   consola.warn(
-                    '  global.json missing deployerWalletTron/deployerWallet; skipping LiFiTimelockController.'
+                    '  global.json missing tronWallets.deployerWallet/deployerWallet; skipping LiFiTimelockController.'
                   )
                 } else {
                   const safeHex = safeAddress.startsWith('T')

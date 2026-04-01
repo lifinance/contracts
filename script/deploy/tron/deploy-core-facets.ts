@@ -45,17 +45,18 @@ async function getConstructorArgs(
   if (facetName === 'EmergencyPauseFacet') {
     // EmergencyPauseFacet requires pauserWallet address
     const globalConfig = await Bun.file('config/global.json').json()
-    const pauserWallet = globalConfig.pauserWallet // This is 0x...
+    const pauserWallet = globalConfig.pauserWallet // EVM 0x address
+    const pauserWalletTron = globalConfig.tronWallets?.pauserWallet // Tron base58 address
 
     if (!pauserWallet)
       throw new Error('pauserWallet not found in config/global.json')
 
-    // Convert to base58 for display purposes only
-    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnly(), pauserWallet)
-
     // Use original hex format (0x...) for constructor args
     // The ABI encoder needs this format for proper encoding
-    consola.info(`Using pauserWallet: ${tronBase58} (hex: ${pauserWallet})`)
+    const displayAddr =
+      pauserWalletTron ||
+      evmHexToTronBase58(getTronWebCodecOnly(), pauserWallet)
+    consola.info(`Using pauserWallet: ${displayAddr} (hex: ${pauserWallet})`)
     return [pauserWallet]
   } else if (facetName === 'GenericSwapFacetV3') {
     // GenericSwapFacetV3 requires native token address
