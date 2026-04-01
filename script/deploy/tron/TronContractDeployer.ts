@@ -1,3 +1,9 @@
+/**
+ * High-level Tron contract deployment abstraction.
+ * Wraps TronWeb to handle energy/bandwidth estimation, cost validation against account balance,
+ * rate-limit retry logic, and receipt confirmation. Supports dry-run mode for cost previews.
+ */
+
 import { consola } from 'consola'
 
 import { sleep } from '../../utils/delay'
@@ -9,6 +15,11 @@ import {
   TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
   TRON_WALLET_API_FETCH_TIMEOUT_MS,
 } from './constants'
+import {
+  calculateEstimatedCost,
+  calculateTransactionBandwidth,
+  getAccountAvailableResources,
+} from './helpers/tronPricing'
 import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig'
 import {
   createTronWeb,
@@ -20,11 +31,6 @@ import type {
   ITronDeploymentResult,
   IForgeArtifact,
 } from './types'
-import {
-  calculateTransactionBandwidth,
-  calculateEstimatedCost,
-  getAccountAvailableResources,
-} from './utils'
 
 export class TronContractDeployer {
   private tronWeb: any
@@ -75,7 +81,14 @@ export class TronContractDeployer {
   }
 
   /**
-   * Deploy a contract
+   * Deploy a contract to Tron.
+   * Estimates energy + bandwidth, validates account balance (accounting for delegated resources),
+   * then broadcasts the deployment transaction with rate-limit retry.
+   *
+   * @param artifact - Forge build artifact (ABI + bytecode) for the contract to deploy.
+   * @param constructorParams - ABI-encoded constructor arguments (default: none).
+   * @returns Deployment result including contract address, transaction ID, and actual costs.
+   * @throws If estimation, balance validation, broadcast, or confirmation fails.
    */
   public async deployContract(
     artifact: IForgeArtifact,
@@ -173,7 +186,13 @@ export class TronContractDeployer {
   }
 
   /**
-   * Estimate deployment cost
+   * Estimates total deployment cost (energy + bandwidth) in TRX, including a safety margin.
+   * Fetches current network prices, then calculates fee limit in SUN (rounded up to integer).
+   *
+   * @param artifact - Forge artifact for the contract being deployed.
+   * @param constructorParams - Constructor arguments (used to size the encoded payload).
+   * @returns Cost breakdown with energy/bandwidth counts and TRX totals.
+   * @throws If energy estimation or price fetching fails.
    */
   private async estimateCost(
     artifact: IForgeArtifact,
@@ -235,7 +254,13 @@ export class TronContractDeployer {
   }
 
   /**
-   * Estimate bandwidth
+   * Estimates the bandwidth (bytes) consumed by the deployment transaction.
+   * Falls back to a size-based heuristic (`bytecodeSize + 200` × 1.2) if the
+   * `createSmartContract` dry-run call fails.
+   *
+   * @param artifact - Forge artifact containing the bytecode to deploy.
+   * @param constructorParams - Constructor arguments appended to the payload.
+   * @returns Estimated bandwidth in bytes.
    */
   private async estimateBandwidth(
     artifact: IForgeArtifact,
@@ -389,7 +414,11 @@ export class TronContractDeployer {
   }
 
   /**
-   * Validate account balance
+   * Checks that the deployer account holds at least `requiredTrx` TRX (after subtracting
+   * any coverage from delegated energy/bandwidth). Throws if insufficient.
+   *
+   * @param requiredTrx - TRX amount that must be paid from account balance (not covered by delegation).
+   * @throws If balance is below the required amount or the balance call fails.
    */
   private async validateAccountBalance(requiredTrx: number): Promise<void> {
     try {
@@ -411,7 +440,15 @@ export class TronContractDeployer {
   }
 
   /**
-   * Execute deployment
+   * Builds, signs, and broadcasts the deployment transaction.
+   * Uses `costEstimate.energy` as `originEnergyLimit` and `costEstimate.feeLimit` as the fee cap.
+   * Called inside a `retryWithRateLimit` wrapper in `deployContract`.
+   *
+   * @param artifact - Forge artifact to deploy.
+   * @param constructorParams - ABI-encoded constructor arguments.
+   * @param costEstimate - Pre-computed energy/bandwidth estimate (used for feeLimit and originEnergyLimit).
+   * @returns Partial deployment result (without receipt or actual cost).
+   * @throws If broadcast fails or the transaction ID is missing from the response.
    */
   private async executeDeployment(
     artifact: IForgeArtifact,
@@ -508,7 +545,12 @@ export class TronContractDeployer {
   }
 
   /**
-   * Wait for transaction receipt
+   * Polls `getTransactionInfo` until a receipt with a non-empty `id` is returned.
+   *
+   * @param transactionId - Tron transaction ID from the broadcast response.
+   * @param timeoutMs - Maximum wait time in ms (default: 60 000 ms / 1 minute).
+   * @returns Raw Tron transaction info/receipt object.
+   * @throws If the transaction result is `'FAILED'`, confirmation times out, or max retries are exceeded.
    */
   private async waitForTransactionReceipt(
     transactionId: string,
@@ -582,7 +624,9 @@ export class TronContractDeployer {
   // sleep is now imported from utils/delay.ts
 
   /**
-   * Get network info
+   * Returns basic network and account info useful for debugging (block height, address, balance).
+   *
+   * @returns Object with `network` (RPC URL), current `block` number, deployer `address`, and `balance` in TRX.
    */
   public async getNetworkInfo(): Promise<{
     network: string

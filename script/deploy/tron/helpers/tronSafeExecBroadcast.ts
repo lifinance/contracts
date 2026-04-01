@@ -27,13 +27,6 @@ import type {
 import { tronScanTransactionUrl } from './tronScanUrls'
 import { createTronWebForTvmNetworkKey } from './tronWebFactory'
 
-export type {
-  IBroadcastTronContractCallParams,
-  IBroadcastTronContractCallResult,
-  IExecuteSafeExecTronWebResult,
-  ITronSafeExecParams,
-} from '../types'
-
 function parseFeeLimitSun(): number {
   const raw = process.env[TRON_SAFE_EXEC_FEE_LIMIT_SUN_ENV]?.trim()
   if (raw === undefined || raw === '')

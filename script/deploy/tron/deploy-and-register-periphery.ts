@@ -12,8 +12,19 @@ import {
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
-import { getRPCEnvVarName } from '../../utils/network'
+import {
+  getRPCEnvVarName,
+  checkExistingDeployment,
+  getContractAddress,
+  getEnvironment,
+  getNetworkConfig,
+  logDeployment,
+  readJsonFile,
+  saveContractAddress,
+  updateDiamondJsonPeriphery,
+} from '../../utils/utils'
 import { ZERO_ADDRESS } from '../shared/constants.js'
+import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { TronContractDeployer } from './TronContractDeployer'
@@ -23,34 +34,19 @@ import {
   REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
   REGISTRATION_RETRY_DELAY_MS,
   REGISTRATION_RPC_DELAY_MS,
-  TRON_PERIPHERY_CONTRACTS,
   TRON_ZERO_ADDRESS,
 } from './constants.js'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { estimateEnergyAndFeeLimit } from './helpers/estimateContractEnergy.js'
+import { loadForgeArtifact } from './helpers/loadForgeArtifact.js'
+import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
   tronAddressLikeToBase58,
   tronAddressToHex,
   tronRegistrationAddressToEvmHex,
 } from './tronAddressHelpers.js'
-import { getTronWallet } from './tronUtils.js'
-import type { ITronDeploymentConfig } from './types'
-import {
-  checkExistingDeployment,
-  getContractAddress,
-  getContractVersion,
-  getEnvironment,
-  getNetworkConfig,
-  getAccountAvailableResources,
-  calculateEstimatedCost,
-  estimateContractCallEnergy,
-  loadForgeArtifact,
-  logDeployment,
-  promptEnergyRentalReminder,
-  readJsonFile,
-  saveContractAddress,
-  updateDiamondJsonPeriphery,
-} from './utils.js'
+import { promptEnergyRentalReminder, getTronWallet } from './tronUtils.js'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
 
 /**
  * Deploy and register periphery contracts to Tron
@@ -263,7 +259,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       const toLoad: string[] =
         onlyContracts !== undefined && onlyContracts.length > 0
           ? onlyContracts
-          : [...TRON_PERIPHERY_CONTRACTS, 'LiFiTimelockController']
+          : getTronCorePeriphery()
       for (const name of toLoad) {
         const addr = await getContractAddress(network, name)
         if (addr) deployedContracts[name] = addr
@@ -1047,9 +1043,11 @@ async function deployAndRegisterPeripheryImpl(options: {
                 [name, addressHex]
               )
               await sleep(REGISTRATION_RPC_DELAY_MS)
-              const estimatedEnergy = await retryWithRateLimit(
+              const result = await retryWithRateLimit<
+                Awaited<ReturnType<typeof estimateEnergyAndFeeLimit>>
+              >(
                 () =>
-                  estimateContractCallEnergy({
+                  estimateEnergyAndFeeLimit({
                     fullHost: rpcUrl,
                     tronWeb,
                     contractAddressBase58: diamondAddress,
@@ -1057,6 +1055,9 @@ async function deployAndRegisterPeripheryImpl(options: {
                       'registerPeripheryContract(string,address)',
                     parameterHex: registerParamsHex,
                     safetyMargin: DEFAULT_SAFETY_MARGIN,
+                    minFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
+                    maxFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
+                    label: `  ${name}`,
                   }),
                 3,
                 REGISTRATION_RETRY_DELAY_MS,
@@ -1067,41 +1068,7 @@ async function deployAndRegisterPeripheryImpl(options: {
                     }s...`
                   )
               )
-              const deployerBase58 =
-                typeof tronWeb.defaultAddress.base58 === 'string'
-                  ? tronWeb.defaultAddress.base58
-                  : ''
-              if (deployerBase58) {
-                await sleep(REGISTRATION_RPC_DELAY_MS)
-                const { availableEnergy } = await retryWithRateLimit(
-                  () => getAccountAvailableResources(rpcUrl, deployerBase58),
-                  3,
-                  REGISTRATION_RETRY_DELAY_MS,
-                  (attempt, delay) =>
-                    consola.warn(
-                      `Rate limit (429), retry ${attempt}/3 in ${
-                        delay / 1000
-                      }s...`
-                    )
-                )
-                const { totalCost } = await calculateEstimatedCost(
-                  tronWeb,
-                  estimatedEnergy,
-                  0
-                )
-                feeLimitSun = Math.min(
-                  Math.max(
-                    Math.ceil(Number(tronWeb.toSun(totalCost))),
-                    REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN
-                  ),
-                  REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN
-                )
-                consola.info(
-                  `  ${name}: estimated energy ${estimatedEnergy}, available ${availableEnergy}; fee limit ${
-                    feeLimitSun / 1_000_000
-                  } TRX`
-                )
-              }
+              feeLimitSun = result.feeLimitSun
             } catch (err: unknown) {
               consola.warn(
                 `  Energy estimate failed, using ${
@@ -1144,7 +1111,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       // Verify registrations
       consola.info('\n Verifying registrations...')
 
-      for (const name of TRON_PERIPHERY_CONTRACTS)
+      for (const name of getTronCorePeriphery())
         try {
           await sleep(REGISTRATION_RPC_DELAY_MS)
           const registered = await retryWithRateLimit(

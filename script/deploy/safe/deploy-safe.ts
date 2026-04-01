@@ -81,6 +81,7 @@ import {
 } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
+import { getFoundryDefaultEvmVersion } from '../../utils/utils'
 import { EVM_VERSIONS } from '../shared/constants'
 
 // ES module equivalent of __dirname
@@ -317,7 +318,7 @@ const main = defineCommand({
 
     // Determine EVM version
     const networkConfig = networks[networkName]
-    let evmVersion: EVMVersion = 'cancun' // Default to cancun
+    let evmVersion: EVMVersion = getFoundryDefaultEvmVersion()
 
     if (args.evmVersion) {
       const v = args.evmVersion.toLowerCase()
@@ -522,7 +523,13 @@ async function deployLocalContracts(
   walletClient: any,
   evmVersion: EVMVersion
 ) {
-  const basePath = evmVersion === 'london' ? 'london' : 'cancun'
+  if (evmVersion !== 'london' && evmVersion !== 'cancun') {
+    throw new Error(
+      `No local Safe artifacts available for EVM version '${evmVersion}'`
+    )
+  }
+
+  const basePath = evmVersion
 
   const SAFE_ARTIFACT = JSON.parse(
     readFileSync(

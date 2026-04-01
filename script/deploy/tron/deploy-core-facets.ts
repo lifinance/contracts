@@ -3,35 +3,36 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
-import type { SupportedChain } from '../../common/types'
+import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import {
+  saveDiamondDeployment,
+  getEnvironment,
+  checkExistingDeployment,
+  confirmDeployment,
+  printDeploymentSummary,
+  displayNetworkInfo,
+  updateDiamondJsonBatch,
+} from '../../utils/utils'
+import { getContractVersion } from '../shared/getContractVersion'
+import { getCoreFacets } from '../shared/globalContractLists'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { getTronRPCConfig } from './helpers/tronRpcConfig.js'
 import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import { evmHexToTronBase58 } from './tronAddressHelpers.js'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
-  getCoreFacets,
-  saveDiamondDeployment,
-  getContractVersion,
-  getEnvironment,
-  getTronRPCConfig,
-  checkExistingDeployment,
   deployContractWithLogging,
-  confirmDeployment,
-  printDeploymentSummary,
   validateBalance,
-  displayNetworkInfo,
-  updateDiamondJsonBatch,
   waitBetweenDeployments,
-} from './utils.js'
+} from './tronUtils.js'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
 
 /**
  * Get constructor arguments for a facet
@@ -164,7 +165,7 @@ async function deployCoreFacetsImpl(options: {
   await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
   // Get core facets list
-  const coreFacets = getCoreFacets()
+  const coreFacets = getCoreFacets({ exclude: ['GasZipFacet'] })
 
   // Add LiFiDiamond to the contracts list for confirmation
   const allContracts = [...coreFacets, 'LiFiDiamond']
@@ -310,12 +311,6 @@ async function deployCoreFacetsImpl(options: {
       const ownerAddress = networkInfo.address
 
       // Convert to hex format for constructor
-      const tronWeb = createTronWeb({
-        rpcUrl,
-        networkKey: networkName as TronTvmNetworkName,
-        privateKey,
-        verbose: options.verbose,
-      })
       const ownerHexRaw = tronWeb.address.toHex(ownerAddress)
       const ownerHex = ownerHexRaw.startsWith('0x')
         ? ownerHexRaw

@@ -1,56 +1,60 @@
 /**
- * EVM chain executor — broadcasts Safe `execTransaction` via viem JSON-RPC.
+ * EVM chain caller — broadcasts arbitrary contract calls via viem JSON-RPC.
  */
 
 import { consola } from 'consola'
 import type {
   Account,
   Address,
+  Chain,
   PublicClient,
   TransactionReceipt,
   WalletClient,
 } from 'viem'
 
 import type {
-  IChainExecutionParams,
-  IChainExecutionResult,
-  IChainExecutor,
+  IChainCallParams,
+  IChainCallResult,
+  IChainCaller,
+  IChainSimulateResult,
 } from '../../../common/types'
-import { SAFE_SINGLETON_ABI } from '../config'
 
-export class EvmChainExecutor implements IChainExecutor {
+export class EvmChainCaller implements IChainCaller {
+  public readonly senderAddress: Address
+
   public constructor(
     private readonly walletClient: WalletClient,
     private readonly publicClient: PublicClient,
     private readonly account: Account
-  ) {}
+  ) {
+    this.senderAddress = account.address
+  }
 
-  public async executeTransaction(
-    params: IChainExecutionParams
-  ): Promise<IChainExecutionResult> {
-    const txHash = await this.walletClient.writeContract({
+  public async simulate(
+    params: IChainCallParams
+  ): Promise<IChainSimulateResult> {
+    const estimatedGas = await this.publicClient.estimateGas({
+      account: this.senderAddress,
+      to: params.to,
+      data: params.data,
+      value: params.value ?? 0n,
+    })
+
+    return { estimatedResource: estimatedGas, resourceLabel: 'gas' }
+  }
+
+  public async call(params: IChainCallParams): Promise<IChainCallResult> {
+    const txHash = await this.walletClient.sendTransaction({
       account: this.account,
-      chain: null,
-      address: params.safeAddress,
-      abi: SAFE_SINGLETON_ABI,
-      functionName: 'execTransaction',
-      args: [
-        params.to,
-        params.value,
-        params.data,
-        params.operation,
-        0n, // safeTxGas
-        0n, // baseGas
-        0n, // gasPrice
-        '0x0000000000000000000000000000000000000000' as Address, // gasToken
-        '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
-        params.signatures,
-      ],
+      chain: this.walletClient.chain as Chain | null,
+      to: params.to,
+      data: params.data,
+      value: params.value ?? 0n,
     })
 
     consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
 
-    // Try to get receipt with 30 second timeout
+    // Wait for receipt with 30 second timeout
     let receipt: TransactionReceipt | null = null
 
     try {
@@ -67,7 +71,8 @@ export class EvmChainExecutor implements IChainExecutor {
         timeoutPromise,
       ])) as TransactionReceipt
 
-      if (receipt.status === 'success') return { hash: txHash, receipt }
+      if (receipt.status === 'success')
+        return { hash: txHash, receipt, gasUsed: receipt.gasUsed }
       else throw new Error(`Transaction failed with status: ${receipt.status}`)
     } catch (timeoutError: unknown) {
       const errorMsg =

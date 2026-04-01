@@ -40,7 +40,7 @@ import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
-import { getRPCEnvVarName, node_url } from '../../utils/network'
+import { getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,

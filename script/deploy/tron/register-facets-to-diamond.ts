@@ -8,26 +8,20 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
-import { fetchWithTimeout } from '../../utils/fetchWithTimeout.js'
+import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 
-import {
-  TRON_DIAMOND_FACET_GROUPS,
-  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
-  TRON_WALLET_API_FETCH_TIMEOUT_MS,
-} from './constants.js'
-import { buildTronWalletJsonPostHeaders } from './helpers/tronRpcConfig.js'
-import type { TronTvmNetworkName } from './helpers/tronTvmChain.js'
+import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
+import { getCurrentPrices } from './helpers/tronPricing.js'
 import { createTronWeb } from './helpers/tronWebFactory.js'
 import {
   tryTronFacetLoupeAddressToBase58,
   tronAddressToHex,
 } from './tronAddressHelpers.js'
 import {
-  getEnvironment,
-  updateDiamondJsonBatch,
-  getCurrentPrices,
+  estimateDiamondCutEnergy,
   waitBetweenDeployments,
-} from './utils.js'
+} from './tronUtils.js'
+import type { TronTvmNetworkName } from './types.js'
 
 /**
  * Extract function selectors from compiled artifact
@@ -94,116 +88,6 @@ function getAllFacetSelectors(): Record<string, string[]> {
     }
 
   return facetSelectors
-}
-
-/**
- * Estimate energy for diamondCut transaction using triggerconstantcontract
- */
-async function estimateDiamondCutEnergy(
-  tronWeb: any,
-  diamondAddress: string,
-  facetCuts: any[],
-  fullHost: string
-): Promise<number> {
-  try {
-    consola.info(
-      ' Calling triggerconstantcontract API for energy estimation...'
-    )
-
-    // Diamond address should stay in base58 for Tron API
-
-    // Encode parameters (without function selector)
-    // facetCuts is already formatted as arrays
-    const encodedParams = tronWeb.utils.abi.encodeParams(
-      ['(address,uint8,bytes4[])[]', 'address', 'bytes'],
-      [facetCuts, '0x0000000000000000000000000000000000000000', '0x']
-    )
-
-    // Function selector for diamondCut
-    const functionSelector =
-      'diamondCut((address,uint8,bytes4[])[],address,bytes)'
-
-    // Make API call to triggerconstantcontract
-    const apiUrl =
-      fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
-
-    const payload = {
-      owner_address: tronWeb.defaultAddress.base58,
-      contract_address: diamondAddress, // Use base58 format for Tron API
-      function_selector: functionSelector,
-      parameter: encodedParams.replace('0x', ''),
-      fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
-      call_value: 0,
-      visible: true,
-    }
-
-    consola.info('📤 Sending payload to:', apiUrl)
-    consola.info('Payload:', {
-      owner_address: payload.owner_address,
-      contract_address: payload.contract_address,
-      function_selector: payload.function_selector,
-      parameter_length: payload.parameter.length,
-      parameter_preview: payload.parameter.substring(0, 100) + '...',
-      fee_limit: payload.fee_limit,
-      call_value: payload.call_value,
-      visible: payload.visible,
-    })
-
-    let response: Response
-    try {
-      response = await fetchWithTimeout(
-        apiUrl,
-        {
-          method: 'POST',
-          headers: buildTronWalletJsonPostHeaders(fullHost),
-          body: JSON.stringify(payload),
-        },
-        TRON_WALLET_API_FETCH_TIMEOUT_MS
-      )
-    } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError')
-        throw new Error(
-          `triggerconstantcontract timed out after ${TRON_WALLET_API_FETCH_TIMEOUT_MS}ms`
-        )
-      throw e
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API call failed: ${response.status} - ${errorText}`)
-    }
-
-    const result = await response.json()
-
-    consola.info(' Estimation API response:', JSON.stringify(result, null, 2))
-
-    if (result.result?.result === false)
-      throw new Error(
-        `Energy estimation failed: ${
-          result.result?.message || JSON.stringify(result)
-        }`
-      )
-
-    if (result.energy_used) {
-      consola.info(` Raw energy estimate: ${result.energy_used}`)
-      // The actual transaction uses much more energy than the estimate
-      // Multiply by 10x for safety
-      const safetyMultiplier = 10
-      const estimatedEnergy = Math.ceil(result.energy_used * safetyMultiplier)
-      consola.info(
-        ` Energy with ${safetyMultiplier}x safety margin: ${estimatedEnergy}`
-      )
-      consola.warn(` Note: Actual energy usage may be higher than estimate`)
-      return estimatedEnergy
-    }
-
-    throw new Error(
-      `No energy estimation returned. Full response: ${JSON.stringify(result)}`
-    )
-  } catch (error: any) {
-    consola.error(' Failed to estimate energy:', error.message)
-    throw error
-  }
 }
 
 /**

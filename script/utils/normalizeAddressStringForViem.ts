@@ -1,3 +1,9 @@
+/**
+ * Network-aware address normalisation for viem.
+ * Converts Tron base58 addresses to checksummed `0x` hex; passes EVM addresses through `getAddress`.
+ * Import `normalizeAddressForNetwork` wherever you need to handle both Tron and EVM addresses uniformly.
+ */
+
 import { getAddress, type Address } from 'viem'
 
 import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
