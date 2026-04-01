@@ -109,6 +109,11 @@
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
         "allowToDeployWithZeroAddress": "false"
       },
+      "_wrappedNative": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      },
       "_sponsoredOftSrcPeriphery": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.sponsoredOftSrcPeriphery",

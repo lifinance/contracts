@@ -45,6 +45,9 @@ contract AcrossV4SwapFacet is
     /// @notice The contract address of the SpokePool on the source chain
     address public immutable SPOKE_POOL;
 
+    /// @notice The wrapped native token address on the source chain (e.g. WETH)
+    address public immutable WRAPPED_NATIVE;
+
     /// @notice The contract address of the SponsoredOFTSrcPeriphery on the source chain
     address public immutable SPONSORED_OFT_SRC_PERIPHERY;
 
@@ -90,24 +93,31 @@ contract AcrossV4SwapFacet is
     /// @notice Initialize the contract
     /// @param _spokePoolPeriphery The contract address of the SpokePoolPeriphery
     /// @param _spokePool The contract address of the SpokePool
+    /// @param _wrappedNative The wrapped native token address on this chain (e.g. WETH)
     /// @param _sponsoredOftSrcPeriphery The contract address of the SponsoredOFTSrcPeriphery
     /// @param _sponsoredCctpSrcPeriphery The contract address of the SponsoredCCTPSrcPeriphery
     /// @param _backendSigner The address of the backend signer (Across V4 Swap unsigned paths)
     constructor(
         ISpokePoolPeriphery _spokePoolPeriphery,
         address _spokePool,
+        address _wrappedNative,
         address _sponsoredOftSrcPeriphery,
         address _sponsoredCctpSrcPeriphery,
         address _backendSigner
     ) {
         // _sponsoredOftSrcPeriphery, _sponsoredCctpSrcPeriphery and _spokePoolPeriphery can be address(0) as
         // they are not available on all chains
-        if (_spokePool == address(0) || _backendSigner == address(0)) {
+        if (
+            _spokePool == address(0) ||
+            _wrappedNative == address(0) ||
+            _backendSigner == address(0)
+        ) {
             revert InvalidConfig();
         }
 
         SPOKE_POOL_PERIPHERY = _spokePoolPeriphery;
         SPOKE_POOL = _spokePool;
+        WRAPPED_NATIVE = _wrappedNative;
         SPONSORED_OFT_SRC_PERIPHERY = _sponsoredOftSrcPeriphery;
         SPONSORED_CCTP_SRC_PERIPHERY = _sponsoredCctpSrcPeriphery;
         BACKEND_SIGNER = _backendSigner;
@@ -315,10 +325,14 @@ contract AcrossV4SwapFacet is
 
         // Validate asset matches for ERC20 flows
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
-        if (!isNative) {
-            address decodedInputToken = address(
-                uint160(uint256(params.inputToken))
-            );
+        address decodedInputToken = address(
+            uint160(uint256(params.inputToken))
+        );
+        if (isNative) {
+            if (decodedInputToken != WRAPPED_NATIVE) {
+                revert InformationMismatch();
+            }
+        } else {
             if (decodedInputToken != _bridgeData.sendingAssetId) {
                 revert InformationMismatch();
             }
@@ -399,6 +413,14 @@ contract AcrossV4SwapFacet is
 
         uint256 msgValue;
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // When bridging native, Across periphery expects wrapped native token addresses in calldata.
+            // Enforce that backend-provided calldata uses the correct wrapped native.
+            if (
+                swapAndDepositData.swapToken != WRAPPED_NATIVE ||
+                swapAndDepositData.depositData.inputToken != WRAPPED_NATIVE
+            ) {
+                revert InformationMismatch();
+            }
             msgValue = _bridgeData.minAmount;
         } else {
             // For ERC20, ensure swapToken matches sendingAssetId (what the diamond holds).

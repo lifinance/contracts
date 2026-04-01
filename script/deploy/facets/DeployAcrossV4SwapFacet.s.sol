@@ -23,6 +23,10 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/across.json");
+        string memory networksPath = string.concat(
+            root,
+            "/config/networks.json"
+        );
 
         address spokePoolPeriphery = _getConfigContractAddress(
             path,
@@ -31,6 +35,12 @@ contract DeployScript is DeployScriptBase {
         address spokePool = _getConfigContractAddress(
             path,
             string.concat(".", network, ".acrossSpokePool")
+        );
+        address wrappedNative = _getConfigContractAddress(
+            networksPath,
+            string.concat(".", network, ".wrappedNativeAddress"),
+            false,
+            false
         );
         address sponsoredOftSrcPeriphery = _getConfigContractAddress(
             path,
@@ -60,6 +70,7 @@ contract DeployScript is DeployScriptBase {
             abi.encode(
                 spokePoolPeriphery,
                 spokePool,
+                wrappedNative,
                 sponsoredOftSrcPeriphery,
                 sponsoredCctpSrcPeriphery,
                 backendSigner

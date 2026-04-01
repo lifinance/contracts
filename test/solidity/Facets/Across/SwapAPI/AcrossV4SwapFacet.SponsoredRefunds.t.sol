@@ -22,6 +22,7 @@ contract TestAcrossV4SwapFacetSponsoredRefunds is
     constructor(
         ISpokePoolPeriphery _spokePoolPeriphery,
         address _spokePool,
+        address _wrappedNative,
         address _sponsoredOftSrcPeriphery,
         address _sponsoredCctpSrcPeriphery,
         address _backendSigner
@@ -29,6 +30,7 @@ contract TestAcrossV4SwapFacetSponsoredRefunds is
         AcrossV4SwapFacet(
             _spokePoolPeriphery,
             _spokePool,
+            _wrappedNative,
             _sponsoredOftSrcPeriphery,
             _sponsoredCctpSrcPeriphery,
             _backendSigner
@@ -70,6 +72,10 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
             "across.json",
             ".arbitrum.acrossSpokePool"
         );
+        address wrappedNative = getConfigAddressFromPath(
+            "networks.json",
+            ".arbitrum.wrappedNativeAddress"
+        );
         sponsoredOftSrcPeriphery = getConfigAddressFromPath(
             "across.json",
             ".arbitrum.sponsoredOftSrcPeriphery"
@@ -82,6 +88,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         TestAcrossV4SwapFacetSponsoredRefunds facetImpl = new TestAcrossV4SwapFacetSponsoredRefunds(
                 ISpokePoolPeriphery(spokePoolPeriphery),
                 spokePool,
+                wrappedNative,
                 sponsoredOftSrcPeriphery,
                 sponsoredCctpSrcPeriphery,
                 backendSigner

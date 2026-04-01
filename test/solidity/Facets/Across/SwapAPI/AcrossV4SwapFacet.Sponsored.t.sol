@@ -24,6 +24,7 @@ contract TestAcrossV4SwapFacetSponsored is
     constructor(
         ISpokePoolPeriphery _spokePoolPeriphery,
         address _spokePool,
+        address _wrappedNative,
         address _sponsoredOftSrcPeriphery,
         address _sponsoredCctpSrcPeriphery,
         address _backendSigner
@@ -31,6 +32,7 @@ contract TestAcrossV4SwapFacetSponsored is
         AcrossV4SwapFacet(
             _spokePoolPeriphery,
             _spokePool,
+            _wrappedNative,
             _sponsoredOftSrcPeriphery,
             _sponsoredCctpSrcPeriphery,
             _backendSigner
@@ -89,6 +91,10 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ".arbitrum.spokePoolPeriphery"
         );
         spokePool = _configAddress("across.json", ".arbitrum.acrossSpokePool");
+        address wrappedNative = _configAddress(
+            "networks.json",
+            ".arbitrum.wrappedNativeAddress"
+        );
         sponsoredOftSrcPeriphery = _configAddress(
             "across.json",
             ".arbitrum.sponsoredOftSrcPeriphery"
@@ -105,6 +111,7 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         TestAcrossV4SwapFacetSponsored facetImpl = new TestAcrossV4SwapFacetSponsored(
                 ISpokePoolPeriphery(spokePoolPeriphery),
                 spokePool,
+                wrappedNative,
                 sponsoredOftSrcPeriphery,
                 sponsoredCctpSrcPeriphery,
                 backendSigner

@@ -54,6 +54,7 @@ contract TestAcrossV4SwapFacetRefundOrdering is
     constructor(
         ISpokePoolPeriphery _spokePoolPeriphery,
         address _spokePool,
+        address _wrappedNative,
         address _sponsoredOftSrcPeriphery,
         address _sponsoredCctpSrcPeriphery,
         address _backendSigner
@@ -61,6 +62,7 @@ contract TestAcrossV4SwapFacetRefundOrdering is
         AcrossV4SwapFacet(
             _spokePoolPeriphery,
             _spokePool,
+            _wrappedNative,
             _sponsoredOftSrcPeriphery,
             _sponsoredCctpSrcPeriphery,
             _backendSigner
@@ -99,6 +101,7 @@ contract AcrossV4SwapFacetSponsoredRefundOrderingTest is Test, DiamondTest {
         TestAcrossV4SwapFacetRefundOrdering facetImpl = new TestAcrossV4SwapFacetRefundOrdering(
                 ISpokePoolPeriphery(address(0)),
                 address(0xBEEF), // required non-zero
+                address(0xB0B), // required non-zero wrapped native
                 address(0),
                 address(cctpPeriphery),
                 address(0xCAFE) // required non-zero

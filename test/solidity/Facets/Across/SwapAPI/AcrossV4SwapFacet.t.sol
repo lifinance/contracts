@@ -17,6 +17,7 @@ contract TestAcrossV4SwapFacet is AcrossV4SwapFacet, TestWhitelistManagerBase {
     constructor(
         ISpokePoolPeriphery _spokePoolPeriphery,
         address _spokePool,
+        address _wrappedNative,
         address _sponsoredOftSrcPeriphery,
         address _sponsoredCctpSrcPeriphery,
         address _backendSigner
@@ -24,6 +25,7 @@ contract TestAcrossV4SwapFacet is AcrossV4SwapFacet, TestWhitelistManagerBase {
         AcrossV4SwapFacet(
             _spokePoolPeriphery,
             _spokePool,
+            _wrappedNative,
             _sponsoredOftSrcPeriphery,
             _sponsoredCctpSrcPeriphery,
             _backendSigner
@@ -36,7 +38,6 @@ contract TestAcrossV4SwapFacet is AcrossV4SwapFacet, TestWhitelistManagerBase {
     ) external pure returns (uint32) {
         return _chainIdToCctpDomainId(_chainId);
     }
-
 }
 
 contract MockSpokePoolPeriphery is ISpokePoolPeriphery {
@@ -245,6 +246,7 @@ contract AcrossV4SwapFacetTest is
         acrossV4SwapFacet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -319,6 +321,7 @@ contract AcrossV4SwapFacetTest is
         acrossV4SwapFacet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -329,6 +332,7 @@ contract AcrossV4SwapFacetTest is
             SPOKE_POOL_PERIPHERY
         );
         assertEq(acrossV4SwapFacet.SPOKE_POOL(), SPOKE_POOL);
+        assertEq(acrossV4SwapFacet.WRAPPED_NATIVE(), WETH);
         assertEq(
             acrossV4SwapFacet.SPONSORED_OFT_SRC_PERIPHERY(),
             SPONSORED_OFT_SRC_PERIPHERY
@@ -343,6 +347,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet facetWithZeroPeripheries = new TestAcrossV4SwapFacet(
                 ISpokePoolPeriphery(address(0)),
                 SPOKE_POOL,
+                WETH,
                 address(0),
                 address(0),
                 backendSigner
@@ -352,6 +357,7 @@ contract AcrossV4SwapFacetTest is
             address(0)
         );
         assertEq(facetWithZeroPeripheries.SPOKE_POOL(), SPOKE_POOL);
+        assertEq(facetWithZeroPeripheries.WRAPPED_NATIVE(), WETH);
         assertEq(
             facetWithZeroPeripheries.SPONSORED_OFT_SRC_PERIPHERY(),
             address(0)
@@ -368,6 +374,20 @@ contract AcrossV4SwapFacetTest is
         new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             address(0),
+            WETH,
+            address(0),
+            address(0),
+            backendSigner
+        );
+    }
+
+    function testRevert_WhenConstructedWithZeroWrappedNative() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestAcrossV4SwapFacet(
+            ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
+            SPOKE_POOL,
+            address(0),
             address(0),
             address(0),
             backendSigner
@@ -380,6 +400,7 @@ contract AcrossV4SwapFacetTest is
         new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             address(0),
             address(0),
             address(0)
@@ -433,7 +454,9 @@ contract AcrossV4SwapFacetTest is
     /// @dev Covers `revert InvalidSignature()` when the signature is well-formed but from a
     ///      different signer. Short/garbage signatures cause ECDSA.recover to revert before
     ///      we reach the comparison; a valid signature from another key reaches the check.
-    function testRevert_SpokePoolPeriphery_WhenSignatureFromWrongSigner() public {
+    function testRevert_SpokePoolPeriphery_WhenSignatureFromWrongSigner()
+        public
+    {
         bytes memory callData = _buildCallData(bridgeData.minAmount);
         bytes32 digest = _acrossV4SwapDigest(
             bridgeData,
@@ -558,6 +581,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet localFacet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -675,6 +699,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet localFacet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -790,6 +815,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet localFacet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(address(mockPeriphery)),
             mockSpokePool,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -867,6 +893,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet localFacet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(address(mockPeriphery)),
             mockSpokePool,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -884,7 +911,7 @@ contract AcrossV4SwapFacetTest is
 
         ISpokePoolPeriphery.BaseDepositData
             memory depositData = ISpokePoolPeriphery.BaseDepositData({
-                inputToken: address(0),
+                inputToken: WETH,
                 outputToken: bytes32(0),
                 outputAmount: 0,
                 depositor: USER_SENDER,
@@ -905,7 +932,7 @@ contract AcrossV4SwapFacetTest is
                         recipient: address(0)
                     }),
                     depositData: depositData,
-                    swapToken: address(0),
+                    swapToken: WETH,
                     exchange: address(0),
                     transferType: ISpokePoolPeriphery.TransferType.Approval,
                     swapTokenAmount: amount,
@@ -1158,6 +1185,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet standaloneFacet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -1177,7 +1205,7 @@ contract AcrossV4SwapFacetTest is
         );
 
         vm.expectRevert(InvalidCallData.selector);
-        (bool success,) = address(standaloneFacet).call(encoded);
+        (bool success, ) = address(standaloneFacet).call(encoded);
         assertFalse(success, "expected InvalidCallData revert");
 
         vm.stopPrank();
@@ -1439,6 +1467,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet facet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -1501,6 +1530,7 @@ contract AcrossV4SwapFacetTest is
         TestAcrossV4SwapFacet facet = new TestAcrossV4SwapFacet(
             ISpokePoolPeriphery(SPOKE_POOL_PERIPHERY),
             SPOKE_POOL,
+            WETH,
             SPONSORED_OFT_SRC_PERIPHERY,
             SPONSORED_CCTP_SRC_PERIPHERY,
             backendSigner
@@ -1518,12 +1548,22 @@ contract AcrossV4SwapFacetTest is
         // Skipped: base uses USDC + defaultUSDCAmount; this facet's bridgeData uses WETH + swapTokenAmount.
     }
 
+    function testBase_CanBridgeNativeTokens() public override {
+        // Skipped: base's generic native-token path does not build Swap API calldata with WRAPPED_NATIVE.
+        // Native coverage is provided by `test_SpokePoolPeriphery_NativeAsset_ForwardsMsgValue`.
+    }
+
     function testBase_CanBridgeTokens_fuzzed(uint256) public override {
         // Skipped: same mismatch as testBase_CanBridgeTokens.
     }
 
     function testBase_CanSwapAndBridgeTokens() public override {
         // Skipped: base uses DAI->USDC swap and defaultUSDCAmount; facet expects SpokePoolPeriphery calldata (WETH).
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        // Skipped: base's generic native-token swap path does not build Swap API calldata with WRAPPED_NATIVE.
+        // Native coverage is provided by `test_SpokePoolPeriphery_NativeAsset_ForwardsMsgValue`.
     }
 
     /// Abstract function implementations ///
