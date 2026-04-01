@@ -126,6 +126,8 @@ deployAllContracts() {
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
     checkRequiredVariablesInDotEnv "$NETWORK"
+    local CREATE3_ADDRESS
+    CREATE3_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.create3Factory")
 
     echo "isZkEVM: $(isZkEvmNetwork "$NETWORK")"
 
