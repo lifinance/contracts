@@ -16,7 +16,7 @@ import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidCallDat
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging USDC through Polymer CCTP
-/// @custom:version 2.0.0
+/// @custom:version 2.0.1
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -269,61 +269,77 @@ contract PolymerCCTPFacet is
     function _chainIdToDomainId(
         uint256 chainId
     ) internal pure returns (uint32) {
-        // Mainnet chain IDs
-        if (chainId == 1) {
-            return 0; // Ethereum
-        }
-        if (chainId == 43114) {
-            return 1; // Avalanche
-        }
-        if (chainId == 10) {
-            return 2; // OP Mainnet
-        }
-        if (chainId == 42161) {
-            return 3; // Arbitrum
-        }
-        if (chainId == LIFI_CHAIN_ID_SOLANA) {
-            return 5; // Solana
-        }
-        if (chainId == 8453) {
-            return 6; // Base
-        }
-        if (chainId == 137) {
-            return 7; // Polygon PoS
-        }
-        if (chainId == 130) {
-            return 10; // Unichain
-        }
-        if (chainId == 59144) {
-            return 11; // Linea
-        }
-        if (chainId == 81224) {
-            return 12; // Codex
-        }
-        if (chainId == 146) {
-            return 13; // Sonic
-        }
-        if (chainId == 480) {
-            return 14; // World Chain
-        }
-        if (chainId == 143) {
-            return 15; // Monad
-        }
-        if (chainId == 1329) {
-            return 16; // Sei
-        }
-        if (chainId == 50) {
-            return 18; // XDC
-        }
-        if (chainId == 999) {
-            return 19; // HyperEVM
-        }
-        if (chainId == 57073) {
-            return 21; // Ink
-        }
-        if (chainId == 98866) {
-            return 22; // Plume
-        }
+        // Ethereum
+        if (chainId == 1) return 0; // Ethereum
+        if (chainId == 11155111) return 0; // Sepolia
+
+        // Avalanche
+        if (chainId == 43114) return 1; // Avalanche
+        if (chainId == 43113) return 1; // Avalanche Fuji
+
+        // Optimism
+        if (chainId == 10) return 2; // OP Mainnet
+        if (chainId == 11155420) return 2; // OP Sepolia
+
+        // Arbitrum
+        if (chainId == 42161) return 3; // Arbitrum
+        if (chainId == 421614) return 3; // Arbitrum Sepolia
+
+        // Solana
+        if (chainId == LIFI_CHAIN_ID_SOLANA) return 5; // Solana
+
+        // Base
+        if (chainId == 8453) return 6; // Base
+        if (chainId == 84532) return 6; // Base Sepolia
+
+        // Polygon
+        if (chainId == 137) return 7; // Polygon PoS
+        if (chainId == 80002) return 7; // Polygon Amoy
+
+        // Unichain
+        if (chainId == 130) return 10; // Unichain
+        if (chainId == 1301) return 10; // Unichain Sepolia
+
+        // Linea
+        if (chainId == 59144) return 11; // Linea
+        if (chainId == 59141) return 11; // Linea Testnet
+
+        // Codex
+        if (chainId == 81224) return 12; // Codex
+
+        // Sonic
+        if (chainId == 146) return 13; // Sonic
+        if (chainId == 57054) return 13; // Sonic Testnet
+
+        // World Chain
+        if (chainId == 480) return 14; // World Chain
+        if (chainId == 4801) return 14; // World Chain Testnet
+
+        // Monad
+        if (chainId == 143) return 15; // Monad
+        if (chainId == 10143) return 15; // Monad Testnet
+
+        // Sei
+        if (chainId == 1329) return 16; // Sei
+
+        // XDC
+        if (chainId == 50) return 18; // XDC
+
+        // HyperEVM
+        if (chainId == 999) return 19; // HyperEVM
+        if (chainId == 998) return 19; // HyperEVM Testnet
+
+        // Ink
+        if (chainId == 57073) return 21; // Ink
+        if (chainId == 763373) return 21; // Ink Testnet
+
+        // Plume
+        if (chainId == 98866) return 22; // Plume
+        if (chainId == 98867) return 22; // Plume Testnet
+
+        // Arc
+        if (chainId == 5042002) return 26; // Arc Testnet
+
         revert InvalidCallData();
     }
 }

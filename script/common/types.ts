@@ -34,6 +34,7 @@ export interface INetwork {
   safeWebUrl?: string
   create3Factory?: string
   devNotes?: string
+  castSendAsync?: boolean
   /**
    * Custom verification flags to pass to forge verify-contract command.
    * Format: JSON object where keys are flag names and values are flag values (or null for flags without values).
