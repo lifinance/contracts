@@ -523,7 +523,13 @@ async function deployLocalContracts(
   walletClient: any,
   evmVersion: EVMVersion
 ) {
-  const basePath = evmVersion === 'london' ? 'london' : 'cancun'
+  if (evmVersion !== 'london' && evmVersion !== 'cancun') {
+    throw new Error(
+      `No local Safe artifacts available for EVM version '${evmVersion}'`
+    )
+  }
+
+  const basePath = evmVersion
 
   const SAFE_ARTIFACT = JSON.parse(
     readFileSync(

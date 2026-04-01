@@ -16,17 +16,15 @@ import networksConfig from '../../config/networks.json'
 import type {
   EVMVersion,
   IDeploymentResult,
+  IFoundryProfileDefaultConfig,
+  IFoundryTomlConfig,
   INetwork,
   INetworkInfo,
   INetworksObject,
   SupportedChain,
 } from '../common/types'
 import { EnvironmentEnum } from '../common/types'
-import {
-  EVM_VERSIONS,
-  FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK,
-  FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK,
-} from '../deploy/shared/constants'
+import { EVM_VERSIONS } from '../deploy/shared/constants'
 import { getContractVersion } from '../deploy/shared/getContractVersion'
 
 import { spawnAndCapture } from './spawnAndCapture'
@@ -76,54 +74,59 @@ const FOUNDRY_TOML_PATH = resolve(
   '../../foundry.toml'
 )
 
-function readFoundryProfileDefaultSection(): string {
-  const toml = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
-  const parts = toml.split(/^\[(?!profile\.default\])/m)
-  return parts[0] ?? ''
+function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
+  const parsed = Bun.TOML.parse(
+    readFileSync(FOUNDRY_TOML_PATH, 'utf8')
+  ) as IFoundryTomlConfig
+
+  const defaultProfile = parsed.profile?.default
+  if (!defaultProfile)
+    throw new Error('Missing [profile.default] section in foundry.toml')
+
+  return defaultProfile
 }
 
 /**
- * Returns `solc_version` from `[profile.default]` in `foundry.toml` (e.g. `0.8.29`), or
- * `FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK` from `constants.ts` if missing/unreadable.
+ * Returns `solc_version` from `[profile.default]` in `foundry.toml` (e.g. `0.8.29`).
+ * @throws If `foundry.toml` cannot be read or `solc_version` is missing.
  */
 export function getFoundryDefaultSolcVersion(): string {
   try {
-    const defaultSection = readFoundryProfileDefaultSection()
-    const match = defaultSection.match(/solc_version\s*=\s*['"]([^'"]+)['"]/)
-    if (match?.[1]) return match[1]
-  } catch {
-    consola.warn(
-      `Could not read foundry.toml, defaulting SOLC version to ${JSON.stringify(
-        FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK
-      )}`
+    const solcVersion = readFoundryProfileDefaultConfig().solc_version?.trim()
+    if (!solcVersion)
+      throw new Error('Missing [profile.default].solc_version in foundry.toml')
+    return solcVersion
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Failed to determine SOLC version from foundry.toml: ${message}`
     )
   }
-  return FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK
 }
 
 /**
  * Returns `evm_version` from `[profile.default]` in `foundry.toml`, validated against `EVM_VERSIONS`
- * in `constants.ts`, or `FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK` on failure.
+ * in `constants.ts`.
+ * @throws If `foundry.toml` cannot be read, `evm_version` is missing, or the value is unsupported.
  */
 export function getFoundryDefaultEvmVersion(): EVMVersion {
   try {
-    const defaultSection = readFoundryProfileDefaultSection()
-    if (!defaultSection) return FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK
-    const match = defaultSection.match(/evm_version\s*=\s*['"](\w+)['"]/)
-    if (match?.[1]) {
-      const v = match[1].toLowerCase()
-      if ((EVM_VERSIONS as readonly string[]).includes(v))
-        return v as EVMVersion
-      consola.warn(
-        `foundry.toml evm_version '${v}' not in known EVM_VERSIONS, falling back to '${FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK}'`
-      )
-    }
-  } catch {
-    consola.warn(
-      `Could not read foundry.toml, defaulting EVM version to ${FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK}`
+    const evmVersion = readFoundryProfileDefaultConfig()
+      .evm_version?.trim()
+      .toLowerCase()
+    if (!evmVersion)
+      throw new Error('Missing [profile.default].evm_version in foundry.toml')
+    if ((EVM_VERSIONS as readonly string[]).includes(evmVersion))
+      return evmVersion as EVMVersion
+    throw new Error(
+      `foundry.toml evm_version '${evmVersion}' is not in known EVM_VERSIONS`
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Failed to determine EVM version from foundry.toml: ${message}`
     )
   }
-  return FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK
 }
 
 /**

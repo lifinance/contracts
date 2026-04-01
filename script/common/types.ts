@@ -83,6 +83,20 @@ export interface INetwork {
   skipHealthcheck?: boolean
 }
 
+/** Parsed subset of `foundry.toml` used by script helpers that read default compiler/EVM settings. */
+export interface IFoundryTomlConfig {
+  profile?: {
+    default?: {
+      solc_version?: string
+      evm_version?: string
+    }
+  }
+}
+
+export type IFoundryProfileDefaultConfig = NonNullable<
+  NonNullable<IFoundryTomlConfig['profile']>['default']
+>
+
 /**
  * Whitelist configuration structure for DEX and Periphery contracts
  * Used in health check scripts to validate on-chain whitelist state

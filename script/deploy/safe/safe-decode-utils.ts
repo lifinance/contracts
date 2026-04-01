@@ -63,19 +63,6 @@ function safeNormalizeAddress(address: string): string {
     return address.toLowerCase()
   }
 }
-/** Normalizes a raw address from deployment JSON to a lowercase comparable string; returns undefined on failure. */
-function normalizeDeploymentAddress(
-  network: string,
-  raw: string
-): string | undefined {
-  const trimmed = raw.trim()
-  if (!trimmed) return undefined
-  try {
-    return normalizeAddressForNetwork(network, trimmed).toLowerCase()
-  } catch {
-    return undefined
-  }
-}
 
 function computeSelectorFromSignature(signature: string): string {
   const hash = keccak256(stringToHex(signature))
@@ -187,19 +174,27 @@ export async function getTargetName(
       if (isRecord(deployments)) {
         const diamond = deployments.LiFiDiamond
         if (typeof diamond === 'string') {
-          const diamondKey = normalizeDeploymentAddress(network, diamond)
-          if (diamondKey === normalizedAddress) return '(LiFiDiamond)'
+          if (
+            normalizeAddressForNetwork(network, diamond).toLowerCase() ===
+            normalizedAddress
+          )
+            return '(LiFiDiamond)'
         }
         const timelock = deployments.LiFiTimelockController
         if (typeof timelock === 'string') {
-          const timelockKey = normalizeDeploymentAddress(network, timelock)
-          if (timelockKey === normalizedAddress)
+          if (
+            normalizeAddressForNetwork(network, timelock).toLowerCase() ===
+            normalizedAddress
+          )
             return '(LiFiTimelockController)'
         }
         for (const [name, value] of Object.entries(deployments)) {
           if (typeof value !== 'string') continue
-          const addr = normalizeDeploymentAddress(network, value)
-          if (addr === normalizedAddress) return `(${name})`
+          if (
+            normalizeAddressForNetwork(network, value).toLowerCase() ===
+            normalizedAddress
+          )
+            return `(${name})`
         }
       }
     } catch {
