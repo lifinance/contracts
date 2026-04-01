@@ -76,12 +76,14 @@ jobs:
               echo "✅ Confirmed: Network '$network' exists in script/deploy/_targetState.json"
             fi
 
-            # Check if deployments/{network}.json file exists
-            if [[ ! -f "deployments/$network.json" ]]; then
-              echo "❌ Error: Missing deployment file: deployments/$network.json"
+            DEPLOY_FILE="deployments/$network.json"
+
+            # Check if the deployment file exists
+            if [[ ! -f "$DEPLOY_FILE" ]]; then
+              echo "❌ Error: Missing deployment file: $DEPLOY_FILE"
               exit 1
             else
-              echo "✅ Confirmed: Deployment file: deployments/$network.json exists"
+              echo "✅ Confirmed: Deployment file: $DEPLOY_FILE exists"
             fi
           done
 
