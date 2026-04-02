@@ -113,6 +113,7 @@ scroll = "${ETH_NODE_URI_SCROLL}"
 
 # testnets
 basesepolia = "${ETH_NODE_URI_BASESEPOLIA}"
+arbitrumsepolia = "${ETH_NODE_URI_ARBITRUMSEPOLIA}"
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 optimismsepolia = "${ETH_NODE_URI_OPTIMISMSEPOLIA}"
 
@@ -188,4 +189,5 @@ zksync = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://zksync2-main
 
 # testnets
 basesepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=84532", chain = "84532" }
+arbitrumsepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=421614", chain = "421614" }
 optimismsepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155420", chain = "11155420" }

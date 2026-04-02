@@ -81,7 +81,7 @@
     "polymerFeeReceiver": ""
   },
   "---------- TEST NETWORKS -----------": {},
-  "arbitrumSepolia": {
+  "arbitrumsepolia": {
     "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
     "usdc": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
     "polymerFeeReceiver": "0x3d1ed7307Ee6dEB2e1cEA9D96C33574fA2a35Bb6"
