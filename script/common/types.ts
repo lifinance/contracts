@@ -4,7 +4,14 @@
  */
 import type { Address, Hex, TransactionReceipt } from 'viem'
 
+import type globalConfigJson from '../../config/global.json'
 import type networks from '../../config/networks.json'
+
+/** Shape of `config/global.json` (for deriving wallet keys and config-driven types). */
+export type TGlobalConfig = typeof globalConfigJson
+
+/** Keys of `tronWallets` in global config (Tron base58 addresses). */
+export type TTronWalletName = keyof TGlobalConfig['tronWallets']
 
 export type SupportedChain = keyof typeof networks
 

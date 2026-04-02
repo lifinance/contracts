@@ -14,7 +14,6 @@ import {
   type PublicClient,
 } from 'viem'
 
-import { corePeriphery } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
@@ -31,7 +30,11 @@ import {
 
 import targetStateImport from './_targetState.json'
 import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
-import { getCoreFacets } from './shared/globalContractLists'
+import {
+  getCoreFacets,
+  getCorePeriphery,
+  getTronWallet,
+} from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -39,7 +42,6 @@ import {
   callTronContract,
   callTronContractBoolean,
   ensureTronAddress,
-  getTronWallet,
   checkOwnershipTron,
   parseTroncastNestedArray,
   checkIsDeployedTron,
@@ -180,7 +182,7 @@ const main = defineCommand({
         nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter((k) => {
           return (
             !coreFacetsToCheck.includes(k) &&
-            !corePeriphery.includes(k) &&
+            !getCorePeriphery().includes(k) &&
             k !== 'LiFiDiamond' &&
             k.includes('Facet')
           )
@@ -407,7 +409,7 @@ const main = defineCommand({
       // Filter optional periphery contracts that are intentionally absent on this network.
       let peripheryToCheck = isTron
         ? getTronCorePeriphery()
-        : globalConfig.corePeriphery
+        : getCorePeriphery()
       if (!supportsGasZip) {
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
@@ -496,10 +498,9 @@ const main = defineCommand({
         targetState[networkLower]?.production?.LiFiDiamond || {}
       let contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
-          (isTron
-            ? getTronCorePeriphery()
-            : globalConfig.corePeriphery
-          ).includes(contract) ||
+          (isTron ? getTronCorePeriphery() : getCorePeriphery()).includes(
+            contract
+          ) ||
           Object.keys(globalConfig.whitelistPeripheryFunctions).includes(
             contract
           )
@@ -685,11 +686,12 @@ const main = defineCommand({
     let pauserWalletAddress: string
 
     if (isTron) {
-      // Use Tron wallets if available, fallback to EVM wallets (will need conversion)
-      deployerWallet = getTronWallet(globalConfig, 'deployerWallet')
-      refundWallet = getTronWallet(globalConfig, 'refundWallet')
-      feeCollectorOwner = getTronWallet(globalConfig, 'feeCollectorOwner')
-      pauserWalletAddress = getTronWallet(globalConfig, 'pauserWallet')
+      if (!tronWeb) throw new Error('TronWeb not initialized')
+
+      deployerWallet = getTronWallet('deployerWallet', { tronWeb })
+      refundWallet = getTronWallet('refundWallet', { tronWeb })
+      feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
+      pauserWalletAddress = getTronWallet('pauserWallet', { tronWeb })
     } else {
       deployerWallet = getAddress(
         environment === 'staging'
