@@ -65,13 +65,12 @@ function universalCall() {
 #   TARGET      - Contract address to call
 #   SIGNATURE   - Function signature (e.g., "transfer(address,uint256)")
 #   ARGS        - Optional: Arguments for cast calldata (space-separated, arrays in brackets)
-#   TIMELOCK    - Optional: "true" to wrap in timelock (EVM production only)
+#   TIMELOCK    - Optional: "true" to wrap in timelock scheduleBatch (production proposals)
 #   PRIVATE_KEY_OVERRIDE - Optional: hex key; when set, use instead of getPrivateKey(network, environment)
 #
 # Routing (handled by sendOrPropose):
-#   - Tron (any env): Direct send via troncast (no Safe/timelock support)
-#   - EVM production: Propose to Safe via propose-to-safe.ts (optional timelock)
-#   - EVM staging: Direct send via cast
+#   - Production (unless SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true): Propose to Safe
+#   - Staging / SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: Direct send
 #
 # Example: universalSend "arbitrum" "staging" "$DIAMOND" "setFee(uint256)" "100"
 # Example: universalSend "arbitrum" "production" "$DIAMOND" "batchSet(address[],bytes4[],bool)" '[addr1,addr2] [0x1234] true' "true"
@@ -111,8 +110,8 @@ function universalSend() {
   return $?
 }
 
-# universalSendRaw: Direct send with pre-built calldata (Tron or EVM). Used by sendOrPropose
-# for Tron (any env) and EVM staging. Does not handle EVM production Safe proposal.
+# universalSendRaw: Direct send with pre-built calldata. Used by sendOrPropose. 
+# Does not handle EVM production Safe proposal.
 #
 # Usage: universalSendRaw NETWORK ENVIRONMENT TARGET CALLDATA [PRIVATE_KEY_OVERRIDE]
 #   NETWORK     - Network name (e.g., "arbitrum", "tron")

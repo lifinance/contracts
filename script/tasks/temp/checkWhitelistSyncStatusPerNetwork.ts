@@ -23,7 +23,7 @@ import {
   type SupportedChain,
 } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 // ABI for WhitelistManagerFacet
