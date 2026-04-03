@@ -14,7 +14,6 @@ set +a
 
 NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
-WHITELIST_JSON_FILE_PATH="config/whitelist.json"
 source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
