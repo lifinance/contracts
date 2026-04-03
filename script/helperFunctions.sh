@@ -12,7 +12,6 @@ set -a
 source .env
 set +a
 
-# hardcoded paths (previously derived via SCRIPT_DIR in config.sh)
 NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
 WHITELIST_JSON_FILE_PATH="config/whitelist.json"
@@ -1154,7 +1153,7 @@ function checkRequiredVariablesInDotEnv() {
     }
 
     # Match lines starting with "network = { key ="
-    tolower($0) ~ "^" network " *= *\\{ *key *= *" {
+    tolower($0) ~ "^" tolower(network) " *= *\\{ *key *= *" {
       n = split($0, parts, "\"");  # Split by double quotes
       for (i = 1; i <= n; i++) {
         if (index(parts[i], "${") == 1) {  # Look for ${...}
@@ -3762,7 +3761,7 @@ function isZkEvmNetwork() {
   fi
 }
 
-function isActiveMainnet() {
+function isNetworkActive() {
   # read function arguments into variables
   local NETWORK="$1"
 
@@ -3772,11 +3771,10 @@ function isActiveMainnet() {
     return 1 # false
   fi
 
-  local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
   local STATUS=$(jq -r --arg network "$NETWORK" '.[$network].status // empty' "$NETWORKS_JSON_FILE_PATH")
 
-  # Check if both values are present and match required conditions
-  if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
+  # Treat any active network as eligible, including testnets.
+  if [[ "$STATUS" == "active" ]]; then
     return 0 # true
   else
     return 1 # false

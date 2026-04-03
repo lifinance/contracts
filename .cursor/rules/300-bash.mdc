@@ -139,3 +139,4 @@ function functionName() {
 - Process substitution: `< <(...)` requires `#!/bin/bash` shebang
 - Conditionals: `[[ ]]` not `[ ]` for bash-specific features
 - Variable case: Use `UPPERCASE` for all variables, including `local` declarations and loop iterators
+- **No `local` shadowing of `.env` globals**: Never declare `local` for variables defined in `.env.example` (e.g. `PRIVATE_KEY`, `PRIVATE_KEY_PRODUCTION`). `local VAR` initializes to empty and shadows the global, so helper functions running in `$(...)` subshells see an empty value instead of the `.env` one. Either omit `local` or use a different name.

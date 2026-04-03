@@ -290,9 +290,9 @@ function diamondSyncWhitelist {
   function processNetwork {
     local NETWORK=$1  # Network name as argument
 
-    # Skip non-active mainnets
-    if ! isActiveMainnet "$NETWORK"; then
-      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not an active mainnet >> continuing without syncing on this network"
+    # Skip inactive networks;
+    if ! isNetworkActive "$NETWORK"; then
+      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not active >> continuing without syncing on this network"
       return
     fi
 

@@ -33,8 +33,17 @@ deployCoreFacets() {
   FACETS_ARRAY=($(getCoreFacetsArray))
   checkFailure $? "retrieve core facets array from global.json"
 
+  # read gasZipChainId to determine if GasZipFacet should be deployed
+  local GAS_ZIP_CHAIN_ID
+  GAS_ZIP_CHAIN_ID=$(getValueFromJSONFile "$NETWORKS_JSON_FILE_PATH" "$NETWORK.gasZipChainId")
+
   # loop through all contracts
   for CONTRACT in "${FACETS_ARRAY[@]}"; do
+    # skip GasZipFacet if network has no GasZip support
+    if [[ "$CONTRACT" == "GasZipFacet" && "$GAS_ZIP_CHAIN_ID" == "0" ]]; then
+      echo "[info] Skipping GasZipFacet deployment (gasZipChainId is 0 for $NETWORK)"
+      continue
+    fi
     # get current contract version
     local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 

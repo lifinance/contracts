@@ -103,11 +103,10 @@ deployAllContracts() {
   if [[ $START_STAGE -le 1 ]]; then
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 1: Initial setup and CREATE3Factory deployment"
 
-    # add RPC URL to MongoDB
-    # only add the RPC URL if no CREATE3Factory is deployed yet (if a CREATE3Factory is deployed that means we added an RPC already before)
-    CREATE3_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.create3Factory")
-    if [[ -z "$CREATE3_ADDRESS" || "$CREATE3_ADDRESS" == "null" ]]; then
-      echo ""
+    # add RPC URL to MongoDB (only if not already in .env)
+    local RPC_KEY
+    RPC_KEY=$(getRPCEnvVarName "$NETWORK")
+    if [[ -z "${!RPC_KEY:-}" ]]; then
       echo "Adding RPC URL from networks.json to MongoDB and fetching all URLs"
       bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
       bun fetch-rpcs
@@ -126,6 +125,8 @@ deployAllContracts() {
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
     checkRequiredVariablesInDotEnv "$NETWORK"
+    local CREATE3_ADDRESS
+    CREATE3_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.create3Factory")
 
     echo "isZkEVM: $(isZkEvmNetwork "$NETWORK")"
 
@@ -142,14 +143,18 @@ deployAllContracts() {
       fi
     fi
 
-    # deploy SAFE
-    SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
-    if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
-      echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
-      bun deploy-safe --network "$NETWORK"
-      checkFailure $? "deploy Safe Proxy instance to network $NETWORK"
+    # deploy SAFE (production only)
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+      SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
+      if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
+        echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
+        bun deploy-safe --network "$NETWORK"
+        checkFailure $? "deploy Safe Proxy instance to network $NETWORK"
+      else
+        echo "SAFE already deployed for $NETWORK (safeAddress: $SAFE_ADDRESS), skipping deployment."
+      fi
     else
-      echo "SAFE already deployed for $NETWORK (safeAddress: $SAFE_ADDRESS), skipping deployment."
+      echo "[info] Skipping Safe deployment (not required for $ENVIRONMENT environment)"
     fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 1 completed"
@@ -360,7 +365,8 @@ deployAllContracts() {
   if [[ $START_STAGE -le 11 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Run health check only"
-    bun script/deploy/healthCheck.ts --network "$NETWORK" --environment "$ENVIRONMENT"
+    bun run healthcheck --network "$NETWORK" --environment "$ENVIRONMENT"
+    checkFailure $? "run health check for $NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
 
     # Pause and ask user if they want to continue with ownership transfer
