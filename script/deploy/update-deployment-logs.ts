@@ -976,4 +976,4 @@ const main = defineCommand({
 // Run the CLI
 runMain(main)
 
-export { DeploymentLogManager, IDeploymentRecord }
+export { DeploymentLogManager }

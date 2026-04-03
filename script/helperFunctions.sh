@@ -3666,11 +3666,11 @@ function getPrivateKey() {
 
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
-# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts
-# - Staging / Tron: send directly via universalCast sendRaw. When sending directly, timelock is never used.
+# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
+# - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
 #   network, environment, target, calldata: required
-#   timelock: only when proposing; "true" = wrap in timelock, "false" = propose without; ignored when sending directly
+#   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
 function sendOrPropose() {
   local NETWORK="$1"
@@ -3692,23 +3692,13 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Tron or EVM staging: direct send via universalCast sendRaw
-  if isTronNetwork "$NETWORK"; then
+  # Non-production or direct-to-diamond: send directly for all networks
+  if [[ "$ENVIRONMENT" != "production" ]] || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]]; then
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi
 
-  if [[ "$ENVIRONMENT" != "production" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
-  # EVM production: SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true sends directly; otherwise propose to Safe
-  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
+  # Resolve private key
   local SAFE_SIGNER_KEY
   if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
     SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
@@ -3718,6 +3708,25 @@ function sendOrPropose() {
       return 1
     }
   fi
+
+  # Tron: propose to Safe via tron script
+  if isTronNetwork "$NETWORK"; then
+    local PROPOSE_TRON_CMD=(
+      bunx tsx script/deploy/tron/propose-to-safe-tron.ts
+      --to "$TARGET"
+      --calldata "$CALLDATA"
+      --privateKey "$SAFE_SIGNER_KEY"
+    )
+    if [[ "$TIMELOCK" == "true" ]]; then
+      PROPOSE_TRON_CMD+=(--timelock)
+    else
+      PROPOSE_TRON_CMD+=(--direct)
+    fi
+    "${PROPOSE_TRON_CMD[@]}"
+    return $?
+  fi
+
+  # EVM: propose to Safe
   local PROPOSE_CMD=(
     bunx tsx script/deploy/safe/propose-to-safe.ts
     --network "$NETWORK"

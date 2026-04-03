@@ -2,34 +2,36 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
-import type { SupportedChain } from '../../common/types'
+import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
-
-import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
-  getContractVersion,
+  getRPCEnvVarName,
   getEnvironment,
   getContractAddress,
   checkExistingDeployment,
-  deployContractWithLogging,
-  registerFacetToDiamond,
   confirmDeployment,
   printDeploymentSummary,
-  validateBalance,
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-  tronAddressToHex,
-} from './utils'
+} from '../../utils/utils'
+import { getContractVersion } from '../shared/getContractVersion'
+
+import { TronContractDeployer } from './TronContractDeployer'
+import { MIN_BALANCE_WARNING } from './constants'
+import { createTronWeb } from './helpers/tronWebFactory'
+import { tronAddressToHex } from './tronAddressHelpers'
+import {
+  deployContractWithLogging,
+  registerFacetToDiamond,
+  validateBalance,
+} from './tronUtils'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   consola.start('TRON EcoFacet Deployment & Registration')
@@ -68,6 +70,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: networkName as TronTvmNetworkName,
     privateKey,
     verbose,
     dryRun,
@@ -83,8 +86,9 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-    const tronWeb = new TronWeb({
-      fullHost: rpcUrl,
+    const tronWeb = createTronWeb({
+      rpcUrl,
+      networkKey: networkName as TronTvmNetworkName,
       privateKey,
     })
 
@@ -101,7 +105,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
     if (!portalTron)
       throw new Error('Eco portal not found for tron in config/eco.json')
 
-    const portal = tronAddressToHex(portalTron, tronWeb)
+    const portal = tronAddressToHex(tronWeb, portalTron)
 
     consola.info('\nEco Configuration:')
     consola.info(`Portal: ${portalTron} (hex: ${portal})`)

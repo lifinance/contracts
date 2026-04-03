@@ -1,39 +1,52 @@
 #!/usr/bin/env bun
 
+import { resolve } from 'path'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
-// Import utilities from existing scripts
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
-
-import { TronContractDeployer } from './TronContractDeployer'
-import type { ITronDeploymentConfig } from './types'
+import { sleep } from '../../utils/delay'
 import {
+  getRPCEnvVarName,
+  checkExistingDeployment,
   getContractAddress,
-  getContractVersion,
   getEnvironment,
   getNetworkConfig,
-  loadForgeArtifact,
   logDeployment,
+  readJsonFile,
   saveContractAddress,
   updateDiamondJsonPeriphery,
-} from './utils.js'
+} from '../../utils/utils'
+import { ZERO_ADDRESS } from '../shared/constants.js'
+import { getContractVersion } from '../shared/getContractVersion'
+import { retryWithRateLimit } from '../shared/rateLimit.js'
 
-// Periphery contracts to deploy
-const PERIPHERY_CONTRACTS = [
-  'ERC20Proxy',
-  'Executor',
-  'FeeCollector',
-  'FeeForwarder',
-  'TokenWrapper',
-]
+import { TronContractDeployer } from './TronContractDeployer'
+import {
+  DEFAULT_SAFETY_MARGIN,
+  REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
+  REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
+  REGISTRATION_RETRY_DELAY_MS,
+  REGISTRATION_RPC_DELAY_MS,
+  TRON_ZERO_ADDRESS,
+} from './constants.js'
+import { estimateEnergyAndFeeLimit } from './helpers/estimateContractEnergy.js'
+import { loadForgeArtifact } from './helpers/loadForgeArtifact.js'
+import { getTronCorePeriphery } from './helpers/tronContractLists.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
+import {
+  tronAddressLikeToBase58,
+  tronAddressToHex,
+  tronRegistrationAddressToEvmHex,
+} from './tronAddressHelpers.js'
+import { promptEnergyRentalReminder, getTronWallet } from './tronUtils.js'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
 
 /**
  * Deploy and register periphery contracts to Tron
@@ -42,6 +55,8 @@ async function deployAndRegisterPeripheryImpl(options: {
   dryRun: boolean
   verbose: boolean
   skipConfirmation: boolean
+  onlyContracts?: string[]
+  registerOnly?: boolean
 }) {
   consola.start('TRON Periphery Contracts Deployment & Registration')
 
@@ -51,6 +66,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   // Load environment variables
   const dryRun = options.dryRun
   const verbose = options.verbose
+  const onlyContracts = options.onlyContracts
 
   // Get network configuration from networks.json
   // Use tronshasta for staging/testnet, tron for production
@@ -100,15 +116,18 @@ async function deployAndRegisterPeripheryImpl(options: {
     process.exit(1)
   }
 
-  // Initialize TronWeb with RPC from networks.json
-  const tronWeb = new TronWeb({
-    fullHost: rpcUrl,
+  const tvmKey = networkName as TronTvmNetworkName
+
+  const tronWeb = createTronWeb({
+    rpcUrl,
+    networkKey: tvmKey,
     privateKey,
   })
 
   // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: tvmKey,
     privateKey,
     verbose,
     dryRun,
@@ -147,23 +166,51 @@ async function deployAndRegisterPeripheryImpl(options: {
 
     consola.info(`\n LiFiDiamond address: ${diamondAddress}`)
     consola.info(
-      `   Base58: ${tronWeb.address.fromHex(
-        diamondAddress.replace('0x', '41')
-      )}`
+      `   Base58: ${tronAddressLikeToBase58(tronWeb, diamondAddress)}`
     )
 
-    // Load configurations
-    const globalConfig = await Bun.file('config/global.json').json()
+    // Load configurations (Tron addresses under globalConfig.tronWallets via getTronWallet)
+    const globalConfig = await readJsonFile<{
+      refundWallet: string
+      feeCollectorOwner: string
+      withdrawWallet: string
+      deployerWallet?: string
+      tronWallets?: {
+        refundWallet?: string
+        feeCollectorOwner?: string
+        withdrawWallet?: string
+        deployerWallet?: string
+      }
+    }>(resolve(process.cwd(), 'config/global.json'))
+    if (!globalConfig) throw new Error('Failed to load config/global.json')
 
-    consola.info('\n Deployment Plan:')
-    consola.info('1. Deploy ERC20Proxy')
-    consola.info('2. Deploy Executor (depends on ERC20Proxy)')
-    consola.info('3. Deploy FeeCollector')
-    consola.info('4. Deploy FeeForwarder')
-    consola.info('5. Deploy TokenWrapper')
-    consola.info('6. Register all contracts with PeripheryRegistryFacet\n')
+    const globalConfigRecord = globalConfig as Record<string, unknown>
 
-    if (!dryRun && !options.skipConfirmation)
+    if (!options.registerOnly) {
+      consola.info('\n Deployment Plan:')
+      consola.info('1. Deploy ERC20Proxy')
+      consola.info('2. Deploy Executor (depends on ERC20Proxy)')
+      consola.info('3. Deploy FeeCollector')
+      consola.info('4. Deploy FeeForwarder')
+      consola.info('5. Deploy TokenWrapper')
+      consola.info(
+        '6. Deploy LiFiTimelockController (if tron.safeAddress set; not registered with Diamond)'
+      )
+      consola.info(
+        '7. Register periphery contracts with PeripheryRegistryFacet\n'
+      )
+
+      if (!dryRun) await promptEnergyRentalReminder()
+    } else {
+      consola.info(
+        '\n Register-only mode: will register contract(s) from deployments file with the Diamond.\n'
+      )
+    }
+
+    // Delay before first RPC to avoid 429 rate limits
+    if (!dryRun) await sleep(10000)
+
+    if (!dryRun && !options.skipConfirmation && !options.registerOnly)
       if (environment === EnvironmentEnum.production) {
         consola.warn(
           ' WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
@@ -197,633 +244,179 @@ async function deployAndRegisterPeripheryImpl(options: {
       }
 
     const deployedContracts: Record<string, string> = {}
-    const deploymentResults = []
-
-    // 1. Deploy ERC20Proxy
-    consola.info('\n Deploying ERC20Proxy...')
-
-    try {
-      // Check if already deployed
-      const existingAddress = await getContractAddress('tron', 'ERC20Proxy')
-      if (existingAddress && !dryRun) {
-        consola.warn(`  ERC20Proxy is already deployed at: ${existingAddress}`)
-        const shouldRedeploy = await consola.prompt('Redeploy ERC20Proxy?', {
-          type: 'confirm',
-          initial: false,
-        })
-
-        if (!shouldRedeploy) {
-          consola.info(`Using existing ERC20Proxy at: ${existingAddress}`)
-          deployedContracts['ERC20Proxy'] = existingAddress
-
-          const version = await getContractVersion('ERC20Proxy')
-          deploymentResults.push({
-            contract: 'ERC20Proxy',
-            address: existingAddress,
-            txId: 'existing',
-            cost: 0,
-            version,
-          })
-        } else {
-          // Deploy new ERC20Proxy
-          const artifact = await loadForgeArtifact('ERC20Proxy')
-          const version = await getContractVersion('ERC20Proxy')
-
-          // Constructor: owner address (deployer)
-          const ownerHex =
-            '0x' + tronWeb.address.toHex(networkInfo.address).substring(2)
-          const constructorArgs = [ownerHex]
-
-          consola.info(
-            ` Using owner: ${networkInfo.address} (hex: ${ownerHex})`
-          )
-          consola.info(`Version: ${version}`)
-
-          const result = await deployer.deployContract(
-            artifact,
-            constructorArgs
-          )
-
-          deployedContracts['ERC20Proxy'] = result.contractAddress
-          deploymentResults.push({
-            contract: 'ERC20Proxy',
-            address: result.contractAddress,
-            txId: result.transactionId,
-            cost: result.actualCost.trxCost,
-            version,
-          })
-
-          consola.success(` ERC20Proxy deployed to: ${result.contractAddress}`)
-          consola.info(`Transaction: ${result.transactionId}`)
-          consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-          if (!dryRun) {
-            await logDeployment(
-              'ERC20Proxy',
-              'tron',
-              result.contractAddress,
-              version,
-              '0x',
-              false
-            )
-            await saveContractAddress(
-              'tron',
-              'ERC20Proxy',
-              result.contractAddress
-            )
-          }
-        }
-      } else if (!existingAddress) {
-        // Deploy new ERC20Proxy (no existing deployment)
-        const artifact = await loadForgeArtifact('ERC20Proxy')
-        const version = await getContractVersion('ERC20Proxy')
-
-        const ownerHex =
-          '0x' + tronWeb.address.toHex(networkInfo.address).substring(2)
-        const constructorArgs = [ownerHex]
-
-        consola.info(` Using owner: ${networkInfo.address} (hex: ${ownerHex})`)
-        consola.info(`Version: ${version}`)
-
-        const result = await deployer.deployContract(artifact, constructorArgs)
-
-        deployedContracts['ERC20Proxy'] = result.contractAddress
-        deploymentResults.push({
-          contract: 'ERC20Proxy',
-          address: result.contractAddress,
-          txId: result.transactionId,
-          cost: result.actualCost.trxCost,
-          version,
-        })
-
-        consola.success(`ERC20Proxy deployed to: ${result.contractAddress}`)
-        consola.info(`Transaction: ${result.transactionId}`)
-        consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-        if (!dryRun) {
-          await logDeployment(
-            'ERC20Proxy',
-            'tron',
-            result.contractAddress,
-            version,
-            '0x',
-            false
-          )
-          await saveContractAddress(
-            'tron',
-            'ERC20Proxy',
-            result.contractAddress
-          )
-        }
-      }
-
-      if (!dryRun) await Bun.sleep(3000)
-    } catch (error: any) {
-      consola.error(` Failed to deploy ERC20Proxy:`, error.message)
-      process.exit(1)
-    }
-
-    // 2. Deploy Executor (depends on ERC20Proxy)
-    consola.info('\n Deploying Executor...')
-
-    try {
-      const existingAddress = await getContractAddress('tron', 'Executor')
-      if (existingAddress && !dryRun) {
-        consola.warn(`  Executor is already deployed at: ${existingAddress}`)
-        const shouldRedeploy = await consola.prompt('Redeploy Executor?', {
-          type: 'confirm',
-          initial: false,
-        })
-
-        if (!shouldRedeploy) {
-          consola.info(`Using existing Executor at: ${existingAddress}`)
-          deployedContracts['Executor'] = existingAddress
-
-          const version = await getContractVersion('Executor')
-          deploymentResults.push({
-            contract: 'Executor',
-            address: existingAddress,
-            txId: 'existing',
-            cost: 0,
-            version,
-          })
-        } else {
-          // Deploy new Executor
-          const artifact = await loadForgeArtifact('Executor')
-          const version = await getContractVersion('Executor')
-
-          const erc20ProxyAddress =
-            deployedContracts['ERC20Proxy'] ||
-            (await getContractAddress('tron', 'ERC20Proxy'))
-          if (!erc20ProxyAddress)
-            throw new Error('ERC20Proxy address not found')
-
-          // Convert addresses to hex format for constructor
-          const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
-            ? erc20ProxyAddress
-            : '0x' + tronWeb.address.toHex(erc20ProxyAddress).substring(2)
-          const refundWalletHex = globalConfig.refundWallet
-
-          const constructorArgs = [erc20ProxyHex, refundWalletHex]
-
-          consola.info(`Using ERC20Proxy: ${erc20ProxyAddress}`)
-          consola.info(`Using refundWallet: ${refundWalletHex}`)
-          consola.info(`Version: ${version}`)
-
-          const result = await deployer.deployContract(
-            artifact,
-            constructorArgs
-          )
-
-          deployedContracts['Executor'] = result.contractAddress
-          deploymentResults.push({
-            contract: 'Executor',
-            address: result.contractAddress,
-            txId: result.transactionId,
-            cost: result.actualCost.trxCost,
-            version,
-          })
-
-          consola.success(`Executor deployed to: ${result.contractAddress}`)
-          consola.info(`Transaction: ${result.transactionId}`)
-          consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-          if (!dryRun) {
-            await logDeployment(
-              'Executor',
-              'tron',
-              result.contractAddress,
-              version,
-              '0x',
-              false
-            )
-            await saveContractAddress(
-              'tron',
-              'Executor',
-              result.contractAddress
-            )
-          }
-        }
-      } else if (!existingAddress) {
-        // Deploy new Executor (no existing deployment)
-        const artifact = await loadForgeArtifact('Executor')
-        const version = await getContractVersion('Executor')
-
-        const erc20ProxyAddress =
-          deployedContracts['ERC20Proxy'] ||
-          (await getContractAddress('tron', 'ERC20Proxy'))
-        if (!erc20ProxyAddress) throw new Error('ERC20Proxy address not found')
-
-        const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
-          ? erc20ProxyAddress
-          : '0x' + tronWeb.address.toHex(erc20ProxyAddress).substring(2)
-        const refundWalletHex = globalConfig.refundWallet
-
-        const constructorArgs = [erc20ProxyHex, refundWalletHex]
-
-        consola.info(`Using ERC20Proxy: ${erc20ProxyAddress}`)
-        consola.info(`Using refundWallet: ${refundWalletHex}`)
-        consola.info(`Version: ${version}`)
-
-        const result = await deployer.deployContract(artifact, constructorArgs)
-
-        deployedContracts['Executor'] = result.contractAddress
-        deploymentResults.push({
-          contract: 'Executor',
-          address: result.contractAddress,
-          txId: result.transactionId,
-          cost: result.actualCost.trxCost,
-          version,
-        })
-
-        consola.success(`Executor deployed to: ${result.contractAddress}`)
-        consola.info(`Transaction: ${result.transactionId}`)
-        consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-        if (!dryRun) {
-          await logDeployment(
-            'Executor',
-            'tron',
-            result.contractAddress,
-            version,
-            '0x',
-            false
-          )
-          await saveContractAddress('tron', 'Executor', result.contractAddress)
-        }
-      }
-
-      if (!dryRun) await Bun.sleep(3000)
-    } catch (error: any) {
-      consola.error(` Failed to deploy Executor:`, error.message)
-      deploymentResults.push({
-        contract: 'Executor',
-        address: 'FAILED',
-        txId: 'FAILED',
-        cost: 0,
-        version: '0.0.0',
-      })
-    }
-
-    // 3. Deploy FeeCollector
-    consola.info('\n Deploying FeeCollector...')
-
-    try {
-      const existingAddress = await getContractAddress('tron', 'FeeCollector')
-      if (existingAddress && !dryRun) {
-        consola.warn(
-          `  FeeCollector is already deployed at: ${existingAddress}`
-        )
-        const shouldRedeploy = await consola.prompt('Redeploy FeeCollector?', {
-          type: 'confirm',
-          initial: false,
-        })
-
-        if (!shouldRedeploy) {
-          consola.info(`Using existing FeeCollector at: ${existingAddress}`)
-          deployedContracts['FeeCollector'] = existingAddress
-
-          const version = await getContractVersion('FeeCollector')
-          deploymentResults.push({
-            contract: 'FeeCollector',
-            address: existingAddress,
-            txId: 'existing',
-            cost: 0,
-            version,
-          })
-        } else {
-          // Deploy new FeeCollector
-          const artifact = await loadForgeArtifact('FeeCollector')
-          const version = await getContractVersion('FeeCollector')
-
-          const feeCollectorOwnerHex = globalConfig.feeCollectorOwner
-          const constructorArgs = [feeCollectorOwnerHex]
-
-          consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
-          consola.info(`Version: ${version}`)
-
-          const result = await deployer.deployContract(
-            artifact,
-            constructorArgs
-          )
-
-          deployedContracts['FeeCollector'] = result.contractAddress
-          deploymentResults.push({
-            contract: 'FeeCollector',
-            address: result.contractAddress,
-            txId: result.transactionId,
-            cost: result.actualCost.trxCost,
-            version,
-          })
-
-          consola.success(
-            ` FeeCollector deployed to: ${result.contractAddress}`
-          )
-          consola.info(`Transaction: ${result.transactionId}`)
-          consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-          if (!dryRun) {
-            await logDeployment(
-              'FeeCollector',
-              'tron',
-              result.contractAddress,
-              version,
-              '0x',
-              false
-            )
-            await saveContractAddress(
-              'tron',
-              'FeeCollector',
-              result.contractAddress
-            )
-          }
-        }
-      } else if (!existingAddress) {
-        // Deploy new FeeCollector (no existing deployment)
-        const artifact = await loadForgeArtifact('FeeCollector')
-        const version = await getContractVersion('FeeCollector')
-
-        const feeCollectorOwnerHex = globalConfig.feeCollectorOwner
-        const constructorArgs = [feeCollectorOwnerHex]
-
-        consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
-        consola.info(`Version: ${version}`)
-
-        const result = await deployer.deployContract(artifact, constructorArgs)
-
-        deployedContracts['FeeCollector'] = result.contractAddress
-        deploymentResults.push({
-          contract: 'FeeCollector',
-          address: result.contractAddress,
-          txId: result.transactionId,
-          cost: result.actualCost.trxCost,
-          version,
-        })
-
-        consola.success(` FeeCollector deployed to: ${result.contractAddress}`)
-        consola.info(`Transaction: ${result.transactionId}`)
-        consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-        if (!dryRun) {
-          await logDeployment(
-            'FeeCollector',
-            'tron',
-            result.contractAddress,
-            version,
-            '0x',
-            false
-          )
-          await saveContractAddress(
-            'tron',
-            'FeeCollector',
-            result.contractAddress
-          )
-        }
-      }
-
-      if (!dryRun) await Bun.sleep(3000)
-    } catch (error: any) {
-      consola.error(` Failed to deploy FeeCollector:`, error.message)
-      deploymentResults.push({
-        contract: 'FeeCollector',
-        address: 'FAILED',
-        txId: 'FAILED',
-        cost: 0,
-        version: '0.0.0',
-      })
-    }
-
-    // 4. Deploy FeeForwarder
-    consola.info('\n Deploying FeeForwarder...')
-
-    try {
-      const existingAddress = await getContractAddress('tron', 'FeeForwarder')
-      if (existingAddress && !dryRun) {
-        consola.warn(
-          `  FeeForwarder is already deployed at: ${existingAddress}`
-        )
-        const shouldRedeploy = await consola.prompt('Redeploy FeeForwarder?', {
-          type: 'confirm',
-          initial: false,
-        })
-
-        if (!shouldRedeploy) {
-          consola.info(`Using existing FeeForwarder at: ${existingAddress}`)
-          deployedContracts['FeeForwarder'] = existingAddress
-
-          const version = await getContractVersion('FeeForwarder')
-          deploymentResults.push({
-            contract: 'FeeForwarder',
-            address: existingAddress,
-            txId: 'existing',
-            cost: 0,
-            version,
-          })
-        } else {
-          const artifact = await loadForgeArtifact('FeeForwarder')
-          const version = await getContractVersion('FeeForwarder')
-
-          const withdrawWallet = globalConfig.withdrawWallet
-          const constructorArgs = [withdrawWallet]
-
-          consola.info(
-            `Using withdrawWallet as contract owner: ${withdrawWallet}`
-          )
-          consola.info(`Version: ${version}`)
-
-          const result = await deployer.deployContract(
-            artifact,
-            constructorArgs
-          )
-
-          deployedContracts['FeeForwarder'] = result.contractAddress
-          deploymentResults.push({
-            contract: 'FeeForwarder',
-            address: result.contractAddress,
-            txId: result.transactionId,
-            cost: result.actualCost.trxCost,
-            version,
-          })
-
-          consola.success(
-            ` FeeForwarder deployed to: ${result.contractAddress}`
-          )
-          consola.info(`Transaction: ${result.transactionId}`)
-          consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-          if (!dryRun) {
-            await logDeployment(
-              'FeeForwarder',
-              'tron',
-              result.contractAddress,
-              version,
-              '0x',
-              false
-            )
-            await saveContractAddress(
-              'tron',
-              'FeeForwarder',
-              result.contractAddress
-            )
-          }
-        }
-      } else if (!existingAddress) {
-        const artifact = await loadForgeArtifact('FeeForwarder')
-        const version = await getContractVersion('FeeForwarder')
-
-        const withdrawWallet = globalConfig.withdrawWallet
-        const constructorArgs = [withdrawWallet]
-
-        consola.info(
-          `Using withdrawWallet as contract owner: ${withdrawWallet}`
-        )
-        consola.info(`Version: ${version}`)
-
-        const result = await deployer.deployContract(artifact, constructorArgs)
-
-        deployedContracts['FeeForwarder'] = result.contractAddress
-        deploymentResults.push({
-          contract: 'FeeForwarder',
-          address: result.contractAddress,
-          txId: result.transactionId,
-          cost: result.actualCost.trxCost,
-          version,
-        })
-
-        consola.success(` FeeForwarder deployed to: ${result.contractAddress}`)
-        consola.info(`Transaction: ${result.transactionId}`)
-        consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-        if (!dryRun) {
-          await logDeployment(
-            'FeeForwarder',
-            'tron',
-            result.contractAddress,
-            version,
-            '0x',
-            false
-          )
-          await saveContractAddress(
-            'tron',
-            'FeeForwarder',
-            result.contractAddress
-          )
-        }
-      }
-
-      if (!dryRun) await Bun.sleep(3000)
-    } catch (error: any) {
-      consola.error(` Failed to deploy FeeForwarder:`, error.message)
-      deploymentResults.push({
-        contract: 'FeeForwarder',
-        address: 'FAILED',
-        txId: 'FAILED',
-        cost: 0,
-        version: '0.0.0',
-      })
-    }
-
-    // 5. Deploy TokenWrapper
-    consola.info('\n Deploying TokenWrapper...')
-
-    // Check if wrapped native address is valid (not zero address)
-    const wrappedNativeBase58Check = tronConfig.wrappedNativeAddress
-    const wrappedNativeHexCheck = wrappedNativeBase58Check
-      ? '0x' + tronWeb.address.toHex(wrappedNativeBase58Check).substring(2)
-      : '0x0000000000000000000000000000000000000000'
-
-    if (
-      wrappedNativeHexCheck === '0x0000000000000000000000000000000000000000'
-    ) {
-      consola.warn(
-        '  Wrapped native address is zero address. Skipping TokenWrapper deployment.'
+    const deploymentResults: Array<{
+      contract: string
+      address: string
+      txId: string
+      cost: number
+      version: string
+    }> = []
+
+    if (options.registerOnly) {
+      consola.info(
+        'Loading deployed contract addresses from deployments file...'
       )
-      consola.warn(
-        '   Please update networks.json with a valid wrapped TRX address.'
+      const toLoad: string[] =
+        onlyContracts !== undefined && onlyContracts.length > 0
+          ? onlyContracts
+          : getTronCorePeriphery()
+      for (const name of toLoad) {
+        const addr = await getContractAddress(network, name)
+        if (addr) deployedContracts[name] = addr
+      }
+      if (Object.keys(deployedContracts).length === 0) {
+        consola.error(
+          'No deployed addresses found for the specified contract(s). Run deploy first or check --only.'
+        )
+        process.exit(1)
+      }
+      consola.info(
+        `Loaded ${
+          Object.keys(deployedContracts).length
+        } contract(s) for registration.`
       )
-      deploymentResults.push({
-        contract: 'TokenWrapper',
-        address: 'SKIPPED',
-        txId: 'SKIPPED',
-        cost: 0,
-        version: '0.0.0',
-      })
-    } else
-      try {
-        const existingAddress = await getContractAddress('tron', 'TokenWrapper')
-        if (existingAddress && !dryRun) {
-          consola.warn(
-            `  TokenWrapper is already deployed at: ${existingAddress}`
-          )
-          const shouldRedeploy = await consola.prompt(
-            'Redeploy TokenWrapper?',
-            {
-              type: 'confirm',
-              initial: false,
-            }
+    } else {
+      // 1. Deploy ERC20Proxy
+      if (!onlyContracts || onlyContracts.includes('ERC20Proxy')) {
+        consola.info('\n Deploying ERC20Proxy...')
+
+        try {
+          // Check if already deployed
+          const erc20Deployment = await checkExistingDeployment(
+            network,
+            'ERC20Proxy',
+            dryRun
           )
 
-          if (!shouldRedeploy) {
-            consola.info(`Using existing TokenWrapper at: ${existingAddress}`)
-            deployedContracts['TokenWrapper'] = existingAddress
+          if (
+            erc20Deployment.exists &&
+            erc20Deployment.address &&
+            !erc20Deployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing ERC20Proxy at: ${erc20Deployment.address}`
+            )
+            deployedContracts['ERC20Proxy'] = erc20Deployment.address
 
-            const version = await getContractVersion('TokenWrapper')
+            const version = await getContractVersion('ERC20Proxy')
             deploymentResults.push({
-              contract: 'TokenWrapper',
-              address: existingAddress,
+              contract: 'ERC20Proxy',
+              address: erc20Deployment.address,
               txId: 'existing',
               cost: 0,
               version,
             })
           } else {
-            // Deploy new TokenWrapper
-            const artifact = await loadForgeArtifact('TokenWrapper')
-            const version = await getContractVersion('TokenWrapper')
+            // Deploy new ERC20Proxy (no existing deployment or redeploy requested)
+            const artifact = await loadForgeArtifact('ERC20Proxy')
+            const version = await getContractVersion('ERC20Proxy')
 
-            // Get wrapped native address from networks.json (tronConfig already loaded)
-            const wrappedNativeBase58 = tronConfig.wrappedNativeAddress
-            if (!wrappedNativeBase58)
-              throw new Error(
-                'wrappedNativeAddress not found for tron in networks.json'
-              )
-
-            // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
-            // Convert to hex, ensuring it's not the zero address
-            const wrappedNativeHex =
-              '0x' + tronWeb.address.toHex(wrappedNativeBase58).substring(2)
-
-            // Verify it's not zero address
-            if (
-              wrappedNativeHex === '0x0000000000000000000000000000000000000000'
-            )
-              throw new Error(
-                `Invalid wrapped native address conversion: ${wrappedNativeBase58} -> ${wrappedNativeHex}`
-              )
-
-            const refundWalletHex = globalConfig.refundWallet
-
-            // Try to get converter address, default to zero address if not found
-            const converterHex = tronConfig.converterAddress
-              ? '0x' +
-                tronWeb.address.toHex(tronConfig.converterAddress).substring(2)
-              : '0x0000000000000000000000000000000000000000'
-
-            const constructorArgs = [
-              wrappedNativeHex,
-              converterHex,
-              refundWalletHex,
-            ]
+            // Constructor: owner address (deployer)
+            const ownerHex = tronAddressToHex(tronWeb, networkInfo.address)
+            const constructorArgs = [ownerHex]
 
             consola.info(
-              ` Using wrappedNative: ${wrappedNativeBase58} (hex: ${wrappedNativeHex})`
+              ` Using owner: ${networkInfo.address} (hex: ${ownerHex})`
             )
+            consola.info(`Version: ${version}`)
+
+            const result = await deployer.deployContract(
+              artifact,
+              constructorArgs
+            )
+
+            deployedContracts['ERC20Proxy'] = result.contractAddress
+            deploymentResults.push({
+              contract: 'ERC20Proxy',
+              address: result.contractAddress,
+              txId: result.transactionId,
+              cost: result.actualCost.trxCost,
+              version,
+            })
+
+            consola.success(
+              ` ERC20Proxy deployed to: ${result.contractAddress}`
+            )
+            consola.info(`Transaction: ${result.transactionId}`)
+            consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+            if (!dryRun) {
+              await logDeployment(
+                'ERC20Proxy',
+                network,
+                result.contractAddress,
+                version,
+                '0x',
+                false
+              )
+              await saveContractAddress(
+                network,
+                'ERC20Proxy',
+                result.contractAddress
+              )
+            }
+          }
+
+          if (!dryRun) await sleep(8000)
+        } catch (error: any) {
+          consola.error(` Failed to deploy ERC20Proxy:`, error.message)
+          process.exit(1)
+        }
+      }
+
+      // 2. Deploy Executor (depends on ERC20Proxy)
+      if (!onlyContracts || onlyContracts.includes('Executor')) {
+        consola.info('\n Deploying Executor...')
+
+        try {
+          // Check if already deployed
+          const executorDeployment = await checkExistingDeployment(
+            network,
+            'Executor',
+            dryRun
+          )
+
+          if (
+            executorDeployment.exists &&
+            executorDeployment.address &&
+            !executorDeployment.shouldRedeploy
+          ) {
             consola.info(
-              `Using converter: ${
-                converterHex === '0x0000000000000000000000000000000000000000'
-                  ? 'None (zero address)'
-                  : converterHex
-              }`
+              `Using existing Executor at: ${executorDeployment.address}`
             )
+            deployedContracts['Executor'] = executorDeployment.address
+
+            const version = await getContractVersion('Executor')
+            deploymentResults.push({
+              contract: 'Executor',
+              address: executorDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Deploy new Executor (no existing deployment or redeploy requested)
+            const artifact = await loadForgeArtifact('Executor')
+            const version = await getContractVersion('Executor')
+
+            const erc20ProxyAddress =
+              deployedContracts['ERC20Proxy'] ||
+              (await getContractAddress(network, 'ERC20Proxy'))
+            if (!erc20ProxyAddress)
+              throw new Error('ERC20Proxy address not found')
+
+            // Convert addresses to hex format for constructor
+            const erc20ProxyHex = erc20ProxyAddress.startsWith('0x')
+              ? erc20ProxyAddress
+              : tronAddressToHex(tronWeb, erc20ProxyAddress)
+            const refundWalletHex = tronRegistrationAddressToEvmHex(
+              tronWeb,
+              getTronWallet(globalConfigRecord, 'refundWallet')
+            )
+
+            const constructorArgs = [erc20ProxyHex, refundWalletHex]
+
+            consola.info(`Using ERC20Proxy: ${erc20ProxyAddress}`)
             consola.info(`Using refundWallet: ${refundWalletHex}`)
             consola.info(`Version: ${version}`)
 
@@ -832,9 +425,101 @@ async function deployAndRegisterPeripheryImpl(options: {
               constructorArgs
             )
 
-            deployedContracts['TokenWrapper'] = result.contractAddress
+            deployedContracts['Executor'] = result.contractAddress
             deploymentResults.push({
-              contract: 'TokenWrapper',
+              contract: 'Executor',
+              address: result.contractAddress,
+              txId: result.transactionId,
+              cost: result.actualCost.trxCost,
+              version,
+            })
+
+            consola.success(`Executor deployed to: ${result.contractAddress}`)
+            consola.info(`Transaction: ${result.transactionId}`)
+            consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+            if (!dryRun) {
+              await logDeployment(
+                'Executor',
+                network,
+                result.contractAddress,
+                version,
+                '0x',
+                false
+              )
+              await saveContractAddress(
+                network,
+                'Executor',
+                result.contractAddress
+              )
+            }
+          }
+
+          if (!dryRun) await sleep(8000)
+        } catch (error: any) {
+          consola.error(` Failed to deploy Executor:`, error.message)
+          deploymentResults.push({
+            contract: 'Executor',
+            address: 'FAILED',
+            txId: 'FAILED',
+            cost: 0,
+            version: '0.0.0',
+          })
+        }
+      }
+
+      // 3. Deploy FeeCollector
+      if (!onlyContracts || onlyContracts.includes('FeeCollector')) {
+        consola.info('\n Deploying FeeCollector...')
+
+        try {
+          // Check if already deployed
+          const feeCollectorDeployment = await checkExistingDeployment(
+            network,
+            'FeeCollector',
+            dryRun
+          )
+
+          if (
+            feeCollectorDeployment.exists &&
+            feeCollectorDeployment.address &&
+            !feeCollectorDeployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing FeeCollector at: ${feeCollectorDeployment.address}`
+            )
+            deployedContracts['FeeCollector'] = feeCollectorDeployment.address
+
+            const version = await getContractVersion('FeeCollector')
+            deploymentResults.push({
+              contract: 'FeeCollector',
+              address: feeCollectorDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Deploy new FeeCollector (no existing deployment or redeploy requested)
+            const artifact = await loadForgeArtifact('FeeCollector')
+            const version = await getContractVersion('FeeCollector')
+
+            const feeCollectorOwnerHex = tronRegistrationAddressToEvmHex(
+              tronWeb,
+              getTronWallet(globalConfigRecord, 'feeCollectorOwner')
+            )
+            const constructorArgs = [feeCollectorOwnerHex]
+
+            consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
+            consola.info(`Version: ${version}`)
+
+            const result = await deployer.deployContract(
+              artifact,
+              constructorArgs
+            )
+
+            deployedContracts['FeeCollector'] = result.contractAddress
+            deploymentResults.push({
+              contract: 'FeeCollector',
               address: result.contractAddress,
               txId: result.transactionId,
               cost: result.actualCost.trxCost,
@@ -842,127 +527,440 @@ async function deployAndRegisterPeripheryImpl(options: {
             })
 
             consola.success(
-              ` TokenWrapper deployed to: ${result.contractAddress}`
+              ` FeeCollector deployed to: ${result.contractAddress}`
             )
             consola.info(`Transaction: ${result.transactionId}`)
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
               await logDeployment(
-                'TokenWrapper',
-                'tron',
+                'FeeCollector',
+                network,
                 result.contractAddress,
                 version,
                 '0x',
                 false
               )
               await saveContractAddress(
-                'tron',
-                'TokenWrapper',
+                network,
+                'FeeCollector',
                 result.contractAddress
               )
             }
           }
-        } else if (!existingAddress) {
-          // Deploy new TokenWrapper (no existing deployment)
-          const artifact = await loadForgeArtifact('TokenWrapper')
-          const version = await getContractVersion('TokenWrapper')
 
-          // Use tronConfig that was already loaded at the beginning
-          const wrappedNativeBase58 = tronConfig.wrappedNativeAddress
-          if (!wrappedNativeBase58)
-            throw new Error(
-              'wrappedNativeAddress not found for tron in networks.json'
-            )
-
-          // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
-          // Convert to hex, ensuring it's not the zero address
-          const wrappedNativeHex =
-            '0x' + tronWeb.address.toHex(wrappedNativeBase58).substring(2)
-
-          // Verify it's not zero address
-          if (wrappedNativeHex === '0x0000000000000000000000000000000000000000')
-            throw new Error(
-              `Invalid wrapped native address conversion: ${wrappedNativeBase58} -> ${wrappedNativeHex}`
-            )
-
-          const refundWalletHex = globalConfig.refundWallet
-
-          // Try to get converter address, default to zero address if not found
-          const converterHex = tronConfig.converterAddress
-            ? '0x' +
-              tronWeb.address.toHex(tronConfig.converterAddress).substring(2)
-            : '0x0000000000000000000000000000000000000000'
-
-          const constructorArgs = [
-            wrappedNativeHex,
-            converterHex,
-            refundWalletHex,
-          ]
-
-          consola.info(
-            ` Using wrappedNative: ${wrappedNativeBase58} (hex: ${wrappedNativeHex})`
-          )
-          consola.info(
-            `Using converter: ${
-              converterHex === '0x0000000000000000000000000000000000000000'
-                ? 'None (zero address)'
-                : converterHex
-            }`
-          )
-          consola.info(`Using refundWallet: ${refundWalletHex}`)
-          consola.info(`Version: ${version}`)
-
-          const result = await deployer.deployContract(
-            artifact,
-            constructorArgs
-          )
-
-          deployedContracts['TokenWrapper'] = result.contractAddress
+          if (!dryRun) await sleep(8000)
+        } catch (error: any) {
+          consola.error(` Failed to deploy FeeCollector:`, error.message)
           deploymentResults.push({
-            contract: 'TokenWrapper',
-            address: result.contractAddress,
-            txId: result.transactionId,
-            cost: result.actualCost.trxCost,
-            version,
+            contract: 'FeeCollector',
+            address: 'FAILED',
+            txId: 'FAILED',
+            cost: 0,
+            version: '0.0.0',
           })
-
-          consola.success(
-            ` TokenWrapper deployed to: ${result.contractAddress}`
-          )
-          consola.info(`Transaction: ${result.transactionId}`)
-          consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
-
-          if (!dryRun) {
-            await logDeployment(
-              'TokenWrapper',
-              'tron',
-              result.contractAddress,
-              version,
-              '0x',
-              false
-            )
-            await saveContractAddress(
-              'tron',
-              'TokenWrapper',
-              result.contractAddress
-            )
-          }
         }
-
-        if (!dryRun) await Bun.sleep(3000)
-      } catch (error: any) {
-        consola.error(` Failed to deploy TokenWrapper:`, error.message)
-        deploymentResults.push({
-          contract: 'TokenWrapper',
-          address: 'FAILED',
-          txId: 'FAILED',
-          cost: 0,
-          version: '0.0.0',
-        })
       }
 
-    // Register all periphery contracts with the diamond
+      // 4. Deploy FeeForwarder
+      if (!onlyContracts || onlyContracts.includes('FeeForwarder')) {
+        consola.info('\n Deploying FeeForwarder...')
+
+        try {
+          // Check if already deployed
+          const feeForwarderDeployment = await checkExistingDeployment(
+            network,
+            'FeeForwarder',
+            dryRun
+          )
+
+          if (
+            feeForwarderDeployment.exists &&
+            feeForwarderDeployment.address &&
+            !feeForwarderDeployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing FeeForwarder at: ${feeForwarderDeployment.address}`
+            )
+            deployedContracts['FeeForwarder'] = feeForwarderDeployment.address
+
+            const version = await getContractVersion('FeeForwarder')
+            deploymentResults.push({
+              contract: 'FeeForwarder',
+              address: feeForwarderDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Deploy new FeeForwarder (no existing deployment or redeploy requested)
+            const artifact = await loadForgeArtifact('FeeForwarder')
+            const version = await getContractVersion('FeeForwarder')
+
+            const withdrawWallet = tronRegistrationAddressToEvmHex(
+              tronWeb,
+              getTronWallet(globalConfigRecord, 'withdrawWallet')
+            )
+            const constructorArgs = [withdrawWallet]
+
+            consola.info(
+              `Using withdrawWallet as contract owner: ${withdrawWallet}`
+            )
+            consola.info(`Version: ${version}`)
+
+            const result = await deployer.deployContract(
+              artifact,
+              constructorArgs
+            )
+
+            deployedContracts['FeeForwarder'] = result.contractAddress
+            deploymentResults.push({
+              contract: 'FeeForwarder',
+              address: result.contractAddress,
+              txId: result.transactionId,
+              cost: result.actualCost.trxCost,
+              version,
+            })
+
+            consola.success(
+              ` FeeForwarder deployed to: ${result.contractAddress}`
+            )
+            consola.info(`Transaction: ${result.transactionId}`)
+            consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+            if (!dryRun) {
+              await logDeployment(
+                'FeeForwarder',
+                network,
+                result.contractAddress,
+                version,
+                '0x',
+                false
+              )
+              await saveContractAddress(
+                network,
+                'FeeForwarder',
+                result.contractAddress
+              )
+            }
+          }
+
+          if (!dryRun) await sleep(8000)
+        } catch (error: any) {
+          consola.error(` Failed to deploy FeeForwarder:`, error.message)
+          deploymentResults.push({
+            contract: 'FeeForwarder',
+            address: 'FAILED',
+            txId: 'FAILED',
+            cost: 0,
+            version: '0.0.0',
+          })
+        }
+      }
+
+      // 5. Deploy TokenWrapper
+      if (!onlyContracts || onlyContracts.includes('TokenWrapper')) {
+        consola.info('\n Deploying TokenWrapper...')
+
+        // Check if wrapped native address is valid (not zero address)
+        const wrappedNativeBase58Check = tronConfig.wrappedNativeAddress
+        const wrappedNativeHexCheck = wrappedNativeBase58Check
+          ? tronAddressToHex(tronWeb, wrappedNativeBase58Check)
+          : '0x0000000000000000000000000000000000000000'
+
+        if (
+          wrappedNativeHexCheck === '0x0000000000000000000000000000000000000000'
+        ) {
+          consola.warn(
+            '  Wrapped native address is zero address. Skipping TokenWrapper deployment.'
+          )
+          consola.warn(
+            '   Please update networks.json with a valid wrapped TRX address.'
+          )
+          deploymentResults.push({
+            contract: 'TokenWrapper',
+            address: 'SKIPPED',
+            txId: 'SKIPPED',
+            cost: 0,
+            version: '0.0.0',
+          })
+        } else
+          try {
+            // Check if already deployed
+            const tokenWrapperDeployment = await checkExistingDeployment(
+              network,
+              'TokenWrapper',
+              dryRun
+            )
+
+            if (
+              tokenWrapperDeployment.exists &&
+              tokenWrapperDeployment.address &&
+              !tokenWrapperDeployment.shouldRedeploy
+            ) {
+              consola.info(
+                `Using existing TokenWrapper at: ${tokenWrapperDeployment.address}`
+              )
+              deployedContracts['TokenWrapper'] = tokenWrapperDeployment.address
+
+              const version = await getContractVersion('TokenWrapper')
+              deploymentResults.push({
+                contract: 'TokenWrapper',
+                address: tokenWrapperDeployment.address,
+                txId: 'existing',
+                cost: 0,
+                version,
+              })
+            } else {
+              // Deploy new TokenWrapper (no existing deployment or redeploy requested)
+              const artifact = await loadForgeArtifact('TokenWrapper')
+              const version = await getContractVersion('TokenWrapper')
+
+              // Get wrapped native address from networks.json (tronConfig already loaded)
+              // Use tronConfig that was already loaded at the beginning
+              const wrappedNativeBase58 = tronConfig.wrappedNativeAddress
+              if (!wrappedNativeBase58)
+                throw new Error(
+                  `wrappedNativeAddress not found for ${network} in networks.json`
+                )
+
+              // wrappedNativeAddress is already in base58 format (T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb)
+              // Convert to hex, ensuring it's not the zero address
+              const wrappedNativeHex = tronAddressToHex(
+                tronWeb,
+                wrappedNativeBase58
+              )
+
+              // Verify it's not zero address
+              if (
+                wrappedNativeHex ===
+                '0x0000000000000000000000000000000000000000'
+              )
+                throw new Error(
+                  `Invalid wrapped native address conversion: ${wrappedNativeBase58} -> ${wrappedNativeHex}`
+                )
+
+              const refundWalletHex = tronRegistrationAddressToEvmHex(
+                tronWeb,
+                getTronWallet(globalConfigRecord, 'refundWallet')
+              )
+
+              // Try to get converter address, default to zero address if not found
+              const converterHex = tronConfig.converterAddress
+                ? tronAddressToHex(tronWeb, tronConfig.converterAddress)
+                : '0x0000000000000000000000000000000000000000'
+
+              const constructorArgs = [
+                wrappedNativeHex,
+                converterHex,
+                refundWalletHex,
+              ]
+
+              consola.info(
+                ` Using wrappedNative: ${wrappedNativeBase58} (hex: ${wrappedNativeHex})`
+              )
+              consola.info(
+                `Using converter: ${
+                  converterHex === '0x0000000000000000000000000000000000000000'
+                    ? 'None (zero address)'
+                    : converterHex
+                }`
+              )
+              consola.info(`Using refundWallet: ${refundWalletHex}`)
+              consola.info(`Version: ${version}`)
+
+              const result = await deployer.deployContract(
+                artifact,
+                constructorArgs
+              )
+
+              deployedContracts['TokenWrapper'] = result.contractAddress
+              deploymentResults.push({
+                contract: 'TokenWrapper',
+                address: result.contractAddress,
+                txId: result.transactionId,
+                cost: result.actualCost.trxCost,
+                version,
+              })
+
+              consola.success(
+                ` TokenWrapper deployed to: ${result.contractAddress}`
+              )
+              consola.info(`Transaction: ${result.transactionId}`)
+              consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+              if (!dryRun) {
+                await logDeployment(
+                  'TokenWrapper',
+                  network,
+                  result.contractAddress,
+                  version,
+                  '0x',
+                  false
+                )
+                await saveContractAddress(
+                  network,
+                  'TokenWrapper',
+                  result.contractAddress
+                )
+              }
+            }
+
+            if (!dryRun) await sleep(8000)
+          } catch (error: any) {
+            consola.error(` Failed to deploy TokenWrapper:`, error.message)
+            deploymentResults.push({
+              contract: 'TokenWrapper',
+              address: 'FAILED',
+              txId: 'FAILED',
+              cost: 0,
+              version: '0.0.0',
+            })
+          }
+      }
+
+      // 6. Deploy LiFiTimelockController (same phase as EVM Stage 6; not registered with Diamond)
+      if (!onlyContracts || onlyContracts.includes('LiFiTimelockController')) {
+        consola.info(
+          '\n Deploying LiFiTimelockController (if Safe configured)...'
+        )
+        const safeAddress = (tronConfig.safeAddress ?? '').trim()
+        if (safeAddress) {
+          try {
+            // Check if already deployed
+            const timelockDeployment = await checkExistingDeployment(
+              network,
+              'LiFiTimelockController',
+              dryRun
+            )
+
+            if (
+              timelockDeployment.exists &&
+              timelockDeployment.address &&
+              !timelockDeployment.shouldRedeploy
+            ) {
+              consola.info('Skipping LiFiTimelockController deployment.')
+              deployedContracts['LiFiTimelockController'] =
+                timelockDeployment.address
+            } else {
+              const timelockConfig = await readJsonFile<{ minDelay: number }>(
+                resolve(process.cwd(), 'config/timelockController.json')
+              )
+              if (
+                timelockConfig?.minDelay === undefined ||
+                timelockConfig?.minDelay === null ||
+                Number.isNaN(Number(timelockConfig.minDelay))
+              ) {
+                consola.warn(
+                  '  config/timelockController.json missing or invalid minDelay; skipping LiFiTimelockController.'
+                )
+              } else {
+                let cancellerWallet: string
+                try {
+                  cancellerWallet = getTronWallet(
+                    globalConfigRecord,
+                    'deployerWallet'
+                  )
+                } catch {
+                  cancellerWallet = ''
+                }
+                if (!cancellerWallet) {
+                  consola.warn(
+                    '  global.json missing tronWallets.deployerWallet/deployerWallet; skipping LiFiTimelockController.'
+                  )
+                } else {
+                  const safeHex = safeAddress.startsWith('T')
+                    ? tronAddressToHex(tronWeb, safeAddress)
+                    : safeAddress.startsWith('0x')
+                    ? safeAddress
+                    : '0x' + safeAddress
+                  const diamondHex = diamondAddress.startsWith('T')
+                    ? tronAddressToHex(tronWeb, diamondAddress)
+                    : diamondAddress.startsWith('0x')
+                    ? diamondAddress
+                    : '0x' + diamondAddress
+                  const cancellerHex = cancellerWallet.startsWith('T')
+                    ? tronAddressToHex(tronWeb, cancellerWallet)
+                    : cancellerWallet.startsWith('0x')
+                    ? cancellerWallet
+                    : '0x' + cancellerWallet
+                  const minDelay = Number(timelockConfig.minDelay)
+                  const proposers = [safeHex]
+                  const executors = [ZERO_ADDRESS]
+                  const constructorArgs = [
+                    minDelay,
+                    proposers,
+                    executors,
+                    cancellerHex,
+                    safeHex,
+                    diamondHex,
+                  ]
+                  const artifact = await loadForgeArtifact(
+                    'LiFiTimelockController'
+                  )
+                  const version = await getContractVersion(
+                    'LiFiTimelockController'
+                  )
+                  const result = await deployer.deployContract(
+                    artifact,
+                    constructorArgs
+                  )
+                  deployedContracts['LiFiTimelockController'] =
+                    result.contractAddress
+                  deploymentResults.push({
+                    contract: 'LiFiTimelockController',
+                    address: result.contractAddress,
+                    txId: result.transactionId,
+                    cost: result.actualCost.trxCost,
+                    version,
+                  })
+                  consola.success(
+                    ` LiFiTimelockController deployed: ${result.contractAddress}`
+                  )
+                  if (!dryRun) {
+                    await logDeployment(
+                      'LiFiTimelockController',
+                      network,
+                      result.contractAddress,
+                      version,
+                      '0x',
+                      false
+                    )
+                    await saveContractAddress(
+                      network,
+                      'LiFiTimelockController',
+                      result.contractAddress
+                    )
+                  }
+                }
+              }
+            }
+
+            const attemptedTimelockDeploy =
+              !timelockDeployment.exists || timelockDeployment.shouldRedeploy
+            if (attemptedTimelockDeploy && !dryRun) await sleep(8000)
+          } catch (error: any) {
+            consola.error(
+              ` Failed to deploy LiFiTimelockController:`,
+              error.message
+            )
+            deploymentResults.push({
+              contract: 'LiFiTimelockController',
+              address: 'FAILED',
+              txId: 'FAILED',
+              cost: 0,
+              version: '0.0.0',
+            })
+          }
+        } else {
+          consola.warn(
+            '  tron.safeAddress not set in config/networks.json; skipping LiFiTimelockController. Deploy Safe first (deploy-safe-tron.ts), then run this script again.'
+          )
+        }
+      }
+    }
+
+    // Register all periphery contracts with the diamond (LiFiTimelockController is not registered)
     consola.info(
       '\n Registering periphery contracts with PeripheryRegistryFacet...'
     )
@@ -977,22 +975,38 @@ async function deployAndRegisterPeripheryImpl(options: {
         diamondAddress
       )
 
-      for (const [name, address] of Object.entries(deployedContracts))
+      await sleep(REGISTRATION_RPC_DELAY_MS)
+
+      for (const [name, address] of Object.entries(deployedContracts)) {
+        if (name === 'LiFiTimelockController') continue // governance contract, not registered with PeripheryRegistryFacet (same as EVM)
         if (address && address !== 'FAILED')
           try {
             consola.info(`\n Registering ${name}...`)
 
-            // Check if already registered
-            const registered = await diamond.getPeripheryContract(name).call()
+            await sleep(REGISTRATION_RPC_DELAY_MS)
+            // Check if already registered (retry on 429)
+            const registered = await retryWithRateLimit(
+              () => diamond.getPeripheryContract(name).call(),
+              3,
+              REGISTRATION_RETRY_DELAY_MS,
+              (attempt, delay) =>
+                consola.warn(
+                  `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
+                    delay / 1000
+                  }s...`
+                )
+            )
 
             if (
               registered &&
-              registered !== '410000000000000000000000000000000000000000'
+              typeof registered === 'string' &&
+              registered !== TRON_ZERO_ADDRESS
             ) {
-              const registeredBase58 = tronWeb.address.fromHex(registered)
-              const currentBase58 = tronWeb.address.fromHex(
-                address.replace('0x', '41')
+              const registeredBase58 = tronAddressLikeToBase58(
+                tronWeb,
+                registered
               )
+              const currentBase58 = tronAddressLikeToBase58(tronWeb, address)
 
               if (registeredBase58 === currentBase58) {
                 consola.info(`${name} already correctly registered`)
@@ -1017,48 +1031,121 @@ async function deployAndRegisterPeripheryImpl(options: {
               }
             }
 
-            // Register the contract
-            const tx = await diamond
-              .registerPeripheryContract(name, address)
-              .send({
-                feeLimit: 1_000_000_000, // 1000 TRX
-                shouldPollResponse: true,
-              })
+            // Estimate energy and set fee limit so delegated energy is used first
+            let feeLimitSun = REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN
+            try {
+              const addressHex = tronRegistrationAddressToEvmHex(
+                tronWeb,
+                address
+              )
+              const registerParamsHex = tronWeb.utils.abi.encodeParams(
+                ['string', 'address'],
+                [name, addressHex]
+              )
+              await sleep(REGISTRATION_RPC_DELAY_MS)
+              const result = await retryWithRateLimit<
+                Awaited<ReturnType<typeof estimateEnergyAndFeeLimit>>
+              >(
+                () =>
+                  estimateEnergyAndFeeLimit({
+                    fullHost: rpcUrl,
+                    tronWeb,
+                    contractAddressBase58: diamondAddress,
+                    functionSelector:
+                      'registerPeripheryContract(string,address)',
+                    parameterHex: registerParamsHex,
+                    safetyMargin: DEFAULT_SAFETY_MARGIN,
+                    minFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
+                    maxFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
+                    label: `  ${name}`,
+                  }),
+                3,
+                REGISTRATION_RETRY_DELAY_MS,
+                (attempt, delay) =>
+                  consola.warn(
+                    `Rate limit (429), retry ${attempt}/3 in ${
+                      delay / 1000
+                    }s...`
+                  )
+              )
+              feeLimitSun = result.feeLimitSun
+            } catch (err: unknown) {
+              consola.warn(
+                `  Energy estimate failed, using ${
+                  feeLimitSun / 1_000_000
+                } TRX limit:`,
+                err instanceof Error ? err.message : err
+              )
+            }
+
+            // Register the contract (retry on 429)
+            await sleep(REGISTRATION_RPC_DELAY_MS)
+            const tx = (await retryWithRateLimit(
+              () =>
+                diamond.registerPeripheryContract(name, address).send({
+                  feeLimit: feeLimitSun,
+                  shouldPollResponse: true,
+                }),
+              3,
+              REGISTRATION_RETRY_DELAY_MS,
+              (attempt, delay) =>
+                consola.warn(
+                  `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
+                    delay / 1000
+                  }s...`
+                )
+            )) as string | { txid?: string; transaction?: { txID?: string } }
 
             consola.success(`${name} registered successfully`)
             // TronWeb returns the transaction ID directly when shouldPollResponse is true
             const txId =
               typeof tx === 'string'
                 ? tx
-                : tx.txid || tx.transaction?.txID || tx
+                : tx.txid || tx.transaction?.txID || String(tx)
             consola.info(`   Transaction: ${txId}`)
           } catch (error: any) {
             consola.error(` Failed to register ${name}:`, error.message)
           }
+      }
 
       // Verify registrations
       consola.info('\n Verifying registrations...')
 
-      for (const name of PERIPHERY_CONTRACTS)
+      for (const name of getTronCorePeriphery())
         try {
-          const registered = await diamond.getPeripheryContract(name).call()
+          await sleep(REGISTRATION_RPC_DELAY_MS)
+          const registered = await retryWithRateLimit(
+            () => diamond.getPeripheryContract(name).call(),
+            3,
+            REGISTRATION_RETRY_DELAY_MS,
+            (attempt, delay) =>
+              consola.warn(
+                `Rate limit (429) verifying ${name}, retry ${attempt}/3 in ${
+                  delay / 1000
+                }s...`
+              )
+          )
 
           if (
             registered &&
-            registered !== '410000000000000000000000000000000000000000'
+            typeof registered === 'string' &&
+            registered !== TRON_ZERO_ADDRESS
           ) {
-            const registeredBase58 = tronWeb.address.fromHex(registered)
+            const registeredBase58 = tronAddressLikeToBase58(
+              tronWeb,
+              registered
+            )
             consola.success(`${name}: ${registeredBase58}`)
 
             // Update tron.diamond.json with successfully registered periphery contract
             const deployedAddress = deployedContracts[name]
             if (deployedAddress && deployedAddress !== 'FAILED') {
-              // Convert to base58 if needed
-              const addressToSave = deployedAddress.startsWith('T')
-                ? deployedAddress
-                : tronWeb.address.fromHex(deployedAddress.replace('0x', '41'))
+              const addressToSave = tronAddressLikeToBase58(
+                tronWeb,
+                deployedAddress
+              )
 
-              await updateDiamondJsonPeriphery(addressToSave, name)
+              await updateDiamondJsonPeriphery(addressToSave, name, network)
             }
           } else consola.warn(`  ${name}: Not registered`)
         } catch (error: any) {
@@ -1113,6 +1200,18 @@ const deployCommand = defineCommand({
       description: 'Skip confirmation prompts',
       default: false,
     },
+    only: {
+      type: 'string',
+      description:
+        'Comma-separated contract names to deploy and register only (e.g. FeeCollector). If omitted, all periphery contracts are deployed.',
+      default: undefined,
+    },
+    registerOnly: {
+      type: 'boolean',
+      description:
+        'Skip deployment; only register contract(s) from deployments file with the Diamond. Use with --only to register a single contract (e.g. after a failed registration).',
+      default: false,
+    },
   },
   async run({ args }) {
     try {
@@ -1140,10 +1239,19 @@ const deployCommand = defineCommand({
         )
       }
 
+      const onlyContracts = args.only
+        ? args.only
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined
+
       await deployAndRegisterPeripheryImpl({
         dryRun,
         verbose,
         skipConfirmation: args.skipConfirmation,
+        onlyContracts,
+        registerOnly: args.registerOnly,
       })
     } catch (error: unknown) {
       const errorMessage =

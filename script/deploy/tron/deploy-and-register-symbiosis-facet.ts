@@ -2,34 +2,36 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
-import type { SupportedChain } from '../../common/types'
+import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
   getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
-
-import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
-  getContractVersion,
+  getRPCEnvVarName,
   getEnvironment,
   getContractAddress,
   checkExistingDeployment,
-  deployContractWithLogging,
-  registerFacetToDiamond,
   confirmDeployment,
   printDeploymentSummary,
-  validateBalance,
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-  hexToTronAddress,
-} from './utils'
+} from '../../utils/utils'
+import { getContractVersion } from '../shared/getContractVersion'
+
+import { TronContractDeployer } from './TronContractDeployer'
+import { MIN_BALANCE_WARNING } from './constants'
+import { createTronWeb } from './helpers/tronWebFactory'
+import { evmHexToTronBase58 } from './tronAddressHelpers'
+import {
+  deployContractWithLogging,
+  registerFacetToDiamond,
+  validateBalance,
+} from './tronUtils'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 /**
  * Deploy and register SymbiosisFacet to Tron
@@ -80,6 +82,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
   // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: networkName as TronTvmNetworkName,
     privateKey,
     verbose,
     dryRun,
@@ -98,8 +101,9 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     displayNetworkInfo(networkInfo, environment, rpcUrl)
 
     // Initialize TronWeb
-    const tronWeb = new TronWeb({
-      fullHost: rpcUrl,
+    const tronWeb = createTronWeb({
+      rpcUrl,
+      networkKey: networkName as TronTvmNetworkName,
       privateKey,
     })
 
@@ -122,8 +126,8 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       )
 
     // Convert addresses to Tron format for display
-    const metaRouterTron = hexToTronAddress(metaRouter, tronWeb)
-    const gatewayTron = hexToTronAddress(gateway, tronWeb)
+    const metaRouterTron = evmHexToTronBase58(tronWeb, metaRouter)
+    const gatewayTron = evmHexToTronBase58(tronWeb, gateway)
 
     consola.info('\nSymbiosis Configuration:')
     consola.info(`MetaRouter: ${metaRouterTron} (hex: ${metaRouter})`)

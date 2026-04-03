@@ -14,36 +14,38 @@ import {
   type PublicClient,
 } from 'viem'
 
-import { corePeriphery } from '../../config/global.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { sleep } from '../utils/delay'
-import { getRPCEnvVarName } from '../utils/network'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
+import {
+  getNetworkConfig,
+  getRPCEnvVarName,
+  normalizeSelector,
+} from '../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
-  networks,
 } from '../utils/viemScriptHelpers'
 
 import targetStateImport from './_targetState.json'
 import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
+import {
+  getCoreFacets,
+  getCorePeriphery,
+  getTronWallet,
+} from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
+import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
+import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
 import {
   callTronContract,
   callTronContractBoolean,
   ensureTronAddress,
-  getTronWallet,
-  normalizeSelector,
   checkOwnershipTron,
   parseTroncastNestedArray,
-} from './tron/tronUtils'
-import {
   checkIsDeployedTron,
-  getTronCorePeriphery,
-  parseTroncastFacetsOutput,
-} from './tron/utils'
+} from './tron/tronUtils'
 
 const targetState = targetStateImport as TargetState
 
@@ -161,17 +163,12 @@ const main = defineCommand({
     const networkGasZipConfig = (
       networksConfig as Record<string, { gasZipChainId?: number } | undefined>
     )[networkLower]
-    const supportsGasZip =
-      !isTron &&
-      !!networkGasZipConfig?.gasZipChainId &&
-      networkGasZipConfig.gasZipChainId > 0
+    const supportsGasZip = (networkGasZipConfig?.gasZipChainId ?? 0) > 0
 
-    let coreFacetsToCheck: string[] = globalConfig.coreFacets
-    if (!supportsGasZip) {
-      coreFacetsToCheck = coreFacetsToCheck.filter(
-        (f: string) => f !== 'GasZipFacet'
-      )
-    }
+    const coreFacetExclusions = supportsGasZip ? [] : ['GasZipFacet']
+    const coreFacetsToCheck = getCoreFacets({
+      exclude: coreFacetExclusions,
+    })
 
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
@@ -185,7 +182,7 @@ const main = defineCommand({
         nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter((k) => {
           return (
             !coreFacetsToCheck.includes(k) &&
-            !corePeriphery.includes(k) &&
+            !getCorePeriphery().includes(k) &&
             k !== 'LiFiDiamond' &&
             k.includes('Facet')
           )
@@ -196,13 +193,11 @@ const main = defineCommand({
     let publicClient: PublicClient | undefined
     let tronWeb: TronWeb | undefined
 
-    const networkConfig = networks[networkLower]
-    if (!networkConfig) {
-      throw new Error(`Network config not found for ${networkLower}`)
-    }
+    const networkConfig = getNetworkConfig(networkLower)
 
     const tronRpcUrl = isTron
-      ? getEnvVar(getRPCEnvVarName(networkLower)) || networkConfig.rpcUrl
+      ? process.env[getRPCEnvVarName(networkLower)]?.trim() ||
+        networkConfig.rpcUrl
       : undefined
 
     if (isTron)
@@ -217,12 +212,20 @@ const main = defineCommand({
       if (!rpcUrl) {
         throw new Error(`No default RPC URL configured for ${networkLower}`)
       }
-      const { url: transportUrl, fetchOptions } =
-        getTransportConfigFromRpcUrl(rpcUrl)
+      const {
+        url: transportUrl,
+        fetchOptions,
+        retryCount,
+        retryDelay,
+      } = getTransportConfigFromRpcUrl(rpcUrl)
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,
-        transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
+        transport: http(transportUrl, {
+          ...(fetchOptions ? { fetchOptions } : {}),
+          ...(retryCount !== undefined ? { retryCount } : {}),
+          ...(retryDelay !== undefined ? { retryDelay } : {}),
+        }),
       })
     }
 
@@ -406,7 +409,7 @@ const main = defineCommand({
       // Filter optional periphery contracts that are intentionally absent on this network.
       let peripheryToCheck = isTron
         ? getTronCorePeriphery()
-        : globalConfig.corePeriphery
+        : getCorePeriphery()
       if (!supportsGasZip) {
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
@@ -495,10 +498,9 @@ const main = defineCommand({
         targetState[networkLower]?.production?.LiFiDiamond || {}
       let contractsToCheck = Object.keys(targetStateContracts).filter(
         (contract) =>
-          (isTron
-            ? getTronCorePeriphery()
-            : globalConfig.corePeriphery
-          ).includes(contract) ||
+          (isTron ? getTronCorePeriphery() : getCorePeriphery()).includes(
+            contract
+          ) ||
           Object.keys(globalConfig.whitelistPeripheryFunctions).includes(
             contract
           )
@@ -610,7 +612,7 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     // Load whitelist config (staging or production)
     // whitelist.staging.json is gitignored, so gracefully skip if unavailable in staging
-    let whitelistConfig: any = { DEXS: [], PERIPHERY: {} }
+    let whitelistConfig: unknown = { DEXS: [], PERIPHERY: {} }
     if (environment === 'staging') {
       try {
         const mod = await import('../../config/whitelist.staging.json')
@@ -629,7 +631,7 @@ const main = defineCommand({
     try {
       const hasDexWhitelistConfig =
         (
-          whitelistConfig.DEXS as Array<{
+          (whitelistConfig as IWhitelistConfig).DEXS as Array<{
             contracts?: Record<string, unknown[]>
           }>
         )?.some(
@@ -639,7 +641,8 @@ const main = defineCommand({
         ) ?? false
 
       const hasPeripheryWhitelistConfig =
-        (whitelistConfig.PERIPHERY?.[networkLower]?.length ?? 0) > 0
+        ((whitelistConfig as IWhitelistConfig).PERIPHERY?.[networkLower]
+          ?.length ?? 0) > 0
 
       const hasWhitelistConfig =
         hasDexWhitelistConfig || hasPeripheryWhitelistConfig
@@ -649,7 +652,7 @@ const main = defineCommand({
         const expectedPairs = await getExpectedPairs(
           networkStr as string,
           deployedContracts,
-          whitelistConfig,
+          whitelistConfig as IWhitelistConfig,
           isTron
         )
 
@@ -683,11 +686,12 @@ const main = defineCommand({
     let pauserWalletAddress: string
 
     if (isTron) {
-      // Use Tron wallets if available, fallback to EVM wallets (will need conversion)
-      deployerWallet = getTronWallet(globalConfig, 'deployerWallet')
-      refundWallet = getTronWallet(globalConfig, 'refundWallet')
-      feeCollectorOwner = getTronWallet(globalConfig, 'feeCollectorOwner')
-      pauserWalletAddress = getTronWallet(globalConfig, 'pauserWallet')
+      if (!tronWeb) throw new Error('TronWeb not initialized')
+
+      deployerWallet = getTronWallet('deployerWallet', { tronWeb })
+      refundWallet = getTronWallet('refundWallet', { tronWeb })
+      feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
+      pauserWalletAddress = getTronWallet('pauserWallet', { tronWeb })
     } else {
       deployerWallet = getAddress(
         environment === 'staging'

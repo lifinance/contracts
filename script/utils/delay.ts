@@ -1,3 +1,8 @@
+/**
+ * Shared sleep/delay utility.
+ * Use this instead of re-implementing setTimeout in individual scripts.
+ */
+
 import { INTER_CALL_DELAY } from '../deploy/shared/constants'
 
 /**
