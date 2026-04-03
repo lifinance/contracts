@@ -55,7 +55,6 @@ yarn-error.log
 # Test and Playground Artifacts
 # -----------------------------------------------------------------------------
 test/logs
-script/config.sh
 script/playground.sh
 test/solidity/TestPlayground.t.sol
 
