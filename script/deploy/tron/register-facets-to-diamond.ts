@@ -420,7 +420,7 @@ async function registerFacetsToDiamond(
 ) {
   try {
     // Get environment and determine network
-    const environment = await getEnvironment()
+    const environment = getEnvironment()
     const networkName =
       environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
 

@@ -159,17 +159,21 @@ export async function executeShellCommand(command: string): Promise<string> {
 /**
  * Get deployment environment from .env
  */
-export async function getEnvironment(): Promise<EnvironmentEnum> {
-  return process.env.PRODUCTION === 'true'
-    ? EnvironmentEnum.production
-    : EnvironmentEnum.staging
+export function getEnvironment(): EnvironmentEnum {
+  try {
+    return getEnvVar('PRODUCTION') === 'true'
+      ? EnvironmentEnum.production
+      : EnvironmentEnum.staging
+  } catch {
+    return EnvironmentEnum.staging
+  }
 }
 
 /**
  * Get the correct private key based on environment
  */
 export async function getPrivateKey(): Promise<string> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   return getPrivateKeyForEnvironment(environment)
 }
 
@@ -185,7 +189,7 @@ export async function logDeployment(
   verified = false
 ): Promise<void> {
   const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19)
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
 
   // Escape shell arguments to prevent injection
   const escapeShellArg = (arg: string) => `'${arg.replace(/'/g, "'\"'\"'")}'`
@@ -221,7 +225,7 @@ export async function saveContractAddress(
   contract: string,
   address: string
 ): Promise<void> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
   const deploymentFile = resolve(
@@ -250,7 +254,7 @@ export async function getContractAddress(
   network: SupportedChain,
   contract: string
 ): Promise<string | null> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
   const deploymentFile = resolve(
@@ -275,7 +279,7 @@ export async function saveDiamondDeployment(
   _diamondAddress: string,
   facets: Record<string, { address: string; version: string }>
 ): Promise<void> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
   const diamondFile = resolve(
