@@ -35,7 +35,6 @@ import {
 async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   consola.start('TRON AllBridgeFacet Deployment & Registration')
 
-  // Get environment from config.sh
   const environment = getEnvironment()
 
   // Load environment variables

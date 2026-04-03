@@ -100,7 +100,6 @@ async function deployCoreFacetsImpl(options: {
 }) {
   consola.start('TRON Core Facets Deployment')
 
-  // Get environment from config.sh
   const environment = getEnvironment()
 
   // Load networks configuration once

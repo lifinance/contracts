@@ -45,7 +45,6 @@ async function deployAndRegisterPeripheryImpl(options: {
 }) {
   consola.start('TRON Periphery Contracts Deployment & Registration')
 
-  // Get environment from config.sh
   const environment = getEnvironment()
 
   // Load environment variables

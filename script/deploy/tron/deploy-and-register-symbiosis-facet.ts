@@ -37,7 +37,6 @@ import {
 async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
   consola.start('TRON SymbiosisFacet Deployment & Registration')
 
-  // Get environment from config.sh
   const environment = getEnvironment()
 
   // Load environment variables
