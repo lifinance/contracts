@@ -3,8 +3,7 @@
 # deploys a CREATE3Factory
 # stores the deployed-to address in networks.json
 deployAndStoreCREATE3Factory() {
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
 
   # make sure script was called with sufficient parameters

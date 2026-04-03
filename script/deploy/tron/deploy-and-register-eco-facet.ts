@@ -36,7 +36,7 @@ import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   consola.start('TRON EcoFacet Deployment & Registration')
 
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
 
   const dryRun = options.dryRun ?? false
   let verbose = true

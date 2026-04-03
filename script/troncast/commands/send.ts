@@ -343,7 +343,7 @@ export const sendCommand = defineCommand({
 
           try {
             // Determine network and environment
-            const environment = await getEnvironment()
+            const environment = getEnvironment()
             const networkName =
               environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
             const fileSuffix =

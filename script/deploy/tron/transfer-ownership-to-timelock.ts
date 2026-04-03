@@ -40,7 +40,7 @@ async function transferOwnershipToTimelock(options: {
   const runStep1 = stepOnly === undefined || stepOnly === 1
   const runStep2 = stepOnly === undefined ? !!options.confirm : stepOnly === 2
 
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const networkName =
     environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
 

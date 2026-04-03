@@ -154,14 +154,10 @@ export async function executeShellCommand(command: string): Promise<string> {
 }
 
 /**
- * Reads `$PRODUCTION` from `script/config.sh` via a bash subshell and maps it to an environment enum.
- * @returns `EnvironmentEnum.production` when `PRODUCTION=true`, `EnvironmentEnum.staging` otherwise.
+ * Get deployment environment from .env
  */
-export async function getEnvironment(): Promise<EnvironmentEnum> {
-  const productionValue = (
-    await executeShellCommand('source script/config.sh && echo $PRODUCTION')
-  ).trim()
-  return productionValue === 'true'
+export function getEnvironment(): EnvironmentEnum {
+  return process.env.PRODUCTION === 'true'
     ? EnvironmentEnum.production
     : EnvironmentEnum.staging
 }
@@ -222,11 +218,11 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
 
 /**
  * Returns the signing private key for the current deployment environment.
- * Reads environment from `config.sh` via {@link getEnvironment}, then reads
+ * Reads environment from `.env` via {@link getEnvironment}, then reads
  * `PRIVATE_KEY_PRODUCTION` or `PRIVATE_KEY` (same semantics as `getPrivateKeyForEnvironment` in `demoScriptHelpers.ts`).
  */
 export async function getPrivateKey(): Promise<string> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const name =
     environment === EnvironmentEnum.production
       ? 'PRIVATE_KEY_PRODUCTION'
@@ -238,7 +234,7 @@ export async function getPrivateKey(): Promise<string> {
 
 /**
  * Appends a deployment entry to the JSON log file by calling `logDeployment` in `helperFunctions.sh`.
- * Reads the current environment from `config.sh` to determine whether to write to the production or staging log.
+ * Reads the current environment from `.env` to determine whether to write to the production or staging log.
  *
  * @param contract - Contract name (e.g. `'LiFiDiamond'`).
  * @param network - Network key from `config/networks.json`.
@@ -256,7 +252,7 @@ export async function logDeployment(
   verified = false
 ): Promise<void> {
   const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19)
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
 
   // Escape shell arguments to prevent injection
   const escapeShellArg = (arg: string) => `'${arg.replace(/'/g, "'\"'\"'")}'`
@@ -297,7 +293,7 @@ export async function saveContractAddress(
   contract: string,
   address: string
 ): Promise<void> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
   const root = await pickDeploymentRootForWrites(network, fileSuffix)
@@ -328,7 +324,7 @@ export async function getContractAddress(
   network: SupportedChain,
   contract: string
 ): Promise<string | null> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
   const roots = getDeploymentRoots()
@@ -366,7 +362,7 @@ export async function saveDiamondDeployment(
   _diamondAddress: string,
   facets: Record<string, { address: string; version: string }>
 ): Promise<void> {
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
   const diamondFile = resolve(

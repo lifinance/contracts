@@ -12,8 +12,8 @@ set -a
 source .env
 set +a
 
-# load script
-source script/config.sh
+NETWORKS_JSON_FILE_PATH="config/networks.json"
+GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
@@ -1432,7 +1432,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
   # Check if MAX_CONCURRENT_JOBS is configured
   if [[ -z $MAX_CONCURRENT_JOBS ]]; then
-    error "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    error "Your .env file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
     exit 1
   fi
 
@@ -1440,7 +1440,7 @@ function parseTargetStateGoogleSpreadsheet() {
   if [[ "$ENVIRONMENT" == "production" ]]; then
     # check if config contains spreadsheet ID
     if [[ -z "$TARGET_STATE_SPREADSHEET_ID_PRODUCTION" ]]; then
-      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
+      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
       exit 1
     else
       # construct spreadsheet URL
@@ -1450,7 +1450,7 @@ function parseTargetStateGoogleSpreadsheet() {
   elif [[ "$ENVIRONMENT" == "staging" ]]; then
     # check if config contains spreadsheet ID
     if [[ -z "$TARGET_STATE_SPREADSHEET_ID_STAGING" ]]; then
-      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
+      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
       exit 1
     else
       # construct spreadsheet URL
@@ -2147,7 +2147,7 @@ function getEtherscanApiKeyName() {
   fi
 
   if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
-    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    echo "Please set FOUNDRY_TOML_FILE_PATH in your .env file (see .env.example)" >&2
     return 1
   fi
 
@@ -2185,7 +2185,7 @@ function getVerifierUrlFromFoundryToml() {
   fi
 
   if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
-    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    echo "Please set FOUNDRY_TOML_FILE_PATH in your .env file (see .env.example)" >&2
     return 1
   fi
 

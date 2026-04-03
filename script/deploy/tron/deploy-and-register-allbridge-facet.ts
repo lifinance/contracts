@@ -38,8 +38,7 @@ import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   consola.start('TRON AllBridgeFacet Deployment & Registration')
 
-  // Get environment from config.sh
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
 
   // Load environment variables
   const dryRun = options.dryRun ?? false

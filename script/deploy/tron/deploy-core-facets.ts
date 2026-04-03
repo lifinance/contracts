@@ -90,8 +90,7 @@ async function deployCoreFacetsImpl(options: {
 }) {
   consola.start('TRON Core Facets Deployment')
 
-  // Get environment from config.sh
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
 
   // Load networks configuration once
   const networksConfig = await Bun.file('config/networks.json').json()
