@@ -218,7 +218,7 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
 
 /**
  * Returns the signing private key for the current deployment environment.
- * Reads environment from `config.sh` via {@link getEnvironment}, then reads
+ * Reads environment from `.env` via {@link getEnvironment}, then reads
  * `PRIVATE_KEY_PRODUCTION` or `PRIVATE_KEY` (same semantics as `getPrivateKeyForEnvironment` in `demoScriptHelpers.ts`).
  */
 export async function getPrivateKey(): Promise<string> {
@@ -234,7 +234,7 @@ export async function getPrivateKey(): Promise<string> {
 
 /**
  * Appends a deployment entry to the JSON log file by calling `logDeployment` in `helperFunctions.sh`.
- * Reads the current environment from `config.sh` to determine whether to write to the production or staging log.
+ * Reads the current environment from `.env` to determine whether to write to the production or staging log.
  *
  * @param contract - Contract name (e.g. `'LiFiDiamond'`).
  * @param network - Network key from `config/networks.json`.
