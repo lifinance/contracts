@@ -69,6 +69,7 @@ jobs:
         env:
           PRIVATE_KEY_PRODUCTION: ${{ secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
+          SC_MONGODB_URI: ${{ secrets.SC_MONGODB_URI }}
         run: |
           set +e  # Don't exit on error — capture full output
 
