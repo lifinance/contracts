@@ -3,6 +3,13 @@
  *
  * This script proposes a transaction to a Gnosis Safe and stores it in MongoDB.
  * The transaction can later be confirmed and executed using the confirm-safe-tx script.
+ *
+ * Can be imported and called programmatically:
+ *   import { runPropose } from './propose-to-safe'
+ *   await runPropose({ network: 'mainnet', to: '0x...', calldata: '0x...', timelock: true, privateKey: '0x...' })
+ *
+ * Or run directly from the CLI:
+ *   bun run propose-to-safe.ts --network mainnet --to 0x... --calldata 0x... --timelock --privateKey 0x...
  */
 
 import 'dotenv/config'
@@ -27,16 +34,16 @@ import {
   wrapWithTimelockSchedule,
 } from './safe-utils'
 
+/**
+ * Executes the propose-to-safe command
+ * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
+ */
 export async function runPropose(options: IProposeToSafeOptions) {
-  const { client: mongoClient, pendingTransactions } =
-    await getSafeMongoCollection()
-
-  if (!options.privateKey && !options.ledger)
-    throw new Error('Either privateKey or ledger must be provided')
-
+  // Set up signing options
   const useLedger = options.ledger || false
   let privateKey: string | undefined
 
+  // Validate that incompatible Ledger options aren't provided together
   if (options.derivationPath && options.ledgerLive)
     throw new Error(
       "Cannot use both 'derivationPath' and 'ledgerLive' options together"
@@ -60,10 +67,11 @@ export async function runPropose(options: IProposeToSafeOptions) {
 
   const ledgerOptions = {
     ledgerLive: options.ledgerLive || false,
-    accountIndex: options.accountIndex ?? 0,
+    accountIndex: options.accountIndex ? Number(options.accountIndex) : 0,
     derivationPath: options.derivationPath,
   }
 
+  // Initialize Safe client (use --safeAddress override when proposing to a different Safe)
   const safeAddressOverride = options.safeAddress
     ? (getAddress(options.safeAddress) as Address)
     : undefined
@@ -76,18 +84,23 @@ export async function runPropose(options: IProposeToSafeOptions) {
     safeAddressOverride
   )
 
+  // Get the account address
   const senderAddress = safe.account.address
 
+  // Check if the current signer is an owner
   const existingOwners = await safe.getOwners()
   if (!isAddressASafeOwner(existingOwners, senderAddress)) {
     consola.error('The current signer is not an owner of this Safe')
     consola.error('Signer address:', senderAddress)
     consola.error('Current owners:', existingOwners)
-    throw new Error('Cannot propose transactions - signer is not an owner')
+    consola.error('Cannot propose transactions - exiting')
+    process.exit(1)
   }
 
+  // Handle timelock wrapping if requested
   let finalTo = options.to as Address
 
+  // Get calldata from file or argument
   let finalCalldata: Hex
   if (options.calldataFile) {
     if (!fs.existsSync(options.calldataFile))
@@ -96,11 +109,14 @@ export async function runPropose(options: IProposeToSafeOptions) {
       .readFileSync(options.calldataFile, 'utf8')
       .trim() as Hex
     consola.info(`Loaded calldata from file: ${options.calldataFile}`)
+  } else if (options.calldata) {
+    finalCalldata = options.calldata as Hex
   } else {
-    finalCalldata = options.calldata
+    throw new Error('Either --calldata or --calldataFile must be provided')
   }
 
   if (options.timelock) {
+    // Look for timelock controller address in deployments (always use production)
     const deploymentPath = path.join(
       process.cwd(),
       'deployments',
@@ -132,15 +148,11 @@ export async function runPropose(options: IProposeToSafeOptions) {
     finalCalldata = wrappedTransaction.calldata
   }
 
-  if (options.dryRun) {
-    consola.info('[DRY RUN] Would store proposal:')
-    consola.info('  network: ' + options.network)
-    consola.info('  to: ' + finalTo)
-    consola.info('  calldata: ' + finalCalldata.slice(0, 42) + '...')
-    consola.info('  timelock: ' + (options.timelock ? 'yes' : 'no'))
-    return
-  }
+  // Get MongoDB collection
+  const { client: mongoClient, pendingTransactions } =
+    await getSafeMongoCollection()
 
+  // Get the next nonce
   const nextNonce = await getNextNonce(
     pendingTransactions,
     safeAddress,
@@ -149,6 +161,7 @@ export async function runPropose(options: IProposeToSafeOptions) {
     await safe.getNonce()
   )
 
+  // Create and sign the Safe transaction
   const safeTransaction = await safe.createTransaction({
     transactions: [
       {
@@ -173,6 +186,7 @@ export async function runPropose(options: IProposeToSafeOptions) {
     consola.info('Transaction wrapped in timelock schedule call')
   }
 
+  // Store transaction in MongoDB using the utility function
   try {
     const result = await storeTransactionInMongoDB(
       pendingTransactions,
@@ -193,13 +207,14 @@ export async function runPropose(options: IProposeToSafeOptions) {
       throw new Error('MongoDB insert was not acknowledged')
 
     consola.success('Transaction successfully stored in MongoDB')
-    consola.info('Transaction proposed')
   } catch (error) {
     consola.error('Failed to store transaction in MongoDB:', error)
     throw error
   } finally {
     await mongoClient.close()
   }
+
+  consola.info('Transaction proposed')
 }
 
 /**
@@ -266,11 +281,6 @@ const main = defineCommand({
       description: 'Wrap the transaction in a timelock schedule call',
       required: false,
     },
-    dryRun: {
-      type: 'boolean',
-      description: 'Do not write to MongoDB',
-      default: false,
-    },
     safeAddress: {
       type: 'string',
       description:
@@ -288,7 +298,6 @@ const main = defineCommand({
       calldata: (args.calldata ?? '') as Hex,
       calldataFile: args.calldataFile,
       timelock: args.timelock,
-      dryRun: args.dryRun,
       privateKey: args.privateKey,
       rpcUrl: args.rpcUrl,
       ledger: args.ledger,
