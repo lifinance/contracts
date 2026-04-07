@@ -20,8 +20,8 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
-import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 import { getContractVersion } from '../shared/getContractVersion'
+import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { createTronWeb } from './helpers/tronWebFactory'
