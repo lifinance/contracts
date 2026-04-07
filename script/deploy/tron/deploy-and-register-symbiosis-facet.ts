@@ -28,7 +28,7 @@ import { createTronWeb } from './helpers/tronWebFactory'
 import { evmHexToTronBase58 } from './tronAddressHelpers'
 import {
   deployContractWithLogging,
-  registerFacetToDiamond,
+  proposeDiamondCut,
   validateBalance,
 } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
@@ -192,16 +192,14 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       }
 
     // Register to Diamond
-    consola.info('\nRegistering SymbiosisFacet to Diamond...')
+    consola.info('\nProposing SymbiosisFacet diamondCut to Safe...')
 
     // Get diamond address
     const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
-    // Get selectors for display
     const selectors = await getFacetSelectors('SymbiosisFacet')
 
-    // Display registration info
     displayRegistrationInfo(
       'SymbiosisFacet',
       facetAddress,
@@ -209,32 +207,17 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    // Register using new utility
-    const registrationResult = await registerFacetToDiamond(
+    await proposeDiamondCut(
       'SymbiosisFacet',
       facetAddress,
+      diamondAddress,
       tronWeb,
-      rpcUrl,
-      dryRun,
-      network
+      dryRun
     )
 
-    if (registrationResult.success) {
-      consola.success('SymbiosisFacet registered successfully!')
-      if (registrationResult.transactionId)
-        consola.info(`Transaction: ${registrationResult.transactionId}`)
-    } else {
-      consola.error(
-        'Failed to register SymbiosisFacet:',
-        registrationResult.error
-      )
-      process.exit(1)
-    }
-
-    // Print summary
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success('\nDeployment and registration completed successfully!')
+    consola.success('\nDeployment and proposal completed successfully!')
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)

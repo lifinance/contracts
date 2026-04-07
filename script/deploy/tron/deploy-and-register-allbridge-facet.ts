@@ -27,7 +27,7 @@ import { createTronWeb } from './helpers/tronWebFactory'
 import { tronAddressToHex } from './tronAddressHelpers'
 import {
   deployContractWithLogging,
-  registerFacetToDiamond,
+  proposeDiamondCut,
   validateBalance,
 } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
@@ -183,17 +183,13 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
         process.exit(1)
       }
 
-    // Register to Diamond
-    consola.info('\nRegistering AllBridgeFacet to Diamond...')
+    consola.info('\nProposing AllBridgeFacet diamondCut to Safe...')
 
-    // Get diamond address
     const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
-    // Get selectors for display
     const selectors = await getFacetSelectors('AllBridgeFacet')
 
-    // Display registration info
     displayRegistrationInfo(
       'AllBridgeFacet',
       facetAddress,
@@ -201,32 +197,17 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    // Register using new utility
-    const registrationResult = await registerFacetToDiamond(
+    await proposeDiamondCut(
       'AllBridgeFacet',
       facetAddress,
+      diamondAddress,
       tronWeb,
-      rpcUrl,
-      dryRun,
-      network
+      dryRun
     )
 
-    if (registrationResult.success) {
-      consola.success('AllBridgeFacet registered successfully!')
-      if (registrationResult.transactionId)
-        consola.info(`Transaction: ${registrationResult.transactionId}`)
-    } else {
-      consola.error(
-        'Failed to register AllBridgeFacet:',
-        registrationResult.error
-      )
-      process.exit(1)
-    }
-
-    // Print summary
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success('\nDeployment and registration completed successfully!')
+    consola.success('\nDeployment and proposal completed successfully!')
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)

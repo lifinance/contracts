@@ -10,7 +10,7 @@ import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
-import type { Hex } from 'viem'
+import { encodeFunctionData, type Address, type Hex } from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import type {
@@ -24,7 +24,7 @@ import type {
   SupportedChain,
 } from '../common/types'
 import { EnvironmentEnum } from '../common/types'
-import { EVM_VERSIONS } from '../deploy/shared/constants'
+import { DIAMOND_CUT_ABI, EVM_VERSIONS } from '../deploy/shared/constants'
 import { getContractVersion } from '../deploy/shared/getContractVersion'
 
 import { spawnAndCapture } from './spawnAndCapture'
@@ -920,5 +920,37 @@ Selectors: ${selectors.length} functions
     style: {
       borderColor: 'cyan',
     },
+  })
+}
+
+/**
+ * Encode a `diamondCut` calldata for adding a facet.
+ * Resolves selectors from Forge artifacts automatically.
+ * Chain-agnostic — works for both EVM and Tron proposals.
+ */
+export async function encodeDiamondCutCalldata(
+  facetName: string,
+  facetAddressHex: Address
+): Promise<Hex> {
+  const selectors = await getFacetSelectors(facetName)
+
+  consola.info(
+    `Encoding diamondCut for ${facetName} (${selectors.length} selectors)`
+  )
+
+  return encodeFunctionData({
+    abi: DIAMOND_CUT_ABI,
+    functionName: 'diamondCut',
+    args: [
+      [
+        {
+          facetAddress: facetAddressHex,
+          action: 0,
+          functionSelectors: selectors as Hex[],
+        },
+      ],
+      '0x0000000000000000000000000000000000000000' as Address,
+      '0x' as Hex,
+    ],
   })
 }

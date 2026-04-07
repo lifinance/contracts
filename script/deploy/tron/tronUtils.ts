@@ -12,6 +12,7 @@ import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { sleep } from '../../utils/delay'
 import { spawnAndCapture } from '../../utils/spawnAndCapture'
 import {
+  encodeDiamondCutCalldata,
   getContractAddress,
   getFacetSelectors,
   logDeployment,
@@ -35,6 +36,7 @@ import {
   TRON_ZERO_ADDRESS,
 } from './constants'
 import { estimateContractCallEnergy } from './helpers/estimateContractEnergy'
+import { runPropose } from './propose-to-safe-tron'
 import { loadForgeArtifact } from './helpers/loadForgeArtifact'
 import { getCurrentPrices } from './helpers/tronPricing'
 import {
@@ -735,6 +737,26 @@ export function parseTroncastNestedArray(
  * @param tronWeb - TronWeb instance
  * @param logError - Function to log errors
  */
+/**
+ * Tron-specific: encode a diamondCut and propose to Safe via Timelock.
+ * Converts the Base58 facet address to hex, encodes calldata, then proposes.
+ */
+export async function proposeDiamondCut(
+  facetName: string,
+  facetAddress: string,
+  diamondAddress: string,
+  tronWeb: any,
+  dryRun = false
+): Promise<void> {
+  const facetAddressHex = tronAddressToHex(tronWeb, facetAddress)
+  const calldata = await encodeDiamondCutCalldata(
+    facetName,
+    facetAddressHex as `0x${string}`
+  )
+
+  await runPropose({ dryRun, to: diamondAddress, calldata, timelock: true })
+}
+
 export async function checkOwnershipTron(
   name: string,
   expectedOwner: string,

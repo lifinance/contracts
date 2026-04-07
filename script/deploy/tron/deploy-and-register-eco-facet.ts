@@ -28,7 +28,7 @@ import { createTronWeb } from './helpers/tronWebFactory'
 import { tronAddressToHex } from './tronAddressHelpers'
 import {
   deployContractWithLogging,
-  registerFacetToDiamond,
+  proposeDiamondCut,
   validateBalance,
 } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
@@ -164,7 +164,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
         process.exit(1)
       }
 
-    consola.info('\nRegistering EcoFacet to Diamond...')
+    consola.info('\nProposing EcoFacet diamondCut to Safe...')
 
     const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
@@ -173,27 +173,17 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     displayRegistrationInfo('EcoFacet', facetAddress, diamondAddress, selectors)
 
-    const registrationResult = await registerFacetToDiamond(
+    await proposeDiamondCut(
       'EcoFacet',
       facetAddress,
+      diamondAddress,
       tronWeb,
-      rpcUrl,
-      dryRun,
-      network
+      dryRun
     )
-
-    if (registrationResult.success) {
-      consola.success('EcoFacet registered successfully!')
-      if (registrationResult.transactionId)
-        consola.info(`Transaction: ${registrationResult.transactionId}`)
-    } else {
-      consola.error('Failed to register EcoFacet:', registrationResult.error)
-      process.exit(1)
-    }
 
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success('\nDeployment and registration completed successfully!')
+    consola.success('\nDeployment and proposal completed successfully!')
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)
