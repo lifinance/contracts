@@ -193,7 +193,11 @@ async function deployAndRegisterNEARIntentsFacet(options: {
 
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success('\nDeployment and proposal completed successfully!')
+    consola.success(
+      dryRun
+        ? '\nDry run completed successfully! (no Safe tx created)'
+        : '\nDeployment and proposal completed successfully!'
+    )
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)
