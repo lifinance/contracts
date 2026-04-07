@@ -32,12 +32,12 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
 import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
 } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { getEnvVar } from '../../utils/utils'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,

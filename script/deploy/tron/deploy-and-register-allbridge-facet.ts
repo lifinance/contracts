@@ -6,10 +6,10 @@ import { consola } from 'consola'
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
-  getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import {
+  getEnvVar,
   getRPCEnvVarName,
   getEnvironment,
   getContractAddress,
@@ -19,8 +19,8 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-  proposeDiamondCut,
 } from '../../utils/utils'
+import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 import { getContractVersion } from '../shared/getContractVersion'
 
 import { TronContractDeployer } from './TronContractDeployer'

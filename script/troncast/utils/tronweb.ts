@@ -20,9 +20,8 @@ if (
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
-import { getRPCEnvVarName } from '../../utils/utils'
+import { getEnvVar, getRPCEnvVarName } from '../../utils/utils'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
 

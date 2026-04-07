@@ -26,7 +26,7 @@ import { consola } from 'consola'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { getEnvVar } from '../../utils/utils'
 import {
   getNextNonce,
   getSafeMongoCollection,

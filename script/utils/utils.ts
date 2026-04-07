@@ -10,7 +10,7 @@ import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
-import { encodeFunctionData, type Address, type Hex } from 'viem'
+import type { Hex } from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import type {
@@ -24,9 +24,8 @@ import type {
   SupportedChain,
 } from '../common/types'
 import { EnvironmentEnum } from '../common/types'
-import { DIAMOND_CUT_ABI, EVM_VERSIONS } from '../deploy/shared/constants'
+import { EVM_VERSIONS } from '../deploy/shared/constants'
 import { getContractVersion } from '../deploy/shared/getContractVersion'
-import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
 
 import { spawnAndCapture } from './spawnAndCapture'
 
@@ -87,16 +86,20 @@ function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
   } catch {
     // Bun's TOML parser rejects keys starting with digits (e.g. "0g" in rpc_endpoints).
     // Fall back to regex extraction of [profile.default] values.
+    // Extract only the section body (up to the next section header or end of file)
+    // so keys from other profiles are never matched.
+    const sectionBody =
+      content.match(/\[profile\.default\]\n([\s\S]*?)(?=\n\[|$)/)?.[1] ?? ''
+    if (!sectionBody)
+      throw new Error('Missing [profile.default] section in foundry.toml')
+
     const extract = (key: string): string | undefined =>
-      content.match(
-        new RegExp(`^\\[profile\\.default\\][\\s\\S]*?^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm')
+      sectionBody.match(
+        new RegExp(`^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm')
       )?.[1]
 
     const solc_version = extract('solc_version')
     const evm_version = extract('evm_version')
-
-    if (!solc_version && !evm_version)
-      throw new Error('Missing [profile.default] section in foundry.toml')
 
     return { solc_version, evm_version } as IFoundryProfileDefaultConfig
   }
@@ -165,6 +168,17 @@ export function getNetworkConfig(networkName: string): Omit<INetwork, 'id'> {
  * @param command The shell command to execute
  * @returns The command output
  */
+/**
+ * Returns the value of a required environment variable.
+ * @throws If the variable is not set.
+ */
+export const getEnvVar = (varName: string): string => {
+  const value = process.env[varName]
+  if (!value)
+    throw new Error(`Missing required environment variable: ${varName}`)
+  return value
+}
+
 export async function executeShellCommand(command: string): Promise<string> {
   return spawnAndCapture('bash', ['-c', command])
 }
@@ -924,73 +938,3 @@ Selectors: ${selectors.length} functions
   })
 }
 
-/**
- * Encode a `diamondCut` calldata for adding a facet.
- * Resolves selectors from Forge artifacts automatically.
- * Chain-agnostic — works for both EVM and Tron proposals.
- */
-export async function encodeDiamondCutCalldata(
-  facetName: string,
-  facetAddressHex: Address
-): Promise<Hex> {
-  const selectors = await getFacetSelectors(facetName)
-
-  consola.info(
-    `Encoding diamondCut for ${facetName} (${selectors.length} selectors)`
-  )
-
-  return encodeFunctionData({
-    abi: DIAMOND_CUT_ABI,
-    functionName: 'diamondCut',
-    args: [
-      [
-        {
-          facetAddress: facetAddressHex,
-          action: 0,
-          functionSelectors: selectors as Hex[],
-        },
-      ],
-      '0x0000000000000000000000000000000000000000' as Address,
-      '0x' as Hex,
-    ],
-  })
-}
-
-/**
- * Encode a diamondCut and propose it to Safe via Timelock.
- * Routes to the correct propose script based on network (Tron vs EVM).
- */
-export async function proposeDiamondCut(options: {
-  facetName: string
-  facetAddressHex: Address
-  diamondAddress: string
-  network: string
-  privateKey?: string
-}): Promise<void> {
-  const calldata = await encodeDiamondCutCalldata(
-    options.facetName,
-    options.facetAddressHex
-  )
-
-  if (isTronNetworkKey(options.network)) {
-    const { runPropose } = await import(
-      '../deploy/tron/propose-to-safe-tron'
-    )
-    await runPropose({
-      network: options.network as import('../deploy/tron/types').TronTvmNetworkName,
-      to: options.diamondAddress,
-      calldata,
-      timelock: true,
-      privateKey: options.privateKey,
-    })
-  } else {
-    const { runPropose } = await import('../deploy/safe/propose-to-safe')
-    await runPropose({
-      network: options.network,
-      to: options.diamondAddress,
-      calldata,
-      timelock: true,
-      privateKey: options.privateKey,
-    })
-  }
-}
