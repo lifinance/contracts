@@ -103,15 +103,17 @@ async function deployAndRegisterNEARIntentsFacet(options: {
         `Configuration for '${envKey}' not found in config/nearintents.json`
       )
 
-    const backendSigner = networkConfig.backendSigner
+    const backendSignerRaw = networkConfig.backendSigner
 
-    if (!backendSigner)
+    if (!backendSignerRaw)
       throw new Error(
         `backendSigner not found for '${envKey}' in config/nearintents.json`
       )
 
+    const backendSigner = tronAddressToHex(tronWeb, backendSignerRaw)
+
     consola.info('\nNEARIntents Configuration:')
-    consola.info(`Backend Signer: ${backendSigner}`)
+    consola.info(`Backend Signer: ${backendSignerRaw} (hex: ${backendSigner})`)
 
     const contracts = ['NEARIntentsFacet']
 
@@ -193,11 +195,7 @@ async function deployAndRegisterNEARIntentsFacet(options: {
 
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success(
-      dryRun
-        ? '\nDry run completed successfully! (no Safe tx created)'
-        : '\nDeployment and proposal completed successfully!'
-    )
+    consola.success('\nDeployment and proposal completed successfully!')
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)
