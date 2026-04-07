@@ -1,0 +1,135 @@
+name: Timelock Auto Execution
+
+on:
+  schedule:
+    # Run every 10 minutes
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    # Allow manual execution by users with write access
+
+jobs:
+  execute-timelock:
+    # For scheduled runs, only proceed if the repo variable is "true".
+    # Manual dispatch (workflow_dispatch) always runs regardless.
+    # NOTE: This uses `vars` (repository variables), not `secrets`, because
+    # secrets are not available in job-level `if` expressions.
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate typechain
+        run: bun typechain
+
+      - name: Execute timelock transactions
+        id: execute
+        env:
+          PRIVATE_KEY_PRODUCTION: ${{ secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
+        run: |
+          set +e  # Don't exit on error — capture full output
+
+          bunx tsx ./script/deploy/safe/execute-pending-timelock-tx.ts \
+            --executeAll \
+            --notify "$SLACK_WEBHOOK_URL" \
+            2>&1 | tee execution.log
+
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          # Save log for the error notification step
+          echo "execution_log<<EOF" >> $GITHUB_OUTPUT
+          cat execution.log >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          exit $EXIT_CODE
+
+      - name: Notify Slack on workflow failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
+        run: |
+          # This is a fallback notification for when the script itself crashes
+          # before its own SlackNotifier can fire. Skip if no webhook configured.
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "⚠️ No Slack webhook configured, skipping notification"
+            exit 0
+          fi
+
+          ERROR_LOG="${{ steps.execute.outputs.execution_log }}"
+
+          # Extract network-specific errors: lines matching [network] ❌ ...
+          export NETWORK_ERRORS=$(echo "$ERROR_LOG" | grep -E "\[.*\] ❌" | head -10 | sed 's/^/• /')
+
+          # Extract other critical errors
+          export CRITICAL_ERRORS=$(echo "$ERROR_LOG" | grep -iE "Error processing network|Failed to execute|error:" | head -10 | sed 's/^/• /')
+
+          python3 <<'PYTHON'
+          import json, os, urllib.request
+          from datetime import datetime
+
+          workflow_url = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          trigger = "${{ github.event_name }}"
+          ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+          network_errors = os.environ.get("NETWORK_ERRORS", "").strip()
+          critical_errors = os.environ.get("CRITICAL_ERRORS", "").strip()
+
+          blocks = [
+              {
+                  "type": "header",
+                  "text": {"type": "plain_text", "text": "❌ Timelock Auto-Execution Failed"}
+              },
+              {
+                  "type": "section",
+                  "text": {
+                      "type": "mrkdwn",
+                      "text": f"*Trigger:* {trigger}  |  *Time:* {ts}\n<{workflow_url}|View full logs>"
+                  }
+              }
+          ]
+
+          if network_errors:
+              blocks.append({
+                  "type": "section",
+                  "text": {"type": "mrkdwn", "text": f"*Network Errors:*\n{network_errors}"}
+              })
+
+          if critical_errors:
+              blocks.append({
+                  "type": "section",
+                  "text": {"type": "mrkdwn", "text": f"*Other Errors:*\n{critical_errors}"}
+              })
+
+          webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
+          if webhook_url:
+              data = json.dumps({"text": "❌ Timelock Auto-Execution Failed", "blocks": blocks}).encode()
+              req = urllib.request.Request(webhook_url, data=data, headers={"Content-Type": "application/json"})
+              try:
+                  urllib.request.urlopen(req, timeout=10)
+                  print("✅ Slack notification sent")
+              except Exception as e:
+                  print(f"⚠️ Failed to send Slack notification: {e}")
+          PYTHON
+
+          echo "::error::Timelock execution workflow failed. Check logs for details."
+
+      - name: Upload execution logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timelock-execution-logs
+          path: execution.log
+          retention-days: 7
