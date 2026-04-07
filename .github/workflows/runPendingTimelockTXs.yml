@@ -11,8 +11,6 @@ jobs:
   execute-timelock:
     # For scheduled runs, only proceed if the repo variable is "true".
     # Manual dispatch (workflow_dispatch) always runs regardless.
-    # NOTE: This uses `vars` (repository variables), not `secrets`, because
-    # secrets are not available in job-level `if` expressions.
     if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -32,6 +30,39 @@ jobs:
 
       - name: Generate typechain
         run: bun typechain
+
+      - name: Connect to VPN
+        run: |
+          # Install OpenVPN
+          sudo apt-get update -qq
+          sudo apt-get install -yqq openvpn > /dev/null
+
+          # Write .ovpn config from base64-encoded secret
+          # Generate with: base64 -w 0 < your-config.ovpn
+          # Ensure all certs/keys are inline (<ca>, <cert>, <key> blocks)
+          echo "${{ secrets.TIMELOCK_OVPN_CONFIG }}" | base64 -d > /tmp/vpn.ovpn
+
+          # Start OpenVPN as a background daemon
+          sudo openvpn --config /tmp/vpn.ovpn --log /tmp/vpn.log --daemon
+
+          # Wait for the tunnel to come up (max ~30s)
+          for i in $(seq 1 15); do
+              if curl -sf --max-time 2 https://api.ipify.org -o /dev/null 2>/dev/null; then
+              CURRENT_IP=$(curl -sf https://api.ipify.org)
+              if [ "$CURRENT_IP" = "18.195.61.255" ]; then
+                  echo "VPN connected (IP: $CURRENT_IP)"
+                  rm -f /tmp/vpn.ovpn
+                  exit 0
+              fi
+              fi
+              sleep 2
+          done
+
+          # If we get here, VPN didn't connect
+          echo "::error::VPN connection failed. Log:"
+          sudo cat /tmp/vpn.log || true
+          rm -f /tmp/vpn.ovpn
+          exit 1
 
       - name: Execute timelock transactions
         id: execute
@@ -133,3 +164,7 @@ jobs:
           name: timelock-execution-logs
           path: execution.log
           retention-days: 7
+
+      - name: Kill VPN
+        if: always()
+        run: sudo killall openvpn 2>/dev/null || true
