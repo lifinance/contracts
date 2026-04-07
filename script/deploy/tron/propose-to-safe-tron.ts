@@ -201,6 +201,13 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     }
   }
 
+  if (options.dryRun) {
+    consola.info('[DRY RUN] Would propose to Tron Safe:')
+    consola.info('  to: ' + safeTxToBase58)
+    consola.info('  data: ' + dryRunDescription)
+    return
+  }
+
   // 2) Get current Safe nonce on chain
   const safeAbiNonce = [
     {
@@ -282,16 +289,6 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       ? txHashHex
       : `0x${txHashHex.replace(/^0x/, '').padStart(64, '0')}`
   ) as Hex
-
-  if (options.dryRun) {
-    consola.info('[DRY RUN] Would store proposal:')
-    consola.info('  to: ' + String(safeTxData.to))
-    consola.info('  data: ' + dryRunDescription)
-    consola.info('  nonce: ' + nextNonce.toString())
-    consola.info('  safeTxHash: ' + txHashBytes32)
-    await mongoClient.close()
-    return
-  }
 
   // 4) Sign hash (EIP-191 over tx hash bytes32, then r+s+v with v+4 for Safe eth_sign)
   const pk = privateKey.startsWith('0x')
