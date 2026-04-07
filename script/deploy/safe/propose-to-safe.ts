@@ -31,149 +31,149 @@ export async function runPropose(options: IProposeToSafeOptions) {
   const { client: mongoClient, pendingTransactions } =
     await getSafeMongoCollection()
 
-  try {
-    if (!options.privateKey && !options.ledger)
-      throw new Error('Either privateKey or ledger must be provided')
+  if (!options.privateKey && !options.ledger)
+    throw new Error('Either privateKey or ledger must be provided')
 
-    const useLedger = options.ledger || false
-    let privateKey: string | undefined
+  const useLedger = options.ledger || false
+  let privateKey: string | undefined
 
-    if (options.derivationPath && options.ledgerLive)
+  if (options.derivationPath && options.ledgerLive)
+    throw new Error(
+      "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+    )
+
+  if (useLedger) {
+    consola.info('Using Ledger hardware wallet for signing')
+    if (options.ledgerLive)
+      consola.info(
+        `Using Ledger Live derivation path with account index ${
+          options.accountIndex || 0
+        }`
+      )
+    else if (options.derivationPath)
+      consola.info(`Using custom derivation path: ${options.derivationPath}`)
+    else consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+
+    privateKey = undefined
+  } else
+    privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', options.privateKey)
+
+  const ledgerOptions = {
+    ledgerLive: options.ledgerLive || false,
+    accountIndex: options.accountIndex ?? 0,
+    derivationPath: options.derivationPath,
+  }
+
+  const safeAddressOverride = options.safeAddress
+    ? (getAddress(options.safeAddress) as Address)
+    : undefined
+  const { safe, chain, safeAddress } = await initializeSafeClient(
+    options.network,
+    privateKey,
+    options.rpcUrl,
+    useLedger,
+    ledgerOptions,
+    safeAddressOverride
+  )
+
+  const senderAddress = safe.account.address
+
+  const existingOwners = await safe.getOwners()
+  if (!isAddressASafeOwner(existingOwners, senderAddress)) {
+    consola.error('The current signer is not an owner of this Safe')
+    consola.error('Signer address:', senderAddress)
+    consola.error('Current owners:', existingOwners)
+    throw new Error('Cannot propose transactions - signer is not an owner')
+  }
+
+  let finalTo = options.to as Address
+
+  let finalCalldata: Hex
+  if (options.calldataFile) {
+    if (!fs.existsSync(options.calldataFile))
+      throw new Error(`Calldata file not found: ${options.calldataFile}`)
+    finalCalldata = fs
+      .readFileSync(options.calldataFile, 'utf8')
+      .trim() as Hex
+    consola.info(`Loaded calldata from file: ${options.calldataFile}`)
+  } else {
+    finalCalldata = options.calldata
+  }
+
+  if (options.timelock) {
+    const deploymentPath = path.join(
+      process.cwd(),
+      'deployments',
+      `${options.network}.json`
+    )
+
+    if (!fs.existsSync(deploymentPath))
+      throw new Error(`Deployment file not found: ${deploymentPath}`)
+
+    const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
+    const timelockAddress = deployments.LiFiTimelockController
+
+    if (!timelockAddress || timelockAddress === '0x')
       throw new Error(
-        "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+        `LiFiTimelockController not found in deployments for network ${options.network}`
       )
 
-    if (useLedger) {
-      consola.info('Using Ledger hardware wallet for signing')
-      if (options.ledgerLive)
-        consola.info(
-          `Using Ledger Live derivation path with account index ${
-            options.accountIndex || 0
-          }`
-        )
-      else if (options.derivationPath)
-        consola.info(`Using custom derivation path: ${options.derivationPath}`)
-      else consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
+    consola.info(`Using timelock controller at ${timelockAddress}`)
 
-      privateKey = undefined
-    } else
-      privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', options.privateKey)
-
-    const ledgerOptions = {
-      ledgerLive: options.ledgerLive || false,
-      accountIndex: options.accountIndex ?? 0,
-      derivationPath: options.derivationPath,
-    }
-
-    const safeAddressOverride = options.safeAddress
-      ? (getAddress(options.safeAddress) as Address)
-      : undefined
-    const { safe, chain, safeAddress } = await initializeSafeClient(
+    const wrappedTransaction = await wrapWithTimelockSchedule(
       options.network,
-      privateKey,
-      options.rpcUrl,
-      useLedger,
-      ledgerOptions,
-      safeAddressOverride
+      options.rpcUrl || '',
+      getAddress(timelockAddress),
+      finalTo,
+      finalCalldata
     )
 
-    const senderAddress = safe.account.address
+    finalTo = wrappedTransaction.targetAddress
+    finalCalldata = wrappedTransaction.calldata
+  }
 
-    const existingOwners = await safe.getOwners()
-    if (!isAddressASafeOwner(existingOwners, senderAddress)) {
-      consola.error('The current signer is not an owner of this Safe')
-      consola.error('Signer address:', senderAddress)
-      consola.error('Current owners:', existingOwners)
-      throw new Error('Cannot propose transactions - signer is not an owner')
-    }
+  if (options.dryRun) {
+    consola.info('[DRY RUN] Would store proposal:')
+    consola.info('  network: ' + options.network)
+    consola.info('  to: ' + finalTo)
+    consola.info('  calldata: ' + finalCalldata.slice(0, 42) + '...')
+    consola.info('  timelock: ' + (options.timelock ? 'yes' : 'no'))
+    return
+  }
 
-    let finalTo = options.to as Address
+  const nextNonce = await getNextNonce(
+    pendingTransactions,
+    safeAddress,
+    options.network,
+    chain.id,
+    await safe.getNonce()
+  )
 
-    let finalCalldata: Hex
-    if (options.calldataFile) {
-      if (!fs.existsSync(options.calldataFile))
-        throw new Error(`Calldata file not found: ${options.calldataFile}`)
-      finalCalldata = fs
-        .readFileSync(options.calldataFile, 'utf8')
-        .trim() as Hex
-      consola.info(`Loaded calldata from file: ${options.calldataFile}`)
-    } else {
-      finalCalldata = options.calldata
-    }
+  const safeTransaction = await safe.createTransaction({
+    transactions: [
+      {
+        to: finalTo,
+        value: 0n,
+        data: finalCalldata,
+        operation: OperationTypeEnum.Call,
+        nonce: nextNonce,
+      },
+    ],
+  })
 
-    if (options.timelock) {
-      const deploymentPath = path.join(
-        process.cwd(),
-        'deployments',
-        `${options.network}.json`
-      )
+  const signedTx = await safe.signTransaction(safeTransaction)
+  const safeTxHash = await safe.getTransactionHash(signedTx)
 
-      if (!fs.existsSync(deploymentPath))
-        throw new Error(`Deployment file not found: ${deploymentPath}`)
+  consola.info('Signer Address', senderAddress)
+  consola.info('Safe Address', safeAddress)
+  consola.info('Network', chain.name)
+  consola.info('Proposing transaction to', finalTo)
+  if (options.timelock) {
+    consola.info('Original target was', options.to)
+    consola.info('Transaction wrapped in timelock schedule call')
+  }
 
-      const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
-      const timelockAddress = deployments.LiFiTimelockController
-
-      if (!timelockAddress || timelockAddress === '0x')
-        throw new Error(
-          `LiFiTimelockController not found in deployments for network ${options.network}`
-        )
-
-      consola.info(`Using timelock controller at ${timelockAddress}`)
-
-      const wrappedTransaction = await wrapWithTimelockSchedule(
-        options.network,
-        options.rpcUrl || '',
-        getAddress(timelockAddress),
-        finalTo,
-        finalCalldata
-      )
-
-      finalTo = wrappedTransaction.targetAddress
-      finalCalldata = wrappedTransaction.calldata
-    }
-
-    if (options.dryRun) {
-      consola.info('[DRY RUN] Would store proposal:')
-      consola.info('  network: ' + options.network)
-      consola.info('  to: ' + finalTo)
-      consola.info('  calldata: ' + finalCalldata.slice(0, 42) + '...')
-      consola.info('  timelock: ' + (options.timelock ? 'yes' : 'no'))
-      return
-    }
-
-    const nextNonce = await getNextNonce(
-      pendingTransactions,
-      safeAddress,
-      options.network,
-      chain.id,
-      await safe.getNonce()
-    )
-
-    const safeTransaction = await safe.createTransaction({
-      transactions: [
-        {
-          to: finalTo,
-          value: 0n,
-          data: finalCalldata,
-          operation: OperationTypeEnum.Call,
-          nonce: nextNonce,
-        },
-      ],
-    })
-
-    const signedTx = await safe.signTransaction(safeTransaction)
-    const safeTxHash = await safe.getTransactionHash(signedTx)
-
-    consola.info('Signer Address', senderAddress)
-    consola.info('Safe Address', safeAddress)
-    consola.info('Network', chain.name)
-    consola.info('Proposing transaction to', finalTo)
-    if (options.timelock) {
-      consola.info('Original target was', options.to)
-      consola.info('Transaction wrapped in timelock schedule call')
-    }
-
+  try {
     const result = await storeTransactionInMongoDB(
       pendingTransactions,
       safeAddress,
@@ -194,6 +194,9 @@ export async function runPropose(options: IProposeToSafeOptions) {
 
     consola.success('Transaction successfully stored in MongoDB')
     consola.info('Transaction proposed')
+  } catch (error) {
+    consola.error('Failed to store transaction in MongoDB:', error)
+    throw error
   } finally {
     await mongoClient.close()
   }
@@ -297,4 +300,4 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+runMain(main)
