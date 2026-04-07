@@ -7,6 +7,8 @@ export type TronTvmNetworkName = 'tron' | 'tronshasta'
 /** Options for the propose-to-safe-tron CLI script. */
 export interface IProposeToSafeTronOptions {
   dryRun?: boolean
+  /** Tron network to use — defaults to 'tron' (mainnet). Pass 'tronshasta' for staging. */
+  network?: TronTvmNetworkName
   /** Base58 contract address for generic proposals */
   to?: string
   /** Hex calldata for generic proposals */

@@ -194,13 +194,15 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    await proposeDiamondCut({
-      facetName: 'AllBridgeFacet',
-      facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
-      diamondAddress,
-      network: network,
-      dryRun,
-    })
+    if (!dryRun)
+      await proposeDiamondCut({
+        facetName: 'AllBridgeFacet',
+        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        diamondAddress,
+        network: network,
+      })
+    else
+      consola.info('Dry run - skipping diamondCut proposal for AllBridgeFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)
 

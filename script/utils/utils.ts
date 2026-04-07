@@ -965,7 +965,6 @@ export async function proposeDiamondCut(options: {
   facetAddressHex: Address
   diamondAddress: string
   network: string
-  dryRun?: boolean
   privateKey?: string
 }): Promise<void> {
   const calldata = await encodeDiamondCutCalldata(
@@ -978,7 +977,7 @@ export async function proposeDiamondCut(options: {
       '../deploy/tron/propose-to-safe-tron'
     )
     await runPropose({
-      dryRun: options.dryRun,
+      network: options.network as import('../deploy/tron/types').TronTvmNetworkName,
       to: options.diamondAddress,
       calldata,
       timelock: true,
@@ -991,7 +990,6 @@ export async function proposeDiamondCut(options: {
       to: options.diamondAddress,
       calldata,
       timelock: true,
-      dryRun: options.dryRun,
       privateKey: options.privateKey,
     })
   }

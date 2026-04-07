@@ -181,13 +181,15 @@ async function deployAndRegisterNEARIntentsFacet(options: {
       selectors
     )
 
-    await proposeDiamondCut({
-      facetName: 'NEARIntentsFacet',
-      facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
-      diamondAddress,
-      network: network,
-      dryRun,
-    })
+    if (!dryRun)
+      await proposeDiamondCut({
+        facetName: 'NEARIntentsFacet',
+        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        diamondAddress,
+        network: network,
+      })
+    else
+      consola.info('Dry run - skipping diamondCut proposal for NEARIntentsFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)
 

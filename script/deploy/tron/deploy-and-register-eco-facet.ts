@@ -170,13 +170,14 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     displayRegistrationInfo('EcoFacet', facetAddress, diamondAddress, selectors)
 
-    await proposeDiamondCut({
-      facetName: 'EcoFacet',
-      facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
-      diamondAddress,
-      network: network,
-      dryRun,
-    })
+    if (!dryRun)
+      await proposeDiamondCut({
+        facetName: 'EcoFacet',
+        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        diamondAddress,
+        network: network,
+      })
+    else consola.info('Dry run - skipping diamondCut proposal for EcoFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)
 

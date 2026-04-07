@@ -49,24 +49,28 @@ import {
 import type { IProposeToSafeTronOptions, TronTvmNetworkName } from './types.js'
 
 async function runPropose(options: IProposeToSafeTronOptions) {
-  const networkName = 'tron'
-  const deploymentPath = path.join(process.cwd(), 'deployments', 'tron.json')
+  const networkName: TronTvmNetworkName = options.network ?? 'tron'
+  const deploymentPath = path.join(
+    process.cwd(),
+    'deployments',
+    `${networkName}.json`
+  )
   if (!fs.existsSync(deploymentPath))
-    throw new Error('deployments/tron.json not found')
+    throw new Error(`deployments/${networkName}.json not found`)
 
   const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
   const diamondAddressBase58 = deployments.LiFiDiamond
   const timelockAddressBase58 = deployments.LiFiTimelockController
   if (!diamondAddressBase58 || !timelockAddressBase58)
     throw new Error(
-      'LiFiDiamond or LiFiTimelockController missing in deployments/tron.json'
+      `LiFiDiamond or LiFiTimelockController missing in deployments/${networkName}.json`
     )
 
   const networksPath = path.join(process.cwd(), 'config', 'networks.json')
   const networks = JSON.parse(fs.readFileSync(networksPath, 'utf8'))
   const safeAddressBase58 = networks[networkName]?.safeAddress
   if (!safeAddressBase58)
-    throw new Error('tron.safeAddress not set in config/networks.json')
+    throw new Error(`${networkName}.safeAddress not set in config/networks.json`)
 
   const genericMode = Boolean(options.to && options.calldata)
   if ((options.to && !options.calldata) || (!options.to && options.calldata)) {
@@ -77,9 +81,11 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   if (options.direct && options.timelock)
     throw new Error('Use either --direct or --timelock, not both')
 
-  const privateKey = options.privateKey ?? getEnvVar('PRIVATE_KEY_PRODUCTION')
+  const privateKeyEnvVar =
+    networkName === 'tron' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
+  const privateKey = options.privateKey ?? getEnvVar(privateKeyEnvVar)
   const tronWeb = createTronWebForTvmNetworkKey({
-    networkKey: networkName as TronTvmNetworkName,
+    networkKey: networkName,
     privateKey,
   })
   const proposerBase58 =
@@ -100,7 +106,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const diamondAddressEvm = tronBase58ToEvm20Hex(tronWeb, diamondAddressBase58)
   const proposerEvm = tronBase58ToEvm20Hex(tronWeb, proposerBase58)
 
-  consola.info('Network: tron')
+  consola.info(`Network: ${networkName}`)
   consola.info(`Safe: ${safeAddressBase58}`)
   consola.info(`Timelock: ${timelockAddressBase58}`)
   consola.info(`Diamond: ${diamondAddressBase58}`)
