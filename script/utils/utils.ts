@@ -26,6 +26,7 @@ import type {
 import { EnvironmentEnum } from '../common/types'
 import { DIAMOND_CUT_ABI, EVM_VERSIONS } from '../deploy/shared/constants'
 import { getContractVersion } from '../deploy/shared/getContractVersion'
+import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
 
 import { spawnAndCapture } from './spawnAndCapture'
 
@@ -953,4 +954,45 @@ export async function encodeDiamondCutCalldata(
       '0x' as Hex,
     ],
   })
+}
+
+/**
+ * Encode a diamondCut and propose it to Safe via Timelock.
+ * Routes to the correct propose script based on network (Tron vs EVM).
+ */
+export async function proposeDiamondCut(options: {
+  facetName: string
+  facetAddressHex: Address
+  diamondAddress: string
+  network: string
+  dryRun?: boolean
+  privateKey?: string
+}): Promise<void> {
+  const calldata = await encodeDiamondCutCalldata(
+    options.facetName,
+    options.facetAddressHex
+  )
+
+  if (isTronNetworkKey(options.network)) {
+    const { runPropose } = await import(
+      '../deploy/tron/propose-to-safe-tron'
+    )
+    await runPropose({
+      dryRun: options.dryRun,
+      to: options.diamondAddress,
+      calldata,
+      timelock: true,
+      privateKey: options.privateKey,
+    })
+  } else {
+    const { runPropose } = await import('../deploy/safe/propose-to-safe')
+    await runPropose({
+      network: options.network,
+      to: options.diamondAddress,
+      calldata,
+      timelock: true,
+      dryRun: options.dryRun,
+      privateKey: options.privateKey,
+    })
+  }
 }

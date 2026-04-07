@@ -19,17 +19,15 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
+  proposeDiamondCut,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
 import { createTronWeb } from './helpers/tronWebFactory'
-import {
-  deployContractWithLogging,
-  proposeDiamondCut,
-  validateBalance,
-} from './tronUtils'
+import { tronAddressToHex } from './tronAddressHelpers'
+import { deployContractWithLogging, validateBalance } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 async function deployAndRegisterNEARIntentsFacet(options: {
@@ -183,13 +181,13 @@ async function deployAndRegisterNEARIntentsFacet(options: {
       selectors
     )
 
-    await proposeDiamondCut(
-      'NEARIntentsFacet',
-      facetAddress,
+    await proposeDiamondCut({
+      facetName: 'NEARIntentsFacet',
+      facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
       diamondAddress,
-      tronWeb,
-      dryRun
-    )
+      network: network,
+      dryRun,
+    })
 
     printDeploymentSummary(deploymentResults, dryRun)
 

@@ -218,6 +218,23 @@ export interface IChainSimulateResult {
   resourceLabel: string
 }
 
+/** Options for proposing a Safe transaction (EVM). */
+export interface IProposeToSafeOptions {
+  network: string
+  to: string
+  calldata: Hex
+  timelock?: boolean
+  dryRun?: boolean
+  privateKey?: string
+  rpcUrl?: string
+  ledger?: boolean
+  ledgerLive?: boolean
+  accountIndex?: number
+  derivationPath?: string
+  safeAddress?: string
+  calldataFile?: string
+}
+
 /** Strategy interface for chain-specific generic contract call broadcasting. */
 export interface IChainCaller {
   /** The sender address used for broadcasting. */

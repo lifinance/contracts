@@ -19,6 +19,7 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
+  proposeDiamondCut,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 
@@ -26,11 +27,7 @@ import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
 import { createTronWeb } from './helpers/tronWebFactory'
 import { tronAddressToHex } from './tronAddressHelpers'
-import {
-  deployContractWithLogging,
-  proposeDiamondCut,
-  validateBalance,
-} from './tronUtils'
+import { deployContractWithLogging, validateBalance } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
@@ -173,13 +170,13 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     displayRegistrationInfo('EcoFacet', facetAddress, diamondAddress, selectors)
 
-    await proposeDiamondCut(
-      'EcoFacet',
-      facetAddress,
+    await proposeDiamondCut({
+      facetName: 'EcoFacet',
+      facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
       diamondAddress,
-      tronWeb,
-      dryRun
-    )
+      network: network,
+      dryRun,
+    })
 
     printDeploymentSummary(deploymentResults, dryRun)
 

@@ -19,18 +19,15 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
+  proposeDiamondCut,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
 import { createTronWeb } from './helpers/tronWebFactory'
-import { evmHexToTronBase58 } from './tronAddressHelpers'
-import {
-  deployContractWithLogging,
-  proposeDiamondCut,
-  validateBalance,
-} from './tronUtils'
+import { evmHexToTronBase58, tronAddressToHex } from './tronAddressHelpers'
+import { deployContractWithLogging, validateBalance } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 /**
@@ -207,13 +204,13 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    await proposeDiamondCut(
-      'SymbiosisFacet',
-      facetAddress,
+    await proposeDiamondCut({
+      facetName: 'SymbiosisFacet',
+      facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
       diamondAddress,
-      tronWeb,
-      dryRun
-    )
+      network: network,
+      dryRun,
+    })
 
     printDeploymentSummary(deploymentResults, dryRun)
 

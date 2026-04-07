@@ -19,17 +19,14 @@ import {
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
+  proposeDiamondCut,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { createTronWeb } from './helpers/tronWebFactory'
 import { tronAddressToHex } from './tronAddressHelpers'
-import {
-  deployContractWithLogging,
-  proposeDiamondCut,
-  validateBalance,
-} from './tronUtils'
+import { deployContractWithLogging, validateBalance } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 /**
@@ -197,13 +194,13 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    await proposeDiamondCut(
-      'AllBridgeFacet',
-      facetAddress,
+    await proposeDiamondCut({
+      facetName: 'AllBridgeFacet',
+      facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
       diamondAddress,
-      tronWeb,
-      dryRun
-    )
+      network: network,
+      dryRun,
+    })
 
     printDeploymentSummary(deploymentResults, dryRun)
 
