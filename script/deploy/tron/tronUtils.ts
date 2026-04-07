@@ -369,6 +369,11 @@ export async function registerFacetToDiamond(
     const selectors = await getFacetSelectors(facetName)
     consola.info(`Found ${selectors.length} function selectors`)
 
+    if (dryRun) {
+      consola.info('Dry run mode - not executing registration')
+      return { success: true }
+    }
+
     const facetAddressHex = tronAddressToHex(tronWeb, facetAddress)
 
     // Check each selector and group by action needed
@@ -450,11 +455,6 @@ export async function registerFacetToDiamond(
     const { energyPrice } = await getCurrentPrices(tronWeb)
     const estimatedCost = estimatedEnergy * energyPrice
     consola.info(`Estimated registration cost: ${estimatedCost.toFixed(4)} TRX`)
-
-    if (dryRun) {
-      consola.info('Dry run mode - not executing registration')
-      return { success: true }
-    }
 
     // Check balance
     const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)

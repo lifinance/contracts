@@ -75,15 +75,30 @@ const FOUNDRY_TOML_PATH = resolve(
 )
 
 function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
-  const parsed = Bun.TOML.parse(
-    readFileSync(FOUNDRY_TOML_PATH, 'utf8')
-  ) as IFoundryTomlConfig
+  const content = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
 
-  const defaultProfile = parsed.profile?.default
-  if (!defaultProfile)
-    throw new Error('Missing [profile.default] section in foundry.toml')
+  try {
+    const parsed = Bun.TOML.parse(content) as IFoundryTomlConfig
+    const defaultProfile = parsed.profile?.default
+    if (!defaultProfile)
+      throw new Error('Missing [profile.default] section in foundry.toml')
+    return defaultProfile
+  } catch {
+    // Bun's TOML parser rejects keys starting with digits (e.g. "0g" in rpc_endpoints).
+    // Fall back to regex extraction of [profile.default] values.
+    const extract = (key: string): string | undefined =>
+      content.match(
+        new RegExp(`^\\[profile\\.default\\][\\s\\S]*?^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm')
+      )?.[1]
 
-  return defaultProfile
+    const solc_version = extract('solc_version')
+    const evm_version = extract('evm_version')
+
+    if (!solc_version && !evm_version)
+      throw new Error('Missing [profile.default] section in foundry.toml')
+
+    return { solc_version, evm_version } as IFoundryProfileDefaultConfig
+  }
 }
 
 /**
