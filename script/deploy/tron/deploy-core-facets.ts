@@ -6,10 +6,10 @@ import { consola } from 'consola'
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
-  getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import {
+  getEnvVar,
   saveDiamondDeployment,
   getEnvironment,
   checkExistingDeployment,

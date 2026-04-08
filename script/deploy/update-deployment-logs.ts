@@ -22,8 +22,8 @@ import {
 } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../utils/delay'
+import { getEnvVar } from '../utils/utils'
 
 import { createDefaultCache } from './shared/deployment-cache'
 import {

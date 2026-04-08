@@ -24,42 +24,34 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { TronContractDeployer } from './TronContractDeployer'
+import { MIN_BALANCE_WARNING } from './constants'
 import { createTronWeb } from './helpers/tronWebFactory'
 import { tronAddressToHex } from './tronAddressHelpers'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
-/**
- * Deploy and register AllBridgeFacet to Tron
- */
-async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
-  consola.start('TRON AllBridgeFacet Deployment & Registration')
+async function deployAndRegisterNEARIntentsFacet(options: {
+  dryRun?: boolean
+}) {
+  consola.start('TRON NEARIntentsFacet Deployment & Registration')
 
   const environment = getEnvironment()
 
-  // Load environment variables
   const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
     verbose = getEnvVar('VERBOSE') !== 'false'
-  } catch (error) {
-    // Use default value when environment variable is not set
-    consola.debug('VERBOSE environment variable not set, using default value')
-  }
+  } catch {}
 
-  // Get network configuration from networks.json
-  // Use tronshasta for staging/testnet, tron for production
   const networkName =
     environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
 
   const network = networkName as SupportedChain
 
-  // Get RPC URL from environment variable
   const envVarName = getRPCEnvVarName(network)
   const rpcUrl = getEnvVar(envVarName)
 
-  // Get the correct private key based on environment
   let privateKey: string
   try {
     privateKey = getPrivateKeyForEnvironment(environment)
@@ -75,7 +67,6 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     process.exit(1)
   }
 
-  // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
     tvmNetworkKey: networkName as TronTvmNetworkName,
@@ -90,52 +81,52 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   const deployer = new TronContractDeployer(config)
 
   try {
-    // Get network info
     const networkInfo = await deployer.getNetworkInfo()
 
-    // Use new utility for network info display
     displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-    // Initialize TronWeb
     const tronWeb = createTronWeb({
       rpcUrl,
       networkKey: networkName as TronTvmNetworkName,
       privateKey,
     })
 
-    // Use new utility for balance validation
-    // Pre-flight balance check: warn on low balances but do not abort here
-    await validateBalance(tronWeb, 0)
-    // Load AllBridge configuration
-    const allbridgeConfig = await Bun.file('config/allbridge.json').json()
-    const allBridgeAddress = allbridgeConfig[network]?.allBridge
+    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    if (!allBridgeAddress)
+    const nearIntentsConfig = await Bun.file('config/nearintents.json').json()
+    const envKey =
+      environment === EnvironmentEnum.production ? 'production' : 'staging'
+    const networkConfig = nearIntentsConfig[envKey]
+
+    if (!networkConfig)
       throw new Error(
-        `AllBridge address not found for ${network} in config/allbridge.json`
+        `Configuration for '${envKey}' not found in config/nearintents.json`
       )
 
-    // Convert Base58 address to hex format with 0x prefix for constructor arguments
-    const allBridgeAddressHex = tronAddressToHex(tronWeb, allBridgeAddress)
+    const backendSignerRaw = networkConfig.backendSigner
 
-    consola.info('\nAllBridge Configuration:')
-    consola.info(`AllBridge: ${allBridgeAddress} (${allBridgeAddressHex})`)
+    if (!backendSignerRaw)
+      throw new Error(
+        `backendSigner not found for '${envKey}' in config/nearintents.json`
+      )
 
-    // Prepare deployment plan
-    const contracts = ['AllBridgeFacet']
+    const backendSigner = tronAddressToHex(tronWeb, backendSignerRaw)
 
-    // Use new utility for confirmation
+    consola.info('\nNEARIntents Configuration:')
+    consola.info(`Backend Signer: ${backendSignerRaw} (hex: ${backendSigner})`)
+
+    const contracts = ['NEARIntentsFacet']
+
     if (!(await confirmDeployment(environment, network, contracts)))
       process.exit(0)
 
     const deploymentResults: IDeploymentResult[] = []
 
-    // Deploy AllBridgeFacet
-    consola.info('\nDeploying AllBridgeFacet...')
+    consola.info('\nDeploying NEARIntentsFacet...')
 
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
-      'AllBridgeFacet',
+      'NEARIntentsFacet',
       dryRun
     )
 
@@ -143,22 +134,20 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     if (exists && !shouldRedeploy && address) {
       facetAddress = address
       deploymentResults.push({
-        contract: 'AllBridgeFacet',
+        contract: 'NEARIntentsFacet',
         address: address,
         txId: 'existing',
         cost: 0,
-        version: await getContractVersion('AllBridgeFacet'),
+        version: await getContractVersion('NEARIntentsFacet'),
         status: 'existing',
       })
     } else
       try {
-        // Constructor arguments for AllBridgeFacet - use hex format
-        const constructorArgs = [allBridgeAddressHex]
+        const constructorArgs = [backendSigner]
 
-        // Deploy using new utility
         const result = await deployContractWithLogging(
           deployer,
-          'AllBridgeFacet',
+          'NEARIntentsFacet',
           constructorArgs,
           dryRun,
           network
@@ -167,9 +156,9 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
         facetAddress = result.address
         deploymentResults.push(result)
       } catch (error: any) {
-        consola.error('Failed to deploy AllBridgeFacet:', error.message)
+        consola.error('Failed to deploy NEARIntentsFacet:', error.message)
         deploymentResults.push({
-          contract: 'AllBridgeFacet',
+          contract: 'NEARIntentsFacet',
           address: 'FAILED',
           txId: 'FAILED',
           cost: 0,
@@ -180,15 +169,15 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
         process.exit(1)
       }
 
-    consola.info('\nProposing AllBridgeFacet diamondCut to Safe...')
+    consola.info('\nProposing NEARIntentsFacet diamondCut to Safe...')
 
     const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
-    const selectors = await getFacetSelectors('AllBridgeFacet')
+    const selectors = await getFacetSelectors('NEARIntentsFacet')
 
     displayRegistrationInfo(
-      'AllBridgeFacet',
+      'NEARIntentsFacet',
       facetAddress,
       diamondAddress,
       selectors
@@ -196,21 +185,17 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
 
     if (!dryRun)
       await proposeDiamondCut({
-        facetName: 'AllBridgeFacet',
+        facetName: 'NEARIntentsFacet',
         facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
         diamondAddress,
         network: network,
       })
     else
-      consola.info('Dry run - skipping diamondCut proposal for AllBridgeFacet')
+      consola.info('Dry run - skipping diamondCut proposal for NEARIntentsFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success(
-      dryRun
-        ? '\nDry run completed successfully! (no Safe tx created)'
-        : '\nDeployment and proposal completed successfully!'
-    )
+    consola.success('\nDeployment and proposal completed successfully!')
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)
@@ -218,11 +203,10 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   }
 }
 
-// Define CLI command
 const main = defineCommand({
   meta: {
-    name: 'deploy-and-register-allbridge-facet',
-    description: 'Deploy and register AllBridgeFacet to Tron Diamond',
+    name: 'deploy-and-register-near-intents-facet',
+    description: 'Deploy and register NEARIntentsFacet to Tron Diamond',
   },
   args: {
     dryRun: {
@@ -232,11 +216,10 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    await deployAndRegisterAllBridgeFacet({
+    await deployAndRegisterNEARIntentsFacet({
       dryRun: args.dryRun,
     })
   },
 })
 
-// Run the command
 runMain(main)
