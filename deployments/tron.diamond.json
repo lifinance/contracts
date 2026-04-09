@@ -51,19 +51,19 @@
       },
       "TCyAJzpLJjGyUqPoQ9Kvm1Zjw9zDmXLUfU": {
         "Name": "AllBridgeFacet",
-        "Version": ""
+        "Version": "2.1.2"
       },
       "TMLwFQAjLQqCJDUNVCVd9c9Q8LLqbmhaW8": {
-        "Name": "",
-        "Version": ""
+        "Name": "EcoFacet",
+        "Version": "1.0.0"
       },
       "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM": {
         "Name": "EcoFacet",
-        "Version": ""
+        "Version": "1.1.0"
       },
       "TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn": {
         "Name": "WhitelistManagerFacet",
-        "Version": ""
+        "Version": "1.1.0"
       },
       "TFFvFi3j5YBMrSBev6bm6ueEaq1XWJ1QJZ": {
         "Name": "NEARIntentsFacet",
