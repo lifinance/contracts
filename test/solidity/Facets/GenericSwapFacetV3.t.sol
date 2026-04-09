@@ -1646,7 +1646,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             address(feeForwarder),
             ADDRESS_USDC,
             ADDRESS_USDC,
-            minAmountOut - 10000,
+            integratorFee,
             abi.encodeWithSelector(
                 feeForwarder.forwardERC20Fees.selector,
                 ADDRESS_USDC,
