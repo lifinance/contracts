@@ -395,24 +395,12 @@ contract AcrossV4SwapFacet is
         ISpokePoolPeriphery.SwapAndDepositData memory swapAndDepositData = abi
             .decode(_callData, (ISpokePoolPeriphery.SwapAndDepositData));
 
-        // If this is the positive-slippage path, adjust the amounts after decoding but before validation.
+        // Positive slippage handling: we could scale up the across-swap params, but 'routerCalldata' is opaque and we cannot adjust it.
+        // Thus positive slippage is refunded to the user instead of being passed to Across.
+        uint256 refundAmount;
         if (_preSwapAmount != 0) {
-            uint256 outputAmountMultiplier = (swapAndDepositData
-                .depositData
-                .outputAmount * MULTIPLIER_BASE) / _preSwapAmount;
-
-            // Adjust outputAmount based on the updated minAmount and derived multiplier.
-            swapAndDepositData.depositData.outputAmount =
-                (_bridgeData.minAmount * outputAmountMultiplier) /
-                MULTIPLIER_BASE;
-
-            // Adjust minExpectedInputTokenAmount proportionally.
-            swapAndDepositData.minExpectedInputTokenAmount =
-                (swapAndDepositData.minExpectedInputTokenAmount *
-                    _bridgeData.minAmount) /
-                _preSwapAmount;
-
-            swapAndDepositData.swapTokenAmount = _bridgeData.minAmount;
+            refundAmount = _bridgeData.minAmount - _preSwapAmount;
+            _bridgeData.minAmount = _preSwapAmount;
         }
 
         // Validate the embedded spoke pool matches the configured spoke pool.
@@ -468,6 +456,22 @@ contract AcrossV4SwapFacet is
                 address(SPOKE_POOL_PERIPHERY),
                 _bridgeData.minAmount
             );
+        }
+
+        // Refund positive slippage
+        if (refundAmount != 0) {
+            if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+                LibAsset.transferNativeAsset(
+                    payable(swapAndDepositData.depositData.depositor),
+                    refundAmount
+                );
+            } else {
+                LibAsset.transferERC20(
+                    _bridgeData.sendingAssetId,
+                    swapAndDepositData.depositData.depositor,
+                    refundAmount
+                );
+            }
         }
 
         SPOKE_POOL_PERIPHERY.swapAndBridge{ value: msgValue }(
