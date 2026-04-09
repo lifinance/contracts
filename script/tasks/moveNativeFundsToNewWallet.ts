@@ -34,8 +34,6 @@
  */
 
 import { execSync } from 'child_process'
-import * as fs from 'fs'
-import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -76,20 +74,6 @@ function getMaxConcurrentJobs(): number {
   if (process.env.MAX_CONCURRENT_JOBS) {
     const parsed = parseInt(process.env.MAX_CONCURRENT_JOBS, 10)
     if (!isNaN(parsed) && parsed > 0) return parsed
-  }
-  try {
-    const configPath = path.resolve('script/config.sh')
-    if (fs.existsSync(configPath)) {
-      const match = fs
-        .readFileSync(configPath, 'utf-8')
-        .match(/MAX_CONCURRENT_JOBS=(\d+)/)
-      if (match?.[1]) {
-        const parsed = parseInt(match[1], 10)
-        if (!isNaN(parsed) && parsed > 0) return parsed
-      }
-    }
-  } catch {
-    // Fall through to default
   }
   return 100
 }

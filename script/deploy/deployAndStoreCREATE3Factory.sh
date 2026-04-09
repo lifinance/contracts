@@ -3,8 +3,7 @@
 # deploys a CREATE3Factory
 # stores the deployed-to address in networks.json
 deployAndStoreCREATE3Factory() {
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
 
   # make sure script was called with sufficient parameters
@@ -44,8 +43,10 @@ deployAndStoreCREATE3Factory() {
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
   FACTORY_ADDRESS=""
-  local PRIVATE_KEY
-  PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || return 1
+  PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+    error "Failed to load PRIVATE_KEY for network $NETWORK (environment: $ENVIRONMENT)"
+    return 1
+  }
 
   # 1) Try forge script (works for chains in Foundry's alloy-chains list)
   if executeAndParse \

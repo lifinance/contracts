@@ -145,6 +145,7 @@
       }
     }
   },
+  "arbitrumsepolia": {},
   "avalanche": {
     "production": {
       "LiFiDiamond": {
@@ -267,6 +268,7 @@
       }
     }
   },
+  "basesepolia": {},
   "berachain": {
     "production": {
       "LiFiDiamond": {
@@ -1109,6 +1111,7 @@
       }
     }
   },
+  "optimismsepolia": {},
   "optimism": {
     "production": {
       "LiFiDiamond": {

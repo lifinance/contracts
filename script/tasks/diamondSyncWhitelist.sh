@@ -79,8 +79,7 @@ function diamondSyncWhitelist {
     NETWORKS=("$NETWORK")
   fi
 
-    # Execute a whitelist batch operation (add or remove)
-  # Handles both Tron staging (direct troncast) and EVM/Tron production (calldata + sendOrPropose)
+  # Execute a whitelist batch operation (add or remove)
   function executeWhitelistBatch {
     local BATCH_CONTRACTS="$1"    # comma-separated
     local BATCH_SELECTORS="$2"    # comma-separated
@@ -107,7 +106,7 @@ function diamondSyncWhitelist {
       
       if [[ "$IS_TRON" == "true" ]]; then
         if [[ "$ENVIRONMENT" == "production" ]]; then
-          # Tron production: convert base58 addresses to hex for calldata
+          # Tron : convert base58 addresses to hex for calldata
           if ! CONTRACTS_FOR_SEND=$(convertTronAddressesToHex "$BATCH_CONTRACTS"); then
             printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex"
             echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
@@ -119,7 +118,7 @@ function diamondSyncWhitelist {
             echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
             return 1
           fi
-          # Production uses bracket notation for cast calldata
+          # Tron: Uses bracket notation for cast calldata
           SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
         else
           # Tron staging: use JSON array format
@@ -133,7 +132,10 @@ function diamondSyncWhitelist {
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
       fi
       
-      local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
+      local TIMELOCK_FLAG="false"
+      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+        TIMELOCK_FLAG="true"
+      fi
       echoSyncDebug "Send args: $SEND_ARGS"
       
       local OUTPUT
@@ -290,9 +292,9 @@ function diamondSyncWhitelist {
   function processNetwork {
     local NETWORK=$1  # Network name as argument
 
-    # Skip non-active mainnets
-    if ! isActiveMainnet "$NETWORK"; then
-      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not an active mainnet >> continuing without syncing on this network"
+    # Skip inactive networks;
+    if ! isNetworkActive "$NETWORK"; then
+      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not active >> continuing without syncing on this network"
       return
     fi
 
@@ -945,7 +947,7 @@ function diamondSyncWhitelist {
         # EVM: use bracket notation for cast
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$REMOVE_SELECTORS_ARRAY] false"
       fi
-
+      
       echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
       local REMOVE_ATTEMPTS=1
       local REMOVE_SUCCESS=false
@@ -1268,7 +1270,7 @@ function diamondSyncWhitelist {
 
   # Run networks in parallel with concurrency control
   if [[ -z $MAX_CONCURRENT_JOBS ]]; then
-    echo "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    echo "Your .env file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
     exit 1
   fi
 

@@ -2,7 +2,7 @@
  * Safe Utilities
  *
  * This module provides utilities for interacting with Gnosis Safe contracts
- * using Viem. It includes classes and functions for creating, signing, and
+ * using Viem and TronWeb. It includes classes and functions for creating, signing, and
  * executing transactions, as well as managing Safe configuration and MongoDB interactions.
  */
 
@@ -26,22 +26,29 @@ import {
   type Chain,
   type Hex,
   type PublicClient,
-  type TransactionReceipt,
   type WalletClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
 } from '../../utils/fetchWithTimeout'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { getEnvVar } from '../../utils/utils'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+import { TronWalletClient } from '../tron/helpers/TronWalletClient'
+import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
+import {
+  getTronNetworkKeyForChainId,
+  isTronTvmChainId,
+} from '../tron/helpers/tronTvmChain'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
@@ -123,13 +130,11 @@ export const retry = async <T>(
 }
 
 /**
- * ViemSafe class
- *
- * A wrapper around Viem clients that provides Safe-specific functionality.
- * This class handles Safe contract interactions including transaction creation,
- * signing, and execution.
+ * Safe client for scripts: viem for EVM JSON-RPC (reads, signing, non-Tron execution)
+ * plus optional {@link TronWalletClient} for Tron TVM broadcast (`wallet/triggersmartcontract`).
+ * The same private key backs both paths when initialized from `privateKey`.
  */
-export class ViemSafe {
+export class SafeClient {
   /**
    * Public client for read operations
    * @private
@@ -154,16 +159,58 @@ export class ViemSafe {
    */
   public account: Account
 
+  /**
+   * Chain-specific executor selected during client initialization.
+   */
+  private chainExecutor?: IChainExecutor
+
   public constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     safeAddress: Address,
-    account: Account
+    account: Account,
+    chainExecutor?: IChainExecutor
   ) {
     this.publicClient = publicClient
     this.walletClient = walletClient
     this.safeAddress = safeAddress
     this.account = account
+    this.chainExecutor = chainExecutor
+  }
+
+  /**
+   * Creates the chain-specific Safe executor for the connected network.
+   * @param publicClient - Public client used to detect the current chain
+   * @param walletClient - Wallet client used for EVM execution
+   * @param account - Account used for signing and broadcasting
+   * @param tronWalletClient - Optional Tron signer required for TVM execution
+   * @returns Executor implementation matching the connected chain
+   * @throws Error if a Tron executor is required but no Tron signer is available
+   */
+  private static async createChainExecutor(
+    publicClient: PublicClient,
+    walletClient: WalletClient,
+    account: Account,
+    tronWalletClient?: TronWalletClient
+  ): Promise<IChainExecutor | undefined> {
+    const chainId = await publicClient.getChainId()
+
+    if (isTronTvmChainId(chainId)) {
+      // No tronWalletClient means Ledger/signing-only mode — defer executor creation to execution time.
+      if (!tronWalletClient) return undefined
+
+      const networkKey = getTronNetworkKeyForChainId(chainId)
+      if (!networkKey)
+        throw new Error(
+          `Tron chain ID ${chainId} is not mapped to tron/tronshasta`
+        )
+
+      const { TronChainExecutor } = await import('./executors/tron-executor')
+      return new TronChainExecutor(tronWalletClient, networkKey)
+    }
+
+    const { EvmChainExecutor } = await import('./executors/evm-executor')
+    return new EvmChainExecutor(walletClient, publicClient, account)
   }
 
   public static async init(options: {
@@ -177,7 +224,7 @@ export class ViemSafe {
       accountIndex?: number
     }
     account?: Account
-  }): Promise<ViemSafe> {
+  }): Promise<SafeClient> {
     const {
       privateKey,
       safeAddress,
@@ -192,9 +239,14 @@ export class ViemSafe {
     let chain: Chain | undefined = undefined
 
     if (typeof provider === 'string') {
-      const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
+      const { url, fetchOptions, retryCount, retryDelay } =
+        getTransportConfigFromRpcUrl(provider)
       publicClient = createPublicClient({
-        transport: http(url, fetchOptions ? { fetchOptions } : {}),
+        transport: http(url, {
+          ...(fetchOptions ? { fetchOptions } : {}),
+          ...(retryCount !== undefined ? { retryCount } : {}),
+          ...(retryDelay !== undefined ? { retryDelay } : {}),
+        }),
       })
     } else {
       chain = provider
@@ -206,15 +258,21 @@ export class ViemSafe {
 
     // Get account - either use pre-created, from private key, or create new Ledger connection
     let account
-    if (preCreatedAccount) account = preCreatedAccount
-    else if (useLedger) {
+    let tronWalletClient: TronWalletClient | undefined
+    if (preCreatedAccount) {
+      account = preCreatedAccount
+    } else if (useLedger) {
       // Dynamically import the Ledger module to avoid dependency issues
       const { getLedgerAccount } = await import('./ledger')
       const ledgerResult = await getLedgerAccount(ledgerOptions)
       account = ledgerResult.account
-    } else if (privateKey)
-      account = privateKeyToAccount(`0x${privateKey.replace(/^0x/, '')}`)
-    else
+    } else if (privateKey) {
+      const pkForViem = (
+        privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`
+      ) as Hex
+      account = privateKeyToAccount(pkForViem)
+      tronWalletClient = new TronWalletClient(privateKey)
+    } else
       throw new Error(
         'Either privateKey, useLedger, or account must be provided'
       )
@@ -223,8 +281,13 @@ export class ViemSafe {
     const walletTransport =
       typeof provider === 'string'
         ? (() => {
-            const { url, fetchOptions } = getTransportConfigFromRpcUrl(provider)
-            return http(url, fetchOptions ? { fetchOptions } : {})
+            const { url, fetchOptions, retryCount, retryDelay } =
+              getTransportConfigFromRpcUrl(provider)
+            return http(url, {
+              ...(fetchOptions ? { fetchOptions } : {}),
+              ...(retryCount !== undefined ? { retryCount } : {}),
+              ...(retryDelay !== undefined ? { retryDelay } : {}),
+            })
           })()
         : http()
     const walletClient = createWalletClient({
@@ -233,12 +296,29 @@ export class ViemSafe {
       transport: walletTransport,
     })
 
-    return new ViemSafe(publicClient, walletClient, safeAddress, account)
+    const chainExecutor = await SafeClient.createChainExecutor(
+      publicClient,
+      walletClient,
+      account,
+      tronWalletClient
+    )
+
+    return new SafeClient(
+      publicClient,
+      walletClient,
+      safeAddress,
+      account,
+      chainExecutor
+    )
   }
 
   // Get Safe address
   public getAddress(): Address {
     return this.safeAddress
+  }
+
+  public async getChainId(): Promise<number> {
+    return this.publicClient.getChainId()
   }
 
   // Get nonce from Safe contract (replaces getNonce from Safe SDK)
@@ -581,8 +661,10 @@ export class ViemSafe {
     return vValue === 27 || vValue === 28 || vValue === 31 || vValue === 32
   }
 
-  // Format signatures as bytes for contract submission
-  private formatSignatures(signatures: Map<string, ISafeSignature>): Hex {
+  /**
+   * Format signatures as bytes for contract submission (sorted by signer address).
+   */
+  public formatSignatures(signatures: Map<string, ISafeSignature>): Hex {
     if (!signatures.size) return '0x' as Hex
 
     try {
@@ -625,78 +707,30 @@ export class ViemSafe {
   }
 
   /**
-   * Executes a Safe transaction
+   * Executes a Safe transaction via the chain-specific executor.
    * @param safeTx - The transaction to execute
-   * @returns Object containing the transaction hash and optional receipt
+   * @returns Object containing the transaction hash, optional receipt, and display metadata
    * @throws Error if execution fails
    */
   public async executeTransaction(
     safeTx: ISafeTransaction
-  ): Promise<{ hash: Hex; receipt?: TransactionReceipt }> {
+  ): Promise<IChainExecutionResult> {
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
-
-      // Submit the transaction
-      const txHash = await this.walletClient.writeContract({
-        account: this.account,
-        chain: null,
-        address: this.safeAddress,
-        abi: SAFE_SINGLETON_ABI,
-        functionName: 'execTransaction',
-        args: [
-          safeTx.data.to,
-          safeTx.data.value,
-          safeTx.data.data,
-          safeTx.data.operation,
-          0n, // safeTxGas
-          0n, // baseGas
-          0n, // gasPrice
-          '0x0000000000000000000000000000000000000000' as Address, // gasToken
-          '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
-          signatures,
-        ],
-      })
-
-      consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
-
-      // Try to get receipt with 30 second timeout
-      let receipt: TransactionReceipt | null = null
-
-      try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
+      if (!this.chainExecutor)
+        throw new Error(
+          'Safe client is missing a chain executor. Initialize the client via SafeClient.init().'
         )
 
-        const receiptPromise = this.publicClient.waitForTransactionReceipt({
-          hash: txHash,
-        })
-
-        receipt = (await Promise.race([
-          receiptPromise,
-          timeoutPromise,
-        ])) as TransactionReceipt
-
-        // If we got a receipt, check its status
-        if (receipt.status === 'success') return { hash: txHash, receipt }
-        else
-          throw new Error(`Transaction failed with status: ${receipt.status}`)
-      } catch (timeoutError: unknown) {
-        const errorMsg =
-          timeoutError instanceof Error
-            ? timeoutError.message
-            : String(timeoutError)
-        if (errorMsg.includes('timeout')) {
-          // Timeout reached - return optimistically with warning
-          consola.warn(
-            `⚠️  Transaction submitted but confirmation timed out after 30 seconds`
-          )
-          consola.warn(`   Transaction hash: ${txHash}`)
-          consola.warn(`   Please manually verify transaction status later`)
-          return { hash: txHash }
-        }
-        // Some other error occurred
-        else throw timeoutError
-      }
+      const executionResult = await this.chainExecutor.executeTransaction({
+        safeAddress: this.safeAddress,
+        to: safeTx.data.to,
+        value: safeTx.data.value,
+        data: safeTx.data.data,
+        operation: safeTx.data.operation,
+        signatures,
+      })
+      return executionResult
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       if (errorMsg.includes('execution reverted'))
@@ -731,26 +765,32 @@ export class ViemSafe {
     } catch (error: unknown) {
       // Don't throw on cleanup errors, just log them
       const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.warn(`Warning during ViemSafe cleanup: ${errorMsg}`)
+      consola.warn(`Warning during SafeClient cleanup: ${errorMsg}`)
     }
   }
 }
 
+/** @deprecated Use {@link SafeClient}. */
+export type ViemSafe = SafeClient
+
 /**
  * Initializes a SafeTransaction from MongoDB document data
  * @param txFromMongo - Transaction document from MongoDB
- * @param safe - ViemSafe instance
+ * @param safe - SafeClient instance
  * @returns Initialized SafeTransaction with signatures
  */
 export const initializeSafeTransaction = async (
   txFromMongo: ISafeTxDocument,
-  safe: ViemSafe
+  safe: SafeClient
 ): Promise<ISafeTransaction> => {
   // Create a new transaction using our viem-based Safe implementation
   const safeTransaction = await safe.createTransaction({
     transactions: [
       {
-        to: txFromMongo.safeTx.data.to as Address,
+        to: normalizeAddressForNetwork(
+          txFromMongo.network,
+          String(txFromMongo.safeTx.data.to)
+        ),
         value: BigInt(txFromMongo.safeTx.data.value),
         data: txFromMongo.safeTx.data.data as Hex,
         operation: txFromMongo.safeTx.data.operation as OperationTypeEnum,
@@ -1229,7 +1269,7 @@ export async function getPendingTransactionsByNetwork(
  * @param rpcUrl - Optional RPC URL override
  * @param useLedger - Whether to use a Ledger device for signing
  * @param ledgerOptions - Options for Ledger connection
- * @returns Initialized ViemSafe instance and chain information
+ * @returns Initialized SafeClient instance and chain information
  */
 export async function initializeSafeClient(
   network: string,
@@ -1244,23 +1284,25 @@ export async function initializeSafeClient(
   safeAddress?: Address,
   account?: Account
 ): Promise<{
-  safe: ViemSafe
+  safe: SafeClient
   chain: Chain
   safeAddress: Address
 }> {
   const chain = getViemChainForNetworkName(network)
-  const finalSafeAddress =
-    safeAddress || (networks[network.toLowerCase()]?.safeAddress as Address)
+  const rawSafeAddress =
+    safeAddress ?? networks[network.toLowerCase()]?.safeAddress
 
-  if (!finalSafeAddress)
+  if (!rawSafeAddress)
     throw new Error(`No Safe address configured for network ${network}`)
+
+  const finalSafeAddress = normalizeAddressForNetwork(network, rawSafeAddress)
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
 
   // Initialize Safe with Viem
   try {
-    const safe = await ViemSafe.init({
+    const safe = await SafeClient.init({
       provider: parsedRpcUrl,
       privateKey,
       safeAddress: finalSafeAddress,
@@ -1867,11 +1909,16 @@ export async function decodeDiamondCut(
         ? Number(actionValue)
         : (actionValue as number)
     try {
-      let facetLine = `Facet Address: \u001b[34m${facetAddress}\u001b[0m`
+      const networkKey = network ?? networkIdForExplorer ?? ''
+      const facetDisplay = formatAddressForNetworkCliDisplay(
+        networkKey,
+        String(facetAddress)
+      )
+      let facetLine = `Facet Address: \u001b[34m${facetDisplay}\u001b[0m`
       if (networkIdForExplorer) {
         const explorerUrl = buildExplorerContractPageUrl(
           networkIdForExplorer,
-          facetAddress
+          facetDisplay
         )
         if (explorerUrl) facetLine += ` \u001b[36m${explorerUrl}\u001b[0m`
       }
@@ -2007,16 +2054,24 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   try {
     const rpcUrl = chain.rpcUrls.default.http[0]
     if (!rpcUrl) throw new Error(`No RPC URL for network ${network}`)
-    const { url: transportUrl, fetchOptions } =
-      getTransportConfigFromRpcUrl(rpcUrl)
+    const {
+      url: transportUrl,
+      fetchOptions,
+      retryCount,
+      retryDelay,
+    } = getTransportConfigFromRpcUrl(rpcUrl)
     const publicClient = createPublicClient({
       chain,
-      transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
+      transport: http(transportUrl, {
+        ...(fetchOptions ? { fetchOptions } : {}),
+        ...(retryCount !== undefined ? { retryCount } : {}),
+        ...(retryDelay !== undefined ? { retryDelay } : {}),
+      }),
     })
 
     safeInfo = await getSafeInfoFromContract(
       publicClient,
-      safeAddress as Address
+      normalizeAddressForNetwork(network, safeAddress)
     )
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
@@ -2040,11 +2095,19 @@ export async function wrapWithTimelockSchedule(
   const chain = getViemChainForNetworkName(network)
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
-  const { url: transportUrl, fetchOptions } =
-    getTransportConfigFromRpcUrl(parsedRpcUrl)
+  const {
+    url: transportUrl,
+    fetchOptions,
+    retryCount,
+    retryDelay,
+  } = getTransportConfigFromRpcUrl(parsedRpcUrl)
   const client = createPublicClient({
     chain,
-    transport: http(transportUrl, fetchOptions ? { fetchOptions } : {}),
+    transport: http(transportUrl, {
+      ...(fetchOptions ? { fetchOptions } : {}),
+      ...(retryCount !== undefined ? { retryCount } : {}),
+      ...(retryDelay !== undefined ? { retryDelay } : {}),
+    }),
   })
 
   // Get the minimum delay from the timelock controller
@@ -2092,7 +2155,7 @@ export async function wrapWithTimelockSchedule(
       [targetAddress], // targets
       [0n], // values
       [originalCalldata], // payloads
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // predecessor (empty)
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // [pre-commit-checker: not a secret]
       salt, // salt
       minDelay, // delay
     ],

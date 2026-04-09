@@ -12,8 +12,8 @@ set -a
 source .env
 set +a
 
-# load script
-source script/config.sh
+NETWORKS_JSON_FILE_PATH="config/networks.json"
+GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
@@ -1221,7 +1221,7 @@ function checkRequiredVariablesInDotEnv() {
     }
 
     # Match lines starting with "network = { key ="
-    tolower($0) ~ "^" network " *= *\\{ *key *= *" {
+    tolower($0) ~ "^" tolower(network) " *= *\\{ *key *= *" {
       n = split($0, parts, "\"");  # Split by double quotes
       for (i = 1; i <= n; i++) {
         if (index(parts[i], "${") == 1) {  # Look for ${...}
@@ -1501,7 +1501,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
   # Check if MAX_CONCURRENT_JOBS is configured
   if [[ -z $MAX_CONCURRENT_JOBS ]]; then
-    error "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    error "Your .env file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
     exit 1
   fi
 
@@ -1509,7 +1509,7 @@ function parseTargetStateGoogleSpreadsheet() {
   if [[ "$ENVIRONMENT" == "production" ]]; then
     # check if config contains spreadsheet ID
     if [[ -z "$TARGET_STATE_SPREADSHEET_ID_PRODUCTION" ]]; then
-      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
+      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
       exit 1
     else
       # construct spreadsheet URL
@@ -1519,7 +1519,7 @@ function parseTargetStateGoogleSpreadsheet() {
   elif [[ "$ENVIRONMENT" == "staging" ]]; then
     # check if config contains spreadsheet ID
     if [[ -z "$TARGET_STATE_SPREADSHEET_ID_STAGING" ]]; then
-      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
+      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
       exit 1
     else
       # construct spreadsheet URL
@@ -2216,7 +2216,7 @@ function getEtherscanApiKeyName() {
   fi
 
   if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
-    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    echo "Please set FOUNDRY_TOML_FILE_PATH in your .env file (see .env.example)" >&2
     return 1
   fi
 
@@ -2254,7 +2254,7 @@ function getVerifierUrlFromFoundryToml() {
   fi
 
   if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
-    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    echo "Please set FOUNDRY_TOML_FILE_PATH in your .env file (see .env.example)" >&2
     return 1
   fi
 
@@ -3735,11 +3735,11 @@ function getPrivateKey() {
 
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
-# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts
-# - Staging / Tron: send directly via universalCast sendRaw. When sending directly, timelock is never used.
+# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
+# - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
 #   network, environment, target, calldata: required
-#   timelock: only when proposing; "true" = wrap in timelock, "false" = propose without; ignored when sending directly
+#   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
 function sendOrPropose() {
   local NETWORK="$1"
@@ -3761,23 +3761,13 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Tron or EVM staging: direct send via universalCast sendRaw
-  if isTronNetwork "$NETWORK"; then
+  # Non-production or direct-to-diamond: send directly for all networks
+  if [[ "$ENVIRONMENT" != "production" ]] || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]]; then
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi
 
-  if [[ "$ENVIRONMENT" != "production" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
-  # EVM production: SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true sends directly; otherwise propose to Safe
-  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
+  # Resolve private key
   local SAFE_SIGNER_KEY
   if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
     SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
@@ -3787,6 +3777,25 @@ function sendOrPropose() {
       return 1
     }
   fi
+
+  # Tron: propose to Safe via tron script
+  if isTronNetwork "$NETWORK"; then
+    local PROPOSE_TRON_CMD=(
+      bunx tsx script/deploy/tron/propose-to-safe-tron.ts
+      --to "$TARGET"
+      --calldata "$CALLDATA"
+      --privateKey "$SAFE_SIGNER_KEY"
+    )
+    if [[ "$TIMELOCK" == "true" ]]; then
+      PROPOSE_TRON_CMD+=(--timelock)
+    else
+      PROPOSE_TRON_CMD+=(--direct)
+    fi
+    "${PROPOSE_TRON_CMD[@]}"
+    return $?
+  fi
+
+  # EVM: propose to Safe
   local PROPOSE_CMD=(
     bunx tsx script/deploy/safe/propose-to-safe.ts
     --network "$NETWORK"
@@ -3829,7 +3838,7 @@ function isZkEvmNetwork() {
   fi
 }
 
-function isActiveMainnet() {
+function isNetworkActive() {
   # read function arguments into variables
   local NETWORK="$1"
 
@@ -3839,11 +3848,10 @@ function isActiveMainnet() {
     return 1 # false
   fi
 
-  local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
   local STATUS=$(jq -r --arg network "$NETWORK" '.[$network].status // empty' "$NETWORKS_JSON_FILE_PATH")
 
-  # Check if both values are present and match required conditions
-  if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
+  # Treat any active network as eligible, including testnets.
+  if [[ "$STATUS" == "active" ]]; then
     return 0 # true
   else
     return 1 # false

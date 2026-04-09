@@ -5,7 +5,7 @@ import { parseUnits } from 'ethers/lib/utils'
 
 import * as deployment from '../../deployments/mainnet.staging.json'
 import { HopFacet__factory, ERC20__factory } from '../../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../utils/utils'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))
