@@ -183,9 +183,7 @@ contract LayerSwapFacet is
     /// @notice Check if a request ID has already been processed
     /// @param _requestId The request ID to check
     /// @return true if the request ID has been consumed
-    function consumedIds(
-        bytes32 _requestId
-    ) external view returns (bool) {
+    function consumedIds(bytes32 _requestId) external view returns (bool) {
         return getStorage().consumedIds[_requestId];
     }
 
