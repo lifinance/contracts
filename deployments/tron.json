@@ -20,5 +20,6 @@
   "FeeForwarder": "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ",
   "WhitelistManagerFacet": "TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn",
   "FeeCollector": "TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q",
-  "LiFiTimelockController": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu"
+  "LiFiTimelockController": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu",
+  "NEARIntentsFacet": "TFFvFi3j5YBMrSBev6bm6ueEaq1XWJ1QJZ"
 }
