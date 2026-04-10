@@ -17,6 +17,7 @@ GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
+TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
 GRAY='\033[0;37m'  # Light gray color
@@ -974,18 +975,21 @@ function saveDiamondPeriphery() {
 
   # resolve each periphery address in parallel and write to temp files
   for CONTRACT in ${PERIPHERY_CONTRACTS}; do
-    # throttle background jobs
+    # throttle background jobs; for Tron wait 2s between dispatches to respect RPC rate limits
     while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
-      sleep 0.1
+      if isTronNetwork "$NETWORK"; then sleep 2; else sleep 0.1; fi
     done
 
     (
       ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" 2>/dev/null)
-      if [[ "$ADDRESS" == "$ZERO_ADDRESS" || -z "$ADDRESS" ]]; then
+      # Skip unregistered contracts (zero address in EVM hex or Tron base58 format, or empty)
+      if [[ -z "$ADDRESS" || "$ADDRESS" == "$ZERO_ADDRESS" || "$ADDRESS" == "$TRON_ZERO_ADDRESS_BASE58" ]]; then
         ADDRESS=""
       fi
       echo "{\"$CONTRACT\": \"$ADDRESS\"}" >"$PERIPHERY_DIR/${CONTRACT}.json"
     ) &
+
+    if isTronNetwork "$NETWORK"; then sleep 2; fi
   done
 
   # wait for all background jobs
