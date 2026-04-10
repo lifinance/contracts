@@ -16,21 +16,22 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract LayerSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.layerswap"); // Optional. Only use if you need to store data in the diamond storage.
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.layerswap"); // Optional. Only use if you need to store data in the diamond storage.
 
     /// @dev Local storage for the contract (optional)
     struct Storage {
         address[] exampleAllowedTokens;
     }
 
-    address public immutable example;
+    address public immutable LAYERSWAP_TARGET;
 
     /// Types ///
 
-    /// @dev Optional bridge specific struct
-    /// @param exampleParam Example parameter
+    /// @dev LayerSwap specific parameters
+    /// @param requestId LayerSwap API request ID
     struct LayerSwapData {
-      string exampleParam;
+        bytes32 requestId;
     }
 
     /// Events ///
@@ -39,29 +40,12 @@ contract LayerSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Constructor ///
 
-    /// @notice Constructor for the contract.
-    ///         Should only be used to set immutable variables.
-    ///         Anything that cannot be set as immutable should be set
-    ///         in an init() function called during a diamondCut().
-    /// @param _example Example parameter.
-    constructor(address _example) {
-        example = _example;
-    }
-
-    /// Init ///
-
-    /// @notice Init function. Called in the context
-    ///         of the diamond contract when added as part of
-    ///         a diamondCut(). Use for config that can't be
-    ///         set as immutable or needs to change for any reason.
-    /// @param _exampleAllowedTokens Example array of allowed tokens for this chain.
-    function initLayerSwap(address[] memory _exampleAllowedTokens) external {
-        LibDiamond.enforceIsContractOwner();
-
-        Storage storage s = getStorage();
-        s.exampleAllowedTokens = _exampleAllowedTokens;
-
-        emit LayerSwapInitialized();
+    /// @param _layerSwapTarget address of the LayerSwap target on the source chain.
+    constructor(address _layerSwapTarget) {
+        if (_layerSwapTarget == address(0)) {
+            revert InvalidConfig();
+        }
+        LAYERSWAP_TARGET = _layerSwapTarget;
     }
 
     /// External Methods ///
@@ -123,7 +107,37 @@ contract LayerSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LayerSwapData calldata _layerSwapData
     ) internal {
-        // TODO: Implement business logic
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // Native
+
+            // Send Native to relayReceiver along with requestId as extra data
+            (bool success, bytes memory reason) = relayReceiver.call{
+                value: _bridgeData.minAmount
+            }(abi.encode(_layerSwapData.requestId));
+            if (!success) {
+                revert(LibUtil.getRevertMsg(reason));
+            }
+        } else {
+            // ERC20
+
+            // We build the calldata from scratch to ensure that we can only
+            // send to the target address. Also request ID is appended at the end.
+            bytes memory transferCallData = bytes.concat(
+                abi.encodeWithSignature(
+                    "transfer(address,uint256)",
+                    LAYERSWAP_TARGET,
+                    _bridgeData.minAmount
+                ),
+                abi.encode(_layerSwapData.requestId)
+            );
+            (bool success, bytes memory reason) = address(
+                _bridgeData.sendingAssetId
+            ).call(transferCallData);
+            if (!success) {
+                revert(LibUtil.getRevertMsg(reason));
+            }
+        }
+
         emit LiFiTransferStarted(_bridgeData);
     }
 
