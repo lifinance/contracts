@@ -17,16 +17,24 @@ graph LR;
 - `swapAndStartBridgeTokensViaLayerSwap(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, layerSwapData memory _layerSwapData)`
   - Performs swap(s) before bridging tokens using layerSwap
 
-## layerSwap Specific Parameters
+## LayerSwap Specific Parameters
 
-The methods listed above take a variable labeled `_layerSwapData`. This data is specific to layerSwap and is represented as the following struct type:
+The methods listed above take a variable labeled `_layerSwapData`. This data is specific to LayerSwap and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct layerSwapData {
-  string example;
+/// @param requestId LayerSwap API request ID
+/// @param nonEVMReceiver set only if bridging to non-EVM chain
+/// @param signatureExpiry Unix timestamp when signature expires
+/// @param signature EIP-712 signature from the backend signer
+struct LayerSwapData {
+    bytes32 requestId;
+    bytes32 nonEVMReceiver;
+    uint256 signatureExpiry;
+    bytes signature;
 }
 ```
+
+The `signature` field contains an EIP-712 signature from the LI.FI backend signer, which attests that the `requestId` and other bridge parameters are valid. This prevents users from submitting arbitrary request IDs that could lead to fund loss.
 
 ## Swap Data
 
