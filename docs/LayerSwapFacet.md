@@ -2,45 +2,61 @@
 
 ## How it works
 
-The LayerSwap Facet works by ...
+The LayerSwap Facet bridges tokens by depositing them into the LayerSwap
+Depository contract on the source chain. The depository forwards the deposited
+funds to a whitelisted receiver controlled by LayerSwap, and LayerSwap
+completes the bridge on the destination chain off-chain using the `requestId`
+correlated with an order created via the LayerSwap API.
 
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->LayerSwapFacet;
-    LayerSwapFacet -- CALL --> C(LayerSwap)
+    LayerSwapFacet -- CALL --> C(LayerSwap Depository)
 ```
 
 ## Public Methods
 
 - `function startBridgeTokensViaLayerSwap(BridgeData calldata _bridgeData, LayerSwapData calldata _layerSwapData)`
-  - Simply bridges tokens using layerSwap
-- `swapAndStartBridgeTokensViaLayerSwap(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, layerSwapData memory _layerSwapData)`
-  - Performs swap(s) before bridging tokens using layerSwap
+  - Simply bridges tokens using LayerSwap
+- `swapAndStartBridgeTokensViaLayerSwap(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LayerSwapData memory _layerSwapData)`
+  - Performs swap(s) before bridging tokens using LayerSwap
 
 ## LayerSwap Specific Parameters
 
-The methods listed above take a variable labeled `_layerSwapData`. This data is specific to LayerSwap and is represented as the following struct type:
+The methods listed above take a variable labeled `_layerSwapData`. This data
+is specific to LayerSwap and is represented as the following struct type:
 
 ```solidity
-/// @param requestId LayerSwap API request ID
+/// @param requestId LayerSwap swap id (from POST /api/v2/swaps), passed as
+///        the `id` argument to the depository
+/// @param depositoryReceiver Whitelisted address that the LayerSwap
+///        Depository forwards the deposited funds to on the source chain;
+///        supplied by the LI.FI backend per call. Distinct from
+///        `bridgeData.receiver`, which is the final recipient on the
+///        destination chain.
 /// @param nonEVMReceiver set only if bridging to non-EVM chain
-/// @param signatureExpiry Unix timestamp when signature expires
-/// @param signature EIP-712 signature from the backend signer
 struct LayerSwapData {
-    bytes32 requestId;
-    bytes32 nonEVMReceiver;
-    uint256 signatureExpiry;
-    bytes signature;
+  bytes32 requestId;
+  address depositoryReceiver;
+  bytes32 nonEVMReceiver;
 }
 ```
 
-The `signature` field contains an EIP-712 signature from the LI.FI backend signer, which attests that the `requestId` and other bridge parameters are valid. This prevents users from submitting arbitrary request IDs that could lead to fund loss.
+The depository address is configured at deploy time as an immutable
+constructor argument. The `depositoryReceiver` is supplied by the LI.FI
+backend in `_layerSwapData` per call, so LayerSwap can rotate or use
+different receivers without redeploying the facet. No on-chain attestation
+or signature is required — the `depositoryReceiver` is validated against
+the depository's whitelist on-chain, and the `requestId` is correlated
+off-chain with the order created via the LayerSwap API.
 
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of
+calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple
+swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
@@ -48,7 +64,10 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 Some methods accept a `BridgeData _bridgeData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events
+that we can later track and index in our subgraphs and provide data on how our
+contracts are being used. `BridgeData` and the events we can emit can be found
+[here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

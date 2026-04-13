@@ -21,22 +21,12 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/layer-swap.json");
-        string memory json = vm.readFile(path);
 
-        address layerSwapTarget = json.readAddress(
-            string.concat(".", network, ".layerSwapTarget")
+        address layerSwapDepository = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".layerSwapDepository")
         );
 
-        address backendSigner;
-        if (
-            keccak256(abi.encodePacked(fileSuffix)) ==
-            keccak256(abi.encodePacked("staging."))
-        ) {
-            backendSigner = json.readAddress(".staging.backendSigner");
-        } else {
-            backendSigner = json.readAddress(".production.backendSigner");
-        }
-
-        return abi.encode(layerSwapTarget, backendSigner);
+        return abi.encode(layerSwapDepository);
     }
 }
