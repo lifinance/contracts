@@ -112,9 +112,7 @@
     "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "sponsoredOftSrcPeriphery": "0xFE9D541c92E4e90437C7152A00244886dE37a658",
     "sponsoredCctpSrcPeriphery": "0x1771c470d41b8c39338450C380bf2C080a2CEdD8",
-    "tokensToApprove": [
-      "0x4200000000000000000000000000000000000006"
-    ]
+    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
   },
   "lens": {
     "chainId": 232,
@@ -304,6 +302,17 @@
   "tempo": {
     "chainId": 4217,
     "acrossSpokePool": "0x2d4710F04Da90184255782d3715224A6C776955D",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "tokensToApprove": []
+  },
+  "zora": {
+    "chainId": 7777777,
+    "acrossSpokePool": "0x13fDac9F9b4777705db45291bbFF3c972c6d1d97",
+    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "tokensToApprove": []
   }
 }
