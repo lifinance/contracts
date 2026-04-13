@@ -306,13 +306,5 @@
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "tokensToApprove": []
-  },
-  "zora": {
-    "chainId": 7777777,
-    "acrossSpokePool": "0x13fDac9F9b4777705db45291bbFF3c972c6d1d97",
-    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "tokensToApprove": []
   }
 }
