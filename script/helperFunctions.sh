@@ -4550,6 +4550,7 @@ function executeAndCapture() {
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
+    printf '%s' "$RAW_RETURN_DATA" >"$STDOUT_LOG"
   fi
 
   # Escape JSON strings properly for jq
