@@ -9,43 +9,71 @@ import {
   type LayerSwapFacet,
 } from '../../typechain'
 
-import { ADDRESS_USDC_ARB } from './utils/demoScriptHelpers'
+import {
+  LIFI_CHAIN_ID_SOLANA,
+  NON_EVM_ADDRESS,
+  solanaAddressToBytes32,
+} from './utils/demoScriptHelpers'
 
 config()
 
 // LayerSwap integration docs: https://docs.layerswap.io/lifi-integration
 //
+// Source chain is fixed to Arbitrum (arbitrum.staging.json deployments).
+// Destination chain is passed through directly to the LayerSwap API.
+//
+// Usage:
+//   bun tsx script/demoScripts/demoLayerSwap.ts \
+//     [--to <LAYERSWAP_NETWORK>] [--chainId <id>] \
+//     [--token <symbol>] [--amount <number>] [--receiver <address>]
+//
+// Defaults: --to ETHEREUM_MAINNET --token USDC --amount 1 (ERC20) / 0.0001 (ETH)
+//           --chainId 1 (auto-overridden for SOLANA_MAINNET)
+//           --receiver caller's EVM address (or a default Solana address
+//                      when --to SOLANA_MAINNET)
+//
 // Flow:
-//   1. POST /api/v2/swaps with use_depository=true to register a swap.
-//   2. Response contains deposit_actions[0] with:
-//        - to_address        : the LayerSwap depository contract (must match
-//                              LAYERSWAP_DEPOSITORY configured in the facet)
-//        - encoded_args[0]   : swap id as bytes32 -> requestId
-//        - encoded_args[1]   : whitelisted receiver -> depositoryReceiver
-//   3. Call startBridgeTokensViaLayerSwap on the diamond; the facet forwards
-//      funds to the depository, which forwards them to the receiver.
-//      LayerSwap correlates the deposit off-chain via requestId and completes
-//      the bridge on the destination chain.
+//   1. POST /api/v2/swaps with use_depository=true.
+//   2. Response deposit_actions[0] provides:
+//        - to_address       = LayerSwap depository contract
+//        - encoded_args     = native: [requestId, receiver]
+//                             ERC20:  [requestId, token, receiver, amount]
+//        - token.contract   = ERC20 contract on the source chain (null for
+//                             native)
+//   3. For ERC20, approve the diamond. Then call
+//      startBridgeTokensViaLayerSwap on the diamond.
 
 const LAYERSWAP_API = 'https://api.layerswap.io/api/v2/swaps'
+const SOLANA_NETWORK = 'SOLANA_MAINNET'
+const DEFAULT_SOLANA_RECEIVER = 'EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb'
 
-interface LayerSwapNetwork {
-  name: string
-  chain_id: string
-  type: string
+interface ScriptArgs {
+  to: string
+  chainId?: string
+  token: string
+  amount?: string
+  receiver?: string
+}
+
+const parseArgs = (): ScriptArgs => {
+  const argv = process.argv.slice(2)
+  const getOpt = (name: string): string | undefined => {
+    const i = argv.indexOf(`--${name}`)
+    return i >= 0 && i + 1 < argv.length ? argv[i + 1] : undefined
+  }
+  return {
+    to: (getOpt('to') ?? 'ETHEREUM_MAINNET').toUpperCase(),
+    chainId: getOpt('chainId'),
+    token: (getOpt('token') ?? 'USDC').toUpperCase(),
+    amount: getOpt('amount'),
+    receiver: getOpt('receiver'),
+  }
 }
 
 interface LayerSwapDepositAction {
-  order: number
-  type: string
   to_address: string
-  amount: number
-  amount_in_base_units: string
-  network: LayerSwapNetwork
-  token: { symbol: string; decimals: number; contract: string | null }
-  call_data: string
-  gas_limit: string
   encoded_args: string[]
+  token: { symbol: string; decimals: number; contract: string | null }
 }
 
 interface LayerSwapCreateSwapResponse {
@@ -88,173 +116,133 @@ const createLayerSwapSwap = async (
   const json = (await response.json()) as LayerSwapCreateSwapResponse
   const deposit = json.data.deposit_actions?.[0]
   if (!deposit) throw new Error('LayerSwap response missing deposit_actions[0]')
-
-  if (deposit.encoded_args.length < 2)
-    throw new Error(
-      `LayerSwap deposit_actions[0].encoded_args has ${deposit.encoded_args.length} entries (expected at least 2)`
-    )
-
   return deposit
 }
 
 const main = async () => {
-  const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM
-  const PRIVATE_KEY = process.env.PRIVATE_KEY
-  const LIFI_ADDRESS = deployments.LiFiDiamond
+  const args = parseArgs()
+  const isSolana = args.to === SOLANA_NETWORK
+  const isNative = args.token === 'ETH'
+  const amountHuman = args.amount ?? (isNative ? '0.0001' : '1')
+  const destinationChainId: number | bigint = isSolana
+    ? LIFI_CHAIN_ID_SOLANA
+    : Number(args.chainId ?? 1)
 
-  const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
-  const signer = new ethers.Wallet(PRIVATE_KEY as string, provider)
-  const layerSwap = LayerSwapFacet__factory.connect(LIFI_ADDRESS, provider)
+  const rpcUrl = process.env.ETH_NODE_URI_ARBITRUM
+  const privateKey = process.env.PRIVATE_KEY
+  if (!rpcUrl) throw new Error('Missing env var ETH_NODE_URI_ARBITRUM')
+  if (!privateKey) throw new Error('Missing env var PRIVATE_KEY')
 
-  const address = await signer.getAddress()
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
+  const signer = new ethers.Wallet(privateKey, provider)
+  const callerAddress = await signer.getAddress()
+  const diamondAddress = deployments.LiFiDiamond
+  const layerSwap = LayerSwapFacet__factory.connect(diamondAddress, provider)
+
+  const receiver =
+    args.receiver ?? (isSolana ? DEFAULT_SOLANA_RECEIVER : callerAddress)
 
   console.info('=== LayerSwapFacet Demo ===')
-  console.info('Sending from this wallet:', address)
+  console.info('From:    ARBITRUM_MAINNET')
+  console.info(`To:      ${args.to}`)
+  console.info(`Token:   ${args.token}`)
+  console.info(`Amount:  ${amountHuman}`)
+  console.info(`Caller:  ${callerAddress}`)
+  console.info(`Receiver:${receiver}`)
 
-  // Demo 1: Bridge native ETH from Arbitrum -> Ethereum mainnet via LayerSwap
-  console.info('\n--- Demo 1: Bridge Native ETH (ARB -> ETH) ---')
-
-  const ethAmountHuman = 0.0001
-  const ethAmount = ethers.utils.parseEther(ethAmountHuman.toString())
-
-  const ethDeposit = await createLayerSwapSwap({
+  // 1. Register swap with LayerSwap
+  const deposit = await createLayerSwapSwap({
     source_network: 'ARBITRUM_MAINNET',
-    source_token: 'ETH',
-    destination_network: 'ETHEREUM_MAINNET',
-    destination_token: 'ETH',
-    destination_address: address,
-    source_address: address,
-    amount: ethAmountHuman,
+    source_token: args.token,
+    destination_network: args.to,
+    destination_token: args.token,
+    destination_address: receiver,
+    source_address: callerAddress,
+    amount: Number(amountHuman),
   })
 
-  const ethRequestId = ethDeposit.encoded_args[0] as string
-  const ethDepositoryReceiver = utils.getAddress(
-    ethDeposit.encoded_args[1] as string
+  // Native: [requestId, receiver]
+  // ERC20:  [requestId, token, receiver, amount]
+  const expectedLength = isNative ? 2 : 4
+  if (deposit.encoded_args.length !== expectedLength)
+    throw new Error(
+      `LayerSwap encoded_args has ${deposit.encoded_args.length} entries (expected ${expectedLength})`
+    )
+  const [requestId, ...rest] = deposit.encoded_args
+  const rawReceiver = isNative ? rest[0] : rest[1]
+  if (!requestId || !rawReceiver)
+    throw new Error('LayerSwap encoded_args missing required fields')
+  const depositoryReceiver = utils.getAddress(rawReceiver)
+
+  console.info(`\nLayerSwap depository: ${deposit.to_address}`)
+  console.info(`Request ID:           ${requestId}`)
+  console.info(`Depository receiver:  ${depositoryReceiver}`)
+
+  // 2. Build bridge params (source asset info comes from the API response)
+  const sendingAssetId = isNative
+    ? ethers.constants.AddressZero
+    : utils.getAddress(
+        deposit.token.contract ??
+          (() => {
+            throw new Error(
+              `LayerSwap did not return a contract address for ${args.token} on ARBITRUM_MAINNET`
+            )
+          })()
+      )
+  const amount = ethers.utils.parseUnits(
+    amountHuman,
+    isNative ? 18 : deposit.token.decimals
   )
 
-  console.info('LayerSwap depository:', ethDeposit.to_address)
-  console.info('Request ID:          ', ethRequestId)
-  console.info('Depository receiver: ', ethDepositoryReceiver)
-  console.info(
-    'Amount:              ',
-    ethers.utils.formatEther(ethAmount),
-    'ETH'
-  )
-
-  let bridgeData: ILiFi.BridgeDataStruct = {
+  const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: utils.randomBytes(32),
     bridge: 'layerSwap',
     integrator: 'ACME Devs',
     referrer: ethers.constants.AddressZero,
-    sendingAssetId: ethers.constants.AddressZero, // native ETH
-    receiver: address,
-    minAmount: ethAmount,
-    destinationChainId: 1, // Ethereum mainnet
+    sendingAssetId,
+    receiver: isSolana ? NON_EVM_ADDRESS : receiver,
+    minAmount: amount,
+    destinationChainId,
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
 
-  let layerSwapData: LayerSwapFacet.LayerSwapDataStruct = {
-    requestId: ethRequestId,
-    depositoryReceiver: ethDepositoryReceiver,
-    nonEVMReceiver: ethers.constants.HashZero,
+  const layerSwapData: LayerSwapFacet.LayerSwapDataStruct = {
+    requestId,
+    depositoryReceiver,
+    nonEVMReceiver: isSolana
+      ? solanaAddressToBytes32(receiver)
+      : ethers.constants.HashZero,
   }
 
-  try {
-    console.info('Bridging native ETH via LayerSwap...')
-    let tx = await layerSwap
+  // 3. Approve (ERC20 only) and bridge
+  if (!isNative) {
+    console.info('\nApproving token...')
+    const token = ERC20__factory.connect(sendingAssetId, provider)
+    const approveTx = await token
       .connect(signer)
-      .startBridgeTokensViaLayerSwap(bridgeData, layerSwapData, {
-        value: ethAmount,
-      })
-    await tx.wait()
-    console.info('✅ Native ETH bridged successfully!')
-    console.info('Transaction hash:', tx.hash)
-  } catch (error) {
-    console.error(
-      '❌ Native ETH bridge failed:',
-      error instanceof Error ? error.message : String(error)
+      .approve(diamondAddress, amount)
+    await approveTx.wait()
+    console.info('✅ Token approved')
+  }
+
+  console.info(`\nBridging ${args.token} via LayerSwap...`)
+  const tx = await layerSwap
+    .connect(signer)
+    .startBridgeTokensViaLayerSwap(
+      bridgeData,
+      layerSwapData,
+      isNative ? { value: amount } : {}
     )
-  }
-
-  // Demo 2: Bridge USDC from Arbitrum -> Ethereum mainnet via LayerSwap
-  console.info('\n--- Demo 2: Bridge USDC (ARB -> ETH) ---')
-
-  const usdcAmountHuman = 1 // 1 USDC
-  const usdcAmount = ethers.utils.parseUnits(usdcAmountHuman.toString(), 6)
-  const usdc = ERC20__factory.connect(ADDRESS_USDC_ARB, provider)
-
-  const usdcDeposit = await createLayerSwapSwap({
-    source_network: 'ARBITRUM_MAINNET',
-    source_token: 'USDC',
-    destination_network: 'ETHEREUM_MAINNET',
-    destination_token: 'USDC',
-    destination_address: address,
-    source_address: address,
-    amount: usdcAmountHuman,
-  })
-
-  const usdcRequestId = usdcDeposit.encoded_args[0] as string
-  const usdcDepositoryReceiver = utils.getAddress(
-    usdcDeposit.encoded_args[1] as string
-  )
-
-  console.info('LayerSwap depository:', usdcDeposit.to_address)
-  console.info('Request ID:          ', usdcRequestId)
-  console.info('Depository receiver: ', usdcDepositoryReceiver)
-  console.info(
-    'Amount:              ',
-    ethers.utils.formatUnits(usdcAmount, 6),
-    'USDC'
-  )
-
-  bridgeData = {
-    transactionId: utils.randomBytes(32),
-    bridge: 'layerSwap',
-    integrator: 'ACME Devs',
-    referrer: ethers.constants.AddressZero,
-    sendingAssetId: ADDRESS_USDC_ARB,
-    receiver: address,
-    minAmount: usdcAmount,
-    destinationChainId: 1,
-    hasSourceSwaps: false,
-    hasDestinationCall: false,
-  }
-
-  layerSwapData = {
-    requestId: usdcRequestId,
-    depositoryReceiver: usdcDepositoryReceiver,
-    nonEVMReceiver: ethers.constants.HashZero,
-  }
-
-  try {
-    console.info('Approving USDC...')
-    let tx = await usdc.connect(signer).approve(LIFI_ADDRESS, usdcAmount)
-    await tx.wait()
-    console.info('✅ USDC approved')
-
-    console.info('Bridging USDC via LayerSwap...')
-    tx = await layerSwap
-      .connect(signer)
-      .startBridgeTokensViaLayerSwap(bridgeData, layerSwapData)
-    await tx.wait()
-    console.info('✅ USDC bridged successfully!')
-    console.info('Transaction hash:', tx.hash)
-  } catch (error) {
-    console.error(
-      '❌ USDC bridge failed:',
-      error instanceof Error ? error.message : String(error)
-    )
-  }
+  await tx.wait()
+  console.info('✅ Bridge transaction confirmed')
+  console.info(`Transaction hash: ${tx.hash}`)
 }
 
 main()
-  .then(() => {
-    console.log('\n✅ Success - All demos completed')
-    process.exit(0)
-  })
+  .then(() => process.exit(0))
   .catch((error) => {
-    console.error('\n❌ Error occurred during demo')
+    console.error('\n❌ Demo failed')
     console.error(error)
     process.exit(1)
   })
