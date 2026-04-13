@@ -1,8 +1,8 @@
 {
   "mainnet": {
-    "layerSwapDepository": "0x0000000000000000000000000000000000000000"
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
   },
   "arbitrum": {
-    "layerSwapDepository": "0x0000000000000000000000000000000000000000"
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
   }
 }
