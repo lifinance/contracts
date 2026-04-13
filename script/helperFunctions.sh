@@ -4556,8 +4556,8 @@ function executeAndCapture() {
   # Use jq to create a properly escaped JSON object
   local JSON_RESULT
   JSON_RESULT=$(jq -n \
-    --arg stdout "$RAW_RETURN_DATA" \
-    --arg stderr "$STDERR_CONTENT" \
+    --rawfile stdout "$STDOUT_LOG" \
+    --rawfile stderr "$STDERR_LOG" \
     --argjson returnCode "$RETURN_CODE" \
     '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
 
