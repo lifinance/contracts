@@ -13,8 +13,7 @@ import { InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title LayerSwap Facet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for bridging through the LayerSwap
-///         Depository contract
+/// @notice Provides functionality for bridging through the LayerSwap Depository contract
 /// @custom:version 1.0.0
 contract LayerSwapFacet is
     ILiFi,
