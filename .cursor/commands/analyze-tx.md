@@ -114,7 +114,7 @@ curl -s -X POST https://api.trongrid.io/wallet/gettransactionbyid \
 - `contractResult[0]`: **4-byte hex revert selector** (use `cast 4byte` to decode)
 - `resMessage`: hex-encoded revert message string (decode with `xxd -r -p`)
 - `internal_transactions[].rejected`: **ALL internal txs show `rejected: true` when outer tx reverts** — this does NOT mean each individual call failed; it means all effects were rolled back
-- `internal_transactions[].note`: `63616c6c` = "call", `64656c65676174656361` = "delegatecall"
+- `internal_transactions[].note`: `63616c6c` = "call", `64656c656761746563616c6c` = "delegatecall"
 - `receipt.energy_usage_total`: total energy consumed (including sub-calls)
 - `receipt.energy_penalty_total`: extra energy charged for calling certain contracts
 
