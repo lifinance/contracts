@@ -215,7 +215,7 @@
       },
       "0x20f12a09cF0B944C9eF9AEe4632428662f8bfe1B": {
         "Name": "LayerSwapFacet",
-        "Version": ""
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
