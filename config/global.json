@@ -5,6 +5,10 @@
   "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
   "deployerWallet": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
   "devWallet": "0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3",
+  "backendSigner": {
+    "staging": "0x981CCF8c09633F6F2AF3fe661C285ca1DB09caE1",
+    "production": "0xAF4B7A83591a6c4c8B9d1341C3F08BBc3b800fc5"
+  },
   "tronWallets": {
     "refundWallet": "TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD",
     "feeCollectorOwner": "TTWhPqF38FneGGN1smz3m5LsNJQYx4mgQy",
@@ -55,7 +59,9 @@
     "Permit2Proxy",
     "TokenWrapper"
   ],
-  "blacklistedFunctionSelectors": ["0x23b872dd"],
+  "blacklistedFunctionSelectors": [
+    "0x23b872dd"
+  ],
   "whitelistPeripheryFunctions": {
     "FeeCollector": [
       {

@@ -552,6 +552,13 @@
       "auditorGitHandle": "burrasec",
       "auditReportPath": "./audit/reports/2026.03.20_MayanFacet(v1.2.4).pdf",
       "auditCommitHash": "22d2fd1aaf9fb5f2ff85c98b6521b5e41b4aa6cd"
+    },
+    "audit20260409": {
+      "auditCompletedOn": "09.04.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.04.09_AcrossV4SwapFacet(v1.0.0).pdf",
+      "auditCommitHash": "514f03cb5942c16c4de013ef264b5d55d87e7b9c"
     }
   },
   "auditedContracts": {
@@ -577,6 +584,9 @@
     },
     "AcrossFacetV4": {
       "1.0.0": ["audit20250901"]
+    },
+    "AcrossV4SwapFacet": {
+      "1.0.0": ["audit20260409"]
     },
     "AllBridgeFacet": {
       "2.0.0": ["audit20250508"],
