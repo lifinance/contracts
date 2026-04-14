@@ -17,13 +17,25 @@ import {
 
 config()
 
+// SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
+// Bridge 0.1 USDC from Arbitrum to Base:
+//   - src: http://arbiscan.io/tx/
+//   - dst: https://basescan.org/tx/0xd8df1d5613684b62e50884c985252f1e4b87e8eb1490bc4935181b3a416602fa
+// Bridge 0.00002 ETH from Arbitrum to Base:
+//   - src: https://arbiscan.io/tx/0xedc0c7f3ee67a4b1a828ae6bc7dd518fea6957c896292a2ac8294f3f710c43ba
+//   - dst: https://basescan.org/tx/0x4e964a735159e2e36a67bfe348a5a36463fc330958294234e55d0b264e0d80b2
+// Bridge 0.25 USDC from Arbitrum to Solana:
+//   - src: https://arbiscan.io/tx/0x82d3b2f6d00b016f7f193d55fd59141ace7987a189be32fbb672c01cdb9fcf4f
+//   - dst: https://solscan.io/tx/Vmnez41Kp14KrpSRkFCBwbjfjTYN6MCUx4fLe4G61EAfj89ynKvP9TtcfLUkPQE7osz3s6qfDCb8a7S3FAb5dzt
+// ---------------------------------------------------------------------------------------------------------------------------------------------------
+
 // LayerSwap integration docs: https://docs.layerswap.io/lifi-integration
 //
 // Source chain is fixed to Arbitrum (arbitrum.staging.json deployments).
 // Destination chain is passed through directly to the LayerSwap API.
 //
 // Usage:
-//   bun tsx script/demoScripts/demoLayerSwap.ts \
+//   bun script/demoScripts/demoLayerSwap.ts \
 //     [--to <LAYERSWAP_NETWORK>] [--chainId <id>] \
 //     [--token <symbol>] [--amount <number>] [--receiver <address>]
 //
