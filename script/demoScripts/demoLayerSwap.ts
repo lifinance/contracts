@@ -38,11 +38,14 @@ import {
   zeroAddress,
   zeroHash,
 } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 import { ERC20__factory, LayerSwapFacet__factory } from '../../typechain'
 import type { ILiFi, LayerSwapFacet } from '../../typechain'
 import { EnvironmentEnum } from '../common/types'
 import { fetchWithTimeout } from '../utils/fetchWithTimeout'
+
+import { getEnvVar } from '../utils/utils'
 
 import {
   createContractObject,
@@ -278,15 +281,66 @@ const main = async () => {
     hasDestinationCall: false,
   }
 
+  // 3. Sign the LayerSwapPayload via EIP-712
+  const backendSignerKey = getEnvVar('PRIVATE_KEY_BACKEND_SIGNER_STAGING')
+  const normalizedKey: `0x${string}` = backendSignerKey.startsWith('0x')
+    ? (backendSignerKey as `0x${string}`)
+    : (`0x${backendSignerKey}` as `0x${string}`)
+  const backendSignerAccount = privateKeyToAccount(normalizedKey)
+
+  const sourceChainId = await publicClient.getChainId()
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
+
+  const nonEVMReceiver = isSolana
+    ? solanaAddressToBytes32(receiver)
+    : zeroHash
+
+  const backendSignature = await backendSignerAccount.signTypedData({
+    domain: {
+      name: 'LI.FI LayerSwap Facet',
+      version: '1',
+      chainId: sourceChainId,
+      verifyingContract: diamondAddress,
+    },
+    types: {
+      LayerSwapPayload: [
+        { name: 'transactionId', type: 'bytes32' },
+        { name: 'minAmount', type: 'uint256' },
+        { name: 'receiver', type: 'address' },
+        { name: 'requestId', type: 'bytes32' },
+        { name: 'depositoryReceiver', type: 'address' },
+        { name: 'nonEVMReceiver', type: 'bytes32' },
+        { name: 'destinationChainId', type: 'uint256' },
+        { name: 'sendingAssetId', type: 'address' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    },
+    primaryType: 'LayerSwapPayload',
+    message: {
+      transactionId,
+      minAmount: amount,
+      receiver: isSolana ? NON_EVM_ADDRESS : receiver,
+      requestId: requestId as `0x${string}`,
+      depositoryReceiver,
+      nonEVMReceiver,
+      destinationChainId: BigInt(destinationChainId),
+      sendingAssetId,
+      deadline,
+    },
+  })
+
+  consola.info(`\nBackend signer:  ${backendSignerAccount.address}`)
+  consola.info(`Deadline:        ${deadline}`)
+
   const layerSwapData: LayerSwapFacet.LayerSwapDataStruct = {
     requestId,
     depositoryReceiver,
-    nonEVMReceiver: isSolana
-      ? solanaAddressToBytes32(receiver)
-      : zeroHash,
+    nonEVMReceiver,
+    signature: backendSignature,
+    deadline,
   }
 
-  // 3. Approve (ERC20 only) and bridge
+  // 4. Approve (ERC20 only) and bridge
   if (!isNative) {
     consola.info('\nChecking balance and allowance...')
     const tokenContract = createContractObject(
