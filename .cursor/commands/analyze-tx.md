@@ -84,6 +84,74 @@ usage: /analyze-tx <network> <tx_hash>
 11. ⚠️ **Find ALL reverts** - There may be multiple failure points
 12. ⚠️ **Never assume** - Nested calls may have failed; value may not have come from root tx
 
+## Tron-Specific Analysis
+
+### Tron RPC Limitations
+- `debug_traceTransaction` is **NOT available** on TronGrid public endpoints
+- `triggerconstantcontract` simulates state-changing functions in read-only mode — **return values are unreliable** for write functions (e.g., `transfer` may return `false` in simulation but succeed on-chain)
+- `eth_getTransactionCount` is **NOT supported**, so `cast call` fails; use `curl` with TronGrid native API instead
+
+### Tron Address Encoding
+- Tron addresses are 21 bytes: `0x41` prefix + 20-byte EVM address
+- **On-chain (Solidity `address` type): always use 20-byte EVM format** (strip `0x41` prefix)
+- **In ABI-encoded parameters** for `triggerconstantcontract`: use 20-byte EVM format padded to 32 bytes (no `0x41`)
+
+### Tron Transaction Fetching
+Use TronGrid native API instead of EVM RPC:
+```bash
+# Full transaction data + internal transactions
+curl -s -X POST https://api.trongrid.io/wallet/gettransactioninfobyid \
+  -H "Content-Type: application/json" \
+  -d '{"value": "<TX_HASH>"}' | jq .
+
+# Raw transaction (calldata, signature)
+curl -s -X POST https://api.trongrid.io/wallet/gettransactionbyid \
+  -H "Content-Type: application/json" \
+  -d '{"value": "<TX_HASH>"}' | jq .
+```
+
+### Tron `gettransactioninfobyid` Fields
+- `contractResult[0]`: **4-byte hex revert selector** (use `cast 4byte` to decode)
+- `resMessage`: hex-encoded revert message string (decode with `xxd -r -p`)
+- `internal_transactions[].rejected`: **ALL internal txs show `rejected: true` when outer tx reverts** — this does NOT mean each individual call failed; it means all effects were rolled back
+- `internal_transactions[].note`: `63616c6c` = "call", `64656c65676174656361` = "delegatecall"
+- `receipt.energy_usage_total`: total energy consumed (including sub-calls)
+- `receipt.energy_penalty_total`: extra energy charged for calling certain contracts
+
+### Tron Address Conversion
+
+**Preferred — use `troncast` (see `.cursor/rules/202-tron-scripts.mdc` for Tron script conventions):**
+
+```bash
+# base58 → EVM hex
+bun troncast address to-hex TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+# Output: 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c
+
+# EVM hex → base58
+bun troncast address to-base58 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c
+# Output: TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+
+# Multiple addresses (comma-separated) supported in both directions
+bun troncast address to-hex "TAddr1,TAddr2"
+```
+
+### Tron Contract Code
+
+Use `troncast` instead of `cast code` (which does not support Tron). Accepts both base58 and EVM hex addresses:
+
+```bash
+# Get contract bytecode (analog of `cast code` for Tron)
+bun troncast code TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw
+# Returns 0x<bytecode> or "0x" if address is not a contract
+
+# Hex address is auto-converted to base58 internally
+bun troncast code 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b
+
+# Testnet
+bun troncast code <address> --env testnet
+```
+
+
 ## Key Files & Tools
 
 ### Files
