@@ -35,20 +35,53 @@ is specific to LayerSwap and is represented as the following struct type:
 ///        `bridgeData.receiver`, which is the final recipient on the
 ///        destination chain.
 /// @param nonEVMReceiver set only if bridging to non-EVM chain
+/// @param signature EIP-712 signature from the backend signer
+/// @param deadline signature expiration timestamp
 struct LayerSwapData {
   bytes32 requestId;
   address depositoryReceiver;
   bytes32 nonEVMReceiver;
+  bytes signature;
+  uint256 deadline;
 }
 ```
 
 The depository address is configured at deploy time as an immutable
 constructor argument. The `depositoryReceiver` is supplied by the LI.FI
 backend in `_layerSwapData` per call, so LayerSwap can rotate or use
-different receivers without redeploying the facet. No on-chain attestation
-or signature is required — the `depositoryReceiver` is validated against
-the depository's whitelist on-chain, and the `requestId` is correlated
-off-chain with the order created via the LayerSwap API.
+different receivers without redeploying the facet.
+
+## EIP-712 Signature Verification
+
+Every call requires an EIP-712 signature from the authorized backend signer
+to cryptographically bind the `requestId` to the destination `receiver`
+(and `nonEVMReceiver` for non-EVM chains). This prevents an attacker from
+funding a LayerSwap order created for a different destination.
+
+The signed payload (`LayerSwapPayload`) covers:
+
+| Field | Source |
+|-------|--------|
+| `transactionId` | `bridgeData` |
+| `minAmount` | `bridgeData` |
+| `receiver` | `bridgeData` |
+| `requestId` | `layerSwapData` |
+| `depositoryReceiver` | `layerSwapData` |
+| `nonEVMReceiver` | `layerSwapData` |
+| `destinationChainId` | `bridgeData` |
+| `sendingAssetId` | `bridgeData` |
+| `deadline` | `layerSwapData` |
+
+**EIP-712 domain:**
+- Name: `LI.FI LayerSwap Facet`
+- Version: `1`
+- Chain ID: source chain
+- Verifying contract: diamond proxy address
+
+**Error conditions:**
+- `InvalidSignature()` — signature verification failed
+- `SignatureExpired()` — `block.timestamp > deadline`
+- `RequestAlreadyProcessed()` — `requestId` already used (replay protection)
 
 ## Swap Data
 
