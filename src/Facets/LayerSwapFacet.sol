@@ -105,6 +105,9 @@ contract LayerSwapFacet is
         validateBridgeData(_bridgeData)
     {
         _validateLayerSwapData(_bridgeData, _layerSwapData);
+
+        // NOTE: If a deposit is higher than the amount associated with the orderId due to positive slippage,
+        //       then the overpaid amount will be bridged to destination chain as well.
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -142,10 +145,12 @@ contract LayerSwapFacet is
         LayerSwapData calldata _layerSwapData
     ) internal {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // Native token deposit
             ILayerSwapDepository(LAYERSWAP_DEPOSITORY).depositNative{
                 value: _bridgeData.minAmount
             }(_layerSwapData.requestId, _layerSwapData.depositoryReceiver);
         } else {
+            // ERC20 token deposit
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 LAYERSWAP_DEPOSITORY,
