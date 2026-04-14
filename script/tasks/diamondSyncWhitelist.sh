@@ -79,8 +79,7 @@ function diamondSyncWhitelist {
     NETWORKS=("$NETWORK")
   fi
 
-    # Execute a whitelist batch operation (add or remove)
-  # Handles both Tron staging (direct troncast) and EVM/Tron production (calldata + sendOrPropose)
+  # Execute a whitelist batch operation (add or remove)
   function executeWhitelistBatch {
     local BATCH_CONTRACTS="$1"    # comma-separated
     local BATCH_SELECTORS="$2"    # comma-separated
@@ -107,7 +106,7 @@ function diamondSyncWhitelist {
       
       if [[ "$IS_TRON" == "true" ]]; then
         if [[ "$ENVIRONMENT" == "production" ]]; then
-          # Tron production: convert base58 addresses to hex for calldata
+          # Tron : convert base58 addresses to hex for calldata
           if ! CONTRACTS_FOR_SEND=$(convertTronAddressesToHex "$BATCH_CONTRACTS"); then
             printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex"
             echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
@@ -119,7 +118,7 @@ function diamondSyncWhitelist {
             echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
             return 1
           fi
-          # Production uses bracket notation for cast calldata
+          # Tron: Uses bracket notation for cast calldata
           SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
         else
           # Tron staging: use JSON array format
@@ -133,7 +132,10 @@ function diamondSyncWhitelist {
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
       fi
       
-      local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
+      local TIMELOCK_FLAG="false"
+      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+        TIMELOCK_FLAG="true"
+      fi
       echoSyncDebug "Send args: $SEND_ARGS"
       
       local OUTPUT
@@ -218,7 +220,7 @@ function diamondSyncWhitelist {
   function getTimelockFlag {
     local NET="$1"
     local ENV="$2"
-    if [[ "$ENV" == "production" ]] && ! isTronNetwork "$NET"; then
+    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTronNetwork "$NET"; then
       echo "true"
     else
       echo "false"
@@ -290,9 +292,9 @@ function diamondSyncWhitelist {
   function processNetwork {
     local NETWORK=$1  # Network name as argument
 
-    # Skip non-active mainnets
-    if ! isActiveMainnet "$NETWORK"; then
-      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not an active mainnet >> continuing without syncing on this network"
+    # Skip inactive networks;
+    if ! isNetworkActive "$NETWORK"; then
+      printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not active >> continuing without syncing on this network"
       return
     fi
 
@@ -303,6 +305,9 @@ function diamondSyncWhitelist {
       IS_TRON=true
       TRON_ENV=$(getTronEnv "$NETWORK")
     fi
+
+    # sendOrPropose: propose vs send is decided by SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only used when proposing (wrap in timelock).
+    local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
 
     # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
@@ -942,8 +947,6 @@ function diamondSyncWhitelist {
         # EVM: use bracket notation for cast
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$REMOVE_SELECTORS_ARRAY] false"
       fi
-
-      local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
       
       echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
       local REMOVE_ATTEMPTS=1
@@ -957,12 +960,6 @@ function diamondSyncWhitelist {
           sleep 3
         fi
 
-        # sendOrPropose: propose vs send is decided by SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only used when proposing (wrap in timelock).
-        local TIMELOCK_FLAG="false"
-        if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-          TIMELOCK_FLAG="true"
-        fi
-
         echoSyncDebug "Send args for removal: $SEND_ARGS"
 
         local REMOVE_OUTPUT
@@ -973,7 +970,11 @@ function diamondSyncWhitelist {
         if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
 
         if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
-          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
+          if [[ "$TIMELOCK_FLAG" == "true" ]]; then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal proposal submitted successfully!"
+          else
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
+          fi
           REMOVE_SUCCESS=true
           break
         else
@@ -1113,7 +1114,6 @@ function diamondSyncWhitelist {
           SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS_ARRAY] true"
         fi
 
-        local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
         echoSyncStep "📤 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES: Processing $BATCH_COUNT pairs..."
 
         local ATTEMPTS=1
@@ -1126,12 +1126,6 @@ function diamondSyncWhitelist {
             sleep 3
           fi
 
-          # sendOrPropose: propose vs send from SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only when proposing (wrap in timelock).
-          local TIMELOCK_FLAG="false"
-          if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-            TIMELOCK_FLAG="true"
-          fi
-
           echoSyncDebug "Send args for batch addition: $SEND_ARGS"
 
           local OUTPUT
@@ -1141,7 +1135,11 @@ function diamondSyncWhitelist {
           if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
 
           if [[ $EXIT_CODE -eq 0 ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
+            if [[ "$TIMELOCK_FLAG" == "true" ]]; then
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES proposal submitted!"
+            else
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES successful!"
+            fi
             BATCH_TX_SUCCESS=true
             break
           else
@@ -1172,11 +1170,14 @@ function diamondSyncWhitelist {
       fi
 
       # All batches succeeded - verify final state
-      printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batches completed successfully!"
+      if [[ "$TIMELOCK_FLAG" == "true" ]]; then
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batch proposals submitted successfully!"
+      else
+        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batches completed successfully!"
+      fi
 
-      # Skip verification when we proposed (production, SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true): state changes only after proposal is executed
-      # Run verification when we sent directly (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)
-      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+      # Skip verification when we proposed: state changes only after proposal is executed
+      if [[ "$TIMELOCK_FLAG" == "true" ]]; then
         printf '\033[0;36m%s\033[0m\n' "ℹ️  [$NETWORK] Skipping verification - proposals require signing and execution before state changes"
         return 0
       fi
@@ -1256,7 +1257,11 @@ function diamondSyncWhitelist {
       fi
     else
       if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
-        printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were removed"
+        if [[ "$TIMELOCK_FLAG" == "true" ]]; then
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were proposed for removal"
+        else
+          printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] No new pairs to add, but ${#REMOVED_PAIRS[@]} obsolete pairs were removed"
+        fi
       else
         printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Skipped - all contract-selector pairs are already whitelisted and no obsolete pairs found"
       fi
@@ -1265,7 +1270,7 @@ function diamondSyncWhitelist {
 
   # Run networks in parallel with concurrency control
   if [[ -z $MAX_CONCURRENT_JOBS ]]; then
-    echo "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    echo "Your .env file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
     exit 1
   fi
 

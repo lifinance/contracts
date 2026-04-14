@@ -5,8 +5,7 @@ function deployFacetAndAddToDiamond() {
   # load env variables
   source .env
 
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
   source script/tasks/diamondUpdatePeriphery.sh

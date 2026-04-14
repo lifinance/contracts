@@ -22,8 +22,15 @@ globs:
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
   - `script/utils/fetchWithTimeout.ts` (external API fetch with timeout; see [CONV:FETCH-TIMEOUT]),
+  - `script/utils/normalizeAddressStringForViem.ts` — `normalizeAddressForNetwork()` for network-aware address conversion (handles Tron base58, hex, and EVM; see [CONV:ADDR-NORMALIZE]),
+  - `script/deploy/shared/globalContractLists.ts` — `getCoreFacets()` / `getCorePeriphery()` for config-driven contract name arrays (use instead of hardcoding),
+  - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
+- **No re-export barrels**: Import values and types from the module where they are defined.
+  - Do not use `export { ... } from '...'`, `export * from '...'`, or `export type { ... } from '...'` solely to re-export another module.
+  - Do not add `export { importedSymbol }` at the end of a file when that symbol is only imported from elsewhere; consumers should import from the defining module instead.
+  - `export { name }` / `export type { Name }` that reference symbols **declared in the same file** (grouping exports) are fine.
 - **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
 
 ## External API fetch and timeout ([CONV:FETCH-TIMEOUT])
@@ -37,14 +44,30 @@ globs:
 
 - **Always check for existing types before defining new ones**: Search in order: TypeChain types (`typechain/`), viem types, `script/common/types.ts`, domain-specific type files (e.g., `script/troncast/types.ts`, `script/deploy/tron/types.ts`).
 - **Type placement**:
-  - Shared/cross-cutting types: `script/common/types.ts` (e.g., `SupportedChain`, `INetwork`, `EnvironmentEnum`).
-  - Domain-specific types: colocated in domain-specific files (e.g., Tron types in `script/deploy/tron/types.ts`, Safe types in `script/deploy/safe/safe-utils.ts`).
-  - Script-specific types: inline in the script file if only used locally.
+  - **Shared or could be shared** (cross-script, multi-chain, or likely to be imported outside one narrow area): `script/common/types.ts`.
+  - **Tron-only** (types/interfaces used exclusively for Tron deploy/helpers, not as general script protocol types): `script/deploy/tron/types.ts`.
+  - **Script-specific**: inline in the script file if only used locally.
+  - Other domains where neither file fits: colocate (e.g. `script/troncast/types.ts`, shapes next to Safe helpers in `script/deploy/safe/`).
 - **Reuse existing types**: Prefer importing and reusing existing types over defining duplicates.
+- **Config-derived types**: Prefer deriving types from config schemas (e.g., `EVMVersion` from `networks.json`) over manually maintained union types. See `script/common/types.ts` for examples.
 - **Naming conventions** (enforced by `.eslintrc.cjs`):
   - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by ESLint.
   - Type aliases use PascalCase without prefix (e.g., `SupportedChain`, `HexString`).
   - Enums use PascalCase with `Enum` suffix (e.g., `EnvironmentEnum`).
+
+## Multi-chain patterns
+
+### Address normalization ([CONV:ADDR-NORMALIZE])
+
+- When converting raw addresses (base58 `T…`, hex `41…`, or `0x…`) to viem `Address`, use `normalizeAddressForNetwork()` from `script/utils/normalizeAddressStringForViem.ts`. It handles Tron base58 detection automatically and always returns a checksummed viem `Address`.
+
+### Tron network detection ([CONV:TRON-NETWORK-KEY])
+
+- Use `isTronNetworkKey(networkName)` from `script/deploy/shared/tron-network-keys.ts` as the sole mechanism for Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly. For Tron-specific conventions, see `202-tron-scripts.mdc`.
+
+### Dynamic imports for chain modules
+
+- When a module is only needed for one chain (e.g., TronWeb, Tron executor), use `await import('./path')` instead of top-level imports. This prevents loading chain-specific dependencies when running on other chains. See `create-chain-caller.ts` for the pattern.
 
 ## Demo Scripts
 
@@ -60,6 +83,16 @@ globs:
 - **Dev wallet (EVM)**: Use a single source of truth from config.
   - Use **only** `DEV_WALLET_ADDRESS` from `script/demoScripts/utils/demoScriptHelpers.ts` (it reads `config/global.json` → `devWallet`). Do not use `globalConfig.devWallet` elsewhere.
   - Do not add or use separate constants for the same EVM dev wallet (e.g. no `ADDRESS_DEV_WALLET_V5`-style aliases).
+
+## Inline Documentation
+
+Add comments only where the code doesn't speak for itself. Avoid restating what the code does — explain *why* or *when*.
+
+- **Module header**: Every new TS file MUST open with a `/** … */` block that states: (1) what the module does, (2) who should use it / when to import it. One to three sentences max.
+- **Exported functions/classes**: Use JSDoc with `@param`, `@returns`, and `@throws` for every exported function. Include a `@remarks` or leading sentence only when the behaviour is non-obvious (e.g. side effects, retry semantics, chain-specific restrictions).
+- **Constants**: Magic numbers and timeout/delay values MUST have an inline `// <value + unit>` comment (e.g. `// 2 minutes`) AND, when the value is policy-driven (rate limits, thresholds), a short sentence explaining the policy.
+- **Complex logic**: Add a single inline comment before a non-obvious block (e.g. binary search, bit manipulation, quirky API workaround). Skip comments for idiomatic loops, straightforward conditionals, and standard library calls.
+- **Do NOT add**: comments that merely restate the type, variable name, or an obviously named function; changelog/author notes (use git); section dividers like `// --- Helpers ---`.
 
 ## CLI and Logging
 

@@ -48,7 +48,9 @@ const main = defineCommand({
       const collection = db.collection('RpcEndpoints')
 
       // Check if there's an existing document for the given chainName
-      const existingDoc = await collection.findOne({ chainName: mongoEq(chainName) })
+      const existingDoc = await collection.findOne({
+        chainName: mongoEq(chainName),
+      })
 
       // Check if the RPC endpoint already exists for the given chain
       if (existingDoc?.rpcs) {

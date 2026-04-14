@@ -21,7 +21,7 @@ import {
 } from '../../common/types'
 import { initTronWeb } from '../../troncast/utils/tronweb'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 // ABI for EmergencyPauseFacet

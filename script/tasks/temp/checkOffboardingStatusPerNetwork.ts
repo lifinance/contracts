@@ -19,7 +19,7 @@ import {
 import { DEV_WALLET_ADDRESS } from '../../demoScripts/utils/demoScriptHelpers'
 import { SAFE_SINGLETON_ABI } from '../../deploy/safe/config'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
+import { getRPCEnvVarName } from '../../utils/utils'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 // Old addresses (hardcoded - these should be removed)

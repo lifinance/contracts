@@ -1,3 +1,7 @@
+/**
+ * Helpers for loading deployment JSON files from the `deployments/` directory.
+ */
+
 import path from 'path'
 import { fileURLToPath } from 'url'
 

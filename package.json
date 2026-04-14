@@ -67,7 +67,7 @@
     "compile": "forge build",
     "confirm-safe-tx": "bun build:typechain-and-abi && bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",
     "deploy-safe": "bunx tsx ./script/deploy/safe/deploy-safe.ts",
-    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
+    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --ignore-errors inconsistent,corrupt --branch-coverage --output-dir coverage && open coverage/index.html",
     "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
     "execute": "node ./_scripts.js run",
     "execute-timelock": "bun typechain && bunx tsx ./script/deploy/safe/execute-pending-timelock-tx.ts",

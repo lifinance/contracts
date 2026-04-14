@@ -3,7 +3,6 @@
 updateFacetConfig() {
   # load deploy script & helper functions
   source .env
-  source script/config.sh
   source script/helperFunctions.sh
 
   # read function arguments into variables

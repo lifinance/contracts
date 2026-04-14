@@ -22,7 +22,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import type { EnvironmentEnum } from '../common/types'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+import { getEnvVar } from '../utils/utils'
 
 import type { DeploymentCache } from './shared/deployment-cache'
 import { createDefaultCache } from './shared/deployment-cache'

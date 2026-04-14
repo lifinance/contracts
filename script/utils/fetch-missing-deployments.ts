@@ -3,18 +3,14 @@ import path from 'path'
 
 import { config } from 'dotenv'
 
+import { getNetworkConfig } from './utils'
+
 config()
 
 async function updateDeploymentLogs(network: string) {
   try {
     // Read network configuration
-    const networksConfig = JSON.parse(
-      fs.readFileSync('config/networks.json', 'utf8')
-    )
-    const networkConfig = networksConfig[network]
-
-    if (!networkConfig)
-      throw new Error(`Network ${network} not found in config`)
+    const networkConfig = getNetworkConfig(network)
 
     // Read deployment file
     const deploymentPath = path.join('deployments', `${network}.json`)

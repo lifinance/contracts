@@ -27,7 +27,7 @@ import path from 'path'
 import { consola } from 'consola'
 
 import type { EnvironmentEnum } from '../../common/types'
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { getEnvVar } from '../../utils/utils'
 
 import type { DeploymentCache } from './deployment-cache'
 import { createDefaultCache } from './deployment-cache'

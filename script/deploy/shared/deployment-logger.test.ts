@@ -197,7 +197,7 @@ describe('deployment-logger', () => {
 
       expect(async () => {
         await logDeployment(createMockDeployment(), 'staging')
-      }).toThrow('MONGODB_URI is required but not set')
+      }).toThrow('Missing required environment variable: MONGODB_URI')
     })
 
     it('should throw error with empty MONGODB_URI', async () => {
@@ -205,7 +205,7 @@ describe('deployment-logger', () => {
 
       expect(async () => {
         await logDeployment(createMockDeployment(), 'staging')
-      }).toThrow('MONGODB_URI is required but not set')
+      }).toThrow('Missing required environment variable: MONGODB_URI')
     })
 
     it('should construct singleton when MONGODB_URI is set', async () => {

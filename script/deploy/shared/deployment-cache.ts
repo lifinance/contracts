@@ -19,7 +19,6 @@ import {
   type IConfig,
 } from './mongo-log-utils'
 
-
 /**
  * Metadata for the deployment cache
  * Tracks when the cache was last refreshed and data integrity info
