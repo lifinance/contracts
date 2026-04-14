@@ -1,8 +1,128 @@
 {
-  "mainnet": {
+  "abstract": {
     "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
   },
   "arbitrum": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "arbitrumnova": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "avalanche": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "base": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "berachain": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "blast": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "bob": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "bsc": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "celo": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "fraxtal": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "gnosis": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "gravity": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "hyperevm": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "immutablezkevm": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "ink": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "kaia": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "katana": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "linea": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "lisk": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "mainnet": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "mantle": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "megaeth": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "mode": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "monad": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "morph": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "opbnb": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "optimism": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "plasma": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "polygon": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "ronin": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "scroll": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "sei": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "soneium": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "sonic": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "superposition": {
+    "layerSwapDepository": "0x74C3019613E917ede3Aa079270e9030f01215a06"
+  },
+  "swellchain": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "taiko": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "unichain": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "worldchain": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "xlayer": {
+    "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
+  },
+  "zksync": {
     "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
   }
 }
