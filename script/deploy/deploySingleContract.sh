@@ -4,8 +4,7 @@
 # should be called like this:
 # $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh
 
@@ -383,6 +382,14 @@ deploySingleContract() {
     if [[ $((${#WITHOUT_TRAILING} % 64)) -eq 2 ]]; then
       CONSTRUCTOR_ARGS="$WITHOUT_TRAILING"
     fi
+  fi
+  
+  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
+  # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
+  CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
+  if [[ ! "$CONSTRUCTOR_ARGS" =~ ^0x[0-9a-fA-F]*$ ]] || (( ${#CA_HEX_PAYLOAD} % 2 != 0 )); then
+    CONSTRUCTOR_ARGS="0x"
   fi
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 

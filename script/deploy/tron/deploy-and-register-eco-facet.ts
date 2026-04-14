@@ -2,39 +2,38 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { TronWeb } from 'tronweb'
 
-import type { SupportedChain } from '../../common/types'
+import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
-  getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../utils/network'
-
-import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
 import {
-  getContractVersion,
+  getEnvVar,
+  getRPCEnvVarName,
   getEnvironment,
   getContractAddress,
   checkExistingDeployment,
-  deployContractWithLogging,
-  registerFacetToDiamond,
   confirmDeployment,
   printDeploymentSummary,
-  validateBalance,
   displayNetworkInfo,
   displayRegistrationInfo,
   getFacetSelectors,
-  tronAddressToHex,
-} from './utils'
+} from '../../utils/utils'
+import { getContractVersion } from '../shared/getContractVersion'
+import { proposeDiamondCut } from '../shared/propose-diamond-cut'
+
+import { TronContractDeployer } from './TronContractDeployer'
+import { MIN_BALANCE_WARNING } from './constants'
+import { createTronWeb } from './helpers/tronWebFactory'
+import { tronAddressToHex } from './tronAddressHelpers'
+import { deployContractWithLogging, validateBalance } from './tronUtils'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   consola.start('TRON EcoFacet Deployment & Registration')
 
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
 
   const dryRun = options.dryRun ?? false
   let verbose = true
@@ -68,6 +67,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: networkName as TronTvmNetworkName,
     privateKey,
     verbose,
     dryRun,
@@ -83,8 +83,9 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-    const tronWeb = new TronWeb({
-      fullHost: rpcUrl,
+    const tronWeb = createTronWeb({
+      rpcUrl,
+      networkKey: networkName as TronTvmNetworkName,
       privateKey,
     })
 
@@ -101,7 +102,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
     if (!portalTron)
       throw new Error('Eco portal not found for tron in config/eco.json')
 
-    const portal = tronAddressToHex(portalTron, tronWeb)
+    const portal = tronAddressToHex(tronWeb, portalTron)
 
     consola.info('\nEco Configuration:')
     consola.info(`Portal: ${portalTron} (hex: ${portal})`)
@@ -160,7 +161,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
         process.exit(1)
       }
 
-    consola.info('\nRegistering EcoFacet to Diamond...')
+    consola.info('\nProposing EcoFacet diamondCut to Safe...')
 
     const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
@@ -169,27 +170,22 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     displayRegistrationInfo('EcoFacet', facetAddress, diamondAddress, selectors)
 
-    const registrationResult = await registerFacetToDiamond(
-      'EcoFacet',
-      facetAddress,
-      tronWeb,
-      rpcUrl,
-      dryRun,
-      network
-    )
-
-    if (registrationResult.success) {
-      consola.success('EcoFacet registered successfully!')
-      if (registrationResult.transactionId)
-        consola.info(`Transaction: ${registrationResult.transactionId}`)
-    } else {
-      consola.error('Failed to register EcoFacet:', registrationResult.error)
-      process.exit(1)
-    }
+    if (!dryRun)
+      await proposeDiamondCut({
+        facetName: 'EcoFacet',
+        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        diamondAddress,
+        network: network,
+      })
+    else consola.info('Dry run - skipping diamondCut proposal for EcoFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success('\nDeployment and registration completed successfully!')
+    consola.success(
+      dryRun
+        ? '\nDry run completed successfully! (no Safe tx created)'
+        : '\nDeployment and proposal completed successfully!'
+    )
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)

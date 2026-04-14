@@ -22,8 +22,8 @@ import {
 } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../utils/delay'
+import { getEnvVar } from '../utils/utils'
 
 import { createDefaultCache } from './shared/deployment-cache'
 import {
@@ -976,4 +976,4 @@ const main = defineCommand({
 // Run the CLI
 runMain(main)
 
-export { DeploymentLogManager, IDeploymentRecord }
+export { DeploymentLogManager }
