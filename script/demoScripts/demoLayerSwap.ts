@@ -91,6 +91,7 @@ interface CreateSwapParams {
   destination_address: string
   source_address: string
   amount: number
+  use_depository: boolean
 }
 
 const createLayerSwapSwap = async (
@@ -101,8 +102,6 @@ const createLayerSwapSwap = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...params,
-      slippage: '0.5',
-      use_depository: true,
     }),
   })
 
@@ -159,6 +158,7 @@ const main = async () => {
     destination_address: receiver,
     source_address: callerAddress,
     amount: Number(amountHuman),
+    use_depository: true,
   })
 
   // Native: [requestId, receiver]
