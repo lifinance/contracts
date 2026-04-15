@@ -10,7 +10,7 @@ import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount, NullAddrIsN
 
 /// @title LibAsset
 /// @author LI.FI (https://li.fi)
-/// @custom:version 2.1.3
+/// @custom:version 2.2.0
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
@@ -24,6 +24,13 @@ library LibAsset {
 
     /// @dev EIP-7702 delegation designator prefix for Account Abstraction
     bytes3 internal constant DELEGATION_DESIGNATOR = 0xef0100;
+
+    /// @dev Tron mainnet chain ID
+    uint256 internal constant TRON_CHAIN_ID = 728126428;
+
+    /// @dev Official USDT TRC20 on Tron mainnet (base58 TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t)
+    address internal constant TRON_USDT =
+        0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
 
     /// @notice Gets the balance of the inheriting contract for the given asset
     /// @param assetId The asset identifier to get the balance of
@@ -83,8 +90,21 @@ library LibAsset {
             revert InvalidReceiver();
         }
 
-        // transfer ERC20 assets (will revert if target reverts or contract has insufficient balance)
-        assetId.safeTransfer(recipient, amount);
+        if (block.chainid == TRON_CHAIN_ID && assetId == TRON_USDT) {
+            // Tron mainnet USDT (TRC20) ships legacy bytecode (~Solidity 0.4) where
+            // `StandardTokenWithFees.transfer` is declared `returns (bool)` but falls
+            // through without `return true;`. The EVM still completes the transfer,
+            // yet the call site receives 32 zero bytes (ABI `false`), not an empty
+            // return buffer. Solady `SafeTransferLib.safeTransfer` only accepts
+            // `returndatasize() == 0` or a word equal to `1`, so it reverts with
+            // `TransferFailed` even though balances moved. A plain `IERC20.transfer`
+            // external call does not apply that stricter check here, so we bypass
+            // Solady only for this canonical contract on Tron.
+            IERC20(assetId).transfer(recipient, amount);
+        } else {
+            // transfer ERC20 assets (will revert if target reverts or contract has insufficient balance)
+            assetId.safeTransfer(recipient, amount);
+        }
     }
 
     /// @notice Transfers tokens from a sender to a given recipient
