@@ -30,25 +30,35 @@ contract DeployScript is DeployScriptBase {
 
         address spokePoolPeriphery = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".spokePoolPeriphery")
+            string.concat(".", network, ".spokePoolPeriphery"),
+            true,
+            false
         );
         address spokePool = _getConfigContractAddress(
             path,
             string.concat(".", network, ".acrossSpokePool")
         );
+
+        // allowNonContractAddress: true — some networks use a dummy wrappedNative (e.g. tempo uses
+        // address(1); see config/networks.json devNotes) when we don't activate the native path;
+        // the dummy is not address(0), so allowZeroAddress stays false; we only bypass the contract-code check.
         address wrappedNative = _getConfigContractAddress(
             networksPath,
             string.concat(".", network, ".wrappedNativeAddress"),
-            false,
-            false
+            false, // allowZeroAddress (dummy is e.g. address(1), not zero)
+            true // allowNonContractAddress (dummy has no code)
         );
         address sponsoredOftSrcPeriphery = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".sponsoredOftSrcPeriphery")
+            string.concat(".", network, ".sponsoredOftSrcPeriphery"),
+            true,
+            false
         );
         address sponsoredCctpSrcPeriphery = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".sponsoredCctpSrcPeriphery")
+            string.concat(".", network, ".sponsoredCctpSrcPeriphery"),
+            true,
+            false
         );
 
         // check if production or staging
