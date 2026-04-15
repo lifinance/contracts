@@ -10,7 +10,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidCallData, InvalidConfig, InvalidSignature } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidSignature, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title LayerSwap Facet
 /// @author LI.FI (https://li.fi)
@@ -69,7 +69,6 @@ contract LayerSwapFacet is
 
     /// Errors ///
 
-    error InvalidNonEVMReceiver();
     error SignatureExpired();
     error RequestAlreadyProcessed();
 
@@ -79,10 +78,9 @@ contract LayerSwapFacet is
     ///        contract on the source chain
     /// @param _backendSigner address of the backend signer
     constructor(address _layerSwapDepository, address _backendSigner) {
-        if (_layerSwapDepository == address(0)) {
-            revert InvalidConfig();
-        }
-        if (_backendSigner == address(0)) {
+        if (
+            _layerSwapDepository == address(0) || _backendSigner == address(0)
+        ) {
             revert InvalidConfig();
         }
         LAYERSWAP_DEPOSITORY = _layerSwapDepository;
