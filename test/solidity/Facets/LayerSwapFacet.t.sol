@@ -303,11 +303,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBase_CanSwapAndBridgeNativeTokens()
-        public
-        virtual
-        override
-    {
+    function testBase_CanSwapAndBridgeNativeTokens() public virtual override {
         vm.startPrank(USER_SENDER);
 
         bridgeData.hasSourceSwaps = true;
@@ -667,8 +663,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // Sign with wrong private key
-        uint256 wrongPrivateKey =
-            0x9876543210987654321098765432109876543210987654321098765432109876;
+        uint256 wrongPrivateKey = 0x9876543210987654321098765432109876543210987654321098765432109876;
 
         LayerSwapPayload memory payload = _createLayerSwapPayload(
             bridgeData,
@@ -695,10 +690,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidSignature.selector);
-        layerSwapFacet.startBridgeTokensViaLayerSwap(
-            bridgeData,
-            invalidData
-        );
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, invalidData);
 
         vm.stopPrank();
     }
@@ -719,10 +711,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         bytes32 domainSeparator = _buildDomainSeparator(block.chainid);
         bytes32 structHash = _buildStructHash(payload);
         bytes32 digest = _buildDigest(domainSeparator, structHash);
-        bytes memory signature = _signDigest(
-            backendSignerPrivateKey,
-            digest
-        );
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
 
         LayerSwapFacet.LayerSwapData memory expiredData = LayerSwapFacet
             .LayerSwapData({
@@ -736,10 +725,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(SignatureExpired.selector);
-        layerSwapFacet.startBridgeTokensViaLayerSwap(
-            bridgeData,
-            expiredData
-        );
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, expiredData);
 
         vm.stopPrank();
     }
@@ -747,10 +733,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
     function testRevert_RequestAlreadyProcessed() public {
         vm.startPrank(USER_SENDER);
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount * 2
-        );
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount * 2);
 
         // First call should succeed
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -774,10 +757,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
     function test_DifferentRequestIds_ShouldSucceed() public {
         vm.startPrank(USER_SENDER);
 
-        usdc.approve(
-            _facetTestContractAddress,
-            bridgeData.minAmount * 2
-        );
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount * 2);
 
         // First call
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -801,10 +781,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        layerSwapFacet.startBridgeTokensViaLayerSwap(
-            bridgeData,
-            secondData
-        );
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, secondData);
 
         vm.stopPrank();
     }
@@ -882,10 +859,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidSignature.selector);
-        layerSwapFacet.startBridgeTokensViaLayerSwap(
-            bridgeData,
-            tamperedData
-        );
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, tamperedData);
 
         vm.stopPrank();
     }
@@ -924,10 +898,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidSignature.selector);
-        layerSwapFacet.startBridgeTokensViaLayerSwap(
-            bridgeData,
-            tamperedData
-        );
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, tamperedData);
 
         vm.stopPrank();
     }
@@ -1030,10 +1001,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         bytes32 domainSeparator = _buildDomainSeparator(_chainId);
         bytes32 structHash = _buildStructHash(payload);
         bytes32 digest = _buildDigest(domainSeparator, structHash);
-        bytes memory signature = _signDigest(
-            backendSignerPrivateKey,
-            digest
-        );
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
 
         return
             LayerSwapFacet.LayerSwapData({
