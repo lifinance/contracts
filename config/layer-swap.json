@@ -1,10 +1,4 @@
 {
-  "staging": {
-    "backendSigner": "0x0000000000000000000000000000000000000001"
-  },
-  "production": {
-    "backendSigner": "0x0000000000000000000000000000000000000001"
-  },
   "abstract": {
     "layerSwapDepository": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f"
   },
