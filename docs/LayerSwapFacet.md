@@ -60,25 +60,27 @@ funding a LayerSwap order created for a different destination.
 
 The signed payload (`LayerSwapPayload`) covers:
 
-| Field | Source |
-|-------|--------|
-| `transactionId` | `bridgeData` |
-| `minAmount` | `bridgeData` |
-| `receiver` | `bridgeData` |
-| `requestId` | `layerSwapData` |
+| Field                | Source          |
+| -------------------- | --------------- |
+| `transactionId`      | `bridgeData`    |
+| `minAmount`          | `bridgeData`    |
+| `receiver`           | `bridgeData`    |
+| `requestId`          | `layerSwapData` |
 | `depositoryReceiver` | `layerSwapData` |
-| `nonEVMReceiver` | `layerSwapData` |
-| `destinationChainId` | `bridgeData` |
-| `sendingAssetId` | `bridgeData` |
-| `deadline` | `layerSwapData` |
+| `nonEVMReceiver`     | `layerSwapData` |
+| `destinationChainId` | `bridgeData`    |
+| `sendingAssetId`     | `bridgeData`    |
+| `deadline`           | `layerSwapData` |
 
 **EIP-712 domain:**
+
 - Name: `LI.FI LayerSwap Facet`
 - Version: `1`
 - Chain ID: source chain
 - Verifying contract: diamond proxy address
 
 **Error conditions:**
+
 - `InvalidSignature()` — signature verification failed
 - `SignatureExpired()` — `block.timestamp > deadline`
 - `RequestAlreadyProcessed()` — `requestId` already used (replay protection)

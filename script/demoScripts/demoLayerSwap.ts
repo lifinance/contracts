@@ -1,8 +1,15 @@
 /**
  * Demo script for bridging tokens via the LayerSwapFacet.
  *
+ * ######### !!!!!!!!!!!!!!!! IMPORTANT INFORMATION !!!!!!!!!!!!!!!! #########
+ * This script assumes that we get access to the backend STAGING signer private key for testing.
+ * please add this to your .env with:
+ * PRIVATE_KEY_BACKEND_SIGNER_STAGING=<private key>
+ * ######### !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! #########
+ *
  * Source chain is fixed to Arbitrum (arbitrum.staging.json deployments).
- * Destination chain is passed directly to the LayerSwap API as a network name.
+ * Destination chain is passed as a LayerSwap network name; the LiFi chain ID
+ * is resolved locally via NETWORK_TO_CHAIN_ID.
  *
  * Flow:
  *   1. POST /api/v2/swaps with use_depository=true.
@@ -16,7 +23,7 @@
  *
  * Usage:
  *   bun script/demoScripts/demoLayerSwap.ts \
- *     [--to <LAYERSWAP_NETWORK>] [--chainId <id>] \
+ *     [--to <LAYERSWAP_NETWORK>] \
  *     [--token <symbol>] [--amount <number>] [--receiver <address>]
  *
  * Defaults: --to ETHEREUM_MAINNET --token USDC --amount 1 (ERC20) / 0.0001 (ETH)
@@ -33,10 +40,13 @@ import { config } from 'dotenv'
 import {
   getAddress,
   getContract,
+  isHex,
   parseUnits,
   toHex,
   zeroAddress,
   zeroHash,
+  type Address,
+  type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -44,7 +54,6 @@ import { ERC20__factory, LayerSwapFacet__factory } from '../../typechain'
 import type { ILiFi, LayerSwapFacet } from '../../typechain'
 import { EnvironmentEnum } from '../common/types'
 import { fetchWithTimeout } from '../utils/fetchWithTimeout'
-
 import { getEnvVar } from '../utils/utils'
 
 import {
@@ -91,15 +100,14 @@ const NETWORK_TO_CHAIN_ID: Record<string, number | bigint> = {
   SOLANA_MAINNET: LIFI_CHAIN_ID_SOLANA,
 }
 
-interface ScriptArgs {
+interface IScriptArgs {
   to: string
-  chainId?: string
   token: string
   amount?: string
   receiver?: string
 }
 
-const parseArgs = (): ScriptArgs => {
+const parseArgs = (): IScriptArgs => {
   const argv = process.argv.slice(2)
   const getOpt = (name: string): string | undefined => {
     const i = argv.indexOf(`--${name}`)
@@ -107,27 +115,26 @@ const parseArgs = (): ScriptArgs => {
   }
   return {
     to: (getOpt('to') ?? 'ETHEREUM_MAINNET').toUpperCase(),
-    chainId: getOpt('chainId'),
     token: (getOpt('token') ?? 'USDC').toUpperCase(),
     amount: getOpt('amount'),
     receiver: getOpt('receiver'),
   }
 }
 
-interface LayerSwapDepositAction {
+interface ILayerSwapDepositAction {
   to_address: string
   encoded_args: string[]
   token: { symbol: string; decimals: number; contract: string | null }
 }
 
-interface LayerSwapCreateSwapResponse {
+interface ILayerSwapCreateSwapResponse {
   data: {
     swap: { id: string }
-    deposit_actions: LayerSwapDepositAction[]
+    deposit_actions: ILayerSwapDepositAction[]
   }
 }
 
-interface CreateSwapParams {
+interface ICreateSwapParams {
   source_network: string
   source_token: string
   destination_network: string
@@ -139,8 +146,8 @@ interface CreateSwapParams {
 }
 
 const createLayerSwapSwap = async (
-  params: CreateSwapParams
-): Promise<LayerSwapDepositAction> => {
+  params: ICreateSwapParams
+): Promise<ILayerSwapDepositAction> => {
   const response = await fetchWithTimeout(LAYERSWAP_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -154,29 +161,23 @@ const createLayerSwapSwap = async (
     )
   }
 
-  const json = (await response.json()) as LayerSwapCreateSwapResponse
+  const json = (await response.json()) as ILayerSwapCreateSwapResponse
   const deposit = json.data.deposit_actions?.[0]
-  if (!deposit)
-    throw new Error('LayerSwap response missing deposit_actions[0]')
+  if (!deposit) throw new Error('LayerSwap response missing deposit_actions[0]')
   return deposit
 }
 
 /**
- * Resolves the LiFi destination chain ID from CLI args and network name.
- * Explicit --chainId takes priority. Otherwise the network name is looked up
- * in NETWORK_TO_CHAIN_ID. Throws if neither resolves.
+ * Resolves the LiFi destination chain ID from a LayerSwap network name.
+ * Throws if the network is not in NETWORK_TO_CHAIN_ID.
  */
-const resolveDestinationChainId = (
-  args: ScriptArgs
-): number | bigint => {
-  if (args.chainId) return Number(args.chainId)
-
-  const mapped = NETWORK_TO_CHAIN_ID[args.to]
+const resolveDestinationChainId = (network: string): number | bigint => {
+  const mapped = NETWORK_TO_CHAIN_ID[network]
   if (mapped !== undefined) return mapped
 
   throw new Error(
-    `Unknown destination network "${args.to}". ` +
-      `Pass --chainId explicitly or add the network to NETWORK_TO_CHAIN_ID.`
+    `Unknown destination network "${network}". ` +
+      `Add the network to NETWORK_TO_CHAIN_ID.`
   )
 }
 
@@ -185,7 +186,7 @@ const main = async () => {
   const isSolana = args.to === SOLANA_NETWORK
   const isNative = args.token === 'ETH'
   const amountHuman = args.amount ?? (isNative ? '0.0001' : '1')
-  const destinationChainId = resolveDestinationChainId(args)
+  const destinationChainId = resolveDestinationChainId(args.to)
 
   // Setup viem clients via shared helper (null ABI so we create the
   // typed contract ourselves, preserving the full ABI type)
@@ -193,9 +194,7 @@ const main = async () => {
     await setupEnvironment('arbitrum', null, EnvironmentEnum.staging)
   const callerAddress = walletAccount.address
 
-  const deployments = await import(
-    '../../deployments/arbitrum.staging.json'
-  )
+  const deployments = await import('../../deployments/arbitrum.staging.json')
   const diamondAddress = getAddress(deployments.LiFiDiamond)
 
   const layerSwapFacet = getContract({
@@ -204,14 +203,17 @@ const main = async () => {
     client,
   })
 
-  // Derive Solana receiver from signer key when bridging to Solana
+  // Split receiver by chain family: EVM address goes into bridgeData /
+  // EIP-712 payload; Solana base58 is only used for the LayerSwap API and
+  // for deriving the non-EVM receiver bytes32.
   const privateKey = getPrivateKeyForEnvironment(EnvironmentEnum.staging)
   const solanaReceiverBase58 = isSolana
-    ? deriveSolanaAddress(privateKey)
+    ? args.receiver ?? deriveSolanaAddress(privateKey)
     : ''
-  const receiver =
-    args.receiver ??
-    (isSolana ? solanaReceiverBase58 : callerAddress)
+  const evmReceiver: Address = isSolana
+    ? NON_EVM_ADDRESS
+    : getAddress(args.receiver ?? callerAddress)
+  const apiDestinationAddress = isSolana ? solanaReceiverBase58 : evmReceiver
 
   consola.info('=== LayerSwapFacet Demo ===')
   consola.info('From:    ARBITRUM_MAINNET')
@@ -219,7 +221,7 @@ const main = async () => {
   consola.info(`Token:   ${args.token}`)
   consola.info(`Amount:  ${amountHuman}`)
   consola.info(`Caller:  ${callerAddress}`)
-  consola.info(`Receiver:${receiver}`)
+  consola.info(`Receiver:${apiDestinationAddress}`)
 
   // 1. Register swap with LayerSwap
   const deposit = await createLayerSwapSwap({
@@ -227,7 +229,7 @@ const main = async () => {
     source_token: args.token,
     destination_network: args.to,
     destination_token: args.token,
-    destination_address: receiver,
+    destination_address: apiDestinationAddress,
     source_address: callerAddress,
     amount: Number(amountHuman),
     use_depository: true,
@@ -240,10 +242,13 @@ const main = async () => {
     throw new Error(
       `LayerSwap encoded_args has ${deposit.encoded_args.length} entries (expected ${expectedLength})`
     )
-  const [requestId, ...rest] = deposit.encoded_args
+  const [rawRequestId, ...rest] = deposit.encoded_args
   const rawReceiver = isNative ? rest[0] : rest[1]
-  if (!requestId || !rawReceiver)
+  if (!rawRequestId || !rawReceiver)
     throw new Error('LayerSwap encoded_args missing required fields')
+  if (!isHex(rawRequestId))
+    throw new Error(`LayerSwap requestId is not hex: ${rawRequestId}`)
+  const requestId: Hex = rawRequestId
   const depositoryReceiver = getAddress(rawReceiver)
 
   consola.info(`\nLayerSwap depository: ${deposit.to_address}`)
@@ -251,7 +256,7 @@ const main = async () => {
   consola.info(`Depository receiver:  ${depositoryReceiver}`)
 
   // 2. Build bridge params (source asset info comes from the API response)
-  const sendingAssetId = isNative
+  const sendingAssetId: Address = isNative
     ? zeroAddress
     : getAddress(
         deposit.token.contract ??
@@ -261,10 +266,7 @@ const main = async () => {
             )
           })()
       )
-  const amount = parseUnits(
-    amountHuman,
-    isNative ? 18 : deposit.token.decimals
-  )
+  const amount = parseUnits(amountHuman, isNative ? 18 : deposit.token.decimals)
 
   const transactionId = toHex(new Uint8Array(randomBytes(32)))
 
@@ -274,7 +276,7 @@ const main = async () => {
     integrator: 'ACME Devs',
     referrer: zeroAddress,
     sendingAssetId,
-    receiver: isSolana ? NON_EVM_ADDRESS : receiver,
+    receiver: evmReceiver,
     minAmount: amount,
     destinationChainId,
     hasSourceSwaps: false,
@@ -283,16 +285,16 @@ const main = async () => {
 
   // 3. Sign the LayerSwapPayload via EIP-712
   const backendSignerKey = getEnvVar('PRIVATE_KEY_BACKEND_SIGNER_STAGING')
-  const normalizedKey: `0x${string}` = backendSignerKey.startsWith('0x')
-    ? (backendSignerKey as `0x${string}`)
-    : (`0x${backendSignerKey}` as `0x${string}`)
+  const normalizedKey: Hex = backendSignerKey.startsWith('0x')
+    ? (backendSignerKey as Hex)
+    : (`0x${backendSignerKey}` as Hex)
   const backendSignerAccount = privateKeyToAccount(normalizedKey)
 
   const sourceChainId = await publicClient.getChainId()
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
 
-  const nonEVMReceiver = isSolana
-    ? solanaAddressToBytes32(receiver)
+  const nonEVMReceiver: Hex = isSolana
+    ? solanaAddressToBytes32(solanaReceiverBase58)
     : zeroHash
 
   const backendSignature = await backendSignerAccount.signTypedData({
@@ -319,8 +321,8 @@ const main = async () => {
     message: {
       transactionId,
       minAmount: amount,
-      receiver: isSolana ? NON_EVM_ADDRESS : receiver,
-      requestId: requestId as `0x${string}`,
+      receiver: evmReceiver,
+      requestId,
       depositoryReceiver,
       nonEVMReceiver,
       destinationChainId: BigInt(destinationChainId),
@@ -349,12 +351,7 @@ const main = async () => {
       publicClient,
       walletClient
     )
-    await ensureBalance(
-      tokenContract,
-      callerAddress,
-      amount,
-      publicClient
-    )
+    await ensureBalance(tokenContract, callerAddress, amount, publicClient)
     await ensureAllowance(
       tokenContract,
       callerAddress,
@@ -371,12 +368,9 @@ const main = async () => {
       (
         layerSwapFacet.write as {
           startBridgeTokensViaLayerSwap: (
-            args: [
-              ILiFi.BridgeDataStruct,
-              LayerSwapFacet.LayerSwapDataStruct
-            ],
+            args: [ILiFi.BridgeDataStruct, LayerSwapFacet.LayerSwapDataStruct],
             options?: { value: bigint }
-          ) => Promise<`0x${string}`>
+          ) => Promise<Hex>
         }
       ).startBridgeTokensViaLayerSwap(
         [bridgeData, layerSwapData],
