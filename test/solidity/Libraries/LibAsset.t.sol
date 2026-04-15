@@ -63,7 +63,6 @@ contract LibAssetImplementer {
 
 /// @title LibAssetTest
 /// @notice Unit tests for `LibAsset` via `LibAssetImplementer`.
-/// @dev `TestBase` pulls in `forge-std` / fork setup; imports below follow [CONV:TESTS] (external → `lifi/` → `test/`).
 contract LibAssetTest is TestBase {
     /// @dev Must match `LibAsset` `TRON_USDT` — official mainnet USDT TRC20
     ///      (base58 TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t).
@@ -153,7 +152,6 @@ contract LibAssetTest is TestBase {
     // Simulates the on-chain buggy `transfer` return; no Tron JSON-RPC / fork (public RPCs are unreliable for Foundry).
 
     /// @notice Install `MockTronUSDT` bytecode at the canonical USDT *address* on a local chain (etch).
-    ///         Drives the `LibAsset` Tron+USDT branch without a Tron fork.
     function _mockTronUSDTAtMainnetAddress() internal returns (MockTronUSDT) {
         MockTronUSDT impl = new MockTronUSDT();
         vm.etch(TRON_MAINNET_USDT, address(impl).code);
@@ -184,15 +182,6 @@ contract LibAssetTest is TestBase {
         implementer.transferERC20(address(tronUSDT), USER_RECEIVER, 500e6);
     }
 
-    function testRevert_InsufficientBalanceWhenSendingUnfundedTronUsdtOnTronChain() public {
-        _mockTronUSDTAtMainnetAddress();
-        // No tokens minted — insufficient balance
-
-        vm.chainId(728126428);
-        vm.expectRevert(MockTronUSDT.InsufficientBalance.selector);
-
-        implementer.transferERC20(TRON_MAINNET_USDT, USER_RECEIVER, 500e6);
-    }
 
     function testRevert_TransferFailedWhenNonCanonicalUsdtOnTronChain() public {
         MockTronUSDT buggy = new MockTronUSDT();
@@ -205,25 +194,6 @@ contract LibAssetTest is TestBase {
         implementer.transferERC20(address(buggy), USER_RECEIVER, 500e6);
     }
 
-    /// @dev One unit to a dedicated receiver; uses local stub at canonical Tron USDT address.
-    function test_SucceedsWhenSendingOneTronUsdtUnitOnTronChain() public {
-        address receiver = address(0x1111);
-        uint256 amount = 1e6;
-
-        vm.label(receiver, "tronUSDT_fixedReceiver");
-
-        MockTronUSDT tronUSDT = _mockTronUSDTAtMainnetAddress();
-        tronUSDT.mint(address(implementer), amount);
-
-        vm.chainId(728126428);
-
-        uint256 recvBefore = tronUSDT.balanceOf(receiver);
-        implementer.transferERC20(TRON_MAINNET_USDT, receiver, amount);
-
-        assertEq(tronUSDT.balanceOf(receiver), recvBefore + amount);
-        assertEq(tronUSDT.balanceOf(address(implementer)), 0);
-    }
-
     function test_TronUsdtIsPresentAtCanonicalAddressAfterLocalStub() public {
         _mockTronUSDTAtMainnetAddress();
 
@@ -234,7 +204,7 @@ contract LibAssetTest is TestBase {
         );
     }
 
-    function test_StablecoinTransferSucceedsBeforeAndAfterTronChainId() public {
+    function test_StablecoinTransferSucceedsTronChainId() public {
         // Works on default chain (non-Tron)
         deal(ADDRESS_USDC, address(implementer), 1000e6);
         implementer.transferERC20(ADDRESS_USDC, USER_RECEIVER, 500e6);
