@@ -78,10 +78,7 @@ contract LayerSwapFacet is
     /// @param _layerSwapDepository address of the LayerSwap Depository
     ///        contract on the source chain
     /// @param _backendSigner address of the backend signer
-    constructor(
-        address _layerSwapDepository,
-        address _backendSigner
-    ) {
+    constructor(address _layerSwapDepository, address _backendSigner) {
         if (_layerSwapDepository == address(0)) {
             revert InvalidConfig();
         }
@@ -243,11 +240,7 @@ contract LayerSwapFacet is
         );
 
         bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                _domainSeparator(),
-                structHash
-            )
+            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
         );
 
         address recoveredSigner = ECDSA.recover(
@@ -279,11 +272,7 @@ contract LayerSwapFacet is
     }
 
     /// @dev Fetch local storage
-    function getStorage()
-        private
-        pure
-        returns (Storage storage s)
-    {
+    function getStorage() private pure returns (Storage storage s) {
         bytes32 namespace = NAMESPACE;
         assembly {
             s.slot := namespace
