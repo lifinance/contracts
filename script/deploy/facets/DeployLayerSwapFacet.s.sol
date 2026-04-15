@@ -26,7 +26,7 @@ contract DeployScript is DeployScriptBase {
         );
         address layerSwapDepository = _getConfigContractAddress(
             layerSwapPath,
-            string.concat(".", network, ".layerSwapDepository")
+            string.concat(".layerSwapDepository.", network)
         );
 
         string memory globalPath = string.concat(root, "/config/global.json");
