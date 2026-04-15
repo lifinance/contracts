@@ -766,5 +766,19 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "LayerSwapFacet": {
+    "configData": {
+      "_layerSwapDepository": {
+        "configFileName": "layer-swap.json",
+        "keyInConfigFile": ".layerSwapDepository.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_backendSigner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
