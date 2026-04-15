@@ -33,9 +33,6 @@ scriptMaster() {
   # load env variables
   source .env
 
-  # load config first
-  source script/config.sh
-
   # load deploy script & helper functions
   source script/deploy/deploySingleContract.sh
   source script/deploy/deployAllContracts.sh

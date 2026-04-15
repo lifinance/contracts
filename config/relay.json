@@ -15,6 +15,10 @@
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
+  "arbitrumnova": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "avalanche": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
@@ -170,6 +174,10 @@
   "taiko": {
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
+  },
+  "tempo": {
+    "relayReceiver": "0x0000000000000000000000000000000000000000",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "unichain": {
     "relayReceiver": "0x47eb64e17a6d2fd559b608695e6d308cced918dd",

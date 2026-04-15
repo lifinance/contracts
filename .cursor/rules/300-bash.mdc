@@ -9,7 +9,7 @@ globs:
 
 - Start with `#!/bin/bash`; organize into functions (logging, error handling, deployment); keep DRY via helpers.
 - **Use existing helpers**: Source `script/helperFunctions.sh` and `script/playgroundHelpers.sh` for reusable functions (deployment, verification, network queries, logging, etc.). Prefer existing helpers over reimplementing logic.
-- Load env from `.env`/`config.sh`; validate required vars early; update `.env.example` when adding envs; add system deps to `preinstall.sh` when needed.
+- Load env from `.env`; validate required vars early; update `.env.example` when adding envs; add system deps to `preinstall.sh` when needed.
 - Use logging helpers (`echoDebug`, `error`, `warning`, `success`) and `checkFailure`; implement retries for RPC-sensitive steps; avoid inline secrets.
 - Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
 - Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
@@ -139,3 +139,4 @@ function functionName() {
 - Process substitution: `< <(...)` requires `#!/bin/bash` shebang
 - Conditionals: `[[ ]]` not `[ ]` for bash-specific features
 - Variable case: Use `UPPERCASE` for all variables, including `local` declarations and loop iterators
+- **No `local` shadowing of `.env` globals**: Never declare `local` for variables defined in `.env.example` (e.g. `PRIVATE_KEY`, `PRIVATE_KEY_PRODUCTION`). `local VAR` initializes to empty and shadows the global, so helper functions running in `$(...)` subshells see an empty value instead of the `.env` one. Either omit `local` or use a different name.

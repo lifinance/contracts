@@ -34,8 +34,6 @@
  */
 
 import { execSync } from 'child_process'
-import * as fs from 'fs'
-import * as path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -52,6 +50,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import type { INetwork } from '../common/types'
+import { sleep } from '../utils/delay'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
@@ -75,20 +74,6 @@ function getMaxConcurrentJobs(): number {
   if (process.env.MAX_CONCURRENT_JOBS) {
     const parsed = parseInt(process.env.MAX_CONCURRENT_JOBS, 10)
     if (!isNaN(parsed) && parsed > 0) return parsed
-  }
-  try {
-    const configPath = path.resolve('script/config.sh')
-    if (fs.existsSync(configPath)) {
-      const match = fs
-        .readFileSync(configPath, 'utf-8')
-        .match(/MAX_CONCURRENT_JOBS=(\d+)/)
-      if (match?.[1]) {
-        const parsed = parseInt(match[1], 10)
-        if (!isNaN(parsed) && parsed > 0) return parsed
-      }
-    }
-  } catch {
-    // Fall through to default
   }
   return 100
 }
@@ -1019,14 +1004,14 @@ async function transferNativeTokensOnNetwork(
             logError(
               `  [${networkName}] ❌ Attempt ${attempt}/${MAX_RETRIES} failed (extracted required gas: ${errorValues.requiredGas}, will retry with ${extractedGasLimit})`
             )
-            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+            await sleep(1000 * attempt)
             continue
           }
         } else if (!shouldEstimateGas) {
           // Fallback to estimating gas
           shouldEstimateGas = true
           if (attempt < MAX_RETRIES) {
-            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+            await sleep(1000 * attempt)
             continue
           }
         } else {
@@ -1057,7 +1042,7 @@ async function transferNativeTokensOnNetwork(
 
       // Wait before retry
       if (attempt < MAX_RETRIES) {
-        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+        await sleep(1000 * attempt)
       }
     }
   }

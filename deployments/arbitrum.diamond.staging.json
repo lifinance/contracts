@@ -121,9 +121,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x2EFD6843C35952115E6D40A93586615674Da1b78": {
+      "0xc5C34A7A86e9C6B37A8E9F266c26660d5A12f5dD": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
         "Name": "",
@@ -189,45 +189,29 @@
         "Name": "",
         "Version": ""
       },
-      "0x06A8fA5B326F663507FfF045B90351a9DCF3f9B1": {
+      "0x765667b6F3a34c8bF0885ADaA74364Dc62086495": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
+      "0xF158ac0983D6D4eF8Ef65De7B39585B8381Fe570": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": "3.0.0"
       },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
-      },
-      "0x9C820C1569ffE99DCF54BBDf3C54682E33a40379": {
-        "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
       },
-      "0xa8deB34CDD4915D3D5E37e622fB2585bC2c1a7d6": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
-      },
-      "0xC31f575546A12Bc9dEf107CE19a242cd351BaDe2": {
+      "0x2B8F8C0Cf809EdbbD1257B4c4f27FdAe318062b1": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
-      },
-      "0xBdE21104479e1373a20F487D3f6ffDED62574FA7": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
-      },
-      "0x765667b6F3a34c8bF0885ADaA74364Dc62086495": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
       }
     },
     "Periphery": {

@@ -2,8 +2,10 @@
   "gasZipRouters": {
     "--- list_of_router_addresses ---": "https://dev.gas.zip/gas/chain-support/inbound",
     "mainnet": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "0g": "0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
     "abstract": "0x252fb662e4D7435D2a5DED8EC94d8932CF76C178",
     "arbitrum": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "arbitrumnova": "0x5D5a72859b8EBAFcf459164F64400012F5A3C5E0",
     "apechain": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "avalanche": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "aurora": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
@@ -46,6 +48,7 @@
     "nibiru": "0x9E22ebeC84c7e4C4bD6D4aE7FF6f4D436D6D8390",
     "opbnb": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
     "optimism": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",
+    "pharos": "0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
     "plasma": "0x9E22ebeC84c7e4C4bD6D4aE7FF6f4D436D6D8390",
     "plume": "0xc62155f48D2aEE12FFF6Bb3b7946385d3A98854C",
     "polygon": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762",

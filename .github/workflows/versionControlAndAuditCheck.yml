@@ -170,12 +170,12 @@ jobs:
 
                     CONTRACTS_FOR_TITLE+=("${FILENAME} v${VERSION}")
 
-                    # Mark for audit, unless it's an interface.
-                    if [[ "$FILE_PATH" != src/Interfaces/* ]]; then
+                    # Mark for audit, unless it's an interface or error definition file.
+                    if [[ "$FILE_PATH" != src/Interfaces/* && "$FILE_PATH" != src/Errors/* ]]; then
                         CONTRACTS_FOR_AUDIT+=("${FILE_PATH}")
                         echo -e "$FILE_PATH marked for audit.\033[0m"
                     else
-                        echo -e "\033[32m$FILE_PATH is an interface and does not require any audit.\033[0m"
+                        echo -e "\033[32m$FILE_PATH is an interface or error definition and does not require any audit.\033[0m"
                     fi
                   else
                     ##### Relevant changes but no version update — needs fixing

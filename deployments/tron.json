@@ -13,11 +13,13 @@
   "LiFiDiamond": "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt",
   "ERC20Proxy": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
   "Executor": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
-  "FeeCollector": "TWEKQEE6ejWAfF41t5KkHvk3comCLa2Qby",
   "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2",
   "SymbiosisFacet": "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f",
   "AllBridgeFacet": "TCyAJzpLJjGyUqPoQ9Kvm1Zjw9zDmXLUfU",
   "EcoFacet": "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM",
   "FeeForwarder": "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ",
-  "WhitelistManagerFacet": "TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn"
+  "WhitelistManagerFacet": "TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn",
+  "FeeCollector": "TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q",
+  "LiFiTimelockController": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu",
+  "NEARIntentsFacet": "TFFvFi3j5YBMrSBev6bm6ueEaq1XWJ1QJZ"
 }
