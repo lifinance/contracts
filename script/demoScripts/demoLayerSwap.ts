@@ -73,14 +73,14 @@ config()
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---
 // Bridge 0.1 USDC from Arbitrum to Base:
-//   - src: http://arbiscan.io/tx/
-//   - dst: https://basescan.org/tx/0xd8df1d5613684b62e50884c985252f1e4b87e8eb1490bc4935181b3a416602fa
+//   - src: http://arbiscan.io/tx/0xf2b7dd467fab54262b8cd3a35acacbc56996ccc5faa1f26878312f2361243013
+//   - dst: https://basescan.org/tx/0x20fba63bd60caba26d0474ad2daf6a6f0d1550f2ea1e6456ce567a284dad4d13
 // Bridge 0.00002 ETH from Arbitrum to Base:
-//   - src: https://arbiscan.io/tx/0xedc0c7f3ee67a4b1a828ae6bc7dd518fea6957c896292a2ac8294f3f710c43ba
-//   - dst: https://basescan.org/tx/0x4e964a735159e2e36a67bfe348a5a36463fc330958294234e55d0b264e0d80b2
+//   - src: https://arbiscan.io/tx/0x2e4095c71da57ac4c6d0ece4f93934dd2896b06b3a53d50b8948beb14d0df3e9
+//   - dst: https://basescan.org/tx/0x9867c43f5faa28fc11a26ce635790b233747c9929d4f949340fccb41b8ee4141
 // Bridge 0.25 USDC from Arbitrum to Solana:
-//   - src: https://arbiscan.io/tx/0x82d3b2f6d00b016f7f193d55fd59141ace7987a189be32fbb672c01cdb9fcf4f
-//   - dst: https://solscan.io/tx/Vmnez41Kp14KrpSRkFCBwbjfjTYN6MCUx4fLe4G61EAfj89ynKvP9TtcfLUkPQE7osz3s6qfDCb8a7S3FAb5dzt
+//   - src: https://arbiscan.io/tx/0x55bf753eff3ab98897ddd0fcc1f99bcbef1b5a1261f2db199662c84a8e73e25d
+//   - dst: https://solscan.io/tx/2Eeq1bTvSPMy8x7XWSsZjdAANhV3ikvNXghz1CjjM8sXi9sgW8gqxQ9jD95QJiRqKXYMTFBkpGiMPxfB9uuGLmsb
 
 const LAYERSWAP_API = 'https://api.layerswap.io/api/v2/swaps'
 const SOLANA_NETWORK = 'SOLANA_MAINNET'
