@@ -6,17 +6,15 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
-import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 /// @title GenericSwapFacetV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides gas-optimized functionality for fee collection and for swapping through any whitelisted DEX
 /// @dev Can only execute calldata for whitelisted function selectors
-/// @custom:version 1.0.2
+/// @custom:version 1.1.0
 contract GenericSwapFacetV3 is ILiFi {
-    using SafeTransferLib for ERC20;
-
     /// Storage
     address public immutable NATIVE_ADDRESS;
 
@@ -51,7 +49,7 @@ contract GenericSwapFacetV3 is ILiFi {
         address sendingAssetId = _swapData.sendingAssetId;
 
         // get contract's balance (which will be sent in full to user)
-        uint256 amountReceived = ERC20(receivingAssetId).balanceOf(
+        uint256 amountReceived = IERC20(receivingAssetId).balanceOf(
             address(this)
         );
 
@@ -60,7 +58,7 @@ contract GenericSwapFacetV3 is ILiFi {
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        ERC20(receivingAssetId).safeTransfer(_receiver, amountReceived);
+        LibAsset.transferERC20(receivingAssetId, _receiver, amountReceived);
 
         // emit events (both required for tracking)
         uint256 fromAmount = _swapData.fromAmount;
@@ -175,7 +173,7 @@ contract GenericSwapFacetV3 is ILiFi {
 
         // get contract's balance (which will be sent in full to user)
         address receivingAssetId = _swapData.receivingAssetId;
-        uint256 amountReceived = ERC20(receivingAssetId).balanceOf(
+        uint256 amountReceived = IERC20(receivingAssetId).balanceOf(
             address(this)
         );
 
@@ -184,7 +182,7 @@ contract GenericSwapFacetV3 is ILiFi {
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        ERC20(receivingAssetId).safeTransfer(_receiver, amountReceived);
+        LibAsset.transferERC20(receivingAssetId, _receiver, amountReceived);
 
         // emit events (both required for tracking)
         uint256 fromAmount = _swapData.fromAmount;
@@ -306,7 +304,8 @@ contract GenericSwapFacetV3 is ILiFi {
             if (currentSwap.requiresDeposit) {
                 // we will not check msg.value as tx will fail anyway if not enough value available
                 // thus we only deposit ERC20 tokens here
-                ERC20(currentSwap.sendingAssetId).safeTransferFrom(
+                LibAsset.transferFromERC20(
+                    currentSwap.sendingAssetId,
                     msg.sender,
                     address(this),
                     currentSwap.fromAmount
@@ -322,10 +321,15 @@ contract GenericSwapFacetV3 is ILiFi {
         LibSwap.SwapData calldata _swapData,
         address _receiver
     ) private {
-        ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
+        address sendingAssetId = _swapData.sendingAssetId;
         uint256 fromAmount = _swapData.fromAmount;
         // deposit funds
-        sendingAsset.safeTransferFrom(msg.sender, address(this), fromAmount);
+        LibAsset.transferFromERC20(
+            sendingAssetId,
+            msg.sender,
+            address(this),
+            fromAmount
+        );
 
         // ensure that contract (callTo) and function selector are whitelisted
         address callTo = _swapData.callTo;
@@ -340,19 +344,16 @@ contract GenericSwapFacetV3 is ILiFi {
         if (approveTo != callTo && !LibAllowList.contractIsAllowed(approveTo))
             revert ContractCallNotAllowed();
 
-        // check if the current allowance is sufficient
-        uint256 currentAllowance = sendingAsset.allowance(
-            address(this),
-            approveTo
+        // set max approval if current allowance is insufficient
+        // uses solady's safeApproveWithRetry under the hood which first
+        // attempts a direct approve(spender, max) and only resets to zero
+        // before retrying if the first call fails (handles USDT-style tokens
+        // that require allowance to be zero before changing)
+        LibAsset.maxApproveERC20(
+            IERC20(sendingAssetId),
+            approveTo,
+            fromAmount
         );
-
-        // check if existing allowance is sufficient
-        if (currentAllowance < fromAmount) {
-            // check if is non-zero, set to 0 if not
-            if (currentAllowance != 0) sendingAsset.safeApprove(approveTo, 0);
-            // set allowance to uint max to avoid future approvals
-            sendingAsset.safeApprove(approveTo, type(uint256).max);
-        }
 
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
@@ -361,7 +362,7 @@ contract GenericSwapFacetV3 is ILiFi {
             LibUtil.revertWith(res);
         }
 
-        _returnPositiveSlippageERC20(sendingAsset, _receiver);
+        _returnPositiveSlippageERC20(sendingAssetId, _receiver);
     }
 
     // @dev: this function will not work with swapData that has multiple swaps with the same sendingAssetId
@@ -375,19 +376,16 @@ contract GenericSwapFacetV3 is ILiFi {
     ) private {
         // initialize variables before loop to save gas
         uint256 numOfSwaps = _swapData.length;
-        ERC20 sendingAsset;
         address sendingAssetId;
         address receivingAssetId;
         LibSwap.SwapData calldata currentSwap;
         bool success;
         bytes memory returnData;
-        uint256 currentAllowance;
 
         // go through all swaps
         for (uint256 i = 0; i < numOfSwaps; ) {
             currentSwap = _swapData[i];
             sendingAssetId = currentSwap.sendingAssetId;
-            sendingAsset = ERC20(currentSwap.sendingAssetId);
             receivingAssetId = currentSwap.receivingAssetId;
 
             // check if callTo address is whitelisted
@@ -425,18 +423,16 @@ contract GenericSwapFacetV3 is ILiFi {
                     _returnPositiveSlippageNative(_receiver);
             } else {
                 // ERC20
-                // check if the current allowance is sufficient
-                currentAllowance = sendingAsset.allowance(
-                    address(this),
-                    currentSwap.approveTo
+                // set max approval if current allowance is insufficient
+                // uses solady's safeApproveWithRetry under the hood which first
+                // attempts a direct approve(spender, max) and only resets to zero
+                // before retrying if the first call fails (handles USDT-style tokens
+                // that require allowance to be zero before changing)
+                LibAsset.maxApproveERC20(
+                    IERC20(sendingAssetId),
+                    currentSwap.approveTo,
+                    currentSwap.fromAmount
                 );
-                if (currentAllowance < currentSwap.fromAmount) {
-                    sendingAsset.safeApprove(currentSwap.approveTo, 0);
-                    sendingAsset.safeApprove(
-                        currentSwap.approveTo,
-                        type(uint256).max
-                    );
-                }
 
                 // execute the swap
                 (success, returnData) = currentSwap.callTo.call(
@@ -450,7 +446,7 @@ contract GenericSwapFacetV3 is ILiFi {
                 // but only for swaps, not for fee collections
                 // (otherwise the whole amount would be returned before the actual swap)
                 if (sendingAssetId != receivingAssetId)
-                    _returnPositiveSlippageERC20(sendingAsset, _receiver);
+                    _returnPositiveSlippageERC20(sendingAssetId, _receiver);
             }
 
             // emit AssetSwapped event
@@ -467,7 +463,7 @@ contract GenericSwapFacetV3 is ILiFi {
                 currentSwap.fromAmount,
                 LibAsset.isNativeAsset(receivingAssetId)
                     ? address(this).balance
-                    : ERC20(receivingAssetId).balanceOf(address(this)),
+                    : IERC20(receivingAssetId).balanceOf(address(this)),
                 block.timestamp
             );
 
@@ -488,14 +484,14 @@ contract GenericSwapFacetV3 is ILiFi {
         // determine the end result of the swap
         address finalAssetId = _swapData[_swapData.length - 1]
             .receivingAssetId;
-        uint256 amountReceived = ERC20(finalAssetId).balanceOf(address(this));
+        uint256 amountReceived = IERC20(finalAssetId).balanceOf(address(this));
 
         // make sure minAmountOut was received
         if (amountReceived < _minAmountOut)
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer to receiver
-        ERC20(finalAssetId).safeTransfer(_receiver, amountReceived);
+        LibAsset.transferERC20(finalAssetId, _receiver, amountReceived);
 
         // emit event
         emit ILiFi.LiFiGenericSwapCompleted(
@@ -546,12 +542,12 @@ contract GenericSwapFacetV3 is ILiFi {
 
     // returns any unused 'sendingAsset' tokens (=> positive slippage) to the receiver address
     function _returnPositiveSlippageERC20(
-        ERC20 sendingAsset,
+        address sendingAssetId,
         address receiver
     ) private {
         // if a balance exists in sendingAsset, it must be positive slippage
-        if (address(sendingAsset) != NATIVE_ADDRESS) {
-            uint256 sendingAssetBalance = sendingAsset.balanceOf(
+        if (sendingAssetId != NATIVE_ADDRESS) {
+            uint256 sendingAssetBalance = IERC20(sendingAssetId).balanceOf(
                 address(this)
             );
 
@@ -560,7 +556,11 @@ contract GenericSwapFacetV3 is ILiFi {
             // but this 1 wei is not transferable, so the tx reverts. We accept that 1 wei dust gets stuck in the contract
             // with every tx as this does not represent a significant USD value in any relevant token.
             if (sendingAssetBalance > 1) {
-                sendingAsset.safeTransfer(receiver, sendingAssetBalance);
+                LibAsset.transferERC20(
+                    sendingAssetId,
+                    receiver,
+                    sendingAssetBalance
+                );
             }
         }
     }

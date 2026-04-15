@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 pragma solidity ^0.8.17;
 
 import { TransferrableOwnership } from "./TransferrableOwnership.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ExternalCallFailed } from "../Errors/GenericErrors.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 abstract contract WithdrawablePeriphery is TransferrableOwnership {
-    using SafeTransferLib for address;
-
     event TokensWithdrawn(
         address assetId,
         address payable receiver,
@@ -28,7 +25,7 @@ abstract contract WithdrawablePeriphery is TransferrableOwnership {
             (bool success, ) = receiver.call{ value: amount }("");
             if (!success) revert ExternalCallFailed();
         } else {
-            assetId.safeTransfer(receiver, amount);
+            LibAsset.transferERC20(assetId, receiver, amount);
         }
 
         emit TokensWithdrawn(assetId, receiver, amount);
