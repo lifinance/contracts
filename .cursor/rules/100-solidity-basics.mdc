@@ -95,7 +95,15 @@ When a dependency you call is bumped, evaluate whether consuming the new version
 If a single PR has mixed changes (e.g., a gas refactor **and** a new revert condition), the version bump reflects the **most severe** change. New revert condition (MAJOR) + internal refactor (PATCH) → bump MAJOR.
 
 ### GenericErrors version
-When adding a new error to `src/Errors/GenericErrors.sol`, bump **its** `@custom:version` too (MINOR — new error added, none removed).
+`GenericErrors.sol` is a **shared library** — its set of error names is its interface. Treat it accordingly:
+
+| Change | Bump | Reason |
+| :--- | :--- | :--- |
+| Add a new error | **MINOR** | Additive — all importing contracts continue to compile and work |
+| Remove or rename an error | **MAJOR** | Breaking — any contract using that error fails to compile |
+| Formatting / comment only | **PATCH** | No change to selectors or names |
+
+A version bump here triggers **Cascade Evaluation** in every contract that imports `GenericErrors.sol`.
 
 ## Code Quality
 
