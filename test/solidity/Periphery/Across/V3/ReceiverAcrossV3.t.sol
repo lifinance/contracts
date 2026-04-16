@@ -88,7 +88,7 @@ contract ReceiverAcrossV3Test is TestBase {
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
+        vm.expectRevert(abi.encodeWithSignature("ETHTransferFailed()"));
 
         receiver.withdrawToken(
             address(0),
