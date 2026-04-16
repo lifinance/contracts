@@ -12,7 +12,7 @@ import { ZeroAmount } from "../Errors/GenericErrors.sol";
 ///         execution; any lingering balance can be recovered via `withdrawToken` by the owner.
 ///         This contract is not intended as a long-term custody vault; balances should not
 ///         persist beyond operational needs.
-/// @custom:version 1.0.1
+/// @custom:version 2.0.0
 abstract contract WithdrawablePeriphery is TransferrableOwnership {
     event TokensWithdrawn(
         address assetId,
