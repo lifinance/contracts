@@ -14,7 +14,13 @@ globs:
 
 ## Test Naming
 
-- Function names: `test_` (success), `testRevert_` (failure), `testBase_` (base).
+- Function names: `test_` (success), `testRevert_` (failure), `testBase_` (base). Any test that **expects a revert** (uses `vm.expectRevert` without an immediate success path in the same function) must use the **`testRevert_`** prefix — do not use `test_…Reverts…` / `test_…Fails…` on those (e.g. `testRevert_TransferFailedWhenTronLikeTokenOnNonTronChain`, not `test_SendingToken_RevertsWhen…`).
+- After the prefix, use **descriptive PascalCase segments** (subject → outcome / condition), matching the rest of `test/solidity/` (e.g. `test_CanBridgeTokensToSolana`, `testRevert_WhenConstructedWithZeroAddress`, `test_AllowsOwnerToWithdrawERC20`). A reader should infer *what* is under test and *when* it applies without opening the body.
+- **Behaviour over entrypoint echoes:** in library/facet tests, prefer **behavioural or domain** segments (`SucceedsWhenSending…`, `InvalidReceiverWhen…`, `Recognizes…`) over mirroring internal API names (`ApproveERC20`, `TransferAsset`, `TransferFromERC20`, `TransferERC20`, `DepositAsset`, `isContract`) unless disambiguation truly requires it.
+- **Business level over implementation detail:** name the **user- or protocol-meaningful case** first (asset, chain, outcome). Avoid stuffing names with test mechanics (`vm.etch`, `Mock…`, `canonical`, library type names like `SafeTransferLib`) unless two tests would otherwise be indistinguishable — put those details in NatSpec / comments instead. Prefer `test_SucceedsWhenSendingTronUsdtOnTronChain` over `test_SucceedsWhenSendingEtchedCanonicalTronUsdtMockOnTronChain`; prefer `testRevert_TransferFailedWhen…` over `testRevert_SafeTransferLibTransferFailedWhen…` when the revert is the business signal.
+- **Underscores vs Solidity style:** only the Foundry prefix uses a trailing underscore (`test_`, `testRevert_`, `testBase_`). Further underscores **separate** PascalCase segments (e.g. `test_SucceedsWhenSendingTronUsdtOnTronChain`). Do **not** use Solidity internal-parameter naming (`_functionName`, `_param`) in test names — that convention applies to implementation code, not tests.
+- Avoid vague tails such as `test_isContract` or `test_transferERC20_TronUSDT_SucceedsOnTronChain` when a clearer business-oriented name fits (prefer `test_RecognizesUsdcAsDeployedContract`, `test_SucceedsWhenSendingTronUsdtOnTronChain`; for revert-only cases prefer e.g. `testRevert_InsufficientBalanceWhenSendingUnfundedTronUsdtOnTronChain`).
+- **When editing any `test/**/*.t.sol` file**, align **existing** test names in that file to this convention if they are still short or ambiguous (same PR / same touch); do not leave a mix of old terse names and new descriptive ones in one file.
 
 ## Test Structure and Assertions
 

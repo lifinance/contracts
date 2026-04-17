@@ -110,7 +110,7 @@ contract ReceiverOIFTest is TestBase {
         NonETHReceiver nonETHReceiver = new NonETHReceiver();
 
         vm.startPrank(USER_DIAMOND_OWNER);
-        vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
+        vm.expectRevert(abi.encodeWithSignature("ETHTransferFailed()"));
 
         receiver.withdrawToken(
             address(0),

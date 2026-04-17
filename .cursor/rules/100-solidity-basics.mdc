@@ -10,6 +10,7 @@ globs:
 ## Licensing ([CONV:LICENSE])
 
 - Our own files: `// SPDX-License-Identifier: LGPL-3.0-only` immediately followed by the pragma statement with no blank line in between.
+  - No other comments or directives (including NatSpec) may appear between SPDX and `pragma`.
 - External copies retain original license + source note.
 - All contracts must use `pragma solidity ^0.8.17;`.
 - Do not mirror legacy `Unlicense` headers from older test utilities when creating new `.sol` files; new Solidity files in this repo must follow the LGPL+pragma convention above.
@@ -26,6 +27,7 @@ globs:
   - `@author LI.FI (https://li.fi)`
   - `@notice` - must describe what the contract/interface contains and its purpose
   - `@custom:version X.Y.Z`
+- Place contract/interface NatSpec immediately above the corresponding `contract` / `abstract contract` / `interface` definition (not at the top of the file).
 - Public/external functions require NatSpec including params/returns.
 - For pure test/script scaffolding keep headers minimal but retain SPDX/pragma.
 
@@ -45,6 +47,63 @@ globs:
 
 - Use custom errors instead of revert strings; prefer existing errors/helpers before adding new ones.
 - Use generic errors from `src/Errors/GenericErrors.sol`; bump `@custom:version` when adding; facet-specific errors stay local.
+
+## Versioning ([CONV:VERSION])
+
+Every production contract in `src/` carries `@custom:version X.Y.Z`. Bump the version on **every** PR that modifies the file. Use semantic versioning:
+
+### MAJOR (X → X+1, reset minor & patch to 0)
+A breaking change — any existing caller, integration, or off-chain decoder may need to update.
+
+Triggers:
+- Removing or renaming a public/external function or its parameters.
+- Adding a new `revert` condition to an **existing** external function (stricter input constraints). A call that previously succeeded now reverts.
+  - Example: `WithdrawablePeriphery` 1.0.0 → 2.0.0 — adding `if (amount == 0) revert ZeroAmount()` to `withdrawToken` breaks callers who passed `amount=0` expecting success.
+- Removing or replacing a custom error that was part of the public ABI. Custom errors are ABI — off-chain decoders and catching contracts break if an error selector disappears.
+  - Example: replacing `revert ExternalCallFailed()` with `revert ZeroAmount()` in `withdrawToken` removes a previously catchable selector.
+- Changing storage layout (adds/removes/reorders storage variables) in upgradeable or Diamond-pattern contracts.
+- Changing constructor signature in a way that breaks existing deployment scripts.
+
+### MINOR (Y → Y+1, reset patch to 0)
+Backwards-compatible new functionality — existing callers keep working, but new capabilities are available.
+
+Triggers:
+- New public/external function added.
+- New network or asset support introduced (new constants + conditional logic for a specific chain/token).
+  - Example: `LibAsset` 2.1.3 → 2.2.0 — adding `TRON_CHAIN_ID`, `TRON_USDT` constants and a bypass path in `transferERC20` for Tron's legacy USDT. Interface unchanged; new asset class now supported.
+- Migrating to an upgraded dependency that itself received a MINOR bump, where that migration grants new functionality to callers.
+  - Example: `LiFiDEXAggregator` 1.12.0 → 1.13.0 — replacing `SafeERC20` with `LibAsset` calls throughout; no ABI change, but the aggregator now inherits Tron USDT support from LibAsset 2.2.0 across all DEX paths.
+- New event emitted in an existing flow (additive, not breaking).
+- New custom error added (does not remove or replace existing ones).
+
+### PATCH (Z → Z+1)
+Internal fix or refactor — zero behavioral change for any caller.
+
+Triggers:
+- Gas optimisation with identical external behavior.
+- Code style / NatSpec / comment updates.
+- Internal variable rename or helper extraction with no observable effect.
+- Bug fix that corrects clearly unintended behavior **and** does not add a new revert path.
+
+### Cascade evaluation
+When a dependency you call is bumped, evaluate whether consuming the new version changes your contract's observable behavior:
+- Dependency MAJOR bump → your contract is likely MAJOR too (inherited breaking change).
+- Dependency MINOR bump + you migrated to gain the new capability → your contract is MINOR.
+- Dependency PATCH bump + purely internal → your contract may stay PATCH if nothing externally changed.
+
+### Highest severity wins
+If a single PR has mixed changes (e.g., a gas refactor **and** a new revert condition), the version bump reflects the **most severe** change. New revert condition (MAJOR) + internal refactor (PATCH) → bump MAJOR.
+
+### GenericErrors version
+`GenericErrors.sol` is a **shared library** — its set of error names is its interface. Treat it accordingly:
+
+| Change | Bump | Reason |
+| :--- | :--- | :--- |
+| Add a new error | **MINOR** | Additive — all importing contracts continue to compile and work |
+| Remove or rename an error | **MAJOR** | Breaking — any contract using that error fails to compile |
+| Formatting / comment only | **PATCH** | No change to selectors or names |
+
+A version bump here triggers **Cascade Evaluation** in every contract that imports `GenericErrors.sol`.
 
 ## Code Quality
 
