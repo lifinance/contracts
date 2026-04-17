@@ -129,9 +129,9 @@
         "Name": "GlacisFacet",
         "Version": "1.0.0"
       },
-      "0xa1E1A3b1d19f2e957d6a462fA419F85354ebE717": {
+      "0x347F16802E9EB023a55b1d8f1e00c2664Ca7d60a": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0xb7777277Ec16688Fe8C599813a69e8D1478369C6": {
         "Name": "RelayDepositoryFacet",
@@ -160,6 +160,10 @@
       "0x22b7d50c553c720A27B4870Aed36Dc6AF9F584CC": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.0"
+      },
+      "0x2d50a526Bb83F95B1b5d69f25e355f9a7eb5321D": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
