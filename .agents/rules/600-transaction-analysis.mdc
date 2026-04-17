@@ -4,7 +4,7 @@ scope: workspace
 description: Transaction analysis activation gate
 globs:
   - '**/*'
-alwaysApply: true
+alwaysApply: false
 ---
 
 ## Activation Gate
