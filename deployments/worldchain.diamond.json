@@ -53,6 +53,10 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
+      "0xB5dD83183fD7CCF859b227CA83663a034d5B2f92": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
+      },
       "0x90ADbFc03002aaA3d9FEdf2517D593CfD93e6c57": {
         "Name": "AcrossFacetPackedV3",
         "Version": "1.0.0"
@@ -92,6 +96,10 @@
       "0x78A78927ba0EeE804d37cad22BfcC69e3B0fF5e1": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.0"
+      },
+      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
