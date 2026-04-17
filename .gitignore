@@ -70,5 +70,3 @@ test/solidity/TestPlayground.t.sol
 .direnv/
 
 config/whitelist.staging.json
-AGENTS.md
-CLAUDE.md

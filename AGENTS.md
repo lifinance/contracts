@@ -17,6 +17,12 @@ Rules load automatically: global rules (000–003, 099) always apply; scoped rul
 when you edit matching files. Convention anchors (e.g. `[CONV:LICENSE]`, `[CONV:EVENTS]`)
 are embedded in rule files.
 
+## Hooks
+
+Post-edit hooks in `.agents/hooks/` run automatically after every Write/Edit:
+- `post-edit-format.sh` — prettier on `.sol`/`.ts`/`.js` (silent, always runs)
+- `post-edit-validate.sh` — solhint / tsc-files / bash -n (reports errors back to Claude)
+
 ## Common Commands
 
 | Task | Command |
