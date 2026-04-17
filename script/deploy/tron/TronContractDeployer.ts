@@ -37,8 +37,8 @@ export class TronContractDeployer {
   private config: ITronDeploymentConfig
 
   public constructor(config: ITronDeploymentConfig) {
-    const pk = (config.privateKey ?? '').trim()
-    if (!pk || !/^0x?[0-9A-Fa-f]{64}$/.test(pk))
+    const pk = (config.privateKey ?? '').trim().replace(/^0x/, '')
+    if (!pk || !/^[0-9A-Fa-f]{64}$/.test(pk))
       throw new Error(
         'Invalid Tron private key format. Expected a 64-character hexadecimal string (with or without "0x" prefix). ' +
           'Example: 0x1234...abcd or 1234...abcd'

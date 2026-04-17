@@ -40,7 +40,7 @@ import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
-import { getRPCEnvVarName, node_url } from '../../utils/utils'
+import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
@@ -706,17 +706,6 @@ export function addressToBytes32RightPadded(address: string): `0x${string}` {
   return `0x${hex.padEnd(64, '0')}`
 }
 
-/**
- * Retrieve the value of an environment variable.
- * Throws an error if the environment variable is not defined.
- */
-export const getEnvVar = (varName: string): string => {
-  const value = process.env[varName]
-  if (!value)
-    throw new Error(`Missing required environment variable: ${varName}`)
-
-  return value
-}
 
 /**
  * Normalize a private key to ensure it starts with "0x".

@@ -32,12 +32,12 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
 import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
 } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { getEnvVar } from '../../utils/utils'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
@@ -192,16 +192,12 @@ export class SafeClient {
     walletClient: WalletClient,
     account: Account,
     tronWalletClient?: TronWalletClient
-  ): Promise<IChainExecutor> {
+  ): Promise<IChainExecutor | undefined> {
     const chainId = await publicClient.getChainId()
 
     if (isTronTvmChainId(chainId)) {
-      if (!tronWalletClient)
-        throw new Error(
-          'Tron Safe execution uses TronWeb (native protocol) and requires a private-key signer. ' +
-            'Use "Execute with Deployer", or run confirm-safe-tx with --no-ledger and PRIVATE_KEY_PRODUCTION / SAFE_SIGNER_PRIVATE_KEY in .env. ' +
-            'Ledger-only execution cannot broadcast Safe exec through the Tron HTTP API from this script.'
-        )
+      // No tronWalletClient means Ledger/signing-only mode — defer executor creation to execution time.
+      if (!tronWalletClient) return undefined
 
       const networkKey = getTronNetworkKeyForChainId(chainId)
       if (!networkKey)

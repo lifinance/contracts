@@ -6,10 +6,10 @@ import { consola } from 'consola'
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
-  getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import {
+  getEnvVar,
   getRPCEnvVarName,
   getEnvironment,
   getContractAddress,
@@ -21,16 +21,13 @@ import {
   getFacetSelectors,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
+import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
 import { createTronWeb } from './helpers/tronWebFactory'
-import { evmHexToTronBase58 } from './tronAddressHelpers'
-import {
-  deployContractWithLogging,
-  registerFacetToDiamond,
-  validateBalance,
-} from './tronUtils'
+import { evmHexToTronBase58, tronAddressToHex } from './tronAddressHelpers'
+import { deployContractWithLogging, validateBalance } from './tronUtils'
 import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 /**
@@ -192,16 +189,14 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       }
 
     // Register to Diamond
-    consola.info('\nRegistering SymbiosisFacet to Diamond...')
+    consola.info('\nProposing SymbiosisFacet diamondCut to Safe...')
 
     // Get diamond address
     const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
-    // Get selectors for display
     const selectors = await getFacetSelectors('SymbiosisFacet')
 
-    // Display registration info
     displayRegistrationInfo(
       'SymbiosisFacet',
       facetAddress,
@@ -209,32 +204,23 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    // Register using new utility
-    const registrationResult = await registerFacetToDiamond(
-      'SymbiosisFacet',
-      facetAddress,
-      tronWeb,
-      rpcUrl,
-      dryRun,
-      network
-    )
+    if (!dryRun)
+      await proposeDiamondCut({
+        facetName: 'SymbiosisFacet',
+        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        diamondAddress,
+        network: network,
+      })
+    else
+      consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
 
-    if (registrationResult.success) {
-      consola.success('SymbiosisFacet registered successfully!')
-      if (registrationResult.transactionId)
-        consola.info(`Transaction: ${registrationResult.transactionId}`)
-    } else {
-      consola.error(
-        'Failed to register SymbiosisFacet:',
-        registrationResult.error
-      )
-      process.exit(1)
-    }
-
-    // Print summary
     printDeploymentSummary(deploymentResults, dryRun)
 
-    consola.success('\nDeployment and registration completed successfully!')
+    consola.success(
+      dryRun
+        ? '\nDry run completed successfully! (no Safe tx created)'
+        : '\nDeployment and proposal completed successfully!'
+    )
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)
     if (error.stack) consola.error(error.stack)

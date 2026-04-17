@@ -6,11 +6,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getEnvVar,
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
-import { getEnvironment } from '../../utils/utils'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { getEnvVar, getEnvironment } from '../../utils/utils'
 
 import { TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR } from './constants.js'
 import { formatAddressForNetworkCliDisplay } from './helpers/formatAddressForCliDisplay.js'

@@ -8,11 +8,11 @@ import { consola } from 'consola'
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
-  getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import {
+  getEnvVar,
   getRPCEnvVarName,
   checkExistingDeployment,
   getContractAddress,

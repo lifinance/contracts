@@ -75,15 +75,34 @@ const FOUNDRY_TOML_PATH = resolve(
 )
 
 function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
-  const parsed = Bun.TOML.parse(
-    readFileSync(FOUNDRY_TOML_PATH, 'utf8')
-  ) as IFoundryTomlConfig
+  const content = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
 
-  const defaultProfile = parsed.profile?.default
-  if (!defaultProfile)
-    throw new Error('Missing [profile.default] section in foundry.toml')
+  try {
+    const parsed = Bun.TOML.parse(content) as IFoundryTomlConfig
+    const defaultProfile = parsed.profile?.default
+    if (!defaultProfile)
+      throw new Error('Missing [profile.default] section in foundry.toml')
+    return defaultProfile
+  } catch {
+    // Bun's TOML parser rejects keys starting with digits (e.g. "0g" in rpc_endpoints).
+    // Fall back to regex extraction of [profile.default] values.
+    // Extract only the section body (up to the next section header or end of file)
+    // so keys from other profiles are never matched.
+    const sectionBody =
+      content.match(/\[profile\.default\]\n([\s\S]*?)(?=\n\[|$)/)?.[1] ?? ''
+    if (!sectionBody)
+      throw new Error('Missing [profile.default] section in foundry.toml')
 
-  return defaultProfile
+    const extract = (key: string): string | undefined =>
+      sectionBody.match(
+        new RegExp(`^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm')
+      )?.[1]
+
+    const solc_version = extract('solc_version')
+    const evm_version = extract('evm_version')
+
+    return { solc_version, evm_version } as IFoundryProfileDefaultConfig
+  }
 }
 
 /**
@@ -149,6 +168,17 @@ export function getNetworkConfig(networkName: string): Omit<INetwork, 'id'> {
  * @param command The shell command to execute
  * @returns The command output
  */
+/**
+ * Returns the value of a required environment variable.
+ * @throws If the variable is not set.
+ */
+export const getEnvVar = (varName: string): string => {
+  const value = process.env[varName]
+  if (!value)
+    throw new Error(`Missing required environment variable: ${varName}`)
+  return value
+}
+
 export async function executeShellCommand(command: string): Promise<string> {
   return spawnAndCapture('bash', ['-c', command])
 }
@@ -907,3 +937,4 @@ Selectors: ${selectors.length} functions
     },
   })
 }
+

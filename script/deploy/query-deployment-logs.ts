@@ -13,7 +13,7 @@ import { consola } from 'consola'
 import { MongoClient, type Db, type Collection, type Filter } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+import { getEnvVar } from '../utils/utils'
 
 import { CachedDeploymentQuerier } from './shared/cached-deployment-querier'
 import {

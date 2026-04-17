@@ -1,7 +1,6 @@
 import { consola } from 'consola'
 
-import { getEnvVar } from '../../../demoScripts/utils/demoScriptHelpers'
-import { getRPCEnvVarName } from '../../../utils/utils'
+import { getEnvVar, getRPCEnvVarName } from '../../../utils/utils'
 import { TRON_PRO_API_KEY_HEADER } from '../constants'
 
 import { isTronGridRpcUrl } from './isTronGridRpcUrl'

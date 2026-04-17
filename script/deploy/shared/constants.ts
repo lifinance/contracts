@@ -89,3 +89,26 @@ export const FOUNDRY_DEFAULT_EVM_VERSION_FALLBACK: EVMVersion = 'cancun'
  * Passed to deployment logging when `solc_version` cannot be read from `foundry.toml` (optional Mongo field).
  */
 export const FOUNDRY_DEFAULT_SOLC_VERSION_FALLBACK = ''
+
+/** Minimal ABI for `IDiamondCut.diamondCut`. */
+export const DIAMOND_CUT_ABI = [
+  {
+    inputs: [
+      {
+        components: [
+          { name: 'facetAddress', type: 'address' },
+          { name: 'action', type: 'uint8' },
+          { name: 'functionSelectors', type: 'bytes4[]' },
+        ],
+        name: '_diamondCut',
+        type: 'tuple[]',
+      },
+      { name: '_init', type: 'address' },
+      { name: '_calldata', type: 'bytes' },
+    ],
+    name: 'diamondCut',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const

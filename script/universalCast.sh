@@ -36,10 +36,11 @@ function universalCall() {
     local TRON_ENV
     TRON_ENV=$(getTronEnv "$NETWORK")
     if [[ ${#ARGS[@]} -gt 0 ]]; then
-      bun troncast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --env "$TRON_ENV" 2>&1
+      CONSOLA_LEVEL=3 bun troncast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --env "$TRON_ENV"
     else
-      bun troncast call "$TARGET" "$SIGNATURE" --env "$TRON_ENV" 2>&1
+      CONSOLA_LEVEL=3 bun troncast call "$TARGET" "$SIGNATURE" --env "$TRON_ENV"
     fi
+    return $?
   else
     local RPC_URL
     RPC_URL=$(getRPCUrl "$NETWORK") || {

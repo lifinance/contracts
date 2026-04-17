@@ -23,8 +23,8 @@ import type { TronWeb } from 'tronweb'
 
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
+import { getEnvVar } from '../../utils/utils'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { TronContractDeployer } from './TronContractDeployer.js'
