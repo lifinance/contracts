@@ -1,4 +1,4 @@
-# Which Jira task belongs to this PR?
+# Which Linear task belongs to this PR?
 
 # Why did I implement it this way?
 

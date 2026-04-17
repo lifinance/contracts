@@ -73,6 +73,7 @@ Custom commands live in `.cursor/commands/` and are invoked via `/...` in Cursor
 | `add-new-rule.md` | `/add-new-rule`                   | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation) |
 | `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
+| `review-bounty-report.md` | `/review-bounty-report` | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
 
 ## Transaction Analysis
 
@@ -102,6 +103,8 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `106-gas.mdc`                  | Gas-efficiency guidance aligned with existing patterns           | ❌ On match | `src/**/*.sol`                                                                                                |
 | `107-solidity-scripts.mdc`     | Foundry deployment/update script patterns                        | ❌ On match | `script/**/*.s.sol`, `script/**/*.sol`                                                                        |
 | `200-typescript.mdc`           | TS scripting, helpers, lint/tests                                | ❌ On match | `script/**/*.ts`, `tasks/**/*.ts`                                                                             |
+| `201-safe-decode-scripts.mdc`  | Safe/timelock decode and display conventions                     | ❌ On match | `script/deploy/safe/**/*.ts`                                                                                  |
+| `202-tron-scripts.mdc`         | Tron-specific TS conventions for helpers, TronWeb, addresses     | ❌ On match | `script/deploy/tron/**/*.ts`, `script/troncast/**/*.ts`                                                       |
 | `300-bash.mdc`                 | Deployment bash structure and safety                             | ❌ On match | `**/*.sh`                                                                                                     |
 | `400-solidity-tests.mdc`       | Foundry test structure, naming, and expectations                 | ❌ On match | `test/**/*.t.sol`                                                                                             |
 | `401-testing-patterns.mdc`     | Cross-language testing, coverage, and structure                  | ❌ On match | `test/**/*.t.sol`, `**/*.test.ts`, `script/**/*.ts`                                                           |

@@ -1,16 +1,15 @@
+/**
+ * Viem-based script helpers: chain construction, explorer URL builders, deployment file readers,
+ * and interactive CLI prompts (search/multiselect). Import lower-level RPC helpers from `utils.ts`.
+ */
+
 import * as fs from 'fs'
 import * as path from 'path'
 import readline from 'readline'
 
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
-import {
-  defineChain,
-  encodeFunctionData,
-  getAddress,
-  parseAbi,
-  type Chain,
-} from 'viem'
+import { defineChain, encodeFunctionData, parseAbi, type Chain } from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import {
@@ -19,8 +18,12 @@ import {
   type INetworksObject,
   type SupportedChain,
 } from '../common/types'
+import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
+import { applyTronGridViemTransportExtras } from '../deploy/tron/helpers/tronGridTransport'
 
 import { getDeployments } from './deploymentHelpers'
+import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
+import { getRPCEnvVarName } from './utils'
 
 dotenv.config()
 
@@ -31,6 +34,48 @@ const colors = {
 }
 
 export const networks: INetworksObject = networksConfig
+
+/**
+ * Parses an RPC URL and, if it contains embedded credentials (user:pass@host),
+ * returns a URL without credentials plus fetchOptions with Basic auth header.
+ * The viem library cannot handle user:pass@host in the URL; it only supports
+ * authentication via the Authorization header, so this helper is required for
+ * auth-protected RPC endpoints.
+ *
+ * TronGrid hosts are extended via {@link applyTronGridViemTransportExtras} (API key + retries).
+ */
+export function getTransportConfigFromRpcUrl(rpcUrl: string): {
+  url: string
+  fetchOptions?: { headers: Record<string, string> }
+  retryCount?: number
+  retryDelay?: number
+} {
+  let base: { url: string; fetchOptions?: { headers: Record<string, string> } }
+
+  try {
+    const url = new URL(rpcUrl)
+    if (!url.username) base = { url: rpcUrl }
+    else {
+      const cleanUrl = `${url.protocol}//${url.hostname}${
+        url.port ? `:${url.port}` : ''
+      }${url.pathname}${url.search}`
+      const encoded = Buffer.from(
+        `${decodeURIComponent(url.username)}:${decodeURIComponent(
+          url.password || ''
+        )}`,
+        'utf8'
+      ).toString('base64')
+      base = {
+        url: cleanUrl,
+        fetchOptions: { headers: { Authorization: `Basic ${encoded}` } },
+      }
+    }
+  } catch {
+    base = { url: rpcUrl }
+  }
+
+  return applyTronGridViemTransportExtras(base)
+}
 
 /**
  * Builds a block explorer address URL for a given network and address.
@@ -79,6 +124,7 @@ export const buildExplorerAddressUrl = (
  *
  * This helper composes {@link buildExplorerAddressUrl} and, for the majority
  * of explorers, simply appends `#code` so we land on the contract tab.
+ * TronScan uses `/#/contract/<address>/code` instead.
  *
  * As we discover explorers where this does not work, we can extend the switch
  * below with network-specific overrides without touching call sites.
@@ -87,10 +133,18 @@ export const buildExplorerContractPageUrl = (
   networkId: string,
   address: string
 ): string | undefined => {
-  const addressUrl = buildExplorerAddressUrl(networkId, address)
   const network = networks[networkId]
+  if (!network || !network.explorerUrl) return undefined
 
-  if (!addressUrl || !network) return undefined
+  const base = network.explorerUrl.replace(/\/+$/, '')
+
+  // TronScan contract tab: /#/contract/<address>/code (not /#/address/...#code).
+  if (network.verificationType === 'tronscan') {
+    return `${base}/#/contract/${address}/code`
+  }
+
+  const addressUrl = buildExplorerAddressUrl(networkId, address)
+  if (!addressUrl) return undefined
 
   switch (network.verificationType) {
     // OKLink contract pages live under /address/<address>/contract
@@ -111,6 +165,15 @@ export const buildExplorerContractPageUrl = (
   }
 }
 
+/**
+ * Builds a viem `Chain` object for the given network name using `config/networks.json`.
+ * Appends `/jsonrpc` to TronGrid RPC URLs so viem's JSON-RPC transport works correctly.
+ * Includes `multicall3` contract address when configured for the network.
+ *
+ * @param networkName - Key from `config/networks.json` (e.g. `'arbitrum'`, `'tron'`).
+ * @returns A viem `Chain` object ready for use with `createPublicClient` / `createWalletClient`.
+ * @throws If the network is not in config or the RPC env var is missing/empty.
+ */
 export const getViemChainForNetworkName = (networkName: string): Chain => {
   const network = networks[networkName]
 
@@ -119,14 +182,21 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Chain ${networkName} does not exist. Please check that the network exists in 'config/networks.json'`
     )
 
-  // Construct the environment variable key dynamically
-  const envKey = `ETH_NODE_URI_${networkName.toUpperCase()}`
-  const rpcUrl = process.env[envKey] || network.rpcUrl // Use .env value if available, otherwise fallback
+  const envKey = getRPCEnvVarName(networkName)
+  const rpcUrlRaw = process.env[envKey]
 
-  if (!rpcUrl)
+  if (!rpcUrlRaw?.trim())
     throw new Error(
-      `Could not find RPC URL for network ${networkName}, please add one with the key ${envKey} to your .env file`
+      `Could not find RPC URL for network ${networkName}, please set ${envKey} in your environment`
     )
+
+  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
+  let rpcUrl = rpcUrlRaw.trim()
+  if (
+    isTronNetworkKey(networkName) &&
+    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
+  )
+    rpcUrl = `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
 
   const chainConfig: Parameters<typeof defineChain>[0] = {
     id: network.chainId,
@@ -146,7 +216,12 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
   // Only include multicall3 if multicallAddress is available and non-empty
   if (network.multicallAddress) {
     chainConfig.contracts = {
-      multicall3: { address: getAddress(network.multicallAddress) },
+      multicall3: {
+        address: normalizeAddressForNetwork(
+          networkName,
+          network.multicallAddress
+        ),
+      },
     }
   }
 
@@ -154,6 +229,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
   return chain
 }
 
+/** Returns all networks from `config/networks.json` as an array, adding the map key as `id`. */
 export const getAllNetworksArray = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = Object.entries(networksConfig).map(([key, value]) => ({
@@ -164,7 +240,7 @@ export const getAllNetworksArray = (): INetwork[] => {
   return networkArray
 }
 
-// removes all networks with "status='inactive'"
+/** Returns only networks with `status === 'active'` from `config/networks.json`. */
 export const getAllActiveNetworks = (): INetwork[] => {
   // Convert the object into an array of network objects
   const networkArray = getAllNetworksArray()
@@ -344,13 +420,14 @@ export function buildUnregisterPeripheryCalldata(name: string): `0x${string}` {
 }
 
 /**
- * Casts a string environment to EnvironmentEnum
+ * Parses and validates a user-supplied environment string.
  * @param environment - The environment string
- * @returns EnvironmentEnumvalue
+ * @returns The corresponding {@link EnvironmentEnum} member
  */
 export function castEnv(environment: string): EnvironmentEnum {
-  if (environment === 'production') return EnvironmentEnum.production
-  if (environment === 'staging') return EnvironmentEnum.staging
+  if (environment === EnvironmentEnum.production)
+    return EnvironmentEnum.production
+  if (environment === EnvironmentEnum.staging) return EnvironmentEnum.staging
   throw new Error(`Invalid environment: ${environment}`)
 }
 

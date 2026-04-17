@@ -27,7 +27,7 @@ import path from 'path'
 import { consola } from 'consola'
 
 import type { EnvironmentEnum } from '../../common/types'
-import { getEnvVar } from '../../demoScripts/utils/demoScriptHelpers'
+import { getEnvVar } from '../../utils/utils'
 
 import type { DeploymentCache } from './deployment-cache'
 import { createDefaultCache } from './deployment-cache'
@@ -35,6 +35,7 @@ import {
   DatabaseConnectionManager,
   type IDeploymentRecord,
   type IConfig,
+  mongoEq,
 } from './mongo-log-utils'
 
 /**
@@ -129,10 +130,10 @@ export class DeploymentLogger {
       // Write to MongoDB (primary source)
       await collection.updateOne(
         {
-          contractName: record.contractName,
-          network: record.network,
-          version: record.version,
-          address: record.address,
+          contractName: mongoEq(record.contractName),
+          network: mongoEq(record.network),
+          version: mongoEq(record.version),
+          address: mongoEq(record.address),
         },
         {
           $set: {
@@ -215,10 +216,10 @@ export class DeploymentLogger {
         return {
           updateOne: {
             filter: {
-              contractName: record.contractName,
-              network: record.network,
-              version: record.version,
-              address: record.address,
+              contractName: mongoEq(record.contractName),
+              network: mongoEq(record.network),
+              version: mongoEq(record.version),
+              address: mongoEq(record.address),
             },
             update: {
               $set: {

@@ -24,7 +24,10 @@ import {
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
+import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import { decodeDiamondCut } from './safe-utils'
 
@@ -146,11 +149,17 @@ export async function getTargetName(
   network: string
 ): Promise<string> {
   try {
-    const normalizedAddress = getAddress(address).toLowerCase()
+    const normalizedAddress = normalizeAddressForNetwork(
+      network,
+      String(address)
+    ).toLowerCase()
     const networkKey = network.toLowerCase() as SupportedChain
     const networkConfig = networksData[networkKey as keyof typeof networksData]
     if (networkConfig?.safeAddress) {
-      const safeAddress = getAddress(networkConfig.safeAddress).toLowerCase()
+      const safeAddress = normalizeAddressForNetwork(
+        network,
+        networkConfig.safeAddress
+      ).toLowerCase()
       if (safeAddress === normalizedAddress) return '(Multisig Safe)'
     }
     try {
@@ -164,34 +173,28 @@ export async function getTargetName(
           : (deploymentsUnknown as unknown)
       if (isRecord(deployments)) {
         const diamond = deployments.LiFiDiamond
-        if (typeof diamond === 'string' && diamond.startsWith('0x')) {
-          try {
-            const diamondAddress = getAddress(diamond as Address).toLowerCase()
-            if (diamondAddress === normalizedAddress) return '(LiFiDiamond)'
-          } catch {
-            // ignore
-          }
+        if (typeof diamond === 'string') {
+          if (
+            normalizeAddressForNetwork(network, diamond).toLowerCase() ===
+            normalizedAddress
+          )
+            return '(LiFiDiamond)'
         }
         const timelock = deployments.LiFiTimelockController
-        if (typeof timelock === 'string' && timelock.startsWith('0x')) {
-          try {
-            const timelockAddress = getAddress(
-              timelock as Address
-            ).toLowerCase()
-            if (timelockAddress === normalizedAddress)
-              return '(LiFiTimelockController)'
-          } catch {
-            // ignore
-          }
+        if (typeof timelock === 'string') {
+          if (
+            normalizeAddressForNetwork(network, timelock).toLowerCase() ===
+            normalizedAddress
+          )
+            return '(LiFiTimelockController)'
         }
         for (const [name, value] of Object.entries(deployments)) {
-          if (typeof value !== 'string' || !value.startsWith('0x')) continue
-          try {
-            const addr = getAddress(value as Address).toLowerCase()
-            if (addr === normalizedAddress) return `(${name})`
-          } catch {
-            // ignore
-          }
+          if (typeof value !== 'string') continue
+          if (
+            normalizeAddressForNetwork(network, value).toLowerCase() ===
+            normalizedAddress
+          )
+            return `(${name})`
         }
       }
     } catch {
@@ -228,7 +231,8 @@ async function getTargetSuffix(
   address: string
 ): Promise<string> {
   const name = await getTargetName(address as Address, network)
-  const explorerUrl = buildExplorerContractPageUrl(network, address)
+  const displayAddr = formatAddressForNetworkCliDisplay(network, address)
+  const explorerUrl = buildExplorerContractPageUrl(network, displayAddr)
   const namePart = name ? ` \u001b[33m${name}\u001b[0m` : ''
   const explorerPart = explorerUrl ? ` \u001b[36m${explorerUrl}\u001b[0m` : ''
   return `${namePart}${explorerPart}`
@@ -239,9 +243,12 @@ async function getPeripheryDeploymentCheckSuffix(
   peripheryName: string,
   peripheryAddress: string
 ): Promise<string> {
-  let providedAddress: Address
+  let providedNormalized: Address
   try {
-    providedAddress = getAddress(peripheryAddress as Address)
+    providedNormalized = normalizeAddressForNetwork(
+      network,
+      peripheryAddress.trim()
+    )
   } catch {
     return ` \u001b[31m(❌ invalid periphery address)\u001b[0m`
   }
@@ -250,15 +257,19 @@ async function getPeripheryDeploymentCheckSuffix(
   const expectedRaw = deployments[peripheryName]
   if (typeof expectedRaw !== 'string' || !expectedRaw)
     return ` \u001b[90m(no deployments entry for '${peripheryName}')\u001b[0m`
-  let expectedAddress: Address
+  let expectedNormalized: Address
   try {
-    expectedAddress = getAddress(expectedRaw as Address)
+    expectedNormalized = normalizeAddressForNetwork(network, expectedRaw.trim())
   } catch {
     return ` \u001b[31m(❌ invalid deployments address for '${peripheryName}')\u001b[0m`
   }
-  if (expectedAddress.toLowerCase() === providedAddress.toLowerCase())
+  if (expectedNormalized.toLowerCase() === providedNormalized.toLowerCase())
     return ` \u001b[32m(✅ matches deployments)\u001b[0m`
-  return ` \u001b[31m(❌ mismatch: expected ${expectedAddress})\u001b[0m`
+  const expectedDisplay = formatAddressForNetworkCliDisplay(
+    network,
+    expectedNormalized
+  )
+  return ` \u001b[31m(❌ mismatch: expected ${expectedDisplay})\u001b[0m`
 }
 
 function formatBatchSetContractSelectorWhitelist(
@@ -308,12 +319,12 @@ function formatBatchSetContractSelectorWhitelist(
       if (meta.contractLabel)
         contractLabel = ` \u001b[35m(${meta.contractLabel})\u001b[0m`
     }
-    let contractLine = `  Contract: \u001b[34m${originalContract}\u001b[0m${contractLabel}`
+    const displayContract = network
+      ? formatAddressForNetworkCliDisplay(network, originalContract)
+      : originalContract
+    let contractLine = `  Contract: \u001b[34m${displayContract}\u001b[0m${contractLabel}`
     if (network) {
-      const explorerUrl = buildExplorerContractPageUrl(
-        network,
-        originalContract
-      )
+      const explorerUrl = buildExplorerContractPageUrl(network, displayContract)
       if (explorerUrl) contractLine += ` \u001b[36m${explorerUrl}\u001b[0m`
     }
     consola.info(`${pre}${contractLine}`)
@@ -381,18 +392,29 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
   return null
 }
 
-function formatDecodedArg(arg: unknown): string {
+function formatDecodedArg(arg: unknown, network?: string): string {
   if (arg === undefined || arg === null) return String(arg)
   if (typeof arg === 'bigint') return arg.toString()
   if (typeof arg === 'object') return JSON.stringify(arg)
-  return String(arg)
+  const s = String(arg)
+  if (
+    network !== undefined &&
+    s.startsWith('0x') &&
+    /^0x[a-fA-F0-9]{40}$/.test(s)
+  ) {
+    return formatAddressForNetworkCliDisplay(network, s)
+  }
+  return s
 }
 
 /**
  * pretty-format for a Diamond call payload using the Diamond ABI.
  * Resolves selector via diamond.json and decodes
  */
-function tryFormatDiamondPayload(payload: Hex): string | undefined {
+function tryFormatDiamondPayload(
+  payload: Hex,
+  network?: string
+): string | undefined {
   if (!payload || payload === '0x') return undefined
   const selector = payload.slice(0, 10).toLowerCase()
   const abiItem = getDiamondAbiItemForSelector(selector)
@@ -411,7 +433,8 @@ function tryFormatDiamondPayload(payload: Hex): string | undefined {
         (inputs[i] && typeof inputs[i] === 'object' && 'name' in inputs[i]
           ? (inputs[i] as { name: string }).name
           : undefined) ?? `arg${i}`
-      return `${paramName}=${formatDecodedArg(arg)}`
+      const value = formatDecodedArg(arg, network)
+      return `${paramName}=${value}`
     })
     return `${name}(${parts.join(', ')})`
   } catch {
@@ -467,7 +490,8 @@ export async function formatTimelockScheduleBatch(
     const value = values[i]
     const payload = payloads[i]
     const idx = String(i).padStart(2, '0')
-    const targetDisplay = String(target ?? '')
+    const targetRaw = String(target ?? '')
+    const targetDisplay = formatAddressForNetworkCliDisplay(network, targetRaw)
     let targetNameSuffix = ''
     if (typeof target === 'string')
       targetNameSuffix = await getTargetSuffix(network, target)
@@ -490,7 +514,7 @@ export async function formatTimelockScheduleBatch(
       }
       await formatDecodedTxDataForDisplay(payloadStr, nestedContext)
     } else {
-      const pretty = tryFormatDiamondPayload(payloadStr)
+      const pretty = tryFormatDiamondPayload(payloadStr, network)
       if (pretty) consola.info(`     call=\u001b[34m${pretty}\u001b[0m`)
       else {
         const preview =
@@ -504,9 +528,6 @@ export async function formatTimelockScheduleBatch(
 // Known ABIs for reliable decoding of common Safe/timelock calls
 const ABI_DIAMOND_CUT = parseAbi([
   'function diamondCut((address,uint8,bytes4[])[],address,bytes)',
-])
-const ABI_SCHEDULE = parseAbi([
-  'function schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
 ])
 const ABI_SCHEDULE_BATCH = parseAbi([
   'function scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
@@ -591,24 +612,34 @@ export async function decodeTransactionData(
       consola.warn(`Error reading diamond ABI: ${error}`)
     }
 
-    // Fallback to external API
-    consola.info(`${pre}No local ABI found, fetching from openchain.xyz...`)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
+    // Fallback to external API (Sourcify 4byte; same response shape as openchain.xyz)
+    consola.info(
+      `${pre}No local ABI found, fetching from 4byte.sourcify.dev...`
+    )
+    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
+    const response = await fetchWithTimeout(url)
+    const responseData = (await response.json()) as unknown
 
+    const resultFn = (
+      responseData as {
+        result?: {
+          function?: Record<string, { name: string; args?: unknown }[]>
+        }
+      } | null
+    )?.result?.function?.[selector]
+    const fn = Array.isArray(resultFn) ? resultFn[0] : undefined
     if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
+      typeof responseData === 'object' &&
+      responseData !== null &&
+      (responseData as { ok?: boolean }).ok &&
+      fn?.name
     ) {
-      const functionName = responseData.result.function[selector][0].name
+      const functionName = fn.name
 
       try {
         const decodedData = {
           functionName,
-          args: responseData.result.function[selector][0].args,
+          args: fn.args,
         }
 
         return {
@@ -633,8 +664,6 @@ function getAbiForKnownFunction(functionName: string): Abi | null {
   switch (name) {
     case 'diamondCut':
       return ABI_DIAMOND_CUT
-    case 'schedule':
-      return ABI_SCHEDULE
     case 'scheduleBatch':
       return ABI_SCHEDULE_BATCH
     case 'batchSetContractSelectorWhitelist':
@@ -664,9 +693,10 @@ async function formatGrantRole(
   const roleLabel = roleName ? ` \u001b[33m(${roleName})\u001b[0m` : ''
   consola.info(`${pre}Function: \u001b[34mgrantRole\u001b[0m`)
   consola.info(`${pre}  Role:   \u001b[32m${roleStr}\u001b[0m${roleLabel}`)
+  const accountDisplay = formatAddressForNetworkCliDisplay(network, accountStr)
   const accountSuffix = await getTargetSuffix(network, accountStr)
   consola.info(
-    `${pre}  Account: \u001b[32m${accountStr}\u001b[0m${accountSuffix}`
+    `${pre}  Account: \u001b[32m${accountDisplay}\u001b[0m${accountSuffix}`
   )
 }
 
@@ -705,7 +735,7 @@ export async function formatDecodedTxDataForDisplay(
     }
     if (!decoded && functionName) {
       try {
-        // Dynamic signature from openchain; parseAbi may throw for invalid format
+        // Dynamic signature from 4byte/Sourcify; parseAbi may throw for invalid format
         const sig = `function ${functionName}`
         const abiInterface = parseAbi([sig] as [string])
         decoded = decodeFunctionData({ abi: abiInterface, data })
@@ -741,27 +771,6 @@ export async function formatDecodedTxDataForDisplay(
       return
     }
 
-    const scheduleArgs =
-      decoded?.functionName === 'schedule' ? decoded.args : undefined
-    if (scheduleArgs && scheduleArgs.length >= 6) {
-      log('Timelock Schedule Details:')
-      log('-'.repeat(80))
-      const [target, value, innerData, predecessor, salt, delay] = scheduleArgs
-      const targetName = await getTargetName(target as Address, network)
-      const targetDisplay = targetName
-        ? `${target} \u001b[33m${targetName}\u001b[0m`
-        : target
-      log(`Target:      \u001b[32m${targetDisplay}\u001b[0m`)
-      log(`Value:       \u001b[32m${value}\u001b[0m`)
-      log(`Predecessor: \u001b[32m${predecessor}\u001b[0m`)
-      log(`Salt:        \u001b[32m${salt}\u001b[0m`)
-      log(`Delay:       \u001b[32m${delay}\u001b[0m seconds`)
-      log('-'.repeat(80))
-      if (innerData && innerData !== '0x')
-        await formatDecodedTxDataForDisplay(innerData as Hex, context)
-      return
-    }
-
     if (decoded?.functionName === 'scheduleBatch' && decoded.args) {
       await formatTimelockScheduleBatch(decoded.args, network, context)
       return
@@ -788,7 +797,11 @@ export async function formatDecodedTxDataForDisplay(
         peripheryName,
         peripheryAddress
       )
-      let peripheryLine = `Periphery Address: \u001b[34m${peripheryAddress}\u001b[0m`
+      const peripheryDisplay = formatAddressForNetworkCliDisplay(
+        network,
+        peripheryAddress
+      )
+      let peripheryLine = `Periphery Address: \u001b[34m${peripheryDisplay}\u001b[0m`
       peripheryLine += await getTargetSuffix(network, peripheryAddress)
       peripheryLine += deploymentSuffix
       log(peripheryLine)
@@ -810,11 +823,9 @@ export async function formatDecodedTxDataForDisplay(
       if (args && args.length > 0) {
         log('Decoded Arguments:')
         args.forEach((arg: unknown, index: number) => {
-          let displayValue: unknown = arg
-          if (typeof arg === 'bigint') displayValue = arg.toString()
-          else if (typeof arg === 'object' && arg !== null)
-            displayValue = JSON.stringify(arg)
-          log(`  [${index}]: \u001b[33m${displayValue}\u001b[0m`)
+          log(
+            `  [${index}]: \u001b[33m${formatDecodedArg(arg, network)}\u001b[0m`
+          )
         })
       } else {
         log('No arguments or failed to decode arguments')
