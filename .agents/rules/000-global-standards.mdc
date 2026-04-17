@@ -14,4 +14,3 @@ alwaysApply: true
 - **Rule activation**: Before editing any file (even if not explicitly mentioned by the user), load and follow all `.agents/rules/*.mdc` whose `globs` match that file path.
 - **Design**: When multiple valid approaches exist, name ≥2 with tradeoffs; prefer minimal diffs unless conventions/security justify larger refactor.
 - **Uncertainty**: Flag assumptions/risky edges; don't guess; ask one concise question.
-
