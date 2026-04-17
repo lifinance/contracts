@@ -29,10 +29,14 @@ graph LR;
 The methods listed above take a variable labeled `_deBridgeDlnData`. This data is specific to deBridgeDln and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
+/// @param receivingAssetId The address of the asset to receive
+/// @param receiver The address of the receiver
+/// @param orderAuthorityDst The address on the destination chain authorized to manage the order
+/// @param minAmountOut The minimum amount to receive on the destination chain
 struct DeBridgeDlnData {
-  address receivingAssetId;
+  bytes receivingAssetId;
   bytes receiver;
+  bytes orderAuthorityDst;
   uint256 minAmountOut;
 }
 ```
