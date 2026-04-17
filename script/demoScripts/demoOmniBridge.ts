@@ -3,7 +3,7 @@ import { providers, Wallet, utils, constants, Contract } from 'ethers'
 
 import config from '../../config/omni.json'
 import { OmniBridgeFacet__factory, ERC20__factory } from '../../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../utils/utils'
 
 const BRIDGED_TOKEN_ADDRESS_ABI = [
   'function bridgedTokenAddress(address) view returns (address)',

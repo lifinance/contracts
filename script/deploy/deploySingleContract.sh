@@ -4,8 +4,7 @@
 # should be called like this:
 # $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh
 
@@ -120,9 +119,7 @@ deploySingleContract() {
     DIAMOND_TYPE="LiFiDiamond"
   fi
 
-  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
-    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
-  fi
+  GAS_ESTIMATE_MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-130}" # this is foundry's default value
 
   # logging for debug purposes
   echo ""
@@ -372,7 +369,13 @@ deploySingleContract() {
     JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
   fi
   
-  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
+  # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
+  CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
+  if [[ ! "$CONSTRUCTOR_ARGS" =~ ^0x[0-9a-fA-F]*$ ]] || (( ${#CA_HEX_PAYLOAD} % 2 != 0 )); then
+    CONSTRUCTOR_ARGS="0x"
+  fi
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already

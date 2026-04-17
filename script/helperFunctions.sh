@@ -1,14 +1,23 @@
 #!/bin/bash
 #
 
-# load env variables
+# Load .env into the shell, and export each assignment for child processes.
+#
+# `source .env` only defines shell variables. Subprocesses (bun/tsx deployment scripts,
+# cast, forge, etc.) inherit the environment, not unexported shell variables. Dotenv-style
+# files usually use `KEY=value` without `export`, so those would be invisible to children.
+# `set -a` (allexport) marks every assignment as exported until `set +a`; we limit that
+# to this file read so later `source`d scripts do not export unrelated locals by default.
+set -a
 source .env
+set +a
 
-# load script
-source script/config.sh
+NETWORKS_JSON_FILE_PATH="config/networks.json"
+GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
+TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
 GRAY='\033[0;37m'  # Light gray color
@@ -62,6 +71,7 @@ function logContractDeploymentInfo {
     return 1
   fi
 
+  # update-deployment-logs.ts add: upserts MongoDB then invalidates the local deployment cache
   echoDebug "logging deployment to MongoDB"
 
   # Build MongoDB command as array for safe execution
@@ -236,6 +246,7 @@ function findContractInMasterLog() {
   echo "[info] No matching entry found in MongoDB for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
   return 1
 }
+
 function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -280,18 +291,14 @@ function findContractInMasterLogByAddress() {
       # Validate that MONGO_RESULT is valid JSON
       if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
         # Convert MongoDB result to expected format
-        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName')
-        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version')
-        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address')
+        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName // empty')
+        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version // empty')
+        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address // empty')
 
-        # If version missing/empty in record, try to resolve by contract name from master log
-        if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
-          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" 2>/dev/null) || true
-        fi
-
-        # Check for valid contract name and version (version can be empty string but not null)
-        if [[ "$CONTRACT_NAME" != "null" && "$CONTRACT_NAME" != "" ]]; then
-          local JSON_ENTRY="{\"$ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
+        # Version may be empty for legacy rows; never infer from @custom:version or other deployments 
+        if [[ -n "$CONTRACT_NAME" ]]; then
+          # Facet object key must match facetAddresses() casing from the caller (TARGET_ADDRESS)
+          local JSON_ENTRY="{\"$TARGET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
           echo "$JSON_ENTRY"
           return 0
         fi
@@ -467,6 +474,7 @@ function getUnverifiedContractsFromMongo() {
   local ENVIRONMENT="$1"
 
   echoDebug "Getting unverified contracts from MongoDB"
+
   bun script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --verified=false \
@@ -857,10 +865,7 @@ function saveDiamondFacets() {
         if [[ -z "${NAME:-}" ]]; then
           NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS" 2>/dev/null) || true
         fi
-        # Version only from MongoDB (with retries inside getHighestDeployedContractVersionFromMasterLog)
-        if [[ -z "${VERSION:-}" && -n "${NAME:-}" ]]; then
-          VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$NAME" 2>/dev/null) || true
-        fi
+        # Version only from Mongo (above) or preserved from diamond file; do not infer from source or other deployments
         JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"${NAME:-}\", \"Version\": \"${VERSION:-}\"}}"
       fi
       echo "$JSON_ENTRY" >"$FACETS_DIR/${FACET_ADDRESS}.json"
@@ -883,24 +888,58 @@ function saveDiamondFacets() {
 
   local FACETS_JSON='{}'
   if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
-    FACETS_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+    # merge all facet JSON files, ensuring valid JSON output
+    FACETS_JSON=$(jq -s 'add' "${MERGE_FILES[@]}" 2>/dev/null)
+    if [[ $? -ne 0 || -z "$FACETS_JSON" ]]; then
+      warning "[$NETWORK] Failed to merge facet JSON files, using empty object"
+      FACETS_JSON='{}'
+    fi
   fi
 
   # if called in facets-only mode, output to path and skip touching DIAMOND_FILE or periphery
   if [[ "$OUTPUT_MODE" == "facets-only" && -n "$OUTPUT_PATH" ]]; then
-    printf %s "$FACETS_JSON" >"$OUTPUT_PATH"
+    # write properly formatted JSON to output path
+    echo "$FACETS_JSON" | jq . >"$OUTPUT_PATH" 2>/dev/null || echo '{}' >"$OUTPUT_PATH"
   else
-    # ensure diamond file exists
+    # ensure diamond file exists and is valid JSON
     if [[ ! -e $DIAMOND_FILE ]]; then
       echo "{}" >"$DIAMOND_FILE"
+    else
+      # validate existing file is valid JSON, reset if corrupted
+      if ! jq -e . "$DIAMOND_FILE" >/dev/null 2>&1; then
+        warning "[$NETWORK] Existing diamond file is corrupted, resetting to empty object"
+        echo "{}" >"$DIAMOND_FILE"
+      fi
     fi
 
     # write merged facets to diamond file in a single atomic update
-    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
+    result=$(jq --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" '
         .[$diamond_name] = (.[$diamond_name] // {}) |
         .[$diamond_name].Facets = ((.[$diamond_name].Facets // {}) + $facets_obj)
-      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
-    printf %s "$result" >"$DIAMOND_FILE"
+      ' "$DIAMOND_FILE" 2>/dev/null)
+
+    # if merge failed, create fresh structure preserving existing Periphery when available
+    if [[ $? -ne 0 || -z "$result" ]]; then
+      warning "[$NETWORK] Merge failed, creating fresh diamond structure with facets"
+      existing_json=$(cat "$DIAMOND_FILE" 2>/dev/null || echo '{}')
+      EXISTING_PERIPHERY=$(echo "$existing_json" | jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Periphery // {}' 2>/dev/null) || EXISTING_PERIPHERY='{}'
+      result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$FACETS_JSON" --argjson periphery_obj "$EXISTING_PERIPHERY" '
+        {
+          ($diamond_name): {
+            Facets: $facets_obj,
+            Periphery: $periphery_obj
+          }
+        }
+      ' 2>/dev/null)
+    fi
+
+    # write properly formatted JSON
+    if [[ -n "$result" ]]; then
+      echo "$result" | jq . >"$DIAMOND_FILE"
+    else
+      error "[$NETWORK] Failed to generate valid diamond JSON"
+      return 1
+    fi
 
     # add information about registered periphery contracts
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
@@ -970,18 +1009,21 @@ function saveDiamondPeriphery() {
 
   # resolve each periphery address in parallel and write to temp files
   for CONTRACT in ${PERIPHERY_CONTRACTS}; do
-    # throttle background jobs
+    # throttle background jobs; for Tron wait 2s between dispatches to respect RPC rate limits
     while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
-      sleep 0.1
+      if isTronNetwork "$NETWORK"; then sleep 2; else sleep 0.1; fi
     done
 
     (
       ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" 2>/dev/null)
-      if [[ "$ADDRESS" == "$ZERO_ADDRESS" || -z "$ADDRESS" ]]; then
+      # Skip unregistered contracts (zero address in EVM hex or Tron base58 format, or empty)
+      if [[ -z "$ADDRESS" || "$ADDRESS" == "$ZERO_ADDRESS" || "$ADDRESS" == "$TRON_ZERO_ADDRESS_BASE58" ]]; then
         ADDRESS=""
       fi
       echo "{\"$CONTRACT\": \"$ADDRESS\"}" >"$PERIPHERY_DIR/${CONTRACT}.json"
     ) &
+
+    if isTronNetwork "$NETWORK"; then sleep 2; fi
   done
 
   # wait for all background jobs
@@ -1000,23 +1042,58 @@ function saveDiamondPeriphery() {
 
   local PERIPHERY_JSON='{}'
   if [[ ${#MERGE_FILES[@]} -gt 0 ]]; then
-    PERIPHERY_JSON=$(jq -s 'add' "${MERGE_FILES[@]}")
+    # merge all periphery JSON files, ensuring valid JSON output
+    PERIPHERY_JSON=$(jq -s 'add' "${MERGE_FILES[@]}" 2>/dev/null)
+    if [[ $? -ne 0 || -z "$PERIPHERY_JSON" ]]; then
+      warning "[$NETWORK] Failed to merge periphery JSON files, using empty object"
+      PERIPHERY_JSON='{}'
+    fi
   fi
 
   if [[ "$OUTPUT_MODE" == "periphery-only" && -n "$OUTPUT_PATH" ]]; then
-    # write only the periphery object to the given path
-    printf %s "$PERIPHERY_JSON" >"$OUTPUT_PATH"
+    # write properly formatted JSON to output path
+    echo "$PERIPHERY_JSON" | jq . >"$OUTPUT_PATH" 2>/dev/null || echo '{}' >"$OUTPUT_PATH"
+    # cleanup temp dir so it is always removed in this branch (same as shared cleanup below)
+    rm -rf "$TEMP_DIR"
   else
-    # ensure diamond file exists
+    # ensure diamond file exists and is valid JSON
     if [[ ! -e $DIAMOND_FILE ]]; then
       echo "{}" >"$DIAMOND_FILE"
+    else
+      # validate existing file is valid JSON, reset if corrupted
+      if ! jq -e . "$DIAMOND_FILE" >/dev/null 2>&1; then
+        warning "[$NETWORK] Existing diamond file is corrupted, resetting to empty object"
+        echo "{}" >"$DIAMOND_FILE"
+      fi
     fi
     # update diamond file in a single atomic write
-    result=$(jq -r --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
+    result=$(jq --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
         .[$diamond_name] = (.[$diamond_name] // {}) |
         .[$diamond_name].Periphery = $periphery_obj
-      ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
-    printf %s "$result" >"$DIAMOND_FILE"
+      ' "$DIAMOND_FILE" 2>/dev/null)
+
+    # if merge failed, create fresh structure preserving existing Facets when available
+    if [[ $? -ne 0 || -z "$result" ]]; then
+      warning "[$NETWORK] Merge failed, creating fresh diamond structure with periphery"
+      existing_json=$(cat "$DIAMOND_FILE" 2>/dev/null || echo '{}')
+      EXISTING_FACETS=$(echo "$existing_json" | jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Facets // {}' 2>/dev/null) || EXISTING_FACETS='{}'
+      result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$EXISTING_FACETS" --argjson periphery_obj "$PERIPHERY_JSON" '
+        {
+          ($diamond_name): {
+            Facets: $facets_obj,
+            Periphery: $periphery_obj
+          }
+        }
+      ' 2>/dev/null)
+    fi
+
+    # write properly formatted JSON
+    if [[ -n "$result" ]]; then
+      echo "$result" | jq . >"$DIAMOND_FILE"
+    else
+      error "[$NETWORK] Failed to generate valid diamond JSON"
+      return 1
+    fi
   fi
 
   # cleanup
@@ -1148,7 +1225,7 @@ function checkRequiredVariablesInDotEnv() {
     }
 
     # Match lines starting with "network = { key ="
-    tolower($0) ~ "^" network " *= *\\{ *key *= *" {
+    tolower($0) ~ "^" tolower(network) " *= *\\{ *key *= *" {
       n = split($0, parts, "\"");  # Split by double quotes
       for (i = 1; i <= n; i++) {
         if (index(parts[i], "${") == 1) {  # Look for ${...}
@@ -1428,7 +1505,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
   # Check if MAX_CONCURRENT_JOBS is configured
   if [[ -z $MAX_CONCURRENT_JOBS ]]; then
-    error "Your config.sh file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
+    error "Your .env file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
     exit 1
   fi
 
@@ -1436,7 +1513,7 @@ function parseTargetStateGoogleSpreadsheet() {
   if [[ "$ENVIRONMENT" == "production" ]]; then
     # check if config contains spreadsheet ID
     if [[ -z "$TARGET_STATE_SPREADSHEET_ID_PRODUCTION" ]]; then
-      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
+      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
       exit 1
     else
       # construct spreadsheet URL
@@ -1446,7 +1523,7 @@ function parseTargetStateGoogleSpreadsheet() {
   elif [[ "$ENVIRONMENT" == "staging" ]]; then
     # check if config contains spreadsheet ID
     if [[ -z "$TARGET_STATE_SPREADSHEET_ID_STAGING" ]]; then
-      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
+      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
       exit 1
     else
       # construct spreadsheet URL
@@ -1781,7 +1858,7 @@ function getBytecodeFromArtifact() {
 function extractFromVerificationOutput() {
   local OUTPUT="$1"
   local KEY="$2"
-  
+
   if [[ "$KEY" == "Response" ]]; then
     echo "$OUTPUT" | grep -i "${KEY}:" | tail -1 | sed -E 's/.*'"${KEY}"':[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '`' | tr -d "'"
   elif [[ "$KEY" == "Details" ]]; then
@@ -1865,9 +1942,19 @@ function verifyContract() {
 
   echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
 
-  # Add constructor args if present
-  if [ "$ARGS" != "0x" ]; then
+  # Normalize constructor args: use only the first line to avoid passing multiline values
+  # (e.g. from broadcast JSON or jq output), which forge/etherscan can interpret as
+  # multiple arguments and then reject as invalid ABI encoding.
+  ARGS=$(echo "$ARGS" | head -1 | tr -d '\n')
+
+  # Add constructor args only if valid ABI-encoded hex (0x + even number of hex digits).
+  # Reject anything else so forge verify-contract never receives malformed --constructor-args.
+  if [[ -z "$ARGS" || "$ARGS" == "0x" ]]; then
+    :
+  elif [[ "$ARGS" =~ ^0x([0-9a-fA-F]{2})+$ ]]; then
     VERIFY_CMD+=("--constructor-args" "$ARGS")
+  else
+    warning "Skipping invalid constructor args for verify-contract (expected 0x-prefixed hex with an even number of hex digits); not passing --constructor-args."
   fi
 
   # Get API key and determine verification method
@@ -1892,7 +1979,7 @@ function verifyContract() {
     # Check verificationType from networks.json for Blockscout
     local VERIFICATION_TYPE
     VERIFICATION_TYPE=$(jq -r --arg network "$NETWORK" '.[$network].verificationType // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
-    
+
     if [[ "$VERIFICATION_TYPE" = "blockscout" ]]; then
       VERIFY_CMD+=("--verifier" "blockscout")
     elif [[ "$VERIFICATION_TYPE" = "sourcify" ]]; then
@@ -1936,7 +2023,7 @@ function verifyContract() {
   #   Multiple flags: {"-e": "verifyContract", "--skip-is-verified-check": null} -> VERIFY_CMD+=("-e" "verifyContract" "--skip-is-verified-check")
   local CUSTOM_FLAGS
   CUSTOM_FLAGS=$(jq -c --arg network "$NETWORK" '.[$network].customVerificationFlags // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
-  
+
   if [[ -n "$CUSTOM_FLAGS" ]] && [[ "$CUSTOM_FLAGS" != "null" ]] && [[ "$CUSTOM_FLAGS" != "{}" ]] && [[ "$CUSTOM_FLAGS" != "\"\"" ]]; then
     # Parse the JSON object and add each flag-value pair to VERIFY_CMD
     while IFS= read -r flag_entry; do
@@ -1987,7 +2074,7 @@ function verifyContract() {
         fi
         continue
       fi
-      
+
       error "Verification command failed with exit code $VERIFY_EXIT_CODE"
       if [ -z "$VERIFY_OUTPUT" ]; then
         error "No output from verification command. This may indicate a network error, invalid API key, or command syntax issue."
@@ -2015,7 +2102,7 @@ function verifyContract() {
 
     # Log parsed values for debugging
     echoDebug "Parsed initial response - Response: '$RESPONSE', Details: '$DETAILS'"
-    
+
     # If no response found in output, display raw output for debugging
     if [ -z "$RESPONSE" ] && [ -z "$DETAILS" ]; then
       warning "Could not parse verification response from output. Raw output:"
@@ -2026,7 +2113,7 @@ function verifyContract() {
     # This prevents false positives where API returns OK but contract isn't actually verified
     echo "[info] Verifying final verification status with verify-check..."
     sleep 5
-    
+
     # Check final status
     local CHECK_CMD=()
     if isZkEvmNetwork "$NETWORK"; then
@@ -2133,7 +2220,7 @@ function getEtherscanApiKeyName() {
   fi
 
   if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
-    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    echo "Please set FOUNDRY_TOML_FILE_PATH in your .env file (see .env.example)" >&2
     return 1
   fi
 
@@ -2171,7 +2258,7 @@ function getVerifierUrlFromFoundryToml() {
   fi
 
   if [[ -z "$FOUNDRY_TOML_FILE_PATH" ]]; then
-    echo "Please set FOUNDRY_TOML_FILE_PATH in the config.sh file (see config.example.sh)" >&2
+    echo "Please set FOUNDRY_TOML_FILE_PATH in your .env file (see .env.example)" >&2
     return 1
   fi
 
@@ -2557,10 +2644,13 @@ function updateAllContractsToTargetState() {
               # known by diamond
               # extract version
               #ADDRESS=$(echo "$CONTRACT_INFO" | jq -r 'keys[]' ) # TODO: remove
-              KNOWN_VERSION=$(echo "$CONTRACT_INFO" | jq -r '.[].Version')
+              KNOWN_VERSION=$(echo "$CONTRACT_INFO" | jq -r '.[].Version // empty')
 
-              # check if current version matches with target version
-              if [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
+              # Empty/unknown deployed version must not be treated as up-to-date
+              if [[ -z "$KNOWN_VERSION" || "$KNOWN_VERSION" == "null" ]]; then
+                echo "[info]     unknown deployed version for $CONTRACT; deployment check required" # TODO: remove
+                DEPLOYMENT_REQUIRED=true
+              elif [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
                 echo "[info]     versions do not match ($TARGET_VERSION!=$KNOWN_VERSION)" # TODO: remove
                 DEPLOYMENT_REQUIRED=true
               else
@@ -3649,11 +3739,11 @@ function getPrivateKey() {
 
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
-# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts
-# - Staging / Tron: send directly via universalCast sendRaw. When sending directly, timelock is never used.
+# - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
+# - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
 #   network, environment, target, calldata: required
-#   timelock: only when proposing; "true" = wrap in timelock, "false" = propose without; ignored when sending directly
+#   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
 function sendOrPropose() {
   local NETWORK="$1"
@@ -3675,23 +3765,13 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Tron or EVM staging: direct send via universalCast sendRaw
-  if isTronNetwork "$NETWORK"; then
+  # Non-production or direct-to-diamond: send directly for all networks
+  if [[ "$ENVIRONMENT" != "production" ]] || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]]; then
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi
 
-  if [[ "$ENVIRONMENT" != "production" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
-  # EVM production: SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true sends directly; otherwise propose to Safe
-  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
-  fi
-
+  # Resolve private key
   local SAFE_SIGNER_KEY
   if [[ -n "$PRIVATE_KEY_OVERRIDE" ]]; then
     SAFE_SIGNER_KEY="$PRIVATE_KEY_OVERRIDE"
@@ -3701,6 +3781,25 @@ function sendOrPropose() {
       return 1
     }
   fi
+
+  # Tron: propose to Safe via tron script
+  if isTronNetwork "$NETWORK"; then
+    local PROPOSE_TRON_CMD=(
+      bunx tsx script/deploy/tron/propose-to-safe-tron.ts
+      --to "$TARGET"
+      --calldata "$CALLDATA"
+      --privateKey "$SAFE_SIGNER_KEY"
+    )
+    if [[ "$TIMELOCK" == "true" ]]; then
+      PROPOSE_TRON_CMD+=(--timelock)
+    else
+      PROPOSE_TRON_CMD+=(--direct)
+    fi
+    "${PROPOSE_TRON_CMD[@]}"
+    return $?
+  fi
+
+  # EVM: propose to Safe
   local PROPOSE_CMD=(
     bunx tsx script/deploy/safe/propose-to-safe.ts
     --network "$NETWORK"
@@ -3743,7 +3842,7 @@ function isZkEvmNetwork() {
   fi
 }
 
-function isActiveMainnet() {
+function isNetworkActive() {
   # read function arguments into variables
   local NETWORK="$1"
 
@@ -3753,11 +3852,10 @@ function isActiveMainnet() {
     return 1 # false
   fi
 
-  local TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
   local STATUS=$(jq -r --arg network "$NETWORK" '.[$network].status // empty' "$NETWORKS_JSON_FILE_PATH")
 
-  # Check if both values are present and match required conditions
-  if [[ "$TYPE" == "mainnet" && "$STATUS" == "active" ]]; then
+  # Treat any active network as eligible, including testnets.
+  if [[ "$STATUS" == "active" ]]; then
     return 0 # true
   else
     return 1 # false
@@ -4377,30 +4475,30 @@ function isVersionTag() {
 #   EXTRACTED=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
 function extractJsonFromForgeOutput() {
   local RAW_RETURN_DATA="$1"
-  
+
   # If already valid JSON, return as-is
   if echo "$RAW_RETURN_DATA" | jq empty 2>/dev/null; then
     echo "$RAW_RETURN_DATA"
     return 0
   fi
-  
+
   # Preserve original data for fallback
   local ORIGINAL_RAW_RETURN_DATA="$RAW_RETURN_DATA"
-  
+
   # Try to extract JSON object with "logs" key using grep
   local TMP_RAW_RETURN_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | head -1)
   if [[ -n "$TMP_RAW_RETURN_DATA" ]] && echo "$TMP_RAW_RETURN_DATA" | jq empty 2>/dev/null; then
     echo "$TMP_RAW_RETURN_DATA"
     return 0
   fi
-  
+
   # Fallback: try jq extraction on original data
   local EXTRACTED=$(echo "$ORIGINAL_RAW_RETURN_DATA" | jq -c 'if type=="object" and has("logs") then . else empty end' 2>/dev/null | head -1)
   if [[ -n "$EXTRACTED" ]]; then
     echo "$EXTRACTED"
     return 0
   fi
-  
+
   # If all extraction attempts fail, return original
   echo "$ORIGINAL_RAW_RETURN_DATA"
   return 1
@@ -4424,45 +4522,48 @@ function extractJsonFromForgeOutput() {
 function executeAndCapture() {
   local COMMAND="$1"
   local EXTRACT_JSON="${2:-false}"
-  
+
   # Create temporary files to capture stdout and stderr separately
   # This ensures we can extract JSON from stdout while keeping stderr logs for debugging
   local STDOUT_LOG
   local STDERR_LOG
   STDOUT_LOG="$(mktemp)"
   STDERR_LOG="$(mktemp)"
-  
+
   # Preserve caller EXIT trap (this file is sourced in many scripts)
   local _OLD_EXIT_TRAP
   _OLD_EXIT_TRAP="$(trap -p EXIT 2>/dev/null || true)"
   trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null' EXIT
-  
+
   # Execute command with redirection
   eval "$COMMAND" >"$STDOUT_LOG" 2>"$STDERR_LOG"
   local RETURN_CODE=$?
-  
+
   # Read stdout (should contain JSON) and stderr (warnings/errors) separately
   local RAW_RETURN_DATA=$(cat "$STDOUT_LOG" 2>/dev/null || echo "")
   local STDERR_CONTENT=$(cat "$STDERR_LOG" 2>/dev/null || echo "")
-  
+
   # Debug: Show what we captured
   echoDebug "=== RAW_RETURN_DATA (stdout) ==="
   echoDebug "$RAW_RETURN_DATA"
-  
+  echoDebug "=== STDERR_CONTENT (stderr) ==="
+  echoDebug "$STDERR_CONTENT"
+
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
+    printf '%s' "$RAW_RETURN_DATA" >"$STDOUT_LOG"
   fi
-  
+
   # Escape JSON strings properly for jq
   # Use jq to create a properly escaped JSON object
   local JSON_RESULT
   JSON_RESULT=$(jq -n \
-    --arg stdout "$RAW_RETURN_DATA" \
-    --arg stderr "$STDERR_CONTENT" \
+    --rawfile stdout "$STDOUT_LOG" \
+    --rawfile stderr "$STDERR_LOG" \
     --argjson returnCode "$RETURN_CODE" \
     '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
-  
+
   # Explicit cleanup + restore previous EXIT trap
   rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
   if [[ -n "$_OLD_EXIT_TRAP" ]]; then
@@ -4470,10 +4571,10 @@ function executeAndCapture() {
   else
     trap - EXIT
   fi
-  
+
   # Output JSON to stdout
   echo "$JSON_RESULT"
-  
+
   return $RETURN_CODE
 }
 
@@ -4492,7 +4593,7 @@ function executeAndCapture() {
 #   # Parse only (no error check)
 #   parseExecuteCommandResult "$RESULT"
 #   echo "$RAW_RETURN_DATA"
-#   
+#
 #   # Parse and check return code
 #   if ! parseExecuteCommandResult "$RESULT" "forge script failed for $SCRIPT on network $NETWORK" "continue" >/dev/null; then
 #     continue
@@ -4501,16 +4602,16 @@ function parseExecuteCommandResult() {
   local RESULT="$1"
   local ERROR_MESSAGE="${2:-}"
   local ON_ERROR_ACTION="${3:-return}"
-  
+
   # Parse JSON result and merge into single object using jq
   local PARSED
   PARSED=$(echo "$RESULT" | jq -c '{stdout: .stdout, stderr: .stderr, returnCode: .returnCode}')
-  
+
   # Extract and set variables from merged JSON object
   RAW_RETURN_DATA=$(echo "$PARSED" | jq -r '.stdout')
   STDERR_CONTENT=$(echo "$PARSED" | jq -r '.stderr')
   RETURN_CODE=$(echo "$PARSED" | jq -r '.returnCode')
-  
+
   # If error message provided, check return code and handle errors
   if [[ -n "$ERROR_MESSAGE" ]]; then
     if [[ "$RETURN_CODE" -ne 0 ]]; then
@@ -4521,7 +4622,7 @@ function parseExecuteCommandResult() {
       if [[ -n "$RAW_RETURN_DATA" ]]; then
         echoDebug "stdout: $RAW_RETURN_DATA"
       fi
-      
+
       case "$ON_ERROR_ACTION" in
         "continue")
           return 1  # Caller should handle continue
@@ -4535,7 +4636,7 @@ function parseExecuteCommandResult() {
       esac
     fi
   fi
-  
+
   return 0
 }
 
@@ -4555,7 +4656,7 @@ function parseExecuteCommandResult() {
 #   # Execute and parse (no error check)
 #   executeAndParse 'forge script ...' "true"
 #   echo "$RAW_RETURN_DATA"
-#   
+#
 #   # Execute, parse, and check return code
 #   if ! executeAndParse 'forge script ...' "true" "forge script failed" "continue"; then
 #     continue
@@ -4565,24 +4666,24 @@ function executeAndParse() {
   local EXTRACT_JSON="${2:-false}"
   local ERROR_MESSAGE="${3:-}"
   local ON_ERROR_ACTION="${4:-return}"
-  
+
   # Execute command and capture output
   local RESULT
   RESULT=$(executeAndCapture "$COMMAND" "$EXTRACT_JSON")
   local CAPTURE_EXIT_CODE=$?
-  
+
   # Parse result and set global variables (RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE)
   # If ERROR_MESSAGE is provided, parseExecuteCommandResult will handle error checking
   if ! parseExecuteCommandResult "$RESULT" "$ERROR_MESSAGE" "$ON_ERROR_ACTION"; then
     return $?
   fi
-  
+
   # If no error message provided, return the capture exit code
   # (caller can check RETURN_CODE global variable if needed)
   if [[ -z "$ERROR_MESSAGE" ]]; then
     return $CAPTURE_EXIT_CODE
   fi
-  
+
   # If error message was provided and parseExecuteCommandResult succeeded,
   # RETURN_CODE is 0 (already verified by parseExecuteCommandResult)
   return 0
@@ -4841,19 +4942,45 @@ function updateDiamondLogForNetwork() {
   if [[ ! -s "$FACETS_TMP" ]]; then echo '{}' >"$FACETS_TMP"; fi
   if [[ ! -s "$PERIPHERY_TMP" ]]; then echo '{}' >"$PERIPHERY_TMP"; fi
 
-  # ensure diamond file exists
+  # ensure diamond file exists and is valid JSON
   if [[ ! -e $DIAMOND_FILE ]]; then
     echo "{}" >"$DIAMOND_FILE"
+  else
+    # validate existing file is valid JSON, reset if corrupted
+    if ! jq -e . "$DIAMOND_FILE" >/dev/null 2>&1; then
+      warning "[$NETWORK] Existing diamond file is corrupted, resetting to empty object"
+      echo "{}" >"$DIAMOND_FILE"
+    fi
   fi
 
   # merge facets and periphery into diamond file atomically
   local MERGED
-  MERGED=$(jq -r --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
+  MERGED=$(jq --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
       .[$diamond_name] = (.[$diamond_name] // {}) |
       .[$diamond_name].Facets = $facets[0] |
       .[$diamond_name].Periphery = $periphery[0]
-    ' "$DIAMOND_FILE" || cat "$DIAMOND_FILE")
-  printf %s "$MERGED" >"$DIAMOND_FILE"
+    ' "$DIAMOND_FILE" 2>/dev/null)
+
+  # if merge failed, create fresh structure from temp files
+  if [[ $? -ne 0 || -z "$MERGED" ]]; then
+    warning "[$NETWORK] Merge failed, creating fresh diamond structure"
+    MERGED=$(jq -n --arg diamond_name "$DIAMOND_NAME" --slurpfile facets "$FACETS_TMP" --slurpfile periphery "$PERIPHERY_TMP" '
+      {
+        ($diamond_name): {
+          Facets: $facets[0],
+          Periphery: $periphery[0]
+        }
+      }
+    ' 2>/dev/null)
+  fi
+
+  # write merged JSON with proper formatting
+  if [[ -n "$MERGED" ]]; then
+    echo "$MERGED" | jq . >"$DIAMOND_FILE"
+  else
+    error "[$NETWORK] Failed to generate valid diamond JSON"
+    return 1
+  fi
 
   # clean up
   rm -rf "$TEMP_DIR"

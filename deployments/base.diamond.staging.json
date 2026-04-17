@@ -57,9 +57,9 @@
         "Name": "MayanFacet",
         "Version": "1.2.2"
       },
-      "0x06A8fA5B326F663507FfF045B90351a9DCF3f9B1": {
+      "0xddC0660b5090B560795EAd23241d855C919441CF": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
         "Name": "",
@@ -69,9 +69,9 @@
         "Name": "GardenFacet",
         "Version": "1.0.0"
       },
-      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
+      "0xF158ac0983D6D4eF8Ef65De7B39585B8381Fe570": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": "3.0.0"
       },
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
@@ -79,19 +79,19 @@
       }
     },
     "Periphery": {
-      "ERC20Proxy": "",
-      "Executor": "",
+      "ERC20Proxy": "0xC87e9C07db776bd167bEFc3a6d46797BCf343313",
+      "Executor": "0xaD2cc66a7dC1e5adFE4419355D8b128845E77f04",
       "FeeCollector": "0x8354CdFA9FD680e53a4AAAecbf7dfB22665c36Ec",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xa89c674d04E44AD24D38298097e94281BF93f9AD",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
     }

@@ -48,6 +48,18 @@
       "0x5aca0693c83b315800903Bb6f09E6A7473022B81": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
+      },
+      "0x0230ABdBa65A79bEA3D71FFF88295c63aDa2a6eA": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0x0A1b4FdB98A79597b8DbF032B2C6C9Bf24bC78ee": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
+      },
+      "0xAe1585f6Ec7AC7589192cEAd7184D478906D4dB0": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -64,7 +76,7 @@
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
-      "ReceiverStargateV2": "",
+      "ReceiverStargateV2": "0x81c9d514A6D1470E83DD8c8AC952C6c0D89c3d0C",
       "TokenWrapper": ""
     }
   }
