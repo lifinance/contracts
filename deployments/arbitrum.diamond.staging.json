@@ -27,7 +27,7 @@
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",

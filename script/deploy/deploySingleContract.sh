@@ -360,13 +360,26 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
-  local JSON_DATA
-  JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
-  
-  # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
-  if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
-    JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+  # Prefer broadcast artifact (reliable); fall back to forge stdout (can contain newlines/stray "0x" in value)
+  local BROADCAST_JSON="broadcast/$(basename "$FULL_SCRIPT_PATH")/$(getChainId "$NETWORK")/run-latest.json"
+  if [[ -f "$BROADCAST_JSON" ]]; then
+    CONSTRUCTOR_ARGS=$(jq -r '.returns.constructorArgs.value // "0x"' "$BROADCAST_JSON" 2>/dev/null)
+  fi
+  if [[ -z "${CONSTRUCTOR_ARGS:-}" || "$CONSTRUCTOR_ARGS" == "null" ]]; then
+    local JSON_DATA
+    JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+    if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+      JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+    fi
+    CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+  fi
+  # Sanitize: forge stdout can embed newline + "0x" in the value, which breaks Etherscan verification
+  CONSTRUCTOR_ARGS=$(printf '%s' "${CONSTRUCTOR_ARGS:-0x}" | tr -d '\n\r\t ')
+  if [[ ${#CONSTRUCTOR_ARGS} -gt 322 && "${CONSTRUCTOR_ARGS: -2}" == "0x" ]]; then
+    local WITHOUT_TRAILING="${CONSTRUCTOR_ARGS%0x}"
+    if [[ $((${#WITHOUT_TRAILING} % 64)) -eq 2 ]]; then
+      CONSTRUCTOR_ARGS="$WITHOUT_TRAILING"
+    fi
   fi
   
   CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
