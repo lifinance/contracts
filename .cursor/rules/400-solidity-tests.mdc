@@ -14,7 +14,9 @@ globs:
 
 ## Test Naming
 
-- Function names: `test_` (success), `testRevert_` (failure), `testBase_` (base).
+- **Exactly one underscore** in the function name: between the prefix and the test name (e.g. `test_CanExecuteCalldata`, `testRevert_WhenCalledWithInvalidCalldata`). No extra underscores inside the test name.
+- **Prefixes:** `test_` (success), `testRevert_` (failure), `testBase_` (base).
+- **Test name (after the underscore):** CamelCase, no internal underscores (e.g. `CanExecuteCalldataUsingEip2612SignatureUsdc`, not `can_execute_calldata_using_eip2612_signature_usdc`).
 
 ## Test Structure and Assertions
 
