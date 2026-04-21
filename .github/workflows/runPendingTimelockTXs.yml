@@ -1,3 +1,16 @@
+# Timelock Auto Execution
+# - Executes pending LiFiTimelockController transactions whose delay has elapsed
+# - Triggers: every 10 minutes (cron) and manual workflow_dispatch
+# - Key behaviors:
+#     * Scheduled runs are gated by repo variable ENABLE_TIMELOCK_AUTO_EXECUTION=="true"
+#     * Manual dispatch always runs (GitHub requires write access to dispatch)
+#     * Connects to a VPN before running; egress IP is verified against an allow-listed address
+#     * Runs script/deploy/safe/execute-pending-timelock-tx.ts, captures log, posts Slack fallback on failure
+#     * Uploads execution.log as an artifact (7-day retention)
+# - Known limitations:
+#     * VPN egress IP is hardcoded; rotation requires a workflow edit
+#     * Slack fallback only fires when the executor step exits non-zero
+
 name: Timelock Auto Execution
 
 on:
@@ -7,6 +20,12 @@ on:
   workflow_dispatch:
     # Allow manual execution by users with write access
 
+# Prevent overlapping runs; a previous run must finish before the next cron tick starts
+# another execution against the same timelock state.
+concurrency:
+  group: timelock-auto-execution
+  cancel-in-progress: false
+
 jobs:
   execute-timelock:
     # For scheduled runs, only proceed if the repo variable is "true".
@@ -14,14 +33,14 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read # required to checkout the repository
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
           bun-version: latest
 
@@ -160,7 +179,7 @@ jobs:
 
       - name: Upload execution logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: timelock-execution-logs
           path: execution.log
