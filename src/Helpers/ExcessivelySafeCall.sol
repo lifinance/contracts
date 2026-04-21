@@ -8,6 +8,8 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
 // solhint-disable no-inline-assembly
 /// @custom:version 1.0.0
+/// @custom:deprecated This library is deprecated and will be removed in a future release.
+///                    It is no longer used in any active contracts. Do not use in new code.
 library ExcessivelySafeCall {
     uint256 private constant LOW_28_MASK =
         0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
