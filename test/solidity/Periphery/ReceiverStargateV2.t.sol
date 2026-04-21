@@ -9,6 +9,7 @@ import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { OFTComposeMsgCodec } from "lifi/Libraries/OFTComposeMsgCodec.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 address constant ENDPOINT_V2_MAINNET = 0x1a44076050125825900e736c501f859c50fE728c;
 address constant STARGATE_NATIVE_POOL_MAINNET = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
@@ -299,7 +300,199 @@ contract ReceiverStargateV2Test is TestBase {
         assertTrue(dai.balanceOf(receiverAddress) == amountOutMin);
     }
 
+    function test_lzCompose_nativeRecoveryWhenLowGas() public {
+        // Deploy a receiver with an absurdly-high recoverGas so the low-gas branch always fires
+        ReceiverStargateV2 recoveryReceiver = new ReceiverStargateV2(
+            address(this),
+            address(executor),
+            STARGATE_TOKEN_MESSAGING_MAINNET,
+            ENDPOINT_V2_MAINNET,
+            2_000_000_000
+        );
+
+        uint256 amount = defaultUSDCAmount;
+        vm.deal(address(recoveryReceiver), amount);
+
+        (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
+            ADDRESS_USDC,
+            ADDRESS_DAI
+        );
+
+        vm.startPrank(STARGATE_NATIVE_POOL_MAINNET);
+        IMessagingComposer(ENDPOINT_V2_MAINNET).sendCompose(
+            address(recoveryReceiver),
+            guid,
+            0,
+            composeMsg
+        );
+
+        address nonPermissionedUser = makeAddr("nonPermissionedUserNative");
+        vm.startPrank(nonPermissionedUser);
+
+        uint256 balanceBefore = receiverAddress.balance;
+
+        vm.expectEmit(true, false, false, true, address(recoveryReceiver));
+        emit LiFiTransferRecovered(
+            bytes32(0),
+            address(0),
+            receiverAddress,
+            amount,
+            block.timestamp
+        );
+
+        IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
+            STARGATE_NATIVE_POOL_MAINNET,
+            address(recoveryReceiver),
+            "",
+            0,
+            composeMsg,
+            ""
+        );
+
+        assertEq(receiverAddress.balance, balanceBefore + amount);
+    }
+
+    function test_lzCompose_erc20RecoveryWhenLowGas() public {
+        // Deploy a receiver with an absurdly-high recoverGas so the low-gas branch always fires
+        ReceiverStargateV2 recoveryReceiver = new ReceiverStargateV2(
+            address(this),
+            address(executor),
+            STARGATE_TOKEN_MESSAGING_MAINNET,
+            ENDPOINT_V2_MAINNET,
+            2_000_000_000
+        );
+
+        deal(ADDRESS_USDC, address(recoveryReceiver), defaultUSDCAmount);
+
+        (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
+            ADDRESS_USDC,
+            ADDRESS_DAI
+        );
+
+        vm.startPrank(STARGATE_USDC_POOL_MAINNET);
+        IMessagingComposer(ENDPOINT_V2_MAINNET).sendCompose(
+            address(recoveryReceiver),
+            guid,
+            0,
+            composeMsg
+        );
+
+        address nonPermissionedUser = makeAddr("nonPermissionedUserERC20");
+        vm.startPrank(nonPermissionedUser);
+
+        uint256 balanceBefore = IERC20(ADDRESS_USDC).balanceOf(receiverAddress);
+
+        vm.expectEmit(true, false, false, true, address(recoveryReceiver));
+        emit LiFiTransferRecovered(
+            bytes32(0),
+            ADDRESS_USDC,
+            receiverAddress,
+            defaultUSDCAmount,
+            block.timestamp
+        );
+
+        IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
+            STARGATE_USDC_POOL_MAINNET,
+            address(recoveryReceiver),
+            "",
+            0,
+            composeMsg,
+            ""
+        );
+
+        assertEq(
+            IERC20(ADDRESS_USDC).balanceOf(receiverAddress),
+            balanceBefore + defaultUSDCAmount
+        );
+    }
+
+    function test_lzCompose_erc20RecoveryWhenSwapFails() public {
+        deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
+
+        // Build compose msg with an impossible amountOutMin so the swap always reverts
+        bytes memory composeMsg = _getFailingSwapLzComposeCalldata(
+            ADDRESS_USDC,
+            ADDRESS_DAI
+        );
+
+        vm.startPrank(STARGATE_USDC_POOL_MAINNET);
+        IMessagingComposer(ENDPOINT_V2_MAINNET).sendCompose(
+            address(receiver),
+            guid,
+            0,
+            composeMsg
+        );
+
+        address nonPermissionedUser = makeAddr("nonPermissionedUserSwapFail");
+        vm.startPrank(nonPermissionedUser);
+
+        uint256 balanceBefore = IERC20(ADDRESS_USDC).balanceOf(receiverAddress);
+
+        vm.expectEmit(true, false, false, true, address(receiver));
+        emit LiFiTransferRecovered(
+            bytes32(0),
+            ADDRESS_USDC,
+            receiverAddress,
+            defaultUSDCAmount,
+            block.timestamp
+        );
+
+        IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
+            STARGATE_USDC_POOL_MAINNET,
+            address(receiver),
+            "",
+            0,
+            composeMsg,
+            ""
+        );
+
+        assertEq(
+            IERC20(ADDRESS_USDC).balanceOf(receiverAddress),
+            balanceBefore + defaultUSDCAmount
+        );
+    }
+
     // HELPER FUNCTIONS
+    function _getFailingSwapLzComposeCalldata(
+        address _sendingAssetId,
+        address _receivingAssetId
+    ) internal view returns (bytes memory callData) {
+        address[] memory path = new address[](2);
+        path[0] = _sendingAssetId;
+        path[1] = _receivingAssetId;
+
+        uint256 amountIn = defaultUSDCAmount;
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: _sendingAssetId,
+            receivingAssetId: _receivingAssetId,
+            fromAmount: amountIn,
+            callData: abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                type(uint256).max, // impossible amountOutMin — always reverts
+                path,
+                address(executor),
+                block.timestamp + 20 minutes
+            ),
+            requiresDeposit: true
+        });
+
+        bytes memory offSetBytes32 = new bytes(32);
+        bytes memory payload = mergeBytes(
+            offSetBytes32,
+            abi.encode(guid, swapData, receiverAddress)
+        );
+
+        uint64 nonce = uint64(12345645);
+        uint32 srcEid = 30102;
+
+        callData = OFTComposeMsgCodec.encode(nonce, srcEid, amountIn, payload);
+    }
+
     function mergeBytes(
         bytes memory a,
         bytes memory b
