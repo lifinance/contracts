@@ -69,4 +69,18 @@ contract TransferrableOwnershipTest is DSTest {
 
         ownable.transferOwnership(newOwner);
     }
+
+    function test_OwnerCanCancelOwnershipTransfer() public {
+        address newOwner = address(0x1234567890123456789012345678901234567890);
+        ownable.transferOwnership(newOwner);
+        assertEq(ownable.pendingOwner(), newOwner);
+
+        ownable.cancelOwnershipTransfer();
+        assertEq(ownable.pendingOwner(), address(0));
+    }
+
+    function testRevert_CannotCancelWhenNoPendingTransfer() public {
+        vm.expectRevert(NoPendingOwnershipTransfer.selector);
+        ownable.cancelOwnershipTransfer();
+    }
 }
