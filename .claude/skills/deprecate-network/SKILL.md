@@ -1,0 +1,1 @@
+../../../.agents/commands/deprecate-network.md

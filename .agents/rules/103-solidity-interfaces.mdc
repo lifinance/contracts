@@ -1,0 +1,31 @@
+---
+name: Solidity interfaces
+description: Interface-only rules for Solidity interfaces in src/Interfaces
+globs:
+  - 'src/Interfaces/**/*.sol'
+paths:
+  - 'src/Interfaces/**/*.sol'
+---
+
+## Interface File Requirements
+
+- **Production interfaces** (used in `src/`) must be Solidity `.sol` files located in `src/Interfaces/`; do not place production interfaces elsewhere.
+- **Test interfaces**: Test files may define inline interfaces as needed for testing purposes.
+- **Separation**: Do not mix interface and implementation in the same file.
+
+## NatSpec ([CONV:INTERFACE-NATSPEC])
+
+Use **single-line `///`** NatSpec (not block `/** */`) for consistency with the majority of interfaces in this folder.
+
+- **Interface-level**: Include, in order: `@title` (match interface name exactly, e.g. `IAcrossSpokePoolV4`), `@notice` (one-line purpose), `@author LI.FI (https://li.fi)`, `@custom:version X.Y.Z`. Add `@dev` when shadowing upstream (e.g. protocol repo path or link).
+- **Enums**: One `@notice` above the enum describing the enum’s purpose.
+- **Structs**: One `@notice` above the struct; optional `@dev` for upstream struct name/path. **Struct members**: prefer **inline `//`** (short phrase on same line as member) when documenting; no `@param` block required for struct members. Omit member comments when fields are obvious.
+- **Functions**: `@notice` (brief behavior), `@param` for every parameter (short phrase each), and `@return` when the function returns a value.
+- Keep NatSpec concise; avoid duplicating the signature in prose.
+
+## Naming Conventions
+
+- Interfaces must start with `I*` prefix (e.g., `IStargate`, `IEcoPortal`).
+- Parameter naming: follow [CONV:NAMING]; use descriptive, lowerCamelCase names that match the upstream protocol where practical, but prefer local clarity over blindly mirroring odd upstream names.
+- Upstream references: when copying from or shadowing an external protocol, add a short NatSpec note with a link or identifier that references the original contract or documentation.
+- Scope: only include the structs/events/functions that are actually used by our code; avoid copying the entire upstream interface surface if it is not needed.

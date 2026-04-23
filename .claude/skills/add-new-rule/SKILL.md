@@ -1,0 +1,1 @@
+../../../.agents/commands/add-new-rule.md
