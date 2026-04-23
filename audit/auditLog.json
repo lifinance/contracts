@@ -559,6 +559,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.04.09_AcrossV4SwapFacet(v1.0.0).pdf",
       "auditCommitHash": "514f03cb5942c16c4de013ef264b5d55d87e7b9c"
+    },
+    "audit20260423": {
+      "auditCompletedOn": "23.04.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.04.23_PolymerCCTPFacet(v2.0.1).pdf",
+      "auditCommitHash": "f2be9c06a9080629c0dfdfc13759c9f66cac162c"
     }
   },
   "auditedContracts": {
@@ -843,7 +850,8 @@
     },
     "PolymerCCTPFacet": {
       "1.0.0": ["audit20251201"],
-      "2.0.0": ["audit20260216"]
+      "2.0.0": ["audit20260216"],
+      "2.0.1": ["audit20260423"]
     },
     "Receiver": {
       "2.0.3": ["audit20250109_3"],

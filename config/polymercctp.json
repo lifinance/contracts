@@ -1,5 +1,7 @@
 {
   "Note: Networks with missing polymerFeeReceiver are not supported by Polymer yet and will be added later": {},
+  "Source for TokenMessengerV2 addresses and CCTP domain IDs (to be used in Facet): https://developers.circle.com/cctp/references/contract-addresses#tokenmessengerv2": {},
+  "Source for USDC addresses: https://developers.circle.com/stablecoins/usdc-contract-addresses": {},
   "mainnet": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -43,6 +45,11 @@
   "optimism": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "pharos": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xC879C018dB60520F4355C26eD1a6D572cdAC1815",
     "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "plume": {
