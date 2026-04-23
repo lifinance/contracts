@@ -127,6 +127,7 @@ jobs:
             2>&1 | tee execution.log
 
       - name: Notify Slack on workflow failure
+        # Fallback only — skip if the executor already emitted its own batch summary to Slack
         if: failure()
         env:
           # All values flow via env to avoid ${{ }} expansion inside shell/Python (template-injection risk).
@@ -137,6 +138,12 @@ jobs:
           ##### Fallback notification for when the script crashes before its own SlackNotifier can fire.
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
             echo -e "\033[33m⚠️ No Slack webhook configured, skipping notification\033[0m"
+            exit 0
+          fi
+          # If the executor ran far enough to emit its own batch summary, it has already
+          # notified Slack; avoid duplicate messages.
+          if [ -f execution.log ] && grep -q "Parallel execution summary" execution.log; then
+            echo "Executor already sent its own Slack summary; skipping fallback."
             exit 0
           fi
 
