@@ -1,0 +1,219 @@
+# Timelock Auto Execution
+# - Executes pending LiFiTimelockController transactions whose delay has elapsed
+# - Triggers: every 10 minutes (cron) and manual workflow_dispatch
+# - Key behaviors:
+#     * Scheduled runs are gated by repo variable ENABLE_TIMELOCK_AUTO_EXECUTION=="true"
+#     * Manual dispatch always runs (GitHub requires write access to dispatch)
+#     * Connects to a VPN before running; egress IP is verified against an allow-listed address
+#     * Runs script/deploy/safe/execute-pending-timelock-tx.ts, captures log, posts Slack fallback on failure
+#     * Uploads execution.log as an artifact (7-day retention)
+# - Required repo configuration:
+#     * vars.ENABLE_TIMELOCK_AUTO_EXECUTION ("true" to enable scheduled runs)
+#     * vars.TIMELOCK_VPN_EGRESS_IP (expected public IP after VPN connects)
+#     * secrets.TIMELOCK_OVPN_CONFIG (base64-encoded .ovpn config with inline certs)
+#     * secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY (EOA private key used to sign and submit the
+#         LiFiTimelockController.execute() transactions; must be funded for gas on every target chain)
+#     * secrets.TIMELOCK_SLACK_WEBHOOK_URL (incoming webhook URL used both by the executor script's
+#         SlackNotifier and by this workflow's fallback failure notification step)
+#     * secrets.SC_MONGODB_URI (MongoDB connection string; the script reads pending Safe tx
+#         documents from this DB to discover which timelock operations are candidates for execution)
+# - Known limitations:
+#     * Slack fallback only fires when the executor step exits non-zero
+#     * Job timeout caps runtime; very large multi-network runs may need a higher value
+
+name: Timelock Auto Execution
+
+on:
+  schedule:
+    # Run every 10 minutes
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    # Allow manual execution by users with write access
+
+# Prevent overlapping runs; a previous run must finish before the next cron tick starts
+# another execution against the same timelock state.
+concurrency:
+  group: timelock-auto-execution
+  cancel-in-progress: false
+
+jobs:
+  execute-timelock:
+    # For scheduled runs, only proceed if the repo variable is "true".
+    # Manual dispatch (workflow_dispatch) always runs regardless.
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
+    runs-on: ubuntu-latest
+    # Cap runtime; a stuck VPN or hung RPC loop would otherwise idle up to GitHub's 6h default.
+    timeout-minutes: 20
+    permissions:
+      contents: read # required to checkout the repository
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false # no git writes needed; avoid leaving GITHUB_TOKEN in .git/config
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate typechain
+        run: bun typechain
+
+      - name: Connect to VPN
+        env:
+          OVPN_CONFIG_B64: ${{ secrets.TIMELOCK_OVPN_CONFIG }}
+          EXPECTED_EGRESS_IP: ${{ vars.TIMELOCK_VPN_EGRESS_IP }}
+        run: |
+          set -eu
+
+          ##### Validate inputs early
+          if [ -z "${EXPECTED_EGRESS_IP}" ]; then
+            echo -e "\033[31m::error::vars.TIMELOCK_VPN_EGRESS_IP is not set\033[0m"
+            exit 1
+          fi
+          if [ -z "${OVPN_CONFIG_B64}" ]; then
+            echo -e "\033[31m::error::secrets.TIMELOCK_OVPN_CONFIG is not set\033[0m"
+            exit 1
+          fi
+
+          ##### Install OpenVPN
+          sudo apt-get update -qq
+          sudo apt-get install -yqq openvpn > /dev/null
+
+          ##### Write .ovpn config from base64-encoded secret
+          # Generate with: base64 -w 0 < your-config.ovpn
+          # Ensure all certs/keys are inline (<ca>, <cert>, <key> blocks)
+          # printf avoids echo's flag-parsing edge cases; secret is read from env, not the command line.
+          umask 077
+          printf '%s' "${OVPN_CONFIG_B64}" | base64 -d > /tmp/vpn.ovpn
+          trap 'rm -f /tmp/vpn.ovpn' EXIT
+
+          ##### Start OpenVPN as a background daemon
+          sudo openvpn --config /tmp/vpn.ovpn --log /tmp/vpn.log --daemon
+
+          ##### Wait for the tunnel to come up (max ~30s) and verify egress IP
+          for _ in $(seq 1 15); do
+            CURRENT_IP="$(curl -sf --max-time 2 https://api.ipify.org || true)"
+            if [ "${CURRENT_IP}" = "${EXPECTED_EGRESS_IP}" ]; then
+              echo -e "\033[32mVPN connected (IP: ${CURRENT_IP})\033[0m"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          ##### VPN didn't connect in time
+          echo -e "\033[31m::error::VPN connection failed (expected ${EXPECTED_EGRESS_IP}, got ${CURRENT_IP:-<none>}). OpenVPN log:\033[0m"
+          sudo cat /tmp/vpn.log || true
+          exit 1
+
+      - name: Execute timelock transactions
+        env:
+          PRIVATE_KEY_PRODUCTION: ${{ secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
+          SC_MONGODB_URI: ${{ secrets.SC_MONGODB_URI }}
+        run: |
+          ##### Run the executor and tee stdout+stderr to execution.log on disk.
+          # The log file is read by the Slack failure step and uploaded as an artifact,
+          # so we deliberately do NOT push it through $GITHUB_OUTPUT (1 MB cap, template-injection risk).
+          set -o pipefail
+          bunx tsx ./script/deploy/safe/execute-pending-timelock-tx.ts \
+            --executeAll \
+            --notify "$SLACK_WEBHOOK_URL" \
+            2>&1 | tee execution.log
+
+      - name: Notify Slack on workflow failure
+        # Fallback only — skip if the executor already emitted its own batch summary to Slack
+        if: failure()
+        env:
+          # All values flow via env to avoid ${{ }} expansion inside shell/Python (template-injection risk).
+          SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          ##### Fallback notification for when the script crashes before its own SlackNotifier can fire.
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+            echo -e "\033[33m⚠️ No Slack webhook configured, skipping notification\033[0m"
+            exit 0
+          fi
+          # If the executor ran far enough to emit its own batch summary, it has already
+          # notified Slack; avoid duplicate messages.
+          if [ -f execution.log ] && grep -q "Parallel execution summary" execution.log; then
+            echo "Executor already sent its own Slack summary; skipping fallback."
+            exit 0
+          fi
+
+          ##### Extract errors from the on-disk log. The log may not exist if an earlier step
+          # (e.g. VPN setup) failed before the executor ran — handle that gracefully.
+          NETWORK_ERRORS=""
+          CRITICAL_ERRORS=""
+          if [ -f execution.log ]; then
+            NETWORK_ERRORS="$(grep -E "\[.*\] ❌" execution.log | head -10 | sed 's/^/• /' || true)"
+            CRITICAL_ERRORS="$(grep -iE "Error processing network|Failed to execute|error:" execution.log | head -10 | sed 's/^/• /' || true)"
+          fi
+          export NETWORK_ERRORS CRITICAL_ERRORS
+
+          python3 <<'PYTHON'
+          import json, os, urllib.request
+          from datetime import datetime, timezone
+
+          workflow_url = os.environ["WORKFLOW_URL"]
+          trigger = os.environ["TRIGGER"]
+          ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+          network_errors = os.environ.get("NETWORK_ERRORS", "").strip()
+          critical_errors = os.environ.get("CRITICAL_ERRORS", "").strip()
+
+          blocks = [
+              {
+                  "type": "header",
+                  "text": {"type": "plain_text", "text": "❌ Timelock Auto-Execution Failed"}
+              },
+              {
+                  "type": "section",
+                  "text": {
+                      "type": "mrkdwn",
+                      "text": f"*Trigger:* {trigger}  |  *Time:* {ts}\n<{workflow_url}|View full logs>"
+                  }
+              }
+          ]
+
+          if network_errors:
+              blocks.append({
+                  "type": "section",
+                  "text": {"type": "mrkdwn", "text": f"*Network Errors:*\n{network_errors}"}
+              })
+
+          if critical_errors:
+              blocks.append({
+                  "type": "section",
+                  "text": {"type": "mrkdwn", "text": f"*Other Errors:*\n{critical_errors}"}
+              })
+
+          webhook_url = os.environ["SLACK_WEBHOOK_URL"]
+          data = json.dumps({"text": "❌ Timelock Auto-Execution Failed", "blocks": blocks}).encode()
+          req = urllib.request.Request(webhook_url, data=data, headers={"Content-Type": "application/json"})
+          try:
+              urllib.request.urlopen(req, timeout=10)
+              print("✅ Slack notification sent")
+          except Exception as e:
+              print(f"⚠️ Failed to send Slack notification: {e}")
+          PYTHON
+
+          echo -e "\033[31m::error::Timelock execution workflow failed. Check logs for details.\033[0m"
+
+      - name: Upload execution logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: timelock-execution-logs
+          path: execution.log
+          retention-days: 7
+
+      - name: Kill VPN
+        if: always()
+        run: sudo killall openvpn 2>/dev/null || true
