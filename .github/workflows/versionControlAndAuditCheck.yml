@@ -100,6 +100,8 @@ jobs:
       - name: Verify version updates on modified contracts
         id: verify_version_changes
         if: env.CONTINUE == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
 
           ##### Read tmp file into variable
@@ -132,7 +134,7 @@ jobs:
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
               ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
-              DIFF_OUTPUT=$(git diff "origin/${{ github.event.pull_request.base.ref }}" HEAD -- "$FILE_PATH")
+              DIFF_OUTPUT=$(git diff "origin/$BASE_REF" HEAD -- "$FILE_PATH")
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
                 | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
                 | grep -vE '^(\+\+\+|---)' \
@@ -147,7 +149,7 @@ jobs:
                   echo "--------------------"
                   echo "Checking if version was updated..."
 
-                  OLD_FILE_CONTENT=$(git show "origin/${{ github.event.pull_request.base.ref }}:${FILE_PATH}" 2>/dev/null || echo "")
+                  OLD_FILE_CONTENT=$(git show "origin/$BASE_REF:${FILE_PATH}" 2>/dev/null || echo "")
                   OLD_VERSION=$(echo "$OLD_FILE_CONTENT" | grep -E '^/// @custom:version' | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
 
                   # If there was no old version line in the diff, it's a new file.
