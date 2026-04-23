@@ -1,8 +1,64 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
+    "allow": [
+      "Bash(forge *)",
+      "Bash(cast *)",
+      "Bash(npm run *)",
+      "Bash(bun *)",
+      "Bash(bunx *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git show *)",
+      "Bash(git stash list)",
+      "Bash(bash -n *)",
+      "Bash(jq *)",
+      "Bash(wc *)",
+      "Bash(ls *)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ],
     "deny": [
       "Read(/.env)",
-      "Read(**/.env)"
+      "Read(**/.env)",
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(curl *)",
+      "Bash(mongosh *)",
+      "Bash(mongo *)",
+      "Bash(mongodump *)",
+      "Bash(mongorestore *)",
+      "Bash(mongoexport *)",
+      "Bash(mongoimport *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/hooks/post-edit-format.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/hooks/post-edit-validate.sh"
+          }
+        ]
+      }
     ]
   }
 }

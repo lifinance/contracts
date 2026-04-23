@@ -69,9 +69,9 @@
         "Name": "PolygonBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x29BEDC1Be2EeCB654F7a9CD3f21B466c148186c2": {
+      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
         "Name": "MayanFacet",
-        "Version": "1.2.2"
+        "Version": "1.2.4"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -192,6 +192,10 @@
       "0x78A78927ba0EeE804d37cad22BfcC69e3B0fF5e1": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.0"
+      },
+      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
