@@ -51,9 +51,9 @@ jobs:
 
       - name: Get list of modified files by this PR
         id: modified_files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           ##### initialize empty file so that artifact upload step cannot fail
           echo "" > contracts_for_audit.txt
