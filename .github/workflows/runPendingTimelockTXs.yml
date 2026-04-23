@@ -11,7 +11,12 @@
 #     * vars.ENABLE_TIMELOCK_AUTO_EXECUTION ("true" to enable scheduled runs)
 #     * vars.TIMELOCK_VPN_EGRESS_IP (expected public IP after VPN connects)
 #     * secrets.TIMELOCK_OVPN_CONFIG (base64-encoded .ovpn config with inline certs)
-#     * secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY, secrets.TIMELOCK_SLACK_WEBHOOK_URL, secrets.SC_MONGODB_URI
+#     * secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY (EOA private key used to sign and submit the
+#         LiFiTimelockController.execute() transactions; must be funded for gas on every target chain)
+#     * secrets.TIMELOCK_SLACK_WEBHOOK_URL (incoming webhook URL used both by the executor script's
+#         SlackNotifier and by this workflow's fallback failure notification step)
+#     * secrets.SC_MONGODB_URI (MongoDB connection string; the script reads pending Safe tx
+#         documents from this DB to discover which timelock operations are candidates for execution)
 # - Known limitations:
 #     * Slack fallback only fires when the executor step exits non-zero
 #     * Job timeout caps runtime; very large multi-network runs may need a higher value
