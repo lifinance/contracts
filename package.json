@@ -54,7 +54,8 @@
     "zksync-web3": "^0.14.3"
   },
   "overrides": {
-    "web3": "4.16.0"
+    "web3": "4.16.0",
+    "handlebars": "4.7.9"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
