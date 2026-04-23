@@ -15,7 +15,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 /// @title DeBridgeDLNFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through DeBridge DLN
-/// @custom:version 1.0.1
+/// @custom:version 1.1.0
 contract DeBridgeDlnFacet is
     ILiFi,
     ReentrancyGuard,
@@ -190,12 +190,9 @@ contract DeBridgeDlnFacet is
                 orderAuthorityAddressDst: _deBridgeData.orderAuthorityDst,
                 allowedTakerDst: "",
                 externalCall: "",
-                allowedCancelBeneficiarySrc: abi.encodePacked(msg.sender)
-                // NOTE: The allowedCancelBeneficiarySrc is intentionally set to msg.sender,
-                // which, when called via Permit2Proxy, becomes the proxy contract address.
-                // This ensures that if a DLN order is cancelled, funds are refunded to Permit2Proxy.
-                // The Permit2Proxy contract owner can later withdraw them via Permit2Proxy's
-                // WithdrawablePeriphery interface.
+                // Empty bytes delegates refund routing to orderAuthorityAddressDst,
+                // who specifies the beneficiary address when cancelling the order
+                allowedCancelBeneficiarySrc: ""
             });
 
         bytes32 orderId;
