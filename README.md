@@ -274,3 +274,11 @@ For detailed guidelines and requirements, please refer to [conventions.md](./con
 ```
 
 ```
+
+## 💰 Bounty Contribution
+
+- **Task:** Pre-contest audit triage — cross-chain bridge validation for Li.Fi
+- **Reward:** $1500
+- **Source:** GitHub-Bounty
+- **Date:** 2026-04-27
+
