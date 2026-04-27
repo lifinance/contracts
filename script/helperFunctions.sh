@@ -251,7 +251,6 @@ function findContractInMasterLogByAddress() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
   local TARGET_ADDRESS="$3"
-  local RETRY_DELAY=1
 
   # Validate MONGODB_URI is set
   if [[ -z "$MONGODB_URI" ]]; then
@@ -259,60 +258,75 @@ function findContractInMasterLogByAddress() {
     return 1
   fi
 
-  echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK"
+  # Facet addresses are sometimes shared across staging/production on the same chain; the
+  # deployment row may exist in only one Mongo collection. Try requested env first, then the other.
+  local ENVS_TO_TRY=("$ENVIRONMENT")
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    ENVS_TO_TRY+=("production")
+  elif [[ "$ENVIRONMENT" == "production" ]]; then
+    ENVS_TO_TRY+=("staging")
+  fi
 
-  local attempt=1
-  local USE_CACHE=true
-  while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
-    local MONGO_RESULT
-    # On last attempt, try without cache to ensure we get fresh data
-    if [[ $attempt -eq $MONGO_MAX_RETRIES ]]; then
-      USE_CACHE=false
-      echoDebug "Cache query failed, trying direct MongoDB query (no cache) for address $TARGET_ADDRESS on $NETWORK"
-    fi
+  local ENV_TRY
+  for ENV_TRY in "${ENVS_TO_TRY[@]}"; do
+    echoDebug "Querying MongoDB for findContractInMasterLogByAddress: $TARGET_ADDRESS on $NETWORK (env=$ENV_TRY)"
 
-    if [[ "$USE_CACHE" == "true" ]]; then
-      MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-        --env "$ENVIRONMENT" \
-        --network "$NETWORK" \
-        --address "$TARGET_ADDRESS" 2>/dev/null)
-    else
-      MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
-        --env "$ENVIRONMENT" \
-        --network "$NETWORK" \
-        --address "$TARGET_ADDRESS" \
-        --no-use-cache 2>/dev/null)
-    fi
-    local MONGO_EXIT=$?
-
-    if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
-      # Strip leading non-JSON (e.g. consola/cache messages) so jq sees only the object
-      MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
-      # Validate that MONGO_RESULT is valid JSON
-      if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
-        # Convert MongoDB result to expected format
-        local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName // empty')
-        local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version // empty')
-        local ADDRESS=$(echo "$MONGO_RESULT" | jq -r '.address // empty')
-
-        # Version may be empty for legacy rows; never infer from @custom:version or other deployments 
-        if [[ -n "$CONTRACT_NAME" ]]; then
-          # Facet object key must match facetAddresses() casing from the caller (TARGET_ADDRESS)
-          local JSON_ENTRY="{\"$TARGET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
-          echo "$JSON_ENTRY"
-          return 0
-        fi
-      else
-        echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
+    local attempt=1
+    local RETRY_DELAY=1
+    local USE_CACHE=true
+    while [[ $attempt -le $MONGO_MAX_RETRIES ]]; do
+      local MONGO_RESULT
+      # On last attempt, try without cache to ensure we get fresh data
+      if [[ $attempt -eq $MONGO_MAX_RETRIES ]]; then
+        USE_CACHE=false
+        echoDebug "Cache query failed, trying direct MongoDB query (no cache) for address $TARGET_ADDRESS on $NETWORK"
       fi
-    fi
 
-    if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
-      echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
-      sleep $RETRY_DELAY
-      RETRY_DELAY=$((RETRY_DELAY * 2))
-    fi
-    attempt=$((attempt + 1))
+      if [[ "$USE_CACHE" == "true" ]]; then
+        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+          --env "$ENV_TRY" \
+          --network "$NETWORK" \
+          --address "$TARGET_ADDRESS" 2>/dev/null)
+      else
+        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+          --env "$ENV_TRY" \
+          --network "$NETWORK" \
+          --address "$TARGET_ADDRESS" \
+          --no-use-cache 2>/dev/null)
+      fi
+      local MONGO_EXIT=$?
+
+      if [[ $MONGO_EXIT -eq 0 && -n "$MONGO_RESULT" ]]; then
+        # Strip leading non-JSON (e.g. consola/cache messages) so jq sees only the object
+        MONGO_RESULT=$(echo "$MONGO_RESULT" | sed -n '/^{/,$p')
+        # Validate that MONGO_RESULT is valid JSON
+        if echo "$MONGO_RESULT" | jq -e . >/dev/null 2>&1; then
+          # Convert MongoDB result to expected format
+          local CONTRACT_NAME=$(echo "$MONGO_RESULT" | jq -r '.contractName // empty')
+          local VERSION=$(echo "$MONGO_RESULT" | jq -r '.version // empty')
+
+          # Version may be empty for legacy rows; never infer from @custom:version or other deployments
+          if [[ -n "$CONTRACT_NAME" ]]; then
+            if [[ "$ENV_TRY" != "$ENVIRONMENT" ]]; then
+              echoDebug "findContractInMasterLogByAddress: resolved $TARGET_ADDRESS ($CONTRACT_NAME) from ${ENV_TRY} deployment log (requested ${ENVIRONMENT})"
+            fi
+            # Facet object key must match facetAddresses() casing from the caller (TARGET_ADDRESS)
+            local JSON_ENTRY="{\"$TARGET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"${VERSION:-}\"}}"
+            echo "$JSON_ENTRY"
+            return 0
+          fi
+        else
+          echoDebug "MongoDB returned invalid JSON for address $TARGET_ADDRESS on $NETWORK (attempt $attempt/$MONGO_MAX_RETRIES)"
+        fi
+      fi
+
+      if [[ $attempt -lt $MONGO_MAX_RETRIES ]]; then
+        echoDebug "MongoDB query failed for address $TARGET_ADDRESS on $NETWORK, retrying in ${RETRY_DELAY}s (attempt $attempt/$MONGO_MAX_RETRIES)"
+        sleep $RETRY_DELAY
+        RETRY_DELAY=$((RETRY_DELAY * 2))
+      fi
+      attempt=$((attempt + 1))
+    done
   done
 
   echo "[info] address not found in MongoDB"
@@ -526,34 +540,45 @@ function getSkipSimulationFlag() {
 
 # >>>>> reading and manipulation of deployment log files
 function getContractNameFromDeploymentLogs() {
-  # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  TARGET_ADDRESS=$3
+  # Resolves contract key by address from local deployments/*.json.
+  # Tries the requested ENVIRONMENT file first, then the other environment: on a
+  # given network the same bytecode address is typically shared (e.g. staging
+  # diamond reusing prod facet deployments), and only one addresses file may list it.
+  #
+  # Usage: getContractNameFromDeploymentLogs NETWORK ENVIRONMENT TARGET_ADDRESS
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+  local TARGET_ADDRESS=$3
+  local TARGET_LOWER
+  TARGET_LOWER=$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')
 
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # load JSON FILE that contains deployment addresses
-  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
-
-  if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
-    return 1
+  local PRIMARY_SUFFIX SECONDARY_SUFFIX
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    PRIMARY_SUFFIX=""
+    SECONDARY_SUFFIX="staging."
+  else
+    PRIMARY_SUFFIX="staging."
+    SECONDARY_SUFFIX=""
   fi
 
-  # read all keys (i.e. names)
-  FACET_NAMES=($(cat "$ADDRESSES_FILE" | jq -r 'keys[]'))
-
-  # loop through all names
-  for FACET in "${FACET_NAMES[@]}"; do
-    # extract address
-    ADDRESS=$(jq -r ".${FACET}" "$ADDRESSES_FILE")
-
-    # check if address matches
-    if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$TARGET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
-      echo "$FACET"
-      return 0
+  local FILE_SUFFIX ADDRESSES_FILE FACET_NAMES FACET ADDRESS ADDR_LOWER
+  for FILE_SUFFIX in "$PRIMARY_SUFFIX" "$SECONDARY_SUFFIX"; do
+    ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+    if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
+      continue
     fi
+
+    FACET_NAMES=($(jq -r 'keys[]' "$ADDRESSES_FILE"))
+
+    for FACET in "${FACET_NAMES[@]}"; do
+      ADDRESS=$(jq -r --arg facet "$FACET" '.[$facet] // empty' "$ADDRESSES_FILE")
+      [[ -z "$ADDRESS" ]] && continue
+      ADDR_LOWER=$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')
+      if [[ "$ADDR_LOWER" == "$TARGET_LOWER" ]]; then
+        echo "$FACET"
+        return 0
+      fi
+    done
   done
 
   return 1
@@ -2109,91 +2134,14 @@ function verifyContract() {
       echo "$VERIFY_OUTPUT"
     fi
 
-    # Always verify final status with verify-check, even if response seems successful
-    # This prevents false positives where API returns OK but contract isn't actually verified
-    echo "[info] Verifying final verification status with verify-check..."
-    sleep 5
-
-    # Check final status
-    local CHECK_CMD=()
-    if isZkEvmNetwork "$NETWORK"; then
-      # For zkSync, use verifier-url to match the verification command
-      # This ensures consistency and prevents false positives
-      CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
-    else
-      # Use verifier URL instead of chain flag to match the verification command
-      CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
-    fi
-
-    local CHECK_EXIT_CODE=0
-    local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
-
-    if [ $CHECK_EXIT_CODE -ne 0 ]; then
-      error "Verification check command failed with exit code $CHECK_EXIT_CODE"
-      if [ -n "$CHECK_OUTPUT" ]; then
-        error "Check command output: $CHECK_OUTPUT"
-      fi
-      # Continue to next retry instead of returning immediately
-      RETRY_COUNT=$((RETRY_COUNT + 1))
-      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
-        echo "[info] Verification check failed, waiting 15 seconds before retry..."
-        sleep 15
-      fi
-      continue
-    fi
-
-    # Parse response more robustly - handle different output formats
-    local FINAL_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
-    local FINAL_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
-
-    echoDebug "Final verification check - Response: $FINAL_RESPONSE, Details: $FINAL_DETAILS"
-    echoDebug "Full check output: $CHECK_OUTPUT"
-
-    # Check if verification actually succeeded based on final check
-    if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified (confirmed via verify-check)"
+    # Determine success from the --watch response already parsed above
+    if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
       return 0
-    elif [[ "$FINAL_RESPONSE" == "OK" && "$FINAL_DETAILS" == *"Pending"* ]]; then
-      # If still pending after initial check, wait a bit more and check again
-      echo "[info] Verification still pending, waiting 30 seconds before checking again..."
-      sleep 30
-
-      # Re-check final status using the same CHECK_CMD
-      local CHECK_EXIT_CODE=0
-      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
-
-      if [ $CHECK_EXIT_CODE -ne 0 ]; then
-        error "Verification check command failed with exit code $CHECK_EXIT_CODE"
-        if [ -n "$CHECK_OUTPUT" ]; then
-          error "Check command output: $CHECK_OUTPUT"
-        fi
-        # Continue to next retry instead of returning 1
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-        if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
-          echo "[info] Verification check failed, waiting 15 seconds before retry..."
-          sleep 15
-        fi
-        continue
-      fi
-
-      # Parse response more robustly - handle different output formats
-      local RETRY_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
-      local RETRY_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
-
-      if [[ "$RETRY_RESPONSE" == "OK" && ("$RETRY_DETAILS" == *"Pass"* || "$RETRY_DETAILS" == *"Verified"* || "$RETRY_DETAILS" == *"Success"*) ]]; then
-        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after retry check"
-        return 0
-      else
-        warning "Verification still pending or failed after retry check: Response=$RETRY_RESPONSE, Details=$RETRY_DETAILS"
-        # Continue to next retry instead of returning 1
-      fi
-    elif [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Fail"* || "$FINAL_DETAILS" == *"Unable to verify"* || "$FINAL_DETAILS" == *"not verified"*) ]]; then
-      warning "Verification failed for $CONTRACT on $NETWORK: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
-      # Continue to next retry instead of returning 1
+    elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"* || "$DETAILS" == *"not verified"*) ]]; then
+      warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
     else
-      warning "Unexpected verification response: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
-      warning "Initial response was: Response=$RESPONSE, Details=$DETAILS"
-      # Continue to next retry instead of returning 1
+      warning "Unexpected verification response: Response=$RESPONSE, Details=$DETAILS"
     fi
 
     # increase retry counter
