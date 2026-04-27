@@ -85,9 +85,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0x8912fdaFA963701D78A1377B22a3c2Ff9Aad689c": {
+      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0xA4E107e0C31EF3fF390BD6AaaaDDe0a929ca9645": {
         "Name": "CBridgeFacetPacked",
@@ -156,6 +156,10 @@
       "0x78A78927ba0EeE804d37cad22BfcC69e3B0fF5e1": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.0"
+      },
+      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

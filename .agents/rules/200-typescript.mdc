@@ -1,0 +1,133 @@
+---
+name: TypeScript scripts
+description: TS scripting, helpers, lint/tests
+globs:
+  - 'script/**/*.ts'
+paths:
+  - 'script/**/*.ts'
+---
+
+## TypeScript Script Conventions
+
+- TS scripts use `.eslintrc.cjs` rules, `bunx tsx`, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`).
+- MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
+- DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
+- **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore` in new files. Existing files with these directives are technical debt to be resolved. When creating new files or refactoring existing ones, properly type all code and fix type errors instead of suppressing them.
+
+## Code Quality
+
+- Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
+- When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
+- **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
+  - `script/utils/delay.ts` - `sleep(ms)` function for delays (MUST use this instead of implementing sleep locally),
+  - `script/utils/deploymentHelpers.ts` (deployment loading),
+  - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
+  - `script/utils/fetchWithTimeout.ts` (external API fetch with timeout; see [CONV:FETCH-TIMEOUT]),
+  - `script/utils/normalizeAddressStringForViem.ts` — `normalizeAddressForNetwork()` for network-aware address conversion (handles Tron base58, hex, and EVM; see [CONV:ADDR-NORMALIZE]),
+  - `script/deploy/shared/globalContractLists.ts` — `getCoreFacets()` / `getCorePeriphery()` for config-driven contract name arrays (use instead of hardcoding),
+  - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
+  - `script/common/types.ts` (shared types).
+- **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
+- **No re-export barrels**: Import values and types from the module where they are defined.
+  - Do not use `export { ... } from '...'`, `export * from '...'`, or `export type { ... } from '...'` solely to re-export another module.
+  - Do not add `export { importedSymbol }` at the end of a file when that symbol is only imported from elsewhere; consumers should import from the defining module instead.
+  - `export { name }` / `export type { Name }` that reference symbols **declared in the same file** (grouping exports) are fine.
+- **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
+
+## External API fetch and timeout ([CONV:FETCH-TIMEOUT])
+
+- **All outbound HTTP requests to external APIs** (e.g. 4byte/Sourcify, relay APIs, explorer APIs, webhooks) **MUST** use the shared `fetchWithTimeout()` helper from `script/utils/fetchWithTimeout.ts`.
+- **Do not use unbounded `fetch(url)`** for external API calls; slow or hung requests can block scripts indefinitely.
+- **Standard pattern**: `fetchWithTimeout(url, init?, timeoutMs?)` — uses an AbortController and clears the timeout in a `finally` block. Default timeout is 10 seconds (`DEFAULT_FETCH_TIMEOUT_MS`). Pass a custom `timeoutMs` only when the use case requires it (e.g. large payloads).
+- When adding or modifying code that calls external HTTP APIs, use `fetchWithTimeout` and handle `AbortError` or timeout in catch blocks as appropriate (e.g. return null, warn, or retry).
+
+## Types
+
+- **Always check for existing types before defining new ones**: Search in order: TypeChain types (`typechain/`), viem types, `script/common/types.ts`, domain-specific type files (e.g., `script/troncast/types.ts`, `script/deploy/tron/types.ts`).
+- **Type placement**:
+  - **Shared or could be shared** (cross-script, multi-chain, or likely to be imported outside one narrow area): `script/common/types.ts`.
+  - **Tron-only** (types/interfaces used exclusively for Tron deploy/helpers, not as general script protocol types): `script/deploy/tron/types.ts`.
+  - **Script-specific**: inline in the script file if only used locally.
+  - Other domains where neither file fits: colocate (e.g. `script/troncast/types.ts`, shapes next to Safe helpers in `script/deploy/safe/`).
+- **Reuse existing types**: Prefer importing and reusing existing types over defining duplicates.
+- **Config-derived types**: Prefer deriving types from config schemas (e.g., `EVMVersion` from `networks.json`) over manually maintained union types. See `script/common/types.ts` for examples.
+- **Naming conventions** (enforced by `.eslintrc.cjs`):
+  - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by ESLint.
+  - Type aliases use PascalCase without prefix (e.g., `SupportedChain`, `HexString`).
+  - Enums use PascalCase with `Enum` suffix (e.g., `EnvironmentEnum`).
+
+## Multi-chain patterns
+
+### Address normalization ([CONV:ADDR-NORMALIZE])
+
+- When converting raw addresses (base58 `T…`, hex `41…`, or `0x…`) to viem `Address`, use `normalizeAddressForNetwork()` from `script/utils/normalizeAddressStringForViem.ts`. It handles Tron base58 detection automatically and always returns a checksummed viem `Address`.
+
+### Tron network detection ([CONV:TRON-NETWORK-KEY])
+
+- Use `isTronNetworkKey(networkName)` from `script/deploy/shared/tron-network-keys.ts` as the sole mechanism for Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly. For Tron-specific conventions, see `202-tron-scripts.mdc`.
+
+### Dynamic imports for chain modules
+
+- When a module is only needed for one chain (e.g., TronWeb, Tron executor), use `await import('./path')` instead of top-level imports. This prevents loading chain-specific dependencies when running on other chains. See `create-chain-caller.ts` for the pattern.
+
+## Demo Scripts
+
+- When referring to "demo script", this means scripts in `script/demoScripts/`. They follow similar structural patterns (e.g., `main()` function, `setupEnvironment()`, helpers from `demoScriptHelpers`). See `demoLidoWrapper.ts`, `demoUnit.ts`, `demoEco.ts` as reference examples.
+
+## Solana addresses and dev wallet address ([CONV:SOLANA-DEV-WALLET])
+
+- **Solana addresses (base58, bytes32)**: Derive dynamically from the signer’s private key. Do **not** hardcode Solana addresses or store them in config (e.g. `config/global.json`).
+  - **Source**: `script/demoScripts/utils/demoScriptHelpers.ts`
+  - **Base58**: `deriveSolanaAddress(privateKey)` — use for logging, Solana APIs, or ATA computation.
+  - **Bytes32**: `solanaAddressToBytes32(deriveSolanaAddress(privateKey))` — use for contract/struct fields that expect bytes32 (e.g. non-EVM receiver, mintRecipient).
+  - **Private key**: `getPrivateKeyForEnvironment(EnvironmentEnum.staging)` (or `EnvironmentEnum.production`) from `demoScriptHelpers`. Example: `demoAcrossV4.ts`, `demoPolymerCCTP.ts`, `demoNEARIntents.ts`.
+- **Dev wallet (EVM)**: Use a single source of truth from config.
+  - Use **only** `DEV_WALLET_ADDRESS` from `script/demoScripts/utils/demoScriptHelpers.ts` (it reads `config/global.json` → `devWallet`). Do not use `globalConfig.devWallet` elsewhere.
+  - Do not add or use separate constants for the same EVM dev wallet (e.g. no `ADDRESS_DEV_WALLET_V5`-style aliases).
+
+## Inline Documentation
+
+Add comments only where the code doesn't speak for itself. Avoid restating what the code does — explain *why* or *when*.
+
+- **Module header**: Every new TS file MUST open with a `/** … */` block that states: (1) what the module does, (2) who should use it / when to import it. One to three sentences max.
+- **Exported functions/classes**: Use JSDoc with `@param`, `@returns`, and `@throws` for every exported function. Include a `@remarks` or leading sentence only when the behaviour is non-obvious (e.g. side effects, retry semantics, chain-specific restrictions).
+- **Constants**: Magic numbers and timeout/delay values MUST have an inline `// <value + unit>` comment (e.g. `// 2 minutes`) AND, when the value is policy-driven (rate limits, thresholds), a short sentence explaining the policy.
+- **Complex logic**: Add a single inline comment before a non-obvious block (e.g. binary search, bit manipulation, quirky API workaround). Skip comments for idiomatic loops, straightforward conditionals, and standard library calls.
+- **Do NOT add**: comments that merely restate the type, variable name, or an obviously named function; changelog/author notes (use git); section dividers like `// --- Helpers ---`.
+
+## CLI and Logging
+
+- CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
+
+## Testing
+
+- New TypeScript helpers must be covered by a colocated `*.test.ts` file using Bun (`describe` / `it` / `expect`) with **100% coverage**. Cover edge cases and error paths.
+
+## Post-Change Actions
+
+- After TS changes run lint/tests (or state which remain) to ensure eslint/type checks pass.
+
+### Hard gate: CLI validation required
+
+Editor diagnostics (and Cursor “lints”) are **not sufficient** to claim a TypeScript script is clean.
+
+If you edit any file matching this rule’s globs, you **MUST** do the following before finalizing:
+
+- **Run ESLint CLI on the changed file(s)**:
+  - `bunx eslint <changed-file-1> [<changed-file-2> ...]`
+  - If ESLint reports fixable issues, run: `bunx eslint --fix <changed-file(s)>`
+  - Re-run `bunx eslint <changed-file(s)>` and ensure it exits `0`.
+- **Run TypeScript typecheck on the changed file(s)**:
+  - `bunx tsc-files --noEmit <changed-file-1> [<changed-file-2> ...]`
+
+### Reporting requirement
+
+- In the final message, explicitly list the commands that were run and whether they passed.
+- **Never** state or imply “no linting errors” unless `bunx eslint ...` was executed and returned `0`.
+
+### Scope escalation (when needed)
+
+If changes touch shared helpers or wide surfaces (or you can’t easily isolate changed files), prefer running the broader checks:
+
+- `bun lint:js`
+- `bun lint`

@@ -61,9 +61,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x95326d42f11184DB3036061167cD202291792343": {
+      "0xC23451CD97D6FEDA6c5C0D59B4d6A49aD883d1e2": {
         "Name": "MayanFacet",
-        "Version": "1.2.2"
+        "Version": "1.2.4"
       },
       "0x8475a5f359bD33D33A6381b9381af5d86BC547A5": {
         "Name": "RelayDepositoryFacet",
@@ -92,6 +92,14 @@
       "0x394326008eAF5Bd575977338Be9A48879aB058F8": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.0"
+      },
+      "0x6cbd9EdEE4920c861b7becd2f7a1355D8261b33b": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
+      },
+      "0xeEBaF3A093FF4B8D7c8E22486562e8369c1ecBB7": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

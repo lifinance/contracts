@@ -101,9 +101,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
+      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",

@@ -65,9 +65,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x85a622d69CF1e1B2Be7963A77fb2E717c687845e": {
+      "0xa8462E13Bc9D97666f9e33BAe91281Ab341cdCAa": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0xc222572289a6bB7e03D448F05Ac4EBf31D7FBf32": {
         "Name": "GlacisFacet",
@@ -112,6 +112,10 @@
       "0x24158375DF4A6fF9cEa3c9466DE406D46DD12c37": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.0"
+      },
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

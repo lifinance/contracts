@@ -360,6 +360,9 @@ contract PolymerCCTPFacet is
         if (chainId == 98866) {
             return 22; // Plume
         }
+        if (chainId == 1672) {
+            return 31; // Pharos
+        }
         revert InvalidCallData();
     }
 }

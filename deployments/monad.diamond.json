@@ -57,9 +57,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x6e92B66195BfDb19C58be6799ddba755935B79F7": {
+      "0xa8462E13Bc9D97666f9e33BAe91281Ab341cdCAa": {
         "Name": "MayanFacet",
-        "Version": "1.2.2"
+        "Version": "1.2.4"
       },
       "0x960B7a177dAaD7D1beA69354d023984Af6b75847": {
         "Name": "AcrossFacetV4",
@@ -88,6 +88,10 @@
       "0x24158375DF4A6fF9cEa3c9466DE406D46DD12c37": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.0"
+      },
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
