@@ -2,6 +2,12 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import {
+  createTronWeb,
+  formatAddressForNetworkCliDisplay,
+  tronAddressLikeToBase58,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
@@ -10,12 +16,8 @@ import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptH
 import { getEnvVar, getEnvironment } from '../../utils/utils'
 
 import { TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR } from './constants.js'
-import { formatAddressForNetworkCliDisplay } from './helpers/formatAddressForCliDisplay.js'
-import { createTronWeb } from './helpers/tronWebFactory.js'
 import { runPropose } from './propose-to-safe-tron.js'
-import { tronAddressLikeToBase58 } from './tronAddressHelpers.js'
 import { waitBetweenDeployments } from './tronUtils.js'
-import type { TronTvmNetworkName } from './types.js'
 
 /**
  * Transfer LiFi Diamond ownership to `LiFiTimelockController` from the Tron deployments file.

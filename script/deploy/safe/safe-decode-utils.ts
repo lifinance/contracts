@@ -9,6 +9,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { Abi, Address, Hex } from 'viem'
 import {
@@ -27,7 +28,6 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
-import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import { decodeDiamondCut } from './safe-utils'
 

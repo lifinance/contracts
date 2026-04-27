@@ -6,6 +6,7 @@
  * without creating cycles back through utils.ts.
  */
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 
@@ -13,7 +14,6 @@ import { getFacetSelectors } from '../../utils/utils'
 import type { TronTvmNetworkName } from '../tron/types'
 
 import { DIAMOND_CUT_ABI } from './constants'
-import { isTronNetworkKey } from './tron-network-keys'
 
 /**
  * Encode a `diamondCut` calldata for adding a facet.

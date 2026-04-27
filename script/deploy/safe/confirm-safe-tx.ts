@@ -6,6 +6,7 @@
  * and provides options to sign and/or execute them.
  */
 
+import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
@@ -13,7 +14,6 @@ import { type Collection } from 'mongodb'
 import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
-import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
