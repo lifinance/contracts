@@ -1,9 +1,7 @@
 name: 'Check old PRs'
 
 on:
-  schedule:
-    - cron: '0 0 * * *' # run once a day
-  workflow_dispatch: # enables manual trigger
+  workflow_dispatch: # manually triggered only (daily schedule disabled)
 
 permissions:
   contents: read # required to fetch repository contents
