@@ -56,6 +56,10 @@
       "0x71e7fF4A8186CC3DA73e39BFd918Bb27DFb688c2": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.0.1"
+      },
+      "0x4aed96BeDf86Ca29B43b532BC3748488cCc74CE0": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.1"
       }
     },
     "Periphery": {
