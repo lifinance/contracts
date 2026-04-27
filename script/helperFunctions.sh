@@ -2109,91 +2109,14 @@ function verifyContract() {
       echo "$VERIFY_OUTPUT"
     fi
 
-    # Always verify final status with verify-check, even if response seems successful
-    # This prevents false positives where API returns OK but contract isn't actually verified
-    echo "[info] Verifying final verification status with verify-check..."
-    sleep 5
-
-    # Check final status
-    local CHECK_CMD=()
-    if isZkEvmNetwork "$NETWORK"; then
-      # For zkSync, use verifier-url to match the verification command
-      # This ensures consistency and prevents false positives
-      CHECK_CMD=("./foundry-zksync/forge" "verify-check" "--zksync" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
-    else
-      # Use verifier URL instead of chain flag to match the verification command
-      CHECK_CMD=("forge" "verify-check" "--verifier-url" "$VERIFIER_URL" "$ADDRESS")
-    fi
-
-    local CHECK_EXIT_CODE=0
-    local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
-
-    if [ $CHECK_EXIT_CODE -ne 0 ]; then
-      error "Verification check command failed with exit code $CHECK_EXIT_CODE"
-      if [ -n "$CHECK_OUTPUT" ]; then
-        error "Check command output: $CHECK_OUTPUT"
-      fi
-      # Continue to next retry instead of returning immediately
-      RETRY_COUNT=$((RETRY_COUNT + 1))
-      if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
-        echo "[info] Verification check failed, waiting 15 seconds before retry..."
-        sleep 15
-      fi
-      continue
-    fi
-
-    # Parse response more robustly - handle different output formats
-    local FINAL_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
-    local FINAL_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
-
-    echoDebug "Final verification check - Response: $FINAL_RESPONSE, Details: $FINAL_DETAILS"
-    echoDebug "Full check output: $CHECK_OUTPUT"
-
-    # Check if verification actually succeeded based on final check
-    if [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Pass"* || "$FINAL_DETAILS" == *"Verified"* || "$FINAL_DETAILS" == *"Success"*) ]]; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified (confirmed via verify-check)"
+    # Determine success from the --watch response already parsed above
+    if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
       return 0
-    elif [[ "$FINAL_RESPONSE" == "OK" && "$FINAL_DETAILS" == *"Pending"* ]]; then
-      # If still pending after initial check, wait a bit more and check again
-      echo "[info] Verification still pending, waiting 30 seconds before checking again..."
-      sleep 30
-
-      # Re-check final status using the same CHECK_CMD
-      local CHECK_EXIT_CODE=0
-      local CHECK_OUTPUT=$(FOUNDRY_LOG=trace "${CHECK_CMD[@]}" 2>&1) || CHECK_EXIT_CODE=$?
-
-      if [ $CHECK_EXIT_CODE -ne 0 ]; then
-        error "Verification check command failed with exit code $CHECK_EXIT_CODE"
-        if [ -n "$CHECK_OUTPUT" ]; then
-          error "Check command output: $CHECK_OUTPUT"
-        fi
-        # Continue to next retry instead of returning 1
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-        if [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; then
-          echo "[info] Verification check failed, waiting 15 seconds before retry..."
-          sleep 15
-        fi
-        continue
-      fi
-
-      # Parse response more robustly - handle different output formats
-      local RETRY_RESPONSE=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Response")
-      local RETRY_DETAILS=$(extractFromVerificationOutput "$CHECK_OUTPUT" "Details")
-
-      if [[ "$RETRY_RESPONSE" == "OK" && ("$RETRY_DETAILS" == *"Pass"* || "$RETRY_DETAILS" == *"Verified"* || "$RETRY_DETAILS" == *"Success"*) ]]; then
-        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified after retry check"
-        return 0
-      else
-        warning "Verification still pending or failed after retry check: Response=$RETRY_RESPONSE, Details=$RETRY_DETAILS"
-        # Continue to next retry instead of returning 1
-      fi
-    elif [[ "$FINAL_RESPONSE" == "OK" && ("$FINAL_DETAILS" == *"Fail"* || "$FINAL_DETAILS" == *"Unable to verify"* || "$FINAL_DETAILS" == *"not verified"*) ]]; then
-      warning "Verification failed for $CONTRACT on $NETWORK: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
-      # Continue to next retry instead of returning 1
+    elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"* || "$DETAILS" == *"not verified"*) ]]; then
+      warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
     else
-      warning "Unexpected verification response: Response=$FINAL_RESPONSE, Details=$FINAL_DETAILS"
-      warning "Initial response was: Response=$RESPONSE, Details=$DETAILS"
-      # Continue to next retry instead of returning 1
+      warning "Unexpected verification response: Response=$RESPONSE, Details=$DETAILS"
     fi
 
     # increase retry counter
