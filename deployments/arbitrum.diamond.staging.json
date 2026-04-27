@@ -212,6 +212,14 @@
       "0x2B8F8C0Cf809EdbbD1257B4c4f27FdAe318062b1": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
+      },
+      "0xFCE93F61dd59E269d8B7ae860874E6BaE8c041EE": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.1"
+      },
+      "0x7f36bbFDC188569169Bf917a20a2cdD5b060837D": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
