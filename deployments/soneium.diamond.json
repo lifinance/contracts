@@ -92,6 +92,10 @@
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

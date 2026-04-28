@@ -4517,6 +4517,15 @@
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
           }
+        ],
+        "pharos": [
+          {
+            "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
+            "functions": {
+              "0x73fc4457": "swapWithMagpieSignature(bytes)",
+              "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          }
         ]
       }
     },
@@ -4528,7 +4537,7 @@
       "contracts": {
         "mainnet": [
           {
-            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "address": "0xa929c559e5e6537359680f39cb4e3708e1a14dd1",
             "functions": {
               "0x3f0bde25": "IceCreamSwap()"
             }
