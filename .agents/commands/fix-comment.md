@@ -56,6 +56,10 @@ Parse both values; abort with a clear message if either is missing.
    - **QUESTION** — asking why; answer in reply, code change only if "this is wrong"
    - **NITPICK** — optional polish; fix only if unambiguous
 
+5. **Present the analysis and stop**. Show: what the reviewer is asking, the classification, and your proposed fix (or reply text). Ask:
+   > "Does this look right? Say yes to proceed, or give me corrections."
+   Wait for explicit confirmation before Phase 1.
+
 ---
 
 ## Phase 1 — FIX

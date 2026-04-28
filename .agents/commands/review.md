@@ -74,7 +74,9 @@ remote is not a GitHub URL.
    If found: run `/analyze-tx <network> <hash>` first. The trace output is the source of
    truth for understanding the root cause; use it to inform your fix and your reply.
 
-6. **Print the inventory** to the user before proceeding to Phase 1.
+6. **Print the inventory** to the user and **stop**. Ask:
+   > "Does this inventory look correct? Any threads to add, remove, or reclassify before I start fixing?"
+   Wait for explicit confirmation before proceeding to Phase 1.
 
 ---
 
@@ -206,3 +208,8 @@ If any check fails, fix it before Phase 4. Do not push a red build.
   asking for clarification; do not guess; do not push
 - A fix requires changing the Diamond storage layout → stop, flag to user
 - Tests fail after 2 fix attempts → stop, report exact failure to user
+
+## Hard Rules
+
+- **Never approve the PR** (`gh pr review --approve` is forbidden). Post a summary comment only.
+- **Never push or reply without user confirmation** — the Phase 0 inventory gate must be passed first.
