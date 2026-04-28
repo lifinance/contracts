@@ -55,10 +55,15 @@ jobs:
         # gum is required by helper functions sourced via deployAllContracts;
         # the smoke driver mocks `gum choose` for the start-stage prompt but
         # falls through to the real binary for any other invocation.
+        # The deb is verified against the publisher SHA-256 from
+        # https://github.com/charmbracelet/gum/releases/download/v0.14.5/checksums.txt
+        # before install — fail closed on any mismatch.
         run: |
           set -euo pipefail
           GUM_VERSION=0.14.5
+          EXPECTED_SHA256=fd1a34711ae724eb2a6c1a3209d57078d529575a03316e699054f2f5d3bcb2ba
           curl -fsSLo /tmp/gum.deb "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_amd64.deb"
+          echo "${EXPECTED_SHA256}  /tmp/gum.deb" | sha256sum -c -
           sudo dpkg -i /tmp/gum.deb
           gum --version
 
