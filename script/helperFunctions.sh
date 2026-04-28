@@ -3819,6 +3819,53 @@ function isTronNetwork() {
   return 1  # false
 }
 
+# isTempoNetwork: Returns 0 if NETWORK is Tempo mainnet (networks.json key "tempo", chain 4217).
+#
+# Usage: isTempoNetwork NETWORK
+# Returns: 0 if Tempo, 1 otherwise
+function isTempoNetwork() {
+  local NETWORK="$1"
+  if [[ "$NETWORK" == "tempo" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# Prefix for forge/cast invocations on Tempo; enables [profile.tempo] (tempo = true in foundry.toml).
+# Trailing space is included when non-empty so it can precede VAR=value or command names.
+#
+# Usage: getTempoForgeProfilePrefix NETWORK
+function getTempoForgeProfilePrefix() {
+  local NETWORK="$1"
+  if isTempoNetwork "$NETWORK"; then
+    printf '%s' "FOUNDRY_PROFILE=tempo "
+  fi
+}
+
+# Legacy gas flag for forge script / cast on standard EVM; Tempo requires EIP-1559 envelope (no --legacy).
+# Trailing space when --legacy is emitted for safe concatenation before the next CLI flag.
+#
+# Usage: getForgeLegacyCliFlag NETWORK
+function getForgeLegacyCliFlag() {
+  local NETWORK="$1"
+  if isTempoNetwork "$NETWORK"; then
+    printf '%s' ""
+  else
+    printf '%s' "--legacy "
+  fi
+}
+
+# Tempo mainnet pathUSD (TIP-20) for --tempo.fee-token on forge/cast; trailing space when non-empty.
+# See https://docs.tempo.xyz/quickstart/predeployed-contracts
+#
+# Usage: getTempoFeeTokenCliFlag NETWORK
+function getTempoFeeTokenCliFlag() {
+  local NETWORK="$1"
+  if isTempoNetwork "$NETWORK"; then
+    printf '%s' "--tempo.fee-token 0x20c0000000000000000000000000000000000000 "
+  fi
+}
+
 function getTronEnv() {
   # read function arguments into variables
   local NETWORK="$1"

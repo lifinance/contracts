@@ -160,17 +160,22 @@ function universalSendRaw() {
     echo "Error: universalSendRaw failed to get RPC URL for $NETWORK" >&2
     return 1
   }
+  local TEMPO_PROFILE_PREFIX
+  TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$NETWORK")
+  local LEGACY_CLI_FLAG
+  LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$NETWORK")
+  local TEMPO_FEE_CLI_FLAG
+  TEMPO_FEE_CLI_FLAG=$(getTempoFeeTokenCliFlag "$NETWORK")
   # Use GAS_ESTIMATE_MULTIPLIER (default 100 from .env) so gas price stays above base fee on L2s
   local MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-100}"
   local GAS_PRICE
   GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
   local GAS_PRICE_BUF=$(( GAS_PRICE * MULTIPLIER / 100 ))
   [[ "$GAS_PRICE_BUF" -lt 1 ]] && GAS_PRICE_BUF=1
-  cast send "$TARGET" "$CALLDATA" \
+  ${TEMPO_PROFILE_PREFIX}cast send "$TARGET" "$CALLDATA" \
     --rpc-url "$RPC_URL" \
     --private-key "$PRIVATE_KEY" \
-    --legacy \
-    --gas-price "$GAS_PRICE_BUF" \
+    ${TEMPO_FEE_CLI_FLAG}${LEGACY_CLI_FLAG}--gas-price "$GAS_PRICE_BUF" \
     --confirmations 1
   return $?
 }
@@ -227,17 +232,22 @@ function universalSendValue() {
     echo "Error: universalSendValue failed to get RPC URL for $NETWORK" >&2
     return 1
   }
+  local TEMPO_PROFILE_PREFIX
+  TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$NETWORK")
+  local LEGACY_CLI_FLAG
+  LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$NETWORK")
+  local TEMPO_FEE_CLI_FLAG
+  TEMPO_FEE_CLI_FLAG=$(getTempoFeeTokenCliFlag "$NETWORK")
   # Use GAS_ESTIMATE_MULTIPLIER (default 100 from .env) so gas price stays above base fee on L2s
   local MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-100}"
   local GAS_PRICE
   GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
   local GAS_PRICE_BUF=$(( GAS_PRICE * MULTIPLIER / 100 ))
   [[ "$GAS_PRICE_BUF" -lt 1 ]] && GAS_PRICE_BUF=1
-  cast send "$TARGET" --value "$VALUE_WEI" \
+  ${TEMPO_PROFILE_PREFIX}cast send "$TARGET" --value "$VALUE_WEI" \
     --rpc-url "$RPC_URL" \
     --private-key "$PRIVATE_KEY" \
-    --legacy \
-    --gas-price "$GAS_PRICE_BUF"
+    ${TEMPO_FEE_CLI_FLAG}${LEGACY_CLI_FLAG}--gas-price "$GAS_PRICE_BUF"
   return $?
 }
 
