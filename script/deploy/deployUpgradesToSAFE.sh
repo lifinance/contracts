@@ -43,6 +43,9 @@ deployUpgradesToSAFE() {
   if [[ $VERIFIED == "OK" ]]; then
     echo "PR has been approved. Continuing..."
     # Loop through each script and call "forge script" to get the cut calldata
+    TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$NETWORK")
+    LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$NETWORK")
+
     declare -a CUTS
     for script in $SCRIPTS; do
       UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
@@ -51,7 +54,7 @@ deployUpgradesToSAFE() {
       
       # Execute, parse, and check return code
       if ! executeAndParse \
-        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" --fork-url $NETWORK --json --skip-simulation --legacy" \
+        "${TEMPO_PROFILE_PREFIX}NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" --fork-url $NETWORK --json --skip-simulation ${LEGACY_CLI_FLAG}" \
         "true" \
         "forge script failed for $script on network $NETWORK" \
         "continue"; then

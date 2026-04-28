@@ -16,6 +16,12 @@ ffi = true
 libs = ["node_modules", "lib"]
 cache = true
 
+# Used when deploying/interacting with Tempo (FOUNDRY_PROFILE=tempo). Enables Tempo tx
+# semantics; bash helpers omit --legacy for this network (see getForgeLegacyCliFlag).
+# Inherits unspecified keys from [profile.default] (Foundry profile merge).
+[profile.tempo]
+tempo = true
+
 [profile.zksync]
 solc_version = '0.8.29'
 evm_version = 'cancun'
@@ -179,7 +185,8 @@ superposition = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explo
 swellchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1923", chain = "1923" }
 taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 telos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://sourcify.dev/server", chain = "40", verifier = "sourcify"}
-tempo = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://contracts.tempo.xyz", verifier = "sourcify", chain = "4217" }
+# Base must end with `/` so forge appends `v2/verify/...` (not `v2v2/verify/...`). See foundry-rs/foundry crates/verify/src/sourcify.rs
+tempo = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://contracts.tempo.xyz/", verifier = "sourcify", chain = "4217" }
 unichain = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }
 vana = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://vanascan.io/api", chain = "1480", verifier = "blockscout" }
 viction = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.vicscan.xyz/api/contract/foundry/verify", chain = "88" }

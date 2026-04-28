@@ -4,6 +4,7 @@
 checkExecutorAndReceiver() {
   # load env variables
 	source .env
+  source script/helperFunctions.sh
 
   # ask user if check Executor and Receiver for one network or for all networks
   echo "Would you like to check Executor and Receiver on all networks or on one specific network?"
@@ -55,9 +56,12 @@ checkExecutorAndReceiver() {
     echo ""
     echo "[info] now check Executor and Receiver on network: $NETWORK"
 
+    TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$NETWORK")
+    LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$NETWORK")
+
     # Execute, parse, and check return code
     executeAndParse \
-      "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol --fork-url $NETWORK --json --skip-simulation --legacy --tc DeployScript" \
+      "${TEMPO_PROFILE_PREFIX}NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol --fork-url $NETWORK --json --skip-simulation ${LEGACY_CLI_FLAG}--tc DeployScript" \
       "true"
 
     # Handle errors using centralized helper function

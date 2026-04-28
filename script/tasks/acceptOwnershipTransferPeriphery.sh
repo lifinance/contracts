@@ -50,13 +50,18 @@ acceptOwnershipTransferPeriphery() {
     echo ""
     echo "[info] now executing transfer ownership script in network: $CURRENT_NETWORK"
 
+    local TEMPO_PROFILE_PREFIX
+    TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$CURRENT_NETWORK")
+    local LEGACY_CLI_FLAG
+    LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$CURRENT_NETWORK")
+
     # execute script
     attempts=1
 
     while [ $attempts -lt 11 ]; do
       # Execute, parse, and check return code
       executeAndParse \
-        "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol --fork-url $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
+        "${TEMPO_PROFILE_PREFIX}NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol --fork-url $CURRENT_NETWORK --json --broadcast --verify --skip-simulation ${LEGACY_CLI_FLAG}--tc DeployScript" \
         "true"
 
       # Handle errors using centralized helper function

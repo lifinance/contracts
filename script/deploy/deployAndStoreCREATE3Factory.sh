@@ -42,6 +42,13 @@ deployAndStoreCREATE3Factory() {
   [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]] && GAS_ESTIMATE_MULTIPLIER=200
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
+  local TEMPO_PROFILE_PREFIX
+  TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$NETWORK")
+  local LEGACY_CLI_FLAG
+  LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$NETWORK")
+  local TEMPO_FEE_CLI_FLAG
+  TEMPO_FEE_CLI_FLAG=$(getTempoFeeTokenCliFlag "$NETWORK")
+
   FACTORY_ADDRESS=""
   PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
     error "Failed to load PRIVATE_KEY for network $NETWORK (environment: $ENVIRONMENT)"
@@ -52,7 +59,7 @@ deployAndStoreCREATE3Factory() {
 
   # 1) Try forge script (works for chains in Foundry's alloy-chains list)
   if executeAndParse \
-    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+    "${TEMPO_PROFILE_PREFIX}PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast ${LEGACY_CLI_FLAG}--slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
     "true" \
     "" \
     "return"; then
@@ -83,7 +90,7 @@ deployAndStoreCREATE3Factory() {
         return 1
       fi
       local TX_OUTPUT
-      TX_OUTPUT=$(cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" --legacy --create "$BYTECODE" --json 2>&1) || {
+      TX_OUTPUT=$(${TEMPO_PROFILE_PREFIX}cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" ${TEMPO_FEE_CLI_FLAG}${LEGACY_CLI_FLAG}--create "$BYTECODE" --json 2>&1) || {
         error "cast send failed: $TX_OUTPUT"
         return 1
       }

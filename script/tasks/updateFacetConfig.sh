@@ -81,9 +81,14 @@ updateFacetConfig() {
       # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
       DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
+      local TEMPO_PROFILE_PREFIX
+      TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$NETWORK")
+      local LEGACY_CLI_FLAG
+      LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$NETWORK")
+
       # Execute, parse, and check return code
       if ! executeAndParse \
-        "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "${TEMPO_PROFILE_PREFIX}NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast ${LEGACY_CLI_FLAG}$SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true" \
         "forge script failed for $SCRIPT on network $NETWORK" \
         "continue"; then
