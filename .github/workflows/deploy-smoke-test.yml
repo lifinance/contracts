@@ -10,6 +10,12 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  # Temporary: trigger on pushes to this branch so we can verify the
+  # workflow runs end-to-end before the file lands on main. Remove
+  # before merging — pull_request + workflow_dispatch are the intended
+  # triggers.
+  push:
+    branches: [add-deployment-action]
   workflow_dispatch:
 
 permissions:
