@@ -11,16 +11,8 @@ import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { type ObjectId } from 'mongodb'
 import type { Address, Hex, PublicClient } from 'viem'
-import {
-  decodeFunctionData,
-  encodeAbiParameters,
-  encodeFunctionData,
-  formatEther,
-  keccak256,
-  parseAbi,
-} from 'viem'
+import { encodeFunctionData, formatEther, parseAbi } from 'viem'
 
 import data from '../../../config/networks.json'
 import {
@@ -39,11 +31,12 @@ import {
 
 import { createChainCaller } from './executors/create-chain-caller'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
-import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 import {
-  TIMELOCK_SCHEDULE_BATCH_ABI,
-  TIMELOCK_SCHEDULE_BATCH_SELECTOR,
-} from './timelock-abi'
+  computeOperationIdBatch,
+  deserializeScheduleParams,
+  getTimelockQueueCollection,
+  type ITimelockQueueDoc,
+} from './timelock-queue'
 
 // Define interfaces for network configuration
 interface INetworkConfig {
@@ -60,10 +53,10 @@ interface IDeploymentData {
   [key: string]: string | undefined
 }
 
-/** Result of pre-checking a network (MongoDB only, no RPC). Used to decide which networks to process; processNetwork always opens a fresh RPC and fetches pending ops on-chain. */
+/** Result of pre-checking a network (queue only, no RPC). Used to decide which networks to process; processNetwork always opens a fresh RPC and re-fetches queued ops to verify on-chain readiness. */
 interface IPendingFetchResult {
   network: INetworkConfig
-  /** Number of pending timelock txs in MongoDB (on-chain ready count unknown until processNetwork runs). */
+  /** Number of queued timelock ops for this network (on-chain ready count unknown until processNetwork runs). */
   pendingInMongoCount: number
   /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
   fetchError?: unknown
@@ -86,13 +79,6 @@ const TIMELOCK_ABI = parseAbi([
   'event Cancelled(bytes32 indexed id)',
 ])
 
-// Extend the interface to include MongoDB's _id field and timelockIsExecuted
-interface ISafeTxDocumentWithId extends ISafeTxDocument {
-  _id: ObjectId
-  timelockIsExecuted?: boolean
-  executionHash?: string
-}
-
 // Define the operation type (single call or batch)
 interface ITimelockOperation {
   id: Hex
@@ -100,8 +86,9 @@ interface ITimelockOperation {
   predecessor: Hex
   delay: bigint
   salt?: Hex
-  mongoId?: ObjectId
   functionName?: string | null
+  /** Originating Safe tx hash, kept for traceability in logs and Slack alerts. */
+  safeTxHash?: string
   /** Call list (always present; batch-of-one for single-call ops). */
   targets: readonly Address[]
   values: readonly bigint[]
@@ -436,36 +423,6 @@ const cmd = defineCommand({
 })
 
 /**
- * Computes operation ID for a batch schedule (matches Solidity hashOperationBatch)
- */
-function computeOperationIdBatch(
-  targets: readonly Address[],
-  values: readonly bigint[],
-  payloads: readonly Hex[],
-  predecessor: Hex,
-  salt: Hex
-): Hex {
-  const encoded = encodeAbiParameters(
-    [
-      { name: 'targets', type: 'address[]' },
-      { name: 'values', type: 'uint256[]' },
-      { name: 'payloads', type: 'bytes[]' },
-      { name: 'predecessor', type: 'bytes32' },
-      { name: 'salt', type: 'bytes32' },
-    ],
-    [
-      targets as Address[],
-      values as bigint[],
-      payloads as Hex[],
-      predecessor,
-      salt,
-    ]
-  )
-
-  return keccak256(encoded)
-}
-
-/**
  * Checks the status of an operation in the LiFiTimelockController
  */
 async function checkOperationStatus(
@@ -502,35 +459,36 @@ async function checkOperationStatus(
 }
 
 /**
- * Fetches Safe transactions with scheduleBatch data that haven't been executed in timelock
+ * Fetches queued timelock ops for a network from the auto-execution queue.
+ *
+ * Reads from the non-sensitive `MONGODB_URI` cluster (no VPN required). Ops
+ * are written here by `confirm-safe-tx.ts` after the originating Safe tx
+ * mines on-chain.
+ *
+ * @param networkName - Lowercase network name to filter by.
+ * @returns Queued rows for the network. Re-verified on-chain before execution.
  */
-async function fetchPendingTimelockTransactions(
+async function fetchQueuedTimelockOps(
   networkName: string
-): Promise<ISafeTxDocumentWithId[]> {
-  const { client, pendingTransactions } = await getSafeMongoCollection()
-
-  const batchSelectorRegex =
-    TIMELOCK_SCHEDULE_BATCH_SELECTOR.slice(2).toLowerCase()
-
+): Promise<ITimelockQueueDoc[]> {
+  const { client, timelockQueue } = await getTimelockQueueCollection()
   try {
-    const txs = await pendingTransactions
+    const rows = await timelockQueue
       .find({
         network: networkName.toLowerCase(),
-        'safeTx.data.data': { $regex: `^0x${batchSelectorRegex}` },
-        status: 'executed',
-        timelockIsExecuted: { $ne: true },
+        status: 'queued',
       })
       .toArray()
-
-    return txs
+    return rows
   } finally {
     await client.close()
   }
 }
 
 /**
- * Pre-checks a single network using MongoDB only (no RPC). Returns how many pending timelock txs exist in MongoDB.
- * processNetwork always opens a fresh RPC and fetches on-chain ready state so we never reuse a stale connection.
+ * Pre-checks a single network using the queue only (no RPC). Returns how
+ * many queued timelock ops exist for the network. processNetwork always
+ * opens a fresh RPC and re-fetches queued rows for on-chain ready check.
  */
 async function fetchPendingForNetwork(
   network: INetworkConfig
@@ -547,10 +505,10 @@ async function fetchPendingForNetwork(
 
     if (!deploymentData.LiFiTimelockController) return empty
 
-    const txs = await fetchPendingTimelockTransactions(network.name)
+    const rows = await fetchQueuedTimelockOps(network.name)
     return {
       network,
-      pendingInMongoCount: txs.length,
+      pendingInMongoCount: rows.length,
     }
   } catch (err) {
     consola.error(
@@ -781,14 +739,13 @@ async function getPendingOperations(
     if (!quiet) consola.info(msg, ...rest)
   }
 
-  // Fetch Safe transactions with scheduleBatch data from MongoDB
   log(
-    `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching Safe transactions with scheduleBatch data from MongoDB...`
+    `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching queued ops...`
   )
-  const safeTxs = await fetchPendingTimelockTransactions(networkName)
+  const queueRows = await fetchQueuedTimelockOps(networkName)
 
-  if (safeTxs.length === 0) {
-    log(`[${networkName}] No Safe transactions with scheduleBatch data found`)
+  if (queueRows.length === 0) {
+    log(`[${networkName}] No queued timelock ops`)
     return {
       readyOperations: [],
       totalPendingCount: 0,
@@ -796,84 +753,110 @@ async function getPendingOperations(
     }
   }
 
-  log(
-    `[${networkName}] Found ${safeTxs.length} Safe transaction(s) with scheduleBatch data`
-  )
+  log(`[${networkName}] Found ${queueRows.length} queued timelock op(s)`)
 
-  const readyOperations = []
+  const readyOperations: ITimelockOperation[] = []
   const notScheduledOperations: Array<{
     operationId: string
     transactionId: string
     safeTxHash: string
     executionHash?: string
   }> = []
-  const { client, pendingTransactions } = await getSafeMongoCollection()
+  const { client, timelockQueue } = await getTimelockQueueCollection()
 
   try {
-    for (const tx of safeTxs)
+    for (const row of queueRows)
       try {
-        const dataField: Hex | undefined = tx.safeTx?.data?.data
-        if (!dataField) {
-          consola.warn(
-            `[${networkName}] Transaction ${tx._id} has no data field; skipping.`
-          )
-          continue
-        }
+        const params = deserializeScheduleParams(row)
+        const { targets, values, payloads, predecessor, salt, delay } = params
 
-        const selector = dataField.slice(0, 10).toLowerCase()
-
-        if (selector !== TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()) {
-          consola.warn(
-            `[${networkName}] Transaction ${tx._id} has unknown selector ${selector}; skipping.`
-          )
-          continue
-        }
-
-        const decoded = decodeFunctionData({
-          abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-          data: dataField,
-        })
-        const args = decoded.args as [
-          readonly Address[],
-          readonly bigint[],
-          readonly Hex[],
-          Hex,
-          Hex,
-          bigint
-        ]
-        const [targetsArr, valuesArr, payloadsArr, pred, s, d] = args
         if (
-          targetsArr.length === 0 ||
-          valuesArr.length === 0 ||
-          payloadsArr.length === 0
+          targets.length === 0 ||
+          values.length === 0 ||
+          payloads.length === 0
         ) {
           consola.warn(
-            `[${networkName}] Transaction ${tx._id} scheduleBatch has empty arrays; skipping.`
+            `[${networkName}] Queue row ${row.operationId} has empty arrays; marking failed.`
+          )
+          await timelockQueue.updateOne(
+            { operationId: row.operationId },
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'empty schedule arrays',
+                updatedAt: new Date(),
+              },
+            }
           )
           continue
         }
         if (
-          targetsArr.length !== valuesArr.length ||
-          valuesArr.length !== payloadsArr.length
+          targets.length !== values.length ||
+          values.length !== payloads.length
         ) {
           consola.warn(
-            `[${networkName}] Transaction ${tx._id} scheduleBatch has inconsistent array lengths (targets=${targetsArr.length}, values=${valuesArr.length}, payloads=${payloadsArr.length}); skipping.`
+            `[${networkName}] Queue row ${row.operationId} has inconsistent array lengths; marking failed.`
+          )
+          await timelockQueue.updateOne(
+            { operationId: row.operationId },
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'inconsistent schedule array lengths',
+                updatedAt: new Date(),
+              },
+            }
           )
           continue
         }
-        const targets: readonly Address[] = targetsArr
-        const values: readonly bigint[] = valuesArr
-        const payloads: readonly Hex[] = payloadsArr
-        const predecessor: Hex = pred
-        const salt: Hex = s
-        const delay: bigint = d
+
+        // Trust check 1: re-derive operationId from queue params and assert
+        // it matches the stored operationId. A mismatch means the row was
+        // tampered with — refuse to act on it.
         const opId = computeOperationIdBatch(
-          targetsArr,
-          valuesArr,
-          payloadsArr,
+          targets,
+          values,
+          payloads,
           predecessor,
           salt
         )
+        if (opId !== row.operationId) {
+          consola.error(
+            `[${networkName}] ❌ operationId mismatch on queue row (stored=${row.operationId}, derived=${opId}); marking failed.`
+          )
+          await timelockQueue.updateOne(
+            { operationId: row.operationId },
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'operationId mismatch — possible tampered row',
+                updatedAt: new Date(),
+              },
+            }
+          )
+          continue
+        }
+
+        // Trust check 2: cross-check the queue row's timelockAddress against
+        // the canonical address from the deployment log. Mismatch → skip.
+        if (
+          row.timelockAddress.toLowerCase() !== timelockAddress.toLowerCase()
+        ) {
+          consola.error(
+            `[${networkName}] ❌ timelockAddress mismatch on queue row (stored=${row.timelockAddress}, canonical=${timelockAddress}); marking failed.`
+          )
+          await timelockQueue.updateOne(
+            { operationId: row.operationId },
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'timelockAddress mismatch with deployment',
+                updatedAt: new Date(),
+              },
+            }
+          )
+          continue
+        }
 
         // If a specific operation ID is provided, check only that one
         if (specificOperationId && opId !== specificOperationId) continue
@@ -887,17 +870,18 @@ async function getPendingOperations(
 
         if (status.isDone) {
           log(
-            `[${networkName}] Operation ${opId} is already executed. Marking tx ${tx._id} as timelock executed.`
+            `[${networkName}] Operation ${opId} is already executed. Marking queue row as executed.`
           )
-          await pendingTransactions.updateOne(
-            { _id: tx._id },
-            { $set: { timelockIsExecuted: true } }
+          const now = new Date()
+          await timelockQueue.updateOne(
+            { operationId: opId },
+            { $set: { status: 'executed', executedAt: now, updatedAt: now } }
           )
           continue
         }
 
-        // Check if operation exists on-chain when not ready and not marked as executed
-        if (!status.isPending && !status.isReady && !tx.timelockIsExecuted) {
+        // Check if operation exists on-chain when not ready
+        if (!status.isPending && !status.isReady) {
           const isOperation = await publicClient.readContract({
             address: timelockAddress,
             abi: TIMELOCK_ABI,
@@ -909,11 +893,10 @@ async function getPendingOperations(
             consola.error(
               `[${networkName}] ❌ Operation ${opId} does not exist on-chain! The timelock transaction was never scheduled.`
             )
-            consola.error(`[${networkName}]    MongoDB ID: ${tx._id}`)
-            consola.error(`[${networkName}]    Safe Tx Hash: ${tx.safeTxHash}`)
-            if (tx.executionHash)
+            consola.error(`[${networkName}]    Safe Tx Hash: ${row.safeTxHash}`)
+            if (row.executionHash)
               consola.error(
-                `[${networkName}]    Execution Hash: ${tx.executionHash}`
+                `[${networkName}]    Execution Hash: ${row.executionHash}`
               )
 
             consola.error(
@@ -921,9 +904,9 @@ async function getPendingOperations(
             )
             notScheduledOperations.push({
               operationId: opId,
-              transactionId: tx._id.toString(),
-              safeTxHash: tx.safeTxHash,
-              executionHash: tx.executionHash,
+              transactionId: row._id ? row._id.toString() : opId,
+              safeTxHash: row.safeTxHash,
+              executionHash: row.executionHash,
             })
             continue
           }
@@ -935,7 +918,7 @@ async function getPendingOperations(
           predecessor,
           delay,
           salt,
-          mongoId: tx._id,
+          safeTxHash: row.safeTxHash,
           targets,
           values,
           payloads,
@@ -947,14 +930,9 @@ async function getPendingOperations(
             `[${networkName}] ✅ Operation ${opId} is ready for execution (batch of ${callCount} calls)`
           )
 
-          let functionName: string | null = null
-          try {
-            functionName = `batch (${callCount} calls)`
-          } catch {}
-
           readyOperations.push({
             ...baseOp,
-            functionName,
+            functionName: `batch (${callCount} calls)`,
           })
         } else if (isCancellingOperations && status.isPending) {
           const timestamp = await publicClient.readContract({
@@ -973,14 +951,9 @@ async function getPendingOperations(
             )} remaining) - will be cancelled`
           )
 
-          let functionName: string | null = null
-          try {
-            functionName = `batch (${targets.length} calls)`
-          } catch {}
-
           readyOperations.push({
             ...baseOp,
-            functionName,
+            functionName: `batch (${targets.length} calls)`,
           })
         } else if (status.isPending) {
           const timestamp = await publicClient.readContract({
@@ -1003,7 +976,7 @@ async function getPendingOperations(
         const errorMessage =
           error instanceof Error ? error.message : String(error)
         consola.error(
-          `[${networkName}] Error processing transaction ${tx._id}: ${errorMessage}`
+          `[${networkName}] Error processing queue row ${row.operationId}: ${errorMessage}`
         )
       }
   } finally {
@@ -1032,7 +1005,7 @@ async function getPendingOperations(
 
   return {
     readyOperations,
-    totalPendingCount: safeTxs.length,
+    totalPendingCount: queueRows.length,
     notScheduledOperations,
   }
 }
@@ -1187,26 +1160,33 @@ async function executeOperation(
         `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
       )
 
-      // Update MongoDB to mark the operation as executed
-      if (operation.mongoId)
+      // Mark the queue row as executed for traceability and to skip on next run.
+      try {
+        const { client, timelockQueue } = await getTimelockQueueCollection()
         try {
-          const { client, pendingTransactions } = await getSafeMongoCollection()
-          try {
-            await pendingTransactions.updateOne(
-              { _id: operation.mongoId },
-              { $set: { timelockIsExecuted: true } }
-            )
-            consola.info(
-              `${networkPrefix} Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
-            )
-          } finally {
-            await client.close()
-          }
-        } catch (error) {
-          consola.warn(
-            `${networkPrefix} Failed to update MongoDB document: ${error}`
+          const now = new Date()
+          await timelockQueue.updateOne(
+            { operationId: operation.id },
+            {
+              $set: {
+                status: 'executed',
+                executedAt: now,
+                executionTxHash: hash,
+                updatedAt: now,
+              },
+            }
           )
+          consola.info(
+            `${networkPrefix} Marked queue row ${operation.id} as executed`
+          )
+        } finally {
+          await client.close()
         }
+      } catch (error) {
+        consola.warn(
+          `${networkPrefix} Failed to update timelock queue row: ${error}`
+        )
+      }
     }
 
     return 'executed'
@@ -1305,24 +1285,29 @@ async function rejectOperation(
 
       consola.success(`✅ Operation ${operation.id} cancelled successfully`)
 
-      // Update MongoDB to mark the operation as executed (cancelled counts as executed)
-      if (operation.mongoId)
+      // Mark the queue row as cancelled.
+      try {
+        const { client, timelockQueue } = await getTimelockQueueCollection()
         try {
-          const { client, pendingTransactions } = await getSafeMongoCollection()
-          try {
-            await pendingTransactions.updateOne(
-              { _id: operation.mongoId },
-              { $set: { timelockIsExecuted: true } }
-            )
-            consola.info(
-              `Updated MongoDB document ${operation.mongoId} to mark timelock as cancelled`
-            )
-          } finally {
-            await client.close()
-          }
-        } catch (error) {
-          consola.warn(`Failed to update MongoDB document: ${error}`)
+          const now = new Date()
+          await timelockQueue.updateOne(
+            { operationId: operation.id },
+            {
+              $set: {
+                status: 'cancelled',
+                cancelledAt: now,
+                executionTxHash: result.hash,
+                updatedAt: now,
+              },
+            }
+          )
+          consola.info(`Marked queue row ${operation.id} as cancelled`)
+        } finally {
+          await client.close()
         }
+      } catch (error) {
+        consola.warn(`Failed to update timelock queue row: ${error}`)
+      }
       return 'rejected'
     }
   } catch (error) {

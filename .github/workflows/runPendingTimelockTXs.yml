@@ -4,19 +4,23 @@
 # - Key behaviors:
 #     * Scheduled runs are gated by repo variable ENABLE_TIMELOCK_AUTO_EXECUTION=="true"
 #     * Manual dispatch always runs (GitHub requires write access to dispatch)
-#     * Connects to a VPN before running; egress IP is verified against an allow-listed address
+#     * Reads queued ops from the non-sensitive MONGODB_URI cluster (no VPN required).
+#       The runner re-derives operationId from queue params and verifies isOperationReady
+#       on-chain before executing, so a tampered queue row can only DoS, never cause
+#       unintended execution.
 #     * Runs script/deploy/safe/execute-pending-timelock-tx.ts, captures log, posts Slack fallback on failure
 #     * Uploads execution.log as an artifact (7-day retention)
 # - Required repo configuration:
 #     * vars.ENABLE_TIMELOCK_AUTO_EXECUTION ("true" to enable scheduled runs)
-#     * vars.TIMELOCK_VPN_EGRESS_IP (expected public IP after VPN connects)
-#     * secrets.TIMELOCK_OVPN_CONFIG (base64-encoded .ovpn config with inline certs)
 #     * secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY (EOA private key used to sign and submit the
-#         LiFiTimelockController.execute() transactions; must be funded for gas on every target chain)
+#         LiFiTimelockController.execute() transactions; must be funded for gas on every target chain.
+#         The timelock's EXECUTOR_ROLE is open (granted to address(0)), so this key carries no
+#         protocol authority — it only pays gas.)
 #     * secrets.TIMELOCK_SLACK_WEBHOOK_URL (incoming webhook URL used both by the executor script's
 #         SlackNotifier and by this workflow's fallback failure notification step)
-#     * secrets.SC_MONGODB_URI (MongoDB connection string; the script reads pending Safe tx
-#         documents from this DB to discover which timelock operations are candidates for execution)
+#     * secrets.MONGODB_URI (non-sensitive MongoDB connection string; the script reads queued
+#         timelock ops from the timelock-operations.queue collection. Rows are written by
+#         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined.)
 # - Known limitations:
 #     * Slack fallback only fires when the executor step exits non-zero
 #     * Job timeout caps runtime; very large multi-network runs may need a higher value
@@ -42,7 +46,7 @@ jobs:
     # Manual dispatch (workflow_dispatch) always runs regardless.
     if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
     runs-on: ubuntu-latest
-    # Cap runtime; a stuck VPN or hung RPC loop would otherwise idle up to GitHub's 6h default.
+    # Cap runtime; a hung RPC loop would otherwise idle up to GitHub's 6h default.
     timeout-minutes: 20
     permissions:
       contents: read # required to checkout the repository
@@ -64,58 +68,11 @@ jobs:
       - name: Generate typechain
         run: bun typechain
 
-      - name: Connect to VPN
-        env:
-          OVPN_CONFIG_B64: ${{ secrets.TIMELOCK_OVPN_CONFIG }}
-          EXPECTED_EGRESS_IP: ${{ vars.TIMELOCK_VPN_EGRESS_IP }}
-        run: |
-          set -eu
-
-          ##### Validate inputs early
-          if [ -z "${EXPECTED_EGRESS_IP}" ]; then
-            echo -e "\033[31m::error::vars.TIMELOCK_VPN_EGRESS_IP is not set\033[0m"
-            exit 1
-          fi
-          if [ -z "${OVPN_CONFIG_B64}" ]; then
-            echo -e "\033[31m::error::secrets.TIMELOCK_OVPN_CONFIG is not set\033[0m"
-            exit 1
-          fi
-
-          ##### Install OpenVPN
-          sudo apt-get update -qq
-          sudo apt-get install -yqq openvpn > /dev/null
-
-          ##### Write .ovpn config from base64-encoded secret
-          # Generate with: base64 -w 0 < your-config.ovpn
-          # Ensure all certs/keys are inline (<ca>, <cert>, <key> blocks)
-          # printf avoids echo's flag-parsing edge cases; secret is read from env, not the command line.
-          umask 077
-          printf '%s' "${OVPN_CONFIG_B64}" | base64 -d > /tmp/vpn.ovpn
-          trap 'rm -f /tmp/vpn.ovpn' EXIT
-
-          ##### Start OpenVPN as a background daemon
-          sudo openvpn --config /tmp/vpn.ovpn --log /tmp/vpn.log --daemon
-
-          ##### Wait for the tunnel to come up (max ~30s) and verify egress IP
-          for _ in $(seq 1 15); do
-            CURRENT_IP="$(curl -sf --max-time 2 https://api.ipify.org || true)"
-            if [ "${CURRENT_IP}" = "${EXPECTED_EGRESS_IP}" ]; then
-              echo -e "\033[32mVPN connected (IP: ${CURRENT_IP})\033[0m"
-              exit 0
-            fi
-            sleep 2
-          done
-
-          ##### VPN didn't connect in time
-          echo -e "\033[31m::error::VPN connection failed (expected ${EXPECTED_EGRESS_IP}, got ${CURRENT_IP:-<none>}). OpenVPN log:\033[0m"
-          sudo cat /tmp/vpn.log || true
-          exit 1
-
       - name: Execute timelock transactions
         env:
           PRIVATE_KEY_PRODUCTION: ${{ secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
-          SC_MONGODB_URI: ${{ secrets.SC_MONGODB_URI }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           ##### Run the executor and tee stdout+stderr to execution.log on disk.
           # The log file is read by the Slack failure step and uploaded as an artifact,
@@ -148,7 +105,7 @@ jobs:
           fi
 
           ##### Extract errors from the on-disk log. The log may not exist if an earlier step
-          # (e.g. VPN setup) failed before the executor ran — handle that gracefully.
+          # (e.g. dependency install or typechain) failed before the executor ran — handle that gracefully.
           NETWORK_ERRORS=""
           CRITICAL_ERRORS=""
           if [ -f execution.log ]; then
@@ -213,7 +170,3 @@ jobs:
           name: timelock-execution-logs
           path: execution.log
           retention-days: 7
-
-      - name: Kill VPN
-        if: always()
-        run: sudo killall openvpn 2>/dev/null || true
