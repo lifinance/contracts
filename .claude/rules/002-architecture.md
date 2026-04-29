@@ -1,1 +1,1 @@
-../../.agents/rules/002-architecture.mdc
+../../.agents/rules/002-architecture.md

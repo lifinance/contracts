@@ -1,1 +1,1 @@
-../../.agents/rules/202-tron-scripts.mdc
+../../.agents/rules/202-tron-scripts.md
