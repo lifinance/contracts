@@ -133,10 +133,10 @@ diamondUpdateFacet() {
       local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        COMMAND="FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
+        COMMAND="FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        COMMAND="NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
+        COMMAND="NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       fi
       
       if ! executeAndParse \
@@ -253,9 +253,9 @@ diamondUpdateFacet() {
       # Execute, parse, and check return code
       local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
-        COMMAND="FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")"
+        COMMAND="FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")"
       else
-        COMMAND="NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG"
+        COMMAND="NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG"
       fi
       
       if ! executeAndParse \

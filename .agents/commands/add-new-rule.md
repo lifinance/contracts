@@ -15,10 +15,10 @@ This command is the single workflow for adding/updating **rules** and **commands
 Rules and commands have a single source of truth. Never edit the symlink targets directly.
 
 ```
-.agents/rules/*.mdc          ← SOURCE OF TRUTH for rules (edit here)
+.agents/rules/*.md           ← SOURCE OF TRUTH for rules (edit here)
   ↑ symlinked from:
-  .cursor/rules/*.mdc        ← Cursor reads these (same extension)
-  .claude/rules/*.md         ← Claude Code reads these (extension mapped)
+  .cursor/rules/*.mdc        ← Cursor reads these (link name keeps .mdc; target is .md)
+  .claude/rules/*.md         ← Claude Code reads these
 
 .agents/commands/*.md        ← SOURCE OF TRUTH for commands (edit here)
   ↑ symlinked from:
@@ -121,8 +121,12 @@ Before adding a new guideline:
 ## Adding a New Rule (step by step)
 
 1. Determine scope → pick numbering range from `.agents/rules/README.md`.
-2. Create `.agents/rules/<NNN>-<name>.mdc` with hybrid frontmatter.
-3. Symlinks are already in place — no action needed for `.cursor/rules/` or `.claude/rules/`.
+2. Create `.agents/rules/<NNN>-<name>.md` with hybrid frontmatter.
+3. Create the Cursor and Claude Code symlinks:
+   ```bash
+   ln -sf "../../.agents/rules/<NNN>-<name>.md" ".cursor/rules/<NNN>-<name>.mdc"
+   ln -sf "../../.agents/rules/<NNN>-<name>.md" ".claude/rules/<NNN>-<name>.md"
+   ```
 4. Update `.agents/rules/README.md` table (name, range, description).
 5. Run validation steps below.
 

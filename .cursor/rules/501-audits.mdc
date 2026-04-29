@@ -1,1 +1,1 @@
-../../.agents/rules/501-audits.mdc
+../../.agents/rules/501-audits.md

@@ -64,7 +64,7 @@ paths:
 
 ### Tron network detection ([CONV:TRON-NETWORK-KEY])
 
-- Use `isTronNetworkKey(networkName)` from `script/deploy/shared/tron-network-keys.ts` as the sole mechanism for Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly. For Tron-specific conventions, see `202-tron-scripts.mdc`.
+- Use `isTronNetworkKey(networkName)` from `script/deploy/shared/tron-network-keys.ts` as the sole mechanism for Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly. For Tron-specific conventions, see `202-tron-scripts.md`.
 
 ### Dynamic imports for chain modules
 

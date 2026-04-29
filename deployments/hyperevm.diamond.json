@@ -89,9 +89,9 @@
         "Name": "GardenFacet",
         "Version": "1.0.0"
       },
-      "0x394326008eAF5Bd575977338Be9A48879aB058F8": {
+      "0xC08dc18EaE6e2615c6aBE3F29ab48877fb9DA29c": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       },
       "0x6cbd9EdEE4920c861b7becd2f7a1355D8261b33b": {
         "Name": "EcoFacet",

@@ -93,9 +93,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x24158375DF4A6fF9cEa3c9466DE406D46DD12c37": {
+      "0x5d489e667f96b49Bf9fA67e1dEf4542904757794": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       },
       "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
         "Name": "AcrossV4SwapFacet",

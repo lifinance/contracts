@@ -1,1 +1,1 @@
-../../.agents/rules/402-typescript-tests.mdc
+../../.agents/rules/402-typescript-tests.md
