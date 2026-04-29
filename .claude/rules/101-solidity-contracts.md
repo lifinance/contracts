@@ -1,1 +1,1 @@
-../../.agents/rules/101-solidity-contracts.mdc
+../../.agents/rules/101-solidity-contracts.md

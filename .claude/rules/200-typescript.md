@@ -1,1 +1,1 @@
-../../.agents/rules/200-typescript.mdc
+../../.agents/rules/200-typescript.md

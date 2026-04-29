@@ -1,1 +1,1 @@
-../../.agents/rules/099-finish.mdc
+../../.agents/rules/099-finish.md
