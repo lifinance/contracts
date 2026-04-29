@@ -32,7 +32,8 @@ RPC_URL=http://localhost:8545
 set -a; source .env; set +a
 
 # 1. Pre-fund pauser wallet so stage 9 skips its `read` prompt
-PAUSER=$(jq -r '.pauserWallet' config/global.json)
+PAUSER=$(jq -r '.pauserWallet // empty' config/global.json)
+[[ -n "$PAUSER" ]] || { echo "pauserWallet missing in config/global.json" >&2; exit 1; }
 cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_ANVIL" --value 1ether "$PAUSER" >/dev/null
 
 # 2. Mock gum so the stage-selection prompt auto-picks "1)"
