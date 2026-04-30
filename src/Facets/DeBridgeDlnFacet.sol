@@ -63,6 +63,7 @@ contract DeBridgeDlnFacet is
     error UnknownDeBridgeChain();
     error EmptyNonEVMAddress();
     error EmptyPatchAuthority();
+    error EmptyOrderAuthorityDst();
 
     /// Events ///
 
@@ -80,6 +81,9 @@ contract DeBridgeDlnFacet is
         }
         if (_deBridgeData.givePatchAuthoritySrc == address(0)) {
             revert EmptyPatchAuthority();
+        }
+        if (_deBridgeData.orderAuthorityDst.length == 0) {
+            revert EmptyOrderAuthorityDst();
         }
         _;
     }
