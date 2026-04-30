@@ -43,6 +43,31 @@ struct DeBridgeDlnData {
 }
 ```
 
+## Cancellation & Refund Semantics
+
+If an order is not filled by a taker, recovery of the input funds depends on
+properties baked into the order at creation time:
+
+- **Who can cancel.** The facet creates orders with an empty
+  `allowedCancelBeneficiarySrc`. Only the address passed in
+  `orderAuthorityDst` can initiate cancellation on the destination chain,
+  and the same party chooses the source-chain refund recipient at cancel
+  time. If `orderAuthorityDst` is misconfigured (empty or an address you do
+  not control), the order is uncancellable. The facet rejects an empty
+  `orderAuthorityDst` to prevent the obvious failure mode.
+
+- **Refund asset.** DLN converts the deposited input into one of its reserve
+  assets at order creation. A refund therefore returns the reserve asset
+  (typically `srcChainTokenOut`, or `srcChainTokenIn` if the former is
+  absent), not necessarily the token originally provided to the facet.
+
+- **Auto-cancellation.** DeBridge's optional auto-cancellation feature is
+  not enabled for this integration; cancellation must be initiated
+  explicitly by `orderAuthorityDst`.
+
+See the upstream documentation for details:
+https://docs.debridge.com/dln-details/affiliates/auto-cancellations
+
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.
