@@ -119,9 +119,7 @@ deploySingleContract() {
     DIAMOND_TYPE="LiFiDiamond"
   fi
 
-  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
-    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
-  fi
+  GAS_ESTIMATE_MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-130}" # this is foundry's default value
 
   # logging for debug purposes
   echo ""
@@ -262,12 +260,12 @@ deploySingleContract() {
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
         "true"
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 

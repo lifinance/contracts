@@ -49,12 +49,14 @@
     "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
     "tsc-files": "^1.1.4",
+    "tsx": "4.21.0",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5",
     "zksync-web3": "^0.14.3"
   },
   "overrides": {
-    "web3": "4.16.0"
+    "web3": "4.16.0",
+    "handlebars": "4.7.9"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",

@@ -105,9 +105,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
+      "0x1bE62b806B3eD0c1Cc73a6FD9240A161e169B580": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
@@ -164,6 +164,10 @@
       "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
+      },
+      "0x6acEAb597fa289AbFC3F2f697f33FAC93Ccc8a71": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
