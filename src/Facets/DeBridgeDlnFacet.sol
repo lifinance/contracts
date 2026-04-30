@@ -191,6 +191,8 @@ contract DeBridgeDlnFacet is
                     _bridgeData.destinationChainId
                 ),
                 receiverDst: _deBridgeData.receiver,
+                // even if caller is Permit2Proxy, user can still control the order
+                // from the destination chain via orderAuthorityAddressDst
                 givePatchAuthoritySrc: msg.sender,
                 orderAuthorityAddressDst: _deBridgeData.orderAuthorityDst,
                 allowedTakerDst: "",
