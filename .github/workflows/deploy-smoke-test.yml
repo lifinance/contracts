@@ -76,7 +76,7 @@ jobs:
           cp .env.example .env
           # Override the example default that turns on contract verification.
           sed -i 's/^VERIFY_CONTRACTS=.*/VERIFY_CONTRACTS=false/' .env
-          # Append CI-only values. _smokeDeploy.sh sources .env with `set -a`,
+          # Append CI-only values. smokeDeploy.sh sources .env with `set -a`,
           # so PRIVATE_KEY=$PRIVATE_KEY_ANVIL expands at source time and the
           # later definitions override earlier ones from .env.example.
           # shellcheck disable=SC2016 # the $PRIVATE_KEY_ANVIL literal is expanded later when .env is sourced, not now
@@ -107,7 +107,7 @@ jobs:
         run: forge build
 
       - name: Run deploy smoke test
-        run: bash script/deploy/_smokeDeploy.sh 2>&1 | tee smoke-deploy.log
+        run: bash script/deploy/smokeDeploy.sh 2>&1 | tee smoke-deploy.log
 
       - name: Run health check
         run: bun script/deploy/healthCheck.ts --network localanvil --environment staging 2>&1 | tee -a smoke-deploy.log
