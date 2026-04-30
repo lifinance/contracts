@@ -8,8 +8,6 @@
  * reads ready rows, re-verifies them on-chain, and flips status after
  * successful execution.
  *
- * Decoupled from `SC_MONGODB_URI` and VPN by design — on-chain remains the
- * source of truth, and every row is re-verified before being executed.
  */
 
 import { MongoClient, type Collection, type ObjectId } from 'mongodb'
@@ -102,7 +100,7 @@ export interface ITimelockQueueDoc {
  * Opens a short-lived MongoDB client and returns the queue collection.
  *
  * Mirrors the lifecycle of `getSafeMongoCollection()` in `safe-utils.ts`
- * but targets the non-sensitive `MONGODB_URI` cluster — no VPN gate.
+ * but targets the non-sensitive `MONGODB_URI` cluster.
  *
  * @returns The connected client (caller must `close()`) and the queue collection.
  * @throws Error if `MONGODB_URI` is not set.

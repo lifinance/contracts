@@ -461,7 +461,7 @@ async function checkOperationStatus(
 /**
  * Fetches queued timelock ops for a network from the auto-execution queue.
  *
- * Reads from the non-sensitive `MONGODB_URI` cluster (no VPN required). Ops
+ * Reads from the non-sensitive `MONGODB_URI` cluster. Ops
  * are written here by `confirm-safe-tx.ts` after the originating Safe tx
  * mines on-chain.
  *

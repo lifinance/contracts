@@ -4,7 +4,7 @@
 # - Key behaviors:
 #     * Scheduled runs are gated by repo variable ENABLE_TIMELOCK_AUTO_EXECUTION=="true"
 #     * Manual dispatch always runs (GitHub requires write access to dispatch)
-#     * Reads queued ops from the non-sensitive MONGODB_URI cluster (no VPN required).
+#     * Reads queued ops from the non-sensitive MONGODB_URI cluster.
 #       The runner re-derives operationId from queue params and verifies isOperationReady
 #       on-chain before executing, so a tampered queue row can only DoS, never cause
 #       unintended execution.

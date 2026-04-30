@@ -73,8 +73,7 @@ const globalTimeoutExecutions: Array<{
  * Upserts a row into the timelock execution queue when the just-executed Safe
  * tx scheduled a timelock op. No-op for any other Safe tx.
  *
- * The queue lives in the non-sensitive `MONGODB_URI` cluster so the auto-execution
- * runner does not need VPN access to discover ready ops.
+ * The queue lives in the non-sensitive `MONGODB_URI` cluster.
  *
  * Errors are logged as warnings only — the Safe tx is already mined and is the
  * authoritative record. A missed enqueue can be repaired via the backfill script.
@@ -259,7 +258,7 @@ const processTxs = async (
 
       // If this Safe tx scheduled a timelock op, enqueue it for the
       // auto-execution runner. The queue lives in the non-sensitive
-      // MONGODB_URI cluster so the runner does not need VPN access.
+      // MONGODB_URI cluster.
       // Failure here is a warning, never a throw — the Safe tx is already
       // mined and is the source of truth; the row can be re-enqueued via
       // the backfill script.
