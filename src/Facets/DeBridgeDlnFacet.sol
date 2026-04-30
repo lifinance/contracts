@@ -35,15 +35,12 @@ contract DeBridgeDlnFacet is
 
     /// @param receivingAssetId The address of the asset to receive (in bytes format)
     /// @param receiver The address of the receiver (in bytes format)
-    /// @param givePatchAuthoritySrc The address on the source chain authorized
-    ///        to patch the order by adding more input tokens
     /// @param orderAuthorityDst The address on the destination chain authorized
     ///        to manage the order (and select the source-chain refund beneficiary on cancel)
     /// @param minAmountOut The minimum amount to receive on the destination chain
     struct DeBridgeDlnData {
         bytes receivingAssetId;
         bytes receiver;
-        address givePatchAuthoritySrc;
         bytes orderAuthorityDst;
         uint256 minAmountOut;
     }
@@ -62,7 +59,6 @@ contract DeBridgeDlnFacet is
 
     error UnknownDeBridgeChain();
     error EmptyNonEVMAddress();
-    error EmptyPatchAuthority();
     error EmptyOrderAuthorityDst();
 
     /// Events ///
@@ -78,9 +74,6 @@ contract DeBridgeDlnFacet is
     modifier onlyValidDeBridgeDlnData(DeBridgeDlnData calldata _deBridgeData) {
         if (_deBridgeData.receiver.length == 0) {
             revert EmptyNonEVMAddress();
-        }
-        if (_deBridgeData.givePatchAuthoritySrc == address(0)) {
-            revert EmptyPatchAuthority();
         }
         if (_deBridgeData.orderAuthorityDst.length == 0) {
             revert EmptyOrderAuthorityDst();
@@ -198,7 +191,7 @@ contract DeBridgeDlnFacet is
                     _bridgeData.destinationChainId
                 ),
                 receiverDst: _deBridgeData.receiver,
-                givePatchAuthoritySrc: _deBridgeData.givePatchAuthoritySrc,
+                givePatchAuthoritySrc: msg.sender,
                 orderAuthorityAddressDst: _deBridgeData.orderAuthorityDst,
                 allowedTakerDst: "",
                 externalCall: "",

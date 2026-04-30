@@ -51,7 +51,6 @@ const main = async () => {
   const dlnData: DeBridgeDlnFacet.DeBridgeDlnDataStruct = {
     receivingAssetId: dstChainTokenOut.address,
     receiver: ethers.utils.solidityPack(['address'], [address]),
-    givePatchAuthoritySrc: address,
     orderAuthorityDst: ethers.utils.solidityPack(['address'], [address]),
     minAmountOut: dstChainTokenOut.recommendedAmount,
   }
