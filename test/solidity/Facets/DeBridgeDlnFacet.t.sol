@@ -25,6 +25,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     // Errors
     error EmptyNonEVMAddress();
+    error EmptyPatchAuthority();
     error UnknownDeBridgeChain();
 
     // Events
@@ -97,6 +98,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
                 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
             ), // Polygon USDC
             receiver: abi.encodePacked(USER_RECEIVER),
+            givePatchAuthoritySrc: USER_SENDER,
             orderAuthorityDst: abi.encodePacked(USER_RECEIVER),
             minAmountOut: (defaultUSDCAmount * 95) / 100
         });
@@ -476,6 +478,65 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             bridgeData,
             validDeBridgeDlnData
         );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfStartBridgingWithZeroPatchAuthority() public {
+        vm.startPrank(USER_SENDER);
+
+        validDeBridgeDlnData.givePatchAuthoritySrc = address(0);
+
+        vm.expectRevert(EmptyPatchAuthority.selector);
+
+        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: fixedFee }(
+            bridgeData,
+            validDeBridgeDlnData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfSwapAndBridgeWithZeroPatchAuthority() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountOut = defaultUSDCAmount;
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        validDeBridgeDlnData.givePatchAuthoritySrc = address(0);
+
+        vm.expectRevert(EmptyPatchAuthority.selector);
+
+        initiateSwapAndBridgeTxWithFacet(true);
 
         vm.stopPrank();
     }

@@ -29,13 +29,15 @@ graph LR;
 The methods listed above take a variable labeled `_deBridgeDlnData`. This data is specific to deBridgeDln and is represented as the following struct type:
 
 ```solidity
-/// @param receivingAssetId The address of the asset to receive
-/// @param receiver The address of the receiver
-/// @param orderAuthorityDst The address on the destination chain authorized to manage the order
+/// @param receivingAssetId The address of the asset to receive (in bytes format)
+/// @param receiver The address of the receiver (in bytes format)
+/// @param givePatchAuthoritySrc The address on the source chain authorized to patch the order by adding more input tokens
+/// @param orderAuthorityDst The address on the destination chain authorized to manage the order (and select the source-chain refund beneficiary on cancel)
 /// @param minAmountOut The minimum amount to receive on the destination chain
 struct DeBridgeDlnData {
   bytes receivingAssetId;
   bytes receiver;
+  address givePatchAuthoritySrc;
   bytes orderAuthorityDst;
   uint256 minAmountOut;
 }
