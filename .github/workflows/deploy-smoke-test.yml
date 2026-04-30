@@ -21,7 +21,14 @@ concurrency:
 
 jobs:
   deploy-smoke-test:
-    if: ${{ github.event.pull_request.draft == false }}
+    # Always run on manual dispatch; for PRs, skip drafts and require main as the base.
+    # github.event.pull_request is unset on workflow_dispatch, so the explicit
+    # event_name branch is required to keep the manual trigger path working.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.draft == false &&
+           github.event.pull_request.base.ref == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
