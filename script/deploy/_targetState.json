@@ -2425,5 +2425,16 @@
         "SymbiosisFacet": "1.0.0"
       }
     }
+  },
+  "localanvil": {
+    "staging": {
+      "LiFiDiamond": {
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.1.0",
+        "Executor": "2.1.0",
+        "FeeCollector": "1.0.1",
+        "FeeForwarder": "1.0.0"
+      }
+    }
   }
 }

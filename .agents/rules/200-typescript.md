@@ -9,7 +9,7 @@ paths:
 
 ## TypeScript Script Conventions
 
-- TS scripts use `.eslintrc.cjs` rules, `bunx tsx`, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`).
+- TS scripts use `.eslintrc.cjs` rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
 - **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore` in new files. Existing files with these directives are technical debt to be resolved. When creating new files or refactoring existing ones, properly type all code and fix type errors instead of suppressing them.
