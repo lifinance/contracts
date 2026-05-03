@@ -43,9 +43,12 @@ Agent(
   description: "Tech Lead — drafting v1",
   prompt: <personas/tech-lead.md>
         + "\n\n## Mode\nB — Drafting"
+        + "\n\n## PRD provenance\nTitle: " + prd_title
+        + "\nSource: " + prd_link
+        + "\nIngested: " + ingested_at
         + "\n\n## PRD\n" + prd_source
         + "\n\n## Ambiguity report (minor gaps to flag in §12)\n" + ambiguity_report
-        + "\n\n## Output\nProduce design doc v1 per templates/design-doc.md. Section 13 (Custody of funds) MUST take an explicit position."
+        + "\n\n## Output\nProduce design doc v1 per templates/design-doc.md. Fill Section 0 (Source PRD) using the provenance fields above. Section 13 (Custody of funds) MUST take an explicit position."
 )
 ```
 
@@ -91,7 +94,7 @@ Save output as `draft_v2` and `synthesis_note_1`. Print `synthesis_note_1` to th
 ## Step 6 — Early-exit check
 
 If round 1 produced **0 critical and 0 high** findings across all six arrays:
-- Tech Lead may declare stable. Skip to Step 11 with `draft_v2` as `draft_final`.
+- Tech Lead may declare stable. Set `draft_final = draft_v2` and ensure its status header reads `READY` (instruct the Tech Lead persona to set it explicitly if missing). Skip to Step 11.
 - Print rationale.
 
 Otherwise: continue.
@@ -104,7 +107,7 @@ Same as Step 4 but against `draft_v2`. Collect six finding arrays.
 
 Same as Step 5 but with v2 as input. Produce `draft_v3` and `synthesis_note_2`.
 
-Re-check early-exit (no critical, no high) — if clean, set `draft_final = draft_v3` and skip to Step 11.
+Re-check early-exit (no critical, no high) — if clean, set `draft_final = draft_v3`, ensure its status header reads `READY` (set it explicitly if missing), and skip to Step 11.
 
 ## Step 9 — Round 3: adversarial hardening (security + QA only)
 
@@ -122,8 +125,9 @@ Inspect `draft_final` for any unresolved critical-severity finding from round 3 
 
 1. Slugify `prd_title` → `<slug>-design-v<final>.md`.
 2. Determine output folder:
-   - If working directory is under `/Users/danielblaecker/AI/Claude/Business/`, write into the matching project subfolder (create one if needed using the slug).
-   - Otherwise write into the current working directory.
+   - Default: write into the current working directory.
+   - If the host repo's `CLAUDE.md` (or equivalent project conventions file) specifies a design-doc location, honour it.
+   - Never write outside the current repo or to user-specific absolute paths.
 3. Write the final markdown file.
 4. **Always ask the executor**: "Final design doc written to `<path>`. Also create a Notion page for it? If yes, what is the parent page ID?" Wait for the answer.
 5. If yes: call `notion-create-pages` under the supplied parent. Use `prd_title` + " — SC Design" as the page title. Body = `draft_final`. Confirm the new page URL back to the executor.

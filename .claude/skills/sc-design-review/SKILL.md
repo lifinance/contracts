@@ -82,23 +82,21 @@ Invoke the **Tech Lead persona** with the PRD + ingestion metadata + the ambigui
 
 Each challenger returns findings as a JSON array conforming to `templates/finding.schema.json`. Free prose is **not accepted** — prose findings cannot be reliably synthesised across six personas. The schema is small: `{id, severity, category, claim, evidence, suggested_change}`. Severity is one of `critical | high | medium | low | info`.
 
-### Round 1 — full panel (5 challengers in parallel)
+### Round 1 — full panel (6 challengers in parallel)
 
-Spawn in **a single message with five `Agent` tool calls** (parallel execution; do not serialise). Each gets:
+Spawn in **a single message with six `Agent` tool calls** (parallel execution; do not serialise). Each gets:
 - The full PRD source.
 - Design doc v1.
 - Their persona prompt from `personas/`.
 - Instruction: "Return findings as a JSON array per `templates/finding.schema.json`. No prose."
 
-The five challengers:
+The six challengers:
 1. DeFi / Composability Engineer — `personas/defi-composability.md`
 2. EVM / Low-level Engineer — `personas/evm-lowlevel.md`
 3. Cross-chain / Bridge Engineer — `personas/crosschain-bridge.md`
 4. Security Auditor — `personas/security-auditor.md`
 5. QA / Verification Engineer — `personas/qa-verification.md`
-6. Product Lead — `personas/product-lead.md` *(yes, six total — Product Lead also runs)*
-
-(Six in parallel, not five. Counting fix: the panel is six.)
+6. Product Lead — `personas/product-lead.md`
 
 ### Synthesis 1 → v2
 
@@ -131,7 +129,7 @@ Otherwise: `READY`.
 
 ## Phase 4 — Output
 
-1. **Always** write `<prd-title-slug>-design-v<final>.md` to the user's working project folder (or `~/AI/Claude/Business/<project>/` if the user is Daniel — see `CLAUDE.md` defaults).
+1. **Always** write `<prd-title-slug>-design-v<final>.md` to the working directory (or to a project-specific folder if the repo's `CLAUDE.md` defines one). Do not write outside the current repo.
 2. **Always** prompt the executor (the human running the skill): "Also create a Notion page for this design doc? (yes/no, and parent page ID if yes)". Do not assume; do not silently flag.
 3. If yes: use `notion-create-pages` under the supplied parent. Include the source PRD link in section 0.
 

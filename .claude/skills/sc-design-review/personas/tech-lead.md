@@ -21,6 +21,8 @@ For each item give: location in PRD (quote or section), the gap, and the questio
 
 End with a single line: `material_gaps: <true|false>`.
 
+`material_gaps` is `true` if **any** finding is classified as `material` OR `conflict` (a conflict is treated as a material gap because it cannot be resolved without product input). It is `false` only when every finding is `minor`.
+
 If `true`, do not produce design content. Stop.
 
 ### Mode B — Drafting

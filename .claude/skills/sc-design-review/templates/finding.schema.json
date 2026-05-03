@@ -1,38 +1,42 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Challenger finding",
-  "description": "One finding produced by a challenger persona reviewing a smart contract design draft. Challengers return a JSON array of these.",
-  "type": "object",
-  "required": ["id", "severity", "category", "claim", "evidence", "suggested_change"],
-  "properties": {
-    "id": {
-      "type": "string",
-      "description": "Stable identifier within this challenger's output, e.g. 'sec-01', 'evm-03'."
-    },
-    "severity": {
-      "type": "string",
-      "enum": ["critical", "high", "medium", "low", "info"],
-      "description": "Use the security-auditor severity definitions. Severity inflation is a sin; deflation is a worse sin."
-    },
-    "category": {
-      "type": "string",
-      "description": "Short tag, e.g. 'reentrancy', 'oracle', 'access-control', 'requirement-coverage', 'gas-vs-security', 'invariant', 'cross-chain-replay', 'custody'."
-    },
-    "claim": {
-      "type": "string",
-      "description": "One-sentence statement of the issue. No hedging."
-    },
-    "evidence": {
-      "type": "string",
-      "description": "Specific reference: design doc section, function name, PRD quote, attack path, or invariant violation. The Tech Lead must be able to verify the claim from this field alone."
-    },
-    "suggested_change": {
-      "type": "string",
-      "description": "Concrete change to the design. 'Add reentrancy guard' is OK; 'Be more careful' is not."
-    },
-    "blocking": {
-      "type": "boolean",
-      "description": "Optional. If true, the challenger asserts this finding must be resolved before the doc can ship as READY. Critical-severity findings default to blocking unless explicitly set false."
+  "title": "Challenger findings",
+  "description": "Array of findings produced by a challenger persona reviewing a smart contract design draft. Challengers return a JSON array of finding objects.",
+  "type": "array",
+  "items": {
+    "title": "Challenger finding",
+    "type": "object",
+    "required": ["id", "severity", "category", "claim", "evidence", "suggested_change"],
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Stable identifier within this challenger's output, e.g. 'sec-01', 'evm-03'."
+      },
+      "severity": {
+        "type": "string",
+        "enum": ["critical", "high", "medium", "low", "info"],
+        "description": "Use the security-auditor severity definitions. Severity inflation is a sin; deflation is a worse sin."
+      },
+      "category": {
+        "type": "string",
+        "description": "Short tag, e.g. 'reentrancy', 'oracle', 'access-control', 'requirement-coverage', 'gas-vs-security', 'invariant', 'cross-chain-replay', 'custody'."
+      },
+      "claim": {
+        "type": "string",
+        "description": "One-sentence statement of the issue. No hedging."
+      },
+      "evidence": {
+        "type": "string",
+        "description": "Specific reference: design doc section, function name, PRD quote, attack path, or invariant violation. The Tech Lead must be able to verify the claim from this field alone."
+      },
+      "suggested_change": {
+        "type": "string",
+        "description": "Concrete change to the design. 'Add reentrancy guard' is OK; 'Be more careful' is not."
+      },
+      "blocking": {
+        "type": "boolean",
+        "description": "Optional. If true, the challenger asserts this finding must be resolved before the doc can ship as READY. Critical-severity findings default to blocking unless explicitly set false."
+      }
     }
   }
 }

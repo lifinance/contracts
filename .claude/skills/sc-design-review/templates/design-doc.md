@@ -79,7 +79,7 @@ State whether the contract holds user/protocol funds at any point.
 
 > "This contract does not hold user or protocol funds at any point. <one-line justification, e.g. 'all transfers are pass-through; tokens are pulled from the user and forwarded to the destination protocol within the same call'>."
 
-That is sufficient. Skip the rest of section 13.
+When this branch applies, the sub-sections below (13.1 / 13.2 / 13.3) MUST still appear with their headers — write `N/A — non-custodial (see above)` under each. Headers are never deleted; the template's structural shape is preserved across all designs.
 
 ### If the contract DOES custody funds
 
