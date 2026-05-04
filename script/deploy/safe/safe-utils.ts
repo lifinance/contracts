@@ -1219,7 +1219,11 @@ export async function getNextNonce(
     const tx = latestTx[0]
     if (!tx) throw new Error('Latest transaction not found')
     const pendingNonce = BigInt(tx.safeTx?.data?.nonce || 0)
-    const nextNonce = pendingNonce + 1n
+    // Clamp to on-chain nonce: if the DB-derived nonce is behind the chain
+    // (stale pending rows), use the on-chain nonce so we don't mint another
+    // stale proposal.
+    const nextNonce =
+      pendingNonce + 1n > currentNonce ? pendingNonce + 1n : currentNonce
     consola.debug(
       `[getNextNonce] found pending proposal with nonce ${pendingNonce} → assigning ${nextNonce} (on-chain nonce: ${currentNonce})`
     )

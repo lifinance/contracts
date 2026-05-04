@@ -444,7 +444,7 @@ const processTxs = async (
         `  Likely cause: the RPC returned a stale nonce when the proposal was created.`
       )
       consola.error(
-        `  Fix: delete this proposal and re-run propose-to-safe to create a new one with nonce ${expectedNonce}.`
+        `  Fix: delete this proposal and re-run propose-to-safe — it will assign the next valid nonce automatically.`
       )
       consola.error('='.repeat(80))
       consola.error('')
