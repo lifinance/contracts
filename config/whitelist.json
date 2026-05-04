@@ -4264,6 +4264,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "optimism": [
@@ -4272,6 +4278,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4282,6 +4294,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "unichain": [
@@ -4290,6 +4308,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4300,6 +4324,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "monad": [
@@ -4308,6 +4338,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4318,6 +4354,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "fantom": [
@@ -4326,6 +4368,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4336,6 +4384,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0xc2c1c6b2097c18233dddca24836ace9e3a553b05",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "stable": [
@@ -4344,6 +4398,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4354,6 +4414,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "metis": [
@@ -4362,6 +4428,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4372,6 +4444,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "abstract": [
@@ -4380,6 +4458,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4390,6 +4474,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "megaeth": [
@@ -4398,6 +4488,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4408,6 +4504,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "0g": [
@@ -4416,6 +4518,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4426,6 +4534,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "avalanche": [
@@ -4434,6 +4548,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4444,6 +4564,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "linea": [
@@ -4452,6 +4578,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4462,6 +4594,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "blast": [
@@ -4470,6 +4608,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4480,6 +4624,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "scroll": [
@@ -4488,6 +4638,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4498,6 +4654,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "katana": [
@@ -4506,6 +4668,12 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ],
@@ -4516,6 +4684,12 @@
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
             }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
           }
         ],
         "pharos": [
@@ -4524,6 +4698,28 @@
             "functions": {
               "0x73fc4457": "swapWithMagpieSignature(bytes)",
               "0x25e651ed": "swapWithUserSignature(bytes)"
+            }
+          },
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "plasma": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "telos": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
         ]
