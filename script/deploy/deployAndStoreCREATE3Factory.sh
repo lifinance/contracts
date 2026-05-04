@@ -50,7 +50,7 @@ deployAndStoreCREATE3Factory() {
 
   # 1) Try forge script (works for chains in Foundry's alloy-chains list)
   if executeAndParse \
-    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol --fork-url \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
     "true" \
     "" \
     "return"; then

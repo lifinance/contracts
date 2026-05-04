@@ -43,7 +43,7 @@ deployUpgradesToSAFE() {
       
       # Execute, parse, and check return code
       if ! executeAndParse \
-        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" -f $NETWORK --json --skip-simulation --legacy" \
+        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" --fork-url $NETWORK --json --skip-simulation --legacy" \
         "true" \
         "forge script failed for $script on network $NETWORK" \
         "continue"; then
