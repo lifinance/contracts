@@ -1176,6 +1176,7 @@ export async function getSafeMongoCollection(): Promise<{
   }
 
   const client = new MongoClient(process.env.SC_MONGODB_URI)
+  await client.connect()
   const db = client.db('sc_private')
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
@@ -1217,8 +1218,16 @@ export async function getNextNonce(
   if (latestTx.length > 0) {
     const tx = latestTx[0]
     if (!tx) throw new Error('Latest transaction not found')
-    return BigInt(tx.safeTx?.data?.nonce || 0) + 1n
+    const pendingNonce = BigInt(tx.safeTx?.data?.nonce || 0)
+    const nextNonce = pendingNonce + 1n
+    consola.debug(
+      `[getNextNonce] found pending proposal with nonce ${pendingNonce} → assigning ${nextNonce} (on-chain nonce: ${currentNonce})`
+    )
+    return nextNonce
   }
+  consola.debug(
+    `[getNextNonce] no pending proposals found → using on-chain nonce ${currentNonce}`
+  )
   return currentNonce
 }
 
