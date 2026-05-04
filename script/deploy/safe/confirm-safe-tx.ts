@@ -13,6 +13,7 @@ import { type Collection } from 'mongodb'
 import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
@@ -37,7 +38,7 @@ import {
   type IAugmentedSafeTxDocument,
   type ISafeTransaction,
   type ISafeTxDocument,
-  type ViemSafe,
+  type SafeClient,
 } from './safe-utils'
 
 dotenv.config()
@@ -151,7 +152,7 @@ const processTxs = async (
   // Returns true if the transaction was mined (receipt received), false if only submitted
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
-    safeClient: ViemSafe = safe
+    safeClient: SafeClient = safe
   ): Promise<boolean> {
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
@@ -183,7 +184,12 @@ const processTxs = async (
         )
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
-      consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
+      const displayHash = exec.displayHash ?? executionHash
+      consola.info(`   - Execution Hash: \u001b[33m${displayHash}\u001b[0m`)
+      if (exec.explorerUrl)
+        consola.info(
+          `   - Explorer:       \u001b[36m${exec.explorerUrl}\u001b[0m`
+        )
       consola.log(' ')
 
       return !!exec.receipt
@@ -302,9 +308,17 @@ const processTxs = async (
 
     // Get target name for display
     const targetName = await getTargetName(tx.safeTx.data.to, network)
+    const toAddrDisplay = formatAddressForNetworkCliDisplay(
+      network,
+      tx.safeTx.data.to
+    )
     const toDisplay = targetName
-      ? `${tx.safeTx.data.to} \u001b[33m${targetName}\u001b[0m`
-      : tx.safeTx.data.to
+      ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
+      : toAddrDisplay
+    const proposerDisplay = formatAddressForNetworkCliDisplay(
+      network,
+      tx.proposer
+    )
 
     const nonceColor = nonceStatus === 'current' ? '32' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
@@ -323,7 +337,7 @@ const processTxs = async (
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
     }\u001b[0m
     Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${tx.proposer}\u001b[0m
+    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m
     Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
     Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
       tx.threshold

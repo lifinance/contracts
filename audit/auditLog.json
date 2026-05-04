@@ -532,6 +532,13 @@
       "auditReportPath": "./audit/reports/2025.12.31_TokenWrapper(v1.2.1).pdf",
       "auditCommitHash": "a0f5a83d5f42b304474fa040526ce98ea3cea5e6"
     },
+    "audit20260130": {
+      "auditCompletedOn": "30.01.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.01.30_LiFiIntentEscrowFacet(v1.1.0).pdf",
+      "auditCommitHash": "151a2a3308ae544a493a5a778502b6a7b7bbf2aa"
+    },
     "audit20260205": {
       "auditCompletedOn": "05.02.2026",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -552,6 +559,20 @@
       "auditorGitHandle": "burrasec",
       "auditReportPath": "./audit/reports/2026.03.20_MayanFacet(v1.2.4).pdf",
       "auditCommitHash": "22d2fd1aaf9fb5f2ff85c98b6521b5e41b4aa6cd"
+    },
+    "audit20260409": {
+      "auditCompletedOn": "09.04.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.04.09_AcrossV4SwapFacet(v1.0.0).pdf",
+      "auditCommitHash": "514f03cb5942c16c4de013ef264b5d55d87e7b9c"
+    },
+    "audit20260423": {
+      "auditCompletedOn": "23.04.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.04.23_PolymerCCTPFacet(v2.0.1).pdf",
+      "auditCommitHash": "f2be9c06a9080629c0dfdfc13759c9f66cac162c"
     }
   },
   "auditedContracts": {
@@ -577,6 +598,9 @@
     },
     "AcrossFacetV4": {
       "1.0.0": ["audit20250901"]
+    },
+    "AcrossV4SwapFacet": {
+      "1.0.0": ["audit20260409"]
     },
     "AllBridgeFacet": {
       "2.0.0": ["audit20250508"],
@@ -770,7 +794,9 @@
     },
     "LiFiIntentEscrowFacet": {
       "1.0.0": ["audit20251119"],
-      "1.0.1": ["audit20260205"]
+      "1.1.0": ["audit20260130"],
+      "1.0.1": ["audit20260205"],
+      "1.1.1": ["audit20260205"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],
@@ -833,7 +859,8 @@
     },
     "PolymerCCTPFacet": {
       "1.0.0": ["audit20251201"],
-      "2.0.0": ["audit20260216"]
+      "2.0.0": ["audit20260216"],
+      "2.0.1": ["audit20260423"]
     },
     "Receiver": {
       "2.0.3": ["audit20250109_3"],

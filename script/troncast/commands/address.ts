@@ -1,49 +1,12 @@
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
 
+import {
+  evmHexToTronBase58,
+  tronAddressToHex,
+} from '../../deploy/tron/tronAddressHelpers'
 import { isValidAddress } from '../utils/parser'
 import { initTronWeb } from '../utils/tronweb'
-
-/**
- * Convert a Tron base58 address to EVM-compatible hex format
- * Removes the '41' Tron prefix and adds '0x'
- */
-function tronAddressToHex(
-  tronWeb: ReturnType<typeof initTronWeb>,
-  address: string
-): string {
-  let hex = tronWeb.address.toHex(address)
-
-  // Remove '0x' prefix if present
-  if (hex.startsWith('0x')) hex = hex.substring(2)
-
-  // Remove '41' prefix (Tron address prefix) if present
-  // Tron addresses in hex format start with '41', but EVM-style calls need 20-byte addresses
-  if (hex.startsWith('41')) hex = hex.substring(2)
-
-  // Ensure exactly 40 hex characters (20 bytes)
-  if (hex.length > 40) hex = hex.substring(0, 40)
-  else if (hex.length < 40) hex = hex.padStart(40, '0')
-
-  return '0x' + hex.toLowerCase()
-}
-
-/**
- * Convert a hex address to Tron base58 format
- * Adds the '41' Tron prefix before converting to base58
- */
-function hexToTronAddress(
-  tronWeb: ReturnType<typeof initTronWeb>,
-  hexAddress: string
-): string {
-  // Remove 0x prefix if present
-  let hex = hexAddress.startsWith('0x') ? hexAddress.substring(2) : hexAddress
-
-  // Add '41' prefix if not present (Tron's address prefix)
-  if (!hex.startsWith('41')) hex = '41' + hex
-
-  return tronWeb.address.fromHex(hex)
-}
 
 const toHexCommand = defineCommand({
   meta: {
@@ -127,7 +90,7 @@ const toBase58Command = defineCommand({
           results.push(addr)
         } else {
           // Hex - convert to base58
-          results.push(hexToTronAddress(tronWeb, addr))
+          results.push(evmHexToTronBase58(tronWeb, addr))
         }
       }
 

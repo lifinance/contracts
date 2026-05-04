@@ -3,8 +3,7 @@
 # deploys a CREATE3Factory
 # stores the deployed-to address in networks.json
 deployAndStoreCREATE3Factory() {
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
 
   # make sure script was called with sufficient parameters
@@ -44,12 +43,14 @@ deployAndStoreCREATE3Factory() {
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
   FACTORY_ADDRESS=""
-  local PRIVATE_KEY
-  PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || return 1
+  PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || {
+    error "Failed to load PRIVATE_KEY for network $NETWORK (environment: $ENVIRONMENT)"
+    return 1
+  }
 
   # 1) Try forge script (works for chains in Foundry's alloy-chains list)
   if executeAndParse \
-    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol --fork-url \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
     "true" \
     "" \
     "return"; then

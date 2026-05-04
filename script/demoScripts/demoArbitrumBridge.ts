@@ -16,7 +16,7 @@ import {
   ERC20__factory,
   IGatewayRouter__factory,
 } from '../../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../utils/utils'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

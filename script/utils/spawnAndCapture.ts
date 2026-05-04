@@ -1,3 +1,8 @@
+/**
+ * Runs a child process with spawn, captures its output, and resolves/rejects based on exit code.
+ * Use this instead of duplicating spawn + pipe + on('close') boilerplate across scripts.
+ */
+
 import type { Buffer } from 'buffer'
 import { spawn } from 'child_process'
 

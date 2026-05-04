@@ -453,7 +453,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         mappings[14] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
         mappings[15] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
         mappings[16] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
-        mappings[17] = ChainMapping({ chainId: 5042002, domainId: 26 }); // Arc Testnet
+        mappings[17] = ChainMapping({ chainId: 1672, domainId: 31 }); // Pharos
 
         for (uint256 i = 0; i < mappings.length; i++) {
             assertEq(

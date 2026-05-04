@@ -58,13 +58,14 @@ jobs:
         if: env.CONTINUE == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          TARGET_LABEL: ${{ github.event.label.name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.actor }}
         run: |
 
           ##### Define the labels to protect
           PROTECTED_LABELS=("AuditCompleted" "AuditRequired" "AuditNotRequired")
-          TARGET_LABEL="${{ github.event.label.name }}"
-          EVENT_ACTION="${{ github.event.action }}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
 
           ##### Fetch the current labels before action (to restore if needed)
           CURRENT_LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name' | tr '\n' ' ')
@@ -73,7 +74,7 @@ jobs:
 
           ##### Check if the event involves a protected label
           if [[ " ${PROTECTED_LABELS[*]} " =~ " $TARGET_LABEL " ]]; then
-            echo -e "\033[31mUnauthorized modification of a protected label by ${{ github.actor }}. Reverting changes...\033[0m"
+            echo -e "\033[31mUnauthorized modification of a protected label by $ACTOR. Reverting changes...\033[0m"
             ##### Revert to the previous state of labels
             if [[ "$EVENT_ACTION" == "unlabeled" ]]; then
               gh pr edit $PR_NUMBER --add-label "$TARGET_LABEL"
