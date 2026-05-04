@@ -12,7 +12,10 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title ReceiverChainflip
 /// @author LI.FI (https://li.fi)
 /// @notice Receiver contract for Chainflip cross-chain swaps and message passing
-/// @custom:version 1.0.1
+/// @dev This contract is not intended to custody user funds; any token balance
+///      held is incidental (transient during execution or stuck after a failed
+///      bridge call) and is recoverable via `withdrawToken` by the owner.
+/// @custom:version 1.1.0
 contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
     using SafeTransferLib for address payable;
@@ -131,7 +134,7 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
             {
                 return;
             } catch {
-                actualAssetId.safeTransfer(receiver, amount);
+                LibAsset.transferERC20(actualAssetId, receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
                     actualAssetId,

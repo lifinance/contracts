@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.17;
 
-// solhint-disable-next-line no-unused-import
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -16,7 +15,11 @@ import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for wrapping and unwrapping tokens
 /// @dev IMPORTANT: This contract assumes the native token has 18 decimals (standard for all EVM chains)
 /// @dev IMPORTANT: The converter contract (if used) MUST NOT charge any fees and should only perform decimal conversion
-/// @custom:version 1.2.1
+/// @dev This contract is not intended to custody user funds; any token balance
+///      held is incidental (transient during a wrap/unwrap call) and should not
+///      persist across transactions. Stuck balances can be recovered via
+///      `withdrawToken` by the owner.
+/// @custom:version 1.3.0
 contract TokenWrapper is WithdrawablePeriphery {
     address public immutable WRAPPED_TOKEN;
     address public immutable CONVERTER;
@@ -72,7 +75,7 @@ contract TokenWrapper is WithdrawablePeriphery {
             amount = (amount * SWAP_RATIO_MULTIPLIER) / BASE_DENOMINATOR;
         }
 
-        SafeTransferLib.safeTransfer(WRAPPED_TOKEN, msg.sender, amount);
+        LibAsset.transferERC20(WRAPPED_TOKEN, msg.sender, amount);
     }
 
     /// @notice Unwraps all the caller's balance of wrapped token and returns native tokens
@@ -84,7 +87,7 @@ contract TokenWrapper is WithdrawablePeriphery {
         // given allowance, in our specific usecase allowance is always
         // nearly MAX_UINT256. Using the balance only is a gas optimisation.
         uint256 amount = IERC20(WRAPPED_TOKEN).balanceOf(msg.sender);
-        SafeTransferLib.safeTransferFrom(
+        LibAsset.transferFromERC20(
             WRAPPED_TOKEN,
             msg.sender,
             address(this),

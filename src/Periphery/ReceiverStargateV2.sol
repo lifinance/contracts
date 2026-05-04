@@ -36,7 +36,10 @@ interface ILayerZeroComposer {
 /// @title ReceiverStargateV2
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via Stargate V2
-/// @custom:version 1.1.0
+/// @dev This contract is not intended to custody user funds; any token balance
+///      held is incidental (transient during execution or stuck after a failed
+///      bridge call) and is recoverable via `withdrawToken` by the owner.
+/// @custom:version 1.2.0
 contract ReceiverStargateV2 is
     ILiFi,
     WithdrawablePeriphery,
@@ -191,7 +194,7 @@ contract ReceiverStargateV2 is
 
             if (cacheGasLeft < recoverGas) {
                 // case 2a: not enough gas left to execute calls
-                token.safeTransfer(receiver, amount);
+                LibAsset.transferERC20(assetId, receiver, amount);
 
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -210,7 +213,7 @@ contract ReceiverStargateV2 is
                     gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
-                token.safeTransfer(receiver, amount);
+                LibAsset.transferERC20(assetId, receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
                     assetId,
