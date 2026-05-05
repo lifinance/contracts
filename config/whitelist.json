@@ -4371,7 +4371,7 @@
             }
           },
           {
-            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "address": "0xf702814d2e1290f3d5f3202565df46272e1b1b92",
             "functions": {
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
@@ -4386,7 +4386,7 @@
             }
           },
           {
-            "address": "0xc2c1c6b2097c18233dddca24836ace9e3a553b05",
+            "address": "0xc5b20203b6807e742853c96ce7dcfb1e7b201c0a",
             "functions": {
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
@@ -4431,7 +4431,7 @@
             }
           },
           {
-            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "address": "0xf702814d2e1290f3d5f3202565df46272e1b1b92",
             "functions": {
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
@@ -4446,7 +4446,7 @@
             }
           },
           {
-            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "address": "0xf5f3b8faf45023fd92c0c88fedf73fb0529fc1cd",
             "functions": {
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
@@ -4626,7 +4626,7 @@
             }
           },
           {
-            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "address": "0xf5f3b8faf45023fd92c0c88fedf73fb0529fc1cd",
             "functions": {
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
@@ -4701,7 +4701,7 @@
             }
           },
           {
-            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "address": "0xf702814d2e1290f3d5f3202565df46272e1b1b92",
             "functions": {
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
@@ -4717,7 +4717,7 @@
         ],
         "telos": [
           {
-            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "address": "0xf5f3b8faf45023fd92c0c88fedf73fb0529fc1cd",
             "functions": {
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
