@@ -2,7 +2,8 @@
  * Add Safe Owners and Threshold
  *
  * Proposes Safe transactions to add owners (from `config/global.json:safeOwners`
- * and/or `--owners`) and, when current threshold differs, propose a change to 3.
+ * and/or `--owners`) and, when current threshold differs, propose a change to
+ * the expected value (`EXPECTED_THRESHOLD`).
  * Supports a single network (`--network <name>`) or every active EVM network
  * (`--all-networks`). Signs with a Ledger by default; falls back to a private
  * key when `--ledger=false`. Use `--check` for a read-only audit of on-chain
@@ -80,8 +81,7 @@ interface ICheckResult {
 const main = defineCommand({
   meta: {
     name: 'add-safe-owners-and-threshold',
-    description:
-      'Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to 3. Single network via --network, every active EVM network via --all-networks.',
+    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${EXPECTED_THRESHOLD}. Single network via --network, every active EVM network via --all-networks.`,
   },
   args: {
     network: {
@@ -402,7 +402,7 @@ async function processNetwork(
 
     let thresholdNewlyProposed = false
     let thresholdAlreadyProposed = false
-    if (currentThreshold !== 3) {
+    if (currentThreshold !== EXPECTED_THRESHOLD) {
       // Existing proposals will add their owners when executed, so include
       // both newly proposed and already-proposed addOwners in the projection.
       const updatedOwnerCount =
@@ -410,17 +410,18 @@ async function processNetwork(
         addOwnerNewlyProposed +
         addOwnerAlreadyProposed
 
-      if (updatedOwnerCount < 3)
+      if (updatedOwnerCount < EXPECTED_THRESHOLD)
         throw new Error(
-          `Cannot set threshold to 3 when only ${updatedOwnerCount} owner(s) would exist (would lock the Safe)`
+          `Cannot set threshold to ${EXPECTED_THRESHOLD} when only ${updatedOwnerCount} owner(s) would exist (would lock the Safe)`
         )
 
       consola.info(
-        `Now proposing to change threshold from ${currentThreshold} to 3`
+        `Now proposing to change threshold from ${currentThreshold} to ${EXPECTED_THRESHOLD}`
       )
-      const changeThresholdTx = await safe.createChangeThresholdTx(3, {
-        nonce: nextNonce,
-      })
+      const changeThresholdTx = await safe.createChangeThresholdTx(
+        EXPECTED_THRESHOLD,
+        { nonce: nextNonce }
+      )
       const signedThresholdTx = await safe.signTransaction(changeThresholdTx)
       const thresholdTxHash = await safe.getTransactionHash(signedThresholdTx)
       consola.info('Transaction signed:', thresholdTxHash)
@@ -445,7 +446,10 @@ async function processNetwork(
         proposalsCreated++
         thresholdNewlyProposed = true
       }
-    } else consola.success('Threshold is already set to 3 - no action required')
+    } else
+      consola.success(
+        `Threshold is already set to ${EXPECTED_THRESHOLD} - no action required`
+      )
 
     const summaryParts: string[] = []
     if (addOwnerNewlyProposed > 0)
@@ -454,9 +458,10 @@ async function processNetwork(
       summaryParts.push(`${addOwnerAlreadyProposed} addOwner already proposed`)
     if (ownersAlreadyOnChain > 0)
       summaryParts.push(`${ownersAlreadyOnChain} already on-chain`)
-    if (thresholdNewlyProposed) summaryParts.push('threshold→3')
+    if (thresholdNewlyProposed)
+      summaryParts.push(`threshold→${EXPECTED_THRESHOLD}`)
     else if (thresholdAlreadyProposed)
-      summaryParts.push('threshold→3 already proposed')
+      summaryParts.push(`threshold→${EXPECTED_THRESHOLD} already proposed`)
     if (!summaryParts.length) summaryParts.push('no changes')
 
     return { proposalsCreated, summary: summaryParts.join(', ') }
