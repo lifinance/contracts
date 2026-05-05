@@ -5,7 +5,8 @@
  * and/or `--owners`) and, when current threshold differs, propose a change to 3.
  * Supports a single network (`--network <name>`) or every active EVM network
  * (`--all-networks`). Signs with a Ledger by default; falls back to a private
- * key when `--ledger=false`.
+ * key when `--ledger=false`. Use `--check` for a read-only audit of on-chain
+ * owners + threshold against the expected configuration.
  */
 
 import { defineCommand, runMain } from 'citty'
@@ -22,6 +23,7 @@ import {
 
 import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
@@ -34,6 +36,8 @@ import {
   storeTransactionInMongoDB,
   type ISafeTxDocument,
 } from './safe-utils'
+
+const EXPECTED_THRESHOLD = 3
 dotenv.config()
 
 interface ILedgerOptions {
@@ -62,6 +66,17 @@ interface INetworkRunResult {
   detail: string
 }
 
+interface ICheckResult {
+  network: string
+  status: 'OK' | 'DIFF' | 'FAILED'
+  threshold?: number
+  ownerCount?: number
+  expectedOwnerCount: number
+  missingOwners: Address[]
+  extraOwners: Address[]
+  detail: string
+}
+
 const main = defineCommand({
   meta: {
     name: 'add-safe-owners-and-threshold',
@@ -76,6 +91,7 @@ const main = defineCommand({
     allNetworks: {
       type: 'boolean',
       description: 'Run on every active EVM network in networks.json',
+      alias: 'all-networks',
       default: false,
     },
     privateKey: {
@@ -103,6 +119,12 @@ const main = defineCommand({
       type: 'string',
       description: 'Custom derivation path for Ledger (overrides ledgerLive)',
     },
+    check: {
+      type: 'boolean',
+      description:
+        'Read-only audit: compare on-chain owners + threshold against config',
+      default: false,
+    },
   },
   async run({ args }) {
     if (!args.network && !args.allNetworks)
@@ -111,6 +133,38 @@ const main = defineCommand({
       throw new Error('--network and --all-networks are mutually exclusive')
 
     const cliOwners = parseCliOwners(args.owners)
+
+    if (args.check) {
+      const networks = resolveNetworks(args.network, args.allNetworks)
+      if (!networks.length) {
+        consola.warn('No networks selected — exiting')
+        return
+      }
+
+      const expectedOwners = mergeOwners(
+        globalConfig.safeOwners,
+        cliOwners
+      ) as Address[]
+
+      consola.info(
+        `Checking ${networks.length} network(s) against ${expectedOwners.length} expected owner(s) + threshold=${EXPECTED_THRESHOLD}`
+      )
+
+      const checkResults: ICheckResult[] = []
+      for (const network of networks) {
+        const r = await checkNetwork(
+          network,
+          expectedOwners,
+          EXPECTED_THRESHOLD
+        )
+        checkResults.push(r)
+      }
+
+      printCheckTable(checkResults)
+      const bad = checkResults.filter((r) => r.status !== 'OK').length
+      if (bad > 0) process.exit(1)
+      return
+    }
 
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger
@@ -413,6 +467,105 @@ function mergeOwners(configured: string[], cli?: Address[]): string[] {
     merged.push(addr)
   }
   return merged
+}
+
+async function checkNetwork(
+  network: string,
+  expectedOwners: Address[],
+  expectedThreshold: number
+): Promise<ICheckResult> {
+  const cfg = networksData[network.toLowerCase() as keyof typeof networksData]
+  const expectedSet = new Set(expectedOwners.map((a) => a.toLowerCase()))
+  const base: ICheckResult = {
+    network,
+    status: 'FAILED',
+    expectedOwnerCount: expectedOwners.length,
+    missingOwners: [],
+    extraOwners: [],
+    detail: '',
+  }
+
+  if (!cfg || typeof cfg.safeAddress !== 'string')
+    return { ...base, detail: 'no safeAddress in networks.json' }
+
+  try {
+    const chain = getViemChainForNetworkName(network)
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0]),
+    })
+    const info = await getSafeInfoFromContract(
+      publicClient,
+      cfg.safeAddress as Address
+    )
+
+    const onChainSet = new Set(info.owners.map((a) => a.toLowerCase()))
+    const missingOwners = [...expectedSet]
+      .filter((a) => !onChainSet.has(a))
+      .map((a) => a as Address)
+    const extraOwners = [...onChainSet]
+      .filter((a) => !expectedSet.has(a))
+      .map((a) => a as Address)
+
+    const threshold = Number(info.threshold)
+    const ownersMatch = missingOwners.length === 0 && extraOwners.length === 0
+    const thresholdMatch = threshold === expectedThreshold
+    const status: ICheckResult['status'] =
+      ownersMatch && thresholdMatch ? 'OK' : 'DIFF'
+
+    const parts: string[] = []
+    if (!thresholdMatch)
+      parts.push(`threshold ${threshold} ≠ ${expectedThreshold}`)
+    if (missingOwners.length) parts.push(`missing: ${missingOwners.join(', ')}`)
+    if (extraOwners.length) parts.push(`extra: ${extraOwners.join(', ')}`)
+    const detail = parts.length ? parts.join('; ') : 'matches expected config'
+
+    return {
+      network,
+      status,
+      threshold,
+      ownerCount: info.owners.length,
+      expectedOwnerCount: expectedOwners.length,
+      missingOwners,
+      extraOwners,
+      detail,
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    return { ...base, detail: errorMsg }
+  }
+}
+
+function printCheckTable(results: ICheckResult[]): void {
+  consola.info('='.repeat(80))
+  consola.info('Check results:')
+  const width = Math.max(...results.map((r) => r.network.length), 10)
+
+  for (const r of results) {
+    const pad = r.network.padEnd(width)
+    const tag =
+      r.status === 'OK' ? '[32mOK    [0m' : r.status === 'DIFF' ? '[33mDIFF  [0m' : '[31mFAILED[0m'
+
+    const th =
+      r.threshold !== undefined
+        ? `threshold=${r.threshold === EXPECTED_THRESHOLD ? '[32m' : '[31m'}${
+            r.threshold
+          }[0m`
+        : 'threshold=?'
+    const ow =
+      r.ownerCount !== undefined
+        ? `owners=${r.ownerCount}/${r.expectedOwnerCount}`
+        : 'owners=?'
+
+    consola.info(`  ${pad}  ${tag}  ${th}  ${ow}  ${r.detail}`)
+  }
+
+  const ok = results.filter((r) => r.status === 'OK').length
+  const diff = results.filter((r) => r.status === 'DIFF').length
+  const failed = results.filter((r) => r.status === 'FAILED').length
+  consola.info(
+    `Total: ${results.length}  OK: ${ok}  DIFF: ${diff}  FAILED: ${failed}`
+  )
 }
 
 runMain(main)
