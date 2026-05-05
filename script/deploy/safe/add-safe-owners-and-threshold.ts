@@ -348,8 +348,9 @@ async function processNetwork(
       )
 
     let proposalsCreated = 0
-    let ownersAdded = 0
-    let ownersAlreadyPresent = 0
+    let addOwnerNewlyProposed = 0
+    let addOwnerAlreadyProposed = 0
+    let ownersAlreadyOnChain = 0
 
     for (const o of ownersToAdd) {
       consola.info('-'.repeat(80))
@@ -357,7 +358,7 @@ async function processNetwork(
 
       if (isAddressASafeOwner(existingOwners, owner)) {
         consola.info('Owner already exists', owner)
-        ownersAlreadyPresent++
+        ownersAlreadyOnChain++
         continue
       }
 
@@ -384,22 +385,30 @@ async function processNetwork(
         senderAddress
       )
 
-      if (result === null) consola.info('Proposal already exists - skipping')
-      else if (!result.acknowledged)
+      if (result === null) {
+        consola.info('Proposal already exists - skipping')
+        addOwnerAlreadyProposed++
+      } else if (!result.acknowledged)
         throw new Error('MongoDB insert was not acknowledged')
       else {
         consola.success('Transaction successfully stored in MongoDB')
         proposalsCreated++
+        addOwnerNewlyProposed++
       }
-      ownersAdded++
       nextNonce++
     }
 
     consola.info('-'.repeat(80))
 
-    let thresholdChanged = false
+    let thresholdNewlyProposed = false
+    let thresholdAlreadyProposed = false
     if (currentThreshold !== 3) {
-      const updatedOwnerCount = (await safe.getOwners()).length + ownersAdded
+      // Existing proposals will add their owners when executed, so include
+      // both newly proposed and already-proposed addOwners in the projection.
+      const updatedOwnerCount =
+        (await safe.getOwners()).length +
+        addOwnerNewlyProposed +
+        addOwnerAlreadyProposed
 
       if (updatedOwnerCount < 3)
         throw new Error(
@@ -426,22 +435,28 @@ async function processNetwork(
         senderAddress
       )
 
-      if (thresholdResult === null)
+      if (thresholdResult === null) {
         consola.info('Proposal already exists - skipping')
-      else if (!thresholdResult.acknowledged)
+        thresholdAlreadyProposed = true
+      } else if (!thresholdResult.acknowledged)
         throw new Error('MongoDB insert was not acknowledged')
       else {
         consola.success('Transaction successfully stored in MongoDB')
         proposalsCreated++
-        thresholdChanged = true
+        thresholdNewlyProposed = true
       }
     } else consola.success('Threshold is already set to 3 - no action required')
 
     const summaryParts: string[] = []
-    if (ownersAdded > 0) summaryParts.push(`${ownersAdded} addOwner`)
-    if (ownersAlreadyPresent > 0)
-      summaryParts.push(`${ownersAlreadyPresent} already present`)
-    if (thresholdChanged) summaryParts.push('threshold→3')
+    if (addOwnerNewlyProposed > 0)
+      summaryParts.push(`${addOwnerNewlyProposed} addOwner`)
+    if (addOwnerAlreadyProposed > 0)
+      summaryParts.push(`${addOwnerAlreadyProposed} addOwner already proposed`)
+    if (ownersAlreadyOnChain > 0)
+      summaryParts.push(`${ownersAlreadyOnChain} already on-chain`)
+    if (thresholdNewlyProposed) summaryParts.push('threshold→3')
+    else if (thresholdAlreadyProposed)
+      summaryParts.push('threshold→3 already proposed')
     if (!summaryParts.length) summaryParts.push('no changes')
 
     return { proposalsCreated, summary: summaryParts.join(', ') }
