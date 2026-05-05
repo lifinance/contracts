@@ -39,6 +39,11 @@ import {
 } from './safe-utils'
 
 const EXPECTED_THRESHOLD = 3
+
+const ansi = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`
+const green = (text: string) => ansi('32', text)
+const yellow = (text: string) => ansi('33', text)
+const red = (text: string) => ansi('31', text)
 dotenv.config()
 
 interface ILedgerOptions {
@@ -280,10 +285,10 @@ function printSummary(results: INetworkRunResult[]): void {
     const pad = r.network.padEnd(width)
     const tag =
       r.status === 'proposed'
-        ? '[32mproposed[0m'
+        ? green('proposed')
         : r.status === 'skipped'
-        ? '[33mskipped [0m'
-        : '[31mfailed  [0m'
+        ? yellow('skipped ')
+        : red('failed  ')
     consola.info(`  ${pad}  ${tag}  ${r.detail}`)
   }
   const failed = results.filter((r) => r.status === 'failed').length
@@ -564,13 +569,15 @@ function printCheckTable(results: ICheckResult[]): void {
   for (const r of results) {
     const pad = r.network.padEnd(width)
     const tag =
-      r.status === 'OK' ? '[32mOK    [0m' : r.status === 'DIFF' ? '[33mDIFF  [0m' : '[31mFAILED[0m'
+      r.status === 'OK' ? green('OK    ') : r.status === 'DIFF' ? yellow('DIFF  ') : red('FAILED')
 
     const th =
       r.threshold !== undefined
-        ? `threshold=${r.threshold === EXPECTED_THRESHOLD ? '[32m' : '[31m'}${
-            r.threshold
-          }[0m`
+        ? `threshold=${
+            r.threshold === EXPECTED_THRESHOLD
+              ? green(String(r.threshold))
+              : red(String(r.threshold))
+          }`
         : 'threshold=?'
     const ow =
       r.ownerCount !== undefined
