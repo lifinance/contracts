@@ -48,8 +48,7 @@ export async function sendOrPropose({
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
 
-    // Testnet diamonds are owned by deployerWallet, so use the production key.
-    const pkVar = isProd || isTestnet ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
+    const pkVar = isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
     const pk = process.env[pkVar]
     if (!pk) throw new Error(`Missing ${pkVar} in environment`)
 
