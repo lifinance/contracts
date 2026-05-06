@@ -3790,6 +3790,28 @@ function isZkEvmNetwork() {
   fi
 }
 
+# isTestnetNetwork: Returns 0 (true) if NETWORK has type "testnet" in networks.json.
+# Testnet networks have an EOA-owned diamond (no Safe multisig, no Timelock),
+# so admin operations bypass the Safe-propose path and send directly.
+#
+# Usage: isTestnetNetwork NETWORK
+#   NETWORK - Network name as defined in networks.json
+#
+# Returns: 0 if the network's type is "testnet", 1 otherwise (or if missing/unknown).
+function isTestnetNetwork() {
+  local NETWORK="$1"
+
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1
+  fi
+
+  local TYPE
+  TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  [[ "$TYPE" == "testnet" ]]
+}
+
 function isNetworkActive() {
   # read function arguments into variables
   local NETWORK="$1"
@@ -4190,7 +4212,7 @@ function printDeploymentsStatusV2() {
     # go through all networks
     for NETWORK in ${NETWORKS[*]}; do
       # skip any network that is a testnet
-      if [[ "$TEST_NETWORKS" == *"$NETWORK"* ]]; then
+      if isTestnetNetwork "$NETWORK"; then
         continue
       fi
 
