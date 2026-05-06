@@ -164,10 +164,10 @@ Where:
 
 Examples:
 ```
-Audit: DeBridgeDlnFacet v1.1.0 :thread:
-Audit: PolymerCCTPFacet v2.0.1 :thread:
-Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
-Audit: Patcher v1.0.1 (urgent) :thread:
+Audit: `DeBridgeDlnFacet v1.1.0` :thread:
+Audit: `PolymerCCTPFacet v2.0.1` :thread:
+Audit: `GenericSwapFacetV3 v2.0.0` + 6 more :thread:
+Audit: `Patcher v1.0.1` (urgent) :thread:
 ```
 
 ### 3b. Thread reply — Sujith channel
@@ -340,25 +340,41 @@ If `slack_send_message` fails with `mcp_externally_shared_channel_restricted`:
 
 1. Use **display name mentions** (e.g. `@Sujith Somraaj`) instead of API mentions (e.g. `<@U05GN6XH57T>`) — API mention syntax is only resolved by the Slack API, not when typed/pasted manually.
 
-2. Write the messages to `/tmp/audit-request-{pr_number}.md` so the user can open and copy cleanly. Format:
+2. Write **all chosen channels** to `/tmp/audit-request-{pr_number}.md` in a **single write** — never write one channel then overwrite with the second. Build the full file content first, then write once. Format:
 
 ```markdown
 # Audit Request — PR #{pr_number}
 
-## #lifi-external-{channel}
+## #lifi-external-{channel_1}
 
 ### Parent message
 Post this as a new message in the channel:
 
 ---
-{parent message with display name mentions}
+{parent message — channel 1 — display name mentions — plain text, no backticks}
 ---
 
 ### Thread reply
 Reply to the parent message with this (click the reply icon on the parent):
 
 ---
-{thread reply with display name mentions}
+{thread reply — channel 1 — display name mentions — plain text, no backticks}
+---
+
+## #lifi-external-{channel_2}   ← include only if both channels selected
+
+### Parent message
+Post this as a new message in the channel:
+
+---
+{parent message — channel 2 — display name mentions — plain text, no backticks}
+---
+
+### Thread reply
+Reply to the parent message with this (click the reply icon on the parent):
+
+---
+{thread reply — channel 2 — display name mentions — plain text, no backticks}
 ---
 ```
 
@@ -450,7 +466,7 @@ pair to the stricter contractSelectorIsAllowed (granular contract+selector white
 
 **Parent message**:
 ```
-Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
+Audit: `GenericSwapFacetV3 v2.0.0` + 6 more :thread:
 ```
 
 **Thread reply (Sujith)**:
