@@ -71,19 +71,19 @@ deployAllContracts() {
   )
 
   # Testnets always send admin txs directly; skip the prompt below for them.
-  if ! isTestnetNetwork "$NETWORK"; then
-    # make sure that proposals are sent to diamond directly (for production deployments)
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
-      echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
-      echo "Would you like to set it to true for this execution? (y/n)"
-      read -r response || response=""
-      if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
-        echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
-      else
-        echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
-      fi
+  if isTestnetNetwork "$NETWORK"; then
+    : # already announced above; nothing to do here
+  # make sure that proposals are sent to diamond directly (for production deployments)
+  elif [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+    echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
+    echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
+    echo "Would you like to set it to true for this execution? (y/n)"
+    read -r response || response=""
+    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
+      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
+    else
+      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
     fi
   fi
 
