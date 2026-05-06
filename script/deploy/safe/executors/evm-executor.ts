@@ -47,7 +47,15 @@ export class EvmChainExecutor implements IChainExecutor {
     // execution deltas (e.g. Jovay). On some chains eth_estimateGas also fails
     // outright even when the call would succeed on-chain — fall back to a fixed
     // gas limit in that case.
-    const multiplier = BigInt(process.env.GAS_ESTIMATE_MULTIPLIER ?? '130') // 130 = Foundry default
+    const DEFAULT_MULTIPLIER = 130n
+    const rawMultiplier = process.env.GAS_ESTIMATE_MULTIPLIER?.trim()
+    let multiplier: bigint
+    try {
+      multiplier = rawMultiplier ? BigInt(rawMultiplier) : DEFAULT_MULTIPLIER
+      if (multiplier <= 0n) multiplier = DEFAULT_MULTIPLIER
+    } catch {
+      multiplier = DEFAULT_MULTIPLIER
+    }
     // 500 000 is large enough for any realistic Safe execTransaction payload
     const fallbackGas = 500_000n
     let gas: bigint
