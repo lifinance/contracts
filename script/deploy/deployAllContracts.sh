@@ -33,9 +33,13 @@ deployAllContracts() {
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
 
+  # Testnets always send admin txs directly (EOA-owned diamond, no Safe).
+  # The sendOrPropose chokepoint already handles this; the prompt is unnecessary.
+  if isTestnetNetwork "$NETWORK"; then
+    echo "[info] Testnet detected: admin txs will be sent directly to the diamond (no Safe/Timelock)."
   # make sure that proposals are sent to diamond directly (for production deployments)
   # this must run even when starting from later stages
-  if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+  elif [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
     echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
     echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
     echo "Would you like to set it to true for this execution? (y/n)"
@@ -66,17 +70,20 @@ deployAllContracts() {
       "12) Ownership transfer to timelock (production only)"
   )
 
-  # make sure that proposals are sent to diamond directly (for production deployments)
-  if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-    echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
-    echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
-    echo "Would you like to set it to true for this execution? (y/n)"
-    read -r response || response=""
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
-      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
-    else
-      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
+  # Testnets always send admin txs directly; skip the prompt below for them.
+  if ! isTestnetNetwork "$NETWORK"; then
+    # make sure that proposals are sent to diamond directly (for production deployments)
+    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
+      echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
+      echo "Would you like to set it to true for this execution? (y/n)"
+      read -r response || response=""
+      if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
+        echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
+      else
+        echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
+      fi
     fi
   fi
 
@@ -144,8 +151,8 @@ deployAllContracts() {
       fi
     fi
 
-    # deploy SAFE (production only)
-    if [[ "$ENVIRONMENT" == "production" ]]; then
+    # deploy SAFE (production only; testnets have no Safe)
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
         echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
@@ -154,6 +161,8 @@ deployAllContracts() {
       else
         echo "SAFE already deployed for $NETWORK (safeAddress: $SAFE_ADDRESS), skipping deployment."
       fi
+    elif isTestnetNetwork "$NETWORK"; then
+      echo "[info] Skipping Safe deployment for testnet network $NETWORK (EOA-owned diamond, no Safe)"
     else
       echo "[info] Skipping Safe deployment (not required for $ENVIRONMENT environment)"
     fi
@@ -378,8 +387,9 @@ deployAllContracts() {
     checkFailure $? "run health check for $NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
 
-    # Pause and ask user if they want to continue with ownership transfer
-    if [[ "$ENVIRONMENT" == "production" ]]; then
+    # Pause and ask user if they want to continue with ownership transfer.
+    # Testnets keep deployerWallet as the owner, so Stage 12 is skipped entirely.
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       echo ""
       echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
       echo "This should only be done if the health check shows only diamond ownership errors."
@@ -392,12 +402,16 @@ deployAllContracts() {
         echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
         return
       fi
+    elif isTestnetNetwork "$NETWORK"; then
+      echo "[info] Testnet network: skipping Stage 12 (no Timelock; deployerWallet remains diamond owner)"
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
+      return
     fi
   fi
 
-  # Stage 12: Ownership transfer to timelock (production only)
+  # Stage 12: Ownership transfer to timelock (production only; skipped on testnet)
   if [[ $START_STAGE -le 12 ]]; then
-    if [[ "$ENVIRONMENT" == "production" ]]; then
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       echo ""
       echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 12: Ownership transfer to timelock (production only)"
 
@@ -444,6 +458,8 @@ deployAllContracts() {
       echo "Acceptance of ownership transfer proposed to multisig ($SAFE_ADDRESS)"
       echo ""
       # ------------------------------------------------------------
+    elif isTestnetNetwork "$NETWORK"; then
+      echo "Stage 12 skipped - testnet networks keep deployerWallet as diamond owner (no Timelock)"
     else
       echo "Stage 12 skipped - ownership transfer to timelock is only for production environment"
     fi
