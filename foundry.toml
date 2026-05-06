@@ -171,7 +171,7 @@ ronin= { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://sourcify.ronin
 rootstock= { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://rootstock.blockscout.com/api", chain = "30", verifier = "blockscout" }
 scroll = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=534352", chain = "534352" }
 sei = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1329", chain = "1329" }
-somnia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.somnia.network/api", chain = "5031", verifier = "blockscout" }
+somnia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://mainnet.somnia.w3us.site/api", chain = "5031", verifier = "blockscout" }
 soneium = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://soneium.blockscout.com/api", verifier = "blockscout", chain = "1868" }
 sonic = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=146", chain = "146" }
 sophon = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.sophon.xyz/contract_verification", chain = "50104", verifier = "zksync" }

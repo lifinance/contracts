@@ -1112,14 +1112,15 @@
     "rpcUrl": "https://api.infra.mainnet.somnia.network",
     "verificationType": "blockscout",
     "explorerUrl": "https://explorer.somnia.network",
-    "explorerApiUrl": "https://explorer.somnia.network/api",
+    "explorerApiUrl": "https://mainnet.somnia.w3us.site/api",
     "multicallAddress": "0x5e44F178E8cF9B2F5409B6f18ce936aB817C5a11",
-    "safeAddress": "",
+    "safeAddress": "0x9A9a96827a97b145cb1dB0e79297F9206A22f5Fc",
     "gasZipChainId": 0,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": ""
+    "create3Factory": "0xE2cb61f7e383270c9153563C6e5A18E5A7A43397",
+    "devNotes": "deployments only worked with extra large gas multiplier (used 10000)"
   },
   "soneium": {
     "name": "soneium",
@@ -1527,4 +1528,3 @@
     "create3Factory": ""
   }
 }
-
