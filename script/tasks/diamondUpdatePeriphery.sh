@@ -213,14 +213,8 @@ register() {
     fi
   }
 
-  # Single predicate for "Safe-propose vs direct broadcast". Reused below and by the
-  # post-loop saveDiamondPeriphery call so testnet/staging/SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
-  # paths all update the diamond log when registration was sent directly.
-  local SHOULD_PROPOSE_TO_SAFE=false
-  if [[ "$ENVIRONMENT" == "production" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] \
-     && ! isTestnetNetwork "$NETWORK"; then
-    SHOULD_PROPOSE_TO_SAFE=true
-  fi
+  # SHOULD_PROPOSE_TO_SAFE is set by the calling diamondUpdatePeriphery function and
+  # is visible here via bash dynamic scoping; do not redeclare.
 
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     # calculate gas limit with multiplier
@@ -243,7 +237,15 @@ register() {
 
       if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
         # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
-        local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
+        local CALLDATA
+        CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR") || {
+          error "[$NETWORK] failed to encode registerPeripheryContract calldata for $CONTRACT_NAME"
+          return 1
+        }
+        if [[ -z "$CALLDATA" || "$CALLDATA" == "0x" ]]; then
+          error "[$NETWORK] empty calldata for registerPeripheryContract($CONTRACT_NAME, $ADDR)"
+          return 1
+        fi
 
         DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
@@ -269,7 +271,15 @@ register() {
       # do not print output to console
       if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
         # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
-        local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
+        local CALLDATA
+        CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR") || {
+          error "[$NETWORK] failed to encode registerPeripheryContract calldata for $CONTRACT_NAME"
+          return 1
+        }
+        if [[ -z "$CALLDATA" || "$CALLDATA" == "0x" ]]; then
+          error "[$NETWORK] empty calldata for registerPeripheryContract($CONTRACT_NAME, $ADDR)"
+          return 1
+        fi
         echoDebug "Calldata: $CALLDATA"
 
         DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
