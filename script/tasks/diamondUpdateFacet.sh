@@ -135,16 +135,18 @@ diamondUpdateFacet() {
       # PROD: suggest diamondCut transaction to SAFE
 
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+      # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
+      DEPLOYER_ADDRESS=$(cast wallet address "$PRIVATE_KEY")
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
 
       # Execute, parse, and check return code
       local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        COMMAND="FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
+        COMMAND="FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        COMMAND="NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
+        COMMAND="NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       fi
       
       if ! executeAndParse \
@@ -258,12 +260,15 @@ diamondUpdateFacet() {
       # STAGING (or new network deployment): just deploy normally without further checks
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
+      # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
+      DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
+
       # Execute, parse, and check return code
       local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
-        COMMAND="FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")"
+        COMMAND="FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")"
       else
-        COMMAND="NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG"
+        COMMAND="NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG"
       fi
       
       if ! executeAndParse \
