@@ -26,6 +26,7 @@ paths:
   - `script/utils/normalizeAddressStringForViem.ts` — `normalizeAddressForNetwork()` for network-aware address conversion (handles Tron base58, hex, and EVM; see [CONV:ADDR-NORMALIZE]),
   - `script/deploy/shared/globalContractLists.ts` — `getCoreFacets()` / `getCorePeriphery()` for config-driven contract name arrays (use instead of hardcoding),
   - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
+  - `script/utils/viemScriptHelpers.ts` — `isTestnetNetwork(network)` for testnet-vs-mainnet branching (EOA-owned diamond, no Safe/Timelock; see `.agents/context.md`),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
 - **No re-export barrels**: Import values and types from the module where they are defined.
@@ -94,6 +95,7 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 - **Constants**: Magic numbers and timeout/delay values MUST have an inline `// <value + unit>` comment (e.g. `// 2 minutes`) AND, when the value is policy-driven (rate limits, thresholds), a short sentence explaining the policy.
 - **Complex logic**: Add a single inline comment before a non-obvious block (e.g. binary search, bit manipulation, quirky API workaround). Skip comments for idiomatic loops, straightforward conditionals, and standard library calls.
 - **Do NOT add**: comments that merely restate the type, variable name, or an obviously named function; changelog/author notes (use git); section dividers like `// --- Helpers ---`.
+- **No volatile implementation details in comments**: Don't name specific env var names (`PRIVATE_KEY_PRODUCTION`), wallet addresses, key paths, or config keys in prose comments. They rot when the implementation changes. Refer to roles ("the deployer wallet", "the Safe signer key"), not values.
 
 ## CLI and Logging
 
