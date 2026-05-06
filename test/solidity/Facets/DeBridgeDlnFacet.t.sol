@@ -56,6 +56,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         deBridgeDlnFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
@@ -82,6 +85,8 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         );
 
         deBridgeDlnFacet.initDeBridgeDln(cidCfg);
+
+        vm.stopPrank();
 
         setFacetAddressInTestBase(
             address(deBridgeDlnFacet),

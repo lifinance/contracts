@@ -83,6 +83,9 @@ contract MegaETHBridgeFacetTest is TestBase {
         configs[1] = MegaETHBridgeFacet.Config(SNX_L1_ADDRESS, SNX_BRIDGE);
 
         megaETHBridgeFacet = TestMegaETHBridgeFacet(address(diamond));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         megaETHBridgeFacet.initMegaETH(
             configs,
             IL1StandardBridge(STANDARD_BRIDGE)
@@ -100,6 +103,8 @@ contract MegaETHBridgeFacetTest is TestBase {
             address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
+
+        vm.stopPrank();
 
         validBridgeData = ILiFi.BridgeData({
             transactionId: "",
@@ -133,11 +138,15 @@ contract MegaETHBridgeFacetTest is TestBase {
             memory configs = new MegaETHBridgeFacet.Config[](1);
         configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(AlreadyInitialized.selector);
         megaETHBridgeFacet.initMegaETH(
             configs,
             IL1StandardBridge(STANDARD_BRIDGE)
         );
+
+        vm.stopPrank();
     }
 
     function testRevert_InitWithZeroBridgeInConfig() public {
@@ -158,11 +167,15 @@ contract MegaETHBridgeFacetTest is TestBase {
             memory configs = new MegaETHBridgeFacet.Config[](1);
         configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, address(0));
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(InvalidConfig.selector);
         TestMegaETHBridgeFacet(address(freshDiamond)).initMegaETH(
             configs,
             IL1StandardBridge(STANDARD_BRIDGE)
         );
+
+        vm.stopPrank();
     }
 
     function testRevert_InitWithZeroStandardBridge() public {
@@ -182,11 +195,15 @@ contract MegaETHBridgeFacetTest is TestBase {
             memory configs = new MegaETHBridgeFacet.Config[](1);
         configs[0] = MegaETHBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(InvalidConfig.selector);
         TestMegaETHBridgeFacet(address(freshDiamond)).initMegaETH(
             configs,
             IL1StandardBridge(address(0))
         );
+
+        vm.stopPrank();
     }
 
     function testRevert_InitWhenNotOwner() public {
@@ -222,10 +239,14 @@ contract MegaETHBridgeFacetTest is TestBase {
             0x0987654321098765432109876543210987654321
         );
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectEmit(true, false, false, true, address(megaETHBridgeFacet));
         emit MegaETHBridgeRegistered(newToken, newBridge);
 
         megaETHBridgeFacet.registerMegaETHBridge(newToken, newBridge);
+
+        vm.stopPrank();
     }
 
     function testRevert_RegisterBridgeWhenNotOwner() public {
@@ -257,18 +278,26 @@ contract MegaETHBridgeFacetTest is TestBase {
             0x0987654321098765432109876543210987654321
         );
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(NotInitialized.selector);
         TestMegaETHBridgeFacet(address(freshDiamond)).registerMegaETHBridge(
             newToken,
             newBridge
         );
+
+        vm.stopPrank();
     }
 
     function testRevert_RegisterBridgeWithZeroAddress() public {
         address newToken = address(0x1234567890123456789012345678901234567890);
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(InvalidConfig.selector);
         megaETHBridgeFacet.registerMegaETHBridge(newToken, address(0));
+
+        vm.stopPrank();
     }
 
     // ==================== startBridgeTokensViaMegaETHBridge Tests ====================
