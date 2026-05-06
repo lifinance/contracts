@@ -35,6 +35,7 @@ import {
   getContractAddressForNetwork,
   getFunctionSelectors,
   getViemChainForNetworkName,
+  isTestnetNetwork,
   multiselectWithSearch,
   selectWithSearch,
 } from '../utils/viemScriptHelpers'
@@ -55,12 +56,14 @@ async function prepareTimelockCalldata(
 ): Promise<{ targetAddress: string; calldata: `0x${string}` }> {
   const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
   const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+  const isTestnet = isTestnetNetwork(network)
 
   // Determine which option will be chosen
-  if (environment === EnvironmentEnum.staging || sendDirectly) {
-    consola.info(
-      '🔧 Option chosen: Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
-    )
+  if (environment === EnvironmentEnum.staging || sendDirectly || isTestnet) {
+    const reason = isTestnet
+      ? 'testnet (EOA-owned diamond, no Safe/Timelock)'
+      : 'staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true'
+    consola.info(`🔧 Option chosen: Send directly to diamond (${reason})`)
     consola.info('📤 Final calldata (direct to diamond):')
     consola.info(originalCalldata)
     return {
@@ -127,12 +130,19 @@ async function prepareTimelockCalldata(
 /**
  * Displays environment configuration and determines execution mode
  * @param environment - The environment string
+ * @param network - The network name (used to detect testnet)
  * @returns The execution mode string
  */
-function displayEnvironmentConfiguration(environment: string): string {
+function displayEnvironmentConfiguration(
+  environment: string,
+  network: string
+): string {
+  const isTestnet = isTestnetNetwork(network)
+
   // Show environment variables and decision logic
   consola.log('\n🔧 Environment Configuration:')
   consola.log(`   Environment: ${environment}`)
+  consola.log(`   Network: ${network} (${isTestnet ? 'testnet' : 'mainnet'})`)
   consola.log(
     `   SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: ${
       process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
@@ -148,8 +158,16 @@ function displayEnvironmentConfiguration(environment: string): string {
   const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
   const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
 
+  if (isTestnet && useTimelock)
+    consola.warn(
+      '   USE_TIMELOCK_CONTROLLER=true is ignored on testnet (no Timelock deployed).'
+    )
+
   let executionMode = ''
-  if (environment === 'staging' || sendDirectly)
+  if (isTestnet)
+    executionMode =
+      'Send directly to diamond (testnet — EOA-owned, no Safe/Timelock)'
+  else if (environment === 'staging' || sendDirectly)
     executionMode =
       'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
   else if (useTimelock)
@@ -255,7 +273,7 @@ const command = defineCommand({
       consola.info(`📦 Built calldata to remove ${facetNames.length} facets`)
 
       // Show environment variables and decision logic
-      displayEnvironmentConfiguration(environment)
+      displayEnvironmentConfiguration(environment, network)
 
       // Prepare calldata for timelock if needed
       const { targetAddress, calldata: finalCalldata } =
@@ -292,7 +310,7 @@ const command = defineCommand({
         consola.info(`→ Removing periphery: ${name}`)
 
         // Show environment variables and decision logic
-        displayEnvironmentConfiguration(environment)
+        displayEnvironmentConfiguration(environment, network)
 
         // Prepare calldata for timelock if needed
         const { targetAddress, calldata: finalCalldata } =
@@ -368,7 +386,7 @@ const command = defineCommand({
       calldata = buildDiamondCutRemoveCalldata(facetDefs)
 
       // Show environment variables and decision logic before confirmation
-      displayEnvironmentConfiguration(environment)
+      displayEnvironmentConfiguration(environment, network)
 
       // Prepare calldata for timelock if needed
       const { targetAddress, calldata: finalCalldata } =
@@ -422,7 +440,7 @@ const command = defineCommand({
         const data = buildUnregisterPeripheryCalldata(name)
 
         // Show environment variables and decision logic before confirmation
-        displayEnvironmentConfiguration(environment)
+        displayEnvironmentConfiguration(environment, network)
 
         // Prepare calldata for timelock if needed
         const { targetAddress, calldata: finalCalldata } =

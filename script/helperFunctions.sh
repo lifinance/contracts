@@ -3663,6 +3663,17 @@ function getPrivateKey() {
     return 0
   fi
 
+  # Testnet networks are owned by deployerWallet (PRIVATE_KEY_PRODUCTION) regardless
+  # of environment, since there is no separate staging/production deployment on testnets.
+  if isTestnetNetwork "$NETWORK"; then
+    if [[ -z "$PRIVATE_KEY_PRODUCTION" ]]; then
+      error "could not find PRIVATE_KEY_PRODUCTION value in your .env file"
+      return 1
+    fi
+    echo "$PRIVATE_KEY_PRODUCTION"
+    return 0
+  fi
+
   # check environment value
   if [[ "$ENVIRONMENT" == *"staging"* ]]; then
     # check if env variable is set/available
@@ -3687,6 +3698,7 @@ function getPrivateKey() {
 
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
+# - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
 # - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
 # - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
@@ -3713,8 +3725,10 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Non-production or direct-to-diamond: send directly for all networks
-  if [[ "$ENVIRONMENT" != "production" ]] || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]]; then
+  # Non-production, testnet, or direct-to-diamond: send directly for all networks
+  if [[ "$ENVIRONMENT" != "production" ]] \
+     || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+     || isTestnetNetwork "$NETWORK"; then
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi

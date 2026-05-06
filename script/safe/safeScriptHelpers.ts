@@ -16,11 +16,16 @@ import {
   OperationTypeEnum,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
-import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+import {
+  getViemChainForNetworkName,
+  isTestnetNetwork,
+} from '../utils/viemScriptHelpers'
 
 /**
- * Sends calldata directly to the Diamond when staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
+ * Sends calldata directly to the Diamond when staging, testnet, or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
  * (e.g. new production networks before ownership transfer). Otherwise proposes to the Safe.
+ * Testnet networks have an EOA-owned diamond signed by `PRIVATE_KEY_PRODUCTION`, so direct send
+ * is forced even when `environment === production`.
  * Timelock wrapping is not handled here; use propose-to-safe with --timelock when creating proposals if needed.
  */
 export async function sendOrPropose({
@@ -35,16 +40,20 @@ export async function sendOrPropose({
   diamondAddress: string
 }) {
   const isProd = environment === EnvironmentEnum.production
+  const isTestnet = isTestnetNetwork(network)
   const sendDirectly =
     environment === EnvironmentEnum.staging ||
-    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true' ||
+    isTestnet
 
   // ───────────── DIRECT TX FLOW ───────────── //
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
 
-    const pk = process.env[isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY']
-    if (!pk) throw new Error('Missing private key in environment')
+    // Testnet always signs with PRIVATE_KEY_PRODUCTION (deployerWallet owns the diamond).
+    const pkVar = isProd || isTestnet ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
+    const pk = process.env[pkVar]
+    if (!pk) throw new Error(`Missing ${pkVar} in environment`)
 
     // add 0x to privKey, if not there already
     const normalizedPk = pk.startsWith('0x') ? pk : `0x${pk}`
