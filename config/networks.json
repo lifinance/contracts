@@ -1101,6 +1101,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "somnia": {
+    "name": "somnia",
+    "chainId": 5031,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "SOMI",
+    "wrappedNativeAddress": "0x046EDe9564A72571df6F5e44d0405360c0f4dCab",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://api.infra.mainnet.somnia.network",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://explorer.somnia.network",
+    "explorerApiUrl": "https://explorer.somnia.network/api",
+    "multicallAddress": "0x5e44F178E8cF9B2F5409B6f18ce936aB817C5a11",
+    "safeAddress": "",
+    "gasZipChainId": 0,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "cancun",
+    "deployedWithSolcVersion": "0.8.29",
+    "create3Factory": ""
+  },
   "soneium": {
     "name": "soneium",
     "chainId": 1868,
