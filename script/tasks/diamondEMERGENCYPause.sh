@@ -196,7 +196,7 @@ function handleNetwork() {
           universalCast "sendRaw" "$NETWORK" "production" "$DIAMOND_ADDRESS" "$CALLDATA"
         else
           echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig via timelock now with blacklisted facets: $BLACKLIST"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY" --timelock
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY" --timelock
         fi
       fi
     else

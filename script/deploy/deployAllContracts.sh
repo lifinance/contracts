@@ -70,23 +70,6 @@ deployAllContracts() {
       "12) Ownership transfer to timelock (production only)"
   )
 
-  # Testnets always send admin txs directly; skip the prompt below for them.
-  if isTestnetNetwork "$NETWORK"; then
-    : # already announced above; nothing to do here
-  # make sure that proposals are sent to diamond directly (for production deployments)
-  elif [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-    echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
-    echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
-    echo "Would you like to set it to true for this execution? (y/n)"
-    read -r response || response=""
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
-      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
-    else
-      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
-    fi
-  fi
-
   # Extract the stage number from the selection (e.g. "12) ...")
   # Important: do NOT substring-match "1)" as it would also match "10)", "11)", "12)".
   if [[ "$START_FROM" =~ ^([0-9]+)\) ]]; then
@@ -403,9 +386,7 @@ deployAllContracts() {
         return
       fi
     elif isTestnetNetwork "$NETWORK"; then
-      echo "[info] Testnet network: skipping Stage 12 (no Timelock; deployerWallet remains diamond owner)"
-      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
-      return
+      echo "[info] Testnet network: skipping Stage 12 prompt (no Timelock; deployerWallet remains diamond owner)"
     fi
   fi
 
