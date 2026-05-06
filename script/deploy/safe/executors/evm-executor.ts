@@ -28,24 +28,53 @@ export class EvmChainExecutor implements IChainExecutor {
   public async executeTransaction(
     params: IChainExecutionParams
   ): Promise<IChainExecutionResult> {
+    const execArgs = [
+      params.to,
+      params.value,
+      params.data,
+      params.operation,
+      0n, // safeTxGas
+      0n, // baseGas
+      0n, // gasPrice
+      '0x0000000000000000000000000000000000000000' as Address, // gasToken
+      '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
+      params.signatures,
+    ] as const
+
+    // Estimate gas and apply GAS_ESTIMATE_MULTIPLIER (percentage, default 130).
+    // eth_estimateGas can under-count the Safe post-call overhead (ExecutionSuccess
+    // event, refund logic), causing OOG reverts on chains with tight simulation vs.
+    // execution deltas (e.g. Jovay). On some chains eth_estimateGas also fails
+    // outright even when the call would succeed on-chain — fall back to a fixed
+    // gas limit in that case.
+    const multiplier = BigInt(process.env.GAS_ESTIMATE_MULTIPLIER ?? '130') // 130 = Foundry default
+    // 500 000 is large enough for any realistic Safe execTransaction payload
+    const fallbackGas = 500_000n
+    let gas: bigint
+    try {
+      const estimatedGas = await this.publicClient.estimateContractGas({
+        account: this.account,
+        address: params.safeAddress,
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'execTransaction',
+        args: execArgs,
+      })
+      gas = (estimatedGas * multiplier) / 100n
+    } catch {
+      consola.warn(
+        `Gas estimation failed; using fallback gas limit: ${fallbackGas}`
+      )
+      gas = fallbackGas
+    }
+
     const txHash = await this.walletClient.writeContract({
       account: this.account,
       chain: null,
       address: params.safeAddress,
       abi: SAFE_SINGLETON_ABI,
       functionName: 'execTransaction',
-      args: [
-        params.to,
-        params.value,
-        params.data,
-        params.operation,
-        0n, // safeTxGas
-        0n, // baseGas
-        0n, // gasPrice
-        '0x0000000000000000000000000000000000000000' as Address, // gasToken
-        '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
-        params.signatures,
-      ],
+      args: execArgs,
+      gas,
     })
 
     consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
