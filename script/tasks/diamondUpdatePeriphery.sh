@@ -247,10 +247,12 @@ register() {
           return 1
         fi
 
+        local DIAMOND_ADDRESS
         DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
         # Get timelock controller address if it exists
         local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+        local TIMELOCK_ADDRESS
         TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
         # Check if timelock is enabled and available
@@ -282,12 +284,14 @@ register() {
         fi
         echoDebug "Calldata: $CALLDATA"
 
+        local DIAMOND_ADDRESS
         DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
         echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
         echoDebug "NETWORK: $NETWORK"
 
         # Get timelock controller address if it exists
         local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+        local TIMELOCK_ADDRESS
         TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
         # Check if timelock is enabled and available

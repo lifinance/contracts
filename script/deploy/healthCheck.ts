@@ -704,8 +704,9 @@ const main = defineCommand({
       feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
       pauserWalletAddress = getTronWallet('pauserWallet', { tronWeb })
     } else {
+      // Testnets are owned by deployerWallet regardless of environment.
       deployerWallet = getAddress(
-        environment === 'staging'
+        !isTestnet && environment === 'staging'
           ? globalConfig.devWallet
           : globalConfig.deployerWallet
       )
@@ -736,17 +737,9 @@ const main = defineCommand({
         )
       }
 
-      // Diamond ownership: Timelock on production, deployerWallet (EOA) on testnet, skipped on staging.
-      if (isTestnet) {
-        await checkOwnershipTron(
-          'LiFiDiamond',
-          deployerWallet,
-          deployedContracts,
-          tronRpcUrl,
-          tronWeb,
-          logError
-        )
-      } else if (environment === 'production') {
+      // Diamond ownership: Timelock on production, skipped on staging.
+      // (No Tron testnet branch: tronshasta exits earlier and `tron` is type=mainnet.)
+      if (environment === 'production') {
         if (deployedContracts.LiFiTimelockController) {
           const timelockAddress = deployedContracts.LiFiTimelockController
           await checkOwnershipTron(
