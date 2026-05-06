@@ -26,7 +26,7 @@ paths:
   - `script/utils/normalizeAddressStringForViem.ts` — `normalizeAddressForNetwork()` for network-aware address conversion (handles Tron base58, hex, and EVM; see [CONV:ADDR-NORMALIZE]),
   - `script/deploy/shared/globalContractLists.ts` — `getCoreFacets()` / `getCorePeriphery()` for config-driven contract name arrays (use instead of hardcoding),
   - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
-  - `script/utils/viemScriptHelpers.ts` — `isTestnetNetwork(network)` for testnet-vs-mainnet branching (EOA-owned diamond, no Safe/Timelock; see `.agents/context.md`),
+  - `script/utils/viemScriptHelpers.ts` — `isTestnetNetwork(network)` for testnet-vs-mainnet branching (EOA-owned diamond, no Safe/Timelock),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
 - **No re-export barrels**: Import values and types from the module where they are defined.

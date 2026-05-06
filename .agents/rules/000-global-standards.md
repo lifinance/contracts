@@ -13,5 +13,4 @@ alwaysApply: true
 - **Workflow**: Before edits: brief intent/scope/files/rules; plan → implement; update plan if scope changes.
 - **Rule activation**: Before editing any file (even if not explicitly mentioned by the user), load and follow all `.agents/rules/*.md` whose `globs`/`paths` match that file path.
 - **Design**: When multiple valid approaches exist, name ≥2 with tradeoffs; prefer minimal diffs unless conventions/security justify larger refactor.
-- **Reuse existing branches**: Before adding a new code path for a new condition (testnet, Tron, zkEVM, etc.), check whether an existing branch (typically `staging`) already implements the desired behavior. If yes, extend that branch's predicate (e.g. `staging || isNewCondition`) instead of duplicating the body. New parallel paths are justified only when the behavior actually diverges.
 - **Uncertainty**: Flag assumptions/risky edges; don't guess; ask one concise question.

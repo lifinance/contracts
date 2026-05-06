@@ -30,12 +30,6 @@ are embedded in rule files.
 | Solhint | `bunx solhint <file>` |
 | Bash syntax | `bash -n <file>` |
 
-## Network types
-
-Networks in `config/networks.json` carry a `"type"` field (`"mainnet"` or `"testnet"`). Detect testnet via `isTestnetNetwork(network)` — bash helper in `script/helperFunctions.sh`, TS helper in `script/utils/viemScriptHelpers.ts`.
-
-**Testnet networks always run with `ENVIRONMENT=production`.** No `.staging.json` deployment file exists for them, so any script that loads `deployments/${network}.staging.json` will fail on testnets. Consequence: `environment === 'production'` is already true on testnet — do **not** add defensive `|| isTestnet` clauses next to it. Use `isTestnetNetwork` only where behavior actively differs from production (ownership: EOA `deployerWallet` instead of Timelock; no Safe; no Timelock; direct-send instead of Safe-propose).
-
 ## Editing PRs via gh
 
 Use the REST API to update PR title/body:
