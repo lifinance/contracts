@@ -24,8 +24,6 @@ import {
 /**
  * Sends calldata directly to the Diamond when staging, testnet, or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
  * (e.g. new production networks before ownership transfer). Otherwise proposes to the Safe.
- * Testnet networks have an EOA-owned diamond signed by `PRIVATE_KEY_PRODUCTION`, so direct send
- * is forced even when `environment === production`.
  * Timelock wrapping is not handled here; use propose-to-safe with --timelock when creating proposals if needed.
  */
 export async function sendOrPropose({
@@ -50,7 +48,7 @@ export async function sendOrPropose({
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
 
-    // Testnet always signs with PRIVATE_KEY_PRODUCTION (deployerWallet owns the diamond).
+    // Testnet diamonds are owned by deployerWallet, so use the production key.
     const pkVar = isProd || isTestnet ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
     const pk = process.env[pkVar]
     if (!pk) throw new Error(`Missing ${pkVar} in environment`)

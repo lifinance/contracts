@@ -223,7 +223,7 @@ register() {
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-      if [[ "$ENVIRONMENT" == "production" ]]; then
+      if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
         # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
@@ -250,12 +250,12 @@ register() {
           fi
         fi
       else
-        # just register the diamond (no multisig required)
+        # Staging or testnet: register directly on the diamond (no Safe/Timelock)
         universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
       fi
     else
       # do not print output to console
-      if [[ "$ENVIRONMENT" == "production" ]]; then
+      if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
         # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
         if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
           echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
@@ -285,7 +285,7 @@ register() {
           fi
         fi
       else
-        # just register the diamond (no multisig required)
+        # Staging or testnet: register directly on the diamond (no Safe/Timelock)
         universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR" >/dev/null 2>&1
       fi
     fi

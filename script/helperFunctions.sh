@@ -3663,8 +3663,8 @@ function getPrivateKey() {
     return 0
   fi
 
-  # Testnet networks are owned by deployerWallet (PRIVATE_KEY_PRODUCTION) regardless
-  # of environment, since there is no separate staging/production deployment on testnets.
+  # Testnet networks are owned by deployerWallet regardless of environment,
+  # since there is no separate staging/production deployment on testnets.
   if isTestnetNetwork "$NETWORK"; then
     if [[ -z "$PRIVATE_KEY_PRODUCTION" ]]; then
       error "could not find PRIVATE_KEY_PRODUCTION value in your .env file"

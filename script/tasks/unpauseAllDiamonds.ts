@@ -17,6 +17,7 @@ import {
 import {
   getAllActiveNetworks,
   getContractAddressForNetwork,
+  isTestnetNetwork,
   networks,
 } from '../utils/viemScriptHelpers'
 
@@ -39,7 +40,10 @@ const main = defineCommand({
   },
   async run({ args }) {
     const blacklist = args.blacklist
-    const activeNetworks = getAllActiveNetworks()
+    // Skip testnets: this script proposes to Safe multisigs, which testnets do not have.
+    const activeNetworks = getAllActiveNetworks().filter(
+      (network) => !isTestnetNetwork(network.id)
+    )
 
     const privateKey = getPrivateKey('SAFE_SIGNER_PRIVATE_KEY')
     const senderAddress = privateKeyToAccount(`0x${privateKey}`).address

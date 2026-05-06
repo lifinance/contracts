@@ -122,8 +122,8 @@ diamondUpdateFacet() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+    # check if we are deploying to PROD (testnet networks always send direct; no Safe)
+    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTestnetNetwork "$NETWORK"; then
       # PROD: suggest diamondCut transaction to SAFE
 
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
