@@ -26,6 +26,7 @@ import {
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
+  isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
 
 import targetStateImport from './_targetState.json'
@@ -133,6 +134,10 @@ const main = defineCommand({
     // Determine if we're working with Tron mainnet
     const isTron = networkLower === 'tron'
 
+    // Testnet networks have an EOA-owned diamond (deployerWallet) with no Safe
+    // multisig or Timelock. Ownership and SAFE checks must reflect that.
+    const isTestnet = isTestnetNetwork(networkLower)
+
     const { default: deployedContracts } = await import(
       `../../deployments/${networkLower}${
         environment === 'staging' ? '.staging' : ''
@@ -171,8 +176,9 @@ const main = defineCommand({
     })
 
     // For staging, skip targetState checks as targetState is only for production
+    // (testnets are also covered: they typically have no target state entry).
     let nonCoreFacets: string[] = []
-    if (environment === 'production') {
+    if (environment === 'production' || isTestnet) {
       const networkTarget = targetState[networkLower]?.production
       if (!networkTarget?.LiFiDiamond) {
         consola.warn(
@@ -270,7 +276,7 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │         Check that non core facets are deployed         │
     //          ╰─────────────────────────────────────────────────────────────╯
-    if (environment === 'production') {
+    if (environment === 'production' || isTestnet) {
       consola.box('Checking Non-Core facets...')
       for (const facet of nonCoreFacets) {
         const isDeployed = await checkAndLogDeployment(
@@ -403,7 +409,7 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │      Check that core periphery contracts are deployed   │
     //          ╰─────────────────────────────────────────────────────────╯
-    if (environment === 'production') {
+    if (environment === 'production' || isTestnet) {
       consola.box('Checking deploy status of periphery contracts...')
 
       // Filter optional periphery contracts that are intentionally absent on this network.
@@ -413,6 +419,12 @@ const main = defineCommand({
       if (!supportsGasZip) {
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
+        )
+      }
+      // Testnets do not deploy LiFiTimelockController.
+      if (isTestnet) {
+        peripheryToCheck = peripheryToCheck.filter(
+          (contract) => contract !== 'LiFiTimelockController'
         )
       }
 
@@ -435,7 +447,7 @@ const main = defineCommand({
     }
 
     // Check Executor authorization in ERC20Proxy
-    if (environment === 'production') {
+    if (environment === 'production' || isTestnet) {
       if (isTron && tronWeb) {
         try {
           const erc20ProxyAddress = deployedContracts['ERC20Proxy']
@@ -488,7 +500,7 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │          Check registered periphery contracts           │
     //          ╰─────────────────────────────────────────────────────────╯
-    if (environment === 'production') {
+    if (environment === 'production' || isTestnet) {
       consola.box(
         'Checking periphery registration in diamond (PeripheryRegistry)...'
       )
@@ -693,8 +705,9 @@ const main = defineCommand({
       feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
       pauserWalletAddress = getTronWallet('pauserWallet', { tronWeb })
     } else {
+      // Testnet diamonds are owned by deployerWallet regardless of environment.
       deployerWallet = getAddress(
-        environment === 'staging'
+        environment === 'staging' && !isTestnet
           ? globalConfig.devWallet
           : globalConfig.deployerWallet
       )
@@ -710,7 +723,7 @@ const main = defineCommand({
 
     if (isTron && tronWeb && tronRpcUrl) {
       // Check ERC20Proxy ownership (skip for staging)
-      if (environment === 'production') {
+      if (environment === 'production' || isTestnet) {
         await checkOwnershipTron(
           'ERC20Proxy',
           deployerWallet,
@@ -725,8 +738,17 @@ const main = defineCommand({
         )
       }
 
-      // Check that Diamond is owned by Timelock (skip for staging)
-      if (environment === 'production') {
+      // Diamond ownership: Timelock on production, deployerWallet (EOA) on testnet, skipped on staging.
+      if (isTestnet) {
+        await checkOwnershipTron(
+          'LiFiDiamond',
+          deployerWallet,
+          deployedContracts,
+          tronRpcUrl,
+          tronWeb,
+          logError
+        )
+      } else if (environment === 'production') {
         if (deployedContracts.LiFiTimelockController) {
           const timelockAddress = deployedContracts.LiFiTimelockController
           await checkOwnershipTron(
@@ -768,7 +790,7 @@ const main = defineCommand({
     } else if (publicClient) {
       // EVM implementation
       // Check ERC20Proxy ownership (skip for staging)
-      if (environment === 'production') {
+      if (environment === 'production' || isTestnet) {
         const erc20ProxyContract = getContract({
           address: deployedContracts['ERC20Proxy'],
           abi: parseAbi(['function owner() external view returns (address)']),
@@ -788,8 +810,15 @@ const main = defineCommand({
         )
       }
 
-      // Check that Diamond is owned by Timelock (skip for staging)
-      if (environment === 'production') {
+      // Diamond ownership: Timelock on production, deployerWallet (EOA) on testnet, skipped on staging.
+      if (isTestnet) {
+        await checkOwnership(
+          'LiFiDiamond',
+          deployerWallet,
+          deployedContracts,
+          publicClient
+        )
+      } else if (environment === 'production') {
         if (deployedContracts.LiFiTimelockController) {
           const timelockAddress = deployedContracts.LiFiTimelockController
 
@@ -943,6 +972,10 @@ const main = defineCommand({
     if (isTron) {
       consola.info(
         '\nNote: SAFE configuration checks are not implemented for Tron (EVM-only)'
+      )
+    } else if (isTestnet) {
+      consola.info(
+        '\nSkipping SAFE configuration checks: testnet has no Safe multisig (diamond is EOA-owned).'
       )
     } else if (environment === 'production') {
       //          ╭─────────────────────────────────────────────────────────╮
