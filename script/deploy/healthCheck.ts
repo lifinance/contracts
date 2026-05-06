@@ -809,12 +809,17 @@ const main = defineCommand({
       }
 
       // Diamond ownership: Timelock on production, deployerWallet (EOA) on testnet, skipped on staging.
-      if (isTestnet) {
+      // localanvil is a CI smoke-test sandbox where anvil's default account owns the diamond, not deployerWallet.
+      if (isTestnet && networkLower !== 'localanvil') {
         await checkOwnership(
           'LiFiDiamond',
           deployerWallet,
           deployedContracts,
           publicClient
+        )
+      } else if (networkLower === 'localanvil') {
+        consola.info(
+          'Skipping diamond ownership check for localanvil (CI sandbox: anvil default account owns the diamond).'
         )
       } else if (environment === 'production') {
         if (deployedContracts.LiFiTimelockController) {
