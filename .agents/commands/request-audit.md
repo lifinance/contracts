@@ -157,17 +157,17 @@ Audit: {scope_summary}{urgency_suffix} :thread:
 ```
 
 Where:
-- `scope_summary` = the most prominent contract + version wrapped in backticks, e.g. `` `GenericSwapFacetV3 v2.0.0` ``.
-  If there are 2–3 contracts total: list them all, each in backticks, comma-separated.
-  If there are 4+ contracts: use the first one in backticks + ` + N more`, e.g. `` `GenericSwapFacetV3 v2.0.0` + 6 more ``.
+- `scope_summary` = the most prominent contract + version. Plain text always — backtick formatting is only meaningful via API and these channels require manual posting (see Slack Connect limitation).
+  If there are 2–3 contracts total: list them all, comma-separated.
+  If there are 4+ contracts: use the first one + ` + N more`, e.g. `GenericSwapFacetV3 v2.0.0 + 6 more`.
 - `urgency_suffix` = ` (urgent)` if urgent, else empty.
 
 Examples:
 ```
-Audit: `DeBridgeDlnFacet v1.1.0` :thread:
-Audit: `PolymerCCTPFacet v2.0.1` :thread:
-Audit: `GenericSwapFacetV3 v2.0.0` + 6 more :thread:
-Audit: `Patcher v1.0.1` (urgent) :thread:
+Audit: DeBridgeDlnFacet v1.1.0 :thread:
+Audit: PolymerCCTPFacet v2.0.1 :thread:
+Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
+Audit: Patcher v1.0.1 (urgent) :thread:
 ```
 
 ### 3b. Thread reply — Sujith channel
@@ -189,7 +189,7 @@ Scope: {full_scope_list}
 - `greeting_line`: Pick naturally — e.g. "Hope you are great, I have a new audit for you." / "We have a new contract change to audit." / "I have a new audit request for you."
   Add urgency if applicable: "It's a bit urgent — are you able to review this today?"
 - `commit_url`: `{pr_url}/commits/{latest_commit_oid}` (always use `/commits/` format)
-- `full_scope_list`: comma-separated list of ALL contract names with versions, each wrapped in backticks — e.g. `` `GenericSwapFacetV3 v2.0.0`, `WithdrawablePeriphery v2.0.0` ``
+- `full_scope_list`: comma-separated list of ALL contract names with versions. Use backticks per the code style rule when posting via API; use plain text in the file output (see Slack Connect limitation).
 - `context`: merged context — see below
 
 ### Context field composition
@@ -233,7 +233,7 @@ Scope: {full_scope_list}
 
 - `greeting_line`: e.g. "I hope you are doing great. I have a new audit for you." / "We've got a new audit request."
   Add urgency if applicable: "This is a bit time-sensitive — could you review it today?"
-- `full_scope_list`: same as Sujith — each contract+version in backticks, comma-separated
+- `full_scope_list`: same as Sujith — backticks via API, plain text in file output
 - `context`: same merged context as Sujith (same background applies to both channels)
 
 ---
@@ -466,7 +466,7 @@ pair to the stricter contractSelectorIsAllowed (granular contract+selector white
 
 **Parent message**:
 ```
-Audit: `GenericSwapFacetV3 v2.0.0` + 6 more :thread:
+Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
 ```
 
 **Thread reply (Sujith)**:
