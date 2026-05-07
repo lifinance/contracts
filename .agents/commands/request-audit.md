@@ -35,12 +35,12 @@ Fetch a PR, extract its scope and context, draft an audit request (parent post +
 Direct posting uses Slack incoming webhooks read from `.env`. Add:
 
 ```
-webhook_dev-sc-audit=https://hooks.slack.com/services/...
-webhook_dev-sc-audit-burrasec=https://hooks.slack.com/services/...
+WEBHOOK_DEV_SC_AUDIT=https://hooks.slack.com/services/...
+WEBHOOK_DEV_SC_AUDIT_BURRASEC=https://hooks.slack.com/services/...
 ```
 
 URLs live in 1Password vault **Engineering**, item **slack-webhooks**.
-Convention is reusable — any channel `#X` is posted to via `webhook_X`.
+Convention is reusable — any channel `#X` is posted to via `WEBHOOK_X` where the channel name is uppercased and hyphens become underscores (e.g. `#dev-sc-audit` → `WEBHOOK_DEV_SC_AUDIT`).
 If a variable is unset, that channel falls back to writing the manual file to `/tmp/audit-request-{pr}.md`.
 
 ---
@@ -351,7 +351,7 @@ For each chosen channel, **independently** (do not abort sibling channels if one
    | Exit | Meaning | Action |
    |---|---|---|
    | `0` | sent | print `✅ Sent to #{channel}` |
-   | `2` | webhook env var not set for that channel | fall through to Step 6b **for this channel only** — write its block to `/tmp/audit-request-{pr}.md` and tell the user which `webhook_*` var to set |
+   | `2` | webhook env var not set for that channel | fall through to Step 6b **for this channel only** — write its block to `/tmp/audit-request-{pr}.md` and tell the user which `WEBHOOK_*` var to set |
    | `1` | Slack/network error | report stderr to user, do NOT retry, do NOT write fallback file |
 
 Process channels independently — if Sujith webhook is set but Burrasec isn't, post Sujith and write the manual file for Burrasec only.
@@ -405,7 +405,7 @@ Reply to the parent message with this (click the reply icon on the parent):
 3. Tell the user the file path so they can open it:
 
 ```
-⚠️ webhook_{channel} is not set in .env — wrote manual fallback to
+⚠️ WEBHOOK_{CHANNEL_UPPER} is not set in .env — wrote manual fallback to
    /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password →
    Engineering → slack-webhooks) to post automatically next time.
 ```
@@ -419,7 +419,7 @@ Reply to the parent message with this (click the reply icon on the parent):
 | PR not found | Report error and stop |
 | PR has no commits | Try separate `gh pr view --json commits`; if still empty, ask user for commit hash |
 | Scope cannot be determined | List changed `src/` files and ask user to confirm scope before continuing |
-| Helper exits `2` (webhook env var not set) | Fall through to Step 6b for **this channel only**; tell user which `webhook_*` var is missing |
+| Helper exits `2` (webhook env var not set) | Fall through to Step 6b for **this channel only**; tell user which `WEBHOOK_*` var is missing |
 | Helper exits `1` (Slack/network error) | Report stderr, do NOT retry, do NOT write fallback file, ask user |
 | Slack post fails with `mcp_externally_shared_channel_restricted` (legacy MCP path) | Should not happen on the webhook path; if seen, fall through to Step 6b |
 | User types something other than 1–4 | Ask again |
