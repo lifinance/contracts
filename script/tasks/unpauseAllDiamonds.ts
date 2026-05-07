@@ -50,17 +50,54 @@ const main = defineCommand({
   async run({ args }) {
     const blacklist = args.blacklist
     const activeNetworks = getAllActiveNetworks()
+    const testnets = activeNetworks.filter((n) => isTestnetNetwork(n.id))
+    const mainnets = activeNetworks.filter((n) => !isTestnetNetwork(n.id))
 
+    // Pass 1: testnets (EOA-owned diamond). No Safe / Mongo / VPN required.
+    await Promise.all(
+      testnets.map(async (network) => {
+        try {
+          consola.info(`[${network.name}] Processing testnet`)
+          const diamondAddress = await getContractAddressForNetwork(
+            'LiFiDiamond',
+            network.name as SupportedChain
+          )
+          const blacklistedAddresses = await getBlacklistedFacetAddresses(
+            network.name,
+            blacklist
+          )
+          const calldata = encodeFunctionData({
+            abi: unpauseDiamondABI,
+            functionName: 'unpauseDiamond',
+            args: [blacklistedAddresses],
+          })
+          await sendUnpauseDirect(
+            network.name,
+            diamondAddress as Address,
+            calldata
+          )
+        } catch (error) {
+          consola.error(
+            `[${network.name}] Error sending direct unpause:`,
+            error
+          )
+        }
+      })
+    )
+
+    if (mainnets.length === 0) {
+      consola.success('All networks processed successfully.')
+      process.exit(0)
+    }
+
+    // Pass 2: mainnets — propose to Safe. Initialize Safe / Mongo only now.
     const privateKey = getPrivateKey('SAFE_SIGNER_PRIVATE_KEY')
     const senderAddress = privateKeyToAccount(`0x${privateKey}`).address
-
-    // Connect to MongoDB
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
-    // Execute transactions for all active networks in parallel
     await Promise.all(
-      activeNetworks.map(async (network) => {
+      mainnets.map(async (network) => {
         try {
           consola.info(`[${network.name}] Processing network now`)
 
@@ -82,16 +119,6 @@ const main = defineCommand({
             functionName: 'unpauseDiamond',
             args: [blacklistedAddresses],
           })
-
-          // Testnet diamonds are EOA-owned (no Safe/Timelock) — send the unpause directly.
-          if (isTestnetNetwork(network.id)) {
-            await sendUnpauseDirect(
-              network.name,
-              diamondAddress as Address,
-              calldata
-            )
-            return
-          }
 
           // initialize the SAFE client that we use for signing and preparing transaction data
           const { safe, chain, safeAddress } = await initializeSafeClient(
