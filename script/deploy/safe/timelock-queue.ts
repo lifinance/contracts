@@ -10,7 +10,12 @@
  *
  */
 
-import { MongoClient, type Collection, type ObjectId } from 'mongodb'
+import {
+  MongoClient,
+  type Collection,
+  type Filter,
+  type ObjectId,
+} from 'mongodb'
 import {
   decodeFunctionData,
   encodeAbiParameters,
@@ -165,6 +170,19 @@ async function safeCreateIndex(
       return
     throw error
   }
+}
+
+/**
+ * Builds a Mongo filter that matches a queue row by its `operationId` using
+ * `$eq`. Forces operator-typed comparison so an object value can never be
+ * interpreted as an operator expression (defense-in-depth — all current
+ * callers pass locally-derived `Hex` strings).
+ *
+ * @param operationId - The operation id to match (32-byte hex).
+ * @returns A filter selecting the queue row with this `operationId`.
+ */
+export function byOperationId(operationId: Hex): Filter<ITimelockQueueDoc> {
+  return { operationId: { $eq: operationId } }
 }
 
 /**

@@ -41,6 +41,7 @@ import {
   type SafeClient,
 } from './safe-utils'
 import {
+  byOperationId,
   computeOperationIdBatch,
   decodeScheduleBatch,
   getTimelockQueueCollection,
@@ -111,7 +112,7 @@ async function enqueueTimelockOpIfApplicable(
     const { client, timelockQueue } = await getTimelockQueueCollection()
     try {
       await timelockQueue.updateOne(
-        { operationId },
+        byOperationId(operationId),
         {
           $setOnInsert: {
             operationId,

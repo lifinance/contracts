@@ -8,6 +8,7 @@ import { encodeFunctionData, type Address, type Hex } from 'viem'
 
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 import {
+  byOperationId,
   computeOperationIdBatch,
   decodeScheduleBatch,
   deserializeScheduleParams,
@@ -164,6 +165,26 @@ describe('computeOperationIdBatch', () => {
       ZERO_BYTES32
     )
     expect(id).toMatch(/^0x[0-9a-fA-F]{64}$/)
+  })
+})
+
+describe('byOperationId', () => {
+  const sampleId = `0x${'a'.repeat(64)}` as Hex
+
+  it('wraps the operationId in a $eq operator', () => {
+    expect(byOperationId(sampleId)).toEqual({
+      operationId: { $eq: sampleId },
+    })
+  })
+
+  it('does not include any other filter keys', () => {
+    expect(Object.keys(byOperationId(sampleId))).toEqual(['operationId'])
+  })
+
+  it('preserves the exact input value (no normalization)', () => {
+    const mixedCase = `0x${'A'.repeat(32)}${'b'.repeat(32)}` as Hex
+    const filter = byOperationId(mixedCase)
+    expect((filter.operationId as { $eq: Hex }).$eq).toBe(mixedCase)
   })
 })
 

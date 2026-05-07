@@ -30,6 +30,7 @@ import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringFo
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 import { TIMELOCK_SCHEDULE_BATCH_SELECTOR } from './timelock-abi'
 import {
+  byOperationId,
   computeOperationIdBatch,
   decodeScheduleBatch,
   getTimelockQueueCollection,
@@ -177,7 +178,7 @@ const cmd = defineCommand({
 
             const now = new Date()
             await timelockQueue.updateOne(
-              { operationId },
+              byOperationId(operationId),
               {
                 $setOnInsert: {
                   operationId,
