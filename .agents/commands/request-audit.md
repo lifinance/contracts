@@ -383,7 +383,7 @@ Then tell the user, listing only the channel(s) that fell back:
 ```
 ⚠️ WEBHOOK_DEV_SC_AUDIT (or WEBHOOK_DEV_SC_AUDIT_BURRASEC) is not set in .env — wrote
    manual fallback for #{channel} to /tmp/audit-request-{pr_number}.md. Set the env var
-   (URL in 1Password → Engineering → slack-webhooks) to post automatically next time.
+   (URL in 1Password -> Developers Smart Contract -> Webhooks SC Channels) to post automatically next time.
 ```
 
 ---
