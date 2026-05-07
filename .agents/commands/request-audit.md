@@ -7,11 +7,6 @@ usage: /request-audit <PR_NUMBER_OR_URL> [--urgent]
 # Audit Request Command
 
 > **Usage**: `/request-audit <PR_NUMBER_OR_URL> [--urgent]`
->
-> Examples:
-> - `/request-audit 1715`
-> - `/request-audit https://github.com/lifinance/contracts/pull/1715`
-> - `/request-audit 1715 --urgent`
 
 ## Purpose
 
@@ -28,7 +23,7 @@ Fetch a PR, extract its scope and context, draft an audit request (parent post +
 | **sujith** | `#dev-sc-audit` | `C08CJ4FEHQA` | Sujith Somraaj | `<@U05GN6XH57T>` | `@Sujith Somraaj` | `Hey @Sujith Somraaj!` |
 | **burrasec** | `#dev-sc-audit-burrasec` | `C094C46JSDP` | Josip | `<@U094M720QDP>` | `@Josip Koncurat` | `Hey @Josip Koncurat.` |
 
-> **Slack ID note**: the IDs above were inherited from previous channel names. The webhook path embeds the API-mention string verbatim into the message body, so an incorrect ID will render as a broken `@Unknown` mention or ping the wrong user. The Burrasec ID `<@U094M720QDP>` was previously paired with a wrong display name (`Josip Vuković` instead of `Josip Koncurat`) — re-verify it (and Sujith's, while you're there) via the Slack admin page or by `@`-mentioning the auditor in Slack and inspecting the resolved ID before the next post.
+> **Slack ID note**: the Burrasec ID `<@U094M720QDP>` was previously paired with a wrong display name — re-verify it (and Sujith's) via Slack admin before relying on either. Webhooks paste the ID verbatim, so a wrong ID renders as `@Unknown` or pings the wrong person.
 
 ## Setup (one-time, per developer)
 
@@ -137,18 +132,13 @@ Always prefer sources 1–3 over fallback 4.
 
 ### Context (reason for audit)
 
-**The PR body is the authoritative source for what this PR actually does.** Read it carefully before
-writing any context. A PR may be part of a multi-PR effort (e.g. "this PR adds the foundation; the
-Tron-specific fix is in a separate fork PR") — the context must only describe what is in *this* PR,
-not what is in a related PR. The Slack thread may discuss the broader problem or motivation, but never
-let it override or expand what the PR body says is in scope.
+The PR body is authoritative for *what* this PR does. The Slack thread (if any) explains *why* but must never expand the described scope.
 
 Extract from:
-1. The "Summary" or "What's in this PR" section of the PR body — 2–5 sentences, technical but concise
-2. The "Why" / motivation section for root cause explanation
-3. Any explicit "NOT in this PR" or "Explicitly excluded" sections — these are as important as inclusions
-4. **Merge order / multi-PR sequencing**: Look for "Merge order", "Related PRs", or any section that describes a sequence of PRs. If this PR is step N of M in a multi-part effort, surface that explicitly — auditors need to know that a follow-up audit will be needed for a subsequent PR (e.g. "This is step 1 of 2; a second audit will follow for the contracts-tron fork where LibAsset gets the actual bypass."). This is critical context that scopes what they are and are not being asked to review.
-5. Trim to the essential technical reason, drop implementation trivia
+1. **Summary / What's in this PR** — 2–5 technical sentences; drop implementation trivia
+2. **Why / motivation** — root cause
+3. **NOT in this PR / Explicitly excluded** — exclusions matter as much as inclusions
+4. **Merge order / multi-PR sequencing** — if this is step N of M, surface it explicitly so auditors know a follow-up audit is coming (e.g. "step 1 of 2; second audit for the `contracts-tron` fork follows")
 
 ### Urgency
 
@@ -182,8 +172,6 @@ Audit: PolymerCCTPFacet v2.0.1 :thread:
 Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
 Audit: Patcher v1.0.1 (urgent) :thread:
 ```
-
-> **Webhook posting note**: incoming webhooks can't post a parent + threaded reply (no `ts` returned), so the helper posts a single combined message: `parent_without_:thread:_suffix + "\n\n" + thread_reply`. Drop the `:thread:` suffix when building the combined text. The `:thread:` form above is kept for the manual fallback file (Step 6b).
 
 ### 3b. Thread reply — Sujith channel
 
@@ -224,9 +212,7 @@ boundaries in the context — auditors need to know what is out of scope as much
 
 Aim for 3–7 sentences total. Do not bullet-list this section — write it as prose so it reads naturally in Slack.
 
-**Code style**: Wrap in backticks every function name, variable name, contract name, repo name, error name, constant, selector, and version string — e.g. `transfer()`, `safeTransfer`, `LibAsset.transferERC20`, `LibAsset.sol`, `contracts-tron`, `TransferFailed`, `contractSelectorIsAllowed`, `v2.1.3`. Plain prose words (the, this, PR, etc.) are never wrapped.
-
-> **File output exception (Step 6b only)**: Slack does not reliably render backtick inline code when content is pasted from an external file — it renders correctly when typed in the composer or posted via API/webhook, but shows literal backticks when pasted. The `/tmp/audit-request-{pr}.md` file (manual fallback) must therefore use **plain text** (no backticks). The webhook path posts via API and renders backticks correctly — keep them.
+**Code style**: Wrap in backticks every function name, variable name, contract name, repo name, error name, constant, selector, and version string — e.g. `transfer()`, `safeTransfer`, `LibAsset.transferERC20`, `LibAsset.sol`, `contracts-tron`, `TransferFailed`, `contractSelectorIsAllowed`, `v2.1.3`. Plain prose words (the, this, PR, etc.) are never wrapped. (Backticks render correctly via webhook; Step 6b's manual fallback file uses plain text instead — see that section.)
 
 If the Slack thread had a long discussion, extract only the decision-relevant parts; drop back-and-forth, emoji reactions, and administrative replies.
 
@@ -342,7 +328,7 @@ For each chosen channel, **independently** (do not abort sibling channels if one
 
 3. **Run the helper**:
    ```bash
-   bun run script/utils/send-slack-webhook-message.ts \
+   bunx tsx script/utils/send-slack-webhook-message.ts \
      --channel {channel} \
      --message-file /tmp/audit-{pr_number}-{channel}.txt
    ```
@@ -400,96 +386,42 @@ Then tell the user, listing only the channel(s) that fell back:
    Engineering → slack-webhooks) to post automatically next time.
 ```
 
-> Historical note (do **not** apply): the skill previously had an MCP-based posting path (`slack_send_message`) that could fail with `mcp_externally_shared_channel_restricted`. That path was removed in PR #1765 (commit `b314e08c`); only the webhook path is live. If you ever see that error string in legacy notes, it does not apply to the current flow.
-
 ---
 
 ## Error Handling
+
+Helper exit codes (`0`/`1`/`2`) are handled in Step 6 — not repeated here.
 
 | Situation | Action |
 |---|---|
 | PR not found | Report error and stop |
 | PR has no commits | Try separate `gh pr view --json commits`; if still empty, ask user for commit hash |
 | Scope cannot be determined | List changed `src/` files and ask user to confirm scope before continuing |
-| Helper exits `2` (webhook env var not set) | Fall through to Step 6b for **this channel only**; tell user which `WEBHOOK_*` var is missing |
-| Helper exits `1` (Slack/network error) | Report stderr, do NOT retry, do NOT write fallback file, ask user |
 | User types something other than 1–4 | Ask again |
 
 ---
 
-## Quality Checklist
-
-Before posting, verify all of these:
-
-- [ ] Step 1b was asked — user was given the chance to provide a Slack thread or extra context
-- [ ] If a Slack thread URL was provided, it was read and synthesized (not just linked)
-- [ ] Latest commit OID is the last entry in the `commits` array (not the first)
-- [ ] Commit URL is `{pr_url}/commits/{oid}` — verify format
-- [ ] Scope lists at least one contract name with version
-- [ ] Both messages mention the auditor by Slack `<@USERID>` mention (not just their name)
-- [ ] Context is 3–7 sentences of prose, not a wall of text, not a bullet list
-- [ ] Context leads with root cause, not implementation details
-- [ ] Context accurately reflects only what **this PR** does — not a related PR, fork, or follow-up
-- [ ] If PR body has an explicit "NOT in this PR" section, its exclusions are reflected in the context
-- [ ] If PR body has a "Merge order" or sequencing section, the audit sequence (step N of M, follow-up audit needed) is reflected in the context
-- [ ] `--urgent` or urgency signals reflected in both the parent title and the greeting
-- [ ] User has explicitly confirmed at Step 4 before any `send-slack-webhook-message` call
-- [ ] Combined message correctly built (parent without `:thread:` + blank line + reply) per chosen channel
-- [ ] Helper exit code logged (0/1/2) and acted on correctly per channel
-- [ ] If exit `0`: success line printed for that channel
-- [ ] If exit `2`: manual fallback file written for that channel and missing env var name shown to the user
-
----
-
-## Example Run — PR #1715
+## Worked Example — PR #1715
 
 **Input**: `/request-audit 1715`
 
-**PR data extracted**:
-```bash
-gh pr view 1715 --repo lifinance/contracts --json number,title,body,url,commits,files,labels,state
-```
+**Step 1** — `gh pr view 1715 …` returns title, body, commits, files. Latest commit OID is the **last** entry in `commits[]`: `142d9d809e8184fff4a21605fcd41983ed2e0e4d`.
 
-**Latest commit OID** (last in array): `142d9d809e8184fff4a21605fcd41983ed2e0e4d`
+**Step 2** — Scope (from PR title brackets):
 
-**Scope** (from PR title brackets):
 ```
 GenericSwapFacetV3 v2.0.0, WithdrawablePeriphery v2.0.0, LiFiDEXAggregator v1.13.0,
 ReceiverAcrossV3 v1.2.0, ReceiverChainflip v1.1.0, ReceiverStargateV2 v1.2.0, TokenWrapper v1.3.0
 ```
 
-**Step 1b — user provides Slack thread**:
-```
-User: https://lifi-protocol.slack.com/archives/C088UJW2DPZ/p1776070807528139
-```
+**Step 3 — Parent**:
 
-Parse URL → `channel_id: C088UJW2DPZ`, `message_ts: 1776070807.528139`
-
-Read thread with `slack_read_thread`. Key points extracted:
-- Tron USDT's `transfer()` is declared `returns (bool)` but never actually returns — the EVM returns 32 zero bytes, which Solady's `safeTransfer` interprets as `false` and reverts.
-- Alternatives discussed: a `SafeTransferLibWrapper`, a LibAsset chain-id gate, a permanent open PR. A `contracts-tron` fork was chosen to keep the main codebase clean (no Tron logic deployed on 60+ other chains).
-- The Slack thread discusses the Tron bypass, but the PR body explicitly states that the bypass itself lives in the separate `contracts-tron` fork PR — this PR contains **no Tron-specific code**.
-
-**Merged context** — PR body is ground truth for scope; Slack thread provides the "why"; Merge order section surfaces the two-step audit sequence:
-```
-Tron's canonical USDT contract declares transfer() as returns (bool) but omits the return
-statement — the EVM returns 32 zero bytes, which Solady's safeTransfer treats as false
-and reverts. Rather than adding Tron-specific bytecode to 60+ EVM chains, the team decided
-to maintain a contracts-tron fork where the actual bypass lives inside LibAsset.transferERC20.
-This PR is step 1 of a two-part audit sequence: it routes every periphery ERC20 transfer
-through LibAsset so that the single fork-level change covers all call sites automatically —
-LibAsset.sol is not modified here (stays at v2.1.3). Once this PR is audited and merged, a
-second audit will follow for the contracts-tron fork PR where LibAsset receives the Tron USDT
-bypass. GenericSwapFacetV3 is also migrated from the legacy contractIsAllowed+selectorIsAllowed
-pair to the stricter contractSelectorIsAllowed (granular contract+selector whitelist).
-```
-
-**Parent message**:
 ```
 Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
 ```
 
-**Thread reply (Sujith)**:
+**Step 3 — Thread reply (Sujith)**:
+
 ```
 Hey <@U05GN6XH57T>! I have a new audit for you.
 
@@ -498,17 +430,11 @@ Commit: https://github.com/lifinance/contracts/pull/1715/commits/142d9d809e8184f
 
 Scope: `GenericSwapFacetV3 v2.0.0`, `WithdrawablePeriphery v2.0.0`, `LiFiDEXAggregator v1.13.0`, `ReceiverAcrossV3 v1.2.0`, `ReceiverChainflip v1.1.0`, `ReceiverStargateV2 v1.2.0`, `TokenWrapper v1.3.0`
 
-Tron's canonical USDT contract declares transfer() as returns (bool) but omits the return statement — the EVM returns 32 zero bytes, which Solady's safeTransfer treats as false and reverts. Rather than adding Tron-specific bytecode to 60+ EVM chains, the team decided to maintain a contracts-tron fork where the actual bypass lives inside LibAsset.transferERC20. This PR is step 1 of a two-part audit sequence: it routes every periphery ERC20 transfer through LibAsset so that the single fork-level change covers all call sites automatically — LibAsset.sol is not modified here (stays at v2.1.3). Once this PR is audited and merged, a second audit will follow for the contracts-tron fork PR where LibAsset receives the Tron USDT bypass. GenericSwapFacetV3 is also migrated from the legacy contractIsAllowed+selectorIsAllowed pair to the stricter contractSelectorIsAllowed (granular contract+selector whitelist).
+Tron's canonical USDT contract declares `transfer()` as `returns (bool)` but omits the actual `return true` — the EVM returns 32 zero bytes, which Solady's `safeTransfer` interprets as `false` and reverts. Rather than ship Tron-specific bytecode to 60+ EVM chains, the team maintains a `contracts-tron` fork where the actual bypass lives inside `LibAsset.transferERC20`. This PR is step 1 of a two-part audit sequence: it routes every periphery ERC20 transfer through `LibAsset` so that the single fork-level change covers all call sites automatically — `LibAsset.sol` is not modified here (stays at `v2.1.3`) and the PR contains no Tron-specific code. Once this PR is audited and merged, a second audit will follow for the `contracts-tron` fork PR #9 where `LibAsset` receives the Tron USDT bypass. The same audit cycle is also used to land two breaking changes: `GenericSwapFacetV3` migrates from the legacy `contractIsAllowed` + `selectorIsAllowed` pair to the stricter `contractSelectorIsAllowed`, and `WithdrawablePeriphery` adds a `ZeroAmount` revert plus routes native transfers through `LibAsset.transferAsset`. Approval and native-ETH paths are intentionally out of scope — the Tron USDT issue is `transfer()`-only.
 ```
 
-**Thread reply (Burrasec)**:
-```
-PR: https://github.com/lifinance/contracts/pull/1715
-Commit: https://github.com/lifinance/contracts/pull/1715/commits/142d9d809e8184fff4a21605fcd41983ed2e0e4d
+(Burrasec reply is structurally identical: `PR/Commit` first, then `Hey @Josip Koncurat. …`, scope, same context paragraph.)
 
-Hey @Josip Koncurat. I have a new audit for you.
+**Step 6** — Helper sends to `dev-sc-audit` (`WEBHOOK_DEV_SC_AUDIT`); exit `0` → success printed. If env var unset → exit `2` → fallback file written for that channel only.
 
-Scope: `GenericSwapFacetV3 v2.0.0`, `WithdrawablePeriphery v2.0.0`, `LiFiDEXAggregator v1.13.0`, `ReceiverAcrossV3 v1.2.0`, `ReceiverChainflip v1.1.0`, `ReceiverStargateV2 v1.2.0`, `TokenWrapper v1.3.0`
-
-Tron's canonical USDT contract declares transfer() as returns (bool) but omits the return statement — the EVM returns 32 zero bytes, which Solady's safeTransfer treats as false and reverts. Rather than adding Tron-specific bytecode to 60+ EVM chains, the team decided to maintain a contracts-tron fork where the actual bypass lives inside LibAsset.transferERC20. This PR is step 1 of a two-part audit sequence: it routes every periphery ERC20 transfer through LibAsset so that the single fork-level change covers all call sites automatically — LibAsset.sol is not modified here (stays at v2.1.3). Once this PR is audited and merged, a second audit will follow for the contracts-tron fork PR where LibAsset receives the Tron USDT bypass. GenericSwapFacetV3 is also migrated from the legacy contractIsAllowed+selectorIsAllowed pair to the stricter contractSelectorIsAllowed (granular contract+selector whitelist).
-```
+This example calibrates two things you can't get from the abstract rules: the **prose density** of the context paragraph (5–7 sentences of compressed reasoning, not bullet lists) and the **exact template layout** for both auditors.
