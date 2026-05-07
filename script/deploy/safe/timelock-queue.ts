@@ -132,13 +132,17 @@ export async function getTimelockQueueCollection(): Promise<{
 export async function ensureTimelockQueueIndexes(
   timelockQueue: Collection<ITimelockQueueDoc>
 ): Promise<void> {
-  // operationId is the natural primary key for idempotent upserts.
+  // (network, operationId) is the natural primary key — `operationId` is
+  // computed via OpenZeppelin's `hashOperationBatch`, which does not include
+  // chain id or contract address, so structurally identical batches scheduled
+  // on two chains can share an `operationId`. Scoping the unique index by
+  // network keeps queue rows isolated per chain.
   await safeCreateIndex(
     timelockQueue,
-    { operationId: 1 },
+    { network: 1, operationId: 1 },
     {
       unique: true,
-      name: 'unique_operation_id',
+      name: 'unique_network_operation_id',
     }
   )
   // Executor query: find queued rows for a given network.
@@ -184,16 +188,23 @@ async function safeCreateIndex(
 }
 
 /**
- * Builds a Mongo filter that matches a queue row by its `operationId` using
- * `$eq`. Forces operator-typed comparison so an object value can never be
- * interpreted as an operator expression (defense-in-depth — all current
- * callers pass locally-derived `Hex` strings).
+ * Builds a Mongo filter selecting a queue row by its natural primary key
+ * `(network, operationId)`. `network` is normalised to lowercase to match the
+ * stored value. Both fields use `$eq` so object-typed values cannot be
+ * interpreted as Mongo operator expressions.
  *
+ * @param network - Network slug (matches `networks.json` keys).
  * @param operationId - The operation id to match (32-byte hex).
- * @returns A filter selecting the queue row with this `operationId`.
+ * @returns A filter selecting the queue row with this `(network, operationId)`.
  */
-export function byOperationId(operationId: Hex): Filter<ITimelockQueueDoc> {
-  return { operationId: { $eq: operationId } }
+export function byOperationId(
+  network: string,
+  operationId: Hex
+): Filter<ITimelockQueueDoc> {
+  return {
+    network: { $eq: network.toLowerCase() },
+    operationId: { $eq: operationId },
+  }
 }
 
 /**

@@ -171,19 +171,30 @@ describe('computeOperationIdBatch', () => {
 describe('byOperationId', () => {
   const sampleId = `0x${'a'.repeat(64)}` as Hex
 
-  it('wraps the operationId in a $eq operator', () => {
-    expect(byOperationId(sampleId)).toEqual({
+  it('wraps both fields of the natural key in $eq operators', () => {
+    expect(byOperationId('arbitrum', sampleId)).toEqual({
+      network: { $eq: 'arbitrum' },
       operationId: { $eq: sampleId },
     })
   })
 
-  it('does not include any other filter keys', () => {
-    expect(Object.keys(byOperationId(sampleId))).toEqual(['operationId'])
+  it('lowercases the network slug to match the stored value', () => {
+    expect(byOperationId('Arbitrum', sampleId)).toEqual({
+      network: { $eq: 'arbitrum' },
+      operationId: { $eq: sampleId },
+    })
   })
 
-  it('preserves the exact input value (no normalization)', () => {
+  it('returns a filter with exactly the (network, operationId) keys', () => {
+    expect(Object.keys(byOperationId('mainnet', sampleId)).sort()).toEqual([
+      'network',
+      'operationId',
+    ])
+  })
+
+  it('preserves the exact operationId value (no normalization)', () => {
     const mixedCase = `0x${'A'.repeat(32)}${'b'.repeat(32)}` as Hex
-    const filter = byOperationId(mixedCase)
+    const filter = byOperationId('mainnet', mixedCase)
     expect((filter.operationId as { $eq: Hex }).$eq).toBe(mixedCase)
   })
 })

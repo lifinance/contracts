@@ -178,7 +178,7 @@ const cmd = defineCommand({
 
             const now = new Date()
             await timelockQueue.updateOne(
-              byOperationId(operationId),
+              byOperationId(network.name, operationId),
               {
                 $setOnInsert: {
                   operationId,

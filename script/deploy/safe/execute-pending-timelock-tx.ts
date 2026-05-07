@@ -624,7 +624,8 @@ async function processNetwork(
           chainCaller,
           timelockAddress,
           operation,
-          isDryRun
+          isDryRun,
+          network.name
         )
         operationsProcessed++
         if (rejectResult === 'rejected') operationsRejected++
@@ -779,13 +780,16 @@ async function getPendingOperations(
           consola.warn(
             `[${networkName}] Queue row ${row.operationId} has empty arrays; marking failed.`
           )
-          await timelockQueue.updateOne(byOperationId(row.operationId), {
-            $set: {
-              status: 'failed',
-              failureReason: 'empty schedule arrays',
-              updatedAt: new Date(),
-            },
-          })
+          await timelockQueue.updateOne(
+            byOperationId(row.network, row.operationId),
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'empty schedule arrays',
+                updatedAt: new Date(),
+              },
+            }
+          )
           continue
         }
         if (
@@ -795,13 +799,16 @@ async function getPendingOperations(
           consola.warn(
             `[${networkName}] Queue row ${row.operationId} has inconsistent array lengths; marking failed.`
           )
-          await timelockQueue.updateOne(byOperationId(row.operationId), {
-            $set: {
-              status: 'failed',
-              failureReason: 'inconsistent schedule array lengths',
-              updatedAt: new Date(),
-            },
-          })
+          await timelockQueue.updateOne(
+            byOperationId(row.network, row.operationId),
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'inconsistent schedule array lengths',
+                updatedAt: new Date(),
+              },
+            }
+          )
           continue
         }
 
@@ -819,13 +826,16 @@ async function getPendingOperations(
           consola.error(
             `[${networkName}] ❌ operationId mismatch on queue row (stored=${row.operationId}, derived=${opId}); marking failed.`
           )
-          await timelockQueue.updateOne(byOperationId(row.operationId), {
-            $set: {
-              status: 'failed',
-              failureReason: 'operationId mismatch — possible tampered row',
-              updatedAt: new Date(),
-            },
-          })
+          await timelockQueue.updateOne(
+            byOperationId(row.network, row.operationId),
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'operationId mismatch — possible tampered row',
+                updatedAt: new Date(),
+              },
+            }
+          )
           continue
         }
 
@@ -837,13 +847,16 @@ async function getPendingOperations(
           consola.error(
             `[${networkName}] ❌ timelockAddress mismatch on queue row (stored=${row.timelockAddress}, canonical=${timelockAddress}); marking failed.`
           )
-          await timelockQueue.updateOne(byOperationId(row.operationId), {
-            $set: {
-              status: 'failed',
-              failureReason: 'timelockAddress mismatch with deployment',
-              updatedAt: new Date(),
-            },
-          })
+          await timelockQueue.updateOne(
+            byOperationId(row.network, row.operationId),
+            {
+              $set: {
+                status: 'failed',
+                failureReason: 'timelockAddress mismatch with deployment',
+                updatedAt: new Date(),
+              },
+            }
+          )
           continue
         }
 
@@ -862,7 +875,7 @@ async function getPendingOperations(
             `[${networkName}] Operation ${opId} is already executed. Marking queue row as executed.`
           )
           const now = new Date()
-          await timelockQueue.updateOne(byOperationId(opId), {
+          await timelockQueue.updateOne(byOperationId(networkName, opId), {
             $set: { status: 'executed', executedAt: now, updatedAt: now },
           })
           continue
@@ -1048,8 +1061,15 @@ async function executeOperation(
     }
 
     if (action === 'Reject') {
+      if (!networkName) throw new Error('rejectOperation requires networkName')
       // Call rejectOperation and return
-      await rejectOperation(chainCaller, timelockAddress, operation, isDryRun)
+      await rejectOperation(
+        chainCaller,
+        timelockAddress,
+        operation,
+        isDryRun,
+        networkName
+      )
       return 'rejected'
     }
 
@@ -1149,18 +1169,23 @@ async function executeOperation(
       )
 
       // Mark the queue row as executed for traceability and to skip on next run.
+      if (!networkName)
+        throw new Error('networkName is required to mark queue row as executed')
       try {
         const { client, timelockQueue } = await getTimelockQueueCollection()
         try {
           const now = new Date()
-          await timelockQueue.updateOne(byOperationId(operation.id), {
-            $set: {
-              status: 'executed',
-              executedAt: now,
-              executionTxHash: hash,
-              updatedAt: now,
-            },
-          })
+          await timelockQueue.updateOne(
+            byOperationId(networkName, operation.id),
+            {
+              $set: {
+                status: 'executed',
+                executedAt: now,
+                executionTxHash: hash,
+                updatedAt: now,
+              },
+            }
+          )
           consola.info(
             `${networkPrefix} Marked queue row ${operation.id} as executed`
           )
@@ -1211,7 +1236,8 @@ async function rejectOperation(
   chainCaller: IChainCaller,
   timelockAddress: Address,
   operation: ITimelockOperation,
-  isDryRun: boolean
+  isDryRun: boolean,
+  networkName: string
 ): Promise<'rejected' | 'failed'> {
   consola.info(`\n❌ Rejecting operation: ${operation.id}`)
   const callCount = operation.targets.length
@@ -1275,14 +1301,17 @@ async function rejectOperation(
         const { client, timelockQueue } = await getTimelockQueueCollection()
         try {
           const now = new Date()
-          await timelockQueue.updateOne(byOperationId(operation.id), {
-            $set: {
-              status: 'cancelled',
-              cancelledAt: now,
-              executionTxHash: result.hash,
-              updatedAt: now,
-            },
-          })
+          await timelockQueue.updateOne(
+            byOperationId(networkName, operation.id),
+            {
+              $set: {
+                status: 'cancelled',
+                cancelledAt: now,
+                executionTxHash: result.hash,
+                updatedAt: now,
+              },
+            }
+          )
           consola.info(`Marked queue row ${operation.id} as cancelled`)
         } finally {
           await client.close()

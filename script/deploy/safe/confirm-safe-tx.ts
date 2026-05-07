@@ -112,7 +112,7 @@ async function enqueueTimelockOpIfApplicable(
     const { client, timelockQueue } = await getTimelockQueueCollection()
     try {
       await timelockQueue.updateOne(
-        byOperationId(operationId),
+        byOperationId(network, operationId),
         {
           $setOnInsert: {
             operationId,
