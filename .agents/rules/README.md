@@ -72,10 +72,13 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 | Command File      | Usage                             | Purpose                                                                                      |
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `add-new-rule.md` | `/add-new-rule`                   | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation) |
-| `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
-| `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
-| `review-bounty-report.md` | `/review-bounty-report` | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
+| `add-new-rule.md`       | `/add-new-rule`                             | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
+| `add-audit.md`          | `/add-audit`                                | Add an audit PDF + update `audit/auditLog.json`                                              |
+| `add-network.md`        | `/add-network [networkKey]`                 | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
+| `deprecate-network.md`  | `/deprecate-network <net1> [net2] ...`      | Deprecate networks — remove from networks.json, foundry.toml, deployment logs               |
+| `analyze-tx.md`         | `/analyze-tx <network> <tx_hash>`           | Transaction trace/runbook analysis for a specific tx                                         |
+| `review-bounty-report.md` | `/review-bounty-report`                   | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
+| `request-audit.md`      | `/request-audit <PR_NUMBER_OR_URL> [--urgent]` | Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)       |
 
 ## Transaction Analysis
 

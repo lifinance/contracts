@@ -141,6 +141,60 @@ Before adding a new guideline:
    ```
 3. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
 
+## Modifying an Existing Rule or Command
+
+The principles below (Skill Authoring Principles, No-Duplication, Cross-Reference Minimization, Rule Size Limits, Smart-Contract Department Checklist) **apply equally on edits, not just on creation**. When updating an existing rule or command:
+
+- Edit only in `.agents/rules/` or `.agents/commands/` — never the symlink targets.
+- Re-run the **No-Duplication** check: did your edit duplicate guidance that already lives elsewhere? Trim the duplicate before merging.
+- Re-run the **size check**: if a skill grew past 500 lines, apply the splitting guidance below before adding more.
+- Update `.agents/rules/README.md` only if you changed `name`, `description`, or `globs`.
+- Run validation steps below.
+
+No symlink work is needed unless you renamed the file.
+
+## Skill Authoring Principles
+
+Every line in a skill is loaded into the model's context when the skill is triggered. Be ruthless about earning tokens. The principles below apply on initial creation **and** on every edit. The official Anthropic guide is [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) — the rules below are derived from it plus repo-specific learnings.
+
+### Concise is key — Claude is already very smart
+
+The model already knows what JSON, PDFs, libraries, ERC20, viem, etc. are. Don't explain them. Challenge every line:
+
+- "Does Claude really need this explanation?"
+- "Can I assume Claude knows this?"
+- "Does this paragraph justify its token cost?"
+
+A 50-token instruction that says *"Use `pdfplumber.open(...)` to extract text"* is better than a 150-token instruction that prefaces it with what PDFs are and why libraries help.
+
+### Size & redundancy
+
+- **Target ≤ 500 lines for the skill body.** Anthropic's docs call this the soft-perf threshold; tighter is better.
+- **No "Quality Checklist" that restates rules already given in Steps 1–N.** The model just read those rules a few hundred lines earlier; repeating them as a checklist doubles the token cost without changing behaviour.
+- **No historical / "do-not-apply" notes.** Telling the model to ignore a legacy code path it will never see is pure noise. Delete the legacy reference entirely.
+- **No standalone callouts that duplicate inline guidance.** If Step 6 already says "drop the `:thread:` suffix", don't add a separate `> note` block above Step 3 saying the same thing. Keep the rule where it is applied.
+- **Bullet lists beat prose preambles.** A one-sentence framing + 4 bullets is leaner than 3 paragraphs of preamble followed by 5 numbered points.
+- **Avoid time-sensitive information** ("before August 2025, use the old API"). Use a "Current method" + collapsible "Old patterns" section instead, or just delete the legacy reference.
+- **Use consistent terminology.** Pick one term per concept and stick with it ("API endpoint", not a mix of "URL", "API route", "path"). Inconsistency makes the model second-guess.
+- **Don't offer too many options without a default.** *"Use `pdfplumber` for text extraction. For scanned PDFs requiring OCR, use `pdf2image` with `pytesseract` instead."* beats *"You can use `pypdf`, or `pdfplumber`, or `PyMuPDF`, or `pdf2image`, or…"*
+
+### Naming and description
+
+- **`name`**: lowercase, hyphenated, ideally **gerund form** (`processing-pdfs`, `analyzing-spreadsheets`, `requesting-audit`). Avoid vague names (`helper`, `utils`, `tools`). Reserved: `anthropic`, `claude`. Max 64 chars.
+- **`description`**: third person, present tense; include both *what* the skill does AND *when* to use it (key terms, file types, triggering verbs). The description is how the model picks this skill from 100+ available skills — be specific, not generic.
+  - Good: `"Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)"`
+  - Bad: `"Helps with audit requests"`
+
+### Helper script exit codes
+
+When a skill shells out to a project script (e.g. via `bunx tsx script/utils/foo.ts`), use this exit-code convention so the orchestrating skill can branch independently per target:
+
+- **`0`** — success.
+- **`1`** — real error (network, API, malformed input). Report stderr to the user and stop. Do **not** retry. Do **not** write a fallback artifact.
+- **`2`** — recoverable misconfig (env var missing, optional credential absent). Fall through to an alternative path (manual fallback file, degraded mode) and tell the user which env var to set.
+
+This split lets the skill process N targets independently — if one channel/network/recipient succeeds and another exits `2`, the skill continues for the survivors and only writes a fallback for the failed one.
+
 ## Validation Steps (PR-ready)
 
 - **Symlink integrity**: `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all entries should be symlinks (`->`) pointing into `.agents/rules/`.
