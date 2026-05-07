@@ -144,7 +144,8 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     }
 
     function test_CanUnpauseDiamondWithSingleBlacklist() public {
-        address ownershipFacetAddress = 0xB021CCbe1bd1EF2af8221A79E89dD3145947A082;
+        address ownershipFacetAddress = IDiamondLoupe(address(diamond))
+            .facetAddress(OwnershipFacet.owner.selector);
 
         // get function selectors of OwnershipFacet
         bytes4[] memory ownershipFunctionSelectors = IDiamondLoupe(
@@ -190,6 +191,15 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     }
 
     function test_CanUnpauseDiamondWithMultiBlacklist() public {
+        // resolve facet addresses before pausing (loupe is unavailable while paused)
+        blacklist = new address[](2);
+        blacklist[0] = IDiamondLoupe(address(diamond)).facetAddress(
+            OwnershipFacet.owner.selector
+        ); // OwnershipFacet
+        blacklist[1] = IDiamondLoupe(address(diamond)).facetAddress(
+            PeripheryRegistryFacet.registerPeripheryContract.selector
+        ); // PeripheryRegistryFacet
+
         // pause diamond first
         test_PauserWalletCanPauseDiamond();
 
@@ -198,10 +208,6 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
 
         vm.expectEmit(true, true, true, true, address(emergencyPauseFacet));
         emit EmergencyUnpaused(USER_DIAMOND_OWNER);
-
-        blacklist = new address[](2);
-        blacklist[0] = 0xB021CCbe1bd1EF2af8221A79E89dD3145947A082; // OwnershipFacet
-        blacklist[1] = 0xA412555Fa40F6AA4B67a773dB5a7f85983890341; // PeripheryRegistryFacet
 
         emergencyPauseFacet.unpauseDiamond(blacklist);
 
@@ -423,7 +429,9 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
                 functionSelectors: generateRandomBytes4Array()
             });
         }
+        vm.startPrank(USER_DIAMOND_OWNER);
         DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
+        vm.stopPrank();
 
         //
         IDiamondLoupe.Facet[] memory facets = DiamondLoupeFacet(
