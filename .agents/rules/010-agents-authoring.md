@@ -46,6 +46,11 @@ Remove duplicates rather than keeping both in sync.
 - `name`: lowercase, hyphenated, gerund form preferred (`requesting-audit`). Max 64 chars.
 - `description`: third person, present tense; include *what* and *when* to use it.
 
+## Scoping (rules only)
+
+- Use **specific globs** — target file types precisely to avoid unnecessary activation.
+- Use `alwaysApply: true` (+ omit `paths:`) only for truly universal rules (generally `000-099`).
+
 ## Cross-references
 
 - Avoid "see also" pointers and "Related Files" sections.
