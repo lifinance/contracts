@@ -4,8 +4,9 @@
  * Proposes Safe transactions to add owners (from `config/global.json:safeOwners`
  * and/or `--owners`) and, when current threshold differs, propose a change to
  * the expected value (`EXPECTED_THRESHOLD`).
- * Supports a single network (`--network <name>`) or every active EVM network
- * (`--all-networks`). Signs with a Ledger by default; falls back to a private
+ * Supports a single network (`--network <name>`) or every active EVM mainnet
+ * (`--all-networks`, excludes `networks.json` entries with `type: "testnet"`).
+ * Signs with a Ledger by default; falls back to a private
  * key when `--ledger=false`. Use `--check` for a read-only audit of on-chain
  * owners + threshold against the expected configuration.
  */
@@ -86,7 +87,7 @@ interface ICheckResult {
 const main = defineCommand({
   meta: {
     name: 'add-safe-owners-and-threshold',
-    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${EXPECTED_THRESHOLD}. Single network via --network, every active EVM network via --all-networks.`,
+    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${EXPECTED_THRESHOLD}. Single network via --network; --all-networks skips networks where type is testnet.`,
   },
   args: {
     network: {
@@ -95,7 +96,8 @@ const main = defineCommand({
     },
     allNetworks: {
       type: 'boolean',
-      description: 'Run on every active EVM network in networks.json',
+      description:
+        'Run on every active EVM network in networks.json with type mainnet (excludes testnets)',
       alias: 'all-networks',
       default: false,
     },
@@ -270,6 +272,7 @@ function resolveNetworks(
       .filter(
         ([, cfg]) =>
           cfg.status === 'active' &&
+          cfg.type !== 'testnet' &&
           typeof cfg.safeAddress === 'string' &&
           cfg.safeAddress.startsWith('0x')
       )
@@ -569,7 +572,11 @@ function printCheckTable(results: ICheckResult[]): void {
   for (const r of results) {
     const pad = r.network.padEnd(width)
     const tag =
-      r.status === 'OK' ? green('OK    ') : r.status === 'DIFF' ? yellow('DIFF  ') : red('FAILED')
+      r.status === 'OK'
+        ? green('OK    ')
+        : r.status === 'DIFF'
+        ? yellow('DIFF  ')
+        : red('FAILED')
 
     const th =
       r.threshold !== undefined
