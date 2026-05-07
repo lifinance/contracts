@@ -19,6 +19,8 @@ import type {
   IChainSimulateResult,
 } from '../../../common/types'
 
+import { getGasWithFallback } from './gas-with-fallback'
+
 export class EvmChainCaller implements IChainCaller {
   public readonly senderAddress: Address
 
@@ -33,23 +35,40 @@ export class EvmChainCaller implements IChainCaller {
   public async simulate(
     params: IChainCallParams
   ): Promise<IChainSimulateResult> {
-    const estimatedGas = await this.publicClient.estimateGas({
-      account: this.senderAddress,
-      to: params.to,
-      data: params.data,
-      value: params.value ?? 0n,
-    })
+    // Mirror the multiplier+fallback logic used in `call()` so the dry-run
+    // value reflects the gas limit that would actually be applied on-chain.
+    const estimatedGas = await getGasWithFallback(() =>
+      this.publicClient.estimateGas({
+        account: this.senderAddress,
+        to: params.to,
+        data: params.data,
+        value: params.value ?? 0n,
+      })
+    )
 
     return { estimatedResource: estimatedGas, resourceLabel: 'gas' }
   }
 
   public async call(params: IChainCallParams): Promise<IChainCallResult> {
+    // eth_estimateGas can revert outright on some chains (e.g. Jovay) even when
+    // the call succeeds, and viem's default ~20% buffer can under-count post-
+    // call overhead — apply GAS_ESTIMATE_MULTIPLIER with fallback.
+    const gas = await getGasWithFallback(() =>
+      this.publicClient.estimateGas({
+        account: this.senderAddress,
+        to: params.to,
+        data: params.data,
+        value: params.value ?? 0n,
+      })
+    )
+
     const txHash = await this.walletClient.sendTransaction({
       account: this.account,
       chain: this.walletClient.chain as Chain | null,
       to: params.to,
       data: params.data,
       value: params.value ?? 0n,
+      gas,
     })
 
     consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)

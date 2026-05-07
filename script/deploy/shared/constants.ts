@@ -23,6 +23,23 @@ export const MAX_RETRIES = 3
 export const POLL_INTERVAL = 3000 // 3 seconds
 
 /**
+ * Gas estimate safety multiplier as a percentage. Matches Foundry's default
+ * `--gas-estimate-multiplier=130` (30% buffer on top of the raw estimate).
+ * Used by TS Safe/timelock executors as the canonical fallback when the
+ * `GAS_ESTIMATE_MULTIPLIER` env var is unset/invalid; bash deploy/update
+ * scripts apply the same `130` default inline (see .env.example).
+ */
+export const DEFAULT_GAS_ESTIMATE_MULTIPLIER_PERCENT = 130n
+
+/**
+ * Fixed gas limit applied when `eth_estimateGas` throws (e.g. Jovay, where
+ * the binary-search simulation reverts even when `eth_call` with unlimited gas
+ * succeeds). Sized ~4× the largest observed Safe/timelock execution
+ * (~120k for `scheduleBatch` on Jovay) to absorb post-call overhead.
+ */
+export const DEFAULT_GAS_FALLBACK = 500_000n
+
+/**
  * Centralized delay constants for consistent timing across the codebase
  *
  * Policy:
