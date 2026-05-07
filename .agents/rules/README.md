@@ -43,11 +43,10 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 ## Best Practices
 
-1. **Keep rules focused**: One concern per rule file
-2. **Use [CONV:*] anchors**: Reference convention anchors defined within rule files for consistency
-3. **Use specific globs**: Target file types precisely to avoid unnecessary activation
-4. **Minimize alwaysApply**: Only use for truly global rules (generally within `000-099`)
-5. **Self-contained**: All convention content is embedded in rule files; no external MD file dependencies
+- **Use [CONV:*] anchors**: Reference convention anchors defined within rule files for consistency
+- **Self-contained**: All convention content is embedded in rule files; no external MD file dependencies
+
+Scoping, size, naming, and no-duplication constraints are enforced automatically by `010-agents-authoring` (activates when editing `.agents/` files).
 
 ## Context Management
 
@@ -55,16 +54,7 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 ## Adding New Rules
 
-Use `/add-new-rule` as the standard workflow.
-
-If you’re making changes manually:
-
-1. Choose appropriate number range (see naming above)
-2. Create `.md` file with frontmatter
-3. Define specific globs (avoid `**/*` unless truly global)
-4. Reference conventions via `[CONV:*]` anchors
-5. Test that rule activates appropriately
-6. Update this README if adding new category, rule, or command
+Use `/add-new-rule` as the standard workflow — it covers symlink creation, frontmatter, scoping, and validation.
 
 ## Custom Commands
 
