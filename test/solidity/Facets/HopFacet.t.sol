@@ -52,6 +52,9 @@ contract HopFacetTest is TestBaseFacet {
         configs[2] = HopFacet.Config(address(0), NATIVE_BRIDGE);
 
         hopFacet = TestHopFacet(address(diamond));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         hopFacet.initHop(configs);
 
         hopFacet.addAllowedContractSelector(
@@ -70,6 +73,8 @@ contract HopFacetTest is TestBaseFacet {
             address(uniswap),
             uniswap.swapExactETHForTokens.selector
         );
+
+        vm.stopPrank();
 
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
@@ -229,7 +234,6 @@ contract HopFacetTest is TestBaseFacet {
 
     function test_OwnerCanInitializeFacet() public {
         LiFiDiamond diamond2 = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
-        vm.startPrank(USER_DIAMOND_OWNER);
 
         TestHopFacet hopFacet2 = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
@@ -253,9 +257,13 @@ contract HopFacetTest is TestBaseFacet {
 
         hopFacet2 = TestHopFacet(address(diamond2));
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectEmit(true, true, true, true, address(hopFacet2));
         emit HopInitialized(configs);
         hopFacet2.initHop(configs);
+
+        vm.stopPrank();
     }
 
     function test_BridgeFromL2ToL1() public {
@@ -271,8 +279,11 @@ contract HopFacetTest is TestBaseFacet {
         // get USDC contract and approve
         ERC20 usdcPoly = ERC20(addressUSDCPolygon); // USDC on Polygon
 
+        // use a fresh address to avoid CREATE collisions on the Polygon fork
+        address polygonOwner = makeAddr("polygonOwner");
+
         // re-deploy diamond and facet
-        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
+        diamond = createDiamond(polygonOwner, USER_PAUSER);
         TestHopFacet hopFacet2 = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;
@@ -285,7 +296,10 @@ contract HopFacetTest is TestBaseFacet {
         configs[0] = HopFacet.Config(addressUSDCPolygon, ammWrapperPolygon);
 
         hopFacet2 = TestHopFacet(address(diamond));
+
+        vm.startPrank(polygonOwner);
         hopFacet2.initHop(configs);
+        vm.stopPrank();
 
         // adjust bridgeData
         bridgeData.destinationChainId = 1;

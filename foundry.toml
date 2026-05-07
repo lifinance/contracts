@@ -5,9 +5,6 @@ evm_version = 'cancun'
 auto_detect_solc = false
 optimizer = true
 optimizer_runs = 1000000
-# use a known address with a balance so ZkEVM scripts work
-sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
-tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 out = 'out'
 fs_permissions = [
   { access = "read", path = "./deployments/" },
@@ -22,8 +19,6 @@ cache = true
 [profile.zksync]
 solc_version = '0.8.29'
 evm_version = 'cancun'
-sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
-tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 test = "notest"
 script = "script/deploy/zksync"
 cache_path = "./zkcache"
