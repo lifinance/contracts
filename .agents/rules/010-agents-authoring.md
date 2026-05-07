@@ -57,6 +57,7 @@ Remove duplicates rather than keeping both in sync.
 ## Scoping (rules only)
 
 - Use **specific globs** — target file types precisely to avoid unnecessary activation.
+- Avoid `globs: ['**/*']` unless the rule is an explicit **activation gate** (e.g. `600-transaction-analysis.md`) or truly universal.
 - Use `alwaysApply: true` (+ omit `paths:`) only for truly universal rules (generally `000-099`).
 
 ## Cross-references
