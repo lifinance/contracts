@@ -55,11 +55,11 @@ Remove duplicates rather than keeping both in sync.
 
 - `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all should be symlinks into `.agents/rules/`.
 - `ls -l .claude/skills/*/SKILL.md` — all should point into `.agents/commands/`.
-- `.agents/rules/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
+- `.agents/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
 
 ## README update triggers
 
-Update `.agents/rules/README.md`:
+Update `.agents/README.md`:
 - Rule changes: if `name`, `description`, or `globs` changed.
 - Command changes: always update the Custom Commands table.
 
