@@ -1,124 +1,336 @@
 /**
  * Add Safe Owners and Threshold
  *
- * This script proposes transactions to add owners to a Safe and set the threshold.
- * It reads owner addresses from global.json and proposes transactions to add each
- * owner individually, then sets the threshold to 3.
+ * Proposes Safe transactions to add owners (from `config/global.json:safeOwners`
+ * and/or `--owners`) and, when current threshold differs, propose a change to
+ * the expected value (`EXPECTED_THRESHOLD`).
+ * Supports a single network (`--network <name>`) or every active EVM network
+ * (`--all-networks`). Signs with a Ledger by default; falls back to a private
+ * key when `--ledger=false`. Use `--check` for a read-only audit of on-chain
+ * owners + threshold against the expected configuration.
  */
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
-import { createPublicClient, http, isAddress, type Address } from 'viem'
+import type { Collection } from 'mongodb'
+import {
+  createPublicClient,
+  http,
+  isAddress,
+  type Account,
+  type Address,
+} from 'viem'
 
 import globalConfig from '../../../config/global.json'
+import networksData from '../../../config/networks.json'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
+import type { ILedgerAccountResult } from './ledger'
 import {
-  getSafeMongoCollection,
   getNextNonce,
-  initializeSafeClient,
   getPrivateKey,
-  storeTransactionInMongoDB,
   getSafeInfoFromContract,
+  getSafeMongoCollection,
+  initializeSafeClient,
   isAddressASafeOwner,
+  storeTransactionInMongoDB,
+  type ISafeTxDocument,
 } from './safe-utils'
+
+const EXPECTED_THRESHOLD = 3
+
+const ansi = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`
+const green = (text: string) => ansi('32', text)
+const yellow = (text: string) => ansi('33', text)
+const red = (text: string) => ansi('31', text)
 dotenv.config()
+
+interface ILedgerOptions {
+  derivationPath?: string
+  ledgerLive?: boolean
+  accountIndex?: number
+}
+
+interface IProcessNetworkDeps {
+  pendingTransactions: Collection<ISafeTxDocument>
+  privateKey?: string
+  useLedger: boolean
+  ledgerOptions?: ILedgerOptions
+  ledgerAccount?: Account
+  cliOwners?: Address[]
+}
+
+interface IProcessNetworkResult {
+  proposalsCreated: number
+  summary: string
+}
+
+interface INetworkRunResult {
+  network: string
+  status: 'proposed' | 'skipped' | 'failed'
+  detail: string
+}
+
+interface ICheckResult {
+  network: string
+  status: 'OK' | 'DIFF' | 'FAILED'
+  threshold?: number
+  ownerCount?: number
+  expectedOwnerCount: number
+  missingOwners: Address[]
+  extraOwners: Address[]
+  detail: string
+}
 
 const main = defineCommand({
   meta: {
     name: 'add-safe-owners-and-threshold',
-    description:
-      'Proposes transactions to add all SAFE owners from global.json to the SAFE address in networks.json and sets threshold to 3',
+    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${EXPECTED_THRESHOLD}. Single network via --network, every active EVM network via --all-networks.`,
   },
   args: {
     network: {
       type: 'string',
-      description: 'Network name',
-      required: true,
+      description: 'Network name (omit when using --all-networks)',
+    },
+    allNetworks: {
+      type: 'boolean',
+      description: 'Run on every active EVM network in networks.json',
+      alias: 'all-networks',
+      default: false,
     },
     privateKey: {
       type: 'string',
-      description: 'Private key of the signer',
+      description: 'Private key of the signer (only used with --ledger=false)',
     },
     owners: {
       type: 'string',
       description: 'Comma-separated list of owner addresses to add',
     },
+    ledger: {
+      type: 'boolean',
+      description: 'Use a Ledger hardware wallet for signing',
+      default: true,
+    },
+    ledgerLive: {
+      type: 'boolean',
+      description: 'Use Ledger Live derivation path',
+    },
+    accountIndex: {
+      type: 'string',
+      description: 'Ledger account index (default: 0)',
+    },
+    derivationPath: {
+      type: 'string',
+      description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+    },
+    check: {
+      type: 'boolean',
+      description:
+        'Read-only audit: compare on-chain owners + threshold against config',
+      default: false,
+    },
   },
   async run({ args }) {
-    const { network, privateKey: privateKeyArg } = args
+    if (!args.network && !args.allNetworks)
+      throw new Error('Provide either --network <name> or --all-networks')
+    if (args.network && args.allNetworks)
+      throw new Error('--network and --all-networks are mutually exclusive')
 
-    // Get private key
-    const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', privateKeyArg)
+    const cliOwners = parseCliOwners(args.owners)
 
-    // Connect to MongoDB
+    if (args.check) {
+      const networks = resolveNetworks(args.network, args.allNetworks)
+      if (!networks.length) {
+        consola.warn('No networks selected — exiting')
+        return
+      }
+
+      const expectedOwners = mergeOwners(
+        globalConfig.safeOwners,
+        cliOwners
+      ) as Address[]
+
+      consola.info(
+        `Checking ${networks.length} network(s) against ${expectedOwners.length} expected owner(s) + threshold=${EXPECTED_THRESHOLD}`
+      )
+
+      const checkResults: ICheckResult[] = []
+      for (const network of networks) {
+        const r = await checkNetwork(
+          network,
+          expectedOwners,
+          EXPECTED_THRESHOLD
+        )
+        checkResults.push(r)
+      }
+
+      printCheckTable(checkResults)
+      const bad = checkResults.filter((r) => r.status !== 'OK').length
+      if (bad > 0) process.exit(1)
+      return
+    }
+
+    const useLedger = args.ledger ?? true
+    const ledgerOptions: ILedgerOptions | undefined = useLedger
+      ? {
+          ledgerLive: args.ledgerLive || false,
+          accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
+          derivationPath: args.derivationPath,
+        }
+      : undefined
+
+    if (useLedger && args.derivationPath && args.ledgerLive)
+      throw new Error(
+        "Cannot use both 'derivationPath' and 'ledgerLive' options together"
+      )
+
+    const privateKey = useLedger
+      ? undefined
+      : getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
+
+    let ledgerResult: ILedgerAccountResult | undefined
+    if (useLedger) {
+      consola.info('Using Ledger hardware wallet for signing')
+      const { getLedgerAccount } = await import('./ledger')
+      ledgerResult = await getLedgerAccount(ledgerOptions)
+    }
+
+    const networks = resolveNetworks(args.network, args.allNetworks)
+    if (!networks.length) {
+      consola.warn('No networks selected — exiting')
+      return
+    }
+    consola.info(
+      `Processing ${networks.length} network(s): ${networks.join(', ')}`
+    )
+
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
-    consola.info('Setting up connection to Safe contract')
-
-    // Initialize Safe client
-    const { safe, chain, safeAddress } = await initializeSafeClient(
-      network,
-      privateKey
-    )
-
-    // Get Safe information directly from the contract
-    consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
-    let safeInfo
+    const results: INetworkRunResult[] = []
     try {
-      // Create a public client for read operations
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(chain.rpcUrls.default.http[0]),
-      })
-
-      safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
-    } catch (error: any) {
-      consola.error(`Failed to get Safe info: ${error.message}`)
-      throw new Error(
-        `Could not get Safe info for ${safeAddress} on ${network}`
-      )
-    }
-
-    // Get owners from global config and command line arguments
-    let ownersToAdd = [...globalConfig.safeOwners]
-
-    // Add owners from command line if provided
-    if (args.owners) {
-      const cmdLineOwners = args.owners.split(',').map((addr) => addr.trim())
-
-      // Validate each address using viem's isAddress function
-      for (const addr of cmdLineOwners)
-        if (!isAddress(addr)) {
-          consola.error(`Invalid Ethereum address: ${addr}`)
-          consola.error(
-            'Please provide valid Ethereum addresses in the format 0x...'
-          )
-          await mongoClient.close()
-          process.exit(1)
+      for (const network of networks) {
+        consola.info('='.repeat(80))
+        consola.info(`Network: ${network}`)
+        try {
+          const r = await processNetwork(network, {
+            pendingTransactions,
+            privateKey,
+            useLedger,
+            ledgerOptions,
+            ledgerAccount: ledgerResult?.account,
+            cliOwners,
+          })
+          results.push({
+            network,
+            status: r.proposalsCreated > 0 ? 'proposed' : 'skipped',
+            detail: r.summary,
+          })
+        } catch (error: unknown) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error)
+          consola.error(`[${network}] failed: ${errorMsg}`)
+          results.push({ network, status: 'failed', detail: errorMsg })
         }
+      }
 
-      consola.info('Adding owners from command line:', cmdLineOwners)
-
-      // Deduplicate owners by converting to lowercase and using a Set
-      const uniqueOwners = new Set([
-        ...ownersToAdd.map((addr) => addr.toLowerCase()),
-        ...cmdLineOwners.map((addr) => addr.toLowerCase()),
-      ])
-
-      // Convert back to original format (preserving the case from either source)
-      const allOwners = [...ownersToAdd, ...cmdLineOwners]
-      ownersToAdd = Array.from(uniqueOwners).map(
-        (lowercaseAddr) =>
-          allOwners.find((addr) => addr.toLowerCase() === lowercaseAddr) ||
-          lowercaseAddr
-      )
+      printSummary(results)
+    } finally {
+      try {
+        await mongoClient.close(true)
+      } catch (error) {
+        consola.warn('Error closing MongoDB connection:', error)
+      }
+      if (ledgerResult) {
+        const { closeLedgerConnection } = await import('./ledger')
+        await closeLedgerConnection(ledgerResult.transport)
+      }
     }
+  },
+})
 
+function parseCliOwners(raw?: string): Address[] | undefined {
+  if (!raw) return undefined
+  const owners = raw.split(',').map((addr) => addr.trim())
+  for (const addr of owners)
+    if (!isAddress(addr))
+      throw new Error(
+        `Invalid Ethereum address in --owners: ${addr}. Expected 0x...`
+      )
+  return owners as Address[]
+}
+
+function resolveNetworks(
+  network: string | undefined,
+  allNetworks: boolean
+): string[] {
+  if (allNetworks)
+    return Object.entries(networksData)
+      .filter(
+        ([, cfg]) =>
+          cfg.status === 'active' &&
+          typeof cfg.safeAddress === 'string' &&
+          cfg.safeAddress.startsWith('0x')
+      )
+      .map(([key]) => key)
+  return network ? [network] : []
+}
+
+function printSummary(results: INetworkRunResult[]): void {
+  consola.info('='.repeat(80))
+  consola.info('Run summary:')
+  const width = Math.max(...results.map((r) => r.network.length), 10)
+  for (const r of results) {
+    const pad = r.network.padEnd(width)
+    const tag =
+      r.status === 'proposed'
+        ? green('proposed')
+        : r.status === 'skipped'
+        ? yellow('skipped ')
+        : red('failed  ')
+    consola.info(`  ${pad}  ${tag}  ${r.detail}`)
+  }
+  const failed = results.filter((r) => r.status === 'failed').length
+  if (failed > 0)
+    consola.warn(
+      `${failed} network(s) failed — rerun those individually with --network <name>`
+    )
+}
+
+async function processNetwork(
+  network: string,
+  deps: IProcessNetworkDeps
+): Promise<IProcessNetworkResult> {
+  const {
+    pendingTransactions,
+    privateKey,
+    useLedger,
+    ledgerOptions,
+    ledgerAccount,
+    cliOwners,
+  } = deps
+
+  const { safe, chain, safeAddress } = await initializeSafeClient(
+    network,
+    privateKey,
+    undefined,
+    useLedger,
+    ledgerOptions,
+    undefined,
+    ledgerAccount
+  )
+
+  try {
+    consola.info(`Getting Safe info for ${safeAddress} on ${network}`)
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0]),
+    })
+    const safeInfo = await getSafeInfoFromContract(publicClient, safeAddress)
+
+    const ownersToAdd = mergeOwners(globalConfig.safeOwners, cliOwners)
     const currentThreshold = Number(safeInfo.threshold)
-
-    // Get signer address
     const senderAddress = safe.account.address
 
     consola.info('Safe Address', safeAddress)
@@ -126,7 +338,6 @@ const main = defineCommand({
     consola.info('Current threshold:', currentThreshold)
     consola.info('Current owners:', safeInfo.owners)
 
-    // Get the next nonce
     let nextNonce = await getNextNonce(
       pendingTransactions,
       safeAddress,
@@ -135,26 +346,24 @@ const main = defineCommand({
       safeInfo.nonce
     )
 
-    // Fetch the list of existing owners once before the loop
     const existingOwners = await safe.getOwners()
+    if (!isAddressASafeOwner(existingOwners, senderAddress))
+      throw new Error(
+        `Signer ${senderAddress} is not an owner of Safe ${safeAddress}`
+      )
 
-    // Check if the current signer is an owner
-    if (!isAddressASafeOwner(existingOwners, senderAddress)) {
-      consola.error('The current signer is not an owner of this Safe')
-      consola.error('Signer address:', senderAddress)
-      consola.error('Current owners:', existingOwners)
-      consola.error('Cannot propose transactions - exiting')
-      await mongoClient.close()
-      process.exit(1)
-    }
+    let proposalsCreated = 0
+    let addOwnerNewlyProposed = 0
+    let addOwnerAlreadyProposed = 0
+    let ownersAlreadyOnChain = 0
 
-    // Go through all owner addresses and add each of them individually
     for (const o of ownersToAdd) {
       consola.info('-'.repeat(80))
       const owner = o as Address
 
       if (isAddressASafeOwner(existingOwners, owner)) {
         consola.info('Owner already exists', owner)
+        ownersAlreadyOnChain++
         continue
       }
 
@@ -163,107 +372,227 @@ const main = defineCommand({
           ownerAddress: owner,
           threshold: BigInt(currentThreshold),
         },
-        {
-          nonce: nextNonce,
-        }
+        { nonce: nextNonce }
       )
 
       consola.info('Proposing to add owner', owner)
-
-      // Sign the transaction
       const signedTx = await safe.signTransaction(safeTransaction)
       const safeTxHash = await safe.getTransactionHash(signedTx)
-
       consola.info('Transaction signed:', safeTxHash)
 
-      // Store transaction in MongoDB
-      try {
-        const result = await storeTransactionInMongoDB(
-          pendingTransactions,
-          safe.getAddress(),
-          network,
-          chain.id,
-          signedTx,
-          safeTxHash,
-          senderAddress
-        )
+      const result = await storeTransactionInMongoDB(
+        pendingTransactions,
+        safe.getAddress(),
+        network,
+        chain.id,
+        signedTx,
+        safeTxHash,
+        senderAddress
+      )
 
-        if (result === null) {
-          consola.info('Proposal already exists - skipping')
-        } else if (!result.acknowledged) {
-          throw new Error('MongoDB insert was not acknowledged')
-        } else {
-          consola.success('Transaction successfully stored in MongoDB')
-        }
-      } catch (error) {
-        consola.error('Failed to store transaction in MongoDB:', error)
-        throw error
+      if (result === null) {
+        consola.info('Proposal already exists - skipping')
+        addOwnerAlreadyProposed++
+      } else if (!result.acknowledged)
+        throw new Error('MongoDB insert was not acknowledged')
+      else {
+        consola.success('Transaction successfully stored in MongoDB')
+        proposalsCreated++
+        addOwnerNewlyProposed++
       }
       nextNonce++
     }
 
     consola.info('-'.repeat(80))
 
-    if (currentThreshold !== 3) {
-      // Get the updated count of owners after all additions
-      const updatedOwnerCount = (await safe.getOwners()).length
+    let thresholdNewlyProposed = false
+    let thresholdAlreadyProposed = false
+    if (currentThreshold !== EXPECTED_THRESHOLD) {
+      // Existing proposals will add their owners when executed, so include
+      // both newly proposed and already-proposed addOwners in the projection.
+      const updatedOwnerCount =
+        (await safe.getOwners()).length +
+        addOwnerNewlyProposed +
+        addOwnerAlreadyProposed
 
-      if (updatedOwnerCount < 3) {
-        consola.error(
-          `Cannot set threshold to 3 when only ${updatedOwnerCount} owners exist`
+      if (updatedOwnerCount < EXPECTED_THRESHOLD)
+        throw new Error(
+          `Cannot set threshold to ${EXPECTED_THRESHOLD} when only ${updatedOwnerCount} owner(s) would exist (would lock the Safe)`
         )
-        consola.error('This would lock the Safe and make it unusable')
-        consola.error('Add more owners before changing the threshold')
-        await mongoClient.close()
-        process.exit(1)
-      }
 
       consola.info(
-        'Now proposing to change threshold from',
-        currentThreshold,
-        'to 3'
+        `Now proposing to change threshold from ${currentThreshold} to ${EXPECTED_THRESHOLD}`
       )
-      const changeThresholdTx = await safe.createChangeThresholdTx(3, {
-        nonce: nextNonce,
-      })
-
-      // Sign the transaction
+      const changeThresholdTx = await safe.createChangeThresholdTx(
+        EXPECTED_THRESHOLD,
+        { nonce: nextNonce }
+      )
       const signedThresholdTx = await safe.signTransaction(changeThresholdTx)
       const thresholdTxHash = await safe.getTransactionHash(signedThresholdTx)
-
       consola.info('Transaction signed:', thresholdTxHash)
 
-      // Store transaction in MongoDB
-      try {
-        const result = await storeTransactionInMongoDB(
-          pendingTransactions,
-          safe.getAddress(),
-          network,
-          chain.id,
-          signedThresholdTx,
-          thresholdTxHash,
-          senderAddress
-        )
+      const thresholdResult = await storeTransactionInMongoDB(
+        pendingTransactions,
+        safe.getAddress(),
+        network,
+        chain.id,
+        signedThresholdTx,
+        thresholdTxHash,
+        senderAddress
+      )
 
-        if (result === null) {
-          consola.info('Proposal already exists - skipping')
-        } else if (!result.acknowledged) {
-          throw new Error('MongoDB insert was not acknowledged')
-        } else {
-          consola.success('Transaction successfully stored in MongoDB')
-        }
-      } catch (error) {
-        consola.error('Failed to store transaction in MongoDB:', error)
-        throw error
+      if (thresholdResult === null) {
+        consola.info('Proposal already exists - skipping')
+        thresholdAlreadyProposed = true
+      } else if (!thresholdResult.acknowledged)
+        throw new Error('MongoDB insert was not acknowledged')
+      else {
+        consola.success('Transaction successfully stored in MongoDB')
+        proposalsCreated++
+        thresholdNewlyProposed = true
       }
-    } else consola.success('Threshold is already set to 3 - no action required')
+    } else
+      consola.success(
+        `Threshold is already set to ${EXPECTED_THRESHOLD} - no action required`
+      )
 
-    // Close MongoDB connection
-    await mongoClient.close()
+    const summaryParts: string[] = []
+    if (addOwnerNewlyProposed > 0)
+      summaryParts.push(`${addOwnerNewlyProposed} addOwner`)
+    if (addOwnerAlreadyProposed > 0)
+      summaryParts.push(`${addOwnerAlreadyProposed} addOwner already proposed`)
+    if (ownersAlreadyOnChain > 0)
+      summaryParts.push(`${ownersAlreadyOnChain} already on-chain`)
+    if (thresholdNewlyProposed)
+      summaryParts.push(`threshold→${EXPECTED_THRESHOLD}`)
+    else if (thresholdAlreadyProposed)
+      summaryParts.push(`threshold→${EXPECTED_THRESHOLD} already proposed`)
+    if (!summaryParts.length) summaryParts.push('no changes')
 
-    consola.info('-'.repeat(80))
-    consola.success('Script completed without errors')
-  },
-})
+    return { proposalsCreated, summary: summaryParts.join(', ') }
+  } finally {
+    try {
+      await safe.cleanup()
+    } catch (error) {
+      consola.warn(`[${network}] error during safe.cleanup():`, error)
+    }
+  }
+}
+
+function mergeOwners(configured: string[], cli?: Address[]): string[] {
+  if (!cli || cli.length === 0) return [...configured]
+
+  consola.info('Adding owners from command line:', cli)
+  const seen = new Set<string>()
+  const merged: string[] = []
+  for (const addr of [...configured, ...cli]) {
+    const key = addr.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(addr)
+  }
+  return merged
+}
+
+async function checkNetwork(
+  network: string,
+  expectedOwners: Address[],
+  expectedThreshold: number
+): Promise<ICheckResult> {
+  const cfg = networksData[network.toLowerCase() as keyof typeof networksData]
+  const expectedSet = new Set(expectedOwners.map((a) => a.toLowerCase()))
+  const base: ICheckResult = {
+    network,
+    status: 'FAILED',
+    expectedOwnerCount: expectedOwners.length,
+    missingOwners: [],
+    extraOwners: [],
+    detail: '',
+  }
+
+  if (!cfg || typeof cfg.safeAddress !== 'string')
+    return { ...base, detail: 'no safeAddress in networks.json' }
+
+  try {
+    const chain = getViemChainForNetworkName(network)
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0]),
+    })
+    const info = await getSafeInfoFromContract(
+      publicClient,
+      cfg.safeAddress as Address
+    )
+
+    const onChainSet = new Set(info.owners.map((a) => a.toLowerCase()))
+    const missingOwners = [...expectedSet]
+      .filter((a) => !onChainSet.has(a))
+      .map((a) => a as Address)
+    const extraOwners = [...onChainSet]
+      .filter((a) => !expectedSet.has(a))
+      .map((a) => a as Address)
+
+    const threshold = Number(info.threshold)
+    const ownersMatch = missingOwners.length === 0 && extraOwners.length === 0
+    const thresholdMatch = threshold === expectedThreshold
+    const status: ICheckResult['status'] =
+      ownersMatch && thresholdMatch ? 'OK' : 'DIFF'
+
+    const parts: string[] = []
+    if (!thresholdMatch)
+      parts.push(`threshold ${threshold} ≠ ${expectedThreshold}`)
+    if (missingOwners.length) parts.push(`missing: ${missingOwners.join(', ')}`)
+    if (extraOwners.length) parts.push(`extra: ${extraOwners.join(', ')}`)
+    const detail = parts.length ? parts.join('; ') : 'matches expected config'
+
+    return {
+      network,
+      status,
+      threshold,
+      ownerCount: info.owners.length,
+      expectedOwnerCount: expectedOwners.length,
+      missingOwners,
+      extraOwners,
+      detail,
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    return { ...base, detail: errorMsg }
+  }
+}
+
+function printCheckTable(results: ICheckResult[]): void {
+  consola.info('='.repeat(80))
+  consola.info('Check results:')
+  const width = Math.max(...results.map((r) => r.network.length), 10)
+
+  for (const r of results) {
+    const pad = r.network.padEnd(width)
+    const tag =
+      r.status === 'OK' ? green('OK    ') : r.status === 'DIFF' ? yellow('DIFF  ') : red('FAILED')
+
+    const th =
+      r.threshold !== undefined
+        ? `threshold=${
+            r.threshold === EXPECTED_THRESHOLD
+              ? green(String(r.threshold))
+              : red(String(r.threshold))
+          }`
+        : 'threshold=?'
+    const ow =
+      r.ownerCount !== undefined
+        ? `owners=${r.ownerCount}/${r.expectedOwnerCount}`
+        : 'owners=?'
+
+    consola.info(`  ${pad}  ${tag}  ${th}  ${ow}  ${r.detail}`)
+  }
+
+  const ok = results.filter((r) => r.status === 'OK').length
+  const diff = results.filter((r) => r.status === 'DIFF').length
+  const failed = results.filter((r) => r.status === 'FAILED').length
+  consola.info(
+    `Total: ${results.length}  OK: ${ok}  DIFF: ${diff}  FAILED: ${failed}`
+  )
+}
 
 runMain(main)
