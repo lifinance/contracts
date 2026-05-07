@@ -51,7 +51,7 @@ Remove duplicates rather than keeping both in sync.
 - Bullet lists beat prose preambles.
 - Consistent terminology — pick one term per concept.
 - Don't offer multiple options without a clear default.
-- `name`: lowercase, hyphenated, gerund form preferred (`requesting-audit`). Max 64 chars.
+- `name`: lowercase, hyphenated. Gerund form preferred (`requesting-audit`) but noun form acceptable when clearer (`request-audit`, `add-network`). Max 64 chars.
 - `description`: third person, present tense; include *what* and *when* to use it.
 
 ## Scoping (rules only)
