@@ -1,5 +1,5 @@
 ---
-name: request-audit
+name: requesting-audit
 description: Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)
 usage: /request-audit <PR_NUMBER_OR_URL> [--urgent]
 ---
@@ -11,8 +11,6 @@ usage: /request-audit <PR_NUMBER_OR_URL> [--urgent]
 ## Purpose
 
 Fetch a PR, extract its scope and context, draft an audit request (parent post + thread reply), let the user choose the channel(s) and optionally edit the message, then post to Slack only after explicit confirmation.
-
-**CRITICAL**: Never post to Slack without the user explicitly confirming at Step 4.
 
 ---
 
@@ -344,11 +342,7 @@ Process channels independently — if Sujith webhook is set but Burrasec isn't, 
 
 ### Step 6b — Manual fallback
 
-**Triggered per-channel** when the helper exits `2` (webhook env var not set for that channel). Channels that posted successfully (exit `0`) are not included; channels that errored at the network/Slack layer (exit `1`) do **not** trigger a fallback either — only the missing-env-var case does.
-
-If both chosen channels exit `2`, both get fallback blocks in the same file. If one channel posted (`0`) and the other is missing its env var (`2`), only the missing one gets a fallback block.
-
-For each channel that needs a fallback block:
+**Triggered per-channel** on exit `2` only. For each channel that needs a fallback block:
 
 1. Use **display name mentions** (e.g. `@Sujith Somraaj`, `@Josip Koncurat`) instead of API mentions (`<@U05GN6XH57T>`) — API mention syntax is only resolved by Slack's API, not when typed/pasted manually.
 2. Use **plain text** (no backticks) — Slack does not render backtick inline code when content is pasted from an external file.
@@ -395,7 +389,6 @@ Helper exit codes (`0`/`1`/`2`) are handled in Step 6 — not repeated here.
 | Situation | Action |
 |---|---|
 | PR not found | Report error and stop |
-| PR has no commits | Try separate `gh pr view --json commits`; if still empty, ask user for commit hash |
 | Scope cannot be determined | List changed `src/` files and ask user to confirm scope before continuing |
 | User types something other than 1–4 | Ask again |
 
