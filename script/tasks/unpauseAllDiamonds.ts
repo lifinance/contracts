@@ -1,7 +1,15 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import 'dotenv/config'
-import { encodeFunctionData, parseAbi, type Address } from 'viem'
+import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  getAddress,
+  http,
+  parseAbi,
+  type Address,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { type SupportedChain } from '../common/types'
@@ -17,6 +25,7 @@ import {
 import {
   getAllActiveNetworks,
   getContractAddressForNetwork,
+  getViemChainForNetworkName,
   isTestnetNetwork,
   networks,
 } from '../utils/viemScriptHelpers'
@@ -40,10 +49,7 @@ const main = defineCommand({
   },
   async run({ args }) {
     const blacklist = args.blacklist
-    // Skip testnets: this script proposes to Safe multisigs, which testnets do not have.
-    const activeNetworks = getAllActiveNetworks().filter(
-      (network) => !isTestnetNetwork(network.id)
-    )
+    const activeNetworks = getAllActiveNetworks()
 
     const privateKey = getPrivateKey('SAFE_SIGNER_PRIVATE_KEY')
     const senderAddress = privateKeyToAccount(`0x${privateKey}`).address
@@ -76,6 +82,16 @@ const main = defineCommand({
             functionName: 'unpauseDiamond',
             args: [blacklistedAddresses],
           })
+
+          // Testnet diamonds are EOA-owned (no Safe/Timelock) — send the unpause directly.
+          if (isTestnetNetwork(network.id)) {
+            await sendUnpauseDirect(
+              network.name,
+              diamondAddress as Address,
+              calldata
+            )
+            return
+          }
 
           // initialize the SAFE client that we use for signing and preparing transaction data
           const { safe, chain, safeAddress } = await initializeSafeClient(
@@ -159,6 +175,49 @@ const main = defineCommand({
     process.exit(0)
   },
 })
+
+/**
+ * Send the unpause transaction directly to a testnet diamond using the deployer
+ * wallet. Testnets have no Safe multisig, so the propose-to-Safe flow does not apply.
+ */
+async function sendUnpauseDirect(
+  networkName: string,
+  diamondAddress: Address,
+  calldata: `0x${string}`
+): Promise<void> {
+  const pk = process.env.PRIVATE_KEY_PRODUCTION
+  if (!pk)
+    throw new Error(
+      `[${networkName}] Missing PRIVATE_KEY_PRODUCTION in environment`
+    )
+  const normalizedPk = pk.startsWith('0x') ? pk : `0x${pk}`
+  const account = privateKeyToAccount(normalizedPk as `0x${string}`)
+  const chain = getViemChainForNetworkName(networkName)
+
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(),
+  })
+  const publicClient = createPublicClient({ chain, transport: http() })
+
+  consola.info(
+    `[${networkName}] Sending unpauseDiamond directly to ${diamondAddress}`
+  )
+
+  const hash = await walletClient.sendTransaction({
+    to: getAddress(diamondAddress),
+    data: calldata,
+  })
+  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success')
+    throw new Error(
+      `[${networkName}] unpauseDiamond reverted in block ${receipt.blockNumber}`
+    )
+  consola.success(
+    `[${networkName}] unpauseDiamond confirmed in block ${receipt.blockNumber}`
+  )
+}
 
 async function getBlacklistedFacetAddresses(
   networkName: string,
