@@ -130,6 +130,11 @@ This split lets the skill process N targets independently — if one channel/net
 
 ## Smart-Contract Department Checklist (must not weaken)
 
+- **Rule interaction (required)**:
+  - Identify which rules will apply via `globs` for the files you're about to touch.
+  - Ensure the new rule does **not** conflict with or overwrite higher-priority/global rules.
+  - Ensure there is **no duplicate guidance**: pick a single owning rule/command and delete/trim duplicates elsewhere.
+  - Ensure numeric prefixes and `name:` fields stay **unique**.
 - **Diamond architecture**: single diamond entrypoint; keep facets thin; selector/storage invariants respected.
 - **Governance**: Safe + timelock flows never bypassed; no admin shortcuts.
 - **Events**: respect reserved event emission locations; non-EVM receiver rules respected.
