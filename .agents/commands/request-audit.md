@@ -358,57 +358,49 @@ Process channels independently — if Sujith webhook is set but Burrasec isn't, 
 
 ### Step 6b — Manual fallback
 
-Triggered per-channel when the helper exits `2` (webhook env var not set). Use display-name mentions (`@Sujith Somraaj`, `@Josip Vuković`) and plain text (no backticks).
+**Triggered per-channel** when the helper exits `2` (webhook env var not set for that channel). Channels that posted successfully (exit `0`) are not included; channels that errored at the network/Slack layer (exit `1`) do **not** trigger a fallback either — only the missing-env-var case does.
 
-If `slack_send_message` fails with `mcp_externally_shared_channel_restricted` (legacy MCP path; should not happen anymore in normal flow):
+If both chosen channels exit `2`, both get fallback blocks in the same file. If one channel posted (`0`) and the other is missing its env var (`2`), only the missing one gets a fallback block.
 
-1. Use **display name mentions** (e.g. `@Sujith Somraaj`) instead of API mentions (e.g. `<@U05GN6XH57T>`) — API mention syntax is only resolved by the Slack API, not when typed/pasted manually.
+For each channel that needs a fallback block:
 
-2. Write **all chosen channels** to `/tmp/audit-request-{pr_number}.md` in a **single write** — never write one channel then overwrite with the second. Build the full file content first, then write once. Format:
+1. Use **display name mentions** (e.g. `@Sujith Somraaj`, `@Josip Vuković`) instead of API mentions (`<@U05GN6XH57T>`) — API mention syntax is only resolved by Slack's API, not when typed/pasted manually.
+2. Use **plain text** (no backticks) — Slack does not render backtick inline code when content is pasted from an external file.
+
+Write all needing-fallback blocks to `/tmp/audit-request-{pr_number}.md` in a **single write** — never write one channel then overwrite with another. Build the full file content first (omit any channel that already posted successfully), then write once. Format:
 
 ```markdown
 # Audit Request — PR #{pr_number}
 
-## #{channel_1}   ← e.g. dev-sc-audit
+## #{channel_name}   ← e.g. dev-sc-audit (one block per channel that exited 2; omit channels that already posted)
 
 ### Parent message
 Post this as a new message in the channel:
 
 ---
-{parent message — channel 1 — display name mentions — plain text, no backticks}
+{parent message — display name mentions — plain text, no backticks}
 ---
 
 ### Thread reply
 Reply to the parent message with this (click the reply icon on the parent):
 
 ---
-{thread reply — channel 1 — display name mentions — plain text, no backticks}
+{thread reply — display name mentions — plain text, no backticks}
 ---
 
-## #{channel_2}   ← e.g. dev-sc-audit-burrasec; include only if both channels selected
-
-### Parent message
-Post this as a new message in the channel:
-
----
-{parent message — channel 2 — display name mentions — plain text, no backticks}
----
-
-### Thread reply
-Reply to the parent message with this (click the reply icon on the parent):
-
----
-{thread reply — channel 2 — display name mentions — plain text, no backticks}
----
+## #{next_channel_name}   ← include only if this channel also exited 2
+…
 ```
 
-3. Tell the user the file path so they can open it:
+Then tell the user, listing only the channel(s) that fell back:
 
 ```
-⚠️ WEBHOOK_{CHANNEL_UPPER} is not set in .env — wrote manual fallback to
+⚠️ WEBHOOK_{CHANNEL_UPPER} is not set in .env — wrote manual fallback for #{channel} to
    /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password →
    Engineering → slack-webhooks) to post automatically next time.
 ```
+
+> Historical note (do **not** apply): the skill previously had an MCP-based posting path (`slack_send_message`) that could fail with `mcp_externally_shared_channel_restricted`. That path was removed in PR #1765 (commit `b314e08c`); only the webhook path is live. If you ever see that error string in legacy notes, it does not apply to the current flow.
 
 ---
 
@@ -421,7 +413,6 @@ Reply to the parent message with this (click the reply icon on the parent):
 | Scope cannot be determined | List changed `src/` files and ask user to confirm scope before continuing |
 | Helper exits `2` (webhook env var not set) | Fall through to Step 6b for **this channel only**; tell user which `WEBHOOK_*` var is missing |
 | Helper exits `1` (Slack/network error) | Report stderr, do NOT retry, do NOT write fallback file, ask user |
-| Slack post fails with `mcp_externally_shared_channel_restricted` (legacy MCP path) | Should not happen on the webhook path; if seen, fall through to Step 6b |
 | User types something other than 1–4 | Ask again |
 
 ---
