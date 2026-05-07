@@ -154,14 +154,14 @@ Automatically flag as urgent if any of:
 Short, one-line summary. Format:
 
 ```
-Audit: {scope_summary}{urgency_suffix} :thread:
+Audit: {scope_summary} {urgency_suffix} :thread:
 ```
 
 Where:
 - `scope_summary` = the most prominent contract + version. Plain text always.
   If there are 2–3 contracts total: list them all, comma-separated.
-  If there are 4+ contracts: use the first one + ` + N more`, e.g. `GenericSwapFacetV3 v2.0.0 + 6 more`.
-- `urgency_suffix` = ` (urgent)` if urgent, else empty.
+  If there are 4+ contracts: use the first one + `+ N more`, e.g. `GenericSwapFacetV3 v2.0.0 + 6 more`.
+- `urgency_suffix` = `(urgent)` if urgent, else empty (omit the placeholder entirely).
 
 Examples:
 ```
