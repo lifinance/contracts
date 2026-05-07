@@ -60,6 +60,11 @@ Remove duplicates rather than keeping both in sync.
 - Avoid `globs: ['**/*']` unless the rule is an explicit **activation gate** (e.g. `600-transaction-analysis.md`) or truly universal.
 - Use `alwaysApply: true` (+ omit `paths:`) only for truly universal rules (generally `000-099`).
 
+## Conventions
+
+- **Use `[CONV:*]` anchors** for convention references — define the anchor inline in the rule file itself, don't link to external docs.
+- **Self-contained** — all convention content must be embedded in the rule file; no external MD file dependencies.
+
 ## Cross-references
 
 - Avoid "see also" pointers and "Related Files" sections.
