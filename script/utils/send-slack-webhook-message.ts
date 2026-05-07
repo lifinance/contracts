@@ -32,7 +32,7 @@ function parseArgs(): IArgs {
 async function main(): Promise<void> {
   const { channel, messageFile } = parseArgs()
 
-  const envVar = `webhook_${channel}`
+  const envVar = `WEBHOOK_${channel.replace(/-/g, '_').toUpperCase()}`
   const webhookUrl = process.env[envVar]
   if (!webhookUrl) {
     consola.warn(
