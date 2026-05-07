@@ -23,12 +23,25 @@ Fetch a PR, extract its scope and context, draft an audit request (parent post +
 
 ## Channels
 
-| Alias | Channel | Slack ID | Auditors | API mention | Display name (manual) | Greeting |
+| Alias | Channel | Slack ID | Auditors | API mention | Display name | Greeting |
 |---|---|---|---|---|---|---|
-| **sujith** | `#lifi-external-sujith` | `C08CJ4FEHQA` | Sujith Somraaj | `<@U05GN6XH57T>` | `@Sujith Somraaj` | `Hey @Sujith Somraaj!` |
-| **burrasec** | `#lifi-external-burrasec` | `C094C46JSDP` | Josip | `<@U094M720QDP>` | `@Josip Vuković` | `Hey @Josip Vuković.` |
+| **sujith** | `#dev-sc-audit` | `C08CJ4FEHQA` | Sujith Somraaj | `<@U05GN6XH57T>` | `@Sujith Somraaj` | `Hey @Sujith Somraaj!` |
+| **burrasec** | `#dev-sc-audit-burrasec` | `C094C46JSDP` | Josip | `<@U094M720QDP>` | `@Josip Vuković` | `Hey @Josip Vuković.` |
 
-> **⚠️ Slack Connect limitation**: Both audit channels are Slack Connect (externally shared) channels — they cross a workspace boundary into the auditor's Slack org. Slack's API blocks bots from posting to these channels at the server level, regardless of OAuth scopes. This is a deliberate Slack security policy to prevent automated tools from sending data to external parties without a human explicitly acting. **The `slack_send_message` tool will always fail for these channels.** When posting fails with `mcp_externally_shared_channel_restricted`, skip to Step 6b.
+> **Slack ID note**: the IDs above were inherited from the previous channel names. If posting via `chat.postMessage` ever resumes (phase 2), re-confirm them via the Slack admin page — the webhook path doesn't use them.
+
+## Setup (one-time, per developer)
+
+Direct posting uses Slack incoming webhooks read from `.env`. Add:
+
+```
+webhook_dev-sc-audit=https://hooks.slack.com/services/...
+webhook_dev-sc-audit-burrasec=https://hooks.slack.com/services/...
+```
+
+URLs live in 1Password vault **Engineering**, item **slack-webhooks**.
+Convention is reusable — any channel `#X` is posted to via `webhook_X`.
+If a variable is unset, that channel falls back to writing the manual file to `/tmp/audit-request-{pr}.md`.
 
 ---
 
@@ -157,7 +170,7 @@ Audit: {scope_summary}{urgency_suffix} :thread:
 ```
 
 Where:
-- `scope_summary` = the most prominent contract + version. Plain text always — backtick formatting is only meaningful via API and these channels require manual posting (see Slack Connect limitation).
+- `scope_summary` = the most prominent contract + version. Plain text always.
   If there are 2–3 contracts total: list them all, comma-separated.
   If there are 4+ contracts: use the first one + ` + N more`, e.g. `GenericSwapFacetV3 v2.0.0 + 6 more`.
 - `urgency_suffix` = ` (urgent)` if urgent, else empty.
@@ -169,6 +182,8 @@ Audit: PolymerCCTPFacet v2.0.1 :thread:
 Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
 Audit: Patcher v1.0.1 (urgent) :thread:
 ```
+
+> **Webhook posting note**: incoming webhooks can't post a parent + threaded reply (no `ts` returned), so the helper posts a single combined message: `parent_without_:thread:_suffix + "\n\n" + thread_reply`. Drop the `:thread:` suffix when building the combined text. The `:thread:` form above is kept for the manual fallback file (Step 6b).
 
 ### 3b. Thread reply — Sujith channel
 
@@ -189,7 +204,7 @@ Scope: {full_scope_list}
 - `greeting_line`: Pick naturally — e.g. "Hope you are great, I have a new audit for you." / "We have a new contract change to audit." / "I have a new audit request for you."
   Add urgency if applicable: "It's a bit urgent — are you able to review this today?"
 - `commit_url`: `{pr_url}/commits/{latest_commit_oid}` (always use `/commits/` format)
-- `full_scope_list`: comma-separated list of ALL contract names with versions. Use backticks per the code style rule when posting via API; use plain text in the file output (see Slack Connect limitation).
+- `full_scope_list`: comma-separated list of ALL contract names with versions. Backticks per the code style rule when posting via webhook; plain text in the manual fallback file (Step 6b).
 - `context`: merged context — see below
 
 ### Context field composition
@@ -211,7 +226,7 @@ Aim for 3–7 sentences total. Do not bullet-list this section — write it as p
 
 **Code style**: Wrap in backticks every function name, variable name, contract name, repo name, error name, constant, selector, and version string — e.g. `transfer()`, `safeTransfer`, `LibAsset.transferERC20`, `LibAsset.sol`, `contracts-tron`, `TransferFailed`, `contractSelectorIsAllowed`, `v2.1.3`. Plain prose words (the, this, PR, etc.) are never wrapped.
 
-> **File output exception**: Slack does not reliably render backtick inline code when content is pasted from an external file — it renders when typed directly in the composer or posted via API, but shows literal backticks when pasted. The `/tmp/audit-request-{pr}.md` file must therefore use **plain text** (no backticks). Code style only applies to API-posted messages.
+> **File output exception (Step 6b only)**: Slack does not reliably render backtick inline code when content is pasted from an external file — it renders correctly when typed in the composer or posted via API/webhook, but shows literal backticks when pasted. The `/tmp/audit-request-{pr}.md` file (manual fallback) must therefore use **plain text** (no backticks). The webhook path posts via API and renders backticks correctly — keep them.
 
 If the Slack thread had a long discussion, extract only the decision-relevant parts; drop back-and-forth, emoji reactions, and administrative replies.
 
@@ -233,7 +248,7 @@ Scope: {full_scope_list}
 
 - `greeting_line`: e.g. "I hope you are doing great. I have a new audit for you." / "We've got a new audit request."
   Add urgency if applicable: "This is a bit time-sensitive — could you review it today?"
-- `full_scope_list`: same as Sujith — backticks via API, plain text in file output
+- `full_scope_list`: same as Sujith — backticks via webhook, plain text in manual fallback file
 - `context`: same merged context as Sujith (same background applies to both channels)
 
 ---
@@ -312,31 +327,40 @@ Ready to send? (yes / cancel)
 
 ## Step 6 — Send Messages
 
-For each chosen channel, in sequence:
+Channel arg by alias:
+- **sujith** → `dev-sc-audit`
+- **burrasec** → `dev-sc-audit-burrasec`
 
-1. **Post the parent message** to the channel using `slack_send_message`:
-   - `channel_id`: the channel's Slack ID
-   - `message`: the parent message text
-   - Capture the returned message timestamp (`ts`) — needed for the thread
+For each chosen channel, **independently** (do not abort sibling channels if one fails):
 
-2. **Post the thread reply** as a reply to the parent:
-   - `channel_id`: same channel ID
-   - `message`: the thread reply text
-   - `thread_ts`: the `ts` from step 1 above
+1. **Build the combined message text** (parent + blank line + thread reply, with the `:thread:` suffix dropped from the parent — incoming webhooks can't thread, so we collapse to one self-contained message). Use backtick code style.
 
-3. After both posts, output:
+2. **Write it to a temp file** so multi-line text isn't shell-quoted:
+   ```
+   /tmp/audit-{pr_number}-{channel}.txt
+   ```
 
-```
-✅ Sent to {channel_name}:
-   Parent: {slack_message_link}
-   Thread: {slack_thread_link}
-```
+3. **Run the helper**:
+   ```bash
+   bun run script/utils/send-slack-webhook-message.ts \
+     --channel {channel} \
+     --message-file /tmp/audit-{pr_number}-{channel}.txt
+   ```
 
-If posting fails at any step, report the error immediately and ask the user how to proceed — do NOT retry silently.
+4. **Interpret exit code**:
+   | Exit | Meaning | Action |
+   |---|---|---|
+   | `0` | sent | print `✅ Sent to #{channel}` |
+   | `2` | webhook env var not set for that channel | fall through to Step 6b **for this channel only** — write its block to `/tmp/audit-request-{pr}.md` and tell the user which `webhook_*` var to set |
+   | `1` | Slack/network error | report stderr to user, do NOT retry, do NOT write fallback file |
 
-### Step 6b — Manual fallback (Slack Connect channels)
+Process channels independently — if Sujith webhook is set but Burrasec isn't, post Sujith and write the manual file for Burrasec only.
 
-If `slack_send_message` fails with `mcp_externally_shared_channel_restricted`:
+### Step 6b — Manual fallback
+
+Triggered per-channel when the helper exits `2` (webhook env var not set). Use display-name mentions (`@Sujith Somraaj`, `@Josip Vuković`) and plain text (no backticks).
+
+If `slack_send_message` fails with `mcp_externally_shared_channel_restricted` (legacy MCP path; should not happen anymore in normal flow):
 
 1. Use **display name mentions** (e.g. `@Sujith Somraaj`) instead of API mentions (e.g. `<@U05GN6XH57T>`) — API mention syntax is only resolved by the Slack API, not when typed/pasted manually.
 
@@ -345,7 +369,7 @@ If `slack_send_message` fails with `mcp_externally_shared_channel_restricted`:
 ```markdown
 # Audit Request — PR #{pr_number}
 
-## #lifi-external-{channel_1}
+## #{channel_1}   ← e.g. dev-sc-audit
 
 ### Parent message
 Post this as a new message in the channel:
@@ -361,7 +385,7 @@ Reply to the parent message with this (click the reply icon on the parent):
 {thread reply — channel 1 — display name mentions — plain text, no backticks}
 ---
 
-## #lifi-external-{channel_2}   ← include only if both channels selected
+## #{channel_2}   ← e.g. dev-sc-audit-burrasec; include only if both channels selected
 
 ### Parent message
 Post this as a new message in the channel:
@@ -381,8 +405,9 @@ Reply to the parent message with this (click the reply icon on the parent):
 3. Tell the user the file path so they can open it:
 
 ```
-⚠️ Cannot post automatically — Slack Connect channels block API bots (security policy).
-Messages written to /tmp/audit-request-{pr_number}.md — open it and copy each block.
+⚠️ webhook_{channel} is not set in .env — wrote manual fallback to
+   /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password →
+   Engineering → slack-webhooks) to post automatically next time.
 ```
 
 ---
@@ -394,8 +419,9 @@ Messages written to /tmp/audit-request-{pr_number}.md — open it and copy each 
 | PR not found | Report error and stop |
 | PR has no commits | Try separate `gh pr view --json commits`; if still empty, ask user for commit hash |
 | Scope cannot be determined | List changed `src/` files and ask user to confirm scope before continuing |
-| Slack post fails with `mcp_externally_shared_channel_restricted` | Expected for Slack Connect channels — go to Step 6b and output copy-paste-ready blocks |
-| Slack post fails with any other error | Report error, do NOT silently retry, ask user |
+| Helper exits `2` (webhook env var not set) | Fall through to Step 6b for **this channel only**; tell user which `webhook_*` var is missing |
+| Helper exits `1` (Slack/network error) | Report stderr, do NOT retry, do NOT write fallback file, ask user |
+| Slack post fails with `mcp_externally_shared_channel_restricted` (legacy MCP path) | Should not happen on the webhook path; if seen, fall through to Step 6b |
 | User types something other than 1–4 | Ask again |
 
 ---
@@ -416,8 +442,11 @@ Before posting, verify all of these:
 - [ ] If PR body has an explicit "NOT in this PR" section, its exclusions are reflected in the context
 - [ ] If PR body has a "Merge order" or sequencing section, the audit sequence (step N of M, follow-up audit needed) is reflected in the context
 - [ ] `--urgent` or urgency signals reflected in both the parent title and the greeting
-- [ ] User has explicitly confirmed at Step 4 before any `slack_send_message` call
-- [ ] Thread reply is posted as a thread (`thread_ts` set) not as a separate top-level message
+- [ ] User has explicitly confirmed at Step 4 before any `send-slack-webhook-message` call
+- [ ] Combined message correctly built (parent without `:thread:` + blank line + reply) per chosen channel
+- [ ] Helper exit code logged (0/1/2) and acted on correctly per channel
+- [ ] If exit `0`: success line printed for that channel
+- [ ] If exit `2`: manual fallback file written for that channel and missing env var name shown to the user
 
 ---
 
