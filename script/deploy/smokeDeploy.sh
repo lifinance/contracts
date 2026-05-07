@@ -8,7 +8,7 @@
 # be invoked unattended from a workflow:
 #
 #   1. anvil --mnemonic "$MNEMONIC" --silent &
-#   2. bash script/deploy/_smokeDeploy.sh
+#   2. bash script/deploy/smokeDeploy.sh
 #   3. bun script/deploy/healthCheck.ts --network localanvil --environment staging
 #
 # Two workarounds make deployAllContracts runnable without a human:

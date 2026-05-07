@@ -33,6 +33,17 @@ contract DeployScript is UpdateScriptBase {
             );
 
             buildInitialCut(loupeSelectors, diamondLoupeAddress);
+            // Encode cutData before delete cut so production flow can propose to Safe
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+                emit log("DiamondCutCalldata: ");
+                emit log_bytes(cutData);
+            }
             vm.startBroadcast(deployerPrivateKey);
             if (cut.length > 0) {
                 cutter.diamondCut(cut, address(0), "");
@@ -41,19 +52,6 @@ contract DeployScript is UpdateScriptBase {
 
             // Reset diamond cut variable to remove diamondLoupe information
             delete cut;
-        }
-
-        // Prepare full diamondCut calldata and log for debugging purposes
-        if (cut.length > 0) {
-            cutData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(0),
-                ""
-            );
-
-            emit log("DiamondCutCalldata: ");
-            emit log_bytes(cutData);
         }
 
         if (noBroadcast) {

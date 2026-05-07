@@ -25,6 +25,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     // Errors
     error EmptyNonEVMAddress();
+    error EmptyOrderAuthorityDst();
     error UnknownDeBridgeChain();
 
     // Events
@@ -55,6 +56,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         deBridgeDlnFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
@@ -81,6 +85,8 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         );
 
         deBridgeDlnFacet.initDeBridgeDln(cidCfg);
+
+        vm.stopPrank();
 
         setFacetAddressInTestBase(
             address(deBridgeDlnFacet),
@@ -471,6 +477,23 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         validDeBridgeDlnData.receiver = ""; // empty receiver
 
         vm.expectRevert(EmptyNonEVMAddress.selector);
+
+        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: fixedFee }(
+            bridgeData,
+            validDeBridgeDlnData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsIfStartBridgingWithEmptyOrderAuthorityDst()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+
+        validDeBridgeDlnData.orderAuthorityDst = "";
+
+        vm.expectRevert(EmptyOrderAuthorityDst.selector);
 
         deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: fixedFee }(
             bridgeData,

@@ -105,9 +105,7 @@ export async function runPropose(options: IProposeToSafeOptions) {
   if (options.calldataFile) {
     if (!fs.existsSync(options.calldataFile))
       throw new Error(`Calldata file not found: ${options.calldataFile}`)
-    finalCalldata = fs
-      .readFileSync(options.calldataFile, 'utf8')
-      .trim() as Hex
+    finalCalldata = fs.readFileSync(options.calldataFile, 'utf8').trim() as Hex
     consola.info(`Loaded calldata from file: ${options.calldataFile}`)
   } else if (options.calldata) {
     finalCalldata = options.calldata as Hex
@@ -180,6 +178,7 @@ export async function runPropose(options: IProposeToSafeOptions) {
   consola.info('Signer Address', senderAddress)
   consola.info('Safe Address', safeAddress)
   consola.info('Network', chain.name)
+  consola.info('Nonce', nextNonce.toString())
   consola.info('Proposing transaction to', finalTo)
   if (options.timelock) {
     consola.info('Original target was', options.to)
