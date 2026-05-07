@@ -159,15 +159,26 @@ async function safeCreateIndex(
   try {
     await collection.createIndex(spec, options)
   } catch (error: unknown) {
-    // 85 = IndexOptionsConflict, 86 = IndexKeySpecsConflict — both mean
-    // the index already exists with compatible options.
+    // Codes 85 (IndexOptionsConflict) and 86 (IndexKeySpecsConflict) only fire
+    // when an index with the same name already exists with a *different*
+    // definition. Exact-match re-creation is a no-op and does not throw, so
+    // hitting these codes means the deployed index has drifted from the spec
+    // we want — surfacing it forces an operator to reconcile rather than
+    // letting the runner proceed against an unintended index.
     if (
       error instanceof Error &&
       'code' in error &&
       ((error as { code: number }).code === 85 ||
         (error as { code: number }).code === 86)
     )
-      return
+      throw new Error(
+        `Index conflict for "${options.name}" on ${
+          collection.collectionName
+        } (spec=${JSON.stringify(
+          spec
+        )}). Existing index has a different definition; drop or reconcile it before retrying.`,
+        { cause: error }
+      )
     throw error
   }
 }
