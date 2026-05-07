@@ -266,7 +266,7 @@ Display the full preview in this exact format — use markdown code blocks so th
 
 ---
 
-### Option 1: Sujith (#lifi-external-sujith)
+### Option 1: Sujith (#dev-sc-audit)
 
 **Parent message:**
 ```
@@ -280,7 +280,7 @@ Display the full preview in this exact format — use markdown code blocks so th
 
 ---
 
-### Option 2: Burrasec (#lifi-external-burrasec)
+### Option 2: Burrasec (#dev-sc-audit-burrasec)
 
 **Parent message:**
 ```
