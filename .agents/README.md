@@ -43,10 +43,7 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 ## Best Practices
 
-- **Use [CONV:*] anchors**: Reference convention anchors defined within rule files for consistency
-- **Self-contained**: All convention content is embedded in rule files; no external MD file dependencies
-
-Scoping, size, naming, and no-duplication constraints are enforced automatically by `010-agents-authoring` (activates when editing `.agents/` files).
+All authoring constraints (scoping, size, naming, no-duplication, conventions, cross-references) are enforced automatically by `010-agents-authoring` (activates when editing `.agents/` files).
 
 ## Context Management
 
