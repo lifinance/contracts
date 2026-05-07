@@ -26,9 +26,9 @@ Fetch a PR, extract its scope and context, draft an audit request (parent post +
 | Alias | Channel | Slack ID | Auditors | API mention | Display name | Greeting |
 |---|---|---|---|---|---|---|
 | **sujith** | `#dev-sc-audit` | `C08CJ4FEHQA` | Sujith Somraaj | `<@U05GN6XH57T>` | `@Sujith Somraaj` | `Hey @Sujith Somraaj!` |
-| **burrasec** | `#dev-sc-audit-burrasec` | `C094C46JSDP` | Josip | `<@U094M720QDP>` | `@Josip Vuković` | `Hey @Josip Vuković.` |
+| **burrasec** | `#dev-sc-audit-burrasec` | `C094C46JSDP` | Josip | `<@U094M720QDP>` | `@Josip Koncurat` | `Hey @Josip Koncurat.` |
 
-> **Slack ID note**: the IDs above were inherited from the previous channel names. If posting via `chat.postMessage` ever resumes (phase 2), re-confirm them via the Slack admin page — the webhook path doesn't use them.
+> **Slack ID note**: the IDs above were inherited from previous channel names. The webhook path embeds the API-mention string verbatim into the message body, so an incorrect ID will render as a broken `@Unknown` mention or ping the wrong user. The Burrasec ID `<@U094M720QDP>` was previously paired with a wrong display name (`Josip Vuković` instead of `Josip Koncurat`) — re-verify it (and Sujith's, while you're there) via the Slack admin page or by `@`-mentioning the auditor in Slack and inspecting the resolved ID before the next post.
 
 ## Setup (one-time, per developer)
 
@@ -364,7 +364,7 @@ If both chosen channels exit `2`, both get fallback blocks in the same file. If 
 
 For each channel that needs a fallback block:
 
-1. Use **display name mentions** (e.g. `@Sujith Somraaj`, `@Josip Vuković`) instead of API mentions (`<@U05GN6XH57T>`) — API mention syntax is only resolved by Slack's API, not when typed/pasted manually.
+1. Use **display name mentions** (e.g. `@Sujith Somraaj`, `@Josip Koncurat`) instead of API mentions (`<@U05GN6XH57T>`) — API mention syntax is only resolved by Slack's API, not when typed/pasted manually.
 2. Use **plain text** (no backticks) — Slack does not render backtick inline code when content is pasted from an external file.
 
 Write all needing-fallback blocks to `/tmp/audit-request-{pr_number}.md` in a **single write** — never write one channel then overwrite with another. Build the full file content first (omit any channel that already posted successfully), then write once. Format:
@@ -506,7 +506,7 @@ Tron's canonical USDT contract declares transfer() as returns (bool) but omits t
 PR: https://github.com/lifinance/contracts/pull/1715
 Commit: https://github.com/lifinance/contracts/pull/1715/commits/142d9d809e8184fff4a21605fcd41983ed2e0e4d
 
-Hey @Josip Vuković. I have a new audit for you.
+Hey @Josip Koncurat. I have a new audit for you.
 
 Scope: `GenericSwapFacetV3 v2.0.0`, `WithdrawablePeriphery v2.0.0`, `LiFiDEXAggregator v1.13.0`, `ReceiverAcrossV3 v1.2.0`, `ReceiverChainflip v1.1.0`, `ReceiverStargateV2 v1.2.0`, `TokenWrapper v1.3.0`
 
