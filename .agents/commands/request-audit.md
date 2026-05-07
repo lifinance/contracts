@@ -381,9 +381,9 @@ Reply to the parent message with this (click the reply icon on the parent):
 Then tell the user, listing only the channel(s) that fell back:
 
 ```
-⚠️ WEBHOOK_{CHANNEL_UPPER} is not set in .env — wrote manual fallback for #{channel} to
-   /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password →
-   Engineering → slack-webhooks) to post automatically next time.
+⚠️ WEBHOOK_DEV_SC_AUDIT (or WEBHOOK_DEV_SC_AUDIT_BURRASEC) is not set in .env — wrote
+   manual fallback for #{channel} to /tmp/audit-request-{pr_number}.md. Set the env var
+   (URL in 1Password → Engineering → slack-webhooks) to post automatically next time.
 ```
 
 ---
