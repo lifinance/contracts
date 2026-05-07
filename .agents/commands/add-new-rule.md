@@ -78,18 +78,18 @@ Negation patterns (`!src/**/*.s.sol`) are supported in `globs:` (Cursor) but **n
 These constraints are enforced automatically via `010-agents-authoring` (auto-loaded when editing `.agents/` files). See that rule for the full list. Key reminders:
 - Search before adding — pick a single owning file, remove duplicates.
 - Rules define "what/why", not "how"; report CI/tooling suggestions separately.
-- Follow `.agents/rules/README.md` for numbering ranges.
+- Follow `.agents/README.md` for numbering ranges.
 
 ## Adding a New Rule (step by step)
 
-1. Determine scope → pick numbering range from `.agents/rules/README.md`.
+1. Determine scope → pick numbering range from `.agents/README.md`.
 2. Create `.agents/rules/<NNN>-<name>.md` with hybrid frontmatter.
 3. Create the Cursor and Claude Code symlinks:
    ```bash
    ln -sf "../../.agents/rules/<NNN>-<name>.md" ".cursor/rules/<NNN>-<name>.mdc"
    ln -sf "../../.agents/rules/<NNN>-<name>.md" ".claude/rules/<NNN>-<name>.md"
    ```
-4. Update `.agents/rules/README.md` table (name, range, description).
+4. Update `.agents/README.md` table (name, range, description).
 5. Run validation steps below.
 
 ## Adding a New Command/Skill (step by step)
@@ -121,7 +121,7 @@ This split lets the skill process N targets independently — if one channel/net
 
 - **Symlink integrity**: `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all entries should be symlinks (`->`) pointing into `.agents/rules/`.
 - **Skill symlinks**: `ls -l .claude/skills/*/SKILL.md` — all should point into `.agents/commands/`.
-- **README accuracy**: `.agents/rules/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
+- **README accuracy**: `.agents/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
 - **Stale references**: grep `.agents/rules/` and `.agents/commands/` for references to removed files.
 - **Activation sanity check**:
   - Editing a facet (`src/Facets/*.sol`) → pulls facet + Solidity baseline + architecture/security.
