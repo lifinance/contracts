@@ -54,6 +54,11 @@ Remove duplicates rather than keeping both in sync.
 - `name`: lowercase, hyphenated. Gerund form preferred (`requesting-audit`) but noun form acceptable when clearer (`request-audit`, `add-network`). Max 64 chars.
 - `description`: third person, present tense; include *what* and *when* to use it.
 
+## Frontmatter (rules only)
+
+- Every rule must have **both** `globs:` (Cursor) and `paths:` (Claude Code) so both tools activate it correctly — or neither (global rule with `alwaysApply: true` and no `paths:`).
+- Negation patterns (e.g. `!src/**/*.s.sol`) are supported in `globs:` but **not** in `paths:` — omit them from `paths:`.
+
 ## Scoping (rules only)
 
 - Use **specific globs** — target file types precisely to avoid unnecessary activation.
