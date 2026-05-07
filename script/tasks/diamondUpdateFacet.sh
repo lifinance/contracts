@@ -203,9 +203,6 @@ diamondUpdateFacet() {
 
         RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-        # Check if timelock is enabled and available
-        TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
         # For very long calldata, use a temporary file to avoid command line length limits
         # Check if calldata exceeds a safe threshold (e.g., 20KB hex = 10KB bytes)
         CALLDATA_BYTES=$(((${#FACET_CUT} - 2) / 2))
@@ -218,13 +215,7 @@ diamondUpdateFacet() {
           # Register trap to ensure cleanup on script exit (including errors)
           trap '[[ -n "$TEMP_CALLDATA_FILE" ]] && rm -f "$TEMP_CALLDATA_FILE"' EXIT
 
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           rm -f "$TEMP_CALLDATA_FILE"
@@ -239,13 +230,7 @@ diamondUpdateFacet() {
             return $rc
           fi
         else
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           if [ $rc -ne 0 ]; then

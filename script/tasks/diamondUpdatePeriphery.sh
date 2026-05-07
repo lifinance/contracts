@@ -236,7 +236,7 @@ register() {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
-        # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
+        # Propose registerPeripheryContract to Safe with timelock wrapping.
         local CALLDATA
         CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR") || {
           error "[$NETWORK] failed to encode registerPeripheryContract calldata for $CONTRACT_NAME"
@@ -250,21 +250,8 @@ register() {
         local DIAMOND_ADDRESS
         DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
-        # Get timelock controller address if it exists
-        local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-        local TIMELOCK_ADDRESS
-        TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
-        # Check if timelock is enabled and available
-        if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-          echo "[info] Using timelock controller for periphery registration"
-          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
-        else
-          echo "[info] Using diamond directly for periphery registration"
-          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${DIAMOND_ADDRESS}' with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
-        fi
+        echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
       else
         # Staging, testnet, or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: register directly on the diamond
         universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
@@ -272,7 +259,7 @@ register() {
     else
       # do not print output to console
       if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
-        # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
+        # Propose registerPeripheryContract to Safe with timelock wrapping.
         local CALLDATA
         CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR") || {
           error "[$NETWORK] failed to encode registerPeripheryContract calldata for $CONTRACT_NAME"
@@ -289,21 +276,8 @@ register() {
         echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
         echoDebug "NETWORK: $NETWORK"
 
-        # Get timelock controller address if it exists
-        local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-        local TIMELOCK_ADDRESS
-        TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
-        # Check if timelock is enabled and available
-        if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-          echoDebug "Using timelock controller for periphery registration"
-          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
-        else
-          echoDebug "Using diamond directly for periphery registration"
-          echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${DIAMOND_ADDRESS}' with calldata $CALLDATA"
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
-        fi
+        echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
       else
         # Staging, testnet, or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: register directly on the diamond
         universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR" >/dev/null 2>&1

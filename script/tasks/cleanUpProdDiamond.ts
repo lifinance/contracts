@@ -4,7 +4,7 @@
  * Purpose:
  *   - Remove facet(s) or unregister periphery contract(s) from the LiFiDiamond contract
  *   - Supports both interactive and headless CLI modes
- *   - Production with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false: proposes to Safe (timelock wrapping via USE_TIMELOCK_CONTROLLER)
+ *   - Production with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false: proposes to Safe with timelock wrapping
  *   - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true or staging: sends transaction directly to diamond (no proposal, no timelock)
  *
  * Usage without parameters:
@@ -41,7 +41,9 @@ import {
 } from '../utils/viemScriptHelpers'
 
 /**
- * Wraps calldata in a timelock schedule call if USE_TIMELOCK_CONTROLLER=true
+ * Wraps calldata in a timelock schedule call when proposing to Safe.
+ * Direct-send paths (staging, testnet, SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)
+ * return the original calldata unchanged.
  * @param originalCalldata - The original calldata to wrap
  * @param diamondAddress - The diamond address (target for the scheduled call)
  * @param network - The network name
@@ -54,7 +56,6 @@ async function prepareTimelockCalldata(
   network: string,
   environment: EnvironmentEnum
 ): Promise<{ targetAddress: string; calldata: `0x${string}` }> {
-  const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
   const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
   const isTestnet = isTestnetNetwork(network)
 
@@ -72,58 +73,34 @@ async function prepareTimelockCalldata(
     }
   }
 
-  // Production environment - check if timelock should be used
-  if (useTimelock) {
-    consola.info(
-      '🔧 Option chosen: Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
+  // Production: always wrap in timelock schedule.
+  consola.info('🔧 Option chosen: Propose to Safe with timelock wrapping')
+
+  const timelockAddress = await getContractAddressForNetwork(
+    'LiFiTimelockController',
+    network as SupportedChain,
+    EnvironmentEnum.production // Timelock is always in production deployments
+  )
+  if (!timelockAddress || timelockAddress === '0x')
+    throw new Error(
+      `LiFiTimelockController not found in deployment logs for ${network}`
     )
 
-    // Get timelock controller address from deployment logs
-    const timelockAddress = await getContractAddressForNetwork(
-      'LiFiTimelockController',
-      network as SupportedChain,
-      EnvironmentEnum.production // Timelock is always in production deployments
-    )
+  consola.info(
+    `⏰ Using timelock controller at ${timelockAddress} for operation`
+  )
 
-    if (!timelockAddress || timelockAddress === '0x') {
-      consola.warn(
-        'USE_TIMELOCK_CONTROLLER=true but no LiFiTimelockController found in deployment logs'
-      )
-      consola.info('📤 Final calldata (direct to diamond, no timelock):')
-      consola.info(originalCalldata)
-      return {
-        targetAddress: diamondAddress,
-        calldata: originalCalldata,
-      }
-    }
+  const wrappedTransaction = await wrapWithTimelockSchedule(
+    network,
+    '', // rpcUrl will fall back to chain.rpcUrls.default.http[0] in wrapWithTimelockSchedule
+    timelockAddress as `0x${string}`,
+    diamondAddress as `0x${string}`,
+    originalCalldata
+  )
 
-    consola.info(
-      `⏰ Using timelock controller at ${timelockAddress} for operation`
-    )
-
-    // Use the existing wrapWithTimelockSchedule helper function
-    const wrappedTransaction = await wrapWithTimelockSchedule(
-      network,
-      '', // rpcUrl will fall back to chain.rpcUrls.default.http[0] in wrapWithTimelockSchedule
-      timelockAddress as `0x${string}`,
-      diamondAddress as `0x${string}`,
-      originalCalldata
-    )
-
-    return {
-      targetAddress: wrappedTransaction.targetAddress,
-      calldata: wrappedTransaction.calldata,
-    }
-  } else {
-    consola.info(
-      '🔧 Option chosen: Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
-    )
-    consola.info('📤 Final calldata (direct to diamond via Safe):')
-    consola.info(originalCalldata)
-    return {
-      targetAddress: diamondAddress,
-      calldata: originalCalldata,
-    }
+  return {
+    targetAddress: wrappedTransaction.targetAddress,
+    calldata: wrappedTransaction.calldata,
   }
 }
 
@@ -148,20 +125,9 @@ function displayEnvironmentConfiguration(
       process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND || 'false'
     }`
   )
-  consola.log(
-    `   USE_TIMELOCK_CONTROLLER: ${
-      process.env.USE_TIMELOCK_CONTROLLER || 'false'
-    }`
-  )
 
   // Determine which option will be chosen
   const sendDirectly = process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
-  const useTimelock = process.env.USE_TIMELOCK_CONTROLLER === 'true'
-
-  if (isTestnet && useTimelock)
-    consola.warn(
-      '   USE_TIMELOCK_CONTROLLER=true is ignored on testnet (no Timelock deployed).'
-    )
 
   let executionMode = ''
   if (isTestnet)
@@ -170,12 +136,7 @@ function displayEnvironmentConfiguration(
   else if (environment === 'staging' || sendDirectly)
     executionMode =
       'Send directly to diamond (staging or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true)'
-  else if (useTimelock)
-    executionMode =
-      'Propose to Safe with timelock wrapping (production + USE_TIMELOCK_CONTROLLER=true)'
-  else
-    executionMode =
-      'Propose to Safe without timelock (production + USE_TIMELOCK_CONTROLLER=false)'
+  else executionMode = 'Propose to Safe with timelock wrapping (production)'
 
   consola.log(`   Execution Mode: ${executionMode}`)
 
