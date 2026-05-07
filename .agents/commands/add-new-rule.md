@@ -73,50 +73,12 @@ Negation patterns (`!src/**/*.s.sol`) are supported in `globs:` (Cursor) but **n
   - GitHub Actions: `.github/workflows/**/*.yml` / `**/*.yaml`
   - Audits: `audit/**/*.json`, `audit/**/*.pdf`
 
-## No-Duplication (single source of truth)
+## No-Duplication, Naming, Size, Cross-References
 
-Before adding a new guideline:
-
-- Search existing rules/commands for the same concept (keywords and anchors):
-  - Examples: "NatSpec", "LiFiTransferStarted", "timelock", "viem", "expectRevert", "auditReportPath".
-- Decide the **single owning file** by scope:
-  - Universal → a `000-*` always-apply rule.
-  - Language-specific → the language rule (`100-*`, `200-*`, `300-*`).
-  - Directory-specific → the narrowest directory rule (facets/receivers/interfaces/tests).
-  - Workflow/runbook → a **command** (only if it's invoked explicitly and not tied to file editing).
-- Remove duplicates rather than "keep both in sync".
-
-## Cross-Reference Minimization
-
-- Avoid "see also" pointers.
-- Prefer: "this rule is always active" or "this activates via globs" over linking another file.
-- If a workflow truly must live in a command (explicitly invoked), keep rules minimal and avoid circular references.
-- **Avoid "Related Files" sections**: Only include file references if the rule directly depends on specific file locations or the files are explicitly mentioned in the rule's requirements.
-
-## Keep Implementation Details Separate
-
-- **Rules define "what" and "why", not "how"**: Rules state requirements, constraints, and behaviors. Implementation details (CI workflows, tooling setup) do NOT belong in the rule.
-- **Report implementation suggestions separately**: When creating a rule, if you identify helpful implementation approaches, report these back to the user as suggestions, but do NOT include them in the rule file.
-- **What belongs in rules**: requirements/constraints, example code and anti-patterns, behavioral expectations, agent behavior instructions, rationale.
-- **What to exclude**: CI workflow code, detailed tooling setup, optional enforcement mechanisms.
-
-## Naming Conventions + Uniqueness Check
-
-- Follow `.agents/rules/README.md` as the **single source of truth** for numbering ranges and naming.
-- Uniqueness checks before committing:
-  - No duplicate numeric prefixes (e.g., no two `105-*` files).
-  - `name:` fields are unique within `.agents/rules/` and within `.agents/commands/`.
-  - Globs don't unintentionally overlap.
-
-## Rule Size Limits & Split/Merge Guidance
-
-- Keep each rule focused on **one concern**.
-- Split when:
-  - You're mixing unrelated scopes (e.g., Solidity + TS in one rule).
-  - The rule becomes a multi-topic checklist that's hard to apply.
-- Merge when:
-  - Two rules always apply together and one is just a pointer.
-  - A rule only repeats a requirement already covered by a broader rule always active in the same contexts.
+These constraints are enforced automatically via `010-agents-authoring` (auto-loaded when editing `.agents/` files). See that rule for the full list. Key reminders:
+- Search before adding — pick a single owning file, remove duplicates.
+- Rules define "what/why", not "how"; report CI/tooling suggestions separately.
+- Follow `.agents/rules/README.md` for numbering ranges.
 
 ## Adding a New Rule (step by step)
 
@@ -143,49 +105,9 @@ Before adding a new guideline:
 
 ## Modifying an Existing Rule or Command
 
-The principles below (Skill Authoring Principles, No-Duplication, Cross-Reference Minimization, Rule Size Limits, Smart-Contract Department Checklist) **apply equally on edits, not just on creation**. When updating an existing rule or command:
+All constraints (no-duplication, size, naming, validation) apply equally on edits. `010-agents-authoring` enforces them automatically — no need to repeat them here. No symlink work is needed unless you renamed the file.
 
-- Edit only in `.agents/rules/` or `.agents/commands/` — never the symlink targets.
-- Re-run the **No-Duplication** check: did your edit duplicate guidance that already lives elsewhere? Trim the duplicate before merging.
-- Re-run the **size check**: if a skill grew past 500 lines, apply the splitting guidance below before adding more.
-- Update `.agents/rules/README.md` only if you changed `name`, `description`, or `globs`.
-- Run validation steps below.
-
-No symlink work is needed unless you renamed the file.
-
-## Skill Authoring Principles
-
-Every line in a skill is loaded into the model's context when the skill is triggered. Be ruthless about earning tokens. The principles below apply on initial creation **and** on every edit. The official Anthropic guide is [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) — the rules below are derived from it plus repo-specific learnings.
-
-### Concise is key — Claude is already very smart
-
-The model already knows what JSON, PDFs, libraries, ERC20, viem, etc. are. Don't explain them. Challenge every line:
-
-- "Does Claude really need this explanation?"
-- "Can I assume Claude knows this?"
-- "Does this paragraph justify its token cost?"
-
-A 50-token instruction that says *"Use `pdfplumber.open(...)` to extract text"* is better than a 150-token instruction that prefaces it with what PDFs are and why libraries help.
-
-### Size & redundancy
-
-- **Target ≤ 500 lines for the skill body.** Anthropic's docs call this the soft-perf threshold; tighter is better.
-- **No "Quality Checklist" that restates rules already given in Steps 1–N.** The model just read those rules a few hundred lines earlier; repeating them as a checklist doubles the token cost without changing behaviour.
-- **No historical / "do-not-apply" notes.** Telling the model to ignore a legacy code path it will never see is pure noise. Delete the legacy reference entirely.
-- **No standalone callouts that duplicate inline guidance.** If Step 6 already says "drop the `:thread:` suffix", don't add a separate `> note` block above Step 3 saying the same thing. Keep the rule where it is applied.
-- **Bullet lists beat prose preambles.** A one-sentence framing + 4 bullets is leaner than 3 paragraphs of preamble followed by 5 numbered points.
-- **Avoid time-sensitive information** ("before August 2025, use the old API"). Use a "Current method" + collapsible "Old patterns" section instead, or just delete the legacy reference.
-- **Use consistent terminology.** Pick one term per concept and stick with it ("API endpoint", not a mix of "URL", "API route", "path"). Inconsistency makes the model second-guess.
-- **Don't offer too many options without a default.** *"Use `pdfplumber` for text extraction. For scanned PDFs requiring OCR, use `pdf2image` with `pytesseract` instead."* beats *"You can use `pypdf`, or `pdfplumber`, or `PyMuPDF`, or `pdf2image`, or…"*
-
-### Naming and description
-
-- **`name`**: lowercase, hyphenated, ideally **gerund form** (`processing-pdfs`, `analyzing-spreadsheets`, `requesting-audit`). Avoid vague names (`helper`, `utils`, `tools`). Reserved: `anthropic`, `claude`. Max 64 chars.
-- **`description`**: third person, present tense; include both *what* the skill does AND *when* to use it (key terms, file types, triggering verbs). The description is how the model picks this skill from 100+ available skills — be specific, not generic.
-  - Good: `"Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)"`
-  - Bad: `"Helps with audit requests"`
-
-### Helper script exit codes
+## Helper script exit codes
 
 When a skill shells out to a project script (e.g. via `bunx tsx script/utils/foo.ts`), use this exit-code convention so the orchestrating skill can branch independently per target:
 
@@ -199,7 +121,7 @@ This split lets the skill process N targets independently — if one channel/net
 
 - **Symlink integrity**: `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all entries should be symlinks (`->`) pointing into `.agents/rules/`.
 - **Skill symlinks**: `ls -l .claude/skills/*/SKILL.md` — all should point into `.agents/commands/`.
-- **README accuracy**: `.agents/rules/README.md` table reflects all files in `.agents/rules/`.
+- **README accuracy**: `.agents/rules/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
 - **Stale references**: grep `.agents/rules/` and `.agents/commands/` for references to removed files.
 - **Activation sanity check**:
   - Editing a facet (`src/Facets/*.sol`) → pulls facet + Solidity baseline + architecture/security.
@@ -208,11 +130,6 @@ This split lets the skill process N targets independently — if one channel/net
 
 ## Smart-Contract Department Checklist (must not weaken)
 
-- **Rule interaction (required)**:
-  - Identify which rules will apply via `globs` for the files you're about to touch.
-  - Ensure the new rule does **not** conflict with or overwrite higher-priority/global rules.
-  - Ensure there is **no duplicate guidance**: pick a single owning rule/command and delete/trim duplicates elsewhere.
-  - Ensure numeric prefixes and `name:` fields stay **unique**.
 - **Diamond architecture**: single diamond entrypoint; keep facets thin; selector/storage invariants respected.
 - **Governance**: Safe + timelock flows never bypassed; no admin shortcuts.
 - **Events**: respect reserved event emission locations; non-EVM receiver rules respected.
