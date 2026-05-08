@@ -471,6 +471,9 @@ print_section "Pre-commit Checks"
 
 # Start parallel tasks
 if [ "$HAS_SOL_FILES" = "yes" ]; then
+  if ! bash "$GIT_ROOT/script/utils/verify-foundry-version.sh" --quiet; then
+    exit 1
+  fi
   print_status "info" "Building contracts with forge..."
   (forge build --skip test > "$FORGE_OUTPUT" 2>&1; echo $? > "$FORGE_EXIT") &
   FORGE_PID=$!

@@ -53,7 +53,7 @@ jobs:
           persist-credentials: false # smoke test does not push back; avoid leaking the runner token to subsequent actions
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+        uses: ./.github/actions/setup-foundry
 
       - name: Install Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2

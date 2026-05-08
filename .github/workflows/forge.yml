@@ -32,7 +32,7 @@ jobs:
         run: bun install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.3.1
+        uses: ./.github/actions/setup-foundry
 
       - name: Install forge Dependencies
         run: forge install

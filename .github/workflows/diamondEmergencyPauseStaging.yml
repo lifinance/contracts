@@ -52,7 +52,7 @@ jobs:
       #     fi
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+        uses: ./.github/actions/setup-foundry
 
       - name: Fetch RPC endpoints from MongoDB
         run: |

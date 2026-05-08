@@ -93,9 +93,7 @@ jobs:
 
       - name: Install Foundry (provides cast)
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.0.0
+        uses: ./.github/actions/setup-foundry
 
       - name: Install dependencies
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'

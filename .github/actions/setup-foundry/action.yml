@@ -1,0 +1,32 @@
+# Composite action: install pinned foundry + verify
+# - Reads .foundry-version from the checked-out repo
+# - Installs foundry at that version via foundry-rs/foundry-toolchain
+# - Verifies the installed binary matches the pin (catches action regressions or input typos)
+# Used by every workflow that needs forge/cast/anvil so a single pin source
+# (.foundry-version) flows everywhere.
+name: Setup Foundry
+description: Install pinned foundry from .foundry-version and verify the installed binary matches.
+
+runs:
+  using: composite
+  steps:
+    - name: Read pinned foundry version
+      id: pin
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="$(tr -d '[:space:]' < .foundry-version)"
+        if [ -z "$version" ]; then
+          echo "::error::.foundry-version is empty"
+          exit 1
+        fi
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+      with:
+        version: ${{ steps.pin.outputs.version }}
+
+    - name: Verify foundry version
+      shell: bash
+      run: bash script/utils/verify-foundry-version.sh
