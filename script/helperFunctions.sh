@@ -3711,6 +3711,7 @@ function getPrivateKey() {
 
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
+# - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
 # - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
 # - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
@@ -3737,8 +3738,10 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Non-production or direct-to-diamond: send directly for all networks
-  if [[ "$ENVIRONMENT" != "production" ]] || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]]; then
+  # Non-production, testnet, or direct-to-diamond: send directly for all networks
+  if [[ "$ENVIRONMENT" != "production" ]] \
+     || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+     || isTestnetNetwork "$NETWORK"; then
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
     return $?
   fi
@@ -3812,6 +3815,28 @@ function isZkEvmNetwork() {
   else
     return 1 # Failure (false)
   fi
+}
+
+# isTestnetNetwork: Returns 0 (true) if NETWORK has type "testnet" in networks.json.
+# Testnet networks have an EOA-owned diamond (no Safe multisig, no Timelock),
+# so admin operations bypass the Safe-propose path and send directly.
+#
+# Usage: isTestnetNetwork NETWORK
+#   NETWORK - Network name as defined in networks.json
+#
+# Returns: 0 if the network's type is "testnet", 1 otherwise (or if missing/unknown).
+function isTestnetNetwork() {
+  local NETWORK="$1"
+
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1
+  fi
+
+  local TYPE
+  TYPE=$(jq -r --arg network "$NETWORK" '.[$network].type // empty' "$NETWORKS_JSON_FILE_PATH")
+
+  [[ "$TYPE" == "testnet" ]]
 }
 
 function isNetworkActive() {
@@ -4214,7 +4239,7 @@ function printDeploymentsStatusV2() {
     # go through all networks
     for NETWORK in ${NETWORKS[*]}; do
       # skip any network that is a testnet
-      if [[ "$TEST_NETWORKS" == *"$NETWORK"* ]]; then
+      if isTestnetNetwork "$NETWORK"; then
         continue
       fi
 
