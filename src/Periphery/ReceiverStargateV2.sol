@@ -194,6 +194,10 @@ contract ReceiverStargateV2 is
 
             if (cacheGasLeft < recoverGas) {
                 // case 2a: not enough gas left to execute calls
+                // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
+                // receiver == address(0); the entire bridge attempt then fails
+                // atomically rather than silently burning funds via a raw
+                // safeTransfer. Source-chain refund flows engage instead.
                 LibAsset.transferERC20(assetId, receiver, amount);
 
                 emit LiFiTransferRecovered(
@@ -213,6 +217,10 @@ contract ReceiverStargateV2 is
                     gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
+                // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
+                // receiver == address(0); the entire bridge attempt then fails
+                // atomically rather than silently burning funds via a raw
+                // safeTransfer. Source-chain refund flows engage instead.
                 LibAsset.transferERC20(assetId, receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,

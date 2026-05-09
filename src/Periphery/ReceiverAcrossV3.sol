@@ -103,6 +103,10 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
             )
         {} catch {
             // send the bridged (and unswapped) funds to receiver address
+            // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
+            // receiver == address(0); the entire bridge attempt then fails
+            // atomically rather than silently burning funds via a raw
+            // safeTransfer. Source-chain refund flows engage instead.
             LibAsset.transferERC20(assetId, receiver, amount);
 
             emit LiFiTransferRecovered(
