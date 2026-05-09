@@ -1,0 +1,131 @@
+# Deploy Smoke Test
+# - Runs the full deployAllContracts pipeline against a local anvil + empty Mongo
+# - Triggers on PRs targeting main and on manual dispatch
+# - Validates the deploy script end-to-end so regressions in deploy bash,
+#   Solidity scripts, target state, or whitelist sync surface before merge
+# - Not a required status check initially; promote via repo settings once stable
+name: Deploy Smoke Test
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents
+
+concurrency:
+  group: deploy-smoke-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-smoke-test:
+    # Always run on manual dispatch; for PRs, skip drafts and require main as the base.
+    # github.event.pull_request is unset on workflow_dispatch, so the explicit
+    # event_name branch is required to keep the manual trigger path working.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.draft == false &&
+           github.event.pull_request.base.ref == 'main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mongo:
+        image: mongo:7@sha256:43fddee7e532a920f3dfdee9e8f4834398c155c26bcb92d790cc1cd3c630fc40 # mongo:7
+        ports:
+          - 27017:27017
+        # Readiness gate so the first MongoClient.connect() inside the deploy
+        # scripts does not race the container's startup.
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok' | grep 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive # forge dependencies live under lib/
+          persist-credentials: false # smoke test does not push back; avoid leaking the runner token to subsequent actions
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+
+      - name: Install gum
+        # gum is required by helper functions sourced via deployAllContracts;
+        # the smoke driver mocks `gum choose` for the start-stage prompt but
+        # falls through to the real binary for any other invocation.
+        # The deb is verified against the publisher SHA-256 from
+        # https://github.com/charmbracelet/gum/releases/download/v0.14.5/checksums.txt
+        # before install — fail closed on any mismatch.
+        run: |
+          set -euo pipefail
+          GUM_VERSION=0.14.5
+          EXPECTED_SHA256=fd1a34711ae724eb2a6c1a3209d57078d529575a03316e699054f2f5d3bcb2ba
+          curl -fsSLo /tmp/gum.deb "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_amd64.deb"
+          echo "${EXPECTED_SHA256}  /tmp/gum.deb" | sha256sum -c -
+          sudo dpkg -i /tmp/gum.deb
+          gum --version
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Prepare .env
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          # Override the example default that turns on contract verification.
+          sed -i 's/^VERIFY_CONTRACTS=.*/VERIFY_CONTRACTS=false/' .env
+          # Append CI-only values. smokeDeploy.sh sources .env with `set -a`,
+          # so PRIVATE_KEY=$PRIVATE_KEY_ANVIL expands at source time and the
+          # later definitions override earlier ones from .env.example.
+          # shellcheck disable=SC2016 # the $PRIVATE_KEY_ANVIL literal is expanded later when .env is sourced, not now
+          {
+            echo 'PRIVATE_KEY=$PRIVATE_KEY_ANVIL'
+            echo 'ETH_NODE_URI_LOCALANVIL=http://localhost:8545'
+            echo 'MONGODB_URI=mongodb://localhost:27017/contract-deployments'
+          } >> .env
+
+      - name: Start anvil
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          set -a; source .env; set +a
+          anvil --mnemonic "${MNEMONIC}" --silent &
+          # Bounded readiness probe — fail fast if anvil never comes up.
+          for _ in $(seq 1 30); do
+            if [[ "$(cast chain-id --rpc-url http://localhost:8545 2>/dev/null || true)" == "31337" ]]; then
+              echo -e "\033[32manvil ready\033[0m"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo -e "\033[31manvil failed to start\033[0m" >&2
+          exit 1
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Run deploy smoke test
+        run: bash script/deploy/smokeDeploy.sh 2>&1 | tee smoke-deploy.log
+
+      - name: Run health check
+        run: bun script/deploy/healthCheck.ts --network localanvil --environment staging 2>&1 | tee -a smoke-deploy.log
+
+      - name: Upload diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deploy-smoke-test-logs
+          path: |
+            smoke-deploy.log
+            deployments/localanvil*.json
+          if-no-files-found: ignore
+          retention-days: 7

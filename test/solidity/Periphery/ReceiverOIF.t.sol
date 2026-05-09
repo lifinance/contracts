@@ -38,10 +38,10 @@ contract ReceiverOIFTest is TestBase {
         customBlockNumberForForking = 23695990;
         initTestBase();
 
-        erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy), address(this));
+        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER);
+        executor = new Executor(address(erc20Proxy), USER_DIAMOND_OWNER);
         receiver = new ReceiverOIF(
-            address(this),
+            USER_DIAMOND_OWNER,
             address(executor),
             OUTPUT_SETTLER_COIN
         );

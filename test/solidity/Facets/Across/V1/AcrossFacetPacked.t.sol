@@ -69,12 +69,12 @@ contract AcrossFacetPackedTest is TestBase {
         acrossFacetPacked = new AcrossFacetPacked(
             across,
             ADDRESS_WRAPPED_NATIVE,
-            address(this)
+            USER_DIAMOND_OWNER
         );
         acrossStandAlone = new AcrossFacetPacked(
             across,
             ADDRESS_WRAPPED_NATIVE,
-            address(this)
+            USER_DIAMOND_OWNER
         );
         claimContract = new TestClaimContract();
 
@@ -182,7 +182,9 @@ contract AcrossFacetPackedTest is TestBase {
         tokens[1] = ADDRESS_USDC;
 
         // set token approvals for standalone contract via admin function
+        vm.startPrank(USER_DIAMOND_OWNER);
         acrossStandAlone.setApprovalForBridge(tokens);
+        vm.stopPrank();
 
         // set token approvals for facet via cheatcode (in production we will do this via script)
         vm.startPrank(address(acrossFacetPacked));
@@ -586,6 +588,8 @@ contract AcrossFacetPackedTest is TestBase {
     }
 
     function test_canExecuteCallAndWithdraw() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         acrossStandAlone.executeCallAndWithdraw(
             address(claimContract),
             WITHDRAW_REWARDS_CALLDATA,
