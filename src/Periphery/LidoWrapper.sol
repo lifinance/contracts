@@ -1,7 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
@@ -22,8 +24,10 @@ interface IStETH is IERC20 {
 /// @notice Wraps and unwraps Lido’s wstETH and stETH tokens
 /// @dev Be aware that Lido's L2 `wrap`/`unwrap` naming is reversed from the typical expectation.
 /// @dev Any stETH or wstETH tokens sent directly to the contract can be irrecoverably swept by MEV bots
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract LidoWrapper is WithdrawablePeriphery {
+    using SafeTransferLib for address;
+
     uint256 public constant ETH_CHAIN_ID = 1;
 
     /// @notice Reference to the L2 stETH contract
@@ -57,7 +61,10 @@ contract LidoWrapper is WithdrawablePeriphery {
             revert ContractNotYetReadyForMainnet();
 
         // Approve stETH contract to pull wstETH from this contract
-        IERC20(WST_ETH_ADDRESS).approve(address(ST_ETH), type(uint256).max);
+        WST_ETH_ADDRESS.safeApproveWithRetry(
+            address(ST_ETH),
+            type(uint256).max
+        );
     }
 
     /// @notice Wraps stETH into wstETH
@@ -68,7 +75,8 @@ contract LidoWrapper is WithdrawablePeriphery {
         uint256 _amount
     ) external returns (uint256 wrappedAmount) {
         // Pull stETH from sender
-        IERC20(address(ST_ETH)).transferFrom(
+        LibAsset.transferFromERC20(
+            address(ST_ETH),
             msg.sender,
             address(this),
             _amount
@@ -82,7 +90,7 @@ contract LidoWrapper is WithdrawablePeriphery {
         wrappedAmount = ST_ETH.unwrap(stETHBalance);
 
         // Transfer resulting wstETH to sender
-        IERC20(WST_ETH_ADDRESS).transfer(msg.sender, wrappedAmount);
+        LibAsset.transferERC20(WST_ETH_ADDRESS, msg.sender, wrappedAmount);
 
         // we are not emitting an event since the Lido contracts already emit events
     }
@@ -95,7 +103,8 @@ contract LidoWrapper is WithdrawablePeriphery {
         uint256 _amount
     ) external returns (uint256 unwrappedAmount) {
         // Pull wstETH from sender
-        IERC20(WST_ETH_ADDRESS).transferFrom(
+        LibAsset.transferFromERC20(
+            WST_ETH_ADDRESS,
             msg.sender,
             address(this),
             _amount
@@ -105,7 +114,7 @@ contract LidoWrapper is WithdrawablePeriphery {
         unwrappedAmount = ST_ETH.wrap(_amount);
 
         // Transfer resulting stETH to sender
-        IERC20(address(ST_ETH)).transfer(msg.sender, unwrappedAmount);
+        LibAsset.transferERC20(address(ST_ETH), msg.sender, unwrappedAmount);
 
         // we are not emitting an event since the Lido contracts already emit events
     }
