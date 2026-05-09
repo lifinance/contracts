@@ -89,4 +89,4 @@ Update `.agents/README.md`:
 - Rule changes: if `name`, `description`, or `globs` changed.
 - Command changes: always update the Custom Commands table.
 
-For step-by-step symlink creation and hybrid frontmatter examples, use `/add-new-rule`.
+For step-by-step symlink creation and hybrid frontmatter examples, use `/add-rule-or-skill`.
