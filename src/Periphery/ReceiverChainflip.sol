@@ -135,9 +135,10 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
                 return;
             } catch {
                 // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
-                // receiver == address(0); the entire bridge attempt then fails
-                // atomically rather than silently burning funds via a raw
-                // safeTransfer. Source-chain refund flows engage instead.
+                // receiver == address(0); the catch path then reverts the
+                // entire bridge handler tx instead of silently burning funds
+                // via a raw safeTransfer for tokens that treat transfer-to-zero
+                // as a burn. Post-revert recovery is bridge-specific.
                 LibAsset.transferERC20(actualAssetId, receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
