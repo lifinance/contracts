@@ -131,9 +131,7 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
                     actualAssetId,
                     receiver
                 )
-            {
-                return;
-            } catch {
+            {} catch {
                 // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
                 // receiver == address(0); the catch path then reverts the
                 // entire bridge handler tx instead of silently burning funds
