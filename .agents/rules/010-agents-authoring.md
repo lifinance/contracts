@@ -47,6 +47,7 @@ Remove duplicates rather than keeping both in sync.
 
 ## Skill authoring (commands)
 
+- **Use `/skill-creator`** (Anthropic built-in) when writing a new skill — it auto-applies best practices including the ≤500-line limit and progressive disclosure.
 - Every line costs tokens. Challenge each one: "Does Claude need this explanation?"
 - Bullet lists beat prose preambles.
 - Consistent terminology — pick one term per concept.

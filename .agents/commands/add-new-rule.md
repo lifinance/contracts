@@ -94,14 +94,15 @@ These constraints are enforced automatically via `010-agents-authoring` (auto-lo
 
 ## Adding a New Command/Skill (step by step)
 
-1. Create `.agents/commands/<name>.md` with the command content.
-2. Create the Cursor and Claude Code symlinks:
+1. Run `/skill-creator` (Anthropic built-in) to draft the skill content — it enforces ≤500 lines, progressive disclosure, and other best practices automatically.
+2. Save the output to `.agents/commands/<name>.md`.
+3. Create the Cursor and Claude Code symlinks:
    ```bash
    ln -sf "../../.agents/commands/<name>.md" ".cursor/commands/<name>.md"
    mkdir -p ".claude/skills/<name>"
    ln -sf "../../../.agents/commands/<name>.md" ".claude/skills/<name>/SKILL.md"
    ```
-3. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
+4. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
 
 ## Modifying an Existing Rule or Command
 
