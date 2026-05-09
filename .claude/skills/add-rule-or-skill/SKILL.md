@@ -1,0 +1,1 @@
+../../../.agents/commands/add-rule-or-skill.md

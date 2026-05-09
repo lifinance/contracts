@@ -51,7 +51,7 @@ All authoring constraints (scoping, size, naming, no-duplication, conventions, c
 
 ## Adding New Rules
 
-Use `/add-new-rule` as the standard workflow — it covers symlink creation, frontmatter, scoping, and validation.
+Use `/add-rule-or-skill` as the standard workflow — it covers symlink creation, frontmatter, scoping, and validation.
 
 ## Custom Commands
 
@@ -59,7 +59,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 | Command File      | Usage                             | Purpose                                                                                      |
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `add-new-rule.md`       | `/add-new-rule`                             | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
+| `add-rule-or-skill.md`       | `/add-rule-or-skill`                             | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
 | `add-audit.md`          | `/add-audit`                                | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `add-network.md`        | `/add-network [networkKey]`                 | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
 | `deprecate-network.md`  | `/deprecate-network <net1> [net2] ...`      | Deprecate networks — remove from networks.json, foundry.toml, deployment logs               |
