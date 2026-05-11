@@ -51,9 +51,34 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           
-      - name: Run forge tests (with auto-repeat in case of error)
-        uses: Wandalen/wretry.action@v3.8.0
-        with:
-          command: forge test
-          attempt_limit: 10
-          attempt_delay: 15000
+      - name: Run forge tests (up to 10 attempts, --rerun on retries)
+        # Custom retry loop instead of Wandalen/wretry.action so retries run
+        # `forge test --rerun` (only previously-failed tests) rather than the
+        # full suite every time. Foundry persists the failed-test list in
+        # cache/test-failures.json between invocations within this step.
+        shell: bash
+        run: |
+          set -uo pipefail
+          MAX_ATTEMPTS=10
+          DELAY_SEC=15
+
+          echo "::group::Attempt 1/${MAX_ATTEMPTS}: forge test"
+          forge test
+          EXIT_CODE=$?
+          echo "::endgroup::"
+
+          ATTEMPT=1
+          while [ "${EXIT_CODE}" -ne 0 ] && [ "${ATTEMPT}" -lt "${MAX_ATTEMPTS}" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "forge test failed on attempt $((ATTEMPT - 1)); retrying with --rerun in ${DELAY_SEC}s"
+            sleep "${DELAY_SEC}"
+            echo "::group::Attempt ${ATTEMPT}/${MAX_ATTEMPTS}: forge test --rerun"
+            forge test --rerun
+            EXIT_CODE=$?
+            echo "::endgroup::"
+          done
+
+          if [ "${EXIT_CODE}" -ne 0 ]; then
+            echo "::error::forge test failed after ${MAX_ATTEMPTS} attempts"
+          fi
+          exit "${EXIT_CODE}"
