@@ -110,13 +110,16 @@ jobs:
         run: |
           # Fetch prioritized RPCs (with auth where required) so health check uses same URLs as local
           bun run fetch-rpcs
-          # Inject RPC endpoint variables into the job environment (strip surrounding quotes so URL is valid)
+          # Inject RPC endpoint variables into the job environment (strip surrounding quotes so URL is valid).
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
               key="${line%%=*}"
               value="${line#*=}"
               if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
               if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
               echo "${key}=${value}" >> "$GITHUB_ENV"
             fi
           done < ".env"
