@@ -48,8 +48,10 @@ KNOWN_FALSE_POSITIVES=(
   "foundry.toml"
   "50000000000"
   # Well-known Anvil/Foundry development defaults documented in .env.example.
+  # pre-commit-checker: not a secret
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
   "test test test test test test test test test test test junk"
+  # pre-commit-checker: not a secret
   "0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66"
 )
 EXCLUDED_PATHS=(
