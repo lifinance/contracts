@@ -22,7 +22,7 @@ fi
 
 if ! command -v forge >/dev/null 2>&1; then
   printf '\033[31m✗ forge not on PATH\033[0m\n' >&2
-  printf '   install foundry %s: foundryup -v %s && foundryup -u %s\n' "$EXPECTED" "$EXPECTED" "$EXPECTED" >&2
+  printf '   install foundry %s: foundryup --install %s\n' "$EXPECTED" "$EXPECTED" >&2
   exit 1
 fi
 
@@ -46,7 +46,7 @@ if [ "$ACTUAL" != "$EXPECTED" ]; then
   printf '\033[31m✗ foundry version mismatch\033[0m\n' >&2
   printf '   expected: %s\n' "$EXPECTED" >&2
   printf '   actual:   %s\n' "$ACTUAL" >&2
-  printf '   fix:      foundryup -v %s && foundryup -u %s\n' "$EXPECTED" "$EXPECTED" >&2
+  printf '   fix:      foundryup --install %s\n' "$EXPECTED" >&2
   exit 1
 fi
 

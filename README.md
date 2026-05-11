@@ -180,8 +180,7 @@ forge install
 3. Install the pinned Foundry version:
 
 ```bash
-foundryup -v "$(cat .foundry-version)"
-foundryup -u "$(cat .foundry-version)"
+foundryup --install "$(cat .foundry-version)"
 ```
 
 The pre-commit hook and CI verify that your installed `forge` matches `.foundry-version` and refuse to run on mismatch. To bump the pin, change `.foundry-version` in a PR — every workflow and dev environment picks it up automatically.
