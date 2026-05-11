@@ -18,6 +18,7 @@ import type {
   IChainCaller,
   IChainSimulateResult,
 } from '../../../common/types'
+import { buildExplorerTxUrl } from '../../../utils/viemScriptHelpers'
 
 import { getGasWithFallback } from './gas-with-fallback'
 
@@ -27,7 +28,8 @@ export class EvmChainCaller implements IChainCaller {
   public constructor(
     private readonly walletClient: WalletClient,
     private readonly publicClient: PublicClient,
-    private readonly account: Account
+    private readonly account: Account,
+    private readonly networkName?: string
   ) {
     this.senderAddress = account.address
   }
@@ -90,8 +92,12 @@ export class EvmChainCaller implements IChainCaller {
         timeoutPromise,
       ])) as TransactionReceipt
 
+      const explorerUrl = this.networkName
+        ? buildExplorerTxUrl(this.networkName, txHash)
+        : undefined
+
       if (receipt.status === 'success')
-        return { hash: txHash, receipt, gasUsed: receipt.gasUsed }
+        return { hash: txHash, receipt, gasUsed: receipt.gasUsed, explorerUrl }
       else throw new Error(`Transaction failed with status: ${receipt.status}`)
     } catch (timeoutError: unknown) {
       const errorMsg =
@@ -104,7 +110,10 @@ export class EvmChainCaller implements IChainCaller {
         )
         consola.warn(`   Transaction hash: ${txHash}`)
         consola.warn(`   Please manually verify transaction status later`)
-        return { hash: txHash }
+        const explorerUrl = this.networkName
+          ? buildExplorerTxUrl(this.networkName, txHash)
+          : undefined
+        return { hash: txHash, explorerUrl }
       }
       throw timeoutError
     }
