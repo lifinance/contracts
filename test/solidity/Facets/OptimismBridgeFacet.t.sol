@@ -73,6 +73,9 @@ contract OptimismBridgeFacetTest is TestBase {
         configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
 
         optimismBridgeFacet = TestOptimismBridgeFacet(address(diamond));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         optimismBridgeFacet.initOptimism(
             configs,
             IL1StandardBridge(STANDARD_BRIDGE)
@@ -90,6 +93,8 @@ contract OptimismBridgeFacetTest is TestBase {
             address(uniswap),
             uniswap.swapTokensForExactETH.selector
         );
+
+        vm.stopPrank();
 
         validBridgeData = ILiFi.BridgeData({
             transactionId: "",
@@ -216,12 +221,16 @@ contract OptimismBridgeFacetTest is TestBase {
             memory configs = new OptimismBridgeFacet.Config[](1);
         configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         // Re-initialization should fail
         vm.expectRevert(AlreadyInitialized.selector);
         optimismBridgeFacet.initOptimism(
             configs,
             IL1StandardBridge(STANDARD_BRIDGE)
         );
+
+        vm.stopPrank();
     }
 
     function testRevertToInitWhenInvalidConfig() public {
@@ -231,12 +240,16 @@ contract OptimismBridgeFacetTest is TestBase {
             memory configs = new OptimismBridgeFacet.Config[](1);
         configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, address(0));
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         // Initialization should fail
         vm.expectRevert(InvalidConfig.selector);
         optimismBridgeFacet.initOptimism(
             configs,
             IL1StandardBridge(STANDARD_BRIDGE)
         );
+
+        vm.stopPrank();
     }
 
     function testRevertToRegisterWhenNotOwner() public {
@@ -252,13 +265,21 @@ contract OptimismBridgeFacetTest is TestBase {
     function testRevertToRegisterWhenNotInitialized() public {
         _mockUninitialized();
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(NotInitialized.selector);
         optimismBridgeFacet.registerOptimismBridge(address(1), address(2));
+
+        vm.stopPrank();
     }
 
     function testRevertToRegisterWhenInvalidConfig() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(InvalidConfig.selector);
         optimismBridgeFacet.registerOptimismBridge(address(1), address(0));
+
+        vm.stopPrank();
     }
 
     function testCanBridgeNativeAsset() public {
@@ -297,7 +318,9 @@ contract OptimismBridgeFacetTest is TestBase {
         address snxBridge = 0x39Ea01a0298C315d149a490E34B59Dbf2EC7e48F;
 
         // register custom SNX bridge
+        vm.startPrank(USER_DIAMOND_OWNER);
         optimismBridgeFacet.registerOptimismBridge(snxToken, snxBridge);
+        vm.stopPrank();
 
         // approve SNX
         address snxHolder = 0xF977814e90dA44bFA03b6295A0616a897441aceC;
@@ -420,7 +443,9 @@ contract OptimismBridgeFacetTest is TestBase {
         address snxToken = 0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F;
         address snxBridge = 0x39Ea01a0298C315d149a490E34B59Dbf2EC7e48F;
 
+        vm.startPrank(USER_DIAMOND_OWNER);
         optimismBridgeFacet.registerOptimismBridge(snxToken, snxBridge);
+        vm.stopPrank();
 
         vm.startPrank(USDC_HOLDER);
 
@@ -481,10 +506,14 @@ contract OptimismBridgeFacetTest is TestBase {
         address assetId = makeAddr("asset");
         address bridge = makeAddr("bridge");
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectEmit(true, true, true, true, address(optimismBridgeFacet));
         emit OptimismBridgeRegistered(assetId, bridge);
 
         optimismBridgeFacet.registerOptimismBridge(assetId, bridge);
+
+        vm.stopPrank();
     }
 
     function _mockUninitialized() internal {

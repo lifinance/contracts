@@ -44,6 +44,7 @@ import {
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
+  isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
 
 interface IMegaETHBridgeRegistration {
@@ -309,6 +310,8 @@ const main = defineCommand({
     const eligibleNetworks: string[] = []
     for (const network of networksToCheck) {
       if (excludeSet.has(network.toLowerCase())) continue
+      // Skip testnets: this script proposes to Safe multisigs, which testnets do not have.
+      if (isTestnetNetwork(network)) continue
 
       const deployments = readDeploymentsFile(network, environment)
       if (!deployments) continue

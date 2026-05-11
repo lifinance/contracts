@@ -48,8 +48,11 @@ contract CBridgeGasETHTest is TestBase {
         cbridge = ICBridge(CBRIDGE_ROUTER);
 
         /// Perpare CBridgeFacetPacked
-        cBridgeFacetPacked = new CBridgeFacetPacked(cbridge, address(this));
-        standAlone = new CBridgeFacetPacked(cbridge, address(this));
+        cBridgeFacetPacked = new CBridgeFacetPacked(
+            cbridge,
+            USER_DIAMOND_OWNER
+        );
+        standAlone = new CBridgeFacetPacked(cbridge, USER_DIAMOND_OWNER);
 
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = cBridgeFacetPacked
@@ -161,7 +164,9 @@ contract CBridgeGasETHTest is TestBase {
         tokens[0] = ADDRESS_USDT;
 
         // > The standalone facet exposes an approval function
+        vm.startPrank(USER_DIAMOND_OWNER);
         standAlone.setApprovalForBridge(tokens);
+        vm.stopPrank();
 
         // > Approve cBridge router by usinng the HopFacetOptimized function
         HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
@@ -174,10 +179,13 @@ contract CBridgeGasETHTest is TestBase {
             address(hopFacetOptimized),
             functionSelectorsApproval
         );
+
+        vm.startPrank(USER_DIAMOND_OWNER);
         HopFacetOptimized(address(diamond)).setApprovalForBridges(
             bridges,
             tokens
         );
+        vm.stopPrank();
 
         // or
         // vm.startPrank(address(diamond));

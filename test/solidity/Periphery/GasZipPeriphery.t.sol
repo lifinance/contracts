@@ -81,6 +81,8 @@ contract GasZipPeripheryTest is TestBase {
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
         vm.label(address(feeCollector), "FeeCollector");
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         whitelistManagerFacet.setContractSelectorWhitelist(
             address(uniswap),
             uniswap.swapExactTokensForTokens.selector,
@@ -116,6 +118,8 @@ contract GasZipPeripheryTest is TestBase {
             feeCollector.collectTokenFees.selector,
             true
         );
+
+        vm.stopPrank();
 
         defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
 

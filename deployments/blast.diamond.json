@@ -112,6 +112,10 @@
       "0xAE3235B3c69C4A212EAAaabbdAFe26E8800eb143": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
