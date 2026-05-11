@@ -253,6 +253,18 @@ export const getAllActiveNetworks = (): INetwork[] => {
   return activeNetworks
 }
 
+/**
+ * Returns true if the network has `type: "testnet"` in `config/networks.json`.
+ * Testnet networks have an EOA-owned diamond (no Safe multisig, no Timelock),
+ * so admin scripts must send transactions directly instead of proposing to a Safe.
+ *
+ * @param networkName - Network key as defined in `config/networks.json`.
+ * @returns `true` if the network's type is `"testnet"`, `false` otherwise (including unknown networks).
+ */
+export const isTestnetNetwork = (networkName: string): boolean => {
+  return networks[networkName]?.type === 'testnet'
+}
+
 export const printSuccess = (message: string): void => {
   if (!message?.trim()) return
   console.log(`${colors.green}${message}${colors.reset}`)

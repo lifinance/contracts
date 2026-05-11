@@ -7,6 +7,14 @@ deployUpgradesToSAFE() {
   ENVIRONMENT=$1
   FILE_SUFFIX=$(getFileSuffix $ENVIRONMENT)
   NETWORK=$(getUserSelectedNetwork)
+
+  # This script proposes facet upgrades to the Safe multisig. Testnet networks
+  # have an EOA-owned diamond with no Safe; the Safe-proposal flow does not apply.
+  if isTestnetNetwork "$NETWORK"; then
+    error "deployUpgradesToSAFE is not supported on testnet networks (no Safe). Use diamondUpdateFacet for testnet upgrades."
+    return 1
+  fi
+
   DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   if [ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]; then
     USE_MUTABLE_DIAMOND=true
