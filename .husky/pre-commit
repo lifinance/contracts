@@ -326,7 +326,7 @@ prepare_env_secrets() {
     fi
 
     # Skip short values only for clearly non-secret keys to avoid blind spots
-    if [ ${`#VALUE`} -lt 8 ]; then
+    if [ ${#VALUE} -lt 8 ]; then
       local KEY_UPPER
       KEY_UPPER=$(printf '%s' "$KEY" | tr '[:lower:]' '[:upper:]')
       case "$KEY_UPPER" in
