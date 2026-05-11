@@ -25,6 +25,17 @@ contract DeployScript is UpdateScriptBase {
             ".coreFacets"
         );
 
+        // Read gasZipChainId so we can skip GasZipFacet on networks where GasZip is unsupported,
+        // matching the same skip logic in deployCoreFacets.sh and healthCheck.ts.
+        string memory networksConfigPath = string.concat(
+            vm.projectRoot(),
+            "/config/networks.json"
+        );
+        string memory networksConfig = vm.readFile(networksConfigPath);
+        uint256 gasZipChainId = networksConfig.readUint(
+            string.concat(".", network, ".gasZipChainId")
+        );
+
         emit log("Core facets found in config/global.json: ");
         emit log_uint(coreFacets.length);
 
@@ -55,6 +66,15 @@ contract DeployScript is UpdateScriptBase {
                 keccak256(bytes(facetName)) ==
                 keccak256(bytes("DiamondCutFacet"))
             ) {
+                continue;
+            }
+            if (
+                keccak256(bytes(facetName)) ==
+                keccak256(bytes("GasZipFacet")) && gasZipChainId == 0
+            ) {
+                emit log(
+                    "Skipping GasZipFacet (gasZipChainId is 0 for this network)"
+                );
                 continue;
             }
 

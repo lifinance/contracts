@@ -76,6 +76,10 @@
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0xe19F7d8062B053D75aCAa36503c209315eec4045": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.1"
       }
     },
     "Periphery": {
@@ -84,8 +88,8 @@
       "FeeCollector": "0x8354CdFA9FD680e53a4AAAecbf7dfB22665c36Ec",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
+      "LidoWrapper": "",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51",
       "ReceiverAcrossV3": "",

@@ -56,6 +56,10 @@
       "0x8B8d40ae1E77b7Dc16AE9F1B29f7b50c1c3a808b": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0x4aed96BeDf86Ca29B43b532BC3748488cCc74CE0": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.1"
       }
     },
     "Periphery": {
@@ -64,8 +68,8 @@
       "FeeCollector": "0x949343d563394016CE0c52bB6511DFE5aEec8e8a",
       "FeeForwarder": "0xD23FB66108971325f302bF0f209216D705adF987",
       "GasZipPeriphery": "0x2e6369861FA79bD1e6349513aEE19EF45E56179F",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3089b3b207E051b2c035c6163874732a18F28bbd",
+      "LidoWrapper": "",
       "Patcher": "",
       "Permit2Proxy": "0x36C800D4472fBb888D034Aa74778f481aEE01FEc",
       "ReceiverAcrossV3": "",

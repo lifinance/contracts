@@ -8,12 +8,14 @@ contract DeployScript is UpdateScriptBase {
     function getExcludes() internal view override returns (bytes4[] memory) {
         // Exclude public immutable getters from the diamond cut
         AcrossV4SwapFacet acrossV4Swap;
-        bytes4[] memory excludes = new bytes4[](5);
+        bytes4[] memory excludes = new bytes4[](7);
         excludes[0] = acrossV4Swap.SPOKE_POOL_PERIPHERY.selector;
         excludes[1] = acrossV4Swap.SPOKE_POOL.selector;
         excludes[2] = acrossV4Swap.WRAPPED_NATIVE.selector;
         excludes[3] = acrossV4Swap.SPONSORED_OFT_SRC_PERIPHERY.selector;
         excludes[4] = acrossV4Swap.SPONSORED_CCTP_SRC_PERIPHERY.selector;
+        excludes[5] = acrossV4Swap.ACROSS_CHAIN_ID_SOLANA.selector;
+        excludes[6] = acrossV4Swap.MULTIPLIER_BASE.selector;
 
         return excludes;
     }

@@ -30,7 +30,8 @@ contract DeployScript is DeployScriptBase {
 
         address spokePoolPeriphery = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".spokePoolPeriphery")
+            string.concat(".", network, ".spokePoolPeriphery"),
+            true
         );
         address spokePool = _getConfigContractAddress(
             path,
@@ -42,11 +43,13 @@ contract DeployScript is DeployScriptBase {
         );
         address sponsoredOftSrcPeriphery = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".sponsoredOftSrcPeriphery")
+            string.concat(".", network, ".sponsoredOftSrcPeriphery"),
+            true
         );
         address sponsoredCctpSrcPeriphery = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".sponsoredCctpSrcPeriphery")
+            string.concat(".", network, ".sponsoredCctpSrcPeriphery"),
+            true
         );
 
         // check if production or staging
