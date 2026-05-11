@@ -1,3 +1,9 @@
+# JSON Checker
+# - validates JSON syntax of files in config/ and deployments/, plus a fixed set of well-known JSON files
+# - enforces a 5 MB per-file size limit
+# - rejects symlinks so a symlinked file cannot bypass validation
+# - known limitations: only the directories and files listed in the workflow are checked; JSON under other paths is not validated here
+
 name: JSON Checker
 on:
   pull_request:

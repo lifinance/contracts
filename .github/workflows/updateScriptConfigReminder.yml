@@ -1,3 +1,8 @@
+# Notify SmartContract channel when .env.example changes
+# - posts a Slack reminder to sc-general so developers refresh their local .env after a config addition/rename
+# - triggers on push to main when .env.example is modified
+# - known limitations: only fires on main (not on PR review); the workflow does not verify that developers actually updated their .env
+
 name: Notify SmartContract channel when .env.example changes
 
 on:
