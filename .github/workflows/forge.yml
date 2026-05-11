@@ -21,18 +21,18 @@ jobs:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           submodules: recursive
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - name: Install dev dependencies
         run: bun install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.3.1
+        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
 
       - name: Install forge Dependencies
         run: forge install
@@ -59,7 +59,7 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           
       - name: Run forge tests (with auto-repeat in case of error)
-        uses: Wandalen/wretry.action@v3.8.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
           command: forge test
           attempt_limit: 10

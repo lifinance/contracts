@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 2 # Need previous commit to compare changes
 
@@ -120,7 +120,7 @@ jobs:
 
       - name: Send Slack Notification
         if: steps.get-changes.outputs.has_changes == 'true' && steps.parse-changes.outputs.contracts_found == 'true'
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_DATA_TEAM }}
           webhook-type: incoming-webhook
