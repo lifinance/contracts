@@ -27,10 +27,14 @@ if ! command -v forge >/dev/null 2>&1; then
 fi
 
 # `forge --version` output varies between releases:
-#   older: "forge 1.7.0 (abc1234 2026-04-12T...)"
-#   newer: "forge Version: 1.7.0\nCommit SHA: ...\nBuild Timestamp: ..."
-# Extract the first semver-shaped token from anywhere in the output.
-ACTUAL="$(forge --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?' | head -1)"
+#   older:           "forge 1.7.0 (abc1234 2026-04-12T...)"
+#   newer:           "forge Version: 1.7.1\nCommit SHA: ...\n..."
+#   foundry v1.7.0:  "forge Version: 1.6.0-v1.7.0\nCommit SHA: ...\n..."
+#                    (release left the internal version as 1.6.0; the trailing
+#                    `-v1.7.0` is the actual release version)
+# Take the LAST bare semver token, which is the release version in every
+# observed format.
+ACTUAL="$(forge --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)"
 
 if [ -z "$ACTUAL" ]; then
   printf '\033[31m✗ could not parse foundry version from `forge --version`\033[0m\n' >&2

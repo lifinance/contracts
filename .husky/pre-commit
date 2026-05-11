@@ -469,11 +469,15 @@ TSC_PID=""
 
 print_section "Pre-commit Checks"
 
+# Foundry version gate: runs on every commit (regardless of staged files)
+# so changes to .foundry-version, foundry.toml, or docs-only commits still
+# validate that the dev's foundry binary matches .foundry-version.
+if ! bash "$GIT_ROOT/script/utils/verify-foundry-version.sh" --quiet; then
+  exit 1
+fi
+
 # Start parallel tasks
 if [ "$HAS_SOL_FILES" = "yes" ]; then
-  if ! bash "$GIT_ROOT/script/utils/verify-foundry-version.sh" --quiet; then
-    exit 1
-  fi
   print_status "info" "Building contracts with forge..."
   (forge build --skip test > "$FORGE_OUTPUT" 2>&1; echo $? > "$FORGE_EXIT") &
   FORGE_PID=$!
