@@ -66,6 +66,9 @@ jobs:
         with:
           persist-credentials: false # no git writes needed; avoid leaving GITHUB_TOKEN in .git/config
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
