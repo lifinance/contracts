@@ -580,15 +580,19 @@ async function processNetwork(
       privateKeyHex: process.env.PRIVATE_KEY_PRODUCTION,
     })
 
-    const { readyOperations, totalPendingCount, notScheduledOperations } =
-      await getPendingOperations(
-        publicClient,
-        timelockAddress,
-        network.name,
-        specificOperationId,
-        rejectAll,
-        slackNotifier
-      )
+    const {
+      readyOperations,
+      totalPendingCount,
+      notScheduledOperations,
+      processingErrors,
+    } = await getPendingOperations(
+      publicClient,
+      timelockAddress,
+      network.name,
+      specificOperationId,
+      rejectAll,
+      slackNotifier
+    )
 
     if (readyOperations.length === 0) {
       if (totalPendingCount === 0)
@@ -598,15 +602,16 @@ async function processNetwork(
           `[${network.name}] ✅ No operations ready for execution (${totalPendingCount} pending but not ready)`
         )
 
-      // Note: notScheduledOperations notification is already sent in getPendingOperations
-      // Consider it a failure if there were not-scheduled operations (requires manual intervention)
-      const hasNotScheduled = notScheduledOperations.length > 0
+      // Consider it a failure if there were not-scheduled rows (manual fix
+      // required) or row-processing errors (RPC errors etc., transient but
+      // still need surfacing).
+      const failureCount = notScheduledOperations.length + processingErrors
 
       return {
         network: network.name,
-        success: !hasNotScheduled, // Fail if there were not-scheduled operations
+        success: failureCount === 0,
         operationsProcessed: 0,
-        operationsFailed: hasNotScheduled ? notScheduledOperations.length : 0,
+        operationsFailed: failureCount,
       }
     }
 
@@ -678,9 +683,10 @@ async function processNetwork(
         consola.warn('Failed to send network completion notification:', error)
       }
 
-    // Track not-scheduled operations as failures if they exist
+    // Track not-scheduled operations and per-row processing errors as failures.
     const notScheduledCount = notScheduledOperations.length
     if (notScheduledCount > 0) operationsFailed += notScheduledCount
+    if (processingErrors > 0) operationsFailed += processingErrors
 
     // Determine overall success - only true if no operations failed
     const success = operationsFailed === 0
@@ -741,6 +747,7 @@ async function getPendingOperations(
     safeTxHash: string
     executionHash?: string
   }>
+  processingErrors: number
 }> {
   const quiet = options?.quiet === true
   const log = (msg: string, ...rest: unknown[]) => {
@@ -758,11 +765,13 @@ async function getPendingOperations(
       readyOperations: [],
       totalPendingCount: 0,
       notScheduledOperations: [],
+      processingErrors: 0,
     }
   }
 
   log(`[${networkName}] Found ${queueRows.length} queued timelock op(s)`)
 
+  let processingErrors = 0
   const readyOperations: ITimelockOperation[] = []
   const notScheduledOperations: Array<{
     operationId: string
@@ -980,6 +989,7 @@ async function getPendingOperations(
           )
         }
       } catch (error) {
+        processingErrors++
         const errorMessage =
           error instanceof Error ? error.message : String(error)
         consola.error(
@@ -1014,6 +1024,7 @@ async function getPendingOperations(
     readyOperations,
     totalPendingCount: queueRows.length,
     notScheduledOperations,
+    processingErrors,
   }
 }
 
