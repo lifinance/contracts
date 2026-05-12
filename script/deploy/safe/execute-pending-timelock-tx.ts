@@ -1150,7 +1150,12 @@ async function executeOperation(
         data: callData,
       })
 
-      consola.info(`${networkPrefix}    Transaction hash: ${result.hash}`)
+      const txExplorerSuffix = result.explorerUrl
+        ? ` (${result.explorerUrl})`
+        : ''
+      consola.info(
+        `${networkPrefix}    Transaction hash: ${result.hash}${txExplorerSuffix}`
+      )
 
       if (result.receipt && result.receipt.status !== 'success') {
         consola.error(

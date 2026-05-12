@@ -133,7 +133,7 @@ function diamondSyncWhitelist {
       fi
       
       local TIMELOCK_FLAG="false"
-      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTestnetNetwork "$NETWORK"; then
         TIMELOCK_FLAG="true"
       fi
       echoSyncDebug "Send args: $SEND_ARGS"
@@ -217,10 +217,11 @@ function diamondSyncWhitelist {
   }
 
   # Determine timelock flag based on network and environment
+  # Testnets have no Timelock deployed; force false even if production is forced.
   function getTimelockFlag {
     local NET="$1"
     local ENV="$2"
-    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTronNetwork "$NET"; then
+    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTronNetwork "$NET" && ! isTestnetNetwork "$NET"; then
       echo "true"
     else
       echo "false"

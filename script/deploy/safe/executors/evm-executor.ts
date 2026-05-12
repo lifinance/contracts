@@ -16,13 +16,17 @@ import type {
   IChainExecutionResult,
   IChainExecutor,
 } from '../../../common/types'
+import { buildExplorerTxUrl } from '../../../utils/viemScriptHelpers'
 import { SAFE_SINGLETON_ABI } from '../config'
+
+import { getGasWithFallback } from './gas-with-fallback'
 
 export class EvmChainExecutor implements IChainExecutor {
   public constructor(
     private readonly walletClient: WalletClient,
     private readonly publicClient: PublicClient,
-    private readonly account: Account
+    private readonly account: Account,
+    private readonly networkName?: string
   ) {}
 
   public async executeTransaction(
@@ -41,39 +45,21 @@ export class EvmChainExecutor implements IChainExecutor {
       params.signatures,
     ] as const
 
-    // Estimate gas and apply GAS_ESTIMATE_MULTIPLIER (percentage, default 130).
     // eth_estimateGas can under-count the Safe post-call overhead (ExecutionSuccess
     // event, refund logic), causing OOG reverts on chains with tight simulation vs.
     // execution deltas (e.g. Jovay). On some chains eth_estimateGas also fails
-    // outright even when the call would succeed on-chain — fall back to a fixed
-    // gas limit in that case.
-    const DEFAULT_MULTIPLIER = 130n
-    const rawMultiplier = process.env.GAS_ESTIMATE_MULTIPLIER?.trim()
-    let multiplier: bigint
-    try {
-      multiplier = rawMultiplier ? BigInt(rawMultiplier) : DEFAULT_MULTIPLIER
-      if (multiplier <= 0n) multiplier = DEFAULT_MULTIPLIER
-    } catch {
-      multiplier = DEFAULT_MULTIPLIER
-    }
-    // 500 000 is large enough for any realistic Safe execTransaction payload
-    const fallbackGas = 500_000n
-    let gas: bigint
-    try {
-      const estimatedGas = await this.publicClient.estimateContractGas({
+    // outright even when the call would succeed on-chain — getGasWithFallback
+    // applies GAS_ESTIMATE_MULTIPLIER and falls back to a fixed gas limit in
+    // that case.
+    const gas = await getGasWithFallback(() =>
+      this.publicClient.estimateContractGas({
         account: this.account,
         address: params.safeAddress,
         abi: SAFE_SINGLETON_ABI,
         functionName: 'execTransaction',
         args: execArgs,
       })
-      gas = (estimatedGas * multiplier) / 100n
-    } catch {
-      consola.warn(
-        `Gas estimation failed; using fallback gas limit: ${fallbackGas}`
-      )
-      gas = fallbackGas
-    }
+    )
 
     const txHash = await this.walletClient.writeContract({
       account: this.account,
@@ -104,7 +90,12 @@ export class EvmChainExecutor implements IChainExecutor {
         timeoutPromise,
       ])) as TransactionReceipt
 
-      if (receipt.status === 'success') return { hash: txHash, receipt }
+      const explorerUrl = this.networkName
+        ? buildExplorerTxUrl(this.networkName, txHash)
+        : undefined
+
+      if (receipt.status === 'success')
+        return { hash: txHash, receipt, explorerUrl }
       else throw new Error(`Transaction failed with status: ${receipt.status}`)
     } catch (timeoutError: unknown) {
       const errorMsg =
@@ -117,7 +108,10 @@ export class EvmChainExecutor implements IChainExecutor {
         )
         consola.warn(`   Transaction hash: ${txHash}`)
         consola.warn(`   Please manually verify transaction status later`)
-        return { hash: txHash }
+        const explorerUrl = this.networkName
+          ? buildExplorerTxUrl(this.networkName, txHash)
+          : undefined
+        return { hash: txHash, explorerUrl }
       }
       throw timeoutError
     }
