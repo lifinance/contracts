@@ -85,6 +85,10 @@ jobs:
           bun fetch-rpcs
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              # Mask the URL (it usually embeds an API key) so it cannot
+              # leak into workflow logs via any subsequent step output.
+              value="${line#*=}"
+              echo "::add-mask::$value"
               echo "$line" >> "$GITHUB_ENV"
             fi
           done < ".env"
