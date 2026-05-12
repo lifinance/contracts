@@ -21,7 +21,7 @@ jobs:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0 ##### Fetch all history for all branches
 
@@ -106,7 +106,7 @@ jobs:
 
       - name: Check approval of Information Security Manager
         id: check-sec-mgr-approval
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         if: env.CONTINUE == 'true'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.review.pull_request.number }}

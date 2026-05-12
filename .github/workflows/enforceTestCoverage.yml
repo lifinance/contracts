@@ -21,12 +21,12 @@ jobs:
     env:
       MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       
       - name: Install dev dependencies
         run: bun install
@@ -36,9 +36,15 @@ jobs:
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
           bun fetch-rpcs
-          # Only inject RPC endpoint variables into the GitHub Actions environment
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
               echo "$line" >> "$GITHUB_ENV"
             fi
           done < ".env"
@@ -55,14 +61,6 @@ jobs:
           else
             echo "solidity_changed=false" >> "$GITHUB_ENV"
           fi
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        if: env.solidity_changed == 'true'
-
-      - name: Install dev dependencies
-        run: bun install
-        if: env.solidity_changed == 'true'
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
@@ -164,7 +162,7 @@ jobs:
 
       - name: Comment with Coverage Summary in PR
         if: env.solidity_changed == 'true'
-        uses: mshick/add-pr-comment@v2.8.2
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
         with:
           repo-token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           message: |

@@ -13,6 +13,7 @@ import { type Collection } from 'mongodb'
 import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
@@ -185,11 +186,12 @@ const processTxs = async (
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       const displayHash = exec.displayHash ?? executionHash
-      consola.info(`   - Execution Hash: \u001b[33m${displayHash}\u001b[0m`)
-      if (exec.explorerUrl)
-        consola.info(
-          `   - Explorer:       \u001b[36m${exec.explorerUrl}\u001b[0m`
-        )
+      const explorerSuffix = exec.explorerUrl
+        ? ` \u001b[36m(${exec.explorerUrl})\u001b[0m`
+        : ''
+      consola.info(
+        `   - Execution Hash: \u001b[33m${displayHash}\u001b[0m${explorerSuffix}`
+      )
       consola.log(' ')
 
       return !!exec.receipt
@@ -322,6 +324,11 @@ const processTxs = async (
     const toDisplay = targetName
       ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
       : toAddrDisplay
+    const toExplorerUrl = buildExplorerAddressUrl(
+      network.toLowerCase(),
+      tx.safeTx.data.to
+    )
+    const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
     const proposerDisplay = formatAddressForNetworkCliDisplay(
       network,
       tx.proposer
@@ -341,7 +348,7 @@ const processTxs = async (
     Nonce:           \u001b[${nonceColor}m${
       tx.safeTx.data.nonce
     }\u001b[0m${nonceWarning}
-    To:              \u001b[32m${toDisplay}\u001b[0m
+    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
