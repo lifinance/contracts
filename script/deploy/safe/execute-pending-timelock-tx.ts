@@ -319,8 +319,14 @@ const cmd = defineCommand({
       if (totalOperationsFailed > 0)
         consola.error(`   ❌ Total operations failed: ${totalOperationsFailed}`)
 
-      // Send batch summary notification if Slack is enabled AND there were operations or errors
-      const hasWork = totalOperationsProcessed > 0 || totalOperationsFailed > 0
+      // Send batch summary notification if Slack is enabled AND there were
+      // operations, op-level failures, or any network-level failures (e.g. a
+      // network erroring before reaching the per-op loop, which leaves
+      // operationsFailed=0 but failedNetworks>0).
+      const hasWork =
+        totalOperationsProcessed > 0 ||
+        totalOperationsFailed > 0 ||
+        failedNetworks > 0
       if (slackNotifier && hasWork)
         try {
           await slackNotifier.notifyBatchSummary(results)
