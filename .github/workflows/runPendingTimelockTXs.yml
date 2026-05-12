@@ -22,7 +22,6 @@
 #         timelock ops from the timelock-operations.queue collection. Rows are written by
 #         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined.)
 # - Known limitations:
-#     * Slack fallback only fires when the executor step exits non-zero
 #     * Job timeout caps runtime; very large multi-network runs may need a higher value
 
 name: Timelock Auto Execution
