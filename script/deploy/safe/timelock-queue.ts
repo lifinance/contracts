@@ -119,8 +119,13 @@ export async function getTimelockQueueCollection(): Promise<{
   const timelockQueue = db.collection<ITimelockQueueDoc>(
     TIMELOCK_QUEUE_COLLECTION_NAME
   )
-  await ensureTimelockQueueIndexes(timelockQueue)
-  return { client, timelockQueue }
+  try {
+    await ensureTimelockQueueIndexes(timelockQueue)
+    return { client, timelockQueue }
+  } catch (error) {
+    await client.close()
+    throw error
+  }
 }
 
 /**
