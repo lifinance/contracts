@@ -59,7 +59,7 @@ jobs:
       - name: Check if PR is approved by at least one SC core dev
         id: check-core-dev-approval
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.review.pull_request.number }}
         with:
