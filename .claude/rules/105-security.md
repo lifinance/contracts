@@ -1,1 +1,1 @@
-../../.agents/rules/105-security.mdc
+../../.agents/rules/105-security.md

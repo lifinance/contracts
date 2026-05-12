@@ -70,6 +70,7 @@ export interface INetwork {
   create3Factory?: string
   converterAddress?: string
   devNotes?: string
+  castSendAsync?: boolean
   /**
    * Custom verification flags to pass to forge verify-contract command.
    * Format: JSON object where keys are flag names and values are flag values (or null for flags without values).
@@ -208,6 +209,8 @@ export interface IChainCallResult {
   receipt?: TransactionReceipt
   /** Gas used by the transaction (from receipt). */
   gasUsed?: bigint
+  /** Human-readable explorer URL for CLI display. */
+  explorerUrl?: string
 }
 
 /** Result of simulating a contract call (dry-run). */

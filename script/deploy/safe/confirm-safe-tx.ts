@@ -13,6 +13,7 @@ import { type Collection } from 'mongodb'
 import type { Account, Address, Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
@@ -185,11 +186,12 @@ const processTxs = async (
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       const displayHash = exec.displayHash ?? executionHash
-      consola.info(`   - Execution Hash: \u001b[33m${displayHash}\u001b[0m`)
-      if (exec.explorerUrl)
-        consola.info(
-          `   - Explorer:       \u001b[36m${exec.explorerUrl}\u001b[0m`
-        )
+      const explorerSuffix = exec.explorerUrl
+        ? ` \u001b[36m(${exec.explorerUrl})\u001b[0m`
+        : ''
+      consola.info(
+        `   - Execution Hash: \u001b[33m${displayHash}\u001b[0m${explorerSuffix}`
+      )
       consola.log(' ')
 
       return !!exec.receipt
@@ -294,7 +296,14 @@ const processTxs = async (
   })) {
     // Recompute nonce status dynamically — expectedNonce advances after each successful execution
     const txNonce = BigInt(tx.safeTx.data.nonce)
-    const nonceStatus = txNonce === expectedNonce ? 'current' : 'future'
+    // 'stale': nonce already used on-chain (proposal was created with a wrong/old nonce, e.g. due to stale RPC)
+    // 'future': nonce not yet reachable (a lower-nonce proposal must execute first)
+    const nonceStatus =
+      txNonce === expectedNonce
+        ? 'current'
+        : txNonce < expectedNonce
+        ? 'stale'
+        : 'future'
 
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
@@ -315,15 +324,23 @@ const processTxs = async (
     const toDisplay = targetName
       ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
       : toAddrDisplay
+    const toExplorerUrl = buildExplorerAddressUrl(
+      network.toLowerCase(),
+      tx.safeTx.data.to
+    )
+    const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
     const proposerDisplay = formatAddressForNetworkCliDisplay(
       network,
       tx.proposer
     )
 
-    const nonceColor = nonceStatus === 'current' ? '32' : '33'
+    const nonceColor =
+      nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
     const nonceWarning =
-      nonceStatus === 'future' && tx.canExecute
+      nonceStatus === 'stale'
+        ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
+        : nonceStatus === 'future' && tx.canExecute
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
@@ -331,7 +348,7 @@ const processTxs = async (
     Nonce:           \u001b[${nonceColor}m${
       tx.safeTx.data.nonce
     }\u001b[0m${nonceWarning}
-    To:              \u001b[32m${toDisplay}\u001b[0m
+    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
@@ -418,6 +435,29 @@ const processTxs = async (
       'Sign & Execute',
       'Sign and Execute With Deployer',
     ].includes(action)
+
+    if (isExecuteAction && nonceStatus === 'stale') {
+      consola.error('')
+      consola.error('='.repeat(80))
+      consola.error('✗  STALE PROPOSAL — THIS TRANSACTION WILL REVERT')
+      consola.error('='.repeat(80))
+      consola.error(
+        `  This proposal has nonce \u001b[31m${tx.safeTx.data.nonce}\u001b[0m but the Safe's on-chain nonce is already \u001b[31m${expectedNonce}\u001b[0m.`
+      )
+      consola.error(
+        `  Nonce ${tx.safeTx.data.nonce} was already used — this proposal is stale and cannot be executed.`
+      )
+      consola.error(
+        `  Likely cause: the RPC returned a stale nonce when the proposal was created.`
+      )
+      consola.error(
+        `  Fix: delete this proposal and re-run propose-to-safe — it will assign the next valid nonce automatically.`
+      )
+      consola.error('='.repeat(80))
+      consola.error('')
+      consola.info('Execution aborted — proposal is stale')
+      continue
+    }
 
     if (isExecuteAction && nonceStatus === 'future') {
       // Check if there is actually a pending proposal for the blocking nonce in the DB

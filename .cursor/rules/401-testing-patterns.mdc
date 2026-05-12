@@ -1,1 +1,1 @@
-../../.agents/rules/401-testing-patterns.mdc
+../../.agents/rules/401-testing-patterns.md

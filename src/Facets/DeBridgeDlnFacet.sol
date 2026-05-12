@@ -15,7 +15,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 /// @title DeBridgeDLNFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through DeBridge DLN
-/// @custom:version 1.0.1
+/// @custom:version 1.1.0
 contract DeBridgeDlnFacet is
     ILiFi,
     ReentrancyGuard,
@@ -33,8 +33,10 @@ contract DeBridgeDlnFacet is
 
     /// Types ///
 
-    /// @param receivingAssetId The address of the asset to receive
-    /// @param receiver The address of the receiver
+    /// @param receivingAssetId The address of the asset to receive (in bytes format)
+    /// @param receiver The address of the receiver (in bytes format)
+    /// @param orderAuthorityDst The address on the destination chain authorized
+    ///        to manage the order (and select the source-chain refund beneficiary on cancel)
     /// @param minAmountOut The minimum amount to receive on the destination chain
     struct DeBridgeDlnData {
         bytes receivingAssetId;
@@ -57,6 +59,7 @@ contract DeBridgeDlnFacet is
 
     error UnknownDeBridgeChain();
     error EmptyNonEVMAddress();
+    error EmptyOrderAuthorityDst();
 
     /// Events ///
 
@@ -68,10 +71,12 @@ contract DeBridgeDlnFacet is
 
     /// Modifiers ///
 
-    modifier onlyValidReceiverAddress(DeBridgeDlnData calldata _deBridgeData) {
-        // Ensure nonEVMAddress is not empty
+    modifier onlyValidDeBridgeDlnData(DeBridgeDlnData calldata _deBridgeData) {
         if (_deBridgeData.receiver.length == 0) {
             revert EmptyNonEVMAddress();
+        }
+        if (_deBridgeData.orderAuthorityDst.length == 0) {
+            revert EmptyOrderAuthorityDst();
         }
         _;
     }
@@ -121,7 +126,7 @@ contract DeBridgeDlnFacet is
         nonReentrant
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
-        onlyValidReceiverAddress(_deBridgeData)
+        onlyValidDeBridgeDlnData(_deBridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
@@ -152,7 +157,7 @@ contract DeBridgeDlnFacet is
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        onlyValidReceiverAddress(_deBridgeData)
+        onlyValidDeBridgeDlnData(_deBridgeData)
     {
         uint256 fee = DLN_SOURCE.globalFixedNativeFee();
         address assetId = _bridgeData.sendingAssetId;
@@ -186,16 +191,15 @@ contract DeBridgeDlnFacet is
                     _bridgeData.destinationChainId
                 ),
                 receiverDst: _deBridgeData.receiver,
+                // even if caller is Permit2Proxy, user can still control the order
+                // from the destination chain via orderAuthorityAddressDst
                 givePatchAuthoritySrc: msg.sender,
                 orderAuthorityAddressDst: _deBridgeData.orderAuthorityDst,
                 allowedTakerDst: "",
                 externalCall: "",
-                allowedCancelBeneficiarySrc: abi.encodePacked(msg.sender)
-                // NOTE: The allowedCancelBeneficiarySrc is intentionally set to msg.sender,
-                // which, when called via Permit2Proxy, becomes the proxy contract address.
-                // This ensures that if a DLN order is cancelled, funds are refunded to Permit2Proxy.
-                // The Permit2Proxy contract owner can later withdraw them via Permit2Proxy's
-                // WithdrawablePeriphery interface.
+                // Empty bytes delegates refund routing to orderAuthorityAddressDst,
+                // who specifies the beneficiary address when cancelling the order
+                allowedCancelBeneficiarySrc: ""
             });
 
         bytes32 orderId;

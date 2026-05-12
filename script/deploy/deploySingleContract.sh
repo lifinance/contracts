@@ -6,7 +6,7 @@
 deploySingleContract() {
   # load helper functions
   source script/helperFunctions.sh
-  source script/deploy/resources/contractSpecificReminders.sh
+  source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -256,16 +256,20 @@ deploySingleContract() {
       SKIP_SIMULATION_FLAG=""
     fi
 
+    # forge >=1.6 validates the simulation sender's balance against gas_estimate * gas_price;
+    # the foundry.toml default `sender` has 0 balance on real chains, so we override to the funded deployer.
+    DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
+
     # Execute, parse, and check return code
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
         "true"
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 

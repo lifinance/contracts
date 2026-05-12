@@ -69,9 +69,9 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "2.0.0"
       },
-      "0xB825A80DAbD85a0d848233789248cB1839E97C20": {
+      "0x9f91296450BB652D2ac81d0966B3472A6C1a5cb1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       }
     },
     "Periphery": {

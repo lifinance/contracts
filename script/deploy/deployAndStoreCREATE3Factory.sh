@@ -47,10 +47,12 @@ deployAndStoreCREATE3Factory() {
     error "Failed to load PRIVATE_KEY for network $NETWORK (environment: $ENVIRONMENT)"
     return 1
   }
+  # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
+  DEPLOYER_ADDRESS=$(cast wallet address "$PRIVATE_KEY")
 
   # 1) Try forge script (works for chains in Foundry's alloy-chains list)
   if executeAndParse \
-    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+    "PRIVATE_KEY=\"$PRIVATE_KEY\" forge script script/deploy/facets/DeployCREATE3Factory.s.sol --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
     "true" \
     "" \
     "return"; then

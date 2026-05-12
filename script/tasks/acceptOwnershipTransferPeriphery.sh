@@ -56,7 +56,7 @@ acceptOwnershipTransferPeriphery() {
     while [ $attempts -lt 11 ]; do
       # Execute, parse, and check return code
       executeAndParse \
-        "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
+        "NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol --fork-url $CURRENT_NETWORK --json --broadcast --verify --skip-simulation --legacy --tc DeployScript" \
         "true"
 
       # Handle errors using centralized helper function

@@ -25,6 +25,7 @@ Use these helpers to abstract Tron vs EVM network differences. **Never hardcode 
 | Helper | Purpose |
 |--------|---------|
 | `isTronNetwork "$NETWORK"` | Returns 0 (true) if network is Tron-based |
+| `isTestnetNetwork "$NETWORK"` | Returns 0 (true) if `networks.json` `.type == "testnet"` (EOA-owned diamond, no Safe/Timelock) |
 | `getTronEnv "$NETWORK"` | Returns "mainnet" or "testnet" for troncast --env |
 | `getRPCUrl "$NETWORK"` | Gets RPC URL for EVM networks |
 | `getPrivateKey "$NETWORK" "$ENVIRONMENT"` | Gets private key for network/environment |
@@ -80,6 +81,12 @@ sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "true"
 | `universalSend` | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
 | `universalSendRaw` | troncast send (direct) | (not used) | cast send (direct) |
 | `universalCode` | troncast code | cast code | cast code |
+
+### Consolidate routing predicates [CONV:ROUTING-PREDICATE]
+
+When the same multi-condition decision (e.g. "Safe-propose vs direct-send") is checked at more than one gate within a script, compute it **once** into a named local boolean and reuse. Duplicated predicates drift independently and produce subtle bugs — e.g. a successful direct-send leaves the diamond log stale because the post-execution gate still tests `ENVIRONMENT != "production"` and skips `saveDiamondFacets`/`saveDiamondPeriphery`.
+
+When adding a new condition (testnet, zkEVM, etc.) to a routing decision, update the predicate definition only — never duplicate the new clause across every gate.
 
 
 ### Function Documentation Format

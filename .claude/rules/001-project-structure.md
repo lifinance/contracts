@@ -1,1 +1,1 @@
-../../.agents/rules/001-project-structure.mdc
+../../.agents/rules/001-project-structure.md

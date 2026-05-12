@@ -1,1 +1,1 @@
-../../.agents/rules/500-github-actions.mdc
+../../.agents/rules/500-github-actions.md

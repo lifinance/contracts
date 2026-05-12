@@ -75,8 +75,14 @@ contract HopFacetPackedL2Test is TestBase {
         initTestBase();
 
         /// Perpare HopFacetPacked
-        hopFacetPacked = new HopFacetPacked(address(this), NATIVE_AMM_WRAPPER);
-        standAlone = new HopFacetPacked(address(this), NATIVE_AMM_WRAPPER);
+        hopFacetPacked = new HopFacetPacked(
+            USER_DIAMOND_OWNER,
+            NATIVE_AMM_WRAPPER
+        );
+        standAlone = new HopFacetPacked(
+            USER_DIAMOND_OWNER,
+            NATIVE_AMM_WRAPPER
+        );
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
 
@@ -155,10 +161,11 @@ contract HopFacetPackedL2Test is TestBase {
             functionSelectorsApproval
         );
         hopFacetOptimized = HopFacetOptimized(address(diamond));
-        hopFacetOptimized.setApprovalForBridges(bridges, tokens);
 
-        // > standAlone
+        vm.startPrank(USER_DIAMOND_OWNER);
+        hopFacetOptimized.setApprovalForBridges(bridges, tokens);
         standAlone.setApprovalForHopBridges(bridges, tokens);
+        vm.stopPrank();
 
         /// Perpare parameters
         bytes8 transactionId = "someID";

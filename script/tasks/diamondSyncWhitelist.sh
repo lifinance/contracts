@@ -133,7 +133,7 @@ function diamondSyncWhitelist {
       fi
       
       local TIMELOCK_FLAG="false"
-      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTestnetNetwork "$NETWORK"; then
         TIMELOCK_FLAG="true"
       fi
       echoSyncDebug "Send args: $SEND_ARGS"
@@ -217,10 +217,11 @@ function diamondSyncWhitelist {
   }
 
   # Determine timelock flag based on network and environment
+  # Testnets have no Timelock deployed; force false even if production is forced.
   function getTimelockFlag {
     local NET="$1"
     local ENV="$2"
-    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTronNetwork "$NET"; then
+    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTronNetwork "$NET" && ! isTestnetNetwork "$NET"; then
       echo "true"
     else
       echo "false"
@@ -292,8 +293,11 @@ function diamondSyncWhitelist {
   function processNetwork {
     local NETWORK=$1  # Network name as argument
 
-    # Skip inactive networks;
-    if ! isNetworkActive "$NETWORK"; then
+    # The active filter only applies to the all-networks loop. An explicit
+    # single-network call (e.g. localanvil from the smoke deploy) bypasses
+    # it so the sync runs even on networks intentionally kept out of the
+    # mass-network workflows that read getAllActiveNetworks().
+    if [[ "$RUN_FOR_ALL_NETWORKS" == "true" ]] && ! isNetworkActive "$NETWORK"; then
       printf '\033[0;33m%s\033[0m\n' "[$NETWORK] network is not active >> continuing without syncing on this network"
       return
     fi

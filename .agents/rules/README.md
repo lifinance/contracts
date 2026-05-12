@@ -1,6 +1,6 @@
 # Cursor Rules Structure
 
-This directory contains rule files (`.mdc` format) that guide the AI assistant's behavior when working with this codebase.
+This directory contains rule files (markdown with YAML frontmatter) that guide the AI assistant's behavior when working with this codebase. Source files are `.md`; symlinked into `.cursor/rules/` as `.mdc` (Cursor convention) and `.claude/rules/` as `.md` (Claude Code convention).
 
 ## Rule File Naming
 
@@ -16,7 +16,7 @@ Rules are numbered for ordering by category (**numeric prefixes must be unique**
 
 ## Rule File Format
 
-Each rule file uses MDC (Markdown with frontmatter):
+Each rule file uses Markdown with YAML frontmatter. The `globs` and `alwaysApply` fields are read by Cursor; `paths` is read by Claude Code. Include both for tools to behave consistently.
 
 ```markdown
 ---
@@ -24,7 +24,9 @@ name: Rule name
 description: Brief description
 globs:
   - 'pattern/**/*.sol'
-alwaysApply: true # Optional, only for critical global rules
+paths:
+  - 'pattern/**/*.sol'
+alwaysApply: true # Optional, Cursor-only; for critical global rules
 ---
 
 Rule content here...
@@ -49,7 +51,7 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 ## Context Management
 
-- `003-context-monitor.mdc`: Monitors context window usage, warns when approaching limits, and handles information rollover/handoff
+- `003-context-monitor.md`: Monitors context window usage, warns when approaching limits, and handles information rollover/handoff
 
 ## Adding New Rules
 
@@ -58,7 +60,7 @@ Use `/add-new-rule` as the standard workflow.
 If you’re making changes manually:
 
 1. Choose appropriate number range (see naming above)
-2. Create `.mdc` file with frontmatter
+2. Create `.md` file with frontmatter
 3. Define specific globs (avoid `**/*` unless truly global)
 4. Reference conventions via `[CONV:*]` anchors
 5. Test that rule activates appropriately
@@ -79,7 +81,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 Special handling for transaction analysis:
 
-- `600-transaction-analysis.mdc`: Activation gate (detects natural language queries)
+- `600-transaction-analysis.md`: Activation gate (detects natural language queries)
 - `.agents/commands/analyze-tx.md`: Complete analysis workflow, rules, and policies (source of truth)
 
 Users can either use the `/analyze-tx <network> <tx_hash>` command directly or trigger analysis mode through natural language queries (e.g., "analyze this transaction 0x123... on ethereum").
@@ -88,26 +90,26 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 
 | File                           | Description                                                      | Auto-Apply  | Glob Patterns                                                                                                 |
 | ------------------------------ | ---------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------- |
-| `000-global-standards.mdc`     | Project-wide conventions and guardrails                          | ✅ Always   | -                                                                                                             |
-| `001-project-structure.mdc`    | Project structure and file placement guidance                    | ✅ Always   | -                                                                                                             |
-| `002-architecture.mdc`         | Core architectural principles (Diamond, separation, governance)  | ✅ Always   | -                                                                                                             |
-| `003-context-monitor.mdc`      | Context window monitoring and handoff management                 | ✅ Always   | -                                                                                                             |
-| `004-config-structure.mdc`     | Config JSON structure (key-first vs network-first), deploy paths | ❌ On match | `config/**/*.json`, `script/deploy/**/*.s.sol`, `script/deploy/resources/deployRequirements.json`             |
-| `099-finish.mdc`               | Completion checklist to keep repo green                          | ✅ Always   | -                                                                                                             |
-| `100-solidity-basics.mdc`      | Baseline rules for all Solidity files                            | ❌ On match | `**/*.sol`                                                                                                    |
-| `101-solidity-contracts.mdc`   | Production Solidity contracts/interfaces in src                  | ❌ On match | `src/**/*.sol`, `!src/**/*.s.sol`, `!src/**/*.t.sol`                                                          |
-| `102-facets.mdc`               | Facet-only requirements and validations                          | ❌ On match | `src/Facets/**/*.sol`                                                                                         |
-| `103-solidity-interfaces.mdc`  | Interface-only rules for Solidity interfaces                     | ❌ On match | `src/Interfaces/**/*.sol`                                                                                     |
-| `104-receiver-contracts.mdc`   | Receiver contract requirements and patterns                      | ❌ On match | `src/Periphery/Receiver*.sol`                                                                                 |
-| `105-security.mdc`             | Cross-cutting security expectations                              | ❌ On match | `src/**/*.sol`, `script/**/*.sol`, `script/**/*.ts`, `test/**/*.t.sol`                                        |
-| `106-gas.mdc`                  | Gas-efficiency guidance aligned with existing patterns           | ❌ On match | `src/**/*.sol`                                                                                                |
-| `107-solidity-scripts.mdc`     | Foundry deployment/update script patterns                        | ❌ On match | `script/**/*.s.sol`, `script/**/*.sol`                                                                        |
-| `200-typescript.mdc`           | TS scripting, helpers, lint/tests                                | ❌ On match | `script/**/*.ts`, `tasks/**/*.ts`                                                                             |
-| `300-bash.mdc`                 | Deployment bash structure and safety                             | ❌ On match | `**/*.sh`                                                                                                     |
-| `400-solidity-tests.mdc`       | Foundry test structure, naming, and expectations                 | ❌ On match | `test/**/*.t.sol`                                                                                             |
-| `401-testing-patterns.mdc`     | Cross-language testing, coverage, and structure                  | ❌ On match | `test/**/*.t.sol`, `**/*.test.ts`, `script/**/*.ts`                                                           |
-| `402-typescript-tests.mdc`     | Bun test structure and expectations for `.test.ts`               | ❌ On match | `**/*.test.ts`                                                                                                |
-| `500-github-actions.mdc`       | GitHub Actions workflows structure and conventions               | ❌ On match | `.github/workflows/**/*.yml`, `.github/workflows/**/*.yaml`, `.github/**/*.yml`, `.github/**/*.yaml`          |
-| `501-audits.mdc`               | Audit log and audit report management                            | ❌ On match | `audit/**/*.json`, `audit/**/*.pdf`, `.github/workflows/**/*audit*.yml`, `.github/workflows/**/*version*.yml` |
-| `502-whitelist-branching.mdc`  | Whitelist config branching strategy (main branch only)           | ❌ On match | `config/whitelist.json`, `config/composerWhitelist.json`                                                      |
-| `600-transaction-analysis.mdc` | Transaction analysis activation gate                             | ❌ On match | `**/*`                                                                                                        |
+| `000-global-standards.md`     | Project-wide conventions and guardrails                          | ✅ Always   | -                                                                                                             |
+| `001-project-structure.md`    | Project structure and file placement guidance                    | ✅ Always   | -                                                                                                             |
+| `002-architecture.md`         | Core architectural principles (Diamond, separation, governance)  | ✅ Always   | -                                                                                                             |
+| `003-context-monitor.md`      | Context window monitoring and handoff management                 | ✅ Always   | -                                                                                                             |
+| `004-config-structure.md`     | Config JSON structure (key-first vs network-first), deploy paths | ❌ On match | `config/**/*.json`, `script/deploy/**/*.s.sol`, `script/deploy/resources/deployRequirements.json`             |
+| `099-finish.md`               | Completion checklist to keep repo green                          | ✅ Always   | -                                                                                                             |
+| `100-solidity-basics.md`      | Baseline rules for all Solidity files                            | ❌ On match | `**/*.sol`                                                                                                    |
+| `101-solidity-contracts.md`   | Production Solidity contracts/interfaces in src                  | ❌ On match | `src/**/*.sol`, `!src/**/*.s.sol`, `!src/**/*.t.sol`                                                          |
+| `102-facets.md`               | Facet-only requirements and validations                          | ❌ On match | `src/Facets/**/*.sol`                                                                                         |
+| `103-solidity-interfaces.md`  | Interface-only rules for Solidity interfaces                     | ❌ On match | `src/Interfaces/**/*.sol`                                                                                     |
+| `104-receiver-contracts.md`   | Receiver contract requirements and patterns                      | ❌ On match | `src/Periphery/Receiver*.sol`                                                                                 |
+| `105-security.md`             | Cross-cutting security expectations                              | ❌ On match | `src/**/*.sol`, `script/**/*.sol`, `script/**/*.ts`, `test/**/*.t.sol`                                        |
+| `106-gas.md`                  | Gas-efficiency guidance aligned with existing patterns           | ❌ On match | `src/**/*.sol`                                                                                                |
+| `107-solidity-scripts.md`     | Foundry deployment/update script patterns                        | ❌ On match | `script/**/*.s.sol`, `script/**/*.sol`                                                                        |
+| `200-typescript.md`           | TS scripting, helpers, lint/tests                                | ❌ On match | `script/**/*.ts`, `tasks/**/*.ts`                                                                             |
+| `300-bash.md`                 | Deployment bash structure and safety                             | ❌ On match | `**/*.sh`                                                                                                     |
+| `400-solidity-tests.md`       | Foundry test structure, naming, and expectations                 | ❌ On match | `test/**/*.t.sol`                                                                                             |
+| `401-testing-patterns.md`     | Cross-language testing, coverage, and structure                  | ❌ On match | `test/**/*.t.sol`, `**/*.test.ts`, `script/**/*.ts`                                                           |
+| `402-typescript-tests.md`     | Bun test structure and expectations for `.test.ts`               | ❌ On match | `**/*.test.ts`                                                                                                |
+| `500-github-actions.md`       | GitHub Actions workflows structure and conventions               | ❌ On match | `.github/workflows/**/*.yml`, `.github/workflows/**/*.yaml`, `.github/**/*.yml`, `.github/**/*.yaml`          |
+| `501-audits.md`               | Audit log and audit report management                            | ❌ On match | `audit/**/*.json`, `audit/**/*.pdf`, `.github/workflows/**/*audit*.yml`, `.github/workflows/**/*version*.yml` |
+| `502-whitelist-branching.md`  | Whitelist config branching strategy (main branch only)           | ❌ On match | `config/whitelist.json`, `config/composerWhitelist.json`                                                      |
+| `600-transaction-analysis.md` | Transaction analysis activation gate                             | ❌ On match | `**/*`                                                                                                        |

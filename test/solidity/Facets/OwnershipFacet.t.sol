@@ -35,7 +35,7 @@ contract OwnershipFacetTest is TestBase {
         address newOwner = address(0x1234567890123456789012345678901234567890);
 
         vm.expectEmit(true, true, true, true, address(ownershipFacet));
-        emit OwnershipTransferRequested(address(this), newOwner);
+        emit OwnershipTransferRequested(USER_DIAMOND_OWNER, newOwner);
 
         ownershipFacet.transferOwnership(newOwner);
 
@@ -70,6 +70,8 @@ contract OwnershipFacetTest is TestBase {
     function test_OwnerCanCancelOwnershipTransfer() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         ownershipFacet.transferOwnership(newOwner);
 
         assert(ownershipFacet.owner() != newOwner);
@@ -77,12 +79,16 @@ contract OwnershipFacetTest is TestBase {
         ownershipFacet.cancelOwnershipTransfer();
 
         assert(ownershipFacet.owner() != newOwner);
+
+        vm.stopPrank();
     }
 
     function testRevert_NonOwnerCannotCancelOwnershipTransfer() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
 
+        vm.startPrank(USER_DIAMOND_OWNER);
         ownershipFacet.transferOwnership(newOwner);
+        vm.stopPrank();
 
         assert(ownershipFacet.owner() != newOwner);
 
@@ -110,16 +116,23 @@ contract OwnershipFacetTest is TestBase {
     function testRevert_CannotTransferOnwershipToNullAddr() public {
         address newOwner = address(0);
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         vm.expectRevert(NoNullOwner.selector);
 
         ownershipFacet.transferOwnership(newOwner);
+
+        vm.stopPrank();
     }
 
     function testRevert_PendingOwnershipTransferCannotBeConfirmedByNonNewOwner()
         public
     {
         address newOwner = address(0x1234567890123456789012345678901234567890);
+
+        vm.startPrank(USER_DIAMOND_OWNER);
         ownershipFacet.transferOwnership(newOwner);
+        vm.stopPrank();
 
         vm.expectRevert(NotPendingOwner.selector);
 
@@ -127,10 +140,14 @@ contract OwnershipFacetTest is TestBase {
     }
 
     function testRevert_CannotTransferOwnershipToSelf() public {
-        address newOwner = address(this);
+        address newOwner = USER_DIAMOND_OWNER;
+
+        vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectRevert(NewOwnerMustNotBeSelf.selector);
 
         ownershipFacet.transferOwnership(newOwner);
+
+        vm.stopPrank();
     }
 }

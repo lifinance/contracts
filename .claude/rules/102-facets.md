@@ -1,1 +1,1 @@
-../../.agents/rules/102-facets.mdc
+../../.agents/rules/102-facets.md
