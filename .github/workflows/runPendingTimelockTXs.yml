@@ -33,6 +33,13 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
     # Allow manual execution by users with write access
+  # TEMP — revert before merge: lets the workflow run on every push to this PR
+  # so we can validate it end-to-end without first landing a stub on the
+  # default branch (workflow_dispatch only works once the file exists on main).
+  pull_request:
+    paths:
+      - '.github/workflows/runPendingTimelockTXs.yml'
+      - 'script/deploy/safe/**'
 
 # Prevent overlapping runs; a previous run must finish before the next cron tick starts
 # another execution against the same timelock state.
@@ -44,7 +51,9 @@ jobs:
   execute-timelock:
     # For scheduled runs, only proceed if the repo variable is "true".
     # Manual dispatch (workflow_dispatch) always runs regardless.
-    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
+    # TEMP — revert before merge: `pull_request` branch is paired with the
+    # temporary trigger added above; remove both together once testing is done.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
     runs-on: ubuntu-latest
     # Cap runtime; a hung RPC loop would otherwise idle up to GitHub's 6h default.
     timeout-minutes: 20
