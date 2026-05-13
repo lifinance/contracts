@@ -32,13 +32,13 @@ import {
 } from './timelock-abi'
 
 /** Database name for timelock execution queue inside the `MONGODB_URI` cluster. */
-export const TIMELOCK_QUEUE_DB_NAME = 'timelock-operations'
+const TIMELOCK_QUEUE_DB_NAME = 'timelock-operations'
 
 /** Collection name for timelock execution queue. */
-export const TIMELOCK_QUEUE_COLLECTION_NAME = 'queue'
+const TIMELOCK_QUEUE_COLLECTION_NAME = 'queue'
 
 /** Possible lifecycle states for a queue row. */
-export type TimelockQueueStatus = 'queued' | 'executed' | 'cancelled' | 'failed'
+type TimelockQueueStatus = 'queued' | 'executed' | 'cancelled' | 'failed'
 
 /**
  * Schedule parameters as decoded from a `scheduleBatch` Safe tx (BigInts).
