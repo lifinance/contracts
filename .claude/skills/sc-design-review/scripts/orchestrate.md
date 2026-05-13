@@ -4,19 +4,27 @@ This is the executable runbook for the orchestrator (i.e. the Claude session run
 
 ---
 
-## Step 1 — Resolve input
+## Step 1 — Resolve input (PRD + optional stories catalogue)
 
-Inputs accepted: Notion URL, Notion page ID, local markdown path.
+Inputs accepted: Notion URL, Notion page ID, local markdown path. Optional second input: stories-catalogue link / path produced by `creating-user-stories`.
 
+**PRD ingestion**:
 - If Notion: call `notion-fetch` on the page. For each child page link discovered, fetch it too. Stop at depth 2. Concatenate all page contents into `prd_source` with section headers per page.
 - If local: read the file. `prd_source` is the file content.
 - Capture `prd_title`, `prd_link` (URL or absolute path), `ingested_at` (today).
 
+**Stories-catalogue ingestion (optional)**:
+- If a catalogue link / path was supplied: fetch the Stories page **and** the companion Open Questions page (`creating-user-stories` produces both as siblings). Concatenate into `stories_source`. Capture `stories_link`.
+- If not supplied and the PRD has >5 distinct capabilities (rough heuristic: >5 third-level headings or >5 numbered "the system shall" / "users can" assertions): ask the executor once: *"This PRD looks substantial. Has `creating-user-stories` been run against it? Paste the catalogue link if yes; otherwise consider running it first."* Wait for the answer. Proceed without if declined; otherwise ingest as above.
+- If catalogue ingestion fails for any reason: continue without it, do not block on this.
+
 If `prd_source` is empty or fetch failed, stop and tell the user. Do not silently proceed.
 
-## Step 2 — Round 0: Ambiguity gate
+## Step 2 — Phases 1 + 1.5 (in parallel): Ambiguity gate + Research phase
 
-Spawn one Tech Lead subagent in Mode A:
+Spawn **both** subagent sets in **a single message**:
+
+1. **One Tech Lead subagent in Mode A** (ambiguity gate):
 
 ```
 Agent(
@@ -25,13 +33,18 @@ Agent(
   prompt: <personas/tech-lead.md>
         + "\n\n## Mode\nA — Ambiguity gate"
         + "\n\n## PRD\n" + prd_source
+        + (stories_source ? "\n\n## Stories catalogue (treat resolved items as NOT gaps)\n" + stories_source : "")
         + "\n\n## Output\nProduce the ambiguity report per the persona prompt. End with material_gaps: <true|false>."
 )
 ```
 
-If `material_gaps: true`: print the questionnaire to the executor. Stop. Do not draft.
+2. **N research subagents** (3–5; one per comparable). Load `references/research-phase.md` first; pick the comparable set per its "roles, not products" recipe; dispatch each with the standard prompt template from that reference. Each writes to `<workdir>/research/raw/NN-<comparable>.md`.
 
-If `material_gaps: false`: keep the ambiguity report in scope (you'll pass minor gaps into Mode B).
+Both blocks run in parallel — they don't depend on each other. Don't wait for the ambiguity gate before starting research.
+
+**Decision after both return**:
+- If `material_gaps: true`: print the questionnaire to the executor. Stop. The research output is still useful when the executor returns with answers — save the `raw/` files for the next run.
+- If `material_gaps: false`: synthesise the research into `<workdir>/research/research-analysis.md` per the recipe in `references/research-phase.md` (one section per comparable, COPY/IMPROVE/AVOID per comparable, cross-cutting findings section at end). Keep both the ambiguity report and the synthesised analysis in scope for Step 3.
 
 ## Step 3 — Phase 2: Draft v1
 
@@ -46,9 +59,12 @@ Agent(
         + "\n\n## PRD provenance\nTitle: " + prd_title
         + "\nSource: " + prd_link
         + "\nIngested: " + ingested_at
+        + (stories_link ? "\nStories catalogue: " + stories_link : "")
         + "\n\n## PRD\n" + prd_source
+        + (stories_source ? "\n\n## Stories catalogue\n" + stories_source : "")
         + "\n\n## Ambiguity report (minor gaps to flag in §12)\n" + ambiguity_report
-        + "\n\n## Output\nProduce design doc v1 per templates/design-doc.md. Fill Section 0 (Source PRD) using the provenance fields above. Section 13 (Custody of funds) MUST take an explicit position."
+        + "\n\n## Comparable-product research synthesis\n" + research_analysis
+        + "\n\n## Output\nProduce design doc v1 per templates/design-doc.md. Fill Section 0 (Source PRD) using the provenance fields above. Section 13 (Custody of funds) MUST take an explicit position. Design choices derived from comparable-product research should cite the COPY/IMPROVE/AVOID source inline."
 )
 ```
 

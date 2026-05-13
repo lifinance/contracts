@@ -21,34 +21,55 @@ Do **not** use this skill for:
 - Generic spec review unrelated to smart contracts.
 - One-line questions answerable without a structured panel.
 
+## Relationship with `creating-user-stories`
+
+This skill consumes a PRD and produces a hardened smart contract design. The sibling [`creating-user-stories`](../creating-user-stories/SKILL.md) skill consumes the same PRD and produces a structured user-stories + open-questions catalogue as an intermediate artifact.
+
+**When both are run** (recommended for any non-trivial PRD): `creating-user-stories` runs first against the PRD; this skill ingests **both** the PRD and the resulting catalogue. The catalogue's open-questions feed the ambiguity gate (many gaps are already enumerated), and the stories pin capability scope so the Tech Lead doesn't have to re-extract it from PRD prose.
+
+**When only this skill runs**: the design pass still works against a raw PRD. The ambiguity gate has more work to do. For small features (≤ 5 stories) this is fine; for anything larger, running `creating-user-stories` first is strongly recommended — and the orchestrator will prompt for it (see Phase 0).
+
 ## Workflow overview
 
-The skill runs a 5-phase orchestration. **Read this section in full before starting** — the order and the gates matter.
+The skill runs a 6-phase orchestration. **Read this section in full before starting** — the order and the gates matter.
 
 ```
-[Phase 0] Ingest PRD ──► [Phase 1] Ambiguity gate ──► [Phase 2] Draft v1
-                              │
-                              └─► HALT + ask human (if material gaps)
-
-[Phase 2] Draft v1 ──► [Phase 3] Round 1 (full panel) ──► synthesise → v2
-                                                              │
-                                                              └─► early-exit possible
-                                       Round 2 (full panel) ──► synthesise → v3
-                                       Round 3 (security + QA only) ──► synthesise → v_final
-
-[Phase 4] Output ──► always write markdown locally
-                ──► ASK the executor: also create a Notion page?
+[Phase 0] Ingest PRD (+ optional stories catalogue)
+              │
+              ├─► [Phase 1]   Ambiguity gate ──► HALT + ask human (material gaps)
+              │
+              └─► [Phase 1.5] Research phase (parallel with ambiguity gate)
+                                  │
+                                  ▼
+          [Phase 2] Draft v1 (Tech Lead receives PRD + ambiguity report
+                              + research output + optional stories catalogue)
+                                  │
+                                  ▼
+          [Phase 3] Round 1 (full panel) ──► synthesise → v2
+                                              │
+                                              └─► early-exit possible
+                    Round 2 (full panel) ──► synthesise → v3
+                    Round 3 (security + QA only) ──► synthesise → v_final
+                                  │
+                                  ▼
+          [Phase 4] Output ──► always write markdown locally
+                          ──► ASK the executor: also create a Notion page?
 ```
 
-## Phase 0 — Ingest the PRD
+## Phase 0 — Ingest the PRD (and optional stories catalogue)
 
-**Input forms accepted:** Notion URL, Notion page ID, local markdown path.
+**Input forms accepted:** Notion URL, Notion page ID, local markdown path. The executor may pass a second argument pointing at a stories + open-questions catalogue (from `creating-user-stories`).
 
-1. If Notion: use `notion-fetch` (or the Notion MCP equivalent) on the page. Then recursively follow links to child pages **up to depth 2**. Stop at depth 2 to avoid runaway. Capture the full content as a single concatenated source string.
-2. If local file: read it directly.
+1. **PRD ingestion**:
+   - If Notion: use `notion-fetch` (or the Notion MCP equivalent) on the page. Then recursively follow links to child pages **up to depth 2**. Stop at depth 2 to avoid runaway. Capture the full content as a single concatenated source string.
+   - If local file: read it directly.
+2. **Stories-catalogue ingestion (optional)**:
+   - If the executor supplied a catalogue link / path: fetch both the Stories page and the companion Open Questions page (sibling pages produced by `creating-user-stories`). Concatenate into `stories_source`.
+   - If not supplied **and** the PRD describes a non-trivial feature (>5 distinct capabilities visible): ask the executor once: *"This looks substantial. Has `creating-user-stories` been run against this PRD? If yes, paste the catalogue link; if no, consider running it first — it will sharpen the ambiguity gate and the Phase 2 draft."* Wait for an answer. Either proceed without the catalogue or pause for it.
 3. Record:
-   - Source URL or path (will be cited in the final doc).
+   - PRD source URL or path (cited in the final doc).
    - PRD title.
+   - Stories-catalogue source URL or path (cited in the final doc when present).
    - Date of ingestion (today's date).
 4. If the PRD is empty, behind auth, or fetch fails: stop and tell the user.
 
@@ -56,7 +77,7 @@ The skill runs a 5-phase orchestration. **Read this section in full before start
 
 **Why this exists:** smart contract specs that proceed on assumed intent are how exploits are born. Spending six personas across three rounds debating an under-specified spec is wasteful; it is also dangerous because the personas will paper over the gaps with plausible-sounding assumptions that nobody validated.
 
-Invoke the **Tech Lead persona** (`personas/tech-lead.md`) with a single instruction: produce an *ambiguity report* against the PRD.
+Invoke the **Tech Lead persona** (`personas/tech-lead.md`) with a single instruction: produce an *ambiguity report* against the PRD. If a stories catalogue is in scope, pass it too — the Open Questions page often pre-enumerates ambiguities the Tech Lead would otherwise re-derive, and items already resolved by stories are not gaps.
 
 The ambiguity report must classify findings as:
 
@@ -70,11 +91,43 @@ The ambiguity report must classify findings as:
 
 When halting, the questionnaire is a numbered list of crisp questions. Do not write paragraphs; the executor needs to scan and answer.
 
+## Phase 1.5 — Comparable-product research
+
+Runs **in parallel with Phase 1** (ambiguity gate) — both feed Phase 2. Skip only when the ambiguity gate has already HALTed, or when the PRD describes a feature for which the existing codebase already contains a near-canonical pattern (e.g. another LiFi facet with the same shape).
+
+**Why this phase exists:** smart contract designs that proceed without comparable-product research routinely miss failure modes that are public knowledge in the comparables' source / post-mortems / governance archives. ~20–30% of the load-bearing findings in a hardened design (first-depositor inflation, harvest-sandwich MEV, beacon-key landmines, JIT-deposit reward gaming, etc.) come from reading what prior art got wrong. Without research, those findings only surface during external audit — at maximum cost.
+
+**The comparable set — pick 3–5 prior-art systems by role**, not by name:
+
+- **Explicit blueprint** — the system the PRD itself references as "we want one of these."
+- **Marquee-customer reality** — what a named target customer actually uses on-chain today (often diverges from what the PRD assumes).
+- **Dominant competitor / win-back target** — the system being displaced.
+- **Field-wide comparison** — table across 5–10 adjacent systems, shallow per cell but wide; surfaces convergent patterns.
+- **Adjacent-but-distinct** — a different problem with related architecture; clarifies what your scope is *not*.
+
+Below 3 you lose triangulation; above 5 the synthesis becomes unmanageable.
+
+**Recipe**:
+
+1. **Dispatch one subagent per comparable, in parallel** (single message, multiple `Agent` tool calls). Each writes a single-topic deep-dive to `<workdir>/research/raw/NN-<comparable>.md`. Standard subagent prompt + full recipe in `references/research-phase.md` — load before dispatching.
+2. **Synthesise into `<workdir>/research/research-analysis.md`** — one section per comparable, each closing with a **COPY / IMPROVE / AVOID** three-line summary.
+3. **Cross-cutting findings** section at the end of `research-analysis.md` — patterns visible across multiple comparables (convergent architecture, recurring anti-patterns, shared blind spots). This is where the value compounds — independent agents converging on a pattern is a high-confidence signal.
+
+**The COPY / IMPROVE / AVOID frame** is non-negotiable. Without it, research becomes a wiki — interesting but undecidable. With it, every research-derived design choice in Phase 2 can be traced back to a specific prior-art lesson.
+
+**Pass the synthesised `research-analysis.md`** (not the raw subagent outputs) into Phase 2. The Tech Lead's job is design, not research aggregation.
+
+**Anti-patterns**:
+- One subagent doing all comparables — loses parallel-independence value.
+- Agents reading each other's outputs mid-flight — convergence looks like consensus but is correlation.
+- Secondary sources only (blog-about-product instead of product docs / source / governance / post-mortems).
+- Skipping COPY/IMPROVE/AVOID — research becomes reference material, not design input.
+
 ## Phase 2 — Draft v1
 
-Invoke the **Tech Lead persona** with the PRD + ingestion metadata + the ambiguity report (so it knows which minor gaps it must explicitly note). It must produce design doc v1 conforming to `templates/design-doc.md`.
+Invoke the **Tech Lead persona** with the PRD + ingestion metadata + the ambiguity report + the research synthesis + the stories catalogue (if present). It must produce design doc v1 conforming to `templates/design-doc.md`.
 
-**Mandatory in v1:** all section headers from the template, even if a section reads "TBD — to be challenged in round 1". The challengers will fill in via critique. Section 13 (Custody of funds) must take an explicit position — silence is not acceptable.
+**Mandatory in v1:** all section headers from the template, even if a section reads "TBD — to be challenged in round 1". The challengers will fill in via critique. Section 13 (Custody of funds) must take an explicit position — silence is not acceptable. Design choices that came from comparable-product research should cite the COPY / IMPROVE / AVOID source inline (e.g. *"per `research-analysis.md` §A: AVOID Kiln's global beacon — use per-deploy immutable args."*).
 
 ## Phase 3 — Challenge rounds
 
@@ -180,6 +233,7 @@ Agent(
 - `personas/security-auditor.md` — adversarial lens
 - `personas/qa-verification.md` — testability lens
 - `personas/product-lead.md` — requirements completeness lens
+- `references/research-phase.md` — Phase 1.5 recipe: subagent prompt template, synthesis template, worked example. **Load before dispatching research subagents.**
 - `templates/design-doc.md` — final deliverable structure
 - `templates/finding.schema.json` — challenger output contract
 - `scripts/orchestrate.md` — turn-by-turn runbook (read this before executing)
