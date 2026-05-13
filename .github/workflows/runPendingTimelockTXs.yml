@@ -138,6 +138,9 @@ jobs:
           fi
           export NETWORK_ERRORS CRITICAL_ERRORS
 
+          # Python (vs bash + jq): json.dumps escapes arbitrary RPC error text
+          # safely, and all values flow through os.environ to avoid GH Actions
+          # template-injection. python3 is preinstalled on ubuntu-latest.
           python3 <<'PYTHON'
           import json, os, urllib.request
           from datetime import datetime, timezone
