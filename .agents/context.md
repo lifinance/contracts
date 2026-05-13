@@ -29,3 +29,12 @@ are embedded in rule files.
 | Type check | `bunx tsc-files --noEmit <file>` |
 | Solhint | `bunx solhint <file>` |
 | Bash syntax | `bash -n <file>` |
+
+## Editing PRs via gh
+
+Use the REST API to update PR title/body:
+
+```bash
+jq -Rs '{title: "...", body: .}' /tmp/pr-body.md > /tmp/payload.json
+gh api -X PATCH repos/lifinance/contracts/pulls/<N> --input /tmp/payload.json
+```

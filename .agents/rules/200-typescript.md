@@ -9,7 +9,7 @@ paths:
 
 ## TypeScript Script Conventions
 
-- TS scripts use `.eslintrc.cjs` rules, `bunx tsx`, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`).
+- TS scripts use `.eslintrc.cjs` rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
 - **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore` in new files. Existing files with these directives are technical debt to be resolved. When creating new files or refactoring existing ones, properly type all code and fix type errors instead of suppressing them.
@@ -26,6 +26,7 @@ paths:
   - `script/utils/normalizeAddressStringForViem.ts` — `normalizeAddressForNetwork()` for network-aware address conversion (handles Tron base58, hex, and EVM; see [CONV:ADDR-NORMALIZE]),
   - `script/deploy/shared/globalContractLists.ts` — `getCoreFacets()` / `getCorePeriphery()` for config-driven contract name arrays (use instead of hardcoding),
   - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
+  - `script/utils/viemScriptHelpers.ts` — `isTestnetNetwork(network)` for testnet-vs-mainnet branching (EOA-owned diamond, no Safe/Timelock),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
 - **No re-export barrels**: Import values and types from the module where they are defined.
@@ -94,6 +95,7 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 - **Constants**: Magic numbers and timeout/delay values MUST have an inline `// <value + unit>` comment (e.g. `// 2 minutes`) AND, when the value is policy-driven (rate limits, thresholds), a short sentence explaining the policy.
 - **Complex logic**: Add a single inline comment before a non-obvious block (e.g. binary search, bit manipulation, quirky API workaround). Skip comments for idiomatic loops, straightforward conditionals, and standard library calls.
 - **Do NOT add**: comments that merely restate the type, variable name, or an obviously named function; changelog/author notes (use git); section dividers like `// --- Helpers ---`.
+- **No volatile implementation details in comments**: Don't name specific env var names (`PRIVATE_KEY_PRODUCTION`), wallet addresses, key paths, or config keys in prose comments. They rot when the implementation changes. Refer to roles ("the deployer wallet", "the Safe signer key"), not values.
 
 ## CLI and Logging
 

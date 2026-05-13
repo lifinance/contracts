@@ -16,36 +16,59 @@ import type {
   IChainExecutionResult,
   IChainExecutor,
 } from '../../../common/types'
+import { buildExplorerTxUrl } from '../../../utils/viemScriptHelpers'
 import { SAFE_SINGLETON_ABI } from '../config'
+
+import { getGasWithFallback } from './gas-with-fallback'
 
 export class EvmChainExecutor implements IChainExecutor {
   public constructor(
     private readonly walletClient: WalletClient,
     private readonly publicClient: PublicClient,
-    private readonly account: Account
+    private readonly account: Account,
+    private readonly networkName?: string
   ) {}
 
   public async executeTransaction(
     params: IChainExecutionParams
   ): Promise<IChainExecutionResult> {
+    const execArgs = [
+      params.to,
+      params.value,
+      params.data,
+      params.operation,
+      0n, // safeTxGas
+      0n, // baseGas
+      0n, // gasPrice
+      '0x0000000000000000000000000000000000000000' as Address, // gasToken
+      '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
+      params.signatures,
+    ] as const
+
+    // eth_estimateGas can under-count the Safe post-call overhead (ExecutionSuccess
+    // event, refund logic), causing OOG reverts on chains with tight simulation vs.
+    // execution deltas (e.g. Jovay). On some chains eth_estimateGas also fails
+    // outright even when the call would succeed on-chain — getGasWithFallback
+    // applies GAS_ESTIMATE_MULTIPLIER and falls back to a fixed gas limit in
+    // that case.
+    const gas = await getGasWithFallback(() =>
+      this.publicClient.estimateContractGas({
+        account: this.account,
+        address: params.safeAddress,
+        abi: SAFE_SINGLETON_ABI,
+        functionName: 'execTransaction',
+        args: execArgs,
+      })
+    )
+
     const txHash = await this.walletClient.writeContract({
       account: this.account,
       chain: null,
       address: params.safeAddress,
       abi: SAFE_SINGLETON_ABI,
       functionName: 'execTransaction',
-      args: [
-        params.to,
-        params.value,
-        params.data,
-        params.operation,
-        0n, // safeTxGas
-        0n, // baseGas
-        0n, // gasPrice
-        '0x0000000000000000000000000000000000000000' as Address, // gasToken
-        '0x0000000000000000000000000000000000000000' as Address, // refundReceiver
-        params.signatures,
-      ],
+      args: execArgs,
+      gas,
     })
 
     consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
@@ -67,7 +90,12 @@ export class EvmChainExecutor implements IChainExecutor {
         timeoutPromise,
       ])) as TransactionReceipt
 
-      if (receipt.status === 'success') return { hash: txHash, receipt }
+      const explorerUrl = this.networkName
+        ? buildExplorerTxUrl(this.networkName, txHash)
+        : undefined
+
+      if (receipt.status === 'success')
+        return { hash: txHash, receipt, explorerUrl }
       else throw new Error(`Transaction failed with status: ${receipt.status}`)
     } catch (timeoutError: unknown) {
       const errorMsg =
@@ -80,7 +108,10 @@ export class EvmChainExecutor implements IChainExecutor {
         )
         consola.warn(`   Transaction hash: ${txHash}`)
         consola.warn(`   Please manually verify transaction status later`)
-        return { hash: txHash }
+        const explorerUrl = this.networkName
+          ? buildExplorerTxUrl(this.networkName, txHash)
+          : undefined
+        return { hash: txHash, explorerUrl }
       }
       throw timeoutError
     }
