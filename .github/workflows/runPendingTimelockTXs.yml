@@ -187,6 +187,8 @@ jobs:
 
           echo -e "\033[31m::error::Timelock execution workflow failed. Check logs for details.\033[0m"
 
+      # Download with: `gh run download <run-id> -n timelock-execution-logs`
+      # or via the Actions tab → run summary → "Artifacts" section.
       - name: Upload execution logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
