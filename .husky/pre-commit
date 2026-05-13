@@ -62,7 +62,6 @@ EXCLUDED_PATHS=(
   "safe/london/out/"
   "bun.lock"
   ".bun/"
-  ".github/workflows/"
 )
 
 ENV_SECRET_KEYS=()
