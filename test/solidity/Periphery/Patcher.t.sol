@@ -1664,7 +1664,7 @@ contract PatcherTest is TestBase {
             revert CalldataLengthMismatch();
         }
 
-        for (uint256 i = 4; i < calldataWithZero.length - 32; i += 32) {
+        for (uint256 i = 4; i <= calldataWithZero.length - 32; i += 32) {
             // Compare 32-byte chunks
             bool differs = false;
             for (uint256 j = 0; j < 32; j++) {
