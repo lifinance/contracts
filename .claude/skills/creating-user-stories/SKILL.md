@@ -296,8 +296,57 @@ When the catalogue is past initial extraction and you're refining or auditing it
 4. Number within each persona in lifecycle order (deploy → configure → operate → emergency).
 5. For each item, draft the one-line story.
 6. Pass over: what's missing? Standard categories specs forget — key rotation, observability, emergency response, edge cases. Add them.
-7. Comparable-product sweep: what do analogous products in the space do? Add as `*(research-derived)*`.
+7. Comparable-product sweep — load the **Research phase** below if the catalogue feeds high-stakes downstream work. Research-derived items end up tagged `*(research-derived)*` with a `*Source*: [link]` pointer.
 8. Open-questions extraction: every ambiguity, every "decide later" → a Q.
+
+## Research phase — when the catalogue feeds high-stakes downstream work
+
+**Trigger** — the catalogue feeds an audit, an estimate, a third-party review, a budget decision, or any artifact someone signs off on. Skip for internal-only catalogues used for a single team's quick alignment.
+
+Without this phase, a catalogue typically underproduces by ~20–30% on coverage of failure modes, edge cases, prior-art-anti-patterns, and "things to invert from what the obvious blueprint did." That gap doesn't show up at draft time — it shows up at audit / review when reviewers ask "what about X?" and X was visible in any comparable product the operator didn't read.
+
+The phase runs **in parallel with — or just before — initial drafting**, not after. After-drafting research re-opens the catalogue; parallel research feeds it cleanly.
+
+### The comparable set — roles, not products
+
+Pick 3–5 prior-art systems. A useful default mix, expressed as **roles** (the domain instantiates the role):
+
+- **Explicit blueprint** — the system the spec/PRD itself references as "we want one of these."
+- **Marquee-customer reality** — what the named target customer / user actually uses today (often diverges from what the spec assumes about them).
+- **Dominant competitor / win-back target** — the system you're displacing in deals.
+- **Field-wide comparison** — table across 5–10 adjacent systems, shallow per cell but wide; surfaces convergent patterns.
+- **Adjacent-but-distinct** — a system that solves a related but different problem; clarifies what your scope is *not*.
+
+You don't always need all 5. Below ~3 you lose triangulation; above ~5 the operator can't hold the synthesis in head.
+
+### Recipe
+
+1. **Dispatch one subagent per comparable, in parallel.** Each writes a single-topic deep-dive to `raw/NN-<comparable>.md`. Standard prompt template + multi-domain worked examples in `references/research-phase.md` — load before dispatching.
+2. **Synthesize into `research-analysis.md`** — one section per comparable, each closing with a **COPY / IMPROVE / AVOID** three-line summary.
+3. **Cross-cutting findings section** at the end of `research-analysis.md` — patterns visible across multiple comparables (convergent architecture, recurring anti-patterns, shared blind spots).
+4. **During drafting**, every research-derived story / open Q carries `*(research-derived)*` + `*Source*: [link into raw/ or research-analysis.md]`. Provenance is non-negotiable — see verification step.
+
+### The COPY / IMPROVE / AVOID frame
+
+The single load-bearing output discipline. For each comparable, the subagent closes with three explicit lines:
+
+- **COPY** — what this system gets right that we should mirror.
+- **IMPROVE** — what this system gets approximately right; we should ship a stronger version.
+- **AVOID** — what this system gets wrong (known anti-pattern, public incident, community-flagged); we should invert it.
+
+Research without this frame becomes a wiki — interesting but undecidable. With the frame, every research-derived story or open Q has an answer to "why does this exist in the catalogue?"
+
+### Output contract
+
+`raw/` directory exists with 3–5 single-topic files, each citing primary sources. `research-analysis.md` exists, references every `raw/` file, has the COPY / IMPROVE / AVOID frame per comparable, has a cross-cutting findings section. Stories and open Qs derived from it are tagged + sourced.
+
+### Anti-patterns
+
+- **One subagent doing all comparables.** Loses parallel-independence value; consolidates bias.
+- **Agents reading each other's outputs mid-flight.** Convergent answers look like consensus but are correlation.
+- **Secondary sources only.** Blog-post-about-a-product instead of the product's docs / source / governance / post-mortem.
+- **Skipping COPY/IMPROVE/AVOID.** Research becomes reference material, not catalogue input.
+- **Research after drafting is locked.** Re-opens the catalogue and erodes the audit trail. Run in parallel or up front.
 
 ## Workflow — adding stories to an existing catalogue
 
