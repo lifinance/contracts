@@ -23,7 +23,11 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import data from '../../../config/networks.json'
-import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import {
+  EnvironmentEnum,
+  type INetworksObject,
+  type SupportedChain,
+} from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 
@@ -36,17 +40,6 @@ import {
   getTimelockQueueCollection,
   serializeScheduleParams,
 } from './timelock-queue'
-
-interface INetworkConfig {
-  name: string
-  chainId: number
-  status: string
-}
-
-interface IDeploymentData {
-  LiFiTimelockController?: string
-  [key: string]: string | undefined
-}
 
 interface INetworkResult {
   network: string
@@ -77,11 +70,11 @@ const cmd = defineCommand({
   },
   async run({ args }) {
     const isDryRun = Boolean(args?.dryRun)
-    const networksConfig = data as Record<string, INetworkConfig>
-    const networksToProcess: INetworkConfig[] = args?.network
-      ? [networksConfig[args.network.toLowerCase()] as INetworkConfig].filter(
-          Boolean
-        )
+    const networksConfig = data as INetworksObject
+    const networksToProcess: INetworksObject[string][] = args?.network
+      ? [
+          networksConfig[args.network.toLowerCase()] as INetworksObject[string],
+        ].filter(Boolean)
       : Object.values(networksConfig).filter((n) => n.status === 'active')
 
     if (networksToProcess.length === 0) {
@@ -119,7 +112,7 @@ const cmd = defineCommand({
           const deployments = (await getDeployments(
             network.name as SupportedChain,
             EnvironmentEnum.production
-          )) as IDeploymentData
+          )) as { LiFiTimelockController?: string }
           timelockAddress = deployments.LiFiTimelockController
         } catch (error) {
           consola.warn(

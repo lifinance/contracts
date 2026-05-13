@@ -18,6 +18,7 @@ import data from '../../../config/networks.json'
 import {
   EnvironmentEnum,
   type IChainCaller,
+  type INetworksObject,
   type SupportedChain,
 } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
@@ -39,24 +40,9 @@ import {
   type ITimelockQueueDoc,
 } from './timelock-queue'
 
-// Define interfaces for network configuration
-interface INetworkConfig {
-  name: string
-  chainId: number
-  safeAddress?: string
-  rpcUrl: string
-  status: string
-}
-
-interface IDeploymentData {
-  LiFiDiamond?: string
-  LiFiTimelockController?: string
-  [key: string]: string | undefined
-}
-
 /** Result of pre-checking a network (queue only, no RPC). Used to decide which networks to process; processNetwork always opens a fresh RPC and re-fetches queued ops to verify on-chain readiness. */
 interface IPendingFetchResult {
-  network: INetworkConfig
+  network: INetworksObject[string]
   /** Number of queued timelock ops for this network (on-chain ready count unknown until processNetwork runs). */
   pendingInMongoCount: number
   /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
@@ -202,10 +188,10 @@ const cmd = defineCommand({
       )
 
     // Load networks configuration
-    const networksConfig = data as Record<string, INetworkConfig>
+    const networksConfig = data as INetworksObject
 
     // Filter networks based on command line argument or use all active networks
-    let networksToProcess: INetworkConfig[] = []
+    let networksToProcess: INetworksObject[string][] = []
     if (args?.network) {
       const network = networksConfig[args.network.toLowerCase()]
       if (!network) {
@@ -498,7 +484,7 @@ async function fetchQueuedTimelockOps(
  * opens a fresh RPC and re-fetches queued rows for on-chain ready check.
  */
 async function fetchPendingForNetwork(
-  network: INetworkConfig
+  network: INetworksObject[string]
 ): Promise<IPendingFetchResult> {
   const empty: IPendingFetchResult = {
     network,
@@ -508,7 +494,7 @@ async function fetchPendingForNetwork(
     const deploymentData = (await getDeployments(
       network.name as SupportedChain,
       EnvironmentEnum.production
-    )) as IDeploymentData
+    )) as { LiFiTimelockController?: string }
 
     if (!deploymentData.LiFiTimelockController) return empty
 
@@ -527,7 +513,7 @@ async function fetchPendingForNetwork(
 }
 
 async function processNetwork(
-  network: INetworkConfig,
+  network: INetworksObject[string],
   isDryRun: boolean,
   specificOperationId?: Hex,
   executeAll?: boolean,
@@ -547,7 +533,7 @@ async function processNetwork(
     const deploymentData = (await getDeployments(
       network.name as SupportedChain,
       EnvironmentEnum.production
-    )) as IDeploymentData
+    )) as { LiFiTimelockController?: string }
 
     if (!deploymentData.LiFiTimelockController) {
       consola.warn(
