@@ -580,6 +580,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.04.30_DeBridgeDlnFacet(v1.1.0).pdf",
       "auditCommitHash": "3b8511fce5f2e9b12a50d77f147536c641303cae"
+    },
+    "audit20260512": {
+      "auditCompletedOn": "12.05.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.05.12_TronCanonicalUSDT(Part-1).pdf",
+      "auditCommitHash": "142d9d809e8184fff4a21605fcd41983ed2e0e4d"
     }
   },
   "auditedContracts": {
@@ -705,7 +712,8 @@
     },
     "GenericSwapFacetV3": {
       "1.0.1": ["audit20250508"],
-      "1.0.2": ["audit20250610"]
+      "1.0.2": ["audit20250610"],
+      "2.0.0": ["audit20260512"]
     },
     "GardenFacet": {
       "1.0.0": ["audit20250919"]
@@ -798,7 +806,8 @@
       "1.9.0": ["audit20250510"],
       "1.10.0": ["audit20250608"],
       "1.11.0": ["audit20250630"],
-      "1.12.0": ["audit20250728"]
+      "1.12.0": ["audit20250728"],
+      "1.13.0": ["audit20260512"]
     },
     "LiFiIntentEscrowFacet": {
       "1.0.0": ["audit20251119"],
@@ -817,7 +826,8 @@
       "1.0.0": ["audit20251119"]
     },
     "LidoWrapper": {
-      "1.0.0": ["audit20250610"]
+      "1.0.0": ["audit20250610"],
+      "1.1.0": ["audit20260512"]
     },
     "MayanFacet": {
       "1.0.0": ["audit20250508"],
@@ -878,21 +888,24 @@
       "1.0.0": ["audit20241007"],
       "1.0.1": ["audit20241206"],
       "1.0.2": ["audit20250110_1"],
-      "1.1.0": ["audit20250109_2", "audit20250508"]
+      "1.1.0": ["audit20250109_2", "audit20250508"],
+      "1.2.0": ["audit20260512"]
     },
     "ReceiverAcrossV4": {
       "1.0.0": ["audit20250901"]
     },
     "ReceiverChainflip": {
       "1.0.0": ["audit20250305", "audit20250508"],
-      "1.0.1": ["audit20250718"]
+      "1.0.1": ["audit20250718"],
+      "1.1.0": ["audit20260512"]
     },
     "ReceiverOIF": {
       "1.0.0": ["audit20251215"]
     },
     "ReceiverStargateV2": {
       "1.0.1": ["audit20250109_3"],
-      "1.1.0": ["audit20250109_2", "audit20250508"]
+      "1.1.0": ["audit20250109_2", "audit20250508"],
+      "1.2.0": ["audit20260512"]
     },
     "RelayDepositoryFacet": {
       "1.0.0": ["audit20250825_1"]
@@ -937,7 +950,8 @@
       "1.0.1": ["audit20250109_3"],
       "1.1.0": ["audit20250109_2", "audit20250508"],
       "1.2.0": ["audit20251225"],
-      "1.2.1": ["audit20251231"]
+      "1.2.1": ["audit20251231"],
+      "1.3.0": ["audit20260512"]
     },
     "TransferrableOwnership": {
       "1.0.0": ["audit20250508"]
@@ -958,7 +972,8 @@
     },
     "WithdrawablePeriphery": {
       "1.0.0": ["audit20241014", "audit20250508"],
-      "1.0.1": ["audit20250706"]
+      "1.0.1": ["audit20250706"],
+      "2.0.0": ["audit20260512"]
     }
   }
 }
