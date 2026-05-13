@@ -15,7 +15,9 @@
 
 Close the 6 audit gaps in `lifinance/contracts` so the next three skills (`sc-deploy`, `sc-verify-source`, `sc-verify-bytecode`) have a legible, mechanically-enforced repo to operate in.
 
-Audit score today: **10 / 16**. Target after Phase 1: **15 / 16**.
+Audit score today: **10 / 16**. Target after Phase 1: **16 / 16**.
+
+Tasks 1.6 and 1.7 (added 2026-05-13) close the two points the original 4-PR scope left open — see Decision Log.
 
 ## Approach
 
@@ -40,6 +42,8 @@ PR-1 is dogfooding: it creates the `docs/exec-plans/` directory this very file l
 - Create: `ARCHITECTURE.md` (repo root)
 - Create: `docs/exec-plans/TEMPLATE.md`
 - Create: `docs/exec-plans/active/phase-1-foundation.md` (this file — already drafted)
+- Create: `docs/CONVENTIONS.md` (rule-anchor index — task 1.6)
+- Create: `docs/references/deployment-state.md` (Mongo deploy store reference — task 1.7)
 - Modify: `.agents/rules/002-architecture.md` (add pointer to `ARCHITECTURE.md`, do not duplicate content)
 
 - [ ] **1.1 Draft `ARCHITECTURE.md`.**
@@ -52,7 +56,14 @@ PR-1 is dogfooding: it creates the `docs/exec-plans/` directory this very file l
 
 - [ ] **1.3 Write `docs/exec-plans/TEMPLATE.md`** — copy of the agent-first-repo template (Status, Owner, Goal, Approach, Tasks, Decision Log, Open Questions, "How agents read this plan" footer).
 
-- [ ] **1.4 Open PR-1.**
+- [ ] **1.4 Draft `docs/CONVENTIONS.md`.** Single-page index of every `[CONV:*]` anchor present in `.agents/rules/`. For each anchor: the convention name, a 2-line description, and a "common mistake" example showing the wrong code next to the right code. Pull anchors with `grep -rEho "\[CONV:[A-Z0-9_\-]+\]" .agents/rules/ | sort -u`. The doc is reference-time content — humans and agents land here when they ask "what's the LI.FI anti-pattern catalogue?". Cross-link to the source rule file for each anchor.
+
+- [ ] **1.5 Document the Mongo deployment store.**
+  - Create `docs/references/deployment-state.md` describing the existing MongoDB deployment store: where it lives (point at `.env.example` for connection placeholders — never commit secrets), database + collection names, the schema of each relevant collection, the `mongodb-mcp-server` MCP that grants agents read-only access, and 3–5 example natural-language queries an agent can run (e.g. "what address is `LiFiDiamond` on Optimism", "which networks have `AcrossFacetV4` deployed", "when was the last deployment to Base").
+  - Add an "Operational state stores" subsection to `ARCHITECTURE.md` with a one-paragraph summary and a link to the new reference doc. Do not duplicate schema content there.
+  - Verify end-to-end: open a Claude Code session with the MongoDB MCP connected, run one of the example queries, confirm a sensible answer. Capture the result as a code block in `docs/references/deployment-state.md` under a "Verified" section.
+
+- [ ] **1.6 Open PR-1.**
 
   ```bash
   cd ~/Documents/GitHub/contracts
@@ -65,7 +76,7 @@ PR-1 is dogfooding: it creates the `docs/exec-plans/` directory this very file l
     --label documentation
   ```
 
-- [ ] **1.5 Merge after one SC core approval** (no audit label needed — pure docs).
+- [ ] **1.7 Merge after one SC core approval** (no audit label needed — pure docs).
 
 ---
 
@@ -385,7 +396,10 @@ PR-1 is dogfooding: it creates the `docs/exec-plans/` directory this very file l
 - [ ] `bun scripts/check-docs-index.ts` exits 0 locally and in CI.
 - [ ] `bun scripts/lint/check-file-size.ts` exits 0 locally and in CI.
 - [ ] `forge test --match-path 'test/solidity/Structural/' -vv` passes locally and in CI.
-- [ ] Audit re-run produces 15 / 16.
+- [ ] `docs/CONVENTIONS.md` exists and indexes every `[CONV:*]` anchor present in `.agents/rules/`.
+- [ ] `docs/references/deployment-state.md` exists and has been end-to-end verified against the running MongoDB store.
+- [ ] `ARCHITECTURE.md` § "Operational state stores" links to `docs/references/deployment-state.md`.
+- [ ] Audit re-run produces 16 / 16.
 
 When done: move this file from `active/` to `completed/` (rename to `phase-1-foundation-completed-YYYY-MM-DD.md`), and update `Status:` to `completed`.
 
@@ -396,6 +410,7 @@ When done: move this file from `active/` to `completed/` (rename to `phase-1-fou
 - **2026-05-13 · Daniel.** Phase 1 is a prerequisite to designing the three automation skills, not parallel work. We don't start Phase 2 (`sc-deploy`) until Phase 1 lands. Rationale: skill design done against an illegible repo encodes the illegibility.
 - **2026-05-13 · Daniel.** Each foundation gate ships as its own PR rather than one umbrella PR. Rationale: each PR can be reverted independently if something regresses; CI signal stays clean.
 - **2026-05-13 · Daniel.** Migrating existing Linear epics (EXSC-272, EXSC-282) into exec plans is removed from Phase 1 scope. Rationale: prove the AI-readiness format on itself first; the team will reach for it for new work once it's earned trust. Migrations can happen ad-hoc later if useful.
+- **2026-05-13 · Daniel.** Phase 1 target revised from 15/16 to 16/16. The originally drafted 4-PR scope only closes 4 audit points (10 → 14, not 10 → 15 — my earlier number was optimistic). Added two small documentation tasks to PR-1: `docs/CONVENTIONS.md` (closes the Doc Health "anti-patterns documented" point) and `docs/references/deployment-state.md` (closes the Agent Workflow "in-repo deploy artifact" point — the artifact already exists in MongoDB; the gap was discoverability, not the artifact itself). Both are ~2 hours of pure docs each, no code risk.
 
 ---
 
