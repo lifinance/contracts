@@ -52,7 +52,8 @@
     "tsx": "4.21.0",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5",
-    "zksync-web3": "^0.14.3"
+    "zksync-web3": "^0.14.3",
+    "solc-helper": "^1.0.0"
   },
   "overrides": {
     "web3": "4.16.0",
