@@ -1,6 +1,7 @@
 {
   "mainnet": {
     "defaultBridge": "0x0CA3A2FBC3D770b578223FBB6b062fa875a2eE75",
-    "tokens": []
+    "tokens": [],
+    "devNotes": "Each element of \"tokens\" must have { \"address\", \"bridgeAddress\" } (L1 token address and MegaETH bridge contract address for that asset)."
   }
 }

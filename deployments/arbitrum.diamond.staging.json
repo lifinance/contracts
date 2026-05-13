@@ -27,7 +27,7 @@
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",
@@ -121,9 +121,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x2EFD6843C35952115E6D40A93586615674Da1b78": {
+      "0xc5C34A7A86e9C6B37A8E9F266c26660d5A12f5dD": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
         "Name": "",
@@ -189,36 +189,48 @@
         "Name": "",
         "Version": ""
       },
-      "0xb3B9C1d75bCc95bcD07F0c45c50A72A513FF8515": {
+      "0x765667b6F3a34c8bF0885ADaA74364Dc62086495": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.1"
       },
       "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0xc547F046174A880d08A251aF10FA659c339d30Ff": {
+      "0xF158ac0983D6D4eF8Ef65De7B39585B8381Fe570": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": "3.0.0"
       },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x13Dab942D27D5E84584c163fE0D732901b4733E3": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.1"
-      },
       "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x2B8F8C0Cf809EdbbD1257B4c4f27FdAe318062b1": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xFCE93F61dd59E269d8B7ae860874E6BaE8c041EE": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.1"
+      },
+      "0x7f36bbFDC188569169Bf917a20a2cdD5b060837D": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x9E56dc590BbedB0dF375a3b1Cac4A54de7AF2657": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.0.1"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
-      "FeeForwarder": "",
+      "FeeForwarder": "0x7C1923FbD89154156DE2220870C834B141bA8c49",
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LidoWrapper": "",

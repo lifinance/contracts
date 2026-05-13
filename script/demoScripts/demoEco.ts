@@ -12,7 +12,7 @@
 
 import { randomBytes } from 'crypto'
 
-import { getAssociatedTokenAddress } from '@solana/spl-token'
+import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { defineCommand, runMain } from 'citty'
 import { config } from 'dotenv'
@@ -150,7 +150,7 @@ async function computeSolanaATA(
     const mintPublicKey = new PublicKey(tokenMint)
 
     // Compute the Associated Token Account
-    const ata = await getAssociatedTokenAddress(mintPublicKey, ownerPublicKey)
+    const ata = getAssociatedTokenAddressSync(mintPublicKey, ownerPublicKey)
 
     // Convert to bytes32 (32 bytes) - take the first 32 bytes of the public key
     const ataBytes = ata.toBytes()

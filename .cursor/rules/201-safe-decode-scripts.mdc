@@ -1,0 +1,1 @@
+../../.agents/rules/201-safe-decode-scripts.md

@@ -45,6 +45,14 @@ KNOWN_FALSE_POSITIVES=(
   "none"
   ""
   "verifyContract"
+  "foundry.toml"
+  "50000000000"
+  # Well-known Anvil/Foundry development defaults documented in .env.example.
+  # pre-commit-checker: not a secret
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+  "test test test test test test test test test test test junk"
+  # pre-commit-checker: not a secret
+  "0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66"
 )
 EXCLUDED_PATHS=(
   "deployments/_deployments_log_file.json"
@@ -54,7 +62,7 @@ EXCLUDED_PATHS=(
   "safe/london/out/"
   "bun.lock"
   ".bun/"
-  ".cursor/commands/"
+  ".agents/commands/"
 )
 
 ENV_SECRET_KEYS=()
@@ -322,6 +330,28 @@ prepare_env_secrets() {
 
     if [ -z "$VALUE" ] || [ "$IS_FALSE_POSITIVE" = true ]; then
       continue
+    fi
+
+    local KEY_UPPER
+    KEY_UPPER=$(printf '%s' "$KEY" | tr '[:lower:]' '[:upper:]')
+
+    # Keys that hold filesystem paths or directories legitimately appear in
+    # source/workflows; their values are not credentials.
+    case "$KEY_UPPER" in
+      *_PATH|*_DIRECTORY|*_DIR)
+        continue
+        ;;
+    esac
+
+    # Skip short values only for clearly non-secret keys to avoid blind spots
+    if [ ${#VALUE} -lt 8 ]; then
+      case "$KEY_UPPER" in
+        *SECRET*|*TOKEN*|*PASSWORD*|*PRIVATE*|*API_KEY*|*ACCESS_KEY*)
+          ;; # still track potentially sensitive short values
+        *)
+          continue
+          ;;
+      esac
     fi
 
     ENV_SECRET_KEYS+=("$KEY")

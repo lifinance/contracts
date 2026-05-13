@@ -4,7 +4,6 @@ diamondUpdateFacet() {
   # load required resources
   # Note: .env is already sourced in the parent script, so we don't need to source it again
   # This prevents overwriting exported variables like SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
-  source script/config.sh
   source script/helperFunctions.sh
 
   # read function arguments into variables
@@ -115,6 +114,15 @@ diamondUpdateFacet() {
     return 1
   fi
 
+  # Single predicate for "Safe-propose vs direct broadcast". Reused by post-execution
+  # log handling so testnet/staging/SEND_PROPOSALS_DIRECTLY_TO_DIAMOND paths all
+  # update the diamond log when the cut was sent directly.
+  local SHOULD_PROPOSE_TO_SAFE=false
+  if [[ "$ENVIRONMENT" == "production" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] \
+     && ! isTestnetNetwork "$NETWORK"; then
+    SHOULD_PROPOSE_TO_SAFE=true
+  fi
+
   # update diamond with new facet address (remove/replace of existing selectors happens in update script)
   attempts=1
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
@@ -123,37 +131,52 @@ diamondUpdateFacet() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+    if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
 
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+      # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
+      DEPLOYER_ADDRESS=$(cast wallet address "$PRIVATE_KEY")
       echoDebug "Calculating facet cuts for $CONTRACT_NAME in path $SCRIPT_PATH..."
 
+      # Execute, parse, and check return code
+      local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
         echo "zkEVM network detected"
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+        COMMAND="FOUNDRY_PROFILE=zksync NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       else
         # PROD (normal mode): suggest diamondCut transaction to SAFE
-        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json "$SKIP_SIMULATION_FLAG" --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+        COMMAND="NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json $SKIP_SIMULATION_FLAG --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\""
       fi
-
-
-      # Extract JSON from mixed output (may have leading/trailing characters). Use sed to handle multi-line JSON
+      
+      if ! executeAndParse \
+        "$COMMAND" \
+        "true" \
+        "forge script failed for $CONTRACT_NAME on network $NETWORK" \
+        "continue"; then
+        attempts=$((attempts + 1))
+        sleep 1
+        continue
+      fi
+      
+      # Extract JSON from cleaned RAW_RETURN_DATA (may have leading/trailing characters). Use sed to handle multi-line JSON
       # (critical for large hex strings that cause forge to output multi-line JSON)
-      JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+      JSON_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
 
       # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
       if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
-        JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+        JSON_DATA=$(echo "${RAW_RETURN_DATA:-}" | grep -o '{"logs":.*}' | tail -1)
       fi
 
       # Validate that extracted JSON_DATA is valid JSON
       if ! echo "$JSON_DATA" | jq empty >/dev/null 2>&1; then
         {
           echo "Error: Failed to extract valid JSON from forge script output" >&2
-          echo "JSON_DATA snippet (first 500 chars): ${JSON_DATA:0:500}" >&2
-          echo "RAW_RETURN_DATA snippet (first 500 chars): ${RAW_RETURN_DATA:0:500}" >&2
+          echo "JSON_DATA:" >&2
+          echo "$JSON_DATA" >&2
+          echo "" >&2
+          echo "RAW_RETURN_DATA:" >&2
+          echo "${RAW_RETURN_DATA:-}" >&2
         }
         return 1
       fi
@@ -180,9 +203,6 @@ diamondUpdateFacet() {
 
         RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-        # Check if timelock is enabled and available
-        TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
         # For very long calldata, use a temporary file to avoid command line length limits
         # Check if calldata exceeds a safe threshold (e.g., 20KB hex = 10KB bytes)
         CALLDATA_BYTES=$(((${#FACET_CUT} - 2) / 2))
@@ -195,13 +215,7 @@ diamondUpdateFacet() {
           # Register trap to ensure cleanup on script exit (including errors)
           trap '[[ -n "$TEMP_CALLDATA_FILE" ]] && rm -f "$TEMP_CALLDATA_FILE"' EXIT
 
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           rm -f "$TEMP_CALLDATA_FILE"
@@ -216,13 +230,7 @@ diamondUpdateFacet() {
             return $rc
           fi
         else
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           if [ $rc -ne 0 ]; then
@@ -237,21 +245,32 @@ diamondUpdateFacet() {
       # STAGING (or new network deployment): just deploy normally without further checks
       echo "Sending diamondCut transaction directly to diamond (staging or new network deployment)..."
 
+      # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
+      DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
+
+      # Execute, parse, and check return code
+      local COMMAND
       if isZkEvmNetwork "$NETWORK"; then
-        RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script "$SCRIPT_PATH" -f "$NETWORK" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT"))
+        COMMAND="FOUNDRY_PROFILE=zksync NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ./foundry-zksync/forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-limit 50000000 --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --private-key $(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")"
       else
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvv --json --broadcast --legacy --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" "$SKIP_SIMULATION_FLAG")
+        COMMAND="NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" $SKIP_SIMULATION_FLAG"
+      fi
+      
+      if ! executeAndParse \
+        "$COMMAND" \
+        "true" \
+        "forge script failed for $CONTRACT_NAME on network $NETWORK" \
+        "return"; then
+        return 1
       fi
     fi
-    RETURN_CODE=$?
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check the return code the last call
-    if [ "$RETURN_CODE" -eq 0 ]; then
-      # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
-      if [[ "$ENVIRONMENT" != "production" ]]; then
+    if [ "${RETURN_CODE:-1}" -eq 0 ]; then
+      # When sent directly, validate the on-chain state via returned facets; when proposed to Safe, RETURN_CODE=0 is sufficient.
+      if [[ "$SHOULD_PROPOSE_TO_SAFE" != "true" ]]; then
         # extract the "returns" property directly from the JSON output
-        RETURN_DATA=$(echo "$RAW_RETURN_DATA" | jq -r '.returns // empty' 2>/dev/null)
+        RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | jq -r '.returns // empty' 2>/dev/null)
         # echoDebug "RETURN_DATA: $RETURN_DATA"
 
         # get the facet addresses that are known to the diamond from the return data
@@ -260,7 +279,7 @@ diamondUpdateFacet() {
           break # exit the loop if the operation was successful
         fi
       else
-        # if deploying to PROD and RETURN_CODE is OK then we can assume that the proposal to SAFE worked fine
+        # proposal to SAFE accepted; on-chain change happens later
         break
       fi
     fi
@@ -275,8 +294,9 @@ diamondUpdateFacet() {
     return 1
   fi
 
-  # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
-  if [[ "$ENVIRONMENT" != "production" ]]; then
+  # save facet addresses when the cut was sent directly (staging/testnet/SEND_PROPOSALS_DIRECTLY_TO_DIAMOND);
+  # for Safe proposals the log gets updated after the SAFE tx is signed.
+  if [[ "$SHOULD_PROPOSE_TO_SAFE" != "true" ]]; then
     # Using default behavior: update diamond file (not facets-only mode)
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS" "" ""
   fi

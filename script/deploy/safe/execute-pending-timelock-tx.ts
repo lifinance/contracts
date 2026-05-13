@@ -12,7 +12,7 @@ import 'dotenv/config'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { type ObjectId } from 'mongodb'
-import type { Address, Hex, PublicClient, WalletClient } from 'viem'
+import type { Address, Hex, PublicClient } from 'viem'
 import {
   decodeFunctionData,
   encodeAbiParameters,
@@ -23,16 +23,27 @@ import {
 } from 'viem'
 
 import data from '../../../config/networks.json'
-import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import {
+  EnvironmentEnum,
+  type IChainCaller,
+  type SupportedChain,
+} from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
   SlackNotifier,
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
 
+import { createChainCaller } from './executors/create-chain-caller'
+import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
+import {
+  TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+} from './timelock-abi'
 
 // Define interfaces for network configuration
 interface INetworkConfig {
@@ -49,6 +60,15 @@ interface IDeploymentData {
   [key: string]: string | undefined
 }
 
+/** Result of pre-checking a network (MongoDB only, no RPC). Used to decide which networks to process; processNetwork always opens a fresh RPC and fetches pending ops on-chain. */
+interface IPendingFetchResult {
+  network: INetworkConfig
+  /** Number of pending timelock txs in MongoDB (on-chain ready count unknown until processNetwork runs). */
+  pendingInMongoCount: number
+  /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
+  fetchError?: unknown
+}
+
 // TimelockController ABI for the functions we need
 const TIMELOCK_ABI = parseAbi([
   'function getMinDelay() view returns (uint256)',
@@ -58,16 +78,12 @@ const TIMELOCK_ABI = parseAbi([
   'function isOperationReady(bytes32 id) view returns (bool)',
   'function isOperationDone(bytes32 id) view returns (bool)',
   'function execute(address target, uint256 value, bytes calldata payload, bytes32 predecessor, bytes32 salt) payable returns (bytes)',
+  'function executeBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) payable returns (bytes[])',
   'function cancel(bytes32 id)',
   'event CallScheduled(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data, bytes32 predecessor, uint256 delay)',
   'event CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data)',
   'event CallSalt(bytes32 indexed id, bytes32 salt)',
   'event Cancelled(bytes32 indexed id)',
-])
-
-// Schedule ABI for decoding Safe transaction data
-const SCHEDULE_ABI = parseAbi([
-  'function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) returns (bytes32)',
 ])
 
 // Extend the interface to include MongoDB's _id field and timelockIsExecuted
@@ -77,18 +93,19 @@ interface ISafeTxDocumentWithId extends ISafeTxDocument {
   executionHash?: string
 }
 
-// Define the operation type
+// Define the operation type (single call or batch)
 interface ITimelockOperation {
   id: Hex
-  target: Address
-  value: bigint
-  data: Hex
   index: bigint
   predecessor: Hex
   delay: bigint
   salt?: Hex
   mongoId?: ObjectId
   functionName?: string | null
+  /** Call list (always present; batch-of-one for single-call ops). */
+  targets: readonly Address[]
+  values: readonly bigint[]
+  payloads: readonly Hex[]
 }
 
 // Define the command
@@ -224,25 +241,66 @@ const cmd = defineCommand({
     if (isDryRun)
       consola.info('Running in DRY RUN mode - no transactions will be sent')
 
-    // Process networks - sequentially for interactive mode, parallel for auto-execute mode
+    // Process networks: scan once (one RPC per network), then process only networks with ready ops. We do not reuse prefetch RPC clients so execution always uses a fresh connection.
     if (executeAll || rejectAll) {
-      consola.info('🚀 Processing networks in parallel for auto-execution mode')
+      consola.info('🚀 Checking all networks for pending operations...')
 
-      // Process all networks in parallel
-      const networkPromises = networksToProcess.map(async (network) => {
-        return processNetwork(
-          network,
-          isDryRun,
-          specificOperationId,
-          executeAll,
-          rejectAll,
-          rpcUrlOverride,
-          slackNotifier
+      const fetchResults = await Promise.all(
+        networksToProcess.map((network) => fetchPendingForNetwork(network))
+      )
+
+      const networksWithPending = fetchResults.filter(
+        (r) => r.pendingInMongoCount > 0
+      )
+      const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
+
+      consola.info(
+        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
+          networksWithPending.length
+        } have pending timelock tx(s)${
+          networksWithPending.length > 0
+            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
+            : ''
+        }`
+      )
+      if (networksWithFetchError.length > 0) {
+        consola.warn(
+          `Prefetch failed for ${
+            networksWithFetchError.length
+          } network(s): ${networksWithFetchError
+            .map((r) => r.network.name)
+            .join(', ')}`
         )
-      })
+      }
 
-      // Wait for all networks to complete
-      const results = await Promise.all(networkPromises)
+      if (networksWithPending.length === 0) {
+        if (networksWithFetchError.length > 0) {
+          consola.error(
+            'No networks with pending timelock txs; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
+          )
+          process.exit(1)
+        }
+        consola.success('No networks with pending timelock transactions.')
+        return
+      }
+
+      consola.info(
+        'Processing networks with pending txs (fresh RPC per network).'
+      )
+
+      const results = await Promise.all(
+        networksWithPending.map((fetched) =>
+          processNetwork(
+            fetched.network,
+            isDryRun,
+            specificOperationId,
+            executeAll,
+            rejectAll,
+            rpcUrlOverride,
+            slackNotifier
+          )
+        )
+      )
 
       // Log summary
       const successfulNetworks = results.filter((r) => r.success).length
@@ -288,16 +346,59 @@ const cmd = defineCommand({
         process.exit(1)
       }
     } else {
-      consola.info('🔄 Processing networks sequentially for interactive mode')
+      consola.info('🔄 Checking all networks for pending operations...')
 
-      // Process networks sequentially for interactive mode
+      // Pre-check all networks in parallel; only process those with ready operations
+      const fetchResults = await Promise.all(
+        networksToProcess.map((network) => fetchPendingForNetwork(network))
+      )
+
+      const networksWithPending = fetchResults.filter(
+        (r) => r.pendingInMongoCount > 0
+      )
+      const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
+
+      consola.info(
+        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
+          networksWithPending.length
+        } have pending timelock tx(s)${
+          networksWithPending.length > 0
+            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
+            : ''
+        }`
+      )
+      if (networksWithFetchError.length > 0) {
+        consola.warn(
+          `Prefetch failed for ${
+            networksWithFetchError.length
+          } network(s): ${networksWithFetchError
+            .map((r) => r.network.name)
+            .join(', ')}`
+        )
+      }
+
+      if (networksWithPending.length === 0) {
+        if (networksWithFetchError.length > 0) {
+          consola.error(
+            'No networks with pending timelock txs; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
+          )
+          process.exit(1)
+        }
+        consola.success('No networks with pending timelock transactions.')
+        return
+      }
+
+      consola.info(
+        'Processing networks with pending txs sequentially (fresh RPC per network).'
+      )
+
       let totalFailed = 0
       let totalSucceeded = 0
 
-      for (const network of networksToProcess)
+      for (const fetched of networksWithPending)
         try {
           const result = await processNetwork(
-            network,
+            fetched.network,
             isDryRun,
             specificOperationId,
             executeAll,
@@ -309,17 +410,18 @@ const cmd = defineCommand({
           if (result.success) totalSucceeded++
           else totalFailed++
 
-          // Log individual network failures
           if (result.operationsFailed && result.operationsFailed > 0)
             consola.error(
-              `[${network.name}] ❌ ${result.operationsFailed} operation(s) failed`
+              `[${result.network}] ❌ ${result.operationsFailed} operation(s) failed`
             )
         } catch (error) {
-          consola.error(`Error processing network ${network.name}:`, error)
+          consola.error(
+            `Error processing network ${fetched.network.name}:`,
+            error
+          )
           totalFailed++
         }
 
-      // Log final summary for sequential mode
       if (totalFailed > 0) {
         consola.error(
           `\n❌ Script completed with ${totalFailed} network(s) having failures`
@@ -334,25 +436,30 @@ const cmd = defineCommand({
 })
 
 /**
- * Computes operation ID by hashing the schedule parameters (excluding delay)
- * This matches the Solidity hashOperation function
+ * Computes operation ID for a batch schedule (matches Solidity hashOperationBatch)
  */
-function computeOperationId(
-  target: string,
-  value: bigint,
-  data: Hex,
+function computeOperationIdBatch(
+  targets: readonly Address[],
+  values: readonly bigint[],
+  payloads: readonly Hex[],
   predecessor: Hex,
   salt: Hex
 ): Hex {
   const encoded = encodeAbiParameters(
     [
-      { name: 'target', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'data', type: 'bytes' },
+      { name: 'targets', type: 'address[]' },
+      { name: 'values', type: 'uint256[]' },
+      { name: 'payloads', type: 'bytes[]' },
       { name: 'predecessor', type: 'bytes32' },
       { name: 'salt', type: 'bytes32' },
     ],
-    [target as Hex, value, data, predecessor, salt]
+    [
+      targets as Address[],
+      values as bigint[],
+      payloads as Hex[],
+      predecessor,
+      salt,
+    ]
   )
 
   return keccak256(encoded)
@@ -395,18 +502,21 @@ async function checkOperationStatus(
 }
 
 /**
- * Fetches Safe transactions with schedule data that haven't been executed in timelock
+ * Fetches Safe transactions with scheduleBatch data that haven't been executed in timelock
  */
 async function fetchPendingTimelockTransactions(
   networkName: string
 ): Promise<ISafeTxDocumentWithId[]> {
   const { client, pendingTransactions } = await getSafeMongoCollection()
 
+  const batchSelectorRegex =
+    TIMELOCK_SCHEDULE_BATCH_SELECTOR.slice(2).toLowerCase()
+
   try {
     const txs = await pendingTransactions
       .find({
         network: networkName.toLowerCase(),
-        'safeTx.data.data': { $regex: '^0x01d5062a' },
+        'safeTx.data.data': { $regex: `^0x${batchSelectorRegex}` },
         status: 'executed',
         timelockIsExecuted: { $ne: true },
       })
@@ -415,6 +525,39 @@ async function fetchPendingTimelockTransactions(
     return txs
   } finally {
     await client.close()
+  }
+}
+
+/**
+ * Pre-checks a single network using MongoDB only (no RPC). Returns how many pending timelock txs exist in MongoDB.
+ * processNetwork always opens a fresh RPC and fetches on-chain ready state so we never reuse a stale connection.
+ */
+async function fetchPendingForNetwork(
+  network: INetworkConfig
+): Promise<IPendingFetchResult> {
+  const empty: IPendingFetchResult = {
+    network,
+    pendingInMongoCount: 0,
+  }
+  try {
+    const deploymentData = (await getDeployments(
+      network.name as SupportedChain,
+      EnvironmentEnum.production
+    )) as IDeploymentData
+
+    if (!deploymentData.LiFiTimelockController) return empty
+
+    const txs = await fetchPendingTimelockTransactions(network.name)
+    return {
+      network,
+      pendingInMongoCount: txs.length,
+    }
+  } catch (err) {
+    consola.error(
+      `[${network.name}] Prefetch failed (pending count may have been skipped):`,
+      err
+    )
+    return { ...empty, fetchError: err }
   }
 }
 
@@ -435,13 +578,12 @@ async function processNetwork(
     )
 
   try {
-    // Load deployment data for the network using getDeployments
+    // Always load deployment and open a fresh RPC so the connection is never stale (e.g. after long interactive pause or 60+ parallel prefetches).
     const deploymentData = (await getDeployments(
       network.name as SupportedChain,
       EnvironmentEnum.production
     )) as IDeploymentData
 
-    // Check if LiFiTimelockController is deployed
     if (!deploymentData.LiFiTimelockController) {
       consola.warn(
         `[${network.name}] ⚠️  No timelock controller deployed on ${network.name}`
@@ -454,18 +596,25 @@ async function processNetwork(
       }
     }
 
-    const timelockAddress = deploymentData.LiFiTimelockController as Address
+    const timelockAddress = normalizeAddressForNetwork(
+      network.name,
+      deploymentData.LiFiTimelockController
+    )
 
-    // Setup environment for viem clients using setupEnvironment
-    // Note: setupEnvironment manages private keys internally based on environment
     const { publicClient, walletClient } = await setupEnvironment(
       network.name as SupportedChain,
-      null, // No facet ABI needed for timelock operations
+      null,
       EnvironmentEnum.production,
       rpcUrlOverride
     )
 
-    // Get pending operations using new decode-based approach
+    const chainCaller = await createChainCaller({
+      networkName: network.name,
+      walletClient,
+      publicClient,
+      privateKeyHex: process.env.PRIVATE_KEY_PRODUCTION,
+    })
+
     const { readyOperations, totalPendingCount, notScheduledOperations } =
       await getPendingOperations(
         publicClient,
@@ -513,8 +662,7 @@ async function processNetwork(
     for (const operation of readyOperations)
       if (rejectAll) {
         const rejectResult = await rejectOperation(
-          publicClient,
-          walletClient,
+          chainCaller,
           timelockAddress,
           operation,
           isDryRun
@@ -527,14 +675,15 @@ async function processNetwork(
         const isInteractive = !executeAll && !rejectAll
 
         const result = await executeOperation(
-          publicClient,
-          walletClient,
+          chainCaller,
           timelockAddress,
           operation,
           isDryRun,
           isInteractive,
           network.name,
-          slackNotifier
+          slackNotifier,
+          network.chainId,
+          network.name
         )
 
         // Log the result for interactive mode
@@ -615,7 +764,8 @@ async function getPendingOperations(
   networkName: string,
   specificOperationId?: Hex,
   isCancellingOperations?: boolean,
-  slackNotifier?: SlackNotifier
+  slackNotifier?: SlackNotifier,
+  options?: { quiet?: boolean }
 ): Promise<{
   readyOperations: ITimelockOperation[]
   totalPendingCount: number
@@ -626,16 +776,19 @@ async function getPendingOperations(
     executionHash?: string
   }>
 }> {
-  // Fetch Safe transactions with schedule data from MongoDB
-  consola.info(
-    `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching Safe transactions with schedule data from MongoDB...`
+  const quiet = options?.quiet === true
+  const log = (msg: string, ...rest: unknown[]) => {
+    if (!quiet) consola.info(msg, ...rest)
+  }
+
+  // Fetch Safe transactions with scheduleBatch data from MongoDB
+  log(
+    `[${networkName}] 🔒 Timelock: ${timelockAddress} - Fetching Safe transactions with scheduleBatch data from MongoDB...`
   )
   const safeTxs = await fetchPendingTimelockTransactions(networkName)
 
   if (safeTxs.length === 0) {
-    consola.info(
-      `[${networkName}] No Safe transactions with schedule data found`
-    )
+    log(`[${networkName}] No Safe transactions with scheduleBatch data found`)
     return {
       readyOperations: [],
       totalPendingCount: 0,
@@ -643,8 +796,8 @@ async function getPendingOperations(
     }
   }
 
-  consola.info(
-    `[${networkName}] Found ${safeTxs.length} Safe transaction(s) with schedule data`
+  log(
+    `[${networkName}] Found ${safeTxs.length} Safe transaction(s) with scheduleBatch data`
   )
 
   const readyOperations = []
@@ -667,21 +820,57 @@ async function getPendingOperations(
           continue
         }
 
-        // Decode using the schedule ABI
+        const selector = dataField.slice(0, 10).toLowerCase()
+
+        if (selector !== TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()) {
+          consola.warn(
+            `[${networkName}] Transaction ${tx._id} has unknown selector ${selector}; skipping.`
+          )
+          continue
+        }
+
         const decoded = decodeFunctionData({
-          abi: SCHEDULE_ABI,
+          abi: TIMELOCK_SCHEDULE_BATCH_ABI,
           data: dataField,
         })
-
-        // Extract the decoded parameters
-        const [target, value, innerData, predecessor, salt, delay] =
-          decoded.args
-
-        // Compute the operation ID
-        const opId = computeOperationId(
-          target,
-          value,
-          innerData,
+        const args = decoded.args as [
+          readonly Address[],
+          readonly bigint[],
+          readonly Hex[],
+          Hex,
+          Hex,
+          bigint
+        ]
+        const [targetsArr, valuesArr, payloadsArr, pred, s, d] = args
+        if (
+          targetsArr.length === 0 ||
+          valuesArr.length === 0 ||
+          payloadsArr.length === 0
+        ) {
+          consola.warn(
+            `[${networkName}] Transaction ${tx._id} scheduleBatch has empty arrays; skipping.`
+          )
+          continue
+        }
+        if (
+          targetsArr.length !== valuesArr.length ||
+          valuesArr.length !== payloadsArr.length
+        ) {
+          consola.warn(
+            `[${networkName}] Transaction ${tx._id} scheduleBatch has inconsistent array lengths (targets=${targetsArr.length}, values=${valuesArr.length}, payloads=${payloadsArr.length}); skipping.`
+          )
+          continue
+        }
+        const targets: readonly Address[] = targetsArr
+        const values: readonly bigint[] = valuesArr
+        const payloads: readonly Hex[] = payloadsArr
+        const predecessor: Hex = pred
+        const salt: Hex = s
+        const delay: bigint = d
+        const opId = computeOperationIdBatch(
+          targetsArr,
+          valuesArr,
+          payloadsArr,
           predecessor,
           salt
         )
@@ -697,7 +886,7 @@ async function getPendingOperations(
         )
 
         if (status.isDone) {
-          consola.info(
+          log(
             `[${networkName}] Operation ${opId} is already executed. Marking tx ${tx._id} as timelock executed.`
           )
           await pendingTransactions.updateOne(
@@ -709,7 +898,6 @@ async function getPendingOperations(
 
         // Check if operation exists on-chain when not ready and not marked as executed
         if (!status.isPending && !status.isReady && !tx.timelockIsExecuted) {
-          // Operation doesn't exist on-chain at all
           const isOperation = await publicClient.readContract({
             address: timelockAddress,
             abi: TIMELOCK_ABI,
@@ -741,31 +929,34 @@ async function getPendingOperations(
           }
         }
 
+        const baseOp: Omit<ITimelockOperation, 'functionName'> = {
+          id: opId,
+          index: 0n,
+          predecessor,
+          delay,
+          salt,
+          mongoId: tx._id,
+          targets,
+          values,
+          payloads,
+        }
+
         if (status.isReady) {
-          consola.info(
-            `[${networkName}] ✅ Operation ${opId} is ready for execution`
+          const callCount = targets.length
+          log(
+            `[${networkName}] ✅ Operation ${opId} is ready for execution (batch of ${callCount} calls)`
           )
 
-          // Try to decode function name
           let functionName: string | null = null
           try {
-            functionName = await decodeFunctionCall(innerData)
+            functionName = `batch (${callCount} calls)`
           } catch {}
 
           readyOperations.push({
-            id: opId,
-            target: target as Address,
-            value: value,
-            data: innerData,
-            index: 0n, // Not used in our implementation
-            predecessor: predecessor,
-            delay: delay,
-            salt: salt, // Store the actual salt from the schedule call
-            mongoId: tx._id, // Store MongoDB ID for later updates
+            ...baseOp,
             functionName,
           })
         } else if (isCancellingOperations && status.isPending) {
-          // Get the timestamp when the operation will be ready
           const timestamp = await publicClient.readContract({
             address: timelockAddress,
             abi: TIMELOCK_ABI,
@@ -776,32 +967,22 @@ async function getPendingOperations(
           const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
           const remainingTime = timestamp - currentTimestamp
 
-          consola.info(
+          log(
             `[${networkName}] ⏰ Operation ${opId} is pending (${formatTimeRemaining(
               remainingTime
             )} remaining) - will be cancelled`
           )
 
-          // Try to decode function name
           let functionName: string | null = null
           try {
-            functionName = await decodeFunctionCall(innerData)
+            functionName = `batch (${targets.length} calls)`
           } catch {}
 
           readyOperations.push({
-            id: opId,
-            target: target as Address,
-            value: value,
-            data: innerData,
-            index: 0n,
-            predecessor: predecessor,
-            delay: delay,
-            salt: salt, // Store the actual salt from the schedule call
-            mongoId: tx._id,
+            ...baseOp,
             functionName,
           })
         } else if (status.isPending) {
-          // Get the timestamp when the operation will be ready
           const timestamp = await publicClient.readContract({
             address: timelockAddress,
             abi: TIMELOCK_ABI,
@@ -812,7 +993,7 @@ async function getPendingOperations(
           const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
           const remainingTime = timestamp - currentTimestamp
 
-          consola.info(
+          log(
             `[${networkName}] ⏰ Operation ${opId} not ready yet (${formatTimeRemaining(
               remainingTime
             )} remaining)`
@@ -832,7 +1013,7 @@ async function getPendingOperations(
   const operationAction = isCancellingOperations
     ? 'to cancel'
     : 'ready to execute'
-  consola.info(
+  log(
     `[${networkName}] 🚀 Found ${readyOperations.length} operation${
       readyOperations.length === 1 ? '' : 's'
     } ${operationAction}`
@@ -857,20 +1038,41 @@ async function getPendingOperations(
 }
 
 async function executeOperation(
-  publicClient: PublicClient,
-  walletClient: WalletClient,
+  chainCaller: IChainCaller,
   timelockAddress: Address,
   operation: ITimelockOperation,
   isDryRun: boolean,
   interactive?: boolean,
   networkName?: string,
-  slackNotifier?: SlackNotifier
+  slackNotifier?: SlackNotifier,
+  chainId?: number,
+  network?: string
 ): Promise<'executed' | 'rejected' | 'skipped' | 'failed'> {
   const networkPrefix = networkName ? `[${networkName}]` : ''
-  consola.info(`\n${networkPrefix} ⚡ Processing operation: ${operation.id}`)
-  consola.info(`${networkPrefix}    Target: ${operation.target}`)
-  consola.info(`${networkPrefix}    Value: ${formatEther(operation.value)} ETH`)
-  consola.info(`${networkPrefix}    Data: ${operation.data}`)
+  const callCount = operation.targets.length
+  const primaryTarget = operation.targets[0]
+  const primaryValue = operation.values[0]
+  const primaryPayload = operation.payloads[0]
+  if (!primaryTarget || primaryValue === undefined || !primaryPayload)
+    throw new Error('Invalid operation: missing target/value/payload')
+  consola.info(
+    `\n${networkPrefix} ⚡ Processing operation: ${operation.id} (batch of ${callCount} calls)`
+  )
+  consola.info(`${networkPrefix}    Batch details:`)
+  const decodeContext =
+    chainId !== undefined && network ? { chainId, network } : undefined
+  await formatTimelockScheduleBatch(
+    [
+      operation.targets,
+      operation.values,
+      operation.payloads,
+      operation.predecessor,
+      operation.salt,
+      operation.delay,
+    ],
+    network ?? networkName ?? '',
+    decodeContext
+  )
 
   // If interactive mode, show choice prompt
   if (interactive) {
@@ -886,13 +1088,7 @@ async function executeOperation(
 
     if (action === 'Reject') {
       // Call rejectOperation and return
-      await rejectOperation(
-        publicClient,
-        walletClient,
-        timelockAddress,
-        operation,
-        isDryRun
-      )
+      await rejectOperation(chainCaller, timelockAddress, operation, isDryRun)
       return 'rejected'
     }
 
@@ -900,120 +1096,122 @@ async function executeOperation(
   }
 
   try {
-    // Try to decode the function call
-    const functionName = await decodeFunctionCall(operation.data)
-    if (functionName) {
-      consola.info(`${networkPrefix}    Function: ${functionName}`)
-      operation.functionName = functionName
-    }
+    if (operation.functionName)
+      consola.info(`${networkPrefix}    Function: ${operation.functionName}`)
 
     // Use the salt from the operation if available, otherwise use default
     const salt =
       operation.salt ||
-      ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex)
+      ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex) // [pre-commit-checker: not a secret]
 
     if (isDryRun) {
       // Simulate the transaction
       consola.info(`${networkPrefix} 🔍 [DRY RUN] Simulating execution...`)
 
-      // Try to simulate the transaction
-      const gasEstimate = await publicClient.estimateGas({
-        account: walletClient.account?.address || '0x0',
-        to: timelockAddress,
-        data: encodeFunctionData({
-          abi: TIMELOCK_ABI,
-          functionName: 'execute',
-          args: [
-            operation.target,
-            operation.value,
-            operation.data,
-            operation.predecessor,
-            salt,
-          ],
-        }),
-        value: 0n,
+      const callData = encodeFunctionData({
+        abi: TIMELOCK_ABI,
+        functionName: 'executeBatch',
+        args: [
+          operation.targets,
+          operation.values,
+          operation.payloads,
+          operation.predecessor,
+          salt,
+        ],
       })
 
-      consola.info(`${networkPrefix}    Estimated gas: ${gasEstimate}`)
+      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
+        to: timelockAddress,
+        data: callData,
+      })
+
+      consola.info(
+        `${networkPrefix}    Estimated ${resourceLabel}: ${estimatedResource}`
+      )
       consola.success(
         `${networkPrefix} ✅ [DRY RUN] Transaction simulation successful`
       )
     } else {
       // Send the actual transaction
       consola.info(`${networkPrefix} 📤 Submitting transaction...`)
-      const hash = await walletClient.writeContract({
-        address: timelockAddress,
+
+      const callData = encodeFunctionData({
         abi: TIMELOCK_ABI,
-        functionName: 'execute',
+        functionName: 'executeBatch',
         args: [
-          operation.target,
-          operation.value,
-          operation.data,
+          operation.targets,
+          operation.values,
+          operation.payloads,
           operation.predecessor,
           salt,
         ],
-        account: walletClient.account || null,
-        chain: walletClient.chain || null,
       })
 
-      consola.info(`${networkPrefix}    Transaction hash: ${hash}`)
-      consola.info(`${networkPrefix}    Waiting for confirmation...`)
+      const result = await chainCaller.call({
+        to: timelockAddress,
+        data: callData,
+      })
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      const txExplorerSuffix = result.explorerUrl
+        ? ` (${result.explorerUrl})`
+        : ''
+      consola.info(
+        `${networkPrefix}    Transaction hash: ${result.hash}${txExplorerSuffix}`
+      )
 
-      if (receipt.status === 'success') {
-        consola.success(
-          `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
-        )
-
-        // Send Slack notification if enabled
-        if (slackNotifier && networkName)
-          try {
-            await slackNotifier.notifyOperationExecuted({
-              network: networkName,
-              operation: {
-                id: operation.id,
-                target: operation.target,
-                value: operation.value,
-                data: operation.data,
-                functionName: operation.functionName,
-              },
-              status: 'success',
-              transactionHash: hash,
-              gasUsed: receipt.gasUsed,
-            })
-          } catch (error) {
-            consola.warn(
-              'Failed to send operation success notification:',
-              error
-            )
-          }
-
-        // Update MongoDB to mark the operation as executed
-        if (operation.mongoId)
-          try {
-            const { client, pendingTransactions } =
-              await getSafeMongoCollection()
-            try {
-              await pendingTransactions.updateOne(
-                { _id: operation.mongoId },
-                { $set: { timelockIsExecuted: true } }
-              )
-              consola.info(
-                `${networkPrefix} Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
-              )
-            } finally {
-              await client.close()
-            }
-          } catch (error) {
-            consola.warn(
-              `${networkPrefix} Failed to update MongoDB document: ${error}`
-            )
-          }
-      } else
+      if (result.receipt && result.receipt.status !== 'success') {
         consola.error(
           `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
         )
+        return 'failed'
+      }
+
+      const { hash } = result
+      const gasUsed = result.gasUsed
+
+      if (slackNotifier && networkName)
+        try {
+          await slackNotifier.notifyOperationExecuted({
+            network: networkName,
+            operation: {
+              id: operation.id,
+              target: primaryTarget,
+              value: primaryValue,
+              data: primaryPayload,
+              functionName: operation.functionName,
+            },
+            status: 'success',
+            transactionHash: hash,
+            gasUsed,
+          })
+        } catch (error) {
+          consola.warn('Failed to send operation success notification:', error)
+        }
+
+      consola.success(
+        `${networkPrefix} ✅ Operation ${operation.id} executed successfully`
+      )
+
+      // Update MongoDB to mark the operation as executed
+      if (operation.mongoId)
+        try {
+          const { client, pendingTransactions } = await getSafeMongoCollection()
+          try {
+            await pendingTransactions.updateOne(
+              { _id: operation.mongoId },
+              { $set: { timelockIsExecuted: true } }
+            )
+            consola.info(
+              `${networkPrefix} Updated MongoDB document ${operation.mongoId} to mark timelock as executed`
+            )
+          } finally {
+            await client.close()
+          }
+        } catch (error) {
+          consola.warn(
+            `${networkPrefix} Failed to update MongoDB document: ${error}`
+          )
+        }
     }
 
     return 'executed'
@@ -1030,9 +1228,9 @@ async function executeOperation(
           network: networkName,
           operation: {
             id: operation.id,
-            target: operation.target,
-            value: operation.value,
-            data: operation.data,
+            target: primaryTarget,
+            value: primaryValue,
+            data: primaryPayload,
             functionName: operation.functionName,
           },
           status: 'failed',
@@ -1050,85 +1248,87 @@ async function executeOperation(
 }
 
 async function rejectOperation(
-  publicClient: PublicClient,
-  walletClient: WalletClient,
+  chainCaller: IChainCaller,
   timelockAddress: Address,
   operation: ITimelockOperation,
   isDryRun: boolean
 ): Promise<'rejected' | 'failed'> {
   consola.info(`\n❌ Rejecting operation: ${operation.id}`)
-  consola.info(`   Target: ${operation.target}`)
-  consola.info(`   Value: ${formatEther(operation.value)} ETH`)
-  consola.info(`   Data: ${operation.data}`)
+  const callCount = operation.targets.length
+  const primaryTarget = operation.targets[0]
+  const primaryValue = operation.values[0]
+  const primaryPayload = operation.payloads[0]
+  if (!primaryTarget || primaryValue === undefined || !primaryPayload)
+    throw new Error('Invalid operation: missing target/value/payload')
+  consola.info(`   Calls: ${callCount} (batch)`)
+  consola.info(`   Target: ${primaryTarget}`)
+  consola.info(`   Value: ${formatEther(primaryValue)} ETH`)
+  consola.info(`   Data: ${primaryPayload}`)
 
   try {
-    // Try to decode the function call
-    const functionName = await decodeFunctionCall(operation.data)
-    if (functionName) consola.info(`   Function: ${functionName}`)
+    consola.info(`   Function: batch (${callCount} calls)`)
 
     if (isDryRun) {
       // Simulate the cancellation
       consola.info(`🔍 [DRY RUN] Simulating cancellation...`)
 
-      // Try to simulate the transaction
-      const gasEstimate = await publicClient.estimateGas({
-        account: walletClient.account?.address || '0x0',
-        to: timelockAddress,
-        data: encodeFunctionData({
-          abi: TIMELOCK_ABI,
-          functionName: 'cancel',
-          args: [operation.id],
-        }),
-        value: 0n,
+      const cancelCalldata = encodeFunctionData({
+        abi: TIMELOCK_ABI,
+        functionName: 'cancel',
+        args: [operation.id],
       })
 
-      consola.info(`   Estimated gas: ${gasEstimate}`)
+      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
+        to: timelockAddress,
+        data: cancelCalldata,
+      })
+
+      consola.info(`   Estimated ${resourceLabel}: ${estimatedResource}`)
       consola.success(`✅ [DRY RUN] Cancellation simulation successful`)
       return 'rejected'
     } else {
       // Send the actual cancellation transaction
       consola.info(`📤 Submitting cancellation transaction...`)
-      const hash = await walletClient.writeContract({
-        address: timelockAddress,
+
+      const cancelCalldata = encodeFunctionData({
         abi: TIMELOCK_ABI,
         functionName: 'cancel',
         args: [operation.id],
-        account: walletClient.account || null,
-        chain: null,
       })
 
-      consola.info(`   Transaction hash: ${hash}`)
-      consola.info(`   Waiting for confirmation...`)
+      const result = await chainCaller.call({
+        to: timelockAddress,
+        data: cancelCalldata,
+      })
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      consola.info(`   Transaction hash: ${result.hash}`)
 
-      if (receipt.status === 'success') {
-        consola.success(`✅ Operation ${operation.id} cancelled successfully`)
-
-        // Update MongoDB to mark the operation as executed (cancelled counts as executed)
-        if (operation.mongoId)
-          try {
-            const { client, pendingTransactions } =
-              await getSafeMongoCollection()
-            try {
-              await pendingTransactions.updateOne(
-                { _id: operation.mongoId },
-                { $set: { timelockIsExecuted: true } }
-              )
-              consola.info(
-                `Updated MongoDB document ${operation.mongoId} to mark timelock as cancelled`
-              )
-            } finally {
-              await client.close()
-            }
-          } catch (error) {
-            consola.warn(`Failed to update MongoDB document: ${error}`)
-          }
-        return 'rejected'
-      } else {
+      if (result.receipt && result.receipt.status !== 'success') {
         consola.error(`❌ Cancellation failed for operation ${operation.id}`)
         return 'failed'
       }
+
+      consola.success(`✅ Operation ${operation.id} cancelled successfully`)
+
+      // Update MongoDB to mark the operation as executed (cancelled counts as executed)
+      if (operation.mongoId)
+        try {
+          const { client, pendingTransactions } = await getSafeMongoCollection()
+          try {
+            await pendingTransactions.updateOne(
+              { _id: operation.mongoId },
+              { $set: { timelockIsExecuted: true } }
+            )
+            consola.info(
+              `Updated MongoDB document ${operation.mongoId} to mark timelock as cancelled`
+            )
+          } finally {
+            await client.close()
+          }
+        } catch (error) {
+          consola.warn(`Failed to update MongoDB document: ${error}`)
+        }
+      return 'rejected'
     }
   } catch (error) {
     consola.error(`Failed to cancel operation ${operation.id}:`, error)
@@ -1152,31 +1352,6 @@ function formatTimeRemaining(seconds: bigint): string {
   result += `${secs}s`
 
   return result
-}
-
-// Helper function to decode a function call
-async function decodeFunctionCall(data: Hex): Promise<string | null> {
-  if (!data || data === '0x') return null
-
-  try {
-    const selector = data.substring(0, 10)
-    const url = `https://api.openchain.xyz/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetch(url)
-    const responseData = await response.json()
-
-    if (
-      responseData.ok &&
-      responseData.result &&
-      responseData.result.function &&
-      responseData.result.function[selector]
-    )
-      return responseData.result.function[selector][0].name
-
-    return null
-  } catch (error) {
-    consola.warn(`Error decoding function call:`, error)
-    return null
-  }
 }
 
 runMain(cmd)

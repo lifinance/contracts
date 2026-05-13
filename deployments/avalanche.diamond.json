@@ -101,9 +101,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xBd5cf5C53A14a69FFf27Fe8b23e09bF76bA4De58": {
+      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
@@ -145,9 +145,9 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x7d66a500bdab2aC94E3bAe44d44Ee63D7F613D8B": {
+      "0x7167AcC53c891272b3BE0943906Ab3d165065a43": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.1"
       }
     },
     "Periphery": {
@@ -155,7 +155,7 @@
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-      "GasZipPeriphery": "0x9a21E33F1a78b17DAd32010CeDB9Fd2F071C17d3",
+      "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LidoWrapper": "",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",

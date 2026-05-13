@@ -3,7 +3,6 @@
 updateFacetConfig() {
   # load deploy script & helper functions
   source .env
-  source script/config.sh
   source script/helperFunctions.sh
 
   # read function arguments into variables
@@ -71,7 +70,6 @@ updateFacetConfig() {
     # ensure all required .env values are set
     checkRequiredVariablesInDotEnv "$NETWORK"
 
-
     # repeatedly call selected script until it's succeeded or out of attempts
     ATTEMPTS=1
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
@@ -80,24 +78,22 @@ updateFacetConfig() {
       # Add skip simulation flag based on environment variable
       SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-      if [[ "$DEBUG" == *"true"* ]]; then
-        # print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
-        RETURN_CODE=$?
-      else
-        # do not print output to console
-        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f "$NETWORK" -vvvvv --broadcast --legacy "$SKIP_SIMULATION_FLAG" --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER") 2>/dev/null
-        RETURN_CODE=$?
-      fi
+      # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
+      DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-      # exit the loop if the operation was successful
-      if [ "$RETURN_CODE" -eq 0 ]; then
-        break
+      # Execute, parse, and check return code
+      if ! executeAndParse \
+        "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "true" \
+        "forge script failed for $SCRIPT on network $NETWORK" \
+        "continue"; then
+        ATTEMPTS=$(($ATTEMPTS + 1))
+        sleep 1
+        continue
       fi
-
-      ATTEMPTS=$(($ATTEMPTS + 1)) # increment attempts
-      sleep 1                    # wait for 1 second before trying the operation again
+      
+      # If we reach here, execution was successful
+      break
     done
 
     # check if call was executed successfully or used all attempts

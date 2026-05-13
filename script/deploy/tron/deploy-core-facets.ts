@@ -3,45 +3,36 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
-import type { SupportedChain } from '../../common/types'
+import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import {
-  getEnvVar,
   getPrivateKeyForEnvironment,
 } from '../../demoScripts/utils/demoScriptHelpers'
+import {
+  getEnvVar,
+  saveDiamondDeployment,
+  getEnvironment,
+  checkExistingDeployment,
+  confirmDeployment,
+  printDeploymentSummary,
+  displayNetworkInfo,
+  updateDiamondJsonBatch,
+} from '../../utils/utils'
+import { getContractVersion } from '../shared/getContractVersion'
+import { getCoreFacets } from '../shared/globalContractLists'
 
 import { TronContractDeployer } from './TronContractDeployer'
 import { MIN_BALANCE_WARNING } from './constants'
-import type { ITronDeploymentConfig, IDeploymentResult } from './types'
+import { getTronRPCConfig } from './helpers/tronRpcConfig.js'
+import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
+import { createTronWeb } from './helpers/tronWebFactory.js'
+import { evmHexToTronBase58 } from './tronAddressHelpers.js'
 import {
-  getCoreFacets,
-  saveDiamondDeployment,
-  getContractVersion,
-  getEnvironment,
-  checkExistingDeployment,
   deployContractWithLogging,
-  confirmDeployment,
-  printDeploymentSummary,
   validateBalance,
-  displayNetworkInfo,
-  updateDiamondJsonBatch,
-} from './utils.js'
-
-/**
- * Convert hex address to Tron base58 format for display purposes
- * This is a utility function that doesn't require a private key
- */
-async function hexToTronBase58(hexAddress: string): Promise<string> {
-  // Dynamic import used for conditional loading - only when needed
-  const { TronWeb } = await import('tronweb')
-  // Create a minimal TronWeb instance just for address conversion
-  // No private key needed for address format conversion
-  const tronWeb = new TronWeb({
-    fullHost: 'https://api.trongrid.io', // [pre-commit-checker: not a secret]
-  })
-  const tronHexAddress = hexAddress.replace('0x', '41')
-  return tronWeb.address.fromHex(tronHexAddress)
-}
+  waitBetweenDeployments,
+} from './tronUtils.js'
+import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
 
 /**
  * Get constructor arguments for a facet
@@ -55,17 +46,18 @@ async function getConstructorArgs(
   if (facetName === 'EmergencyPauseFacet') {
     // EmergencyPauseFacet requires pauserWallet address
     const globalConfig = await Bun.file('config/global.json').json()
-    const pauserWallet = globalConfig.pauserWallet // This is 0x...
+    const pauserWallet = globalConfig.pauserWallet // EVM 0x address
+    const pauserWalletTron = globalConfig.tronWallets?.pauserWallet // Tron base58 address
 
     if (!pauserWallet)
       throw new Error('pauserWallet not found in config/global.json')
 
-    // Convert to base58 for display purposes only
-    const tronBase58 = await hexToTronBase58(pauserWallet)
-
     // Use original hex format (0x...) for constructor args
     // The ABI encoder needs this format for proper encoding
-    consola.info(`Using pauserWallet: ${tronBase58} (hex: ${pauserWallet})`)
+    const displayAddr =
+      pauserWalletTron ||
+      evmHexToTronBase58(getTronWebCodecOnly(), pauserWallet)
+    consola.info(`Using pauserWallet: ${displayAddr} (hex: ${pauserWallet})`)
     return [pauserWallet]
   } else if (facetName === 'GenericSwapFacetV3') {
     // GenericSwapFacetV3 requires native token address
@@ -77,7 +69,7 @@ async function getConstructorArgs(
       )
 
     // Convert to base58 for display purposes only
-    const tronBase58 = await hexToTronBase58(nativeAddress)
+    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnly(), nativeAddress)
 
     consola.info(
       `Using native token address: ${tronBase58} (hex: ${nativeAddress})`
@@ -94,11 +86,11 @@ async function getConstructorArgs(
 async function deployCoreFacetsImpl(options: {
   dryRun: boolean
   verbose: boolean
+  delaySeconds: number
 }) {
   consola.start('TRON Core Facets Deployment')
 
-  // Get environment from config.sh
-  const environment = await getEnvironment()
+  const environment = getEnvironment()
 
   // Load networks configuration once
   const networksConfig = await Bun.file('config/networks.json').json()
@@ -118,7 +110,11 @@ async function deployCoreFacetsImpl(options: {
   }
 
   const network = networkName as SupportedChain // Use network name, not RPC URL
-  const rpcUrl = tronConfig.rpcUrl // Keep RPC URL for TronWeb initialization
+
+  // Get RPC URL and API key configuration (automatically handles TronGrid API key)
+  const { rpcUrl, headers } = getTronRPCConfig(networkName, options.verbose)
+
+  consola.info(`RPC URL: ${rpcUrl}`)
 
   // Get the correct private key based on environment
   let privateKey: string
@@ -140,12 +136,14 @@ async function deployCoreFacetsImpl(options: {
   // Initialize deployer
   const config: ITronDeploymentConfig = {
     fullHost: rpcUrl,
+    tvmNetworkKey: networkName as TronTvmNetworkName,
     privateKey,
     verbose: options.verbose,
     dryRun: options.dryRun,
     safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
+    headers,
   }
 
   const deployer = new TronContractDeployer(config)
@@ -154,18 +152,19 @@ async function deployCoreFacetsImpl(options: {
   const networkInfo = await deployer.getNetworkInfo()
   displayNetworkInfo(networkInfo, environment, rpcUrl)
 
-  // Initialize TronWeb for balance validation
-  const { TronWeb } = await import('tronweb')
-  const tronWeb = new TronWeb({
-    fullHost: rpcUrl,
+  const tronWeb = createTronWeb({
+    rpcUrl,
+    networkKey: networkName as TronTvmNetworkName,
     privateKey,
+    headers,
+    verbose: options.verbose,
   })
 
   // Validate balance
   await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
   // Get core facets list
-  const coreFacets = getCoreFacets()
+  const coreFacets = getCoreFacets({ exclude: ['GasZipFacet'] })
 
   // Add LiFiDiamond to the contracts list for confirmation
   const allContracts = [...coreFacets, 'LiFiDiamond']
@@ -254,6 +253,9 @@ async function deployCoreFacetsImpl(options: {
 
       deploymentResults.push(result)
 
+      // Add delay between deployments to avoid rate limiting
+      await waitBetweenDeployments(options.delaySeconds, options.verbose)
+
       if (result.status === 'success' && result.address)
         facetAddresses[facet] = {
           address: result.address,
@@ -272,6 +274,9 @@ async function deployCoreFacetsImpl(options: {
         cost: 0,
         status: 'failed',
       })
+
+      // Add delay even after failures to avoid rate limiting
+      await waitBetweenDeployments(options.delaySeconds, options.verbose)
     }
   }
 
@@ -305,11 +310,6 @@ async function deployCoreFacetsImpl(options: {
       const ownerAddress = networkInfo.address
 
       // Convert to hex format for constructor
-      const { TronWeb } = await import('tronweb')
-      const tronWeb = new TronWeb({
-        fullHost: rpcUrl,
-        privateKey,
-      })
       const ownerHexRaw = tronWeb.address.toHex(ownerAddress)
       const ownerHex = ownerHexRaw.startsWith('0x')
         ? ownerHexRaw
@@ -393,6 +393,11 @@ const deployCommand = defineCommand({
       description: 'Enable verbose logging',
       default: true,
     },
+    delaySeconds: {
+      type: 'string',
+      description: 'Number of seconds to wait between deployments (default: 5)',
+      default: '5',
+    },
   },
   async run({ args }) {
     try {
@@ -412,9 +417,28 @@ const deployCommand = defineCommand({
         // Use default value
       }
 
+      // Parse delaySeconds from string to number
+      let delaySeconds = 5 // default
+      try {
+        // First try command line argument
+        if (args.delaySeconds) {
+          const parsed = parseInt(args.delaySeconds, 10)
+          if (!isNaN(parsed) && parsed >= 0) {
+            delaySeconds = parsed
+          } else {
+            consola.warn(
+              `Invalid delaySeconds value: ${args.delaySeconds}, using default: 5`
+            )
+          }
+        }
+      } catch {
+        // Use default value
+      }
+
       await deployCoreFacetsImpl({
         dryRun,
         verbose,
+        delaySeconds,
       })
     } catch (error: unknown) {
       const errorMessage =

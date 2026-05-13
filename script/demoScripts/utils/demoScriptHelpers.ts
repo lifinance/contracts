@@ -1,7 +1,8 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { Keypair } from '@solana/web3.js'
+import { getAssociatedTokenAddressSync } from '@solana/spl-token'
+import { Keypair, PublicKey } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
 // eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
 import bs58 from 'bs58'
@@ -38,8 +39,12 @@ import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
-import { node_url } from '../../utils/network'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
+import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
+import {
+  getTransportConfigFromRpcUrl,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
 
 config()
 
@@ -83,7 +88,7 @@ export const ADDRESS_USDT_OPT = '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58'
 export const ADDRESS_USDC_ARB = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 export const ADDRESS_USDT_ARB = '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'
 export const ADDRESS_USDC_SOL_BYTES32 =
-  '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61'
+  '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61' // [pre-commit-checker: not a secret]
 export const ADDRESS_USDC_SOL = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 export const ADDRESS_USDCe_OPT = '0x7F5c764cBc14f9669B88837ca1490cCa17c31607'
 export const ADDRESS_WETH_ETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
@@ -102,12 +107,6 @@ export const ADDRESS_UNISWAP_OPT = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2'
 export const ADDRESS_UNISWAP_ARB = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
 export const ADDRESS_UNISWAP_BASE = '0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891'
 // const UNISWAP_ADDRESS_DST = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2' // Uniswap OPT
-
-//
-export const ADDRESS_DEV_WALLET_SOLANA_BYTES32 =
-  '0x066c3a098d50715ef7f3902e25bead0dd33bd58acb6e30c67969faff35856401' // Solana address: S5ARSDD3ddZqqqqqb2EUE2h2F1XQHBk7bErRW1WPGe4
-export const ADDRESS_DEV_WALLET_V4 =
-  '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
 
 // LiFi chain ID for Solana (from LiFiData.sol)
 export const LIFI_CHAIN_ID_SOLANA = 1151111081099710n
@@ -161,6 +160,45 @@ export const solanaAddressToBytes32 = (
 
   // Convert to hex string
   return toHex(addressBytes)
+}
+
+/**
+ * Converts a bytes32 hex value (e.g. from event logs: mintRecipient, nonEVMReceiver) to Solana base58 address.
+ * Inverse of solanaAddressToBytes32.
+ * @param bytes32Hex - 32-byte value as hex string (with or without 0x prefix)
+ * @returns Solana address in base58 format
+ */
+export const bytes32ToSolanaAddress = (bytes32Hex: string): string => {
+  const hex = bytes32Hex.replace(/^0x/i, '')
+  if (hex.length !== 64) {
+    throw new Error(
+      `Invalid bytes32 length: ${hex.length} hex chars (expected 64)`
+    )
+  }
+  const bytes = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return bs58.encode(bytes)
+}
+
+/**
+ * Computes the Associated Token Account (ATA) for a Solana address and token mint, returns bytes32 hex.
+ * Used when bridging to Solana (e.g. Polymer CCTP) where CCTP v2 requires mintRecipient to be the ATA.
+ * @param solanaAddress - Solana wallet address in base58 format
+ * @param tokenMint - Token mint address in base58 format (e.g. USDC on Solana)
+ * @returns ATA address as bytes32 hex string
+ */
+export async function computeSolanaATABytes32(
+  solanaAddress: string,
+  tokenMint: string
+): Promise<`0x${string}`> {
+  const ownerPublicKey = new PublicKey(solanaAddress)
+  const mintPublicKey = new PublicKey(tokenMint)
+  const ata = getAssociatedTokenAddressSync(mintPublicKey, ownerPublicKey)
+  const ataBytes = ata.toBytes()
+  const ataHex = '0x' + Buffer.from(ataBytes).toString('hex').padStart(64, '0')
+  return ataHex as `0x${string}`
 }
 
 /**
@@ -668,17 +706,6 @@ export function addressToBytes32RightPadded(address: string): `0x${string}` {
   return `0x${hex.padEnd(64, '0')}`
 }
 
-/**
- * Retrieve the value of an environment variable.
- * Throws an error if the environment variable is not defined.
- */
-export const getEnvVar = (varName: string): string => {
-  const value = process.env[varName]
-  if (!value)
-    throw new Error(`Missing required environment variable: ${varName}`)
-
-  return value
-}
 
 /**
  * Normalize a private key to ensure it starts with "0x".
@@ -701,8 +728,18 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
  * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
  */
 const getRpcUrl = (chain: SupportedChain) => {
-  const envKey = `ETH_NODE_URI_${chain.toUpperCase()}`
-  return getEnvVar(envKey)
+  const envKey = getRPCEnvVarName(chain)
+  let rpcUrl = getEnvVar(envKey)
+
+  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc.
+  if (
+    isTronNetworkKey(chain) &&
+    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
+  ) {
+    rpcUrl = `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
+  }
+
+  return rpcUrl
 }
 
 /**
@@ -748,16 +785,21 @@ export const setupEnvironment = async (
 
   const viemChain = getViemChainForNetworkName(chain)
 
+  // Support RPC URLs with embedded credentials (user:pass@host); viem requires auth via header
+  const { url: transportUrl, fetchOptions } =
+    getTransportConfigFromRpcUrl(RPC_URL)
+  const transport = http(transportUrl, fetchOptions ? { fetchOptions } : {})
+
   const publicClient = createPublicClient({
     chain: viemChain,
-    transport: http(RPC_URL),
+    transport,
   })
 
   const walletAccount = privateKeyToAccount(typedPrivateKey)
 
   const walletClient = createWalletClient({
     chain: viemChain,
-    transport: http(RPC_URL),
+    transport,
     account: walletAccount,
   })
 
@@ -792,19 +834,36 @@ export const setupEnvironment = async (
 }
 
 /**
- * Retrieves a specific element from the configuration for a given blockchain chain.
+ * Retrieves a config value for a chain from a map keyed by chain (e.g. glacis airlift addresses).
  */
-export const getConfigElement = (
+export function getConfigElement(
+  configKeyedByChain: Record<string, unknown>,
+  chain: SupportedChain
+): unknown
+/**
+ * Retrieves a specific element from the configuration for a given blockchain chain (config[chain][elementKey]).
+ */
+export function getConfigElement(
   config: Record<string, any>,
   chain: SupportedChain,
   elementKey: string
-) => {
+): any
+export function getConfigElement(
+  config: Record<string, any>,
+  chain: SupportedChain,
+  elementKey?: string
+): any {
+  if (elementKey === undefined) {
+    const value = config[chain]
+    if (value === undefined || value === null)
+      throw new Error(`No config found for chain '${chain}' in the config.`)
+    return value
+  }
   const chainConfig = config[chain]
   if (!chainConfig || !chainConfig[elementKey])
     throw new Error(
       `Element '${elementKey}' not found for chain '${chain}' in the config.`
     )
-
   return chainConfig[elementKey]
 }
 

@@ -15,18 +15,22 @@ import { createInterface } from 'readline'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
-  type Db,
   type Collection,
+  type Db,
   type IndexSpecification,
   MongoClient,
 } from 'mongodb'
 
 import type { EnvironmentEnum } from '../common/types'
-import { getEnvVar } from '../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../utils/delay'
+import { getEnvVar } from '../utils/utils'
 
+import { createDefaultCache } from './shared/deployment-cache'
 import {
+  deploymentRecordEqFilter,
   type IDeploymentRecord,
   type IUpdateConfig,
+  mongoEq,
   RecordTransformer,
 } from './shared/mongo-log-utils'
 
@@ -46,6 +50,18 @@ const config: IUpdateConfig = {
   ),
   batchSize: 100,
   databaseName: 'contract-deployments',
+}
+
+/** Invalidate deployment cache for an environment after writing to MongoDB */
+async function invalidateDeploymentCache(
+  environment: keyof typeof EnvironmentEnum
+): Promise<void> {
+  const cache = createDefaultCache({
+    mongoUri: config.mongoUri,
+    batchSize: config.batchSize,
+    databaseName: config.databaseName,
+  })
+  await cache.invalidate(environment)
 }
 
 // Helper function for user confirmation
@@ -97,7 +113,7 @@ class DeploymentLogManager {
 
         const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff
         consola.warn(`MongoDB connection failed, retrying in ${delay}ms...`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await sleep(delay)
       }
   }
 
@@ -172,10 +188,10 @@ class DeploymentLogManager {
     if (!this.collection) throw new Error('Collection not initialized')
 
     const filter = {
-      contractName: record.contractName,
-      network: record.network,
-      version: record.version,
-      address: record.address,
+      contractName: mongoEq(record.contractName),
+      network: mongoEq(record.network),
+      version: mongoEq(record.version),
+      address: mongoEq(record.address),
     }
 
     const update = {
@@ -214,10 +230,10 @@ class DeploymentLogManager {
     const operations = records.map((record) => ({
       updateOne: {
         filter: {
-          contractName: record.contractName,
-          network: record.network,
-          version: record.version,
-          address: record.address,
+          contractName: mongoEq(record.contractName),
+          network: mongoEq(record.network),
+          version: mongoEq(record.version),
+          address: mongoEq(record.address),
         },
         update: {
           $set: {
@@ -425,10 +441,10 @@ class DeploymentLogManager {
             return {
               deleteOne: {
                 filter: {
-                  contractName: record.contractName,
-                  network: record.network,
-                  version: record.version,
-                  address: record.address,
+                  contractName: mongoEq(record.contractName),
+                  network: mongoEq(record.network),
+                  version: mongoEq(record.version),
+                  address: mongoEq(record.address),
                 },
               },
             }
@@ -479,10 +495,10 @@ class DeploymentLogManager {
     if (!this.collection) throw new Error('Collection not initialized')
 
     const filter = {
-      contractName,
-      network,
-      version,
-      address,
+      contractName: mongoEq(contractName),
+      network: mongoEq(network),
+      version: mongoEq(version),
+      address: mongoEq(address),
     }
 
     const updateDoc = {
@@ -507,7 +523,7 @@ class DeploymentLogManager {
   ): Promise<IDeploymentRecord[]> {
     if (!this.collection) throw new Error('Collection not initialized')
 
-    return this.collection.find(filters).toArray()
+    return this.collection.find(deploymentRecordEqFilter(filters)).toArray()
   }
 
   public async getLatestDeployment(
@@ -517,7 +533,7 @@ class DeploymentLogManager {
     if (!this.collection) throw new Error('Collection not initialized')
 
     return this.collection.findOne(
-      { contractName, network },
+      { contractName: mongoEq(contractName), network: mongoEq(network) },
       { sort: { timestamp: -1 } }
     )
   }
@@ -603,6 +619,9 @@ const syncCommand = defineCommand({
 
       if (shouldSync) {
         await manager.syncDeployments(args.mode as 'merge' | 'overwrite')
+        await invalidateDeploymentCache(
+          args.env as keyof typeof EnvironmentEnum
+        )
       }
     } catch (error) {
       consola.error('Sync failed:', error)
@@ -731,6 +750,7 @@ const addCommand = defineCommand({
         `Adding deployment record: ${args.contract} on ${args.network}`
       )
       await manager.upsertDeployment(record)
+      await invalidateDeploymentCache(args.env as keyof typeof EnvironmentEnum)
       consola.success(
         `Successfully added/updated deployment: ${args.contract} on ${args.network}`
       )
@@ -885,6 +905,7 @@ const updateCommand = defineCommand({
         args.address,
         updates
       )
+      await invalidateDeploymentCache(args.env as keyof typeof EnvironmentEnum)
     } catch (error) {
       consola.error('Update operation failed:', error)
       exitCode = 1
@@ -955,4 +976,4 @@ const main = defineCommand({
 // Run the CLI
 runMain(main)
 
-export { DeploymentLogManager, IDeploymentRecord }
+export { DeploymentLogManager }

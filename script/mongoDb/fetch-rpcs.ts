@@ -4,7 +4,7 @@ import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient } from 'mongodb'
 
-import { getRPCEnvVarName } from '../utils/network'
+import { getRPCEnvVarName } from '../utils/utils'
 
 config()
 

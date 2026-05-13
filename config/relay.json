@@ -1,5 +1,6 @@
 {
-  "--- link_to_relay_docs_for_contract_addresses ---": "https://docs.relay.link/references/api/api_resources/supported-chains",
+  "--- link_to_relay_docs_for_relay_receiver_contract_addresses ---": "https://docs.relay.link/references/api/api_resources/contract-addresses#mainnet-contracts",
+  "--- link_to_relay_docs_for_relay_depository_contract_addresses ---": "https://docs.relay.link/references/protocol/depository/addresses",
   "--- alternative (API) ---": "https://api.relay.link/chains?includeChains=562da1f0-bffe-4208-a3d8-143c2fbdb380",
   "relaySolver": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
   "mainnet": {
@@ -11,6 +12,10 @@
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "arbitrum": {
+    "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
+  "arbitrumnova": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
@@ -110,6 +115,10 @@
     "relayReceiver": "0xf17902d51fdff7bf50aacc78d6bb399baf88b479",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
+  "morph": {
+    "relayReceiver": "0xd71e5C1D217D12855B37fe60299273aaD91d6Cec",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "optimism": {
     "relayReceiver": "0xa5f565650890fba1824ee0f21ebbbf660a179934",
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
@@ -165,6 +174,10 @@
   "taiko": {
     "relayReceiver": "0xa06e1351e2fd2d45b5d35633ca7ecf328684a109",
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
+  },
+  "tempo": {
+    "relayReceiver": "0x0000000000000000000000000000000000000000",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "unichain": {
     "relayReceiver": "0x47eb64e17a6d2fd559b608695e6d308cced918dd",

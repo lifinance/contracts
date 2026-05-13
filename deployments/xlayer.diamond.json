@@ -79,7 +79,7 @@
       "Executor": "0x4c2fd9A794ac2337aD7AD547158B68397B6458A7",
       "FeeCollector": "0xC69994fd72824ca98F8a0B1E2ABc954E65a91cf4",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-      "GasZipPeriphery": "0xDBd9B2AA2dBDf6d6463598de56749e721460688e",
+      "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
       "LiFiDEXAggregator": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
       "LidoWrapper": "",
       "Patcher": "",

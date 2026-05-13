@@ -4,8 +4,7 @@
 # should be called like this:
 # $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh
 
@@ -120,9 +119,7 @@ deploySingleContract() {
     DIAMOND_TYPE="LiFiDiamond"
   fi
 
-  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
-    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
-  fi
+  GAS_ESTIMATE_MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-130}" # this is foundry's default value
 
   # logging for debug purposes
   echo ""
@@ -234,6 +231,7 @@ deploySingleContract() {
         echo "[info] Proceeding with deployment..."
       fi
   fi
+
   # execute script
   attempts=1
   ADDRESS_COLLISION_DETECTED=false
@@ -247,39 +245,37 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # Add network-specific flags for megaeth
-    if [[ "$NETWORK" == "megaeth" ]]; then
-      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
-      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
+    # Add network-specific deploy flags from networks.json (customDeployFlags)
+    ADDITIONAL_FLAGS=""
+    local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
+    if [[ -f "$NETWORKS_JSON" ]]; then
+      ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
+    fi
+    # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
+    if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
       SKIP_SIMULATION_FLAG=""
-    else
-      MEGAETH_FLAGS=""
     fi
 
+    # forge >=1.6 validates the simulation sender's balance against gas_estimate * gas_price;
+    # the foundry.toml default `sender` has 0 balance on real chains, so we override to the funded deployer.
+    DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
+
+    # Execute, parse, and check return code
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
-      RAW_RETURN_DATA=$(FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" ./foundry-zksync/forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER" --gas-limit 50000000)
+      executeAndParse \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "true"
     else
       # try to execute call
-      RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f "$NETWORK" -vvvvv --json --broadcast --legacy --slow "$SKIP_SIMULATION_FLAG" $MEGAETH_FLAGS --gas-estimate-multiplier "$GAS_ESTIMATE_MULTIPLIER")
+      executeAndParse \
+        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "true"
     fi
 
-    RETURN_CODE=$?
-
-    # print return data only if debug mode is activated
-    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
-
-    # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
-      # try to extract error message and throw error
-      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-      if [[ $ERROR_MESSAGE == "" ]]; then
-        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
-      else
-        error "execution of deploy script failed with message: $ERROR_MESSAGE"
-      fi
     # Check for zksync-specific address collision (revert with specific error code)
-    elif isZkEvmNetwork "$NETWORK" && [[ $RAW_RETURN_DATA == *"\"status\":\"Revert\""* && $RAW_RETURN_DATA == *"0x9e4a3c8a"* ]]; then
+    # This must be checked first as it's a specific case that needs special handling
+    if isZkEvmNetwork "$NETWORK" && [[ "${RAW_RETURN_DATA:-}" == *"\"status\":\"Revert\""* && "${RAW_RETURN_DATA:-}" == *"0x9e4a3c8a"* ]]; then
       echo ""
       gum style \
         --foreground 196 --border-foreground 196 --border double \
@@ -299,23 +295,38 @@ deploySingleContract() {
       ADDRESS_COLLISION_DETECTED=true
       break
 
-    # check the return code the last call
-    elif [ $RETURN_CODE -eq 0 ]; then
+    # check the return code the last call - success case
+    elif [ "${RETURN_CODE:-1}" -eq 0 ]; then
       # extract deployed-to address from return data
-        ADDRESS=$(extractDeployedAddressFromRawReturnData "$RAW_RETURN_DATA" "$NETWORK")
-        if [[ $? -ne 0 ]]; then
-          error "❌ Could not extract deployed address from raw return data"
-          return 1
-        elif [[ -n "$ADDRESS" ]]; then
-          # address successfully extracted
-          break
-        fi
+      ADDRESS=$(extractDeployedAddressFromRawReturnData "${RAW_RETURN_DATA:-}" "$NETWORK")
+      
+      if [[ $? -ne 0 ]]; then
+        warning "❌ Could not extract deployed address from raw return data (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
+        attempts=$((attempts + 1))
+        sleep 1
+        continue
+      elif [[ -n "$ADDRESS" ]]; then
+        # address successfully extracted
+        echoDebug "✅ Successfully extracted address: $ADDRESS"
+        break
+      else
+        warning "Address extraction returned empty (attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT)"
+        attempts=$((attempts + 1))
+        sleep 1
+        continue
+      fi
+
+    # RETURN_CODE != 0 or error detected in RAW_RETURN_DATA
+    # Use handleForgeScriptError for consistent error handling
+    else
+      if ! handleForgeScriptError "forge script failed for $SCRIPT" "attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" "$NETWORK"; then
+        attempts=$((attempts + 1))
+        sleep 1
+        continue
+      fi
     fi
-
-    attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
   done
-
+  
   # check if we broke out due to address collision
   if [[ "$ADDRESS_COLLISION_DETECTED" == "true" ]]; then
     error "Deployment stopped due to address collision. Please change SALT and retry."
@@ -330,7 +341,7 @@ deploySingleContract() {
 
   # check if call was executed successfully or used all ATTEMPTS
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; then
-    error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment"
+    error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment after $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT attempts"
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
@@ -353,7 +364,22 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  CONSTRUCTOR_ARGS=$(echo "$RAW_RETURN_DATA" | grep -o '{\"logs\":.*' | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+  # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
+  local JSON_DATA
+  JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+  
+  # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
+  if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+    JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+  fi
+  
+  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
+  # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
+  CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
+  if [[ ! "$CONSTRUCTOR_ARGS" =~ ^0x[0-9a-fA-F]*$ ]] || (( ${#CA_HEX_PAYLOAD} % 2 != 0 )); then
+    CONSTRUCTOR_ARGS="0x"
+  fi
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already
@@ -399,6 +425,13 @@ deploySingleContract() {
 
   # check if contract verification is enabled in config and contract not yet verified according to log file
   if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
+    # For zkEVM networks, add delay before verification to allow API to index the contract
+    # This helps avoid "504 Gateway Time-out" errors when API tries to fetch contract ABI
+    if isZkEvmNetwork "$NETWORK"; then
+      echo "[info] Waiting 60 seconds before verification to allow API indexing (zkEVM network)..."
+      sleep 60
+    fi
+    
     echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
     if [[ $DEBUG == "true" ]]; then
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"

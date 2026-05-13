@@ -1,0 +1,29 @@
+{
+  "lib/Permit2": {
+    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
+  "lib/create3-factory": {
+    "rev": "0c1f388914a9c5e1c1731af31e8340952b0cbe9e"
+  },
+  "lib/ds-test": {
+    "rev": "e282159d5170298eb2455a6c05280ab5a73a4ef0"
+  },
+  "lib/forge-std": {
+    "rev": "7f7cb06aa55fc75d2280d7d54713dc4368d71fd3"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "e50c24f5839db17f46991478384bfda14acfb830"
+  },
+  "lib/safe-tx-cli": {
+    "rev": "c8edc3242cc8720c08ce02be0075fb9189d3e560"
+  },
+  "lib/sgn-v2-contracts": {
+    "rev": "1782ba66c6e510337e98f82c857f83d49aa4b13d"
+  },
+  "lib/solady": {
+    "rev": "678c9163550810b08f0ffb09624c9f7532392303"
+  },
+  "lib/solmate": {
+    "rev": "2001af43aedb46fdc2335d2a7714fb2dae7cfcd1"
+  }
+}

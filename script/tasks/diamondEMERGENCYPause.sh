@@ -157,7 +157,7 @@ function handleNetwork() {
   fi
 
   # check if the diamond is already paused by calling owner() function and analyzing the response
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
   # only required if we dont expect the diamond to be paused
   if [[ "$ACTION" != "unpause the diamond" ]]; then
     # Check for errors in the response
@@ -185,13 +185,19 @@ function handleNetwork() {
       if [ "$ACTION" == "pause the diamond contract entirely" ]; then
         # pause the diamond
         echoDebug "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from wallet $DEPLOYER (requires PRIVATE_KEY_PAUSER_WALLET to be set in .env file)"
-        cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy >/dev/null
+        universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET" >/dev/null
       else
         # unpause the diamond
-        echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig via timelock now with blacklisted facets: $BLACKLIST"
-
         local CALLDATA=$(cast calldata "unpauseDiamond(address[])" "$BLACKLIST")
-        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY" --timelock
+
+        if isTestnetNetwork "$NETWORK"; then
+          # Testnet has no Safe/Timelock; send unpause directly to the diamond.
+          echoDebug "[network: $NETWORK] sending unpause transaction directly to diamond with blacklisted facets: $BLACKLIST"
+          universalCast "sendRaw" "$NETWORK" "production" "$DIAMOND_ADDRESS" "$CALLDATA"
+        else
+          echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig via timelock now with blacklisted facets: $BLACKLIST"
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY" --timelock
+        fi
       fi
     else
       # remove a facet (diamond remains paused)
@@ -206,7 +212,7 @@ function handleNetwork() {
       fi
 
       # call diamond with PauserWallet to remove facet
-      cast send "$DIAMOND_ADDRESS" "removeFacet(address)" "$FACET_ADDRESS" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
+      universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "removeFacet(address)" "$FACET_ADDRESS" "" "$PRIVATE_KEY_PAUSER_WALLET"
     fi
 
     # check the return code of the last call

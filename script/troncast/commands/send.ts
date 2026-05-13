@@ -5,11 +5,8 @@ import { defineCommand } from 'citty'
 import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getEnvironment,
-  getPrivateKey,
-  loadForgeArtifact,
-} from '../../deploy/tron/utils'
+import { loadForgeArtifact } from '../../deploy/tron/helpers/loadForgeArtifact'
+import { getEnvironment, getPrivateKey } from '../../utils/utils'
 import type { Environment, ITransactionReceipt } from '../types'
 import { formatGasUsage, formatReceipt } from '../utils/formatter'
 import {
@@ -32,8 +29,9 @@ export const sendCommand = defineCommand({
     },
     signature: {
       type: 'positional',
-      description: 'Function signature (e.g., "transfer(address,uint256)")',
-      required: true,
+      description:
+        'Function signature (e.g., "transfer(address,uint256)"). Not required when --calldata is provided.',
+      required: false,
     },
     params: {
       type: 'positional',
@@ -81,6 +79,11 @@ export const sendCommand = defineCommand({
       type: 'string',
       description: 'Custom RPC URL (overrides environment variable)',
     },
+    calldata: {
+      type: 'string',
+      description:
+        'Raw calldata (hex string with 0x prefix). When provided, signature and params are ignored.',
+    },
   },
   async run({ args }) {
     try {
@@ -100,6 +103,132 @@ export const sendCommand = defineCommand({
       // Initialize TronWeb with private key and optional custom RPC URL
       const tronWeb = initTronWeb(env, privateKey, args.rpcUrl)
 
+      // Validate that either signature or calldata is provided
+      if (!args.signature && !args.calldata) {
+        throw new Error(
+          'Either function signature or --calldata must be provided'
+        )
+      }
+
+      // Check if raw calldata is provided
+      if (args.calldata) {
+        // Send raw calldata directly
+        consola.info(`Sending raw calldata transaction to ${args.address}`)
+
+        // Validate calldata format
+        if (!args.calldata.startsWith('0x')) {
+          throw new Error('Calldata must start with 0x')
+        }
+
+        // Remove 0x prefix (TronWeb expects hex without 0x)
+        const data = args.calldata.slice(2)
+        consola.debug(
+          `Calldata length: ${data.length} characters (${
+            data.length / 2
+          } bytes)`
+        )
+
+        // Get caller address
+        const callerAddress = tronWeb.address.fromPrivateKey(privateKey)
+        if (!callerAddress) {
+          throw new Error('Failed to derive address from private key')
+        }
+
+        // Convert addresses to hex format (TronWeb internal format)
+        const contractAddressHex = tronWeb.address.toHex(args.address)
+        const ownerAddressHex = tronWeb.address.toHex(callerAddress)
+
+        // Use TronWeb's RPC API directly to trigger smart contract with raw data
+        const triggerResult = (await tronWeb.fullNode.request(
+          'wallet/triggersmartcontract',
+          {
+            owner_address: ownerAddressHex,
+            contract_address: contractAddressHex,
+            data: data, // Raw calldata (hex without 0x)
+            fee_limit: args.feeLimit
+              ? parseInt(
+                  tronWeb.toSun(parseFloat(args.feeLimit as string)) as string
+                )
+              : 1000000000,
+            call_value: 0,
+          },
+          'post'
+        )) as {
+          result?: { result?: boolean }
+          transaction?: unknown
+        }
+
+        if (
+          !triggerResult ||
+          !triggerResult.result ||
+          !triggerResult.result.result
+        ) {
+          throw new Error(
+            `Failed to trigger contract with raw data: ${JSON.stringify(
+              triggerResult
+            )}`
+          )
+        }
+
+        // Get the transaction from the trigger result
+        const transaction = triggerResult.transaction
+        if (!transaction) {
+          throw new Error('No transaction in trigger result')
+        }
+
+        if (args.dryRun) {
+          consola.info('Dry run mode - transaction will not be sent')
+          consola.log(
+            'Transaction prepared:',
+            JSON.stringify(transaction, null, 2)
+          )
+          return
+        }
+
+        // Sign transaction
+        const signedTransaction = (await tronWeb.trx.sign(
+          transaction as Parameters<typeof tronWeb.trx.sign>[0],
+          privateKey
+        )) as Awaited<ReturnType<typeof tronWeb.trx.sign>>
+
+        // Send transaction
+        const result = await tronWeb.trx.sendRawTransaction(
+          signedTransaction as Parameters<
+            typeof tronWeb.trx.sendRawTransaction
+          >[0]
+        )
+
+        if (!result.result) {
+          throw new Error(`Transaction send failed: ${JSON.stringify(result)}`)
+        }
+
+        const txId = result.txid || result.transaction?.txID
+        if (!txId) {
+          throw new Error('Transaction ID not found in result')
+        }
+
+        consola.success(`Transaction sent: ${txId}`)
+
+        if (args.confirm) {
+          consola.info('Waiting for confirmation...')
+          const receipt = (await waitForConfirmation(
+            tronWeb,
+            txId
+          )) as ITransactionReceipt
+
+          if (args.json) consola.log(JSON.stringify(receipt, null, 2))
+          else consola.log(formatReceipt(receipt))
+
+          if (receipt.result === 'FAILED')
+            throw new Error(
+              `Transaction failed: ${receipt.resMessage || 'Unknown error'}`
+            )
+        }
+
+        return
+      }
+
+      // Logic for function signature + parameters
       // Parse function signature
       const funcSig = parseFunctionSignature(args.signature)
       consola.info(`Preparing to call ${funcSig.name} on ${args.address}`)
@@ -214,7 +343,7 @@ export const sendCommand = defineCommand({
 
           try {
             // Determine network and environment
-            const environment = await getEnvironment()
+            const environment = getEnvironment()
             const networkName =
               environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
             const fileSuffix =

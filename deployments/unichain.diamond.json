@@ -65,9 +65,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x85a622d69CF1e1B2Be7963A77fb2E717c687845e": {
+      "0xa8462E13Bc9D97666f9e33BAe91281Ab341cdCAa": {
         "Name": "MayanFacet",
-        "Version": "1.2.0"
+        "Version": "1.2.4"
       },
       "0xc222572289a6bB7e03D448F05Ac4EBf31D7FBf32": {
         "Name": "GlacisFacet",
@@ -109,8 +109,12 @@
         "Name": "GardenFacet",
         "Version": "1.0.0"
       },
-      "0xbe1a7bF226D8cB013808eC4001aD4D50d833d102": {
+      "0x5d489e667f96b49Bf9fA67e1dEf4542904757794": {
         "Name": "PolymerCCTPFacet",
+        "Version": "2.0.1"
+      },
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       }
     },
@@ -119,7 +123,7 @@
       "Executor": "0xa6aca2704C6c53F076a90FbB19A69cd62c4c5Fe4",
       "FeeCollector": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
-      "GasZipPeriphery": "0x48909485E59dA0Cb0a35198a2C066aC97e93fd92",
+      "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
       "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
       "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
       "Patcher": "",
