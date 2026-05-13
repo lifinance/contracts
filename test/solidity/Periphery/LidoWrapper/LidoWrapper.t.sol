@@ -11,7 +11,6 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { RelayDepositoryFacet } from "lifi/Facets/RelayDepositoryFacet.sol";
 import { IRelayDepository } from "lifi/Interfaces/IRelayDepository.sol";
-import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
 import { MockRelayDepository } from "../../utils/MockRelayDepository.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
@@ -482,25 +481,9 @@ contract LidoWrapperTest is TestBase {
         addFacet(diamond, address(genericSwapFacetV3), functionSelectors);
         genericSwapFacetV3 = GenericSwapFacetV3(address(diamond));
 
-        // Add WhitelistManagerFacet if not already added
-        WhitelistManagerFacet whitelistManagerFacet = new WhitelistManagerFacet();
-        bytes4[] memory whitelistSelectors = new bytes4[](1);
-        whitelistSelectors[0] = WhitelistManagerFacet
-            .setContractSelectorWhitelist
-            .selector;
-        addFacet(diamond, address(whitelistManagerFacet), whitelistSelectors);
-        whitelistManagerFacet = WhitelistManagerFacet(address(diamond));
-
-        // whitelist LidoWrapper functions
-        whitelistManagerFacet.setContractSelectorWhitelist(
-            address(lidoWrapper),
-            lidoWrapper.wrapStETHToWstETH.selector,
-            true
-        );
-        whitelistManagerFacet.setContractSelectorWhitelist(
-            address(lidoWrapper),
-            lidoWrapper.unwrapWstETHToStETH.selector,
-            true
-        );
+        // LidoWrapper's wrap/unwrap selectors are already whitelisted in
+        // setUp() via relayDepositoryFacet.addAllowedContractSelector, which
+        // writes to the same LibAllowList storage used by
+        // WhitelistManagerFacet.
     }
 }
