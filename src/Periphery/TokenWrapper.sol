@@ -11,6 +11,8 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { WETH } from "solady/tokens/WETH.sol";
 import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 
+// TODO: next time this file is updated, route ERC20 transfers through
+//       LibAsset instead of SafeTransferLib for codebase consistency.
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
