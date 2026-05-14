@@ -26,15 +26,18 @@ Goal state: by the time CI runs, CodeRabbit finds **nothing**, because everythin
 
 CodeRabbit CLI is per-developer; no shared secrets are committed.
 
+**Install** is automatic: `bun install` runs `preinstall.sh`, which installs the CLI if missing (skipped on CI). After install, you must authenticate once:
+
 ```bash
-# Install
+coderabbit auth login    # browser flow; token stored in ~/.config/coderabbit/
+coderabbit --version     # verify
+```
+
+**Manual fallback** (if the preinstall hook didn't run, or the install failed soft):
+
+```bash
 curl -fsSL https://cli.coderabbit.ai/install.sh | sh
-
-# Authenticate (browser-based; token stored in ~/.config/coderabbit/)
 coderabbit auth login
-
-# Verify
-coderabbit --version
 ```
 
 If `coderabbit` is not on `PATH` after install, ensure `~/.local/bin` (or the path printed by the installer) is in `PATH`.

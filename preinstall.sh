@@ -81,3 +81,57 @@ for PACKAGE in "${REQUIRED_PACKAGES[@]}"; do
 done
 
 echo "All necessary packages are installed."
+
+# install_coderabbit_cli: Install CodeRabbit CLI for local /pr-ready reviews.
+#   - Skipped on CI (the cloud CodeRabbit GitHub app handles CI reviews).
+#   - Soft-fail: never blocks `bun install`; warns and continues on any error.
+#   - Per-developer auth (browser flow) is left to the dev to run once.
+#
+# Usage: install_coderabbit_cli
+# Returns: always 0 (intentionally non-blocking)
+function install_coderabbit_cli() {
+  if [[ -n "${CI:-}" ]]; then
+    echo "CI environment detected — skipping CodeRabbit CLI install."
+    return 0
+  fi
+
+  if command -v coderabbit &> /dev/null; then
+    echo "CodeRabbit CLI is already installed: $(coderabbit --version 2>/dev/null || echo 'unknown version')."
+  else
+    echo "CodeRabbit CLI is missing. Installing (used by /pr-ready)..."
+    local CR_INSTALL_SCRIPT
+    CR_INSTALL_SCRIPT=$(mktemp)
+    if ! curl -fsSL https://cli.coderabbit.ai/install.sh -o "$CR_INSTALL_SCRIPT"; then
+      echo "WARNING: Failed to download CodeRabbit CLI install script. Run /pr-ready setup instructions manually before opening a PR."
+      rm -f "$CR_INSTALL_SCRIPT"
+      return 0
+    fi
+    if ! bash "$CR_INSTALL_SCRIPT"; then
+      echo "WARNING: CodeRabbit CLI install did not complete cleanly. Run 'curl -fsSL https://cli.coderabbit.ai/install.sh | sh' manually."
+      rm -f "$CR_INSTALL_SCRIPT"
+      return 0
+    fi
+    rm -f "$CR_INSTALL_SCRIPT"
+  fi
+
+  # Auth is interactive (browser flow); we can only nudge.
+  if command -v coderabbit &> /dev/null; then
+    if ! coderabbit auth status &> /dev/null; then
+      echo ""
+      echo "================================================================"
+      echo "CodeRabbit CLI is installed but not authenticated."
+      echo "Run this once before opening a PR:"
+      echo ""
+      echo "    coderabbit auth login"
+      echo ""
+      echo "See .agents/commands/pr-ready.md for the full /pr-ready workflow."
+      echo "================================================================"
+    fi
+  else
+    echo "WARNING: CodeRabbit CLI not on PATH after install. Ensure ~/.local/bin (or the installer's printed path) is in your PATH, then re-run 'bun install'."
+  fi
+
+  return 0
+}
+
+install_coderabbit_cli
