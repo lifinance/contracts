@@ -59,41 +59,54 @@ If `coderabbit` is not on `PATH` after install, ensure `~/.local/bin` (or the pa
    - `--plain` produces a stable, machine-parseable output that agents can consume.
    - First run on a branch can take a few minutes; subsequent runs on the same diff are cached.
 
-3. **Classify findings** (agent or human)
+3. **Classify findings** into three buckets
 
-   Sort every finding into one of three buckets — this is classification only, **not** approval to change code:
+   - **Auto-apply (safe)** — mechanical, behavior-preserving, low-risk fixes. **Strict allowlist** (current trial period; revisit after a few weeks of real use):
+     - Typos in comments, NatSpec, log/error strings, and markdown docs.
+     - Missing NatSpec tags (`@notice`, `@param`, `@return`, `@dev`) where the body is unambiguous from the function signature.
+     - Removing unused imports.
+     - Comment-only formatting / wording cleanups.
+     - Any finding CR itself marks as `nitpick` / `style` AND that touches only comments or imports.
 
-   - **Apply-candidate**: clear, mechanical fixes (typos, naming, dead code, missing NatSpec tags, obvious bug fixes).
-   - **Discuss**: judgment calls (refactors, alternative patterns, perf trade-offs).
-   - **Reject**: false positives or suggestions that conflict with repo conventions (`.agents/rules/`).
+     **Not auto-apply** (must go through the ask path, even if CR says it's a small fix): anything that changes control flow, storage, visibility, modifiers, function signatures, return values, event signatures, constants, allowlists, or test assertions; anything in `.sol` files outside comments/imports; anything touching `src/Facets/**`, `src/Periphery/Receiver*.sol`, `src/Security/**`, or `script/deploy/**` beyond comment edits.
 
-4. **Apply with per-finding consent** (agent safety contract)
+   - **Ask** — judgment calls. Refactors, alternative patterns, perf trade-offs, "this could be simpler", suggested renames of identifiers, any logic change, and **anything the agent is not 100% certain belongs in Auto-apply.** When in doubt, Ask — never silently promote.
 
-   Agents MUST follow this contract. The dev pushes whatever the agent commits under their name, so consent must be explicit and individually reviewable.
+   - **Reject** — false positives or suggestions that conflict with `.agents/rules/`. No edit; rationale recorded in the summary.
 
-   For every Apply-candidate finding:
+4. **Apply** — different rules per bucket
 
-   1. **Show first, change never first.** Print a short block:
+   **Auto-apply bucket** (no prompt; oversight is the commit log + final summary):
+
+   1. Edit the file.
+   2. Create a **dedicated commit** with subject:
+      ```
+      pr-ready: <one-line issue summary> (<file>:<line>)
+      ```
+      Body contains the CR finding excerpt + a one-line rationale. **One finding = one commit.**
+   3. Do **not** push. The dev pushes after reviewing the summary.
+
+   **Ask bucket** (per-finding consent):
+
+   1. Print:
       ```
       [N/total] <file>:<line> — <one-line issue summary>
         CR says:   <≤ 80-char excerpt>
         Proposed:  <unified diff, ≤ 15 lines>
-      Apply? [y / n / skip-rest]
+      Apply? [y / n / defer / skip-rest]
       ```
-   2. **Wait for explicit user approval** before editing. `n` and `skip-rest` are both honored without argument.
-   3. On approval, edit the file, then create a **dedicated commit** with subject:
-      ```
-      pr-ready: <one-line issue summary> (<file>:<line>)
-      ```
-      and body containing the CR finding excerpt and a one-line rationale. **One finding = one commit.** Never batch multiple findings into a single commit, never amend, never squash, never rebase `pr-ready:` commits before push — the dev must be able to read `git log` and revert any single fix individually.
-   4. For **Discuss** and **Reject** findings, the agent never edits code. It surfaces a one-line rationale to the user and records the decision for the final summary.
+   2. Wait for explicit answer. `y` → edit + one-commit-per-fix (same format as Auto-apply). `n` / `defer` → record in summary (deferred with rationale). `skip-rest` → record all remaining Ask items as deferred and move to step 6.
+   3. Never infer consent. If the user is non-interactive, treat every Ask item as deferred and note it in the summary.
 
-   Hard rules for agents (no exceptions, even on "trivial" fixes):
+   **Reject bucket**: no edit, record in summary.
 
-   - No silent allowlist. Even typos require approval.
-   - Never use `git commit --amend`, `git rebase -i`, `git push --force`, or `--no-verify` during `/pr-ready`.
+   Hard rules (apply to **all** buckets, no exceptions):
+
+   - One finding = one commit. Never batch.
+   - Never `git commit --amend`, `git rebase -i`, `git push --force`, or `--no-verify` during `/pr-ready`. The audit trail must stay intact.
    - Never modify files outside the diff CodeRabbit reviewed.
-   - If the user is unavailable / non-interactive, **stop and report** — do not infer consent.
+   - Never push automatically. The dev pushes after reviewing the summary.
+   - If a fix would clearly break a test or the build, do not commit — surface it as an Ask instead, even if it's in the Auto-apply allowlist.
 
 5. **Detect repeat patterns** (the "brain")
 
@@ -126,15 +139,19 @@ If `coderabbit` is not on `PATH` after install, ensure `~/.local/bin` (or the pa
 
 ## Output / Reporting Format (mandatory final summary)
 
-After the re-run, the agent must print a single concise summary block. One line per applied finding linking issue → commit SHA so the dev can audit before pushing:
+After the re-run, the agent must print a single concise summary block. Auto-applied and Ask-applied fixes are listed separately so the dev can quickly verify nothing was changed without their pre-approval:
 
 ```
 /pr-ready summary  (branch: <name>, base: origin/main)
 
 Findings: <total>
 
-Applied (<N>):
+Auto-applied (<N>) — review before pushing:
   <short-sha>  <file>:<line>  <one-line issue summary>
+  <short-sha>  <file>:<line>  <one-line issue summary>
+  ...
+
+Ask-applied (<N>) — you approved these:
   <short-sha>  <file>:<line>  <one-line issue summary>
   ...
 
@@ -151,6 +168,9 @@ Repeat patterns (<N>) — candidates for promotion via /add-new-rule:
   ...
 
 Re-run status: <CLEAN | N remaining (documented)>
+
+Quick audit:  git log --oneline origin/main..HEAD -- $(git diff --name-only origin/main..HEAD)
+Revert one:   git revert <short-sha>
 ```
 
 Do not claim "PR-ready" until the re-run shows no actionable findings, and do not push until the dev has reviewed this summary.
@@ -166,8 +186,9 @@ Do not claim "PR-ready" until the re-run shows no actionable findings, and do no
 Before declaring a PR ready:
 
 - [ ] `coderabbit review --base origin/main --plain` exit clean OR remaining findings explicitly documented in the PR body.
-- [ ] Every applied fix is its own `pr-ready:` commit, visible in `git log` and individually revertable.
+- [ ] Every applied fix (auto-applied or ask-applied) is its own `pr-ready:` commit, visible in `git log` and individually revertable.
 - [ ] No `git commit --amend`, `git rebase -i`, or `git push --force` used during the session.
+- [ ] Dev has read the **Auto-applied** section of the summary and is OK with each entry (or `git revert`-ed the ones they aren't).
 - [ ] All local lints/tests still pass after applied fixes.
 - [ ] No `--no-verify`-style escape hatches used.
 - [ ] Re-run performed after the final set of fixes.
