@@ -101,11 +101,15 @@ If `git status --porcelain` returns anything, **stop**. Show the user the dirty 
 Once clean:
 
 ```bash
-git fetch origin
+git fetch origin <default-branch>
 git checkout -b <branch> origin/<default-branch>
 ```
 
-Use `origin/main` for all repos in the mapping above. If a repo uses a different default (e.g. `master`, `develop`), detect via `git symbolic-ref refs/remotes/origin/HEAD` and use that.
+**Always base off fresh `origin/<default-branch>` — never off the local repo's current HEAD.** The local repo is very often parked on a feature branch from previous work, and silently inheriting whatever commits sit on that branch would mix unrelated changes into the new ticket. Explicitly using `origin/<default-branch>` as the base ref sidesteps this completely: the new branch starts from exactly the same commit a fresh `git clone` would land on.
+
+Do NOT use `git checkout main && git pull && git checkout -b <branch>` — that mutates the local `main` branch, which the user may have intentionally pinned for some reason, and it requires a temporary checkout of `main` that fails if the working tree is dirty in ways the step-5 clean check missed. The `git fetch` + `checkout -b origin/<default>` pattern updates only the remote-tracking ref and never touches local `main`.
+
+Use `origin/main` for all repos in the mapping above. If a repo uses a different default (e.g. `master`, `develop`), detect via `git symbolic-ref refs/remotes/origin/HEAD` (or `git remote show origin | grep "HEAD branch"` as a fallback) and use that.
 
 ### 6. Move the Linear ticket to In Progress
 
