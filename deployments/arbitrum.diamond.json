@@ -185,9 +185,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x2290f918c21D64aC8b1D7cE725E320EfB75271d4": {
+      "0x67Cc6E0f10A1d98E68238Ff549533e7F02a81e11": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0xB2d2D9e94B8C690aE642c71B3Cc080E5893CE839": {
         "Name": "GardenFacet",

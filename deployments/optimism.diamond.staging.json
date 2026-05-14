@@ -53,9 +53,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
+      "0x17508BC3E587683E6f98bE89b5fDC28521611138": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.1"
       },
       "0xE2Bf645a908A5515C2FEC03d3edDb59c6eF606Fe": {
         "Name": "GlacisFacet",

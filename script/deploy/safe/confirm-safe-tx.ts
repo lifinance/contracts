@@ -10,9 +10,10 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import type { Account, Address, Hex } from 'viem'
+import { getAddress, type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
@@ -40,6 +41,14 @@ import {
   type ISafeTxDocument,
   type SafeClient,
 } from './safe-utils'
+import {
+  byOperationId,
+  computeOperationIdBatch,
+  decodeScheduleBatch,
+  getTimelockQueueCollection,
+  isScheduleBatchCalldata,
+  serializeScheduleParams,
+} from './timelock-queue'
 
 dotenv.config()
 
@@ -60,6 +69,81 @@ const globalTimeoutExecutions: Array<{
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
   return this.toString()
+}
+
+/**
+ * Upserts a row into the timelock execution queue when the just-executed Safe
+ * tx scheduled a timelock op. No-op for any other Safe tx.
+ *
+ * The queue lives in the non-sensitive `MONGODB_URI` cluster.
+ *
+ * Errors are logged as warnings only — the Safe tx is already mined and is the
+ * authoritative record. A missed enqueue can be repaired via the backfill script.
+ *
+ * @param safeTransaction - The Safe tx that just executed.
+ * @param safeTxHash - Safe-side hash of the tx (for traceability).
+ * @param executionHash - On-chain hash of the Safe execution tx.
+ * @param chainId - Numeric chain id of the network.
+ * @param networkName - Network name (lowercased before storage).
+ */
+async function enqueueTimelockOpIfApplicable(
+  safeTransaction: ISafeTransaction,
+  safeTxHash: string,
+  executionHash: string,
+  chainId: number,
+  networkName: string
+): Promise<void> {
+  const callData = safeTransaction.data.data
+  if (!isScheduleBatchCalldata(callData)) return
+
+  try {
+    const params = decodeScheduleBatch(callData)
+    const operationId = computeOperationIdBatch(
+      params.targets,
+      params.values,
+      params.payloads,
+      params.predecessor,
+      params.salt
+    )
+    const network = networkName.toLowerCase()
+    const timelockAddress = getAddress(safeTransaction.data.to)
+    const serialized = serializeScheduleParams(params)
+    const now = new Date()
+
+    const { client, timelockQueue } = await getTimelockQueueCollection()
+    try {
+      await timelockQueue.updateOne(
+        byOperationId(network, operationId),
+        {
+          $setOnInsert: {
+            operationId,
+            network,
+            chainId,
+            timelockAddress,
+            ...serialized,
+            createdAt: now,
+          },
+          $set: {
+            status: 'queued',
+            safeTxHash,
+            executionHash,
+            updatedAt: now,
+          },
+        },
+        { upsert: true }
+      )
+      consola.success(
+        `Enqueued timelock op ${operationId} for auto-execution on ${network}`
+      )
+    } finally {
+      await client.close()
+    }
+  } catch (error) {
+    consola.warn(
+      'Failed to enqueue timelock op (Safe tx already on-chain; can be re-enqueued via backfill):',
+      error
+    )
+  }
 }
 
 /**
@@ -174,6 +258,20 @@ const processTxs = async (
         { $set: { status: 'executed', executionHash: executionHash } }
       )
 
+      // If this Safe tx scheduled a timelock op, enqueue it for the
+      // auto-execution runner. The queue lives in the non-sensitive
+      // MONGODB_URI cluster.
+      // Failure here is a warning, never a throw — the Safe tx is already
+      // mined and is the source of truth; the row can be re-enqueued via
+      // the backfill script.
+      await enqueueTimelockOpIfApplicable(
+        safeTransaction,
+        safeTxHash,
+        executionHash,
+        chain.id,
+        chain.name
+      )
+
       if (exec.receipt)
         consola.success(
           `✅ Safe transaction confirmed and recorded in database`
@@ -185,11 +283,12 @@ const processTxs = async (
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       const displayHash = exec.displayHash ?? executionHash
-      consola.info(`   - Execution Hash: \u001b[33m${displayHash}\u001b[0m`)
-      if (exec.explorerUrl)
-        consola.info(
-          `   - Explorer:       \u001b[36m${exec.explorerUrl}\u001b[0m`
-        )
+      const explorerSuffix = exec.explorerUrl
+        ? ` \u001b[36m(${exec.explorerUrl})\u001b[0m`
+        : ''
+      consola.info(
+        `   - Execution Hash: \u001b[33m${displayHash}\u001b[0m${explorerSuffix}`
+      )
       consola.log(' ')
 
       return !!exec.receipt
@@ -294,7 +393,14 @@ const processTxs = async (
   })) {
     // Recompute nonce status dynamically — expectedNonce advances after each successful execution
     const txNonce = BigInt(tx.safeTx.data.nonce)
-    const nonceStatus = txNonce === expectedNonce ? 'current' : 'future'
+    // 'stale': nonce already used on-chain (proposal was created with a wrong/old nonce, e.g. due to stale RPC)
+    // 'future': nonce not yet reachable (a lower-nonce proposal must execute first)
+    const nonceStatus =
+      txNonce === expectedNonce
+        ? 'current'
+        : txNonce < expectedNonce
+        ? 'stale'
+        : 'future'
 
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
@@ -315,15 +421,23 @@ const processTxs = async (
     const toDisplay = targetName
       ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
       : toAddrDisplay
+    const toExplorerUrl = buildExplorerAddressUrl(
+      network.toLowerCase(),
+      tx.safeTx.data.to
+    )
+    const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
     const proposerDisplay = formatAddressForNetworkCliDisplay(
       network,
       tx.proposer
     )
 
-    const nonceColor = nonceStatus === 'current' ? '32' : '33'
+    const nonceColor =
+      nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
     const nonceWarning =
-      nonceStatus === 'future' && tx.canExecute
+      nonceStatus === 'stale'
+        ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
+        : nonceStatus === 'future' && tx.canExecute
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
@@ -331,7 +445,7 @@ const processTxs = async (
     Nonce:           \u001b[${nonceColor}m${
       tx.safeTx.data.nonce
     }\u001b[0m${nonceWarning}
-    To:              \u001b[32m${toDisplay}\u001b[0m
+    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
@@ -418,6 +532,29 @@ const processTxs = async (
       'Sign & Execute',
       'Sign and Execute With Deployer',
     ].includes(action)
+
+    if (isExecuteAction && nonceStatus === 'stale') {
+      consola.error('')
+      consola.error('='.repeat(80))
+      consola.error('✗  STALE PROPOSAL — THIS TRANSACTION WILL REVERT')
+      consola.error('='.repeat(80))
+      consola.error(
+        `  This proposal has nonce \u001b[31m${tx.safeTx.data.nonce}\u001b[0m but the Safe's on-chain nonce is already \u001b[31m${expectedNonce}\u001b[0m.`
+      )
+      consola.error(
+        `  Nonce ${tx.safeTx.data.nonce} was already used — this proposal is stale and cannot be executed.`
+      )
+      consola.error(
+        `  Likely cause: the RPC returned a stale nonce when the proposal was created.`
+      )
+      consola.error(
+        `  Fix: delete this proposal and re-run propose-to-safe — it will assign the next valid nonce automatically.`
+      )
+      consola.error('='.repeat(80))
+      consola.error('')
+      consola.info('Execution aborted — proposal is stale')
+      continue
+    }
 
     if (isExecuteAction && nonceStatus === 'future') {
       // Check if there is actually a pending proposal for the blocking nonce in the DB

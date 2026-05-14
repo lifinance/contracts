@@ -54,8 +54,11 @@ contract CBridgeFacetPackedTest is TestBase {
         /// Perpare CBridgeFacetPacked
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         cbridge = ICBridge(CBRIDGE_ROUTER);
-        cBridgeFacetPacked = new CBridgeFacetPacked(cbridge, address(this));
-        standAlone = new CBridgeFacetPacked(cbridge, address(this));
+        cBridgeFacetPacked = new CBridgeFacetPacked(
+            cbridge,
+            USER_DIAMOND_OWNER
+        );
+        standAlone = new CBridgeFacetPacked(cbridge, USER_DIAMOND_OWNER);
 
         deal(ADDRESS_USDC, address(WHALE), 100000 * 10 ** usdc.decimals());
 
@@ -139,7 +142,9 @@ contract CBridgeFacetPackedTest is TestBase {
         usdt.approve(CBRIDGE_ROUTER, type(uint256).max);
         usdc.approve(CBRIDGE_ROUTER, type(uint256).max);
         vm.stopPrank();
+        vm.startPrank(USER_DIAMOND_OWNER);
         standAlone.setApprovalForBridge(tokens);
+        vm.stopPrank();
 
         // set facet address in TestBase
         setFacetAddressInTestBase(
@@ -471,6 +476,7 @@ contract CBridgeFacetPackedTest is TestBase {
         vm.etch(CBRIDGE_ROUTER, address(lb).code);
 
         // refund
+        vm.startPrank(USER_DIAMOND_OWNER);
         standAlone.triggerRefund(
             payable(CBRIDGE_ROUTER), // Celer Liquidity Bridge
             abi.encodeWithSelector(
@@ -481,6 +487,8 @@ contract CBridgeFacetPackedTest is TestBase {
             payable(userReceiver), // Address to refund to
             refundAmount
         );
+
+        vm.stopPrank();
 
         // validate
         uint256 postRefundBalance = address(userReceiver).balance;

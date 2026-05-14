@@ -8,7 +8,7 @@
 # be invoked unattended from a workflow:
 #
 #   1. anvil --mnemonic "$MNEMONIC" --silent &
-#   2. bash script/deploy/_smokeDeploy.sh
+#   2. bash script/deploy/smokeDeploy.sh
 #   3. bun script/deploy/healthCheck.ts --network localanvil --environment staging
 #
 # Two workarounds make deployAllContracts runnable without a human:
@@ -24,7 +24,7 @@ set -euo pipefail
 
 NETWORK=localanvil
 ENVIRONMENT=staging
-RPC_URL=http://localhost:8545
+RPC_URL=http://localhost:8545 # pre-commit-checker: not a secret
 
 # Load .env so PRIVATE_KEY_ANVIL, MNEMONIC, MONGODB_URI, etc. are available
 # even when the caller didn't pre-source. deployAllContracts.sh re-sources

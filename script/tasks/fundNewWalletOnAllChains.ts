@@ -7,6 +7,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
+  isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
 
 const GAS_ZIP_ROUTER_MAINNET = '0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390'
@@ -206,7 +207,7 @@ const getGasZipSupportedActiveNetworks = () => {
 
   // remove testnets
   const mainnets = activeNetworks.filter(
-    (network) => network.type === 'mainnet'
+    (network) => !isTestnetNetwork(network.id)
   )
 
   console.log(`${mainnets.length} of those networks are mainnets\n`)

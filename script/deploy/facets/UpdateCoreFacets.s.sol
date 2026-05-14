@@ -70,7 +70,8 @@ contract DeployScript is UpdateScriptBase {
             }
             if (
                 keccak256(bytes(facetName)) ==
-                keccak256(bytes("GasZipFacet")) && gasZipChainId == 0
+                keccak256(bytes("GasZipFacet")) &&
+                gasZipChainId == 0
             ) {
                 emit log(
                     "Skipping GasZipFacet (gasZipChainId is 0 for this network)"

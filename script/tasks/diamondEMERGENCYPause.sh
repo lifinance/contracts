@@ -188,10 +188,16 @@ function handleNetwork() {
         universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET" >/dev/null
       else
         # unpause the diamond
-        echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig via timelock now with blacklisted facets: $BLACKLIST"
-
         local CALLDATA=$(cast calldata "unpauseDiamond(address[])" "$BLACKLIST")
-        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY" --timelock
+
+        if isTestnetNetwork "$NETWORK"; then
+          # Testnet has no Safe/Timelock; send unpause directly to the diamond.
+          echoDebug "[network: $NETWORK] sending unpause transaction directly to diamond with blacklisted facets: $BLACKLIST"
+          universalCast "sendRaw" "$NETWORK" "production" "$DIAMOND_ADDRESS" "$CALLDATA"
+        else
+          echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig via timelock now with blacklisted facets: $BLACKLIST"
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY" --timelock
+        fi
       fi
     else
       # remove a facet (diamond remains paused)
