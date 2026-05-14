@@ -66,7 +66,7 @@ Source: https://dev.gas.zip/gas/chain-support/inbound. On that page, use the add
 
 For each bridge indicated (checkbox true or in column 40): get contract address(es) from the bridge’s config file (see links/comments inside each `config/<bridge>.json`), from the bridge config doc, or from column 65; add the new network to that bridge’s `config/<bridge>.json` with the **same structure** as existing entries (insert alphabetically: mainnet first, then A–Z). **Always** run `cast code <address> --rpc-url <rpcUrl>` for every address — if result is `0x` or empty, warn and do not add (or ask for the correct address). List for the user which bridges were updated and which failed validation.
 
-**Form bridge → config**: StargateV2 → stargateV2.json; Relay → relay.json; Across → across.json; Symbiosis → symbiosis.json; Hop, cBridge, Squid, ThorSwap, Mayan, Allbridge, Arbitrum Bridge, Optimism, Polygon Bridge, Omni/Gnosis Bridge, Garden, Eco, Everclear, etc. → corresponding config in `config/`. Gas.zip → Step 6.
+**Form bridge → config**: StargateV2 → stargateV2.json; Across → across.json; Symbiosis → symbiosis.json; Hop, cBridge, Squid, ThorSwap, Mayan, Allbridge, Arbitrum Bridge, Optimism, Polygon Bridge, Omni/Gnosis Bridge, Garden, Eco, Everclear, etc. → corresponding config in `config/`. Gas.zip → Step 6.
 
 ### Where to get addresses (examples)
 
