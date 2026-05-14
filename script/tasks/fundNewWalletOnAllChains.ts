@@ -4,12 +4,14 @@ import {
   createPublicClient,
   createWalletClient,
   formatUnits,
+  getAddress,
   http,
   parseAbi,
   parseUnits,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import gaszipConfig from '../../config/gaszip.json'
 import { getPrivateKey } from '../deploy/safe/safe-utils'
 import {
   getAllActiveNetworks,
@@ -17,7 +19,7 @@ import {
   isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
 
-const GAS_ZIP_ROUTER_MAINNET = '0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390'
+const GAS_ZIP_ROUTER_MAINNET = getAddress(gaszipConfig.gasZipRouters.mainnet)
 
 /// TYPES ///
 type HexString = `0x${string}`
