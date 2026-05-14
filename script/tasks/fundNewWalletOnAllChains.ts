@@ -4,6 +4,7 @@ import { BigNumber, type BigNumberish } from 'ethers'
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import { getPrivateKey } from '../deploy/safe/safe-utils'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
@@ -20,7 +21,8 @@ type HexString = `0x${string}`
 // amount worth of native tokens to each of these target networks using Gas.zip protocol
 
 // call this script
-// bunx tsx ./script/tasks/fundNewWalletOnAllChains.ts --privKeyFundingWallet "$PRIVATE_KEY" --receivingWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
+// PRIVATE_KEY_PRODUCTION="..." bunx tsx ./script/tasks/fundNewWalletOnAllChains.ts --receivingWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
+// (or pass --privKeyFundingWallet directly to override the env var)
 
 const main = defineCommand({
   meta: {
@@ -31,8 +33,9 @@ const main = defineCommand({
   args: {
     privKeyFundingWallet: {
       type: 'string',
-      description: 'Private key of the funding wallet',
-      required: true,
+      description:
+        'Private key of the funding wallet (optional; defaults to PRIVATE_KEY_PRODUCTION from .env)',
+      required: false,
     },
     receivingWallet: {
       type: 'string',
@@ -57,7 +60,13 @@ const main = defineCommand({
       doNotFundChains,
       fundAmountUSD,
     } = args
-    const fundingWallet = privateKeyToAccount(`0x${privKeyFundingWallet}`)
+    // Resolve private key: --privKeyFundingWallet > $PRIVATE_KEY_PRODUCTION;
+    // getPrivateKey strips any 0x prefix and throws if neither is set.
+    const fundingPrivateKey = getPrivateKey(
+      'PRIVATE_KEY_PRODUCTION',
+      privKeyFundingWallet
+    )
+    const fundingWallet = privateKeyToAccount(`0x${fundingPrivateKey}`)
 
     console.log(`fundingWalletAddress: ${fundingWallet.address}`)
     console.log(`receivingWallet: ${receivingWallet}`)
