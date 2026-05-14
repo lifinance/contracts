@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       
       - name: Install dev dependencies
         run: bun install
@@ -32,7 +32,7 @@ jobs:
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
         if: ${{ inputs.warning == 'UNDERSTOOD' }}
         id: authenticate-user
-        uses: tspascoal/get-user-teams-membership@v3
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3
         with:
           username: ${{ github.actor }}
           organization: lifinance
@@ -51,16 +51,22 @@ jobs:
           fi
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
 
       - name: Fetch RPC endpoints from MongoDB
         run: |
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
           bun fetch-rpcs
-          # Only inject RPC endpoint variables into the GitHub Actions environment
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
               echo "$line" >> "$GITHUB_ENV"
             fi
           done < ".env"
@@ -74,7 +80,7 @@ jobs:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
       - name: Send Reminder to Slack SC-general Channel
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook

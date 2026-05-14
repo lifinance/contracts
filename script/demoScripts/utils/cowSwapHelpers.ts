@@ -1,3 +1,14 @@
+// =============================================================================
+// ⚠️  WARNING — LIKELY BROKEN AFTER RelayFacet DEPRECATION ⚠️
+// -----------------------------------------------------------------------------
+// `setupCowShedPostHooks` below builds calldata for
+// `RelayFacet.startBridgeTokensViaRelay`. RelayFacet has been removed from the
+// diamond, so the produced calldata will revert when executed. The helper is
+// kept (alongside its only consumer, ../demoPatcher.ts) as a reference for the
+// dynamic-patcher pattern. To make it functional again, migrate the encoded
+// call to RelayDepositoryFacet (or another active bridge facet).
+// =============================================================================
+
 import { randomBytes } from 'crypto'
 
 import { COW_SHED_FACTORY, COW_SHED_IMPLEMENTATION } from '@cowprotocol/cow-sdk'

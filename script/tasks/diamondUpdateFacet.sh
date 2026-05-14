@@ -114,6 +114,15 @@ diamondUpdateFacet() {
     return 1
   fi
 
+  # Single predicate for "Safe-propose vs direct broadcast". Reused by post-execution
+  # log handling so testnet/staging/SEND_PROPOSALS_DIRECTLY_TO_DIAMOND paths all
+  # update the diamond log when the cut was sent directly.
+  local SHOULD_PROPOSE_TO_SAFE=false
+  if [[ "$ENVIRONMENT" == "production" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] \
+     && ! isTestnetNetwork "$NETWORK"; then
+    SHOULD_PROPOSE_TO_SAFE=true
+  fi
+
   # update diamond with new facet address (remove/replace of existing selectors happens in update script)
   attempts=1
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
@@ -122,8 +131,7 @@ diamondUpdateFacet() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # check if we are deploying to PROD
-    if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+    if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
       # PROD: suggest diamondCut transaction to SAFE
 
       PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
@@ -195,9 +203,6 @@ diamondUpdateFacet() {
 
         RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-        # Check if timelock is enabled and available
-        TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
         # For very long calldata, use a temporary file to avoid command line length limits
         # Check if calldata exceeds a safe threshold (e.g., 20KB hex = 10KB bytes)
         CALLDATA_BYTES=$(((${#FACET_CUT} - 2) / 2))
@@ -210,13 +215,7 @@ diamondUpdateFacet() {
           # Register trap to ensure cleanup on script exit (including errors)
           trap '[[ -n "$TEMP_CALLDATA_FILE" ]] && rm -f "$TEMP_CALLDATA_FILE"' EXIT
 
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           rm -f "$TEMP_CALLDATA_FILE"
@@ -231,13 +230,7 @@ diamondUpdateFacet() {
             return $rc
           fi
         else
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
-          else
-            echo "[info] Using diamond directly for facet update"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
-          fi
+          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           if [ $rc -ne 0 ]; then
@@ -274,8 +267,8 @@ diamondUpdateFacet() {
 
     # check the return code the last call
     if [ "${RETURN_CODE:-1}" -eq 0 ]; then
-      # only check the logs if deploying to staging, otherwise we are not calling the diamond and cannot expect any logs
-      if [[ "$ENVIRONMENT" != "production" ]]; then
+      # When sent directly, validate the on-chain state via returned facets; when proposed to Safe, RETURN_CODE=0 is sufficient.
+      if [[ "$SHOULD_PROPOSE_TO_SAFE" != "true" ]]; then
         # extract the "returns" property directly from the JSON output
         RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | jq -r '.returns // empty' 2>/dev/null)
         # echoDebug "RETURN_DATA: $RETURN_DATA"
@@ -286,7 +279,7 @@ diamondUpdateFacet() {
           break # exit the loop if the operation was successful
         fi
       else
-        # if deploying to PROD and RETURN_CODE is OK then we can assume that the proposal to SAFE worked fine
+        # proposal to SAFE accepted; on-chain change happens later
         break
       fi
     fi
@@ -301,8 +294,9 @@ diamondUpdateFacet() {
     return 1
   fi
 
-  # save facet addresses (only if deploying to staging, otherwise we update the logs after the diamondCut tx gets signed in the SAFE)
-  if [[ "$ENVIRONMENT" != "production" ]]; then
+  # save facet addresses when the cut was sent directly (staging/testnet/SEND_PROPOSALS_DIRECTLY_TO_DIAMOND);
+  # for Safe proposals the log gets updated after the SAFE tx is signed.
+  if [[ "$SHOULD_PROPOSE_TO_SAFE" != "true" ]]; then
     # Using default behavior: update diamond file (not facets-only mode)
     saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS" "" ""
   fi
