@@ -1156,7 +1156,7 @@
     "explorerApiUrl": "https://mainnet.somnia.w3us.site/api",
     "multicallAddress": "0x5e44F178E8cF9B2F5409B6f18ce936aB817C5a11",
     "safeAddress": "0x9A9a96827a97b145cb1dB0e79297F9206A22f5Fc",
-    "gasZipChainId": 0,
+    "gasZipChainId": 524,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",

@@ -9439,6 +9439,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xC4d74fe42cd158276d7EB97d946e485faFBda89b",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "TokenWrapper",
         "address": "0x6c29Ee558c2dCBcc9d45a666A5240353273E23dD",
         "selectors": [
