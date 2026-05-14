@@ -271,6 +271,7 @@ export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
   const relayData = {
     requestId: relayRequestId,
     nonEVMReceiver:
+      // pre-commit-checker: not a secret — zero bytes32 sentinel (non-EVM bridging disabled)
       '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // Not bridging to non-EVM chain
     receivingAssetId: pad(baseUsdcAddress as `0x${string}`), // Use viem's pad instead of manual padStart
     signature: relaySignature, // Real signature from the Relay API
@@ -350,6 +351,7 @@ export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
     args: [
       lifiDiamondAddress as `0x${string}`, // spender - LiFi Diamond
       BigInt(
+        // pre-commit-checker: not a secret — max uint256 constant, not a private key
         '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
       ), // Max uint256 approval
     ],

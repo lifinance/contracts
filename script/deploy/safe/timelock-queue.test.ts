@@ -17,6 +17,7 @@ import {
   type IScheduleBatchParams,
 } from './timelock-queue'
 
+// pre-commit-checker: not a secret — zero bytes32 sentinel used as test fixture
 const ZERO_BYTES32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
 
