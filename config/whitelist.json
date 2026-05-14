@@ -4503,6 +4503,14 @@
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
+        ],
+        "somnia": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
         ]
       }
     },
