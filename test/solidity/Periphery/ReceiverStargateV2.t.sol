@@ -408,7 +408,7 @@ contract ReentrantReceiver {
                     LZ_COMPOSE_NOT_FOUND_SELECTOR,
                     RECEIVED_MESSAGE_HASH, // already received;  indicates reentrancy caught
                     bytes32(
-                        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 // precomputed
+                        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 // precomputed keccak256("") pre-commit-checker: not a secret
                     )
                 ),
                 reason
