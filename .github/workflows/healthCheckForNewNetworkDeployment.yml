@@ -91,11 +91,9 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install Foundry (provides cast)
+      - name: Setup Foundry (cached) — provides cast
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
-        with:
-          version: v1.0.0
+        uses: ./.github/actions/setup-foundry-cached
 
       - name: Install dependencies
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'

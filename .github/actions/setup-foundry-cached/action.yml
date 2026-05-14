@@ -1,0 +1,35 @@
+# Setup Foundry with Caching
+# - Installs the Foundry toolchain at a pinned SHA and restores compile/solc caches
+# - Cache keys are derived from inputs that actually influence outputs:
+#     * solc/foundryup state → foundry.toml
+#     * forge build artifacts → foundry.toml + remappings.txt + src/** + test/** + lib/**
+# - Safe to use across all foundry-using workflows; cache misses fall back to a clean
+#   install with no behavior change.
+name: Setup Foundry (cached)
+description: Install Foundry toolchain and restore solc + forge build caches
+
+runs:
+  using: composite
+  steps:
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+
+    - name: Cache Foundry toolchain state (svm + foundryup)
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          ~/.foundry
+          ~/.svm
+        key: foundry-toolchain-${{ runner.os }}-${{ hashFiles('foundry.toml') }}
+        restore-keys: |
+          foundry-toolchain-${{ runner.os }}-
+
+    - name: Cache forge build artifacts (cache/, out/)
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          cache
+          out
+        key: forge-build-${{ runner.os }}-${{ hashFiles('foundry.toml', 'remappings.txt', 'src/**', 'test/**', 'lib/**') }}
+        restore-keys: |
+          forge-build-${{ runner.os }}-

@@ -62,8 +62,8 @@ jobs:
             echo "solidity_changed=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+      - name: Setup Foundry (cached)
+        uses: ./.github/actions/setup-foundry-cached
         if: env.solidity_changed == 'true'
 
       - name: Install forge Dependencies

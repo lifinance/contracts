@@ -3,7 +3,9 @@
 # - Triggers on PRs targeting main and on manual dispatch
 # - Validates the deploy script end-to-end so regressions in deploy bash,
 #   Solidity scripts, target state, or whitelist sync surface before merge
-# - Not a required status check initially; promote via repo settings once stable
+# - Path-gated: heavy job runs only when files that can affect the smoke outcome
+#   change. A `scope-validator` aggregator job always reports a final status so
+#   this workflow can be a required check on `main` branch protection.
 name: Deploy Smoke Test
 
 on:
@@ -14,21 +16,56 @@ on:
 
 permissions:
   contents: read # required to fetch repository contents
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
 
 concurrency:
   group: deploy-smoke-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    # Determines whether files that can influence the smoke pipeline were touched.
+    # Always runs (cheap) so the downstream scope-validator can report status.
+    runs-on: ubuntu-latest
+    outputs:
+      smoke: ${{ steps.filter.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            smoke:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'lib/**'
+              - '.gitmodules'
+              - 'config/**'
+              - 'deployments/**'
+              - 'script/deploy/**'
+              - 'script/utils/**'
+              - 'script/tasks/**'
+              - 'script/resources/**'
+              - '.env.example'
+              - 'package.json'
+              - 'bun.lockb'
+              - '.github/workflows/deploy-smoke-test.yml'
+              - '.github/actions/setup-foundry-cached/action.yml'
+
   deploy-smoke-test:
-    # Always run on manual dispatch; for PRs, skip drafts and require main as the base.
+    # Always run on manual dispatch; for PRs, skip drafts, require main as the base,
+    # and only run when files that influence the smoke pipeline have changed.
     # github.event.pull_request is unset on workflow_dispatch, so the explicit
     # event_name branch is required to keep the manual trigger path working.
+    needs: changes
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' &&
            github.event.pull_request.draft == false &&
-           github.event.pull_request.base.ref == 'main') }}
+           github.event.pull_request.base.ref == 'main' &&
+           needs.changes.outputs.smoke == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -52,8 +89,8 @@ jobs:
           submodules: recursive # forge dependencies live under lib/
           persist-credentials: false # smoke test does not push back; avoid leaking the runner token to subsequent actions
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+      - name: Setup Foundry (cached)
+        uses: ./.github/actions/setup-foundry-cached
 
       - name: Install Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
@@ -132,3 +169,22 @@ jobs:
             deployments/localanvil*.json
           if-no-files-found: ignore
           retention-days: 7
+
+  scope-validator:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `deploy-smoke-test`) as the required status check on `main`.
+    needs: [changes, deploy-smoke-test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        run: |
+          set -euo pipefail
+          result="${{ needs.deploy-smoke-test.result }}"
+          if [[ "$result" == "success" || "$result" == "skipped" ]]; then
+            echo -e "\033[32mscope-validator OK (deploy-smoke-test=$result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31mscope-validator FAILED (deploy-smoke-test=$result)\033[0m" >&2
+          exit 1

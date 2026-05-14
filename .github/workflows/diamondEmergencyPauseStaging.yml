@@ -51,8 +51,8 @@ jobs:
       #       echo -e "\033[32mUser is a member of the DiamondPauser team and may execute this action\033[0m"
       #     fi
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+      - name: Setup Foundry (cached)
+        uses: ./.github/actions/setup-foundry-cached
 
       - name: Fetch RPC endpoints from MongoDB
         run: |
