@@ -12,10 +12,7 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title ReceiverChainflip
 /// @author LI.FI (https://li.fi)
 /// @notice Receiver contract for Chainflip cross-chain swaps and message passing
-/// @dev This contract is not intended to custody user funds; any token balance
-///      held is incidental (transient during execution or stuck after a failed
-///      bridge call) and is recoverable via `withdrawToken` by the owner.
-/// @custom:version 1.1.0
+/// @custom:version 1.0.1
 contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
     using SafeTransferLib for address payable;
@@ -131,13 +128,13 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
                     actualAssetId,
                     receiver
                 )
-            {} catch {
-                // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
-                // receiver == address(0); the catch path then reverts the
-                // entire bridge handler tx instead of silently burning funds
-                // via a raw safeTransfer for tokens that treat transfer-to-zero
-                // as a burn. Post-revert recovery is bridge-specific.
-                LibAsset.transferERC20(actualAssetId, receiver, amount);
+            {
+                return;
+            } catch {
+                // TODO(EXSC-241): route through LibAsset.transferERC20 next time this
+                // file is updated. Required for Tron USDT; fix lives in contracts-tron
+                // fork via LibAsset. Not done now because Chainflip does not support Tron.
+                actualAssetId.safeTransfer(receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
                     actualAssetId,

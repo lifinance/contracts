@@ -36,10 +36,7 @@ interface ILayerZeroComposer {
 /// @title ReceiverStargateV2
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via Stargate V2
-/// @dev This contract is not intended to custody user funds; any token balance
-///      held is incidental (transient during execution or stuck after a failed
-///      bridge call) and is recoverable via `withdrawToken` by the owner.
-/// @custom:version 1.2.0
+/// @custom:version 1.1.0
 contract ReceiverStargateV2 is
     ILiFi,
     WithdrawablePeriphery,
@@ -194,12 +191,10 @@ contract ReceiverStargateV2 is
 
             if (cacheGasLeft < recoverGas) {
                 // case 2a: not enough gas left to execute calls
-                // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
-                // receiver == address(0); the catch path then reverts the
-                // entire bridge handler tx instead of silently burning funds
-                // via a raw safeTransfer for tokens that treat transfer-to-zero
-                // as a burn. Post-revert recovery is bridge-specific.
-                LibAsset.transferERC20(assetId, receiver, amount);
+                // TODO(EXSC-241): route through LibAsset.transferERC20 next time this
+                // file is updated. Required for Tron USDT; fix lives in contracts-tron
+                // fork via LibAsset. Not done now because Stargate V2 is not on Tron.
+                token.safeTransfer(receiver, amount);
 
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -218,12 +213,10 @@ contract ReceiverStargateV2 is
                     gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
-                // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
-                // receiver == address(0); the catch path then reverts the
-                // entire bridge handler tx instead of silently burning funds
-                // via a raw safeTransfer for tokens that treat transfer-to-zero
-                // as a burn. Post-revert recovery is bridge-specific.
-                LibAsset.transferERC20(assetId, receiver, amount);
+                // TODO(EXSC-241): route through LibAsset.transferERC20 next time this
+                // file is updated. Required for Tron USDT; fix lives in contracts-tron
+                // fork via LibAsset. Not done now because Stargate V2 is not on Tron.
+                token.safeTransfer(receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
                     assetId,

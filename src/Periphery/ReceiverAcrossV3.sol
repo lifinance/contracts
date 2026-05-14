@@ -2,20 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { LibSwap } from "../Libraries/LibSwap.sol";
+// solhint-disable-next-line no-unused-import
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
-import { UnAuthorized } from "../Errors/GenericErrors.sol";
+// solhint-disable-next-line no-unused-import
+import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title ReceiverAcrossV3
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via AcrossV3
-/// @dev This contract is not intended to custody user funds; any token balance
-///      held is incidental (transient during execution or stuck after a failed
-///      bridge call) and is recoverable via `withdrawToken` by the owner.
-/// @custom:version 1.2.0
+/// @custom:version 1.1.0
 contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
     using SafeTransferLib for address;
 
@@ -103,12 +102,11 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
             )
         {} catch {
             // send the bridged (and unswapped) funds to receiver address
-            // NOTE: LibAsset.transferERC20 reverts with InvalidReceiver if
-            // receiver == address(0); the catch path then reverts the
-            // entire bridge handler tx instead of silently burning funds
-            // via a raw safeTransfer for tokens that treat transfer-to-zero
-            // as a burn. Post-revert recovery is bridge-specific.
-            LibAsset.transferERC20(assetId, receiver, amount);
+            // TODO(EXSC-241): route through LibAsset.transferERC20 next time this
+            // file is updated. Required for Tron USDT; fix lives in contracts-tron
+            // fork via LibAsset. Not done now because ReceiverAcrossV3 is not
+            // actively developed and not deployed on Tron.
+            assetId.safeTransfer(receiver, amount);
 
             emit LiFiTransferRecovered(
                 _transactionId,

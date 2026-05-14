@@ -12,7 +12,6 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { InvalidConfig, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 // Custom errors from stETH contract
 error ErrorZeroSharesWrap();
@@ -285,9 +284,7 @@ contract LidoWrapperTest is TestBase {
         );
 
         // Try to wrap more than balance
-        // Solady's SafeTransferLib (used via LibAsset.transferFromERC20) wraps
-        // the underlying token's revert as TransferFromFailed.
-        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        vm.expectRevert(ErrorNotEnoughBalance.selector);
 
         lidoWrapper.wrapStETHToWstETH(balance + 2);
 
@@ -313,9 +310,7 @@ contract LidoWrapperTest is TestBase {
         );
 
         // Try to unwrap more than balance
-        // Solady's SafeTransferLib (used via LibAsset.transferFromERC20) wraps
-        // the underlying token's revert as TransferFromFailed.
-        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        vm.expectRevert(ErrorNotEnoughBalance.selector);
 
         lidoWrapper.unwrapWstETHToStETH(balance + 1);
 
