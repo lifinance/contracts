@@ -59,13 +59,7 @@ EOF
 )"
 ```
 
-### 5. Push
-
-```bash
-git push -u origin <branch-name>
-```
-
-### 6. Build PR body from template
+### 5. Build PR body from template (locally, before pushing)
 
 Read `.github/pull_request_template.md` verbatim. Fill in:
 
@@ -82,28 +76,54 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
   - `[x] I have updated any required documentation` — tick only if docs were updated
 - **Reviewer checklist**: leave all items **unchecked** (`- [ ]`).
 
-### 7. Derive PR title
+### 6. Derive PR title
 
 Short imperative title (≤70 chars). Match existing commit style in `git log`.
 
-### 8. Create PR
+### 7. Show pre-flight summary and confirm
 
-Write body to a temp file and use the REST API pattern:
+Before pushing or opening a PR, display a summary and wait for explicit approval:
 
-```bash
-jq -Rs '{title: "<title>", body: .}' /tmp/pr-body.md > /tmp/pr-payload.json
-gh api -X POST repos/lifinance/contracts/pulls --input /tmp/pr-payload.json
+```
+About to create PR on branch `<branch-name>`:
+
+Files committed (<N>):
+  • <file1>
+  • <file2>
+  ...
+
+Commit: "<commit message>"
+
+PR title: <title>
+
+PR body:
+─────────────────────────────────────────
+<full filled-in PR body>
+─────────────────────────────────────────
+
+Proceed? (y/n)
 ```
 
-Or via `gh pr create`:
+If the user says **n**: ask what to change (title, body, files) and loop back. Do not push.
+If the user says **y**: proceed to steps 8–9.
+
+### 8. Push
 
 ```bash
-gh pr create --title "<title>" --body "$(cat /tmp/pr-body.md)"
+git push -u origin <branch-name>
+```
+
+### 9. Create PR
+
+Write body to a temp file and create via `gh`:
+
+```bash
+gh pr create --title "<title>" --body "$(cat /tmp/pr-body.md)" --base main --head <branch-name>
 ```
 
 Print the resulting PR URL to the user.
 
-### 9. Offer to post for review
+### 10. Offer to post for review
 
 After the PR is created, ask:
 > PR created: <url>. Want me to post it to #dev-sc-review? (`/post-pr-for-review`)
