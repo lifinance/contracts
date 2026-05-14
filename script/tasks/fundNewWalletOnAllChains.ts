@@ -60,8 +60,6 @@ const main = defineCommand({
       doNotFundChains,
       fundAmountUSD,
     } = args
-    // Resolve private key: --privKeyFundingWallet > $PRIVATE_KEY_PRODUCTION;
-    // getPrivateKey strips any 0x prefix and throws if neither is set.
     const fundingPrivateKey = getPrivateKey(
       'PRIVATE_KEY_PRODUCTION',
       privKeyFundingWallet
