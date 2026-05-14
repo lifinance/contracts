@@ -120,11 +120,16 @@ function install_coderabbit_cli() {
       echo ""
       echo "================================================================"
       echo "CodeRabbit CLI is installed but not authenticated."
-      echo "Run this once before opening a PR:"
       echo ""
+      echo "One-time setup (browser flow):"
       echo "    coderabbit auth login"
       echo ""
-      echo "See .agents/commands/pr-ready.md for the full /pr-ready workflow."
+      echo "When the browser opens, sign in with the GitHub account that"
+      echo "has access to lifinance/contracts. If you get a 'no access' /"
+      echo "'subscription required' error, you need a CodeRabbit seat —"
+      echo "ask #dev-sc-review."
+      echo ""
+      echo "Full setup + troubleshooting: .agents/commands/pr-ready.md"
       echo "================================================================"
     fi
   else

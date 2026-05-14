@@ -26,21 +26,56 @@ Goal state: by the time CI runs, CodeRabbit finds **nothing**, because everythin
 
 CodeRabbit CLI is per-developer; no shared secrets are committed.
 
-**Install** is automatic: `bun install` runs `preinstall.sh`, which installs the CLI if missing (skipped on CI). After install, you must authenticate once:
+### 1. Install (automatic on `bun install`)
+
+`bun install` runs `preinstall.sh`, which installs the CLI if missing (skipped on CI). Verify:
 
 ```bash
-coderabbit auth login    # browser flow; token stored in ~/.config/coderabbit/
-coderabbit --version     # verify
+coderabbit --version
 ```
 
 **Manual fallback** (if the preinstall hook didn't run, or the install failed soft):
 
 ```bash
 curl -fsSL https://cli.coderabbit.ai/install.sh | sh
+```
+
+If `coderabbit` is not on `PATH` after install, ensure `~/.local/bin` (or the path printed by the installer) is in `PATH` (`echo $PATH`, then add to your `~/.zshrc` / `~/.bashrc`).
+
+### 2. Authenticate (one-time, browser-based)
+
+The CLI piggybacks on the same CodeRabbit account that reviews our PRs in CI. **Prerequisite**: your GitHub account must already be a member of the `lifinance` GitHub org (which is where the CodeRabbit app is installed). If you can view CodeRabbit's reviews on our PRs in the GitHub UI, you're good.
+
+Run:
+
+```bash
 coderabbit auth login
 ```
 
-If `coderabbit` is not on `PATH` after install, ensure `~/.local/bin` (or the path printed by the installer) is in `PATH`.
+This is a standard OAuth device flow:
+
+1. The CLI prints a one-time code and a URL (e.g. `https://app.coderabbit.ai/login/cli?code=ABCD-1234`) and opens your default browser. If the browser doesn't open automatically, copy the URL manually.
+2. In the browser, **sign in with GitHub** (use the same GitHub identity that has access to `lifinance/contracts`). If you've never used CodeRabbit's web UI before, you may be prompted to create an account / accept the org invite first — accept, then re-run `coderabbit auth login`.
+3. Confirm that the code shown in the browser matches the code printed by the CLI, then click **Authorize**.
+4. The CLI prints `Authenticated as <github-handle>` and writes a token to `~/.config/coderabbit/` (chmod 600). Don't commit or copy this file — it's tied to your personal account.
+
+Verify:
+
+```bash
+coderabbit auth status     # prints your handle + token expiry
+coderabbit review --help   # confirms the subcommand is available
+```
+
+### 3. Troubleshooting auth
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `coderabbit auth login` says "no access" or "subscription required" | Your GitHub account isn't recognized as a member of an org with a CodeRabbit seat | Ask `#dev-sc-review` (or whoever manages the CodeRabbit subscription) to grant you a seat; then re-run. |
+| Browser opens to a 404 / blank page | Stale install or you're behind a proxy that blocks `app.coderabbit.ai` | Reinstall (`curl ... | sh`) and retry; if corporate proxy, allowlist `*.coderabbit.ai`. |
+| `coderabbit auth status` shows expired | Tokens rotate periodically | Re-run `coderabbit auth login`. |
+| Multiple GitHub accounts on the machine | Browser signs in with the wrong one | Open the auth URL in a private/incognito window and sign in with the correct GitHub account. |
+
+If none of those help, capture the full CLI output (`coderabbit auth login -v` if the flag exists) and ask in `#dev-sc-review` — first person through onboarding documents the gap, then update this section.
 
 ## Workflow
 
