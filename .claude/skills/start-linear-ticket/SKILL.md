@@ -60,7 +60,12 @@ If the issue can't be found, surface the error verbatim and stop. Don't invent.
 
 Skip-the-work conditions, in priority order:
 
-- **Status is already In Progress AND a branch is linked** → don't create a new branch. Output the existing branch name and the linked PR (if any), then stop. Tell the user: "Looks like this is already in flight — branch `<name>` exists. Want me to switch to it locally?" If yes, run `git fetch origin && git checkout <branch>` in the repo.
+- **Status is already In Progress AND a branch is linked** → don't create a new branch. Output the existing branch name and the linked PR (if any), then stop. Tell the user: "Looks like this is already in flight — branch `<name>` exists. Want me to switch to it locally?" If yes:
+  1. `git fetch origin <branch>`
+  2. If a local branch with that name exists (`git show-ref --verify --quiet refs/heads/<branch>`) → `git checkout <branch>` and then `git merge --ff-only origin/<branch>` to pick up any remote commits.
+  3. Otherwise → `git checkout --track origin/<branch>` to create a local tracking branch from the remote.
+
+  This works regardless of whether the branch was created remotely (e.g. via Linear's "Create branch" button) or already exists locally from a previous session — the plain `git checkout <branch>` fails in the remote-only case.
 - **Assigned to someone else** → don't silently steal. Ask: "EXSC-282 is currently assigned to <name>. Take it over, or just create a branch without reassigning?" Default to the latter.
 - **Status is Done / Cancelled** → ask for confirmation before reopening. "EXSC-282 is in <state>. Are you sure you want to start it?"
 
