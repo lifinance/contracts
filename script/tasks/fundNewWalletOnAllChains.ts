@@ -20,7 +20,7 @@ type HexString = `0x${string}`
 // amount worth of native tokens to each of these target networks using Gas.zip protocol
 
 // call this script
-// bun ./script/tasks/fundNewWalletOnAllChains.ts --privKeyFundingWallet "$PRIVATE_KEY" --receivingWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
+// bunx tsx ./script/tasks/fundNewWalletOnAllChains.ts --privKeyFundingWallet "$PRIVATE_KEY" --receivingWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
 
 const main = defineCommand({
   meta: {
@@ -78,8 +78,15 @@ const main = defineCommand({
       account: fundingWallet,
     })
 
-    // get a list of all target networks
-    const networks = getGasZipSupportedActiveNetworks()
+    // parse the excluded chainIds (JSON array of numbers, e.g. "[97,80001]")
+    const excludedChainIds = parseExcludedChainIds(doNotFundChains)
+
+    // get a list of all target networks (Gas.zip-supported mainnets, minus excluded)
+    const networks = getGasZipSupportedActiveNetworks(excludedChainIds)
+    if (networks.length === 0)
+      throw new Error(
+        'No target networks remaining after applying doNotFundChains filter'
+      )
 
     // calculate total amount USD needed (fundAmount * networks)
     const amountUSDPerNetwork = BigNumber.from(fundAmountUSD)
@@ -197,7 +204,32 @@ const getEthPrice = async () => {
   }
 }
 
-const getGasZipSupportedActiveNetworks = () => {
+const parseExcludedChainIds = (raw: string): Set<number> => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    throw new Error(
+      `doNotFundChains must be a JSON array of chainIds, e.g. "[97,80001]". Received: ${raw}`
+    )
+  }
+  if (!Array.isArray(parsed))
+    throw new Error(
+      `doNotFundChains must be a JSON array of chainIds, e.g. "[97,80001]". Received: ${raw}`
+    )
+  const chainIds = parsed.map((value) => {
+    if (typeof value !== 'number' || !Number.isInteger(value))
+      throw new Error(
+        `doNotFundChains entries must be integer chainIds. Received: ${JSON.stringify(
+          value
+        )}`
+      )
+    return value
+  })
+  return new Set<number>(chainIds)
+}
+
+const getGasZipSupportedActiveNetworks = (excludedChainIds: Set<number>) => {
   const activeNetworks = getAllActiveNetworks()
   console.log(
     `${activeNetworks.length} active networks identified: ${activeNetworks.map(
@@ -236,7 +268,47 @@ const getGasZipSupportedActiveNetworks = () => {
     `${gasZipSupportedNetworks.length} of those networks are supported by GasZip\n`
   )
 
-  return gasZipSupportedNetworks
+  // apply the doNotFundChains exclusion (by chainId)
+  const excludedNetworks = gasZipSupportedNetworks.filter((network) =>
+    excludedChainIds.has(network.chainId)
+  )
+  const filteredNetworks = gasZipSupportedNetworks.filter(
+    (network) => !excludedChainIds.has(network.chainId)
+  )
+
+  if (excludedNetworks.length)
+    console.warn(
+      `Excluding ${
+        excludedNetworks.length
+      } networks (via doNotFundChains): ${JSON.stringify(
+        excludedNetworks.map((chain) => ({
+          id: chain.id,
+          chainId: chain.chainId,
+        })),
+        null,
+        2
+      )}\n`
+    )
+
+  // warn if any excluded chainIds did not match any Gas.zip-supported network
+  const matchedChainIds = new Set(excludedNetworks.map((n) => n.chainId))
+  const unmatchedChainIds = [...excludedChainIds].filter(
+    (id) => !matchedChainIds.has(id)
+  )
+  if (unmatchedChainIds.length)
+    console.warn(
+      `The following doNotFundChains entries did not match any Gas.zip-supported active mainnet and had no effect: ${JSON.stringify(
+        unmatchedChainIds
+      )}\n`
+    )
+
+  console.log(
+    `${filteredNetworks.length} networks will be funded: ${JSON.stringify(
+      filteredNetworks.map((chain) => chain.id)
+    )}\n`
+  )
+
+  return filteredNetworks
 }
 
 runMain(main)
