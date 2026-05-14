@@ -56,40 +56,101 @@ If `coderabbit` is not on `PATH` after install, ensure `~/.local/bin` (or the pa
    - `--plain` produces a stable, machine-parseable output that agents can consume.
    - First run on a branch can take a few minutes; subsequent runs on the same diff are cached.
 
-3. **Triage findings** (agent or human)
+3. **Classify findings** (agent or human)
 
-   Group every finding into one of three buckets:
+   Sort every finding into one of three buckets — this is classification only, **not** approval to change code:
 
-   - **Apply**: clear, safe, mechanical fixes (typos, naming, dead code, missing NatSpec tags, obvious bug fixes). Apply directly.
-   - **Discuss**: judgment calls (refactors, alternative patterns, perf trade-offs). Decide explicitly — fix, defer with a follow-up issue, or document a deliberate "won't fix".
-   - **Reject**: false positives or suggestions that conflict with repo conventions (`.agents/rules/`). Note the reason; if the same false positive recurs, consider tightening the rule so future runs suppress it.
+   - **Apply-candidate**: clear, mechanical fixes (typos, naming, dead code, missing NatSpec tags, obvious bug fixes).
+   - **Discuss**: judgment calls (refactors, alternative patterns, perf trade-offs).
+   - **Reject**: false positives or suggestions that conflict with repo conventions (`.agents/rules/`).
 
-   Agents: **do not silently apply non-trivial fixes.** Surface "Discuss" and "Reject" buckets to the user with a one-line rationale per item.
+4. **Apply with per-finding consent** (agent safety contract)
 
-4. **Re-run until clean**
+   Agents MUST follow this contract. The dev pushes whatever the agent commits under their name, so consent must be explicit and individually reviewable.
 
-   After applying fixes, run `coderabbit review --base origin/main --plain` again until the output is either:
+   For every Apply-candidate finding:
+
+   1. **Show first, change never first.** Print a short block:
+      ```
+      [N/total] <file>:<line> — <one-line issue summary>
+        CR says:   <≤ 80-char excerpt>
+        Proposed:  <unified diff, ≤ 15 lines>
+      Apply? [y / n / skip-rest]
+      ```
+   2. **Wait for explicit user approval** before editing. `n` and `skip-rest` are both honored without argument.
+   3. On approval, edit the file, then create a **dedicated commit** with subject:
+      ```
+      pr-ready: <one-line issue summary> (<file>:<line>)
+      ```
+      and body containing the CR finding excerpt and a one-line rationale. **One finding = one commit.** Never batch multiple findings into a single commit, never amend, never squash, never rebase `pr-ready:` commits before push — the dev must be able to read `git log` and revert any single fix individually.
+   4. For **Discuss** and **Reject** findings, the agent never edits code. It surfaces a one-line rationale to the user and records the decision for the final summary.
+
+   Hard rules for agents (no exceptions, even on "trivial" fixes):
+
+   - No silent allowlist. Even typos require approval.
+   - Never use `git commit --amend`, `git rebase -i`, `git push --force`, or `--no-verify` during `/pr-ready`.
+   - Never modify files outside the diff CodeRabbit reviewed.
+   - If the user is unavailable / non-interactive, **stop and report** — do not infer consent.
+
+5. **Detect repeat patterns** (the "brain")
+
+   The skill maintains a gitignored local log at `~/.cache/lifi-contracts/pr-ready/findings.jsonl`. After classification (step 3), the agent appends one entry per finding:
+
+   ```json
+   {"date":"<ISO>","branch":"<name>","file":"<path>","category":"<CR rule id or short tag>","fingerprint":"<hash of normalized message>"}
+   ```
+
+   On each run, before applying anything, the agent checks the log for matching fingerprints. If a finding's fingerprint has appeared in **≥ 3 distinct branches**, surface it in the final summary as a *promotion candidate*:
+
+   ```
+   Repeat patterns:
+     - "<short tag>" seen in 4 branches — consider promoting to a rule.
+       Suggested location: .agents/rules/<NNN>-<name>.md (matching scope: <glob>)
+   ```
+
+   The agent **never** writes to `.agents/rules/` from inside `/pr-ready`. Promotion is a separate, explicit step the dev runs via `/add-new-rule`.
+
+6. **Re-run until clean**
+
+   After all approved fixes are applied, run `coderabbit review --base origin/main --plain` again until the output is either:
    - empty / "no findings", or
-   - contains only items you've explicitly decided to defer/reject (record those in the PR description).
+   - contains only items explicitly deferred/rejected (record those in the PR description).
 
-5. **Open or update the PR**
+7. **Open or update the PR**
 
    - `gh pr create` for a new PR, or `git push` for updates.
    - Cloud CodeRabbit will still run in CI as a safety net — but it should now find little to nothing.
 
-## Output / Reporting Format (for agents)
+## Output / Reporting Format (mandatory final summary)
 
-When an agent runs this command, it must report back:
+After the re-run, the agent must print a single concise summary block. One line per applied finding linking issue → commit SHA so the dev can audit before pushing:
 
 ```
-CodeRabbit local review: <N> findings
-  Applied:    <count> (list)
-  Deferred:   <count> (list with rationale; tracked in PR description)
-  Rejected:   <count> (list with rationale)
-Re-run after fixes: <0 / <N> remaining>
+/pr-ready summary  (branch: <name>, base: origin/main)
+
+Findings: <total>
+
+Applied (<N>):
+  <short-sha>  <file>:<line>  <one-line issue summary>
+  <short-sha>  <file>:<line>  <one-line issue summary>
+  ...
+
+Deferred (<N>) — recorded in PR body:
+  <file>:<line>  <one-line summary>  — <rationale>
+  ...
+
+Rejected (<N>):
+  <file>:<line>  <one-line summary>  — <rationale, e.g. conflicts with rule 105-security>
+  ...
+
+Repeat patterns (<N>) — candidates for promotion via /add-new-rule:
+  "<short tag>"  seen in <K> branches  — suggested scope: <glob>
+  ...
+
+Re-run status: <CLEAN | N remaining (documented)>
 ```
 
-Do not claim "PR-ready" until the re-run shows no actionable findings.
+Do not claim "PR-ready" until the re-run shows no actionable findings, and do not push until the dev has reviewed this summary.
 
 ## Caveats
 
@@ -102,9 +163,12 @@ Do not claim "PR-ready" until the re-run shows no actionable findings.
 Before declaring a PR ready:
 
 - [ ] `coderabbit review --base origin/main --plain` exit clean OR remaining findings explicitly documented in the PR body.
+- [ ] Every applied fix is its own `pr-ready:` commit, visible in `git log` and individually revertable.
+- [ ] No `git commit --amend`, `git rebase -i`, or `git push --force` used during the session.
 - [ ] All local lints/tests still pass after applied fixes.
 - [ ] No `--no-verify`-style escape hatches used.
 - [ ] Re-run performed after the final set of fixes.
+- [ ] Dev has reviewed the summary block before pushing.
 
 ## Related
 
