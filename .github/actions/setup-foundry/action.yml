@@ -24,14 +24,11 @@ runs:
         fi
         echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-    - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
-      with:
-        version: ${{ steps.pin.outputs.version }}
-
     - name: Cache Foundry toolchain state (svm + foundryup)
-      # Version is folded into the cache key so a foundry bump invalidates the cache
-      # automatically and we never mix solc binaries across foundry versions.
+      # Restored before the install step so foundry-toolchain can detect an existing
+      # matching install and skip the download on a cache hit. Version is folded into
+      # the cache key so a foundry bump invalidates the cache automatically and we
+      # never mix solc binaries across foundry versions.
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: |
@@ -40,6 +37,11 @@ runs:
         key: foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml') }}
         restore-keys: |
           foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
+      with:
+        version: ${{ steps.pin.outputs.version }}
 
     - name: Cache forge build artifacts (cache/, out/)
       # Key on every input that influences compilation. A cache miss falls back to
