@@ -104,7 +104,16 @@ const main = defineCommand({
       )
 
     const USD_DECIMALS = 6
+    const MIN_FUND_AMOUNT_USD = parseUnits('0.25', USD_DECIMALS)
+    const MAX_FUND_AMOUNT_USD = parseUnits('50', USD_DECIMALS)
     const amountUSDPerNetwork = parseUnits(fundAmountUSD, USD_DECIMALS)
+    if (
+      amountUSDPerNetwork < MIN_FUND_AMOUNT_USD ||
+      amountUSDPerNetwork > MAX_FUND_AMOUNT_USD
+    )
+      throw new Error(
+        `fundAmountUSD must be between $0.25 and $50.00 per chain (Gas.zip per-chain limits, see https://dev.gas.zip/gas/overview). Received: $${fundAmountUSD}`
+      )
     const amountRequiredUSD = amountUSDPerNetwork * BigInt(networks.length)
     console.log(
       `USD amount required to fund all networks: $ ${formatUnits(
