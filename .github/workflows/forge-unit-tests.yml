@@ -1,5 +1,9 @@
 # - Run (Foundry) Unit Test Suite
 # - will make sure that all tests pass
+# - Path-gated: heavy job runs only when files that can affect test outcome change.
+#   A `required-check` aggregator job always reports a final status so this
+#   workflow can remain a required check on `main` branch protection even when
+#   the heavy job is skipped (see `.agents/rules/500-github-actions.md`).
 
 name: Run Unit Tests
 on:
@@ -14,11 +18,35 @@ on:
 
 permissions:
   contents: read # required to fetch repository contents
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
 
 jobs:
+  detect-changes:
+    # Determines whether files that can influence `forge test` outcomes were touched.
+    # Always runs (cheap) so the downstream required-check can report status.
+    runs-on: ubuntu-latest
+    outputs:
+      forge: ${{ steps.filter.outputs.forge }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            forge:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'test/**'
+              - 'lib/**'
+              - '.gitmodules'
+              - '.github/workflows/forge-unit-tests.yml'
+
   run-unit-tests:
-    # will only run once the PR is in "Ready for Review" state
-    if: ${{ github.event.pull_request.draft == false }}
+    # will only run once the PR is in "Ready for Review" state AND relevant files changed
+    needs: detect-changes
+    if: ${{ github.event.pull_request.draft == false && needs.detect-changes.outputs.forge == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -57,10 +85,29 @@ jobs:
           done < ".env"
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          
+
       - name: Run forge tests (with auto-repeat in case of error)
         uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
           command: forge test
           attempt_limit: 10
           attempt_delay: 15000
+
+  required-check:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `run-unit-tests`) as the required status check on `main`.
+    needs: [detect-changes, run-unit-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        run: |
+          set -euo pipefail
+          result="${{ needs.run-unit-tests.result }}"
+          if [[ "$result" == "success" || "$result" == "skipped" ]]; then
+            echo -e "\033[32mrequired-check OK (run-unit-tests=$result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31mrequired-check FAILED (run-unit-tests=$result)\033[0m" >&2
+          exit 1
