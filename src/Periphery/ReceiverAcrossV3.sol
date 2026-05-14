@@ -102,10 +102,11 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
             )
         {} catch {
             // send the bridged (and unswapped) funds to receiver address
-            // TODO(EXSC-241): route through LibAsset.transferERC20 next time this
-            // file is updated. Required for Tron USDT; fix lives in contracts-tron
-            // fork via LibAsset. Not done now because ReceiverAcrossV3 is not
-            // actively developed and not deployed on Tron.
+            // TODO(EXSC-241): route through LibAsset.transferERC20 next time
+            // this file is updated. Reasons: (1) Tron USDT support (fix lives
+            // in contracts-tron fork via LibAsset), and (2) consistency with
+            // the rest of the repo. Not done now because ReceiverAcrossV3 is
+            // not actively developed and not deployed on Tron.
             assetId.safeTransfer(receiver, amount);
 
             emit LiFiTransferRecovered(
