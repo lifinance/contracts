@@ -1,6 +1,6 @@
 ---
 name: post-pr-for-review
-description: Post a pull request to the LI.FI `#dev-sc-review` Slack channel for smart-contract team review. Posts the PR URL + title as a top-level message (matching the existing channel format `<URL> << <title>`), then replies in-thread tagging the `@smartcontract_core` user group. Use when the user says "post PR for review", "send to sc review", "share PR with sc team", "post to dev-sc-review", or supplies a PR URL with intent to request review from the smart-contract core team. Requires the Slack MCP server to be connected.
+description: Post a pull request to the LI.FI `#dev-sc-review` Slack channel for smart-contract team review. Enables auto-merge (squash) on the PR by default, posts the PR URL + title as a top-level message (matching the existing channel format `<URL> << <title>`), then replies in-thread tagging the `@smartcontract_core` user group. Use when the user says "post PR for review", "send to sc review", "share PR with sc team", "post to dev-sc-review", or supplies a PR URL with intent to request review from the smart-contract core team. Requires the Slack MCP server to be connected.
 ---
 
 # Post PR for Review
@@ -64,19 +64,40 @@ That's it. No long description, no checklist. The channel is high-signal/low-noi
    ```
    If user says yes/y/go/ship, proceed. Otherwise wait for edits.
 
-3. **Resolve channel ID** via `slack_search_channels` (query: `dev-sc-review`). Pick the exact-name match.
+3. **Enable auto-merge** (default; do this *before* posting to Slack).
 
-4. **Post top-level** via `slack_send_message`:
+   Why: the SC team's review is the last gate. Once they approve and CI is green, the PR should merge itself — no second round-trip to the author. The reviewer's approval doubles as the merge signal.
+
+   Command:
+   ```bash
+   gh pr merge <N> --repo <owner>/<repo> --auto --squash
+   ```
+   Squash is the LI.FI default merge method for `lifinance/contracts`. If a future repo uses a different default, mirror it (`--merge` or `--rebase`); when unsure, surface to the user.
+
+   Handle these outcomes silently (just log a one-line note, then continue):
+   - **Already enabled** → no-op, move on.
+   - **PR is already mergeable now** → it would merge immediately. Do NOT auto-merge before posting — surface to user: "PR is already mergeable; not enabling auto-merge so the SC team can still review. Want me to merge now instead?"
+   - **Auto-merge is not enabled for this repository** → skip with a note: "Auto-merge isn't enabled on this repo; posting without it." Don't ask.
+   - **Any other gh error** → surface verbatim, ask whether to post anyway.
+
+   **Opt-out**: if the user's invoking message includes "without auto-merge", "no auto-merge", "don't auto-merge", or "manual merge", skip this step entirely.
+
+4. **Resolve channel ID** via `slack_search_channels` (query: `dev-sc-review`). Pick the exact-name match.
+
+5. **Post top-level** via `slack_send_message`:
    - `channel_id`: resolved ID
    - `text`: `<url> << <title>`
    - Capture the returned `ts` (message timestamp) — needed for threading.
 
-5. **Post thread reply** via `slack_send_message`:
+6. **Post thread reply** via `slack_send_message`:
    - `channel_id`: same
-   - `thread_ts`: the `ts` from step 4
+   - `thread_ts`: the `ts` from step 5
    - `text`: `<!subteam^S096X6MCB0C> please review 🙏`
 
-6. **Confirm to user** with the Slack permalink (if returned) or just `Posted ✓`.
+7. **Confirm to user** — include both the Slack permalink (if returned) and the auto-merge state (enabled / skipped / already-mergeable), e.g.:
+   ```
+   Posted ✓ — auto-merge (squash) enabled
+   ```
 
 ## Failure modes
 
