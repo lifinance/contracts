@@ -44,9 +44,17 @@ jobs:
               - '.github/workflows/forge-unit-tests.yml'
 
   run-unit-tests:
-    # will only run once the PR is in "Ready for Review" state AND relevant files changed
+    # Runs on PRs (once out of draft) and on push/workflow_dispatch.
+    # For non-PR events `github.event.pull_request` is null, so the draft check
+    # is gated behind an event-name guard to avoid `null == false` evaluating to
+    # false and silently skipping the job after a merge to main.
     needs: detect-changes
-    if: ${{ github.event.pull_request.draft == false && needs.detect-changes.outputs.forge == 'true' }}
+    if: >-
+      ${{
+        needs.detect-changes.outputs.forge == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.draft == false)
+      }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -102,12 +110,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `run-unit-tests`
+        # would be `skipped` due to the dependency failure — and treating that
+        # `skipped` as success would mask the infra failure from branch protection.
         run: |
           set -euo pipefail
-          result="${{ needs.run-unit-tests.result }}"
-          if [[ "$result" == "success" || "$result" == "skipped" ]]; then
-            echo -e "\033[32munit-tests-required OK (run-unit-tests=$result)\033[0m"
+          detect_result="${{ needs.detect-changes.result }}"
+          test_result="${{ needs.run-unit-tests.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31munit-tests-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$test_result" == "success" || "$test_result" == "skipped" ]]; then
+            echo -e "\033[32munit-tests-required OK (run-unit-tests=$test_result)\033[0m"
             exit 0
           fi
-          echo -e "\033[31munit-tests-required FAILED (run-unit-tests=$result)\033[0m" >&2
+          echo -e "\033[31munit-tests-required FAILED (run-unit-tests=$test_result)\033[0m" >&2
           exit 1
