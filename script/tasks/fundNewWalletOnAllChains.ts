@@ -1,7 +1,13 @@
 import axios from 'axios'
 import { defineCommand, runMain } from 'citty'
-import { BigNumber, type BigNumberish } from 'ethers'
-import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
+import {
+  createPublicClient,
+  createWalletClient,
+  formatUnits,
+  http,
+  parseAbi,
+  parseUnits,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { getPrivateKey } from '../deploy/safe/safe-utils'
@@ -95,35 +101,29 @@ const main = defineCommand({
         'No target networks remaining after applying doNotFundChains filter'
       )
 
-    // calculate total amount USD needed (fundAmount * networks)
-    const amountUSDPerNetwork = BigNumber.from(fundAmountUSD)
-    const amountRequiredUSD = amountUSDPerNetwork.mul(networks.length)
+    const USD_DECIMALS = 6
+    const amountUSDPerNetwork = parseUnits(fundAmountUSD, USD_DECIMALS)
+    const amountRequiredUSD = amountUSDPerNetwork * BigInt(networks.length)
     console.log(
-      `USD amount required to fund all networks: $ ${amountRequiredUSD.toString()}\n`
+      `USD amount required to fund all networks: $ ${formatUnits(
+        amountRequiredUSD,
+        USD_DECIMALS
+      )}\n`
     )
 
-    // get current native price and calculate nativeAmount required
     const ethPrice = Math.round(await getEthPrice())
     console.log(`Current ETH price: $${ethPrice}`)
-    // const amountRequiredNative = amountRequiredUSD.div(ethPrice)
-    const amountRequiredNative = getNativeAmountRequired(
-      amountRequiredUSD,
-      ethPrice,
-      10
-    )
+    const amountRequiredNative =
+      (amountRequiredUSD * 10n ** BigInt(18 - USD_DECIMALS)) / BigInt(ethPrice)
     console.log(
       `Native amount required to fund all networks: ${amountRequiredNative.toString()}\n`
     )
 
-    // get fundingWallet's native balance
-    const nativeBalance = BigNumber.from(
-      await publicClient.getBalance({
-        address: fundingWallet.address,
-      })
-    )
+    const nativeBalance = await publicClient.getBalance({
+      address: fundingWallet.address,
+    })
 
-    // make sure that balance is sufficient
-    if (nativeBalance.lt(amountRequiredNative))
+    if (nativeBalance < amountRequiredNative)
       throw new Error(
         `Native balance of funding wallet is insufficient: \nrequired : ${amountRequiredNative}, \navailable: ${nativeBalance}`
       )
@@ -160,7 +160,7 @@ const main = defineCommand({
       address: GAS_ZIP_ROUTER_MAINNET,
       abi: parseAbi(['function deposit(uint256,address) external payable']),
       functionName: 'deposit',
-      value: amountRequiredNative.toBigInt(),
+      value: amountRequiredNative,
       args: [chainsBN, receivingWallet as HexString],
       // gas: gas,
     })
@@ -179,24 +179,6 @@ const main = defineCommand({
   },
 })
 
-const getNativeAmountRequired = (
-  dividend: BigNumberish,
-  divisor: BigNumberish,
-  precision: number
-): BigNumber => {
-  if (precision > 10) throw new Error('max precision is 10 decimals')
-  // calculate division result with precision
-  const multiplier = BigNumber.from(10).pow(precision)
-  const decimalResult = BigNumber.from(dividend).mul(multiplier).div(divisor)
-
-  // adjust the amount to 10 ** 18
-  const scaleFactor = BigNumber.from(10).pow(18 - precision)
-  const nativeAmount = decimalResult.mul(scaleFactor)
-
-  return nativeAmount
-}
-
-// Function to get ETH price from CoinGecko
 const getEthPrice = async () => {
   try {
     const response = await axios.get(
