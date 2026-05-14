@@ -1,7 +1,7 @@
 # - Run (Foundry) Unit Test Suite
 # - will make sure that all tests pass
 # - Path-gated: heavy job runs only when files that can affect test outcome change.
-#   A `required-check` aggregator job always reports a final status so this
+#   A `unit-tests-required` aggregator job always reports a final status so this
 #   workflow can remain a required check on `main` branch protection even when
 #   the heavy job is skipped (see `.agents/rules/500-github-actions.md`).
 
@@ -23,7 +23,7 @@ permissions:
 jobs:
   detect-changes:
     # Determines whether files that can influence `forge test` outcomes were touched.
-    # Always runs (cheap) so the downstream required-check can report status.
+    # Always runs (cheap) so the downstream unit-tests-required can report status.
     runs-on: ubuntu-latest
     outputs:
       forge: ${{ steps.filter.outputs.forge }}
@@ -93,7 +93,7 @@ jobs:
           attempt_limit: 10
           attempt_delay: 15000
 
-  required-check:
+  unit-tests-required:
     # Aggregator job for branch protection. Reports green when the heavy job
     # either succeeded or was skipped because no relevant files changed.
     # Register THIS job (not `run-unit-tests`) as the required status check on `main`.
@@ -106,8 +106,8 @@ jobs:
           set -euo pipefail
           result="${{ needs.run-unit-tests.result }}"
           if [[ "$result" == "success" || "$result" == "skipped" ]]; then
-            echo -e "\033[32mrequired-check OK (run-unit-tests=$result)\033[0m"
+            echo -e "\033[32munit-tests-required OK (run-unit-tests=$result)\033[0m"
             exit 0
           fi
-          echo -e "\033[31mrequired-check FAILED (run-unit-tests=$result)\033[0m" >&2
+          echo -e "\033[31munit-tests-required FAILED (run-unit-tests=$result)\033[0m" >&2
           exit 1
