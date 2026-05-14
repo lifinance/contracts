@@ -348,36 +348,39 @@ deployAllContracts() {
     fi
 
     # --- Fund DevWallet ---
-    # DevWallet is used for executing timelock proposals on production and for staging deployments.
-    # It must have a native balance on every new network before execution scripts can run.
-    local DEV_WALLET_ADDRESS
-    DEV_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "devWallet")
-    if [[ $? -ne 0 ]]; then
-      error "failed to read devWallet address from ./config/global.json"
-      exit 1
-    fi
-    if [[ -z "$DEV_WALLET_ADDRESS" || "$DEV_WALLET_ADDRESS" == "null" ]]; then
-      error "DevWallet address not found. Cannot fund DevWallet"
-      exit 1
-    fi
-
-    BALANCE=$(cast balance "$DEV_WALLET_ADDRESS" --rpc-url "$RPC_URL")
-    checkFailure $? "get DevWallet balance for $DEV_WALLET_ADDRESS on $NETWORK"
-    echo "DevWallet Balance: $BALANCE"
-
-    if [[ "$BALANCE" == "0" ]]; then
-      echo "DevWallet balance is 0. How much wei would you like to send to $DEV_WALLET_ADDRESS?"
-      read -r FUNDING_AMOUNT || FUNDING_AMOUNT=""
-
-      # Validate that FUNDING_AMOUNT is a non-empty numeric value
-      if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
-        error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
+    # DevWallet executes timelock proposals; the timelock only exists on production non-testnet networks.
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
+      local DEV_WALLET_ADDRESS
+      DEV_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "devWallet")
+      if [[ $? -ne 0 ]]; then
+        error "failed to read devWallet address from ./config/global.json"
+        exit 1
+      fi
+      if [[ -z "$DEV_WALLET_ADDRESS" || "$DEV_WALLET_ADDRESS" == "null" ]]; then
+        error "DevWallet address not found. Cannot fund DevWallet"
         exit 1
       fi
 
-      echo "Funding DevWallet $DEV_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
-      universalCast "sendValue" "$NETWORK" "$ENVIRONMENT" "$DEV_WALLET_ADDRESS" "$FUNDING_AMOUNT" "$PRIVATE_KEY_TO_USE"
-      checkFailure $? "fund DevWallet $DEV_WALLET_ADDRESS on $NETWORK"
+      BALANCE=$(cast balance "$DEV_WALLET_ADDRESS" --rpc-url "$RPC_URL")
+      checkFailure $? "get DevWallet balance for $DEV_WALLET_ADDRESS on $NETWORK"
+      echo "DevWallet Balance: $BALANCE"
+
+      if [[ "$BALANCE" == "0" ]]; then
+        echo "DevWallet balance is 0. How much wei would you like to send to $DEV_WALLET_ADDRESS?"
+        read -r FUNDING_AMOUNT || FUNDING_AMOUNT=""
+
+        # Validate that FUNDING_AMOUNT is a non-empty numeric value
+        if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+          error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
+          exit 1
+        fi
+
+        echo "Funding DevWallet $DEV_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
+        universalCast "sendValue" "$NETWORK" "$ENVIRONMENT" "$DEV_WALLET_ADDRESS" "$FUNDING_AMOUNT" "$PRIVATE_KEY_TO_USE"
+        checkFailure $? "fund DevWallet $DEV_WALLET_ADDRESS on $NETWORK"
+      fi
+    else
+      echo "[info] Skipping DevWallet funding for $ENVIRONMENT/$NETWORK (no Timelock; only funded on production non-testnet)"
     fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
