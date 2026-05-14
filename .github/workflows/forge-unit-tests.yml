@@ -1,7 +1,7 @@
 # - Run (Foundry) Unit Test Suite
 # - will make sure that all tests pass
 # - Path-gated: heavy job runs only when files that can affect test outcome change.
-#   A `scope-validator` aggregator job always reports a final status so this
+#   A `required-check` aggregator job always reports a final status so this
 #   workflow can remain a required check on `main` branch protection even when
 #   the heavy job is skipped (see `.agents/rules/500-github-actions.md`).
 
@@ -21,9 +21,9 @@ permissions:
   pull-requests: read # required by dorny/paths-filter to read changed files on PRs
 
 jobs:
-  changes:
+  detect-changes:
     # Determines whether files that can influence `forge test` outcomes were touched.
-    # Always runs (cheap) so the downstream scope-validator can report status.
+    # Always runs (cheap) so the downstream required-check can report status.
     runs-on: ubuntu-latest
     outputs:
       forge: ${{ steps.filter.outputs.forge }}
@@ -46,8 +46,8 @@ jobs:
 
   run-unit-tests:
     # will only run once the PR is in "Ready for Review" state AND relevant files changed
-    needs: changes
-    if: ${{ github.event.pull_request.draft == false && needs.changes.outputs.forge == 'true' }}
+    needs: detect-changes
+    if: ${{ github.event.pull_request.draft == false && needs.detect-changes.outputs.forge == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -94,11 +94,11 @@ jobs:
           attempt_limit: 10
           attempt_delay: 15000
 
-  scope-validator:
+  required-check:
     # Aggregator job for branch protection. Reports green when the heavy job
     # either succeeded or was skipped because no relevant files changed.
     # Register THIS job (not `run-unit-tests`) as the required status check on `main`.
-    needs: [changes, run-unit-tests]
+    needs: [detect-changes, run-unit-tests]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -107,8 +107,8 @@ jobs:
           set -euo pipefail
           result="${{ needs.run-unit-tests.result }}"
           if [[ "$result" == "success" || "$result" == "skipped" ]]; then
-            echo -e "\033[32mscope-validator OK (run-unit-tests=$result)\033[0m"
+            echo -e "\033[32mrequired-check OK (run-unit-tests=$result)\033[0m"
             exit 0
           fi
-          echo -e "\033[31mscope-validator FAILED (run-unit-tests=$result)\033[0m" >&2
+          echo -e "\033[31mrequired-check FAILED (run-unit-tests=$result)\033[0m" >&2
           exit 1

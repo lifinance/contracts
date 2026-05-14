@@ -4,7 +4,7 @@
 # - Validates the deploy script end-to-end so regressions in deploy bash,
 #   Solidity scripts, target state, or whitelist sync surface before merge
 # - Path-gated: heavy job runs only when files that can affect the smoke outcome
-#   change. A `scope-validator` aggregator job always reports a final status so
+#   change. A `required-check` aggregator job always reports a final status so
 #   this workflow can be a required check on `main` branch protection.
 name: Deploy Smoke Test
 
@@ -23,9 +23,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
+  detect-changes:
     # Determines whether files that can influence the smoke pipeline were touched.
-    # Always runs (cheap) so the downstream scope-validator can report status.
+    # Always runs (cheap) so the downstream required-check can report status.
     runs-on: ubuntu-latest
     outputs:
       smoke: ${{ steps.filter.outputs.smoke }}
@@ -59,13 +59,13 @@ jobs:
     # and only run when files that influence the smoke pipeline have changed.
     # github.event.pull_request is unset on workflow_dispatch, so the explicit
     # event_name branch is required to keep the manual trigger path working.
-    needs: changes
+    needs: detect-changes
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' &&
            github.event.pull_request.draft == false &&
            github.event.pull_request.base.ref == 'main' &&
-           needs.changes.outputs.smoke == 'true') }}
+           needs.detect-changes.outputs.smoke == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -170,11 +170,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  scope-validator:
+  required-check:
     # Aggregator job for branch protection. Reports green when the heavy job
     # either succeeded or was skipped because no relevant files changed.
     # Register THIS job (not `deploy-smoke-test`) as the required status check on `main`.
-    needs: [changes, deploy-smoke-test]
+    needs: [detect-changes, deploy-smoke-test]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -183,8 +183,8 @@ jobs:
           set -euo pipefail
           result="${{ needs.deploy-smoke-test.result }}"
           if [[ "$result" == "success" || "$result" == "skipped" ]]; then
-            echo -e "\033[32mscope-validator OK (deploy-smoke-test=$result)\033[0m"
+            echo -e "\033[32mrequired-check OK (deploy-smoke-test=$result)\033[0m"
             exit 0
           fi
-          echo -e "\033[31mscope-validator FAILED (deploy-smoke-test=$result)\033[0m" >&2
+          echo -e "\033[31mrequired-check FAILED (deploy-smoke-test=$result)\033[0m" >&2
           exit 1
