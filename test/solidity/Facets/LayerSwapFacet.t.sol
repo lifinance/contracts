@@ -10,13 +10,14 @@ import { InvalidCallData, InvalidConfig, InvalidSignature } from "lifi/Errors/Ge
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Admin surface of the real LayerswapDepository (Ownable2Step + Pausable),
-// exposed only for test setup (whitelisting + pausing).
+// exposed only for test setup (reading the live whitelist + pausing).
 interface ILayerswapDepositoryAdmin {
     function owner() external view returns (address);
 
-    function addToWhitelist(address addr) external;
-
-    function removeFromWhitelist(address addr) external;
+    function getWhitelistedAddresses()
+        external
+        view
+        returns (address[] memory);
 
     function pause() external;
 }
@@ -38,8 +39,8 @@ contract LayerSwapFacetTest is TestBaseFacet {
     TestLayerSwapFacet internal layerSwapFacet;
     ILayerswapDepositoryAdmin internal depository;
     address internal depositoryOwner;
-    address internal constant DEPOSITORY_RECEIVER =
-        0x1234567890123456789012345678901234567890;
+    // Live whitelisted receiver, resolved from the depository in setUp()
+    address internal depositoryReceiver;
 
     // OpenZeppelin Pausable revert (raised when the depository is paused)
     error EnforcedPause();
@@ -83,13 +84,11 @@ contract LayerSwapFacetTest is TestBaseFacet {
         customBlockNumberForForking = 25060964;
         initTestBase();
 
-        // Wire up real LayerswapDepository and whitelist the test receiver
-        // via an owner prank (depository uses Ownable2Step + EnumerableSet).
+        // Pick a receiver from the depository's live on-chain whitelist
+        // so deposits succeed without any owner mutation.
         depository = ILayerswapDepositoryAdmin(LAYERSWAP_DEPOSITORY);
         depositoryOwner = depository.owner();
-
-        vm.prank(depositoryOwner);
-        depository.addToWhitelist(DEPOSITORY_RECEIVER);
+        depositoryReceiver = depository.getWhitelistedAddresses()[0];
 
         // Deploy facet with backend signer
         layerSwapFacet = new TestLayerSwapFacet(
@@ -135,7 +134,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             bridgeData,
             block.chainid
@@ -226,7 +225,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-baseNative"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             bridgeData,
             block.chainid
@@ -257,7 +256,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256(abi.encodePacked("testRequestId-fuzz-", amount)),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             bridgeData,
             block.chainid
@@ -310,7 +309,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-baseSwapNative"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             bridgeData,
             block.chainid
@@ -345,7 +344,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         )
         assertBalanceChange(
             ADDRESS_USDC,
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             int256(defaultUSDCAmount)
         )
     {
@@ -356,7 +355,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         emit Deposited(
             validLayerSwapData.requestId,
             ADDRESS_USDC,
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bridgeData.minAmount
         );
 
@@ -376,7 +375,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         )
         assertBalanceChange(
             address(0),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             int256(defaultNativeAmount)
         )
     {
@@ -387,7 +386,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-native"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             bridgeData,
             block.chainid
@@ -397,7 +396,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         emit Deposited(
             validLayerSwapData.requestId,
             address(0),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bridgeData.minAmount
         );
 
@@ -416,7 +415,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-nonEVM-empty"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             bridgeData,
             block.chainid
@@ -442,7 +441,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         )
         assertBalanceChange(
             ADDRESS_USDC,
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             int256(defaultUSDCAmount)
         )
     {
@@ -454,7 +453,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-nonEVM"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             nonEVMReceiver,
             bridgeData,
             block.chainid
@@ -486,7 +485,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         )
         assertBalanceChange(
             address(0),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             int256(defaultNativeAmount)
         )
     {
@@ -500,7 +499,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-nativeNonEVM"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             nonEVMReceiver,
             bridgeData,
             block.chainid
@@ -540,7 +539,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-swapNonEVM"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             nonEVMReceiver,
             bridgeData,
             block.chainid
@@ -604,7 +603,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
         validLayerSwapData = _generateValidLayerSwapData(
             keccak256("testRequestId-nativeRevert"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             bridgeData,
             block.chainid
@@ -616,9 +615,16 @@ contract LayerSwapFacetTest is TestBaseFacet {
     }
 
     function testRevert_WhenReceiverNotWhitelisted() public {
-        // Remove the test receiver from the depository whitelist
-        vm.prank(depositoryOwner);
-        depository.removeFromWhitelist(DEPOSITORY_RECEIVER);
+        // Sign for a depository receiver that is deliberately not on the
+        // depository's on-chain whitelist
+        address nonWhitelistedReceiver = address(0xBEEF);
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-notWhitelisted"),
+            nonWhitelistedReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -674,7 +680,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         LayerSwapPayload memory payload = _createLayerSwapPayload(
             bridgeData,
             keccak256("testRequestId-expired"),
-            DEPOSITORY_RECEIVER,
+            depositoryReceiver,
             bytes32(0),
             expiredDeadline
         );
@@ -687,7 +693,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         LayerSwapFacet.LayerSwapData memory expiredData = LayerSwapFacet
             .LayerSwapData({
                 requestId: keccak256("testRequestId-expired"),
-                depositoryReceiver: DEPOSITORY_RECEIVER,
+                depositoryReceiver: depositoryReceiver,
                 nonEVMReceiver: bytes32(0),
                 signature: signature,
                 deadline: expiredDeadline
@@ -743,7 +749,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         LayerSwapFacet.LayerSwapData
             memory secondData = _generateValidLayerSwapData(
                 keccak256("differentRequestId"),
-                DEPOSITORY_RECEIVER,
+                depositoryReceiver,
                 bytes32(0),
                 bridgeData,
                 block.chainid
@@ -777,7 +783,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         LayerSwapFacet.LayerSwapData
             memory replayData = _generateValidLayerSwapData(
                 validLayerSwapData.requestId,
-                DEPOSITORY_RECEIVER,
+                depositoryReceiver,
                 bytes32(0),
                 bridgeData,
                 block.chainid
@@ -849,7 +855,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         LayerSwapFacet.LayerSwapData
             memory signedData = _generateValidLayerSwapData(
                 keccak256("testRequestId-nonEVMTamper"),
-                DEPOSITORY_RECEIVER,
+                depositoryReceiver,
                 signedNonEVMReceiver,
                 bridgeData,
                 block.chainid
