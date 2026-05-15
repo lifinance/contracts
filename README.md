@@ -1,4 +1,4 @@
-[![Forge](https://github.com/lifinance/contracts/actions/workflows/forge.yml/badge.svg)](https://github.com/lifinance/contracts/actions/workflows/forge.yml)
+[![Forge](https://github.com/lifinance/contracts/actions/workflows/forge-unit-tests.yml/badge.svg)](https://github.com/lifinance/contracts/actions/workflows/forge-unit-tests.yml)
 
 # LI.FI Smart Contracts
 

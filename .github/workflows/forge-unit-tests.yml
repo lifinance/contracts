@@ -1,0 +1,129 @@
+# - Run (Foundry) Unit Test Suite
+# - will make sure that all tests pass
+# - Path-gated: heavy job runs only when files that can affect test outcome change.
+#   A `unit-tests-required` aggregator job always reports a final status so this
+#   workflow can remain a required check on `main` branch protection even when
+#   the heavy job is skipped (see `.agents/rules/500-github-actions.md`).
+
+name: Run Unit Tests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main # makes sure that it runs on main branch after a PR has been merged
+
+  # Allows to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
+
+jobs:
+  detect-changes:
+    # Determines whether files that can influence `forge test` outcomes were touched.
+    # Always runs (cheap) so the downstream unit-tests-required can report status.
+    runs-on: ubuntu-latest
+    outputs:
+      forge: ${{ steps.filter.outputs.forge }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            forge:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'test/**'
+              - 'lib/**'
+              - '.gitmodules'
+              - '.github/workflows/forge-unit-tests.yml'
+
+  run-unit-tests:
+    # Runs on PRs (once out of draft) and on push/workflow_dispatch.
+    # For non-PR events `github.event.pull_request` is null, so the draft check
+    # is gated behind an event-name guard to avoid `null == false` evaluating to
+    # false and silently skipping the job after a merge to main.
+    needs: detect-changes
+    if: >-
+      ${{
+        needs.detect-changes.outputs.forge == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.draft == false)
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+
+      - name: Install forge Dependencies
+        run: forge install
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
+          bun fetch-rpcs
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              # Strip optional surrounding quotes so the masked token matches what tools print.
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
+              echo "$line" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      - name: Run forge tests (with auto-repeat in case of error)
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        with:
+          command: forge test
+          attempt_limit: 10
+          attempt_delay: 15000
+
+  unit-tests-required:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `run-unit-tests`) as the required status check on `main`.
+    needs: [detect-changes, run-unit-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `run-unit-tests`
+        # would be `skipped` due to the dependency failure — and treating that
+        # `skipped` as success would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          test_result="${{ needs.run-unit-tests.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31munit-tests-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$test_result" == "success" || "$test_result" == "skipped" ]]; then
+            echo -e "\033[32munit-tests-required OK (run-unit-tests=$test_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31munit-tests-required FAILED (run-unit-tests=$test_result)\033[0m" >&2
+          exit 1

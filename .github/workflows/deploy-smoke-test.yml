@@ -3,7 +3,9 @@
 # - Triggers on PRs targeting main and on manual dispatch
 # - Validates the deploy script end-to-end so regressions in deploy bash,
 #   Solidity scripts, target state, or whitelist sync surface before merge
-# - Not a required status check initially; promote via repo settings once stable
+# - Path-gated: heavy job runs only when files that can affect the smoke outcome
+#   change. A `smoke-test-required` aggregator job always reports a final status so
+#   this workflow can be a required check on `main` branch protection.
 name: Deploy Smoke Test
 
 on:
@@ -14,21 +16,55 @@ on:
 
 permissions:
   contents: read # required to fetch repository contents
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
 
 concurrency:
   group: deploy-smoke-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    # Determines whether files that can influence the smoke pipeline were touched.
+    # Always runs (cheap) so the downstream smoke-test-required can report status.
+    runs-on: ubuntu-latest
+    outputs:
+      smoke: ${{ steps.filter.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            smoke:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'lib/**'
+              - '.gitmodules'
+              - 'config/**'
+              - 'deployments/**'
+              - 'script/deploy/**'
+              - 'script/utils/**'
+              - 'script/tasks/**'
+              - 'script/resources/**'
+              - '.env.example'
+              - 'package.json'
+              - 'bun.lockb'
+              - '.github/workflows/deploy-smoke-test.yml'
+
   deploy-smoke-test:
-    # Always run on manual dispatch; for PRs, skip drafts and require main as the base.
+    # Always run on manual dispatch; for PRs, skip drafts, require main as the base,
+    # and only run when files that influence the smoke pipeline have changed.
     # github.event.pull_request is unset on workflow_dispatch, so the explicit
     # event_name branch is required to keep the manual trigger path working.
+    needs: detect-changes
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' &&
            github.event.pull_request.draft == false &&
-           github.event.pull_request.base.ref == 'main') }}
+           github.event.pull_request.base.ref == 'main' &&
+           needs.detect-changes.outputs.smoke == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -89,6 +125,7 @@ jobs:
           # shellcheck disable=SC2016 # the $PRIVATE_KEY_ANVIL literal is expanded later when .env is sourced, not now
           {
             echo 'PRIVATE_KEY=$PRIVATE_KEY_ANVIL'
+            # pre-commit-checker: not a secret
             echo 'ETH_NODE_URI_LOCALANVIL=http://localhost:8545'
             echo 'MONGODB_URI=mongodb://localhost:27017/contract-deployments'
           } >> .env
@@ -101,6 +138,7 @@ jobs:
           anvil --mnemonic "${MNEMONIC}" --silent &
           # Bounded readiness probe — fail fast if anvil never comes up.
           for _ in $(seq 1 30); do
+            # pre-commit-checker: not a secret
             if [[ "$(cast chain-id --rpc-url http://localhost:8545 2>/dev/null || true)" == "31337" ]]; then
               echo -e "\033[32manvil ready\033[0m"
               exit 0
@@ -132,3 +170,30 @@ jobs:
             deployments/localanvil*.json
           if-no-files-found: ignore
           retention-days: 7
+
+  smoke-test-required:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `deploy-smoke-test`) as the required status check on `main`.
+    needs: [detect-changes, deploy-smoke-test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `deploy-smoke-test`
+        # would be `skipped` due to the dependency failure — and treating that
+        # `skipped` as success would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          smoke_result="${{ needs.deploy-smoke-test.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31msmoke-test-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$smoke_result" == "success" || "$smoke_result" == "skipped" ]]; then
+            echo -e "\033[32msmoke-test-required OK (deploy-smoke-test=$smoke_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31msmoke-test-required FAILED (deploy-smoke-test=$smoke_result)\033[0m" >&2
+          exit 1
