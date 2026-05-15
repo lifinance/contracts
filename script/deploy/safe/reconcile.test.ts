@@ -12,6 +12,7 @@ import {
   describe,
   expect,
   it,
+  mock,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { type Collection } from 'mongodb'
@@ -34,6 +35,16 @@ import {
   SUBMITTED_GRACE_MS,
 } from './reconcile'
 import { type ISafeTransaction, type ISafeTxDocument } from './safe-utils'
+import { type enqueueTimelockOpIfApplicable } from './timelock-queue'
+
+const noopEnqueueImpl: typeof enqueueTimelockOpIfApplicable = async (
+  _callData,
+  _to,
+  _safeTxHash,
+  _executionHash,
+  _chainId,
+  _networkName
+) => undefined
 
 const SAFE_ADDR = '0x000000000000000000000000000000000000Safe' as Address
 const CHAIN_ID = 1
@@ -130,6 +141,11 @@ function createFakeCollection(
     },
     async countDocuments(filter: Record<string, unknown>): Promise<number> {
       return rows.filter((r) => matchesFilter(r, filter)).length
+    },
+    async findOne(
+      filter: Record<string, unknown>
+    ): Promise<ISafeTxDocument | null> {
+      return rows.find((r) => matchesFilter(r, filter)) ?? null
     },
     async updateOne(
       filter: Record<string, unknown>,
@@ -848,5 +864,179 @@ describe('reconcileSubmittedSafeTxs — Sweep B resilience', () => {
     // Sanity check on hash plumbing — uses viem's toHex to verify type round-trip.
     const value = 0x1234n
     expect(toHex(value)).toBe('0x1234')
+  })
+})
+
+describe('reconcileSubmittedSafeTxs — timelock enqueue plumbing', () => {
+  it('invokes the enqueue function when Sweep A promotes submitted → executed', async () => {
+    const execHash = ('0x' + '11'.repeat(32)) as Hex
+    const calldata = ('0x' + 'a1'.repeat(36)) as Hex
+    const target = ('0x' + '12'.repeat(20)) as Address
+    const row = buildRow({
+      status: 'submitted',
+      executionHash: execHash,
+      submittedAt: new Date(),
+      safeTx: {
+        data: {
+          to: target,
+          value: 0n,
+          data: calldata,
+          operation: 0,
+          nonce: 7n,
+        },
+        signatures: new Map(),
+      } as ISafeTransaction,
+    })
+    const collection = createFakeCollection([row])
+    const client = createFakeClient({ receipts: { [execHash]: 'success' } })
+    const enqueueSpy = mock(noopEnqueueImpl)
+
+    await reconcileSubmittedSafeTxs(
+      collection,
+      client,
+      NETWORK,
+      CHAIN_ID,
+      SAFE_ADDR,
+      8n,
+      { enqueueTimelockOpFn: enqueueSpy }
+    )
+
+    expect(enqueueSpy).toHaveBeenCalledTimes(1)
+    expect(enqueueSpy.mock.calls[0]).toEqual([
+      calldata,
+      target,
+      row.safeTxHash,
+      execHash,
+      CHAIN_ID,
+      NETWORK,
+    ])
+  })
+
+  it('does not invoke the enqueue function on Sweep A revert / demote / awaiting', async () => {
+    const execRevert = ('0x' + '21'.repeat(32)) as Hex
+    const execMissing = ('0x' + '22'.repeat(32)) as Hex
+    const execRpcErr = ('0x' + '23'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      buildRow({
+        safeTxHash:
+          '0x0000000000000000000000000000000000000000000000000000000000000010',
+        status: 'submitted',
+        executionHash: execRevert,
+        submittedAt: new Date(),
+      }),
+      buildRow({
+        safeTxHash:
+          '0x0000000000000000000000000000000000000000000000000000000000000011',
+        status: 'submitted',
+        executionHash: execMissing,
+        submittedAt: new Date(Date.now() - (SUBMITTED_GRACE_MS + 60_000)),
+      }),
+      buildRow({
+        safeTxHash:
+          '0x0000000000000000000000000000000000000000000000000000000000000012',
+        status: 'submitted',
+        executionHash: execRpcErr,
+        submittedAt: new Date(),
+      }),
+    ])
+    const client = createFakeClient({
+      receipts: {
+        [execRevert]: 'reverted',
+        [execMissing]: 'missing',
+        [execRpcErr]: 'rpc_error',
+      },
+    })
+    const enqueueSpy = mock(noopEnqueueImpl)
+
+    await reconcileSubmittedSafeTxs(
+      collection,
+      client,
+      NETWORK,
+      CHAIN_ID,
+      SAFE_ADDR,
+      0n,
+      { enqueueTimelockOpFn: enqueueSpy }
+    )
+
+    expect(enqueueSpy).not.toHaveBeenCalled()
+  })
+
+  it('invokes the enqueue function when Sweep B back-fills a pending row to executed', async () => {
+    const missingSafeTxHash =
+      '0x000000000000000000000000000000000000000000000000000000000000aaaa' as Hex
+    const calldata = ('0x' + 'cd'.repeat(36)) as Hex
+    const target = ('0x' + '34'.repeat(20)) as Address
+    const txHash = ('0x' + '7a'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      buildRow({
+        safeTxHash: missingSafeTxHash,
+        status: 'pending',
+        safeTx: {
+          data: {
+            to: target,
+            value: 0n,
+            data: calldata,
+            operation: 0,
+            nonce: 0n,
+          },
+          signatures: new Map(),
+        } as ISafeTransaction,
+      }),
+    ])
+    const client = createFakeClient({
+      blockNumber: 100n,
+      logs: [
+        makeExecutionLog(EXECUTION_SUCCESS_TOPIC, missingSafeTxHash, txHash),
+      ],
+    })
+    const enqueueSpy = mock(noopEnqueueImpl)
+
+    await reconcileSubmittedSafeTxs(
+      collection,
+      client,
+      NETWORK,
+      CHAIN_ID,
+      SAFE_ADDR,
+      1n,
+      { enqueueTimelockOpFn: enqueueSpy }
+    )
+
+    expect(enqueueSpy).toHaveBeenCalledTimes(1)
+    expect(enqueueSpy.mock.calls[0]).toEqual([
+      calldata,
+      target,
+      missingSafeTxHash,
+      txHash,
+      CHAIN_ID,
+      NETWORK,
+    ])
+  })
+
+  it('does not invoke the enqueue function on Sweep B revert back-fill', async () => {
+    const missingSafeTxHash =
+      '0x000000000000000000000000000000000000000000000000000000000000bbbb' as Hex
+    const txHash = ('0x' + '7b'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      buildRow({ safeTxHash: missingSafeTxHash, status: 'pending' }),
+    ])
+    const client = createFakeClient({
+      blockNumber: 100n,
+      logs: [
+        makeExecutionLog(EXECUTION_FAILURE_TOPIC, missingSafeTxHash, txHash),
+      ],
+    })
+    const enqueueSpy = mock(noopEnqueueImpl)
+
+    await reconcileSubmittedSafeTxs(
+      collection,
+      client,
+      NETWORK,
+      CHAIN_ID,
+      SAFE_ADDR,
+      1n,
+      { enqueueTimelockOpFn: enqueueSpy }
+    )
+
+    expect(enqueueSpy).not.toHaveBeenCalled()
   })
 })

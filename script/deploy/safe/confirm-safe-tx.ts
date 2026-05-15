@@ -10,7 +10,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { getAddress, type Account, type Address, type Hex } from 'viem'
+import { type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
@@ -44,14 +44,7 @@ import {
   type SafeClient,
   type SafeTxStatus,
 } from './safe-utils'
-import {
-  byOperationId,
-  computeOperationIdBatch,
-  decodeScheduleBatch,
-  getTimelockQueueCollection,
-  isScheduleBatchCalldata,
-  serializeScheduleParams,
-} from './timelock-queue'
+import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
 
@@ -72,81 +65,6 @@ const globalTimeoutExecutions: Array<{
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
   return this.toString()
-}
-
-/**
- * Upserts a row into the timelock execution queue when the just-executed Safe
- * tx scheduled a timelock op. No-op for any other Safe tx.
- *
- * The queue lives in the non-sensitive `MONGODB_URI` cluster.
- *
- * Errors are logged as warnings only — the Safe tx is already mined and is the
- * authoritative record. A missed enqueue can be repaired via the backfill script.
- *
- * @param safeTransaction - The Safe tx that just executed.
- * @param safeTxHash - Safe-side hash of the tx (for traceability).
- * @param executionHash - On-chain hash of the Safe execution tx.
- * @param chainId - Numeric chain id of the network.
- * @param networkName - Network name (lowercased before storage).
- */
-async function enqueueTimelockOpIfApplicable(
-  safeTransaction: ISafeTransaction,
-  safeTxHash: string,
-  executionHash: string,
-  chainId: number,
-  networkName: string
-): Promise<void> {
-  const callData = safeTransaction.data.data
-  if (!isScheduleBatchCalldata(callData)) return
-
-  try {
-    const params = decodeScheduleBatch(callData)
-    const operationId = computeOperationIdBatch(
-      params.targets,
-      params.values,
-      params.payloads,
-      params.predecessor,
-      params.salt
-    )
-    const network = networkName.toLowerCase()
-    const timelockAddress = getAddress(safeTransaction.data.to)
-    const serialized = serializeScheduleParams(params)
-    const now = new Date()
-
-    const { client, timelockQueue } = await getTimelockQueueCollection()
-    try {
-      await timelockQueue.updateOne(
-        byOperationId(network, operationId),
-        {
-          $setOnInsert: {
-            operationId,
-            network,
-            chainId,
-            timelockAddress,
-            ...serialized,
-            createdAt: now,
-          },
-          $set: {
-            status: 'queued',
-            safeTxHash,
-            executionHash,
-            updatedAt: now,
-          },
-        },
-        { upsert: true }
-      )
-      consola.success(
-        `Enqueued timelock op ${operationId} for auto-execution on ${network}`
-      )
-    } finally {
-      await client.close()
-    }
-  } catch (error) {
-    consola.warn(
-      'Failed to enqueue timelock op (Safe tx already on-chain; can be re-enqueued via backfill):',
-      error
-    )
-  }
 }
 
 /**
@@ -282,11 +200,13 @@ const processTxs = async (
       )
 
       // Only enqueue a timelock op once the Safe tx is confirmed on-chain.
-      // 'submitted' rows trigger re-enqueue on the next reconcile pass; on
-      // 'reverted' the inner schedule never executed, so nothing to queue.
+      // 'submitted' rows get enqueued by reconcile when it later promotes
+      // them to 'executed'; on 'reverted' the inner schedule never
+      // executed, so nothing to queue.
       if (nextStatus === 'executed')
         await enqueueTimelockOpIfApplicable(
-          safeTransaction,
+          safeTransaction.data.data,
+          safeTransaction.data.to,
           safeTxHash,
           executionHash,
           chain.id,

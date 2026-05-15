@@ -34,6 +34,7 @@ import { isTronNetworkKey } from '../shared/tron-network-keys'
 
 import { SAFE_EVENTS_ABI } from './config'
 import type { ISafeTxDocument } from './safe-utils'
+import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 /** Grace period before a `submitted` row with no receipt is sent back to `pending`. */
 export const SUBMITTED_GRACE_MS = 10 * 60 * 1000 // 10 minutes
@@ -59,6 +60,12 @@ export interface IReconcileResult {
 export interface IReconcileOptions {
   graceMs?: number
   lookbackBlocks?: bigint
+  /**
+   * Override for the timelock-queue upsert. Defaults to the real
+   * `enqueueTimelockOpIfApplicable`. Exposed so tests can spy on the call
+   * without standing up a MongoDB instance for the queue cluster.
+   */
+  enqueueTimelockOpFn?: typeof enqueueTimelockOpIfApplicable
 }
 
 /**
@@ -99,6 +106,8 @@ export async function reconcileSubmittedSafeTxs(
 
   const graceMs = options?.graceMs ?? SUBMITTED_GRACE_MS
   const lookbackBlocks = options?.lookbackBlocks ?? RECONCILE_LOOKBACK_BLOCKS
+  const enqueueFn =
+    options?.enqueueTimelockOpFn ?? enqueueTimelockOpIfApplicable
 
   await sweepA(
     pendingTransactions,
@@ -107,6 +116,7 @@ export async function reconcileSubmittedSafeTxs(
     chainId,
     safeAddress,
     graceMs,
+    enqueueFn,
     result
   )
 
@@ -132,6 +142,7 @@ export async function reconcileSubmittedSafeTxs(
     chainId,
     safeAddress,
     lookbackBlocks,
+    enqueueFn,
     result
   )
 
@@ -150,6 +161,7 @@ async function sweepA(
   chainId: number,
   safeAddress: Address,
   graceMs: number,
+  enqueueFn: typeof enqueueTimelockOpIfApplicable,
   result: IReconcileResult
 ): Promise<void> {
   const submittedRows = await pendingTransactions
@@ -212,6 +224,17 @@ async function sweepA(
       consola.success(
         `[${networkKey}] Reconcile: ${row.safeTxHash} confirmed on-chain → executed`
       )
+      // Issue the timelock-queue upsert that was deferred at execution
+      // time. The helper short-circuits for non-scheduleBatch calldata
+      // and is idempotent on (network, operationId).
+      await enqueueFn(
+        row.safeTx.data.data as Hex,
+        row.safeTx.data.to as Address,
+        row.safeTxHash,
+        row.executionHash as Hex,
+        chainId,
+        networkKey
+      )
     } else {
       await pendingTransactions.updateOne(
         { safeTxHash: row.safeTxHash },
@@ -236,6 +259,7 @@ async function sweepB(
   chainId: number,
   safeAddress: Address,
   lookbackBlocks: bigint,
+  enqueueFn: typeof enqueueTimelockOpIfApplicable,
   result: IReconcileResult
 ): Promise<void> {
   let latestBlock: bigint
@@ -284,13 +308,20 @@ async function sweepB(
     if (log.transactionHash === null) continue
     const safeTxHash = (decoded.args as { txHash: Hex }).txHash
     const isSuccess = decoded.eventName === 'ExecutionSuccess'
-    const update = await pendingTransactions.updateOne(
-      {
-        safeTxHash,
-        network: networkKey,
-        chainId,
-        status: 'pending',
-      },
+
+    // Read the row first so we have access to its calldata for the
+    // timelock enqueue below. The status:'pending' filter doubles as the
+    // "did we actually back-fill anything?" guard.
+    const candidate = await pendingTransactions.findOne({
+      safeTxHash,
+      network: networkKey,
+      chainId,
+      status: 'pending',
+    })
+    if (!candidate) continue
+
+    await pendingTransactions.updateOne(
+      { safeTxHash },
       {
         $set: {
           status: isSuccess ? 'executed' : 'reverted',
@@ -299,11 +330,21 @@ async function sweepB(
         },
       }
     )
-    if (update.modifiedCount === 0) continue
     if (isSuccess) {
       result.backfilledExecuted++
       consola.success(
         `[${networkKey}] Reconcile: back-filled ${safeTxHash} → executed (tx ${log.transactionHash})`
+      )
+      // Same deferred enqueue as Sweep A: the schedule call ran
+      // on-chain but the queue upsert never happened because the script
+      // lost the hash at the time of execution.
+      await enqueueFn(
+        candidate.safeTx.data.data as Hex,
+        candidate.safeTx.data.to as Address,
+        safeTxHash,
+        log.transactionHash,
+        chainId,
+        networkKey
       )
     } else {
       result.backfilledReverted++
