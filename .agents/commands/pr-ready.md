@@ -28,19 +28,57 @@ CodeRabbit CLI is per-developer; no shared secrets are committed.
 
 ### 1. Install (automatic on `bun install`)
 
-`bun install` runs `preinstall.sh`, which installs the CLI if missing (skipped on CI). Verify:
+`bun install` runs `preinstall.sh`, which installs the CLI **only if it's not already on `PATH`** (skipped on CI). If you already have a `coderabbit` binary — newer, older, or different — `preinstall.sh` leaves it alone; you own your version. Verify:
 
 ```bash
 coderabbit --version
 ```
 
-**Manual fallback** (if the preinstall hook didn't run, or the install failed soft):
+#### What `preinstall.sh` does when it installs
+
+When the CLI is missing, the script does **not** use upstream's `curl … | sh` flow (which fetches `latest` and performs no integrity check). Instead it:
+
+1. Resolves your platform → `darwin-arm64` / `darwin-x64` / `linux-arm64` / `linux-x64`.
+2. Downloads the pinned release artifact directly: `https://cli.coderabbit.ai/releases/<PINNED_VERSION>/coderabbit-<platform>.zip`.
+3. Verifies the zip's SHA-256 against a hardcoded per-platform constant in `preinstall.sh`. **Aborts** (with recovery instructions) on mismatch — does not extract or install.
+4. Extracts the single `coderabbit` binary to `~/.local/bin` and `chmod +x` it.
+
+This matches the org policy of pinning + checksum-verifying anything we download in CI / setup scripts (same principle as SHA-pinned GitHub Action versions).
+
+#### Manual fallback
+
+If the preinstall hook didn't run for some reason, install the **same pinned version** manually:
 
 ```bash
-curl -fsSL https://cli.coderabbit.ai/install.sh | sh
+PIN=$(grep '^CODERABBIT_PINNED_VERSION=' preinstall.sh | cut -d'"' -f2)
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+case "$(uname -m)" in arm64|aarch64) ARCH=arm64 ;; *) ARCH=x64 ;; esac
+URL="https://cli.coderabbit.ai/releases/${PIN}/coderabbit-${OS}-${ARCH}.zip"
+curl -fsSL "$URL" -o /tmp/coderabbit.zip
+shasum -a 256 /tmp/coderabbit.zip   # compare to the matching constant in preinstall.sh
+unzip -o /tmp/coderabbit.zip -d ~/.local/bin/
+chmod +x ~/.local/bin/coderabbit
 ```
 
-If `coderabbit` is not on `PATH` after install, ensure `~/.local/bin` (or the path printed by the installer) is in `PATH` (`echo $PATH`, then add to your `~/.zshrc` / `~/.bashrc`).
+If `coderabbit` is still not on `PATH` after install, ensure `~/.local/bin` is in `PATH` (`echo $PATH`, then add to your `~/.zshrc` / `~/.bashrc`).
+
+#### Bumping the CodeRabbit pin
+
+Bump deliberately — when there's a fix/feature you need or after a security advisory. Not opportunistically. Procedure:
+
+```bash
+# 1. Find the new version
+curl -fsSL https://cli.coderabbit.ai/releases/latest/VERSION
+
+# 2. Compute SHA-256 for all 4 platforms (run from any machine with curl + shasum)
+for plat in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
+  URL="https://cli.coderabbit.ai/releases/<NEW_VERSION>/coderabbit-${plat}.zip"
+  printf "%-16s  " "$plat"
+  curl -fsSL "$URL" -o "/tmp/cr-${plat}.zip" && shasum -a 256 "/tmp/cr-${plat}.zip" | awk '{print $1}'
+done
+```
+
+Then update `CODERABBIT_PINNED_VERSION` and the four hashes in `_coderabbit_expected_sha256` in `preinstall.sh`. Commit as a single change. Don't bundle the bump with unrelated work.
 
 ### 2. Authenticate (one-time, browser-based)
 
