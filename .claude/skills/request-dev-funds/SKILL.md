@@ -31,6 +31,20 @@ The funding wallet repo (`lifinance/automate-wallet-dev-fees`) is PR-driven:
 
 The wallet auto-bridges and auto-swaps via LI.FI, so the user can request any token on any supported chain even if the wallet only holds funds elsewhere.
 
+### Side effects and required permissions
+
+This skill performs writes that are visible to the team and — once the PR is approved / auto-executed — produce **irreversible on-chain transfers**. Be explicit with the user about what will happen before doing it:
+
+- **Local writes**: clones `lifinance/automate-wallet-dev-fees` into `/tmp`, creates a branch, edits `transfers/requests.json`, commits.
+- **Remote writes** (require `gh` auth as a LI.FI member with push access to `automate-wallet-dev-fees`):
+  - `git push` of the new branch.
+  - `gh pr create` against `main` of the funding repo.
+  - `gh pr comment` to ping approvers.
+- **Remote reads** (require `gh` auth as a LI.FI member): `gh api …/contents/.github/workflows/process.yml` to read the live `allowed-actors` list.
+- **Triggered execution**: once the PR merges (or the author is in `allowed-actors`), the `lifinance/automate-wallet` action signs and broadcasts a real transfer from a real wallet on a real chain. There is no rollback.
+
+Stop and surface any auth / permission failure to the user — never paper over it.
+
 ## Inputs (parsed from the user's prompt)
 
 Required:
@@ -103,9 +117,13 @@ NAME=$(cast call   "$TOKEN_ADDR" "name()(string)"   --rpc-url "$RPC" 2>/dev/null
 
 ### 5. Show single-block confirmation
 
-Render a one-block summary and require explicit "yes" before any write:
+Render a one-block summary and require explicit "yes" before any write. The summary **must include an irreversibility warning** so the user understands what the PR triggers — a real on-chain transfer that cannot be rolled back:
 
 ```text
+⚠️  About to open a PR that will trigger a REAL on-chain transfer once approved
+   (or immediately, if you are in allowed-actors). This is irreversible —
+   confirm chain, recipient, token, and amount carefully before proceeding.
+
 About to open PR against lifinance/automate-wallet-dev-fees:
 
   Chain:       base (chainId 8453)
@@ -136,9 +154,11 @@ If the EVM token sanity check failed, surface it loudly inside the same block:
   Token:       0x... → ⚠️ <call failed — token may not be ERC-20 / RPC unreachable>
 ```
 
-**Always require an explicit `y` / `yes` / `proceed` reply before any write.** Even if the invoking prompt sounds like consent (e.g. "go ahead and request 100 USDC on Base"), still render the summary and still wait for the explicit acknowledgement. The PR triggers a real on-chain spend — one extra keystroke is cheaper than one wrong transfer.
+**Always require an explicit, unambiguous confirmation reply before any write** — accept only `yes`, `proceed`, or `confirm` (case-insensitive). Bare `y` is too easy to mis-type or auto-suggest; reject it and re-ask. Even if the invoking prompt sounds like consent (e.g. "go ahead and request 100 USDC on Base"), still render the summary and still wait for the explicit acknowledgement. The PR triggers a real, irreversible on-chain spend — one extra keystroke is cheaper than one wrong transfer.
 
 ### 6. Open the PR
+
+This step performs **remote writes** (git push + PR creation) into a private LI.FI repo and is what arms the on-chain transfer pipeline. Run it only after Step 5 has returned an explicit `yes` / `proceed` / `confirm`. Stop on any auth error from `gh` — never retry with `--force` or fall back to anonymous git.
 
 ```bash
 TMP="/tmp/awdf-$(date +%s)"
@@ -212,7 +232,7 @@ gh pr create --repo lifinance/automate-wallet-dev-fees \
 
 ### 7. Ping current approvers
 
-Read the live approver list from `main` so it doesn't go stale:
+This step performs a **remote read** (`gh api …/contents/.github/workflows/process.yml`) and a **remote write** (`gh pr comment`). Both require `gh` auth as a LI.FI org member — fail loudly if either errors. Read the live approver list from `main` so it doesn't go stale:
 
 ```bash
 ACTORS=$(gh api repos/lifinance/automate-wallet-dev-fees/contents/.github/workflows/process.yml \
