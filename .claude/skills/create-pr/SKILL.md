@@ -71,10 +71,13 @@ git commit -m "<subject line>"
 
 Read `.github/pull_request_template.md` verbatim. Fill in:
 
-- **Linear task link**: resolve in this order:
+- **Linear task link**: resolve in this order. Always include the issue ID (e.g. `EXSC-327`) somewhere in the body — Linear's GitHub integration uses it to auto-create the bidirectional link (PR appears in the ticket's "Links" sidebar; ticket appears in the PR's "Linked issues" panel). No extra Linear MCP call is needed for cross-linking.
   1. **Conversation context** — look for any Linear URL or issue ID (e.g. `EXSC-123`) mentioned by the user in this session.
-  2. **Linear MCP** — if not found in context, search Linear via `mcp__claude_ai_Linear__list_issues` or `mcp__claude_ai_Linear__search_documentation` using branch name / commit subject as query terms.
-  3. **Not found** — ask the user directly in chat for a Linear link, making clear they can skip (e.g. "No Linear task found. Paste a link, or say 'skip' if this PR has no associated ticket."). If they skip, leave the section blank with a brief HTML comment placeholder (`<!-- No Linear task -->`). Never fabricate a link. (Prefer `AskUserQuestion` if available; otherwise ask in conversation.)
+  2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via `mcp__claude_ai_Linear__list_issues` with `query: "<ID>"`. If found and the ID matches, use it — no further questions.
+  3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query `mcp__claude_ai_Linear__list_issues` with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
+     - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its status is active (`statusType: started` or `unstarted`).
+     - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "skip" option). Use `AskUserQuestion` if available; otherwise plain chat.
+  4. **Not found / user skipped** — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link.
 - **Why I implemented it this way**: one short paragraph explaining the approach/rationale derived from the diff and conversation context.
 - **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
   - `[x] I have performed a self-review of my code` — tick **only after** you actually walk the full `git diff main...HEAD` and confirm: no leftover debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets/credentials, naming/style matches the surrounding code. Note any findings in the summary; if anything looks off, surface it instead of ticking.
