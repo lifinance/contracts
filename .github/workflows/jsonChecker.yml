@@ -1,3 +1,9 @@
+# JSON Checker
+# - validates JSON syntax of files in config/ and deployments/, plus a fixed set of well-known JSON files
+# - enforces a 5 MB per-file size limit
+# - rejects symlinks so a symlinked file cannot bypass validation
+# - known limitations: only the directories and files listed in the workflow are checked; JSON under other paths is not validated here
+
 name: JSON Checker
 on:
   pull_request:
@@ -13,11 +19,11 @@ jobs:
     steps:
       # Step 1: Checkout code
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # Step 2: Set up Node.js
       - name: Set up Node.js
-        uses: actions/setup-node@v4.1.0
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 20
 

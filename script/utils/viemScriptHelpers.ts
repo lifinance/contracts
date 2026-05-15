@@ -166,6 +166,27 @@ export const buildExplorerContractPageUrl = (
 }
 
 /**
+ * Builds a block explorer transaction URL for a given network and tx hash.
+ *
+ * Uses `/tx/<hash>` for most EVM explorers and `/#/transaction/<hash>` for TronScan.
+ * Returns `undefined` if the network has no `explorerUrl` configured.
+ */
+export const buildExplorerTxUrl = (
+  networkId: string,
+  txHash: string
+): string | undefined => {
+  const network = networks[networkId]
+  if (!network || !network.explorerUrl) return undefined
+
+  const base = network.explorerUrl.replace(/\/+$/, '')
+
+  if (network.verificationType === 'tronscan')
+    return `${base}/#/transaction/${txHash}`
+
+  return `${base}/tx/${txHash}`
+}
+
+/**
  * Builds a viem `Chain` object for the given network name using `config/networks.json`.
  * Appends `/jsonrpc` to TronGrid RPC URLs so viem's JSON-RPC transport works correctly.
  * Includes `multicall3` contract address when configured for the network.
