@@ -9,63 +9,16 @@ import { IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { InvalidCallData, InvalidConfig, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
-// Mock LayerSwap Depository contract for testing
-contract MockLayerSwapDepository is ILayerSwapDepository {
-    mapping(address => bool) public whitelisted;
-    bool public shouldRevert;
+// Admin surface of the real LayerswapDepository (Ownable2Step + Pausable),
+// exposed only for test setup (whitelisting + pausing).
+interface ILayerswapDepositoryAdmin {
+    function owner() external view returns (address);
 
-    error MockRevert();
-    error NotWhitelisted();
+    function addToWhitelist(address addr) external;
 
-    event Deposited(
-        bytes32 indexed id,
-        address indexed token,
-        address indexed receiver,
-        uint256 amount
-    );
+    function removeFromWhitelist(address addr) external;
 
-    function setWhitelisted(address receiver, bool allowed) external {
-        whitelisted[receiver] = allowed;
-    }
-
-    function setShouldRevert(bool _shouldRevert) external {
-        shouldRevert = _shouldRevert;
-    }
-
-    function depositNative(
-        bytes32 id,
-        address receiver
-    ) external payable override {
-        if (shouldRevert) {
-            revert MockRevert();
-        }
-        if (!whitelisted[receiver]) {
-            revert NotWhitelisted();
-        }
-
-        emit Deposited(id, address(0), receiver, msg.value);
-
-        (bool success, ) = receiver.call{ value: msg.value }("");
-        require(success, "native forward failed");
-    }
-
-    function depositERC20(
-        bytes32 id,
-        address token,
-        address receiver,
-        uint256 amount
-    ) external override {
-        if (shouldRevert) {
-            revert MockRevert();
-        }
-        if (!whitelisted[receiver]) {
-            revert NotWhitelisted();
-        }
-
-        IERC20(token).transferFrom(msg.sender, receiver, amount);
-
-        emit Deposited(id, token, receiver, amount);
-    }
+    function pause() external;
 }
 
 // Test LayerSwapFacet Contract
@@ -77,11 +30,19 @@ contract TestLayerSwapFacet is LayerSwapFacet, TestWhitelistManagerBase {
 }
 
 contract LayerSwapFacetTest is TestBaseFacet {
+    // Real LayerswapDepository on Ethereum mainnet (deployed 2026-03-26)
+    address internal constant LAYERSWAP_DEPOSITORY =
+        0xE226E4825CB215aBaFAd98fdd400583eAb6a594f;
+
     LayerSwapFacet.LayerSwapData internal validLayerSwapData;
     TestLayerSwapFacet internal layerSwapFacet;
-    MockLayerSwapDepository internal mockDepository;
+    ILayerswapDepositoryAdmin internal depository;
+    address internal depositoryOwner;
     address internal constant DEPOSITORY_RECEIVER =
         0x1234567890123456789012345678901234567890;
+
+    // OpenZeppelin Pausable revert (raised when the depository is paused)
+    error EnforcedPause();
 
     // Backend signer for EIP-712
     uint256 internal backendSignerPrivateKey =
@@ -108,6 +69,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
     error InvalidNonEVMReceiver();
     error SignatureExpired();
     error RequestAlreadyProcessed();
+    error NotWhitelisted();
 
     event Deposited(
         bytes32 indexed id,
@@ -117,16 +79,21 @@ contract LayerSwapFacetTest is TestBaseFacet {
     );
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        // Fork mainnet after the LayerswapDepository deployment (block 24743659)
+        customBlockNumberForForking = 25060964;
         initTestBase();
 
-        // Deploy mock depository and whitelist the receiver
-        mockDepository = new MockLayerSwapDepository();
-        mockDepository.setWhitelisted(DEPOSITORY_RECEIVER, true);
+        // Wire up real LayerswapDepository and whitelist the test receiver
+        // via an owner prank (depository uses Ownable2Step + EnumerableSet).
+        depository = ILayerswapDepositoryAdmin(LAYERSWAP_DEPOSITORY);
+        depositoryOwner = depository.owner();
+
+        vm.prank(depositoryOwner);
+        depository.addToWhitelist(DEPOSITORY_RECEIVER);
 
         // Deploy facet with backend signer
         layerSwapFacet = new TestLayerSwapFacet(
-            address(mockDepository),
+            LAYERSWAP_DEPOSITORY,
             backendSignerAddress
         );
 
@@ -207,7 +174,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
     // --- Constructor Tests ---
 
     function test_CanDeployFacet() public {
-        new LayerSwapFacet(address(mockDepository), backendSignerAddress);
+        new LayerSwapFacet(LAYERSWAP_DEPOSITORY, backendSignerAddress);
     }
 
     function testRevert_WhenUsingZeroDepository() public {
@@ -217,7 +184,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
 
     function testRevert_WhenBackendSignerIsZero() public {
         vm.expectRevert(InvalidConfig.selector);
-        new LayerSwapFacet(address(mockDepository), address(0));
+        new LayerSwapFacet(LAYERSWAP_DEPOSITORY, address(0));
     }
 
     function testRevert_WhenDepositoryReceiverIsZero() public {
@@ -385,7 +352,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectEmit(true, true, true, true, address(mockDepository));
+        vm.expectEmit(true, true, true, true, LAYERSWAP_DEPOSITORY);
         emit Deposited(
             validLayerSwapData.requestId,
             ADDRESS_USDC,
@@ -426,7 +393,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             block.chainid
         );
 
-        vm.expectEmit(true, true, true, true, address(mockDepository));
+        vm.expectEmit(true, true, true, true, LAYERSWAP_DEPOSITORY);
         emit Deposited(
             validLayerSwapData.requestId,
             address(0),
@@ -615,18 +582,21 @@ contract LayerSwapFacetTest is TestBaseFacet {
     // --- Revert Propagation Tests ---
 
     function testRevert_WhenERC20DepositFails() public {
-        mockDepository.setShouldRevert(true);
+        // Pause the depository to force the deposit call to revert
+        vm.prank(depositoryOwner);
+        depository.pause();
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(MockLayerSwapDepository.MockRevert.selector);
+        vm.expectRevert(EnforcedPause.selector);
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
     function testRevert_WhenNativeDepositFails() public {
-        mockDepository.setShouldRevert(true);
+        vm.prank(depositoryOwner);
+        depository.pause();
 
         vm.startPrank(USER_SENDER);
         bridgeData.sendingAssetId = address(0);
@@ -640,19 +610,20 @@ contract LayerSwapFacetTest is TestBaseFacet {
             block.chainid
         );
 
-        vm.expectRevert(MockLayerSwapDepository.MockRevert.selector);
+        vm.expectRevert(EnforcedPause.selector);
         initiateBridgeTxWithFacet(true);
         vm.stopPrank();
     }
 
     function testRevert_WhenReceiverNotWhitelisted() public {
-        // Remove whitelist entry to simulate unwhitelisted receiver
-        mockDepository.setWhitelisted(DEPOSITORY_RECEIVER, false);
+        // Remove the test receiver from the depository whitelist
+        vm.prank(depositoryOwner);
+        depository.removeFromWhitelist(DEPOSITORY_RECEIVER);
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(MockLayerSwapDepository.NotWhitelisted.selector);
+        vm.expectRevert(NotWhitelisted.selector);
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
