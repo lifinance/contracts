@@ -7,6 +7,9 @@ on:
       - '.markdownlint-cli2.jsonc'
       - '.github/workflows/markdownlint.yml'
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: lint changed markdown files
