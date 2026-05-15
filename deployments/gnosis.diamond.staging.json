@@ -52,6 +52,10 @@
       "0x610808987E1da09a8F82a30084Cc176c51f66aAB": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x67053dF8Be882a8d15b21eCaF1bc565bf53A17c3": {
+        "Name": "UnitFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
