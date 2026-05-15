@@ -103,7 +103,7 @@ contract LayerSwapFacet is
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        _validateLayerSwapData(_bridgeData, _layerSwapData);
+        _validateLayerSwapData(_layerSwapData);
         _verifySignature(_bridgeData, _layerSwapData);
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -130,7 +130,7 @@ contract LayerSwapFacet is
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        _validateLayerSwapData(_bridgeData, _layerSwapData);
+        _validateLayerSwapData(_layerSwapData);
         // Signature verified against pre-swap minAmount
         _verifySignature(_bridgeData, _layerSwapData);
 
@@ -148,20 +148,12 @@ contract LayerSwapFacet is
     /// Internal Methods ///
 
     /// @dev Validates LayerSwap-specific data
-    /// @param _bridgeData The core information needed for bridging
     /// @param _layerSwapData Data specific to LayerSwap
     function _validateLayerSwapData(
-        ILiFi.BridgeData memory _bridgeData,
         LayerSwapData calldata _layerSwapData
     ) internal pure {
         if (_layerSwapData.depositoryReceiver == address(0)) {
             revert InvalidCallData();
-        }
-        if (
-            _bridgeData.receiver == NON_EVM_ADDRESS &&
-            _layerSwapData.nonEVMReceiver == bytes32(0)
-        ) {
-            revert InvalidNonEVMReceiver();
         }
     }
 
@@ -200,6 +192,10 @@ contract LayerSwapFacet is
         }
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            if (_layerSwapData.nonEVMReceiver == bytes32(0)) {
+                revert InvalidNonEVMReceiver();
+            }
+
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
