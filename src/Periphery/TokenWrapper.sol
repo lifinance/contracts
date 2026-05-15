@@ -14,13 +14,11 @@ import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 // TODO(EXSC-241): next time this file is updated, route ERC20 transfers
 //                 through LibAsset instead of SafeTransferLib for codebase
 //                 consistency (the rest of the periphery is moving that
-//                 way). Tron USDT is not a motivator here — TokenWrapper
-//                 on Tron wraps WTRX, not USDT, so the Tron USDT bypass in
-//                 LibAsset has no effect on this contract. Deferred now
-//                 because bumping it drifts the repo from deployed bytecode
-//                 on chains where it's already live. Re-enable once
-//                 EXSC-330 (commit hash stored in deploy log) makes that
-//                 drift recoverable via re-verification.
+//                 way). Deferred now because bumping this contract drifts
+//                 the repo from deployed bytecode on chains where it's
+//                 already live. Re-enable once EXSC-330 (commit hash
+//                 stored in deploy log) makes that drift recoverable via
+//                 re-verification.
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
