@@ -86,6 +86,21 @@ export interface ISafeSignature {
   data: Hex
 }
 
+/**
+ * Lifecycle of a Safe tx row in MongoDB.
+ *
+ * - `pending`   : awaiting signatures or execution.
+ * - `submitted` : broadcast on-chain but no confirmed receipt yet. The Safe
+ *                 nonce may or may not have advanced; reconciliation resolves
+ *                 it to `executed`, `reverted`, or back to `pending` on the
+ *                 next run.
+ * - `executed`  : on-chain receipt confirmed success (Safe nonce consumed).
+ * - `reverted`  : on-chain receipt confirmed revert (Safe nonce still
+ *                 consumed because signatures verified; flagged for manual
+ *                 review).
+ */
+export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
+
 export interface ISafeTxDocument {
   safeAddress: string
   network: string
@@ -94,7 +109,9 @@ export interface ISafeTxDocument {
   safeTxHash: string
   proposer: string
   timestamp: Date
-  status: 'pending' | 'executed'
+  status: SafeTxStatus
+  executionHash?: string
+  submittedAt?: Date
   intentHash?: string // Optional for backwards compatibility with existing documents
 }
 
@@ -1214,12 +1231,14 @@ export async function getNextNonce(
   chainId: number,
   currentNonce: bigint
 ): Promise<bigint> {
+  // Include 'submitted' rows: a tx broadcast but not yet confirmed still has
+  // its Safe nonce in flight, so a new proposal must not collide with it.
   const latestTx = await pendingTransactions
     .find({
       safeAddress,
       network: network.toLowerCase(),
       chainId,
-      status: 'pending',
+      status: { $in: ['pending', 'submitted'] },
     })
     .sort({ 'safeTx.data.nonce': -1 })
     .limit(1)
