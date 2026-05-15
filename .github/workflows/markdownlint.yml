@@ -1,3 +1,10 @@
+# Markdownlint
+# - lints Markdown files in pull requests against the repo's .markdownlint-cli2.jsonc config
+# - scoped to changed .md files only (via tj-actions/changed-files) so existing markdown is grandfathered
+# - triggered on PRs that touch any .md file, the markdownlint config, or this workflow itself
+# - hard-fails the job on any structural violation (heading hierarchy, fence/list spacing, empty links, etc.)
+# - known limitations: existing markdown files are not linted retroactively; only modified files in the PR are checked
+
 name: markdownlint
 
 on:
@@ -8,28 +15,33 @@ on:
       - '.github/workflows/markdownlint.yml'
 
 permissions:
-  contents: read
+  contents: read # required to fetch repository contents and compute the changed-files diff
 
 jobs:
   lint:
     name: lint changed markdown files
     runs-on: ubuntu-latest
     steps:
+      # Step 1: Checkout (full history needed so tj-actions/changed-files can diff against the base ref)
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
+      # Step 2: Resolve the list of .md files changed in this PR
       - name: Get changed markdown files
         id: changed
         uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
         with:
           files: '**/*.md'
 
+      # Step 3: Short-circuit if the PR doesn't actually touch any markdown file
+      #         (workflow can be triggered by edits to the config or this file)
       - name: Skip if no markdown files changed
         if: steps.changed.outputs.any_changed != 'true'
         run: echo "No markdown files changed; nothing to lint."
 
+      # Step 4: Lint only the changed files using the repo's .markdownlint-cli2.jsonc
       - name: Run markdownlint-cli2 on changed files
         if: steps.changed.outputs.any_changed == 'true'
         uses: DavidAnson/markdownlint-cli2-action@eb5ca3ab411449c66620fe7f1b3c9e10547144b0 # v18
