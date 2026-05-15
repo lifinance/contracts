@@ -177,9 +177,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x2290f918c21D64aC8b1D7cE725E320EfB75271d4": {
+      "0x67Cc6E0f10A1d98E68238Ff549533e7F02a81e11": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
         "Name": "CelerCircleBridgeFacet",

@@ -24,7 +24,7 @@ set -euo pipefail
 
 NETWORK=localanvil
 ENVIRONMENT=staging
-RPC_URL=http://localhost:8545
+RPC_URL=http://localhost:8545 # pre-commit-checker: not a secret
 
 # Load .env so PRIVATE_KEY_ANVIL, MNEMONIC, MONGODB_URI, etc. are available
 # even when the caller didn't pre-source. deployAllContracts.sh re-sources
