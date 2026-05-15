@@ -1,0 +1,48 @@
+// markdownlint-cli2 config — see https://github.com/DavidAnson/markdownlint-cli2
+//
+// Philosophy: enable only rules that catch structural / correctness issues.
+// Disable cosmetic rules (line length, fence-language tags, etc.) — they
+// generate noise without improving doc quality, and we don't want to tax
+// auditors, PMs, and occasional contributors with toolchain friction.
+//
+// When in doubt about a rule, prefer OFF. The smart-contract code (Solidity,
+// TS) is where rigor matters; markdown rules should only catch things that
+// actually break renders.
+{
+  "config": {
+    "default": false,
+
+    // --- Structural / correctness rules (enabled) ---
+    "MD001": true,                       // heading-increment — no skipping levels (h1 → h3)
+    "MD003": { "style": "atx" },         // consistent heading style (# not underlines)
+    "MD018": true,                       // space after # in atx headings
+    "MD019": true,                       // no multiple spaces after # in atx headings
+    "MD022": true,                       // blank lines around headings
+    "MD023": true,                       // headings start at line beginning
+    "MD025": true,                       // single H1 per document
+    "MD031": true,                       // blank lines around fenced code blocks
+    "MD032": true,                       // blank lines around lists
+    "MD042": true,                       // no empty links
+    "MD046": { "style": "fenced" },      // use fenced code blocks (not indented)
+
+    // --- Cosmetic rules (explicitly disabled, documented for clarity) ---
+    "MD013": false,                      // line length — punishes prose and tables
+    "MD024": false,                      // duplicate heading text — legitimate in changelogs / runbooks
+    "MD033": false,                      // inline HTML — we use it occasionally
+    "MD034": false,                      // bare URLs — fine in informal docs
+    "MD036": false,                      // emphasis used as heading — sometimes intentional
+    "MD040": false,                      // language tag on fenced code blocks — low value on prose examples
+    "MD041": false                       // first line must be top-level heading — many docs start with frontmatter or prose
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    "node_modules/**",
+    "lib/**",
+    "out/**",
+    "cache/**",
+    "audit/**",
+    "deployments/**",
+    "CHANGELOG.md",
+    ".github/pull_request_template.md"
+  ]
+}
