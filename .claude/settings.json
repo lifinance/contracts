@@ -1,5 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "obra-superpowers": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers",
+        "ref": "v5.1.0",
+        "sha": "ecbd610fce16d5faabcea997f17031129589b572"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "superpowers@obra-superpowers": true
+  },
   "permissions": {
     "allow": [
       "Bash(forge *)",

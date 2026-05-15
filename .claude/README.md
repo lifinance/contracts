@@ -4,8 +4,44 @@ This directory configures Claude Code (the CLI) for the `lifinance/contracts` re
 
 - `skills/` — repo-bundled skills (workflows you can invoke by name, e.g. `post-pr-for-review`, `start-linear-ticket`). See each skill's `SKILL.md` for what it does and when to trigger it.
 - `rules/` — coding rules and guardrails surfaced to Claude when working in this repo.
-- `settings.json` — repo-scoped Claude Code settings (hooks, permissions, etc.).
+- `settings.json` — repo-scoped Claude Code settings (hooks, permissions, **enabled plugin marketplaces**, etc.).
 - `../.mcp.json` — MCP servers bundled with this repo (see below).
+
+## Bundled plugin: `superpowers`
+
+This repo enables the [`obra/superpowers`](https://github.com/obra/superpowers) plugin — a community Claude Code skills library (TDD, systematic debugging, brainstorming, plan writing/execution, parallel agent dispatch, code review workflow, git worktrees, etc.).
+
+It's pinned via `settings.json` so every developer gets **the exact same version** — upstream changes can never silently affect us:
+
+```json
+"extraKnownMarketplaces": {
+  "obra-superpowers": {
+    "source": {
+      "source": "github",
+      "repo": "obra/superpowers",
+      "ref": "v5.1.0",
+      "sha": "ecbd610fce16d5faabcea997f17031129589b572"
+    }
+  }
+},
+"enabledPlugins": { "superpowers@obra-superpowers": true }
+```
+
+`ref` is the human-readable tag; `sha` is the exact commit and takes precedence — together they make the pin tamper-evident.
+
+### First-time setup
+
+1. `cd` into this repo and run `claude` (or open Claude Code here).
+2. Accept the trust prompt: *"This project wants to add marketplace `obra-superpowers`. Trust and add?"* — the plugin then auto-installs (it's in `enabledPlugins`).
+3. Verify with `/plugin list` → `superpowers@obra-superpowers` should show as active.
+4. Skills like `superpowers:brainstorming`, `superpowers:test-driven-development`, `superpowers:systematic-debugging` are now invokable via the `Skill` tool inside any Claude Code session in this repo.
+
+### Bumping the pin
+
+1. Pick the new tag from https://github.com/obra/superpowers/releases.
+2. Look up its commit SHA: `gh api repos/obra/superpowers/git/ref/tags/<TAG> --jq '.object.sha'`.
+3. Update both `ref` and `sha` in `settings.json` in a PR. Reviewers sanity-check the diff against upstream release notes.
+4. After merge, contributors are re-prompted to trust the updated marketplace version on next `claude` launch.
 
 If you don't use Claude Code, you can ignore this directory entirely — none of it affects normal `forge`/`bun`/`gh` workflows.
 
