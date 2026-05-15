@@ -16,13 +16,13 @@ jobs:
     steps:
       # Step 1: Checkout the contracts repository
       - name: Checkout Contracts Repository
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: ${{ env.BRANCH_NAME }}
 
       # Step 2: Install Foundry
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
 
       # Step 3: Install Solidity Libraries
       - name: Install Solidity Libraries
@@ -30,7 +30,7 @@ jobs:
 
       # Step 4: Setup Bun
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       # Step 5: Install dev dependencies
       - name: Install dev dependencies
@@ -46,7 +46,7 @@ jobs:
 
       # Step 8: Checkout the lifi-contract-types repository
       - name: Checkout lifi-contract-types Repository
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types

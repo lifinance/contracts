@@ -53,9 +53,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x709a9915c0D0EF8c42a87dc9E1A41b72fAfF81b2": {
+      "0xbbE097FBEefb423056090d798CCaf77Aa4bc5D85": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
         "Name": "RelayFacet",

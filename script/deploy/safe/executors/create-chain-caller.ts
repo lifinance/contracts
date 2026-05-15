@@ -48,5 +48,10 @@ export async function createChainCaller(
     )
 
   const { EvmChainCaller } = await import('./evm-caller')
-  return new EvmChainCaller(params.walletClient, params.publicClient, account)
+  return new EvmChainCaller(
+    params.walletClient,
+    params.publicClient,
+    account,
+    params.networkName
+  )
 }

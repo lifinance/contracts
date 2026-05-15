@@ -184,6 +184,7 @@ export class SafeClient {
    * @param walletClient - Wallet client used for EVM execution
    * @param account - Account used for signing and broadcasting
    * @param tronWalletClient - Optional Tron signer required for TVM execution
+   * @param networkName - Network name used to construct explorer URLs in results
    * @returns Executor implementation matching the connected chain
    * @throws Error if a Tron executor is required but no Tron signer is available
    */
@@ -191,7 +192,8 @@ export class SafeClient {
     publicClient: PublicClient,
     walletClient: WalletClient,
     account: Account,
-    tronWalletClient?: TronWalletClient
+    tronWalletClient?: TronWalletClient,
+    networkName?: string
   ): Promise<IChainExecutor | undefined> {
     const chainId = await publicClient.getChainId()
 
@@ -210,7 +212,12 @@ export class SafeClient {
     }
 
     const { EvmChainExecutor } = await import('./executors/evm-executor')
-    return new EvmChainExecutor(walletClient, publicClient, account)
+    return new EvmChainExecutor(
+      walletClient,
+      publicClient,
+      account,
+      networkName
+    )
   }
 
   public static async init(options: {
@@ -224,6 +231,7 @@ export class SafeClient {
       accountIndex?: number
     }
     account?: Account
+    networkName?: string
   }): Promise<SafeClient> {
     const {
       privateKey,
@@ -232,6 +240,7 @@ export class SafeClient {
       useLedger,
       ledgerOptions,
       account: preCreatedAccount,
+      networkName,
     } = options
 
     // Create provider with Viem
@@ -300,7 +309,8 @@ export class SafeClient {
       publicClient,
       walletClient,
       account,
-      tronWalletClient
+      tronWalletClient,
+      networkName
     )
 
     return new SafeClient(
@@ -1322,6 +1332,7 @@ export async function initializeSafeClient(
       useLedger,
       ledgerOptions,
       account,
+      networkName: network.toLowerCase(),
     })
 
     return { safe, chain, safeAddress: finalSafeAddress }

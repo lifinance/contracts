@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
@@ -87,13 +87,13 @@ jobs:
 
       - name: Install Bun
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@f4d14e03ff726c06358e5557344e1da148b56cf7 # v1
         with:
           bun-version: latest
 
       - name: Install Foundry (provides cast)
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
         with:
           version: v1.0.0
 
@@ -110,13 +110,16 @@ jobs:
         run: |
           # Fetch prioritized RPCs (with auth where required) so health check uses same URLs as local
           bun run fetch-rpcs
-          # Inject RPC endpoint variables into the job environment (strip surrounding quotes so URL is valid)
+          # Inject RPC endpoint variables into the job environment (strip surrounding quotes so URL is valid).
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
               key="${line%%=*}"
               value="${line#*=}"
               if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
               if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
               echo "${key}=${value}" >> "$GITHUB_ENV"
             fi
           done < ".env"

@@ -45,9 +45,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xA63a1F1c88c6C5435A449D1B73a4c4fD4700af13": {
+      "0x8C805279eD8142F57646A6E2Df32a5f70cF04111": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0x5515BfA2351dd55510a2ea6590f5c8855822d9f8": {
         "Name": "PolymerCCTPFacet",
