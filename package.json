@@ -38,7 +38,7 @@
     "fs-extra": "^10.0.1",
     "husky": "^8.0.1",
     "lint-staged": "^13.2.3",
-    "markdownlint-cli2": "^0.14.0",
+    "markdownlint-cli2": "^0.22.1",
     "node-gyp": "^10.2.0",
     "patch-package": "^6.4.7",
     "plop": "^3.1.2",
