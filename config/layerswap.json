@@ -1,5 +1,6 @@
 {
   "layerSwapDepository": {
+    "mainnet": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "abstract": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "arbitrum": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "arbitrumnova": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
@@ -20,7 +21,6 @@
     "katana": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "linea": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "lisk": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
-    "mainnet": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "mantle": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "megaeth": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",
     "mode": "0xE226E4825CB215aBaFAd98fdd400583eAb6a594f",

@@ -22,7 +22,7 @@ contract DeployScript is DeployScriptBase {
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory layerSwapPath = string.concat(
             root,
-            "/config/layer-swap.json"
+            "/config/layerswap.json"
         );
         address layerSwapDepository = _getConfigContractAddress(
             layerSwapPath,
