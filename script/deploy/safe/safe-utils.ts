@@ -344,6 +344,12 @@ export class SafeClient {
     return this.safeAddress
   }
 
+  // Used by reconciliation to issue read-only RPC calls (getTransactionReceipt,
+  // getLogs, getBlockNumber) without re-creating a client.
+  public getPublicClient(): PublicClient {
+    return this.publicClient
+  }
+
   public async getChainId(): Promise<number> {
     return this.publicClient.getChainId()
   }
