@@ -52,6 +52,10 @@
       "0xE89881FdF22D86e2146Cd7b40633011016081Fcf": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x9b9561A93b95eDe8a61605243C5F03459f7909dE": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.5"
       }
     },
     "Periphery": {
@@ -59,7 +63,7 @@
       "Executor": "0x88d60e2C67c39981a69774D430CeC432E2327484",
       "FeeCollector": "0x84F071fcD60e5ff3B0E618B80Fb3DD6857C0e20c",
       "FeeForwarder": "0x312C114ecAA3755286D1AE985F0277b0C6E87057",
-      "GasZipPeriphery": "",
+      "GasZipPeriphery": "0xC4d74fe42cd158276d7EB97d946e485faFBda89b",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xAD7272F01ccA70814387555C14C2F7AC1C50Aa98",
       "Patcher": "",
