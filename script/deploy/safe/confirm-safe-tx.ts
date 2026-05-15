@@ -391,7 +391,8 @@ const processTxs = async (
   // receipt; on-chain executions we missed entirely are back-filled from
   // the Safe's ExecutionSuccess/ExecutionFailure logs when a nonce gap is
   // detected. Read-only on-chain — failures are warnings, not throws.
-  if (!isTronNetworkKey(network))
+  const networkKey = network.toLowerCase()
+  if (!isTronNetworkKey(network)) {
     try {
       await reconcileSubmittedSafeTxs(
         pendingTransactions,
@@ -405,6 +406,18 @@ const processTxs = async (
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.warn(`[${network}] Reconcile failed: ${errorMsg}`)
     }
+
+    // Refresh from MongoDB: Sweep A may have demoted 'submitted' rows back
+    // to 'pending' (those should be processed this run), and Sweep B may
+    // have back-filled 'pending' rows to 'executed'/'reverted' (those
+    // should not be shown to the operator anymore).
+    pendingTxs = await pendingTransactions
+      .find<ISafeTxDocument>({
+        network: networkKey,
+        status: 'pending',
+      })
+      .toArray()
+  }
 
   // Filter and augment transactions with signature status and nonce validation
   const txs = await Promise.all(

@@ -22,7 +22,13 @@
 
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
-import { decodeEventLog, type Address, type Hex, type PublicClient } from 'viem'
+import {
+  decodeEventLog,
+  TransactionReceiptNotFoundError,
+  type Address,
+  type Hex,
+  type PublicClient,
+} from 'viem'
 
 import { isTronNetworkKey } from '../shared/tron-network-keys'
 
@@ -165,11 +171,23 @@ async function sweepA(
       publicClient,
       row.executionHash as Hex
     )
-    if (!status) {
+    // Distinguish "tx truly absent on-chain" from "RPC failed to answer".
+    // Only the former — past the grace window — is safe to demote, because
+    // a transient RPC error during a real in-flight tx would otherwise free
+    // the nonce for reuse and reintroduce the GS026 race this PR fixes.
+    if (status === 'rpc_error') {
+      result.awaiting++
+      consola.warn(
+        `[${networkKey}] Reconcile: receipt lookup failed for ${row.executionHash}; leaving ${row.safeTxHash} as submitted`
+      )
+      continue
+    }
+    if (status === 'missing') {
       const submittedAtMs = row.submittedAt
         ? new Date(row.submittedAt).getTime()
         : 0
       if (now - submittedAtMs > graceMs) {
+        const droppedHash = row.executionHash
         await pendingTransactions.updateOne(
           { safeTxHash: row.safeTxHash },
           {
@@ -179,7 +197,7 @@ async function sweepA(
         )
         result.demoted++
         consola.warn(
-          `[${networkKey}] Reconcile: tx ${row.executionHash} not found past grace; ${row.safeTxHash} sent back to pending`
+          `[${networkKey}] Reconcile: tx ${droppedHash} not found past grace; ${row.safeTxHash} sent back to pending`
         )
       } else result.awaiting++
 
@@ -335,14 +353,21 @@ async function computeExpectedNonce(
   return consumedHead + BigInt(remainingSubmitted)
 }
 
+/**
+ * Distinguish "tx is not on-chain" from "RPC failed to answer". viem throws
+ * `TransactionReceiptNotFoundError` only when the node confirms the hash is
+ * unknown; any other error means the lookup itself failed and the row's
+ * true state is still unknown.
+ */
 async function safeGetReceiptStatus(
   publicClient: PublicClient,
   hash: Hex
-): Promise<'success' | 'reverted' | null> {
+): Promise<'success' | 'reverted' | 'missing' | 'rpc_error'> {
   try {
     const receipt = await publicClient.getTransactionReceipt({ hash })
     return receipt.status
-  } catch {
-    return null
+  } catch (err: unknown) {
+    if (err instanceof TransactionReceiptNotFoundError) return 'missing'
+    return 'rpc_error'
   }
 }

@@ -20,6 +20,7 @@ import {
   keccak256,
   stringToBytes,
   toHex,
+  TransactionReceiptNotFoundError,
   type Address,
   type Hex,
   type Log,
@@ -149,7 +150,7 @@ function createFakeCollection(
 }
 
 interface IFakeClientOptions {
-  receipts?: Record<string, 'success' | 'reverted' | 'missing'>
+  receipts?: Record<string, 'success' | 'reverted' | 'missing' | 'rpc_error'>
   blockNumber?: bigint | (() => Promise<bigint>)
   logs?: Log[]
   getLogsError?: Error
@@ -164,7 +165,9 @@ function createFakeClient(options: IFakeClientOptions = {}): PublicClient {
     }): Promise<TransactionReceipt> {
       const status = options.receipts?.[hash]
       if (!status || status === 'missing')
-        throw new Error('Transaction receipt not found')
+        throw new TransactionReceiptNotFoundError({ hash })
+      if (status === 'rpc_error')
+        throw new Error('connection refused: rpc.example.com')
       return { status } as TransactionReceipt
     },
     async getBlockNumber(): Promise<bigint> {
@@ -332,6 +335,36 @@ describe('reconcileSubmittedSafeTxs — Sweep A receipt branches', () => {
     expect(collection.rows[0]?.status).toBe('pending')
     expect(collection.rows[0]?.executionHash).toBeUndefined()
     expect(collection.rows[0]?.submittedAt).toBeUndefined()
+  })
+
+  it('leaves submitted alone when receipt lookup hits an RPC error, even past grace', async () => {
+    const execHash = ('0x' + 'fa'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      buildRow({
+        status: 'submitted',
+        executionHash: execHash,
+        // submittedAt deliberately well past grace to prove we still hold off.
+        submittedAt: new Date(Date.now() - (SUBMITTED_GRACE_MS + 60_000)),
+      }),
+    ])
+    const client = createFakeClient({ receipts: { [execHash]: 'rpc_error' } })
+
+    const result = await reconcileSubmittedSafeTxs(
+      collection,
+      client,
+      NETWORK,
+      CHAIN_ID,
+      SAFE_ADDR,
+      0n
+    )
+
+    expect(result.awaiting).toBe(1)
+    expect(result.demoted).toBe(0)
+    // Row must not be touched — demoting on a transient RPC failure would
+    // free the nonce for reuse and reintroduce the GS026 race.
+    expect(collection.rows[0]?.status).toBe('submitted')
+    expect(collection.rows[0]?.executionHash).toBe(execHash)
+    expect(collection.rows[0]?.submittedAt).toBeInstanceOf(Date)
   })
 
   it('leaves submitted alone within grace window and counts as awaiting', async () => {
