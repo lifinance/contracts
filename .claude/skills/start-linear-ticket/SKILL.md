@@ -120,9 +120,9 @@ Use `origin/main` for all repos in the mapping above. If a repo uses a different
 
 Use Linear MCP `save_issue` with:
 - `id`: the issue ID from step 2
-- `state`: the team's "In Progress" state ID
+- `state`: `"In Progress"` (the MCP resolves state names server-side against the issue's team)
 
-To find the state ID: call `list_issue_statuses` for the team once and cache mentally for this turn. Match by `name == "In Progress"` (case-sensitive; LI.FI's convention). If no exact match, surface the available states and ask.
+If the call fails because the name doesn't resolve (e.g. a team uses a non-standard label), fall back to `list_issue_statuses` for the team, surface the available states, and ask the user which one to use.
 
 Skip if the ticket is already In Progress (idempotent — don't error).
 
@@ -130,9 +130,7 @@ Skip if the ticket is already In Progress (idempotent — don't error).
 
 Use Linear MCP `save_issue` with:
 - `id`: the issue ID
-- `assignee`: the current user
-
-To resolve "current user": call Linear MCP for the authenticated user's ID (via `read_me` or equivalent in the connected MCP). Don't hardcode an email or user ID in this skill — the skill should work for any teammate who installs it.
+- `assignee`: `"me"` (the MCP resolves this to the authenticated user — don't hardcode an email or user ID so the skill works for any teammate who installs it)
 
 Skip if the ticket is already assigned to the current user. If assigned to someone else, follow the rule from step 3 — only reassign if the user confirmed takeover.
 
