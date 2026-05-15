@@ -35,7 +35,6 @@ contract LayerSwapFacet is
     /// Storage ///
 
     /// @notice Address of the LayerSwap Depository contract
-    // solhint-disable-next-line immutable-vars-naming
     address public immutable LAYERSWAP_DEPOSITORY;
 
     /// @notice Backend signer authorized to sign LayerSwapPayload
