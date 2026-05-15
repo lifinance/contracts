@@ -22,7 +22,7 @@ jobs:
 
       # Step 2: Install Foundry
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
+        uses: ./.github/actions/setup-foundry
 
       # Step 3: Install Solidity Libraries
       - name: Install Solidity Libraries
