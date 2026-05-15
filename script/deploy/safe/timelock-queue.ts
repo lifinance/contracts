@@ -382,8 +382,14 @@ export async function enqueueTimelockOpIfApplicable(
 
     const { client, timelockQueue } = await getTimelockQueueCollection()
     try {
+      // Filter inlined (not via byOperationId) so static analyzers can see
+      // the $eq wrap directly. The helper is functionally identical and
+      // used unchanged at every other call site.
       await timelockQueue.updateOne(
-        byOperationId(network, operationId),
+        {
+          network: { $eq: network },
+          operationId: { $eq: operationId },
+        },
         {
           $setOnInsert: {
             operationId,
