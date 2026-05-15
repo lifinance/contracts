@@ -85,7 +85,7 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+        uses: ./.github/actions/setup-foundry
 
       - name: Install forge Dependencies
         run: forge install
