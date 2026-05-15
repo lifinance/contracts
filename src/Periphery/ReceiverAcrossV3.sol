@@ -106,7 +106,10 @@ contract ReceiverAcrossV3 is ILiFi, WithdrawablePeriphery {
             // this file is updated. Reasons: (1) Tron USDT support (fix lives
             // in contracts-tron fork via LibAsset), and (2) consistency with
             // the rest of the repo. Not done now because ReceiverAcrossV3 is
-            // not actively developed and not deployed on Tron.
+            // not actively developed and not deployed on Tron; even when it
+            // is, the migration is deferred until EXSC-330 (commit hash
+            // stored in deploy log) makes the resulting bytecode drift
+            // recoverable via re-verification.
             assetId.safeTransfer(receiver, amount);
 
             emit LiFiTransferRecovered(
