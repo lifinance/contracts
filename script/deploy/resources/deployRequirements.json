@@ -756,7 +756,7 @@
   "LayerSwapFacet": {
     "configData": {
       "_layerSwapDepository": {
-        "configFileName": "layer-swap.json",
+        "configFileName": "layerswap.json",
         "keyInConfigFile": ".layerSwapDepository.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       },
