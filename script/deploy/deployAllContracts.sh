@@ -333,11 +333,13 @@ deployAllContracts() {
     echo "PauserWallet Balance: $BALANCE"
 
     if [[ "$BALANCE" == "0" ]]; then
-      echo "PauserWallet balance is 0. How much wei would you like to send to $PAUSER_WALLET_ADDRESS?"
-      read -r FUNDING_AMOUNT || FUNDING_AMOUNT=""
+      local DEFAULT_FUND_AMOUNT=2000000000000000
+      echo "PauserWallet balance is 0. Enter wei to send to $PAUSER_WALLET_ADDRESS (edit or press Enter to confirm default):"
+      FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+      FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
 
-      # Validate that FUNDING_AMOUNT is a non-empty numeric value
-      if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+      # Validate that FUNDING_AMOUNT is a numeric value
+      if ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
         error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
         exit 1
       fi
@@ -366,11 +368,13 @@ deployAllContracts() {
       echo "DevWallet Balance: $BALANCE"
 
       if [[ "$BALANCE" == "0" ]]; then
-        echo "DevWallet balance is 0. How much wei would you like to send to $DEV_WALLET_ADDRESS?"
-        read -r FUNDING_AMOUNT || FUNDING_AMOUNT=""
+        local DEFAULT_FUND_AMOUNT=2000000000000000
+        echo "DevWallet balance is 0. Enter wei to send to $DEV_WALLET_ADDRESS (edit or press Enter to confirm default):"
+        FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+        FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
 
-        # Validate that FUNDING_AMOUNT is a non-empty numeric value
-        if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+        # Validate that FUNDING_AMOUNT is a numeric value
+        if ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
           error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
           exit 1
         fi
