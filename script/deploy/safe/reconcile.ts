@@ -166,10 +166,10 @@ async function sweepA(
 ): Promise<void> {
   const submittedRows = await pendingTransactions
     .find({
-      network: networkKey,
-      chainId,
-      safeAddress,
-      status: 'submitted',
+      network: { $eq: networkKey },
+      chainId: { $eq: chainId },
+      safeAddress: { $eq: safeAddress },
+      status: { $eq: 'submitted' },
       executionHash: { $exists: true },
     })
     .toArray()
@@ -201,7 +201,7 @@ async function sweepA(
       if (now - submittedAtMs > graceMs) {
         const droppedHash = row.executionHash
         await pendingTransactions.updateOne(
-          { safeTxHash: row.safeTxHash },
+          { safeTxHash: { $eq: row.safeTxHash } },
           {
             $set: { status: 'pending' },
             $unset: { executionHash: '', submittedAt: '' },
@@ -217,7 +217,7 @@ async function sweepA(
     }
     if (status === 'success') {
       await pendingTransactions.updateOne(
-        { safeTxHash: row.safeTxHash },
+        { safeTxHash: { $eq: row.safeTxHash } },
         { $set: { status: 'executed' } }
       )
       result.promoted++
@@ -237,7 +237,7 @@ async function sweepA(
       )
     } else {
       await pendingTransactions.updateOne(
-        { safeTxHash: row.safeTxHash },
+        { safeTxHash: { $eq: row.safeTxHash } },
         { $set: { status: 'reverted' } }
       )
       result.reverted++
@@ -313,15 +313,15 @@ async function sweepB(
     // timelock enqueue below. The status:'pending' filter doubles as the
     // "did we actually back-fill anything?" guard.
     const candidate = await pendingTransactions.findOne({
-      safeTxHash,
-      network: networkKey,
-      chainId,
-      status: 'pending',
+      safeTxHash: { $eq: safeTxHash },
+      network: { $eq: networkKey },
+      chainId: { $eq: chainId },
+      status: { $eq: 'pending' },
     })
     if (!candidate) continue
 
     await pendingTransactions.updateOne(
-      { safeTxHash },
+      { safeTxHash: { $eq: safeTxHash } },
       {
         $set: {
           status: isSuccess ? 'executed' : 'reverted',
@@ -369,9 +369,9 @@ async function computeExpectedNonce(
 ): Promise<bigint> {
   const [highestConsumed] = await pendingTransactions
     .find({
-      network: networkKey,
-      chainId,
-      safeAddress,
+      network: { $eq: networkKey },
+      chainId: { $eq: chainId },
+      safeAddress: { $eq: safeAddress },
       status: { $in: ['executed', 'reverted'] },
     })
     .sort({ 'safeTx.data.nonce': -1 })
@@ -384,10 +384,10 @@ async function computeExpectedNonce(
       : -1n
 
   const remainingSubmitted = await pendingTransactions.countDocuments({
-    network: networkKey,
-    chainId,
-    safeAddress,
-    status: 'submitted',
+    network: { $eq: networkKey },
+    chainId: { $eq: chainId },
+    safeAddress: { $eq: safeAddress },
+    status: { $eq: 'submitted' },
   })
 
   const consumedHead = maxConsumed >= 0n ? maxConsumed + 1n : 0n

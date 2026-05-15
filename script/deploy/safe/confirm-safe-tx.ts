@@ -189,7 +189,7 @@ const processTxs = async (
       else nextStatus = 'submitted'
 
       await pendingTransactions.updateOne(
-        { safeTxHash },
+        { safeTxHash: { $eq: safeTxHash } },
         {
           $set: {
             status: nextStatus,
@@ -333,8 +333,8 @@ const processTxs = async (
     // should not be shown to the operator anymore).
     pendingTxs = await pendingTransactions
       .find<ISafeTxDocument>({
-        network: networkKey,
-        status: 'pending',
+        network: { $eq: networkKey },
+        status: { $eq: 'pending' },
       })
       .toArray()
   }

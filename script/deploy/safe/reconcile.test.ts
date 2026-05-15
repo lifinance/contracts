@@ -89,7 +89,9 @@ function matchesFilter(
     const rowVal = (row as unknown as Record<string, unknown>)[key]
     if (value !== null && typeof value === 'object') {
       const op = value as Record<string, unknown>
-      if ('$in' in op) {
+      if ('$eq' in op) {
+        if (rowVal !== op.$eq) return false
+      } else if ('$in' in op) {
         if (!(op.$in as unknown[]).includes(rowVal)) return false
       } else if ('$exists' in op) {
         const exists = rowVal !== undefined
