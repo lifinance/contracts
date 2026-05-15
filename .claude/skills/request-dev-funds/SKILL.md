@@ -73,38 +73,46 @@ jq -r --arg k "<label>" '.[$k] // empty' config/global.json
 ```
 
 - Default label: `deployerWallet`.
-- If user supplied a raw `0x…` address, use it verbatim (lowercase + checksum-validate length 42).
+- Raw address rules — choose by chain family:
+  - **EVM**: validate hex format + length 42 (`^0x[0-9a-fA-F]{40}$`). If mixed-case, run EIP-55 checksum validation (`cast --to-checksum-address "$ADDR"` and compare, or use ethers' `getAddress`); on mismatch, refuse and ask the user to re-paste. Preserve the checksummed casing when writing to JSON. If all-lowercase or all-uppercase, accept as-is and skip the checksum check.
+  - **Solana**: validate the input decodes from base58 to exactly 32 bytes (Ed25519 public key). Use verbatim — no case normalisation (base58 is case-sensitive).
 - If user named another wallet (e.g. "to refund wallet"), look up the matching `config/global.json` key. Known keys: `deployerWallet`, `refundWallet`, `withdrawWallet`, `pauserWallet`, `feeCollectorOwner`, `devWallet`.
 - Never hard-code addresses in the skill — always read from `config/global.json` at runtime so values can't go stale.
 
 ### 4. Resolve token
 
 - **Native gas** (`ETH`, `MATIC`, `BNB`, `SOL`, etc.) → **omit the `token` field entirely**. The automate-wallet action treats absence-of-token as "native". (Verified from `lifinance/automate-wallet` README, 2026-05-15.)
-- **`0x…` address** → use verbatim.
-- **Symbol** → ask the user for the address unless you're 100% sure (chain-specific). For common pairs offer an educated guess and require explicit confirmation, e.g.:
-  > USDC on Base is usually `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`. Use this? (y/n)
+- **Raw address** — chain-aware:
+  - **EVM `0x…`**: validate format + length 42 (same EIP-55 rule as recipient resolution above). Use verbatim.
+  - **Solana SPL mint**: validate base58 decodes to 32 bytes. Use verbatim.
+- **Symbol** → ask the user for the address. You may suggest a canonical address from training data (e.g. "USDC on Base is usually `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` — use this?") but the user must explicitly confirm before the address is written to JSON. **Do not guess silently and do not maintain a built-in address table** — addresses can rotate (native vs. bridged USDC, contract migrations) and stale lookup tables are a foot-gun.
 
-  Quick reference (confirm before using — do not hard-encode further):
-  | Chain | USDC | USDT |
-  |---|---|---|
-  | mainnet (1) | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
-  | arbitrum (42161) | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` |
-  | base (8453) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | — |
-  | optimism (10) | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` |
-  | polygon (137) | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` |
+#### EVM token-contract sanity check (after a raw `0x…` address is resolved)
 
-  For any chain/token not in this table or anything the user hasn't confirmed: ask. Do not guess.
+Before showing the Step-5 confirmation block, call `symbol()` and `name()` on the resolved EVM token contract and surface the result. This catches the "user pasted the wrong address" class of mistake on the human's side, where it can still be aborted.
+
+```bash
+RPC=$(jq -r --arg c "<chain-key>" '.[$c].rpcUrl // empty' config/networks.json)
+SYMBOL=$(cast call "$TOKEN_ADDR" "symbol()(string)" --rpc-url "$RPC" 2>/dev/null || echo "<call failed>")
+NAME=$(cast call   "$TOKEN_ADDR" "name()(string)"   --rpc-url "$RPC" 2>/dev/null || echo "<call failed>")
+```
+
+- Render both values in the confirmation block (see Step 5).
+- If either call fails (revert / non-ERC20 / RPC error): show `<call failed — token may not be ERC-20 / RPC unreachable>` and flag it explicitly. Do **not** auto-abort — the user may legitimately be funding a non-standard contract — but make the failure unmissable.
+- Skip this step for native gas (no `token` field) and for Solana SPL mints (different RPC + on-chain layout — out of scope for v1).
 
 ### 5. Show single-block confirmation
 
 Render a one-block summary and require explicit "yes" before any write:
 
-```
+```text
 About to open PR against lifinance/automate-wallet-dev-fees:
 
   Chain:       base (chainId 8453)
   Recipient:   deployerWallet → 0xb137683965ADC470f140df1a1D05B0D25C14E269
   Token:       USDC → 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+                 ↳ on-chain symbol(): "USDC"
+                 ↳ on-chain name():   "USD Coin"
   Amount:      100.0 USDC  (human units — NOT wei / 6-decimals atomic)
   Description: Top-up deployer for upcoming chain onboarding
 
@@ -120,9 +128,15 @@ JSON entry:
 Proceed? (y/n)
 ```
 
-For native gas, omit the `token` line from both the summary and the JSON.
+For native gas, omit the `token` line (and the `symbol()` / `name()` lines) from both the summary and the JSON. For Solana mints, omit the `symbol()` / `name()` lines (v1 doesn't introspect SPL mints).
 
-If the user's invoking prompt already constitutes consent (e.g. "go ahead and request 100 USDC on Base to the deployer for QA"), still show the summary, but skip the y/n prompt — proceed and report afterwards. When in doubt, ask.
+If the EVM token sanity check failed, surface it loudly inside the same block:
+
+```text
+  Token:       0x... → ⚠️ <call failed — token may not be ERC-20 / RPC unreachable>
+```
+
+**Always require an explicit `y` / `yes` / `proceed` reply before any write.** Even if the invoking prompt sounds like consent (e.g. "go ahead and request 100 USDC on Base"), still render the summary and still wait for the explicit acknowledgement. The PR triggers a real on-chain spend — one extra keystroke is cheaper than one wrong transfer.
 
 ### 6. Open the PR
 
@@ -216,7 +230,8 @@ If the PR author happens to be in `ACTORS` (i.e. the current `gh api user --jq .
 ### 8. Return to user
 
 Report:
-```
+
+```text
 Opened https://github.com/lifinance/automate-wallet-dev-fees/pull/<N>
   Pinged: @maxklenk @0xlindso
   Status: waiting for approval  (or: auto-executing — you're in allowed-actors)
