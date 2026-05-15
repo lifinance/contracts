@@ -20,7 +20,7 @@ It's pinned via `settings.json` so every developer gets **the exact same version
       "source": "github",
       "repo": "obra/superpowers",
       "ref": "v5.1.0",
-      "sha": "ecbd610fce16d5faabcea997f17031129589b572"
+      "sha": "f2cbfbefebbfef77321e4c9abc9e949826bea9d7"
     }
   }
 },
@@ -39,7 +39,18 @@ It's pinned via `settings.json` so every developer gets **the exact same version
 ### Bumping the pin
 
 1. Pick the new tag from https://github.com/obra/superpowers/releases.
-2. Look up its commit SHA: `gh api repos/obra/superpowers/git/ref/tags/<TAG> --jq '.object.sha'`.
+2. Look up its **commit SHA** (handles both annotated and lightweight tags — `obra/superpowers` uses annotated, so the naive `--jq '.object.sha'` returns the tag-object SHA, not the commit):
+   ```bash
+   TAG=<TAG>
+   REF=$(gh api repos/obra/superpowers/git/ref/tags/$TAG)
+   OBJ_TYPE=$(jq -r '.object.type' <<< "$REF")
+   OBJ_SHA=$(jq -r '.object.sha' <<< "$REF")
+   if [ "$OBJ_TYPE" = "tag" ]; then
+     gh api repos/obra/superpowers/git/tags/$OBJ_SHA --jq '.object.sha'
+   else
+     echo "$OBJ_SHA"
+   fi
+   ```
 3. Update both `ref` and `sha` in `settings.json` in a PR. Reviewers sanity-check the diff against upstream release notes.
 4. After merge, contributors are re-prompted to trust the updated marketplace version on next `claude` launch.
 
