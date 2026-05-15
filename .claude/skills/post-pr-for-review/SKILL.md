@@ -74,7 +74,25 @@ Route B: **no thread reply.** Stop after the top-level message.
    - Extract `title`, `url`, `number`, `isDraft`, plus `owner` and `repo` from the URL.
    - **Pick route from `owner/repo`** (see "Routing" section above): Route A for `lifinance/contracts`, Route B for backend repos, ask the user if unsure. Carry the chosen route through every remaining step — channel ID, post shape, and the confirmation message all depend on it.
 
-2. **Pre-flight checks** — run all three before touching Slack. The goal is simple: don't waste reviewers' attention on a PR that obviously isn't ready. We surface problems to the executor and let them decide what to fix — this skill does NOT auto-create fix PRs (a sibling skill, planned as `address-pr-review-comments`, owns that separate concern).
+2. **Pre-flight checks** — what you check depends on the route. The goal is simple: don't waste reviewers' attention on a PR that obviously isn't ready, but don't impose more friction than the team actually wants.
+
+   - **Route A (SC):** run all three checks below — unresolved threads, CI status, draft status. SC reviews are expensive; we gate hard.
+   - **Route B (backend):** check **unresolved review threads** + **squad label**. Skip the CI and draft checks — the backend team is fine reviewing PRs with in-progress CI.
+
+   ### Route B — squad label requirement
+
+   `lifinance/lifi-backend` requires every PR to carry either an `Expansion` or `Core` label (enforced by the repo's `label` CI check). Because we're posting to `#dev-backend-expansion-review`, the right label is **`Expansion`** — the channel name itself confirms the squad.
+
+   Workflow:
+   1. Check current labels: `gh pr view <N> --repo lifinance/lifi-backend --json labels --jq '.labels[].name'`
+   2. If the PR already has `Expansion` or `Core` → continue.
+   3. If it has neither → **add `Expansion`** without asking (the channel determines the squad; this isn't a judgment call):
+      ```bash
+      gh pr edit <N> --repo lifinance/lifi-backend --add-label Expansion
+      ```
+   4. If the user explicitly says the PR is `Core` (e.g., "post #1234 to dev-backend-expansion-review, it's core" — note: would be unusual, since Core PRs wouldn't normally go to the expansion channel), surface the contradiction and ask.
+
+   Run pre-flight, then jump to step 3. We surface problems to the executor and let them decide what to fix — this skill does NOT auto-create fix PRs (a sibling skill, planned as `address-pr-review-comments`, owns that separate concern).
 
    **a) Unresolved review threads** — especially CodeRabbit, but any unresolved thread counts. REST doesn't expose `isResolved`, so use GraphQL:
    ```bash
@@ -171,9 +189,9 @@ Route B: **no thread reply.** Stop after the top-level message.
 
    Note: the pre-flight gate in step 3 is the real safety net — it blocks accidental posts of broken PRs regardless of whether step 4 confirms. Step 4 is just about content/wording, which is fixed and predictable here.
 
-5. **Enable auto-merge** (default; do this *before* posting to Slack). Route-agnostic — applies to both SC and backend PRs.
+5. **Enable auto-merge** — **Route A (SC) only.** Skip this step entirely on Route B; the backend team doesn't use auto-merge as a default (they prefer the author to merge after review).
 
-   Why: the reviewers' approval is the last gate. Once they approve and CI is green, the PR should merge itself — no second round-trip to the author. The reviewer's approval doubles as the merge signal.
+   Why for SC: the reviewers' approval is the last gate. Once they approve and CI is green, the PR should merge itself — no second round-trip to the author. The reviewer's approval doubles as the merge signal.
 
    Command:
    ```bash
@@ -206,13 +224,13 @@ Route B: **no thread reply.** Stop after the top-level message.
    - `thread_ts`: the `ts` from step 7
    - `text`: `<!subteam^S096X6MCB0C> please review 🙏`
 
-9. **Confirm to user** — include the Slack permalink (if returned), the route used, and the auto-merge state (enabled / skipped / already-mergeable), e.g.:
+9. **Confirm to user** — include the Slack permalink (if returned), the route used, and (Route A only) the auto-merge state, e.g.:
    ```text
    Posted to #dev-sc-review ✓ — auto-merge (squash) enabled
    ```
-   or
+   or for Route B:
    ```text
-   Posted to #dev-backend-expansion-review ✓ (no thread, no tag — channel convention) — auto-merge (squash) enabled
+   Posted to #dev-backend-expansion-review ✓ (no thread, no tag, no auto-merge — backend convention)
    ```
 
 ## Failure modes
