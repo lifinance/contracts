@@ -34,7 +34,7 @@ The wallet auto-bridges and auto-swaps via LI.FI, so the user can request any to
 ## Inputs (parsed from the user's prompt)
 
 Required:
-- **amount** — decimal string (e.g. `"100.0"`, `"0.5"`). Quoted in JSON.
+- **amount** — decimal string in **human-readable token units**, **not** atomic units (wei / lamports / smallest-denomination). `"1"` means 1 ETH, not 1 wei. `"100.0"` means 100 USDC, not 100 × 10⁶. Always quoted in JSON — the upstream action parses it as a decimal string and applies the token's `decimals` itself. If the user's prompt is ambiguous (e.g. "send 1000000000000000000" for ETH), **ask for clarification** before proceeding — accidentally requesting 100 ETH instead of 100 USDC equivalent is a real foot-gun.
 - **token** — symbol (`USDC`, `USDT`, `ETH`, `SOL`, etc.) or raw `0x…` address.
 - **chain** — name (`base`, `arbitrum`, `mainnet`, `solana`, …) or chainId.
 
@@ -105,7 +105,7 @@ About to open PR against lifinance/automate-wallet-dev-fees:
   Chain:       base (chainId 8453)
   Recipient:   deployerWallet → 0xb137683965ADC470f140df1a1D05B0D25C14E269
   Token:       USDC → 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-  Amount:      100.0
+  Amount:      100.0 USDC  (human units — NOT wei / 6-decimals atomic)
   Description: Top-up deployer for upcoming chain onboarding
 
 JSON entry:
