@@ -451,6 +451,61 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_HookDataWithZeroDestinationCaller_EVM() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: bytes32(0),
+                hookData: hex"01"
+            });
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_HookDataWithZeroDestinationCaller_NonEVM() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: bytes32(uint256(0x1234)),
+                solanaReceiverATA: bytes32(uint256(0x5678)),
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: bytes32(0),
+                hookData: hex"01"
+            });
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
     function testRevert_NonEVMReceiverWithZeroBytes32() public {
         vm.startPrank(USER_SENDER);
 

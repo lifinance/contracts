@@ -179,6 +179,16 @@ contract PolymerCCTPFacet is
         ILiFi.BridgeData memory _bridgeData,
         PolymerCCTPData calldata _polymerData
     ) internal {
+        // When a hook is supplied, destinationCaller must restrict execution to a
+        // specific forwarder on the destination domain; otherwise anyone could
+        // execute the hook (see PolymerCCTPData.destinationCaller docs).
+        if (
+            _polymerData.hookData.length > 0 &&
+            _polymerData.destinationCaller == bytes32(0)
+        ) {
+            revert InvalidConfig();
+        }
+
         LibAsset.transferERC20(
             USDC,
             POLYMER_FEE_RECEIVER,
@@ -352,7 +362,7 @@ contract PolymerCCTPFacet is
             return 18; // XDC
         }
         if (chainId == 999 || chainId == LIFI_CHAIN_ID_HYPERCORE) {
-            return 19; // HyperEVM
+            return 19; // HyperEVM / HyperCore (shared CCTP domain)
         }
         if (chainId == 57073) {
             return 21; // Ink

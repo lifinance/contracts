@@ -367,7 +367,7 @@ deploySingleContract() {
   # Prefer broadcast artifact (reliable); fall back to forge stdout (can contain newlines/stray "0x" in value)
   local BROADCAST_JSON="broadcast/$(basename "$FULL_SCRIPT_PATH")/$(getChainId "$NETWORK")/run-latest.json"
   if [[ -f "$BROADCAST_JSON" ]]; then
-    CONSTRUCTOR_ARGS=$(jq -r '.returns.constructorArgs.value // "0x"' "$BROADCAST_JSON" 2>/dev/null)
+    CONSTRUCTOR_ARGS=$(jq -r '.returns.constructorArgs.value // empty' "$BROADCAST_JSON" 2>/dev/null || echo "")
   fi
   if [[ -z "${CONSTRUCTOR_ARGS:-}" || "$CONSTRUCTOR_ARGS" == "null" ]]; then
     local JSON_DATA
@@ -375,18 +375,16 @@ deploySingleContract() {
     if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
       JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
     fi
-    CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+    CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // empty' 2>/dev/null | head -1 | tr -d '\n' || echo "")
   fi
   # Sanitize: forge stdout can embed newline + "0x" in the value, which breaks Etherscan verification
   CONSTRUCTOR_ARGS=$(printf '%s' "${CONSTRUCTOR_ARGS:-0x}" | tr -d '\n\r\t ')
-  if [[ ${#CONSTRUCTOR_ARGS} -gt 322 && "${CONSTRUCTOR_ARGS: -2}" == "0x" ]]; then
+  if [[ "${CONSTRUCTOR_ARGS: -2}" == "0x" ]]; then
     local WITHOUT_TRAILING="${CONSTRUCTOR_ARGS%0x}"
     if [[ $((${#WITHOUT_TRAILING} % 64)) -eq 2 ]]; then
       CONSTRUCTOR_ARGS="$WITHOUT_TRAILING"
     fi
   fi
-  
-  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
   # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
   CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
