@@ -89,7 +89,7 @@ The command performs these steps in order:
 5. **Post-Removal Updates**
 
    - For periphery contracts: Run `bun update-whitelist-periphery` once after all removals
-   - **Verify coverage** (bridge facets only): Measure final coverage and compare with baseline from step 3; coverage must be maintained or increased (warn if decreased)
+   - **Verify coverage** (bridge facets only): Measure final coverage and compare with baseline from step 3. Target is final ≥ baseline; if final < baseline, require explicit user confirmation before proceeding (see "Coverage decrease" under Error Handling).
    - **Run full test suite**: Run `forge test` to verify ALL tests pass (required per `.agents/rules/099-finish.md` - tests must pass after any Solidity changes)
    - Display summary of all changes including coverage comparison (if applicable)
 
@@ -134,7 +134,7 @@ The command performs these steps in order:
 - **Test adaptation requirements**:
   - Update: contract names, imports, function selectors, constants (addresses, chain IDs)
   - Preserve: test logic, assertions, test structure, edge cases
-- **Coverage requirement**: Final coverage must be ≥ baseline coverage (measured in step 3, verified in step 5)
+- **Coverage requirement**: Target is final ≥ baseline (measured in step 3, verified in step 5). If final < baseline, require explicit user confirmation before proceeding (see "Coverage decrease" under Error Handling).
 
 ### Error Handling
 
@@ -144,7 +144,7 @@ The command performs these steps in order:
 - Whitelist update fails: Warn but don't abort (deprecation already complete)
 - Test failures: Blocking — per `.agents/rules/099-finish.md`, tests must pass after any Solidity changes. Report failures, do not mark deprecation successful, and require manual remediation before completing the command (see "Test verification" under Safety Features).
 - **No similar bridge found**: For bridge facets, if no similar bridge can be identified, ask user for guidance before proceeding
-- **Coverage decrease**: If coverage decreases after test replacement, warn user and ask for confirmation before proceeding
+- **Coverage decrease**: If final coverage < baseline after test replacement, require explicit user confirmation before proceeding
 
 ## Files Modified
 
