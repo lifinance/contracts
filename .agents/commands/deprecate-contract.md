@@ -142,7 +142,7 @@ The command performs these steps in order:
 - Files not found: Skip silently (not an error)
 - Invalid JSON: Error and abort
 - Whitelist update fails: Warn but don't abort (deprecation already complete)
-- Test failures: Report but don't abort (deprecation already complete)
+- Test failures: Blocking — per `.agents/rules/099-finish.md`, tests must pass after any Solidity changes. Report failures, do not mark deprecation successful, and require manual remediation before completing the command (see "Test verification" under Safety Features).
 - **No similar bridge found**: For bridge facets, if no similar bridge can be identified, ask user for guidance before proceeding
 - **Coverage decrease**: If coverage decreases after test replacement, warn user and ask for confirmation before proceeding
 
