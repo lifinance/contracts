@@ -385,6 +385,16 @@ deploySingleContract() {
       CONSTRUCTOR_ARGS="$WITHOUT_TRAILING"
     fi
   fi
+  # Stdout path can embed real newlines inside the value; do a final re-extract from JSON_DATA
+  # to guarantee a single clean line. Only runs when we actually parsed JSON_DATA (Path 2);
+  # never overwrites a clean value taken from the broadcast artifact (Path 1).
+  if [[ -n "${JSON_DATA:-}" ]]; then
+    local RE_EXTRACTED
+    RE_EXTRACTED=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // empty' 2>/dev/null | head -1 | tr -d '\n' || echo "")
+    if [[ -n "$RE_EXTRACTED" ]]; then
+      CONSTRUCTOR_ARGS="$RE_EXTRACTED"
+    fi
+  fi
   # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
   CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
