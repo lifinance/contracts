@@ -44,7 +44,9 @@ _PR_CMD_RE = re.compile(
     re.IGNORECASE,
 )
 
-_BYPASS_RE = re.compile(r"\bPR_READY_OK\s*=\s*1\b")
+_BYPASS_PREFIX_RE = re.compile(
+    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*PR_READY_OK=1(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*\s+",
+)
 
 
 def _read_payload() -> dict:
@@ -131,8 +133,8 @@ def main() -> None:
     if not m:
         _allow()
 
-    # Bypass: explicit PR_READY_OK=1 in the command line
-    if _BYPASS_RE.search(command):
+    # Bypass: explicit PR_READY_OK=1 as command-prefix env assignment
+    if _BYPASS_PREFIX_RE.match(command):
         _allow()
 
     cwd = payload.get("cwd") or os.getcwd()
