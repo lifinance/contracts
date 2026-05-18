@@ -53,6 +53,25 @@ def log(msg: str) -> None:
         pass
 
 
+def notify(title: str, body: str) -> None:
+    """Best-effort macOS toast notification. Silent on failure."""
+    try:
+        # Escape double quotes for AppleScript single-line literal.
+        safe_title = title.replace('"', '\\"')
+        safe_body = body.replace('"', '\\"')
+        subprocess.run(
+            [
+                "osascript",
+                "-e",
+                f'display notification "{safe_body}" with title "{safe_title}"',
+            ],
+            check=False,
+            capture_output=True,
+        )
+    except Exception:
+        pass
+
+
 def run(cmd, cwd=None, check=True):
     r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
     if check and r.returncode != 0:
@@ -197,6 +216,33 @@ def get_open_pr(repo: str, branch: str) -> Optional[int]:
         return None
 
 
+def resolve_pr_branch(repo: str, pr: int) -> Optional[Tuple[str, str]]:
+    """Return (headRefName, state) for an existing PR, or None on error.
+
+    Used to decide whether a registry-pinned PR is still a valid target.
+    If state != "OPEN" the caller should fall back to creating a fresh branch."""
+    r = run(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr),
+            "--repo",
+            repo,
+            "--json",
+            "headRefName,state",
+        ],
+        check=False,
+    )
+    if r.returncode != 0:
+        return None
+    try:
+        data = json.loads(r.stdout or "{}")
+        return data.get("headRefName"), data.get("state")
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
 def create_draft_pr(repo: str, branch: str, asset_name: str) -> Optional[int]:
     title = f"chore(claude): sync {asset_name} from local"
     body = (
@@ -246,6 +292,32 @@ def sync_asset(asset: dict, asset_idx: int, registry: dict) -> List[str]:
         branch = mirror.get("branch", "main")
         pr = mirror.get("pr")
 
+        # If the registry has a pinned PR, prefer pushing into THAT PR's
+        # branch rather than spawning a fresh dated branch. This prevents
+        # sync misfires from opening duplicate PRs alongside an already-open
+        # one (e.g. a manually-opened PR for the same asset).
+        if pr:
+            resolved = resolve_pr_branch(repo, pr)
+            if resolved and resolved[1] == "OPEN":
+                if resolved[0] and resolved[0] != branch:
+                    log(
+                        f"  ↪ {name}: registry pr #{pr} branch is "
+                        f"'{resolved[0]}' (overriding registry branch '{branch}')"
+                    )
+                    branch = resolved[0]
+                    registry["assets"][asset_idx]["mirrors"][m_idx][
+                        "branch"
+                    ] = branch
+                    registry_dirty = True
+            elif resolved:
+                log(
+                    f"  ↪ {name}: registry pr #{pr} is {resolved[1]}, "
+                    "clearing and falling back to fresh branch"
+                )
+                pr = None
+                registry["assets"][asset_idx]["mirrors"][m_idx]["pr"] = None
+                registry_dirty = True
+
         if branch == "main":
             branch = f"chore/sync-{name}-{date.today().isoformat()}"
 
@@ -265,9 +337,14 @@ def sync_asset(asset: dict, asset_idx: int, registry: dict) -> List[str]:
 
             commit_and_push(wt, remote_path, actual_branch, name)
 
+            pr_was_new = False
             if not pr:
                 existing = get_open_pr(repo, actual_branch)
-                pr = existing or create_draft_pr(repo, actual_branch, name)
+                if existing:
+                    pr = existing
+                else:
+                    pr = create_draft_pr(repo, actual_branch, name)
+                    pr_was_new = True
                 if pr:
                     registry["assets"][asset_idx]["mirrors"][m_idx]["pr"] = pr
                     registry_dirty = True
@@ -278,6 +355,22 @@ def sync_asset(asset: dict, asset_idx: int, registry: dict) -> List[str]:
                 + (f", {len(redacted)} redacted" if redacted else "")
                 + ")"
             )
+
+            # Notify on every push that landed real content. macOS toast
+            # is best-effort; the persistent record is in asset-sync.log
+            # plus the registry's pr field (surfaced by /check-open-prs).
+            if pr:
+                pr_url = f"https://github.com/{repo}/pull/{pr}"
+                if pr_was_new:
+                    notify(
+                        f"Claude sync: new PR #{pr}",
+                        f"{name} → {repo}\nReview and push for review:\n{pr_url}",
+                    )
+                else:
+                    notify(
+                        f"Claude sync: updated PR #{pr}",
+                        f"{name} → {repo}\n{pr_url}",
+                    )
         except Exception as e:
             lines.append(f"⚠️  {name} → {repo}: {e}")
             log(f"  error: {e}")
