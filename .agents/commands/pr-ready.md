@@ -110,7 +110,7 @@ coderabbit review --help   # confirms the subcommand is available
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `coderabbit auth login` says "no access" or "subscription required" | Your GitHub account isn't recognized as a member of an org with a CodeRabbit seat | Ask `#dev-sc-review` (or whoever manages the CodeRabbit subscription) to grant you a seat; then re-run. |
-| Browser opens to a 404 / blank page | Stale install or you're behind a proxy that blocks `app.coderabbit.ai` | Reinstall (`curl ... | sh`) and retry; if corporate proxy, allowlist `*.coderabbit.ai`. |
+| Browser opens to a 404 / blank page | Stale install or you're behind a proxy that blocks `app.coderabbit.ai` | Re-run `bun install` (re-fetches the pinned, checksum-verified binary per the *One-time setup* steps above) and retry; if corporate proxy, allowlist `*.coderabbit.ai`. |
 | `coderabbit auth status` shows expired | Tokens rotate periodically | Re-run `coderabbit auth login`. |
 | Multiple GitHub accounts on the machine | Browser signs in with the wrong one | Open the auth URL in a private/incognito window and sign in with the correct GitHub account. |
 
