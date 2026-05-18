@@ -1,6 +1,6 @@
 ---
 name: pr-ready
-description: Run CodeRabbit locally against the current branch and resolve findings before opening (or updating) a PR. The final step of the development workflow.
+description: Run CodeRabbit locally against the current branch and resolve findings before opening (or updating) a PR. The mandatory final step before `gh pr create` or flipping a draft PR to Ready-for-Review. Triggered automatically by the pre-PR gate hook, or invoke directly with `/pr-ready`.
 usage: /pr-ready
 ---
 
@@ -17,10 +17,11 @@ Goal state: by the time CI runs, CodeRabbit finds **nothing**, because everythin
 ## When to Run
 
 - **Mandatory** as the last step before:
-  - `gh pr create` (initial PR creation)
+  - `gh pr create` (initial PR creation — both draft and non-draft)
+  - `gh pr ready <num>` (flipping a draft to Ready for Review)
   - Pushing new commits to an already-open PR that's marked Ready for Review
 - **Not** required on every local commit or while pushing draft/WIP branches.
-- Applies equally to **humans and agents**. If an agent is opening or updating a PR, it must run `/pr-ready` first and act on findings (or document why they're being ignored).
+- Applies equally to humans and agents. The pre-PR gate hook (`~/.claude/scripts/pr-ready-gate.py`, shipped in `.claude/scripts/pr-ready-gate.py`) blocks agent-issued `gh pr create` / `gh pr ready` until this skill has been run-and-cleared on the current commit.
 
 ## One-Time Setup (per developer machine)
 
@@ -205,9 +206,21 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
    - empty / "no findings", or
    - contains only items explicitly deferred/rejected (record those in the PR description).
 
-7. **Open or update the PR**
+7. **Clear the gate marker**
 
-   - `gh pr create` for a new PR, or `git push` for updates.
+   Once the re-run is clean (or only documented-deferred items remain), write the gate-clear marker so the PR-creation hook stops blocking:
+
+   ```bash
+   gitdir=$(git rev-parse --git-dir)
+   mkdir -p "$gitdir"
+   touch "$gitdir/PR_READY_OK"
+   ```
+
+   The pre-PR gate (`.claude/scripts/pr-ready-gate.py`, or `~/.claude/scripts/pr-ready-gate.py` for the user-installed copy) requires this marker's mtime to be newer than `HEAD`'s commit timestamp; any new commit after this point re-arms the gate and the skill must be re-run.
+
+8. **Open or update the PR**
+
+   - `gh pr create` for a new PR, `gh pr ready <num>` to flip a draft, or `git push` for updates.
    - Cloud CodeRabbit will still run in CI as a safety net — but it should now find little to nothing.
 
 ## Output / Reporting Format (mandatory final summary)
@@ -241,6 +254,7 @@ Repeat patterns (<N>) — candidates for promotion via /add-new-rule:
   ...
 
 Re-run status: <CLEAN | N remaining (documented)>
+Gate marker:    written to <gitdir>/PR_READY_OK at <ISO>
 
 Quick audit:  git log --oneline origin/main..HEAD -- $(git diff --name-only origin/main..HEAD)
 Revert one:   git revert <short-sha>
@@ -252,7 +266,7 @@ Do not claim "PR-ready" until the re-run shows no actionable findings, and do no
 
 - The local CLI does not have 100% parity with cloud CodeRabbit (no repo-wide learnings, no PR-conversation context). Aim for "near zero" cloud findings, not exactly zero. Residual cloud findings then become high-signal.
 - If `coderabbit review` itself errors (auth expired, network, rate limit), do **not** silently skip — surface the failure, fix the cause, and re-run. Do not push an "unreviewed" PR to bypass the step.
-- Sensitive diffs (security fixes pre-disclosure) may legitimately skip the local CLI. Document the reason in the PR description.
+- Sensitive diffs (security fixes pre-disclosure) may legitimately skip the local CLI. Document the reason in the PR description and bypass the gate explicitly via `PR_READY_OK=1 gh pr create …`.
 
 ## Validation Checklist
 
@@ -265,9 +279,12 @@ Before declaring a PR ready:
 - [ ] All local lints/tests still pass after applied fixes.
 - [ ] No `--no-verify`-style escape hatches used.
 - [ ] Re-run performed after the final set of fixes.
+- [ ] Gate marker `$(git rev-parse --git-dir)/PR_READY_OK` exists and is newer than `HEAD`.
 - [ ] Dev has reviewed the summary block before pushing.
 
 ## Related
 
 - Final-checks rule: `.agents/rules/099-finish.md` — this command is the final step of that checklist.
 - PR template: `.github/pull_request_template.md` — includes a `/pr-ready` confirmation box.
+- Pre-PR gate hook: `.claude/scripts/pr-ready-gate.py` (also installed at `~/.claude/scripts/pr-ready-gate.py` as a PreToolUse hook on Bash; blocks `gh pr create` / `gh pr ready` until the marker file is current).
+- Global rule: `~/.claude/CLAUDE.md` — "PR creation workflow" section.
