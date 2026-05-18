@@ -82,7 +82,15 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
   3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query `mcp__claude_ai_Linear__list_issues` with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
      - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its status is active (`statusType: started` or `unstarted`).
      - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "skip" option). Use `AskUserQuestion` if available; otherwise plain chat.
-  4. **Not found / user skipped** — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link.
+  4. **Not found** — offer to create a new Linear ticket before falling back. Default action is **edit** so the user always sees the proposed title before anything is created:
+     - Propose in chat: `No Linear ticket found. Create one in EXSC?`
+       - `e` (default) — show the proposed title (`<derived from branch + commit subject>`) and let the user adjust before creating.
+       - `y` — create immediately with the proposed title as-is.
+       - `s` — skip; proceed without a ticket.
+     - On `y` / `e` (after the user confirms the edited title): call `mcp__claude_ai_Linear__save_issue` with `team: "SmartContract"`, the (edited) title, and a short body summarizing the change + a placeholder for the PR URL. Use the returned ID:
+       - Insert `Fixes <ID>` in the PR body's Linear section.
+       - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). This makes auto-linking work via both branch and body.
+     - On `s` (user skipped) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link.
 - **Why I implemented it this way**: one short paragraph explaining the approach/rationale derived from the diff and conversation context.
 - **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
   - `[x] I have performed a self-review of my code` — tick **only after** you actually walk the full `git diff main...HEAD` and confirm: no leftover debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets/credentials, naming/style matches the surrounding code. Note any findings in the summary; if anything looks off, surface it instead of ticking.
@@ -202,7 +210,7 @@ After the PR is created, ask:
 - **Branch already has open PR**: surface URL, offer to push new commits instead.
 - **Push rejected (non-fast-forward)**: report error; do not force-push without explicit user instruction.
 - **No template found**: use minimal body with title + rationale only.
-- **Linear task unknown**: leave the section blank with an HTML comment (`<!-- No Linear task -->`) rather than fabricating a link.
+- **Linear task unknown**: offer to create a new ticket (step 5, bullet 4) with `e` (default, edit title) / `y` (accept as-is) / `s` (skip). On skip, leave the section blank with `<!-- No Linear task -->`. Never fabricate a link.
 - **Tests/lints fail**: stop. Surface failures to the user and do not push unless they explicitly override.
 - **`coderabbit` CLI missing / auth expired / rate-limited**: surface the error from `/pr-ready` and stop. Do not push an "unreviewed" PR to bypass the step.
 - **`/pr-ready` reports unresolved findings**: only allowed if each remaining item is explicitly documented in the PR body's `## /pr-ready deferred findings` section with a rationale.
