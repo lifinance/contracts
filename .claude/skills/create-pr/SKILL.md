@@ -82,15 +82,20 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
   3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query `mcp__claude_ai_Linear__list_issues` with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
      - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its status is active (`statusType: started` or `unstarted`).
      - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "skip" option). Use `AskUserQuestion` if available; otherwise plain chat.
-  4. **Not found** — offer to create a new Linear ticket before falling back. Default action is **edit** so the user always sees the proposed title before anything is created:
-     - Propose in chat: `No Linear ticket found. Create one in EXSC?`
-       - `e` (default) — show the proposed title (`<derived from branch + commit subject>`) and let the user adjust before creating.
-       - `y` — create immediately with the proposed title as-is.
-       - `s` — skip; proceed without a ticket.
+  4. **Not found** — offer to create a new Linear ticket before falling back. The consent prompt must make **both** side-effects visible up front (ticket creation + local branch rename), so the user knows exactly what they're approving with a single keystroke. Default action is **edit** so the user always sees the proposed title and the proposed new branch name before anything is created or renamed:
+     - Propose in chat (filling in the placeholders with the actual derived values):
+       ```
+       No Linear ticket found. Create one in EXSC and rename branch?
+         • Ticket: team=SmartContract, title="<derived title>"
+         • Branch: <current-branch>  →  <type>/<id-after-creation>-<slug>
+       ```
+       - `e` (default) — show the proposed title (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
+       - `y` — create the ticket with the proposed title as-is **and** rename the branch.
+       - `s` — skip; proceed without a ticket and leave the branch as-is.
      - On `y` / `e` (after the user confirms the edited title): call `mcp__claude_ai_Linear__save_issue` with `team: "SmartContract"`, the (edited) title, and a short body summarizing the change + a placeholder for the PR URL. Use the returned ID:
        - Insert `Fixes <ID>` in the PR body's Linear section.
-       - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). This makes auto-linking work via both branch and body.
-     - On `s` (user skipped) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link.
+       - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). The user already consented to this rename via the prompt above.
+     - On `s` (user skipped) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link, and do not rename the branch.
 - **Why I implemented it this way**: one short paragraph explaining the approach/rationale derived from the diff and conversation context.
 - **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
   - `[x] I have performed a self-review of my code` — tick **only after** you actually walk the full `git diff main...HEAD` and confirm: no leftover debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets/credentials, naming/style matches the surrounding code. Note any findings in the summary; if anything looks off, surface it instead of ticking.
