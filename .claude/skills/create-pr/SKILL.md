@@ -87,7 +87,7 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
 - **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
   - `[x] I have performed a self-review of my code` — tick **only after** you actually walk the full `git diff main...HEAD` and confirm: no leftover debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets/credentials, naming/style matches the surrounding code. Note any findings in the summary; if anything looks off, surface it instead of ticking.
   - `[x] This pull request is as small as possible and only tackles one problem` — tick **only after** you inspect the commit list (`git log main..HEAD --oneline`) and the file list. Tick if all commits serve a single, coherent concern. Do not tick if the branch mixes unrelated changes, or if it contains iterative fix-up commits that should be squashed (call those out to the user before deciding). Note: `/pr-ready` legitimately introduces additional `pr-ready: …` commits — those do not invalidate "single concern".
-  - `[x] I have run /pr-ready (local CodeRabbit) on this branch and resolved (or explicitly documented) all findings` — tick **only after** step 8 (Run `/pr-ready`) reports either CLEAN or all remaining findings are documented in the PR body.
+  - `[x] I have run /pr-ready (local CodeRabbit) on this branch and resolved (or explicitly documented) all findings` — tick **only after** step 7 (Run `/pr-ready`) reports either CLEAN or all remaining findings are documented in the PR body.
   - `[x] I have added tests that cover the functionality` — tick only if tests were actually added in this diff.
   - `[x] For new facets: ...` — tick only if a new facet was added.
   - `[x] I have updated any required documentation` — tick only if docs were updated.
@@ -97,23 +97,12 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
 
 Short imperative title (≤70 chars). Match existing commit style in `git log`.
 
-### 7. Run the test suite
+### 7. Run `/pr-ready`
 
-Lint, format, typecheck, build, solhint, and secret scanning are already enforced by
-`.husky/pre-commit` (and `.agents/hooks/post-edit-validate.sh`) at the commit in step 4.
-Don't repeat them here.
-
-The one gap pre-commit deliberately leaves is **tests** (`forge build --skip test`, no
-`bun test:ts`). Per `.agents/rules/099-finish.md`, run them now:
-
-- **Solidity changes**: `forge test` (or `forge test --match-path` if scope is clear).
-- **TypeScript / JS changes**: `bun test:ts`.
-- **Docs / markdown / skill files only**: skip; note `N/A` in the summary.
-
-If anything fails, **stop and surface the failure** — do not push without explicit user
-override.
-
-### 8. Run `/pr-ready`
+Run this **before** the test suite. `/pr-ready` (local CodeRabbit) can land
+auto-fix commits on the branch, and any such fixes must be validated by the
+tests in step 8 — running tests first would mean re-running them after
+`/pr-ready` anyway.
 
 Invoke the sibling skill `/pr-ready` (mandatory per `.agents/rules/099-finish.md`). See
 `.agents/commands/pr-ready.md` for what it does and how — do not duplicate that here.
@@ -127,6 +116,23 @@ Two integration touchpoints this skill owns:
   implemented it this way") with each item + rationale.
 
 If `/pr-ready` errors, stop — do not push.
+
+### 8. Run the test suite
+
+Lint, format, typecheck, build, solhint, and secret scanning are already enforced by
+`.husky/pre-commit` (and `.agents/hooks/post-edit-validate.sh`) at every commit in
+steps 4 and 7. Don't repeat them here.
+
+The one gap pre-commit deliberately leaves is **tests** (`forge build --skip test`, no
+`bun test:ts`). Per `.agents/rules/099-finish.md`, run them now — against the
+post-`/pr-ready` HEAD so any auto-fix commits are validated:
+
+- **Solidity changes**: `forge test` (or `forge test --match-path` if scope is clear).
+- **TypeScript / JS changes**: `bun test:ts`.
+- **Docs / markdown / skill files only**: skip; note `N/A` in the summary.
+
+If anything fails, **stop and surface the failure** — do not push without explicit user
+override.
 
 ### 9. Show pre-flight summary and confirm
 
