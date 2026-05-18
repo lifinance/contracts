@@ -45,7 +45,10 @@ _PR_CMD_RE = re.compile(
 )
 
 _BYPASS_PREFIX_RE = re.compile(
-    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*PR_READY_OK=1(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*\s+",
+    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    r"PR_READY_OK=1(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*\s+"
+    r"gh\s+pr\s+(?:create|ready)\b",
+    re.IGNORECASE,
 )
 
 
