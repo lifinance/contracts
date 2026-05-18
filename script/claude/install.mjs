@@ -1,22 +1,32 @@
 #!/usr/bin/env node
-// Installs every Claude Code marketplace/plugin declared in .claude/settings.json.
-// Generic by design: no hardcoded plugin/marketplace names. Source of truth is
-// settings.json. Runs after `bun install` via the postinstall hook and is also
-// invokable manually as `bun run claude:install`.
+// Installs every Claude Code marketplace + plugin pinned in .claude/plugins-lock.json.
+// Runs after `bun install` via the postinstall hook and is also invokable
+// manually as `bun run claude:install`.
 //
-// Idempotent. Fail-soft for environmental errors (missing git, network) so it
+// Two-step bootstrap, both idempotent:
+//   1. Marketplaces — clone/fetch the source repo into <CONFIG>/plugins/marketplaces/<name>,
+//      check out the pinned SHA, register in <CONFIG>/plugins/known_marketplaces.json.
+//   2. Plugins — for each "<plugin>@<marketplace>" entry, call `claude plugin install
+//      --scope project <spec>` so the CLI populates <CONFIG>/plugins/cache/...
+//      and installed_plugins.json. Without step 2 the plugin appears in the marketplace
+//      but its skills don't load — that's the "press space in /plugin" gap.
+//
+// CLAUDE_CONFIG_DIR is honored so users with dual-account setups (e.g. `claude-work`
+// aliased to CLAUDE_CONFIG_DIR=~/.claude-work) install into the right config dir.
+//
+// Fail-soft for environmental errors (missing git or `claude` CLI, network) so it
 // never breaks `bun install` for non-Claude users. Hard-fails (exit 1) only on
-// pinned-SHA mismatch — that is the tamper-evidence gate the README promises.
+// pinned-SHA mismatch — that is the tamper-evidence gate.
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 const TAG = '[claude:install]'
 const REPO_ROOT = process.cwd()
-const SETTINGS_PATH = path.join(REPO_ROOT, '.claude', 'settings.json')
-const CLAUDE_HOME = path.join(os.homedir(), '.claude')
+const LOCK_PATH = path.join(REPO_ROOT, '.claude', 'plugins-lock.json')
+const CLAUDE_HOME = process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude')
 const MARKETPLACES_DIR = path.join(CLAUDE_HOME, 'plugins', 'marketplaces')
 const KNOWN_FILE = path.join(CLAUDE_HOME, 'plugins', 'known_marketplaces.json')
 
@@ -34,6 +44,14 @@ function git(args, opts = {}) {
     .trim()
 }
 
+function claudeCli(args) {
+  return spawnSync('claude', args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, CLAUDE_CONFIG_DIR: CLAUDE_HOME },
+    encoding: 'utf8',
+  })
+}
+
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
 }
@@ -43,26 +61,13 @@ function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n')
 }
 
-function resolveSourceUrl(source) {
-  if (!source) return null
-  if (source.source === 'github' && source.repo) {
-    return `https://github.com/${source.repo}.git`
+function pinMarketplace(name, entry) {
+  const { repo, ref, sha } = entry ?? {}
+  if (!repo || !ref || !sha) {
+    warn(`${name}: missing repo, ref, or sha — skipping`)
+    return false
   }
-  if (source.url) return source.url
-  return null
-}
-
-function installMarketplace(name, entry) {
-  const source = entry?.source ?? {}
-  const url = resolveSourceUrl(source)
-  const ref = source.ref
-  const sha = source.sha
-
-  if (!url || !ref || !sha) {
-    warn(`${name}: missing source.url/repo, ref, or sha — skipping`)
-    return
-  }
-
+  const url = `https://github.com/${repo}.git`
   const target = path.join(MARKETPLACES_DIR, name)
   fs.mkdirSync(MARKETPLACES_DIR, { recursive: true })
 
@@ -76,19 +81,16 @@ function installMarketplace(name, entry) {
   try {
     git(['-C', target, 'checkout', '--quiet', sha])
   } catch (e) {
-    throw new Error(`${name}: failed to checkout pinned sha ${sha} — ${e.message?.split('\n')[0] ?? e}`)
+    console.error(`${TAG} ${name}: cannot checkout pinned sha ${sha} — ${e.message?.split('\n')[0] ?? e}`)
+    process.exit(1)
   }
 
   const head = git(['-C', target, 'rev-parse', 'HEAD'])
   if (head !== sha) {
-    // Security gate — hard fail.
     console.error(`${TAG} ${name}: SHA MISMATCH after checkout. Expected ${sha}, got ${head}.`)
     process.exit(1)
   }
 
-  // Merge into known_marketplaces.json idempotently. Schema mirrors what
-  // Claude Code's trust prompt writes: flat object keyed by marketplace name,
-  // with source/installLocation/lastUpdated fields.
   let known = {}
   if (fs.existsSync(KNOWN_FILE)) {
     try {
@@ -99,60 +101,90 @@ function installMarketplace(name, entry) {
     }
   }
   known[name] = {
-    source: { ...source },
+    source: { source: 'github', repo, ref, sha },
     installLocation: target,
     lastUpdated: new Date().toISOString(),
   }
   writeJson(KNOWN_FILE, known)
 
-  const shortSha = sha.slice(0, 7)
-  log(`${name} @ ${ref} (${shortSha}) ✓`)
+  log(`${name} @ ${ref} (${sha.slice(0, 7)}) ✓`)
+  return true
+}
+
+function findInstalled(spec) {
+  const r = claudeCli(['plugin', 'list', '--json'])
+  if (r.status !== 0) return null
+  try {
+    const list = JSON.parse(r.stdout)
+    return list.find((p) => p.id === spec) ?? null
+  } catch {
+    return null
+  }
+}
+
+function installPlugin(spec) {
+  const at = spec.lastIndexOf('@')
+  if (at < 0) {
+    warn(`${spec}: invalid plugin spec (expected plugin@marketplace) — skipping`)
+    return
+  }
+  const existing = findInstalled(spec)
+  if (existing && existing.enabled) {
+    log(`${spec}: already installed (${existing.version}) ✓`)
+    return
+  }
+  log(`${spec}: installing`)
+  const r = claudeCli(['plugin', 'install', '--scope', 'project', spec])
+  if (r.status !== 0) {
+    const err = r.stderr?.trim() || r.stdout?.trim() || `exit ${r.status}`
+    warn(`${spec}: install failed — ${err.split('\n')[0]}`)
+    return
+  }
+  log(`${spec}: installed ✓`)
 }
 
 function main() {
-  if (!fs.existsSync(SETTINGS_PATH)) {
-    log('.claude/settings.json not found — nothing to install')
+  if (!fs.existsSync(LOCK_PATH)) {
+    log('.claude/plugins-lock.json not found — nothing to install')
     return
   }
   if (!fs.existsSync(CLAUDE_HOME)) {
-    log('~/.claude not found — Claude Code not installed for this user, skipping')
+    log(`${CLAUDE_HOME} not found — Claude Code not installed for this user, skipping`)
     return
   }
 
-  let settings
+  let lock
   try {
-    settings = readJson(SETTINGS_PATH)
+    lock = readJson(LOCK_PATH)
   } catch (e) {
-    warn(`failed to parse .claude/settings.json: ${e.message}`)
+    warn(`failed to parse .claude/plugins-lock.json: ${e.message}`)
     return
   }
 
-  const marketplaces = settings.extraKnownMarketplaces ?? {}
-  const marketplaceNames = Object.keys(marketplaces)
-  if (marketplaceNames.length === 0) {
-    log('no marketplaces declared in .claude/settings.json — nothing to do')
-    return
-  }
+  const marketplaces = lock.marketplaces ?? {}
+  const plugins = lock.plugins ?? []
 
-  for (const name of marketplaceNames) {
+  for (const name of Object.keys(marketplaces)) {
     try {
-      installMarketplace(name, marketplaces[name])
+      pinMarketplace(name, marketplaces[name])
     } catch (e) {
-      // Environmental error (network, missing git, etc.) — warn but continue
-      // with other marketplaces. SHA mismatches already exited above.
       warn(`${name}: ${e.message?.split('\n')[0] ?? e}`)
     }
   }
 
-  // Sanity-check enabledPlugins reference known marketplaces.
-  const enabled = settings.enabledPlugins ?? {}
-  for (const key of Object.keys(enabled)) {
-    if (!enabled[key]) continue
-    const at = key.lastIndexOf('@')
-    if (at < 0) continue
-    const marketplace = key.slice(at + 1)
-    if (!marketplaces[marketplace]) {
-      warn(`enabledPlugins["${key}"] references unknown marketplace "${marketplace}"`)
+  if (plugins.length === 0) return
+
+  const probe = spawnSync('claude', ['--version'], { stdio: ['ignore', 'pipe', 'pipe'] })
+  if (probe.status !== 0) {
+    warn(`'claude' CLI not on PATH — marketplaces registered, but skipping plugin install. Run 'bun run claude:install' after installing Claude Code.`)
+    return
+  }
+
+  for (const spec of plugins) {
+    try {
+      installPlugin(spec)
+    } catch (e) {
+      warn(`${spec}: ${e.message?.split('\n')[0] ?? e}`)
     }
   }
 }
@@ -160,6 +192,5 @@ function main() {
 try {
   main()
 } catch (e) {
-  // Catch-all fail-soft. Hard-fail on SHA mismatch already exited inside.
   warn(`unexpected error — ${e.message?.split('\n')[0] ?? e}`)
 }
