@@ -1,1 +1,1 @@
-../../.agents/rules/300-bash.mdc
+../../.agents/rules/300-bash.md

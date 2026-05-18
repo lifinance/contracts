@@ -120,7 +120,7 @@ curl -s -X POST https://api.trongrid.io/wallet/gettransactionbyid \
 
 ### Tron Address Conversion
 
-**Preferred — use `troncast` (see `.agents/rules/202-tron-scripts.mdc` for Tron script conventions):**
+**Preferred — use `troncast` (see `.agents/rules/202-tron-scripts.md` for Tron script conventions):**
 
 ```bash
 # base58 → EVM hex

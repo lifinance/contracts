@@ -532,6 +532,13 @@
       "auditReportPath": "./audit/reports/2025.12.31_TokenWrapper(v1.2.1).pdf",
       "auditCommitHash": "a0f5a83d5f42b304474fa040526ce98ea3cea5e6"
     },
+    "audit20260130": {
+      "auditCompletedOn": "30.01.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.01.30_LiFiIntentEscrowFacet(v1.1.0).pdf",
+      "auditCommitHash": "151a2a3308ae544a493a5a778502b6a7b7bbf2aa"
+    },
     "audit20260205": {
       "auditCompletedOn": "05.02.2026",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -566,6 +573,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.04.23_PolymerCCTPFacet(v2.0.1).pdf",
       "auditCommitHash": "f2be9c06a9080629c0dfdfc13759c9f66cac162c"
+    },
+    "audit20260430": {
+      "auditCompletedOn": "30.04.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.04.30_DeBridgeDlnFacet(v1.1.0).pdf",
+      "auditCommitHash": "3b8511fce5f2e9b12a50d77f147536c641303cae"
     }
   },
   "auditedContracts": {
@@ -638,7 +652,8 @@
     },
     "DeBridgeDlnFacet": {
       "1.0.0": ["audit20241205", "audit20250508"],
-      "1.0.1": ["audit20250718"]
+      "1.0.1": ["audit20250718"],
+      "1.1.0": ["audit20260430"]
     },
     "DexManagerFacet": {
       "1.0.2": ["audit20250413", "audit20250508"]
@@ -787,7 +802,9 @@
     },
     "LiFiIntentEscrowFacet": {
       "1.0.0": ["audit20251119"],
-      "1.0.1": ["audit20260205"]
+      "1.1.0": ["audit20260130"],
+      "1.0.1": ["audit20260205"],
+      "1.1.1": ["audit20260205"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],

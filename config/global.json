@@ -32,7 +32,8 @@
     "0x518ee3D0F8AC59deDAc278859A7B8bc13dA360Dc",
     "0xb4557653119Dd49F7433fef4aE270665Be2cbf4F",
     "0xFF0cC7DdcE415293c5dE85b8737bC487eff176cF",
-    "0xe5552E1a40cBcB95b4905d92907336C06681280c"
+    "0xe5552E1a40cBcB95b4905d92907336C06681280c",
+    "0x9740A8E0197689d144B19DA4bDc9eF65fEf11Cda"
   ],
   "coreFacets": [
     "AccessManagerFacet",
@@ -54,7 +55,6 @@
     "FeeCollector",
     "FeeForwarder",
     "GasZipPeriphery",
-    "LiFiDEXAggregator",
     "LiFiTimelockController",
     "Permit2Proxy",
     "TokenWrapper"

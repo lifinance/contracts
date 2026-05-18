@@ -1,1 +1,1 @@
-../../.agents/rules/600-transaction-analysis.mdc
+../../.agents/rules/600-transaction-analysis.md

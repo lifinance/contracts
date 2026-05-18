@@ -1,1 +1,1 @@
-../../.agents/rules/103-solidity-interfaces.mdc
+../../.agents/rules/103-solidity-interfaces.md

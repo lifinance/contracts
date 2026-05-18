@@ -1,1 +1,1 @@
-../../.agents/rules/004-config-structure.mdc
+../../.agents/rules/004-config-structure.md

@@ -103,7 +103,7 @@ When `/add-audit` is invoked with a pasted PDF:
 
 4. **Generate audit ID**: Create unique ID (`auditYYYYMMDD` or `auditYYYYMMDD_N` if same-day audit exists)
 
-5. **Generate filename** (according to `.agents/rules/501-audits.mdc`):
+5. **Generate filename** (according to `.agents/rules/501-audits.md`):
 
    - **Single contract with version**: `YYYY.MM.DD_ContractName(version).pdf` (e.g., `2025.01.06_AcrossFacetV3(v1.1.0).pdf`)
    - **Single contract without version**: `YYYY.MM.DD_ContractName.pdf` (e.g., `2024.08.14_StargateFacetV2_ReAudit.pdf`)
