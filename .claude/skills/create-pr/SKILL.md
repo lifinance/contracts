@@ -72,7 +72,11 @@ git commit -m "<subject line>"
 
 Read `.github/pull_request_template.md` verbatim. Fill in:
 
-- **Linear task link**: resolve in this order. Always include the issue ID (e.g. `EXSC-327`) somewhere in the body — Linear's GitHub integration uses it to auto-create the bidirectional link (PR appears in the ticket's "Links" sidebar; ticket appears in the PR's "Linked issues" panel). No extra Linear MCP call is needed for cross-linking.
+- **Linear task link**: resolve in this order. Linear's GitHub integration creates the bidirectional auto-link (PR in the ticket's "Links" sidebar; ticket in the PR's "Linked issues" panel) only when at least one of:
+  - the **branch name** contains the issue ID (e.g. `feat/exsc-327-…`, see step 2), or
+  - the PR **title or body** contains a magic keyword + ID — `Fixes EXSC-327`, `Closes EXSC-327`, `Resolves EXSC-327`, or `Ref EXSC-327` (case-insensitive; use `Ref` for partial work that should not auto-close the ticket on merge).
+
+  A bare `EXSC-327` mention in the body alone does **not** reliably trigger the link. Prefer the branch-name route; always render the body's Linear line as `Fixes <ID>` (or `Ref <ID>`) as a belt-and-braces measure. No extra Linear MCP call is needed for cross-linking once either condition is satisfied.
   1. **Conversation context** — look for any Linear URL or issue ID (e.g. `EXSC-123`) mentioned by the user in this session.
   2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via `mcp__claude_ai_Linear__list_issues` with `query: "<ID>"`. If found and the ID matches, use it — no further questions.
   3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query `mcp__claude_ai_Linear__list_issues` with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
