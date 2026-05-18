@@ -47,7 +47,8 @@ Handle these edge cases before continuing:
 ### 2. Determine branch name
 
 - If user supplied one, use it exactly.
-- Else derive from the primary change: `feat/<short-slug>`, `fix/<short-slug>`, `chore/<short-slug>`.
+- Else derive from the primary change. **Prefer `<type>/<lowercase-id>-<short-slug>`** when a Linear ID is already known from conversation context (e.g. `feat/exsc-327-add-foo`). Branch-name ID prefix is the most reliable trigger for Linear's GitHub auto-link.
+- Fall back to slug-only (`feat/<short-slug>`, `fix/<short-slug>`, `chore/<short-slug>`) when no Linear ID exists yet. Step 5 may still resolve or create one later, in which case the branch can be renamed (`git branch -m`) before push.
 - Never commit directly to `main` or `master` — create a new branch.
 
 ### 3. Create branch (if needed)
