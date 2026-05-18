@@ -26,7 +26,7 @@ This skill creates PRs. For **editing** an existing PR's title/body, follow CLAU
 
 The `/pr-ready` skill (`.agents/commands/pr-ready.md`) is a mandatory pre-flight per
 `.agents/rules/099-finish.md`: it runs CodeRabbit's local CLI against the branch and
-resolves findings before the PR is opened. This skill integrates `/pr-ready` as step 8
+resolves findings before the PR is opened. This skill integrates `/pr-ready` as step 7
 below.
 
 ## Workflow
