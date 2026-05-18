@@ -21,7 +21,7 @@ Goal state: by the time CI runs, CodeRabbit finds **nothing**, because everythin
   - `gh pr ready <num>` (flipping a draft to Ready for Review)
   - Pushing new commits to an already-open PR that's marked Ready for Review
 - **Not** required on every local commit or while pushing draft/WIP branches.
-- Applies equally to humans and agents. The pre-PR gate hook (`~/.claude/scripts/pr-ready-gate.py`, shipped in `.claude/scripts/pr-ready-gate.py`) blocks agent-issued `gh pr create` / `gh pr ready` until this skill has been run-and-cleared on the current commit.
+- Applies equally to humans and agents. The pre-PR gate (`.claude/scripts/pr-ready-gate.py`, registered as a `PreToolUse` hook on `Bash` in `.claude/settings.json`) blocks agent-issued `gh pr create`, `gh pr ready`, and `git push` (when the current branch has an open, non-draft PR) until this skill has been run-and-cleared on the current commit. Pushes on branches with no PR or with a draft PR are allowed through.
 
 ## One-Time Setup (per developer machine)
 
@@ -266,7 +266,7 @@ Do not claim "PR-ready" until the re-run shows no actionable findings, and do no
 
 - The local CLI does not have 100% parity with cloud CodeRabbit (no repo-wide learnings, no PR-conversation context). Aim for "near zero" cloud findings, not exactly zero. Residual cloud findings then become high-signal.
 - If `coderabbit review` itself errors (auth expired, network, rate limit), do **not** silently skip — surface the failure, fix the cause, and re-run. Do not push an "unreviewed" PR to bypass the step.
-- Sensitive diffs (security fixes pre-disclosure) may legitimately skip the local CLI. Document the reason in the PR description and bypass the gate explicitly via `PR_READY_OK=1 gh pr create …`.
+- Sensitive diffs (security fixes pre-disclosure) may legitimately skip the local CLI. Document the reason in the PR description and bypass the gate explicitly via `PR_READY_OK=1 gh pr create …` (or `PR_READY_OK=1 git push …` when pushing follow-ups to an already-open Ready-for-Review PR).
 
 ## Validation Checklist
 

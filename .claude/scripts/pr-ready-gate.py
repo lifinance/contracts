@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""PreToolUse hook gating `gh pr create` / `gh pr ready` on a clean /pr-ready run.
+"""PreToolUse hook gating PR-creation / PR-update commands on a clean /pr-ready run.
 
 Reads the Claude Code PreToolUse JSON payload from stdin and either:
 - exits 0 (allow) — for unrelated commands or when the gate is satisfied, or
-- prints a deny JSON decision on stdout and exits 0 — for PR-creation commands
-  when the gate is not yet satisfied (this surfaces a tool error to the model
-  with the reason string, so Claude routes into the /pr-ready skill).
+- prints a deny JSON decision on stdout and exits 0 — for gated commands when
+  the gate is not yet satisfied (this surfaces a tool error to the model with
+  the reason string, so Claude routes into the /pr-ready skill).
 
 Gate is satisfied when ANY of:
   1. The command contains `PR_READY_OK=1` (env-var bypass / explicit override).
@@ -15,9 +15,14 @@ Gate is satisfied when ANY of:
 Match scope (case-insensitive, after collapsing whitespace):
   - `gh pr create` (any flags, including `--draft`)
   - `gh pr ready`  (draft → Ready for Review)
+  - `git push` — only when the current branch has an OPEN, NON-DRAFT PR.
+    Pushes on branches without a PR, or to draft PRs, are allowed through so
+    that WIP iteration stays friction-free. The check is gated on a fast
+    `gh pr view` lookup; if `gh` is unavailable, unauthenticated, or there's
+    no PR for the branch, the push is allowed.
 
-Everything else (including `gh pr list`, `gh pr view`, `gh issue …`, `git push`,
-plain `gh auth`, etc.) is allowed through.
+Everything else (including `gh pr list`, `gh pr view`, `gh issue …`, plain
+`gh auth`, etc.) is allowed through.
 
 Errors are non-fatal: any internal exception falls back to allow, so a broken
 gate never blocks legitimate work. The model can still be redirected by the
@@ -47,7 +52,14 @@ _PR_CMD_RE = re.compile(
 _BYPASS_PREFIX_RE = re.compile(
     r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
     r"PR_READY_OK=1(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*\s+"
-    r"gh\s+pr\s+(?:create|ready)\b",
+    r"(?:gh\s+pr\s+(?:create|ready)|git\s+push)\b",
+    re.IGNORECASE,
+)
+
+# Matches `git push` (any args). We only enforce when the branch has an open
+# non-draft PR — see `_push_targets_ready_pr`.
+_GIT_PUSH_RE = re.compile(
+    r"(?:^|[;&|`$(\s])git\s+push\b",
     re.IGNORECASE,
 )
 
@@ -93,6 +105,28 @@ def _git(args: list[str], cwd: str | None = None) -> str | None:
         return None
 
 
+def _push_targets_ready_pr(cwd: str | None) -> bool:
+    """Best-effort check: does the current branch have an OPEN, non-draft PR?
+
+    Returns False if `gh` is missing, unauthenticated, the branch has no PR,
+    or any error occurs — i.e. fail open (allow the push).
+    """
+    try:
+        r = subprocess.run(
+            ["gh", "pr", "view", "--json", "isDraft,state"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=4,
+        )
+        if r.returncode != 0:
+            return False
+        data = json.loads(r.stdout or "{}")
+        return data.get("state") == "OPEN" and data.get("isDraft") is False
+    except Exception:
+        return False
+
+
 def _gate_satisfied(cwd: str | None) -> tuple[bool, str]:
     """Return (satisfied, human-readable reason if not)."""
     gitdir = _git(["rev-parse", "--git-dir"], cwd=cwd)
@@ -132,8 +166,9 @@ def main() -> None:
     if not isinstance(command, str) or not command.strip():
         _allow()
 
-    m = _PR_CMD_RE.search(command)
-    if not m:
+    m_pr = _PR_CMD_RE.search(command)
+    m_push = _GIT_PUSH_RE.search(command) if not m_pr else None
+    if not m_pr and not m_push:
         _allow()
 
     # Bypass: explicit PR_READY_OK=1 as command-prefix env assignment
@@ -141,14 +176,29 @@ def main() -> None:
         _allow()
 
     cwd = payload.get("cwd") or os.getcwd()
+
+    # For `git push`, only enforce when the current branch has an open,
+    # non-draft PR. Pushing on branches without a PR (or on draft PRs) is
+    # the WIP path and must stay frictionless.
+    if m_push and not _push_targets_ready_pr(cwd):
+        _allow()
+
     satisfied, why = _gate_satisfied(cwd)
     if satisfied:
         _allow()
 
-    subcmd = m.group(1).lower()
-    action = "create a PR" if subcmd == "create" else "flip a draft PR to Ready for Review"
+    if m_pr:
+        subcmd = m_pr.group(1).lower()
+        blocked = f"gh pr {subcmd}"
+        action = (
+            "create a PR" if subcmd == "create"
+            else "flip a draft PR to Ready for Review"
+        )
+    else:
+        blocked = "git push"
+        action = "push new commits to this Ready-for-Review PR"
     reason = (
-        f"Blocked: `gh pr {subcmd}` requires a clean {SKILL_NAME} run first ({why}).\n"
+        f"Blocked: `{blocked}` requires a clean {SKILL_NAME} run first ({why}).\n"
         f"\n"
         f"Before you {action}, run the {SKILL_NAME} skill on this branch:\n"
         f"  1. It runs `coderabbit review --base origin/<base> --plain` locally.\n"
