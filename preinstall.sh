@@ -247,8 +247,16 @@ function install_coderabbit_cli() {
 
   local install_dir="${HOME}/.local/bin"
   mkdir -p "$install_dir"
-  mv "${tmpdir}/coderabbit" "${install_dir}/coderabbit"
-  chmod +x "${install_dir}/coderabbit"
+  if ! mv "${tmpdir}/coderabbit" "${install_dir}/coderabbit"; then
+    echo "WARNING: failed to install CodeRabbit binary into ${install_dir} — install manually per .agents/commands/pr-ready.md."
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  if ! chmod +x "${install_dir}/coderabbit"; then
+    echo "WARNING: failed to mark ${install_dir}/coderabbit executable — install manually per .agents/commands/pr-ready.md."
+    rm -rf "$tmpdir"
+    return 0
+  fi
   rm -rf "$tmpdir"
 
   if ! command -v coderabbit &> /dev/null; then
