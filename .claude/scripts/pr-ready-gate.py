@@ -116,8 +116,8 @@ def _gate_satisfied(cwd: str | None) -> tuple[bool, str]:
     except ValueError:
         head_ts = 0.0
 
-    if marker_mtime < head_ts:
-        return False, "marker is older than HEAD (new commits since last /pr-ready)"
+    if marker_mtime <= head_ts:
+        return False, "marker is not newer than HEAD (new commits since last /pr-ready)"
     return True, ""
 
 
