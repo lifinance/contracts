@@ -7,6 +7,24 @@ This directory configures Claude Code (the CLI) for the `lifinance/contracts` re
 - `settings.json` — repo-scoped Claude Code settings (hooks, permissions, **enabled plugin marketplaces**, etc.).
 - `../.mcp.json` — MCP servers bundled with this repo (see below).
 
+## Claude bootstrap (`bun run claude:install`)
+
+Everything declared in `settings.json` (marketplaces, enabled plugins) is materialized onto your machine by `script/claude/install.mjs`, which runs automatically as part of `bun install` (chained from `postinstall`) and can be re-run manually with `bun run claude:install`.
+
+For each marketplace in `extraKnownMarketplaces`, the script:
+
+1. Clones (or fetches) the source repo into `~/.claude/plugins/marketplaces/<name>`.
+2. Checks out the pinned commit `sha` and verifies `HEAD` matches — **SHA mismatch is a hard error** (tamper-evidence gate).
+3. Registers the marketplace in `~/.claude/plugins/known_marketplaces.json` so Claude Code picks it up without the interactive trust prompt.
+
+The script is generic — adding more marketplaces or plugins to `settings.json` later requires no script changes.
+
+No-op paths (script exits 0 silently, never breaks `bun install`):
+
+- `~/.claude/` doesn't exist → not a Claude Code user.
+- `.claude/settings.json` declares no marketplaces.
+- Transient network / missing `git` → warning logged, install continues.
+
 ## Bundled plugin: `superpowers`
 
 This repo enables the [`obra/superpowers`](https://github.com/obra/superpowers) plugin — a community Claude Code skills library (TDD, systematic debugging, brainstorming, plan writing/execution, parallel agent dispatch, code review workflow, git worktrees, etc.).
@@ -31,8 +49,8 @@ It's pinned via `settings.json` so every developer gets **the exact same version
 
 ### First-time setup
 
-1. `cd` into this repo and run `claude` (or open Claude Code here).
-2. Accept the trust prompt: *"This project wants to add marketplace `obra-superpowers`. Trust and add?"* — the plugin then auto-installs (it's in `enabledPlugins`).
+1. Run `bun install` in the repo root if you haven't already — this triggers `claude:install` and installs the marketplace at the pinned SHA. (Re-run any time with `bun run claude:install`.)
+2. `cd` into this repo and run `claude` (or open Claude Code here).
 3. Verify with `/plugin list` → `superpowers@obra-superpowers` should show as active.
 4. Skills like `superpowers:brainstorming`, `superpowers:test-driven-development`, `superpowers:systematic-debugging` are now invokable via the `Skill` tool inside any Claude Code session in this repo.
 
@@ -52,7 +70,7 @@ It's pinned via `settings.json` so every developer gets **the exact same version
    fi
    ```
 3. Update both `ref` and `sha` in `settings.json` in a PR. Reviewers sanity-check the diff against upstream release notes.
-4. After merge, contributors are re-prompted to trust the updated marketplace version on next `claude` launch.
+4. After merge, contributors pick up the new pin on their next `bun install` (or by running `bun run claude:install` directly).
 
 If you don't use Claude Code, you can ignore this directory entirely — none of it affects normal `forge`/`bun`/`gh` workflows.
 
