@@ -273,7 +273,7 @@ Do not claim "PR-ready" until the re-run shows no actionable findings, and do no
 Before declaring a PR ready:
 
 - [ ] `coderabbit review --base origin/main --plain` exit clean OR remaining findings explicitly documented in the PR body.
-- [ ] Every applied fix (auto-applied or ask-applied) is its own `pr-ready:` commit, visible in `git log` and individually revertable.
+- [ ] Every applied fix (auto-applied or ask-applied) is its own `pr-ready:` commit, visible in `git log` and individually revertible.
 - [ ] No `git commit --amend`, `git rebase -i`, or `git push --force` used during the session.
 - [ ] Dev has read the **Auto-applied** section of the summary and is OK with each entry (or `git revert`-ed the ones they aren't).
 - [ ] All local lints/tests still pass after applied fixes.
