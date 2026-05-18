@@ -141,12 +141,15 @@ Before pushing or opening a PR, display a summary and wait for explicit approval
 ```
 About to create PR on branch `<branch-name>`:
 
-Files committed (<N>):
+Commits (<N>) since main (from `git log main..HEAD --oneline`):
+  • <sha>  <subject>                          ← step 4
+  • <sha>  pr-ready: <subject>                ← step 7 (if any)
+  ...
+
+Files changed (<N>) (from `git diff --name-only main...HEAD`):
   • <file1>
   • <file2>
   ...
-
-Commit: "<commit message>"
 
 Self-review:
   • Diff walked: <N> files, <±M> lines
@@ -154,14 +157,10 @@ Self-review:
   • Single-concern: <yes / no — and why>
 
 Checks run:
-  • Pre-commit hook ... PASS (enforced lint/typecheck/build/secrets at step 4)
+  • Pre-commit hook ... PASS (enforced lint/typecheck/build/secrets at every commit)
+  • /pr-ready ......... CLEAN / N remaining (documented) / N/A
   • forge test ........ PASS / FAIL / N/A
   • bun test:ts ....... PASS / FAIL / N/A
-  • /pr-ready ......... CLEAN / N remaining (documented) / N/A
-
-/pr-ready commits added (<N>):
-  • <short-sha>  <file>:<line>  <one-line issue summary>
-  ...
 
 PR title: <title>
 
