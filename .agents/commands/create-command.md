@@ -1,14 +1,14 @@
 ---
-name: create-cursor-command
-description: Create a concise, deterministic Cursor slash command for this repo (requirements-first, repo-patterns, token discipline)
-usage: /create-cursor-command
+name: create-command
+description: Create a concise, deterministic agent slash command for this repo (requirements-first, repo-patterns, token discipline)
+usage: /create-command
 ---
 
-# Create Cursor Command (LI.FI)
+# Create Agent Command (LI.FI)
 
-> **Usage**: `/create-cursor-command`
+> **Usage**: `/create-command`
 
-This meta-command guides the assistant to author a **concise, efficient, and effective** Cursor slash command for this repo, using the same conventions as existing commands (frontmatter, deterministic steps, explicit inputs/outputs, safety guardrails, token discipline).
+This meta-command guides the assistant to author a **concise, efficient, and effective** slash command for this repo, using the same conventions as existing commands (frontmatter, deterministic steps, explicit inputs/outputs, safety guardrails, token discipline). The canonical command file lives in `.agents/commands/` and is exposed to each agent surface (Cursor, Claude Code, …) via symlinks under `.cursor/commands/` and `.claude/commands/`.
 
 ## When to use this command
 
@@ -17,7 +17,7 @@ This meta-command guides the assistant to author a **concise, efficient, and eff
 
 ## When NOT to use this command
 
-- Don’t use for **always-on editing guidance** tied to file patterns → create/update a **rule** instead (`.cursor/rules/*.mdc` with `globs` / `alwaysApply`).
+- Don’t use for **always-on editing guidance** tied to file patterns → create/update a **rule** instead (`.agents/rules/*.md` with `globs` / `alwaysApply`).
 - Don’t use for **project documentation** → update `docs/` instead.
 
 ## Inputs (what the user must provide)
@@ -41,10 +41,10 @@ The assistant must gather (and later encode) the following. Prefer asking via th
 
 The assistant must explicitly decide which artifact to create:
 
-- **Create a command** (`.cursor/commands/*.md`) when:
+- **Create a command** (`.agents/commands/<name>.md`) when:
   - It’s an explicit workflow invoked on demand via `/...`
   - It is not inherently tied to editing a file type/path
-- **Create a rule** (`.cursor/rules/*.mdc`) when:
+- **Create a rule** (`.agents/rules/<name>.md`) when:
   - Guidance should **auto-apply** based on files being edited (via `globs`)
   - It’s a persistent policy/guardrail (e.g., “never silently use public RPC”)
 
@@ -213,6 +213,9 @@ Produce:
 
 ## Final steps (after generating the new command)
 
-1. Add the new command file at `.cursor/commands/<command-name>.md`.
-2. Update `.cursor/rules/README.md` “Custom Commands” table with the new entry (file, usage, purpose).
-3. Optional: suggest testing by invoking the command (e.g., `/<command-name> --help` or a safe example).
+1. Add the new command file at `.agents/commands/<command-name>.md` (single source of truth).
+2. Create symlinks pointing back at it so every agent surface picks it up:
+   - `.cursor/commands/<command-name>.md -> ../../.agents/commands/<command-name>.md`
+   - `.claude/commands/<command-name>.md -> ../../.agents/commands/<command-name>.md`
+3. Update `.agents/rules/README.md` “Custom Commands” table with the new entry (file, usage, purpose). The `.cursor/rules/README.md` and `.claude/rules/README.md` entries are symlinks and pick up the change automatically.
+4. Optional: suggest testing by invoking the command (e.g., `/<command-name> --help` or a safe example).

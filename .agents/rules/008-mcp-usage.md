@@ -8,7 +8,7 @@ alwaysApply: true
 
 ## MCP Usage ([CONV:MCP-USAGE])
 
-This repo is configured with MCP servers (project-level `.cursor/mcp.json`) to provide **verified outputs** for:
+This repo is configured with MCP servers (project-level `.mcp.json` at the repo root for Claude Code; mirrored in `.cursor/mcp.json` for Cursor) to provide **verified outputs** for:
 - Foundry (`forge` / `cast`)
 - Tenderly simulation
 - Block explorer APIs (EtherscanV2 / Blockscout via `config/networks.json`)

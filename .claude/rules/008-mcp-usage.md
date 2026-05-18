@@ -1,0 +1,1 @@
+../../.agents/rules/008-mcp-usage.md

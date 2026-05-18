@@ -15,6 +15,39 @@
     "blockscout": {
       "type": "http",
       "url": "https://mcp.blockscout.com/mcp"
+    },
+    "foundry": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "bunx",
+        "tsx",
+        "script/mcp/foundry.server.ts"
+      ]
+    },
+    "tenderly": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "bunx",
+        "tsx",
+        "script/mcp/tenderly.server.ts"
+      ]
+    },
+    "explorer": {
+      "command": "bunx",
+      "args": [
+        "tsx",
+        "script/mcp/run.ts",
+        "--",
+        "bunx",
+        "tsx",
+        "script/mcp/explorer.server.ts"
+      ]
     }
   }
 }

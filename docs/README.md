@@ -67,4 +67,4 @@
 
 # Tooling
 
-- [MCP (Cursor)](./MCP.md)
+- [MCP (Claude Code / Cursor)](./MCP.md)

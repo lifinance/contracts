@@ -1,11 +1,17 @@
-# MCP (Cursor) – Shared Repo Setup
+# MCP – Shared Repo Setup
 
-This repo includes a **project MCP configuration** so Cursor can connect to GitHub/Jira/Notion/Slack via MCP servers.
+This repo includes a **project MCP configuration** so AI agents (Claude Code, Cursor, …) can connect to Linear/Notion/Slack/Blockscout plus repo-owned servers (Foundry / Tenderly / Explorer) via MCP.
 
 ## What’s committed vs. what’s private
 
-- **Committed**: `.cursor/mcp.json` (server definitions; **no secrets**)
+- **Committed**: `.mcp.json` (server definitions at the repo root; **no secrets**). This is the single source of truth — Claude Code picks it up automatically, and Cursor reads it as well.
 - **Private per developer**: `.env.mcp.local` (API tokens; **gitignored**)
+
+## Agent surfaces
+
+- **Claude Code**: auto-detects `.mcp.json` at the repo root on session start. Slash commands surfaced via `.claude/commands/` (symlinks into `.agents/commands/`). Repo-wide rules surfaced via `.claude/rules/` (symlinks into `.agents/rules/`).
+- **Cursor**: auto-detects `.mcp.json` at the repo root. Slash commands surfaced via `.cursor/commands/` (symlinks into `.agents/commands/`). Rules surfaced via `.cursor/rules/` (symlinks into `.agents/rules/`).
+- **Source of truth**: `.agents/commands/` and `.agents/rules/`. Never edit the symlinks under `.cursor/` or `.claude/` directly.
 
 ## Prerequisites
 
@@ -28,17 +34,18 @@ cp config/mcp.env.example .env.mcp.local
 ```
 
 3. Fill in `.env.mcp.local` with your tokens / URLs (never commit this file).
-4. Restart Cursor (so it picks up the project MCP config and environment).
-5. In Cursor, open **Settings → MCP** and ensure the servers are enabled.
+4. Restart your agent surface so it picks up the project MCP config and environment:
+   - **Claude Code**: start a new session in the repo root; it will detect `.mcp.json` automatically and prompt to approve the listed servers.
+   - **Cursor**: restart Cursor, then open **Settings → MCP** and ensure the servers are enabled.
 
 ## When to run the helper script (`script/mcp/run.ts`)
 
 Use the helper script any time you want to run an MCP server command **manually** while still loading `.env.mcp.local` (the same “per-dev secrets” file the repo is designed around).
 
 - **Run it when**:
-  - A server shows as “failing” in Cursor and you want the real stderr/stack trace.
+  - A server shows as “failing” in Claude Code or Cursor and you want the real stderr/stack trace.
   - You just edited `.env.mcp.local` and want to confirm env var names are correct.
-  - You want to smoke-test repo-owned MCP servers without involving Cursor UI.
+  - You want to smoke-test repo-owned MCP servers without involving an agent UI.
 
 - **Format**:
 
@@ -112,15 +119,15 @@ bunx tsx script/mcp/run.ts -- npx -y @modelcontextprotocol/server-slack@latest
 
 ## Troubleshooting
 
-- **Server shows as failing in Cursor**: run it manually via `script/mcp/run.ts` to see the real error output.
+- **Server shows as failing in your agent**: run it manually via `script/mcp/run.ts` to see the real error output.
 - **Repo-owned servers fail immediately**:
   - Ensure you ran `bun install`
-  - Ensure you have required local tooling (e.g. Foundry for `foundry.server.mjs`)
+  - Ensure you have required local tooling (e.g. Foundry for `foundry.server.ts`)
 - **Env vars not found**:
   - Ensure `.env.mcp.local` exists in the repo root
   - Re-run the relevant `--smoke-test` command (above) to validate env parsing
-  - Restart Cursor after changing `.env.mcp.local`
-- **Cursor can’t see MCP servers at all**: verify `.cursor/mcp.json` exists and restart Cursor.
+  - Restart your agent (Claude Code / Cursor) after changing `.env.mcp.local`
+- **Agent can’t see MCP servers at all**: verify `.mcp.json` exists at the repo root, then restart Claude Code or Cursor. (Claude Code prompts for approval the first time it sees a new server.)
 
 ## Fallback policy (important)
 

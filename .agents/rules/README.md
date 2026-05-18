@@ -68,7 +68,7 @@ If you’re making changes manually:
 
 ## Custom Commands
 
-Custom commands live in `.agents/commands/` (source of truth) and are symlinked into `.cursor/commands/` (Cursor) and `.claude/skills/` (Claude Code).
+Custom commands live in `.agents/commands/` (source of truth) and are symlinked into `.cursor/commands/` (Cursor) and `.claude/commands/` (Claude Code).
 
 | Command File      | Usage                             | Purpose                                                                                      |
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -76,6 +76,8 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
 | `review-bounty-report.md` | `/review-bounty-report` | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
+| `create-command.md` | `/create-command`               | Meta-command to author new slash commands (requirements-first, repo-patterns, token discipline) |
+| `simulate-calldata.md` | `/simulate-calldata <network> <to> <calldata> [flags...]` | Simulate + analyze calldata on a given network (premium RPC, cast-first) |
 
 ## Transaction Analysis
 
@@ -95,6 +97,7 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `002-architecture.md`         | Core architectural principles (Diamond, separation, governance)  | ✅ Always   | -                                                                                                             |
 | `003-context-monitor.md`      | Context window monitoring and handoff management                 | ✅ Always   | -                                                                                                             |
 | `004-config-structure.md`     | Config JSON structure (key-first vs network-first), deploy paths | ❌ On match | `config/**/*.json`, `script/deploy/**/*.s.sol`, `script/deploy/resources/deployRequirements.json`             |
+| `008-mcp-usage.md`            | When and how to use repo MCP servers (Foundry / Tenderly / Explorer / GitHub / Notion) | ✅ Always   | -                                                                                                             |
 | `099-finish.md`               | Completion checklist to keep repo green                          | ✅ Always   | -                                                                                                             |
 | `100-solidity-basics.md`      | Baseline rules for all Solidity files                            | ❌ On match | `**/*.sol`                                                                                                    |
 | `101-solidity-contracts.md`   | Production Solidity contracts/interfaces in src                  | ❌ On match | `src/**/*.sol`, `!src/**/*.s.sol`, `!src/**/*.t.sol`                                                          |
