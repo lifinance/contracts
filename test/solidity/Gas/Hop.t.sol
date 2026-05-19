@@ -30,7 +30,10 @@ contract HopGasTest is TestBase {
 
         HopFacet.Config[] memory config = new HopFacet.Config[](1);
         config[0] = HopFacet.Config(ADDRESS_USDC, HOP_USDC_BRIDGE);
+
+        vm.startPrank(USER_DIAMOND_OWNER);
         hopFacet.initHop(config);
+        vm.stopPrank();
 
         string[] memory tokens = new string[](1);
         tokens[0] = "USDC";

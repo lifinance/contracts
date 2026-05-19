@@ -1,14 +1,6 @@
 {
+  "LinkToDeployedToAddresses": "https://docs.squidrouter.com/additional-resources/contracts",
   "mainnet": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
-  },
-  "polygon": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
-  },
-  "blast": {
-    "router": "0x492751eC3c57141deb205eC2da8bFcb410738630"
-  },
-  "bsc": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "arbitrum": {
@@ -17,19 +9,25 @@
   "avalanche": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
-  "fantom": {
+  "base": {
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+  },
+  "blast": {
+    "router": "0x492751eC3c57141deb205eC2da8bFcb410738630"
+  },
+  "bsc": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "celo": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
-  "moonbeam": {
+  "fantom": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
-  "base": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+  "fraxtal": {
+    "router": "0xDC3D8e1Abe590BCa428a8a2FC4CfDbD1AcF57Bd9"
   },
-  "scroll": {
+  "immutablezkevm": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "linea": {
@@ -38,13 +36,19 @@
   "mantle": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
+  "moonbeam": {
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+  },
   "optimism": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
-  "fraxtal": {
-    "router": "0xDC3D8e1Abe590BCa428a8a2FC4CfDbD1AcF57Bd9"
+  "polygon": {
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
-  "immutablezkevm": {
+  "scroll": {
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+  },
+  "tempo": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   }
 }

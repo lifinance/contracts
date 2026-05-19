@@ -1,12 +1,16 @@
-name: Notify SmartContract channel when scripts config file changes
+# Notify SmartContract channel when .env.example changes
+# - posts a Slack reminder to sc-general so developers refresh their local .env after a config addition/rename
+# - triggers on push to main when .env.example is modified
+# - known limitations: only fires on main (not on PR review); the workflow does not verify that developers actually updated their .env
+
+name: Notify SmartContract channel when .env.example changes
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
-      - 'script/config.example.sh'
-    types:
-      - opened
-      - synchronize
+      - '.env.example'
 
 permissions:
   contents: read # required to evaluate changed files and trigger based on path filters
@@ -16,9 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Reminder to Slack SC-general Channel
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
           payload: |
-            text: "Hey team, please update your scripts/config.sh file (see config.example.sh for latest changes)"
+            text: "Hey team, please update your .env file (see <https://github.com/lifinance/contracts/blob/main/.env.example|.env.example> for latest changes)"

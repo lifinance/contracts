@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.2
+/// @custom:version 1.0.3
 pragma solidity ^0.8.17;
 
 error AlreadyInitialized();
@@ -22,6 +22,7 @@ error InvalidFallbackAddress();
 error InvalidNonEVMReceiver();
 error InvalidReceiver();
 error InvalidSendingToken();
+error InvalidSignature();
 error NativeAssetNotSupported();
 error NativeAssetTransferFailed();
 error NoSwapDataProvided();

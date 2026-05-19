@@ -44,6 +44,7 @@ import {
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
+  isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
 
 interface IChainIdMapping {
@@ -52,7 +53,7 @@ interface IChainIdMapping {
 }
 
 const ZERO_BYTES32 =
-  '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
+  '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex // pre-commit-checker: not a secret
 
 function castEnv(environment?: string): EnvironmentEnum {
   if (!environment) return EnvironmentEnum.production
@@ -300,6 +301,8 @@ const main = defineCommand({
     const eligibleNetworks: string[] = []
     for (const network of networksToCheck) {
       if (excludeSet.has(network.toLowerCase())) continue
+      // Skip testnets: this script proposes to Safe multisigs, which testnets do not have.
+      if (isTestnetNetwork(network)) continue
 
       const deployments = readDeploymentsFile(network, environment)
       if (!deployments) continue

@@ -4,10 +4,9 @@
 # should be called like this:
 # $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
-  # load config & helper functions
-  source script/config.sh
+  # load helper functions
   source script/helperFunctions.sh
-  source script/deploy/resources/contractSpecificReminders.sh
+  source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -120,9 +119,7 @@ deploySingleContract() {
     DIAMOND_TYPE="LiFiDiamond"
   fi
 
-  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
-    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
-  fi
+  GAS_ESTIMATE_MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-130}" # this is foundry's default value
 
   # logging for debug purposes
   echo ""
@@ -248,25 +245,31 @@ deploySingleContract() {
     # Add skip simulation flag based on environment variable
     SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
-    # Add network-specific flags for megaeth
-    if [[ "$NETWORK" == "megaeth" ]]; then
-      MEGAETH_FLAGS="--gas-limit 50000000 --gas-price 2000000 --skip-simulation"
-      # For megaeth, always use --skip-simulation (override SKIP_SIMULATION_FLAG)
-      SKIP_SIMULATION_FLAG=""
-    else
-      MEGAETH_FLAGS=""
+    # Add network-specific deploy flags from networks.json (customDeployFlags)
+    ADDITIONAL_FLAGS=""
+    local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
+    if [[ -f "$NETWORKS_JSON" ]]; then
+      ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
     fi
+    # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
+    if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
+      SKIP_SIMULATION_FLAG=""
+    fi
+
+    # forge >=1.6 validates the simulation sender's balance against gas_estimate * gas_price;
+    # the foundry.toml default `sender` has 0 balance on real chains, so we override to the funded deployer.
+    DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
     # Execute, parse, and check return code
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
         "true"
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" -f \"$NETWORK\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $MEGAETH_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 
@@ -370,7 +373,13 @@ deploySingleContract() {
     JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
   fi
   
-  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // "0x"' 2>/dev/null)
+  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
+  # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
+  CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
+  if [[ ! "$CONSTRUCTOR_ARGS" =~ ^0x[0-9a-fA-F]*$ ]] || (( ${#CA_HEX_PAYLOAD} % 2 != 0 )); then
+    CONSTRUCTOR_ARGS="0x"
+  fi
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
   # check if log entry exists for this file and if yes, if contract is verified already

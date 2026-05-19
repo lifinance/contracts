@@ -3,7 +3,7 @@ import { providers, Wallet, utils, constants, Contract } from 'ethers'
 
 import config from '../../config/optimism.json'
 import { OptimismBridgeFacet__factory, ERC20__factory } from '../../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../utils/utils'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

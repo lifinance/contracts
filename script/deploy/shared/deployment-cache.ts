@@ -11,6 +11,7 @@ import path from 'path'
 import { consola } from 'consola'
 
 import type { EnvironmentEnum } from '../../common/types'
+import { sleep } from '../../utils/delay'
 
 import {
   type IDeploymentRecord,
@@ -49,13 +50,6 @@ interface ILockOptions {
 const DEFAULT_LOCK_OPTIONS: Required<ILockOptions> = {
   timeout: 30000,
   staleThreshold: 60000,
-}
-
-/**
- * Sleeps for the specified duration
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**

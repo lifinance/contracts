@@ -7,7 +7,6 @@ function diamondUpdatePeriphery() {
   # load required resources
   # Note: .env is already sourced in the parent script, so we don't need to source it again
   # This prevents overwriting exported variables like SEND_PROPOSALS_DIRECTLY_TO_DIAMOND
-  source script/config.sh
   source script/helperFunctions.sh
 
   # read function arguments into variables
@@ -84,66 +83,65 @@ function diamondUpdatePeriphery() {
   # initialize LAST_CALL variable that will be used to exit the script (only when ERROR_ON_EXIT flag is true)
   local LAST_CALL=0
 
-  # loop through all periphery contracts
+  # Single predicate for "Safe-propose vs direct broadcast", used by saveDiamondPeriphery below.
+  local SHOULD_PROPOSE_TO_SAFE=false
+  if [[ "$ENVIRONMENT" == "production" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] \
+     && ! isTestnetNetwork "$NETWORK"; then
+    SHOULD_PROPOSE_TO_SAFE=true
+  fi
+
+  # loop through all periphery contracts (no target state check; same as facet update flow)
   for CONTRACT in $CONTRACTS; do
-    # check if contract is in target state, otherwise skip iteration
-    TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
+    # get contract address from deploy log
+    local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
 
-    # only continue if contract was found in target state (only required for production environment)
-    if [[ "$?" -eq 0 || "$ENVIRONMENT" == "staging" ]]; then
-      # get contract address from deploy log
-      local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
+    # check if address available, otherwise throw error and skip iteration
+    if [ "$CONTRACT_ADDRESS" != "0x" ]; then
+      # verify function selectors match their signatures in global.json
+      local GLOBAL_JSON="config/global.json"
+      if [ -f "$GLOBAL_JSON" ]; then
+        local SELECTOR_DATA=$(jq -r --arg CONTRACT "$CONTRACT" '.whitelistPeripheryFunctions[$CONTRACT] // [] | .[] | "\(.signature)|\(.selector)"' "$GLOBAL_JSON" 2>/dev/null)
 
-      # check if address available, otherwise throw error and skip iteration
-      if [ "$CONTRACT_ADDRESS" != "0x" ]; then
-        # verify function selectors match their signatures in global.json
-        local GLOBAL_JSON="config/global.json"
-        if [ -f "$GLOBAL_JSON" ]; then
-          local SELECTOR_DATA=$(jq -r --arg CONTRACT "$CONTRACT" '.whitelistPeripheryFunctions[$CONTRACT] // [] | .[] | "\(.signature)|\(.selector)"' "$GLOBAL_JSON" 2>/dev/null)
-
-          if [ -n "$SELECTOR_DATA" ]; then
-            local VERIFICATION_FAILED=false
-            while IFS='|' read -r SIGNATURE EXPECTED_SELECTOR; do
-              if [ -n "$SIGNATURE" ] && [ -n "$EXPECTED_SELECTOR" ]; then
-                if ! verifySelectorMatchesSignature "$SIGNATURE" "$EXPECTED_SELECTOR"; then
-                  local CALCULATED=$(cast sig "$SIGNATURE" 2>/dev/null)
-                  error "Selector mismatch for $CONTRACT:"
-                  error "  Signature: $SIGNATURE"
-                  error "  Expected selector: $EXPECTED_SELECTOR"
-                  error "  Calculated selector: $CALCULATED"
-                  VERIFICATION_FAILED=true
-                fi
+        if [ -n "$SELECTOR_DATA" ]; then
+          local VERIFICATION_FAILED=false
+          while IFS='|' read -r SIGNATURE EXPECTED_SELECTOR; do
+            if [ -n "$SIGNATURE" ] && [ -n "$EXPECTED_SELECTOR" ]; then
+              if ! verifySelectorMatchesSignature "$SIGNATURE" "$EXPECTED_SELECTOR"; then
+                local CALCULATED=$(cast sig "$SIGNATURE" 2>/dev/null)
+                error "Selector mismatch for $CONTRACT:"
+                error "  Signature: $SIGNATURE"
+                error "  Expected selector: $EXPECTED_SELECTOR"
+                error "  Calculated selector: $CALCULATED"
+                VERIFICATION_FAILED=true
               fi
-            done <<< "$SELECTOR_DATA"
-
-            if [ "$VERIFICATION_FAILED" = true ]; then
-              error "Function selector verification failed for $CONTRACT. Please fix global.json before proceeding."
-              LAST_CALL=1
-              continue
             fi
+          done <<< "$SELECTOR_DATA"
+
+          if [ "$VERIFICATION_FAILED" = true ]; then
+            error "Function selector verification failed for $CONTRACT. Please fix global.json before proceeding."
+            LAST_CALL=1
+            continue
           fi
         fi
+      fi
 
-        # check if has already been added to diamond
-        KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
+      # check if has already been added to diamond
+      KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
 
-        if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
-          # register contract
-          register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
-          LAST_CALL=$?
+      if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
+        # register contract
+        register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
+        LAST_CALL=$?
 
-          if [ $LAST_CALL -eq 0 ]; then
-            echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
-          fi
-        else
-          echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
+        if [ $LAST_CALL -eq 0 ]; then
+          echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
         fi
       else
-        warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
-        LAST_CALL=1
+        echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
       fi
     else
-      warning "contract $CONTRACT not found in target state file. ACTION REQUIRED: Update target state file and try again if this contract should be included."
+      warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
+      LAST_CALL=1
     fi
   done
 
@@ -155,8 +153,10 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
-  # update diamond log file (only for staging environment since in PROD we need to execute proposals first)
-  if [[ "$ENVIRONMENT" == "staging"  ]]; then
+  # Update diamond log file when registration was sent directly (staging, testnet,
+  # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true). For Safe proposals the log gets updated
+  # after the SAFE tx is signed.
+  if [[ "$SHOULD_PROPOSE_TO_SAFE" != "true" ]]; then
     if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
       saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
     else
@@ -213,6 +213,9 @@ register() {
     fi
   }
 
+  # SHOULD_PROPOSE_TO_SAFE is set by the calling diamondUpdatePeriphery function and
+  # is visible here via bash dynamic scoping; do not redeclare.
+
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     # calculate gas limit with multiplier
     local GAS_LIMIT=$(getGasLimitWithMultiplier)
@@ -232,71 +235,51 @@ register() {
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-      if [[ "$ENVIRONMENT" == "production" ]]; then
-        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
-        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
-          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
-        else
-          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
-          local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
-
-          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-
-          # Get timelock controller address if it exists
-          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
-          # Check if timelock is enabled and available
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echo "[info] Using timelock controller for periphery registration"
-            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
-          else
-            echo "[info] Using diamond directly for periphery registration"
-            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${DIAMOND_ADDRESS}' with calldata $CALLDATA"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
-          fi
+      if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
+        # Propose registerPeripheryContract to Safe with timelock wrapping.
+        local CALLDATA
+        CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR") || {
+          error "[$NETWORK] failed to encode registerPeripheryContract calldata for $CONTRACT_NAME"
+          return 1
+        }
+        if [[ -z "$CALLDATA" || "$CALLDATA" == "0x" ]]; then
+          error "[$NETWORK] empty calldata for registerPeripheryContract($CONTRACT_NAME, $ADDR)"
+          return 1
         fi
+
+        local DIAMOND_ADDRESS
+        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
+        echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
       else
-        # just register the diamond (no multisig required)
+        # Staging, testnet, or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: register directly on the diamond
         universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
       fi
-
-      #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url $RPC_URL" --legacy
     else
       # do not print output to console
-      if [[ "$ENVIRONMENT" == "production" ]]; then
-        # SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to diamond (e.g. new production networks before ownership transfer; deployer is still owner)
-        if [ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]; then
-          echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is activated - registering '${CONTRACT_NAME}' as periphery on diamond '${DIAMOND_ADDRESS}' in network $NETWORK now..."
-          universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR"
-        else
-          # Propose registerPeripheryContract to Safe (timelock optional via USE_TIMELOCK_CONTROLLER)
-          local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
-          echoDebug "Calldata: $CALLDATA"
-
-          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-          echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
-          echoDebug "NETWORK: $NETWORK"
-
-          # Get timelock controller address if it exists
-          local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-          TIMELOCK_ADDRESS=$(jq -r '.LiFiTimelockController // "0x"' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
-          # Check if timelock is enabled and available
-          if [[ "$USE_TIMELOCK_CONTROLLER" == "true" && "$TIMELOCK_ADDRESS" != "0x" ]]; then
-            echoDebug "Using timelock controller for periphery registration"
-            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
-          else
-            echoDebug "Using diamond directly for periphery registration"
-            echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to '${DIAMOND_ADDRESS}' with calldata $CALLDATA"
-            bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
-          fi
+      if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
+        # Propose registerPeripheryContract to Safe with timelock wrapping.
+        local CALLDATA
+        CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR") || {
+          error "[$NETWORK] failed to encode registerPeripheryContract calldata for $CONTRACT_NAME"
+          return 1
+        }
+        if [[ -z "$CALLDATA" || "$CALLDATA" == "0x" ]]; then
+          error "[$NETWORK] empty calldata for registerPeripheryContract($CONTRACT_NAME, $ADDR)"
+          return 1
         fi
+        echoDebug "Calldata: $CALLDATA"
+
+        local DIAMOND_ADDRESS
+        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+        echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
+        echoDebug "NETWORK: $NETWORK"
+
+        echo "Now proposing registerPeripheryContract('${CONTRACT_NAME}','${ADDR}') to diamond with timelock wrapping"
+        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --timelock
       else
-        # just register the diamond (no multisig required)
+        # Staging, testnet, or SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: register directly on the diamond
         universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND" "registerPeripheryContract(string,address)" "$CONTRACT_NAME $ADDR" >/dev/null 2>&1
       fi
     fi

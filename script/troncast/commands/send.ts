@@ -5,11 +5,8 @@ import { defineCommand } from 'citty'
 import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getEnvironment,
-  getPrivateKey,
-  loadForgeArtifact,
-} from '../../deploy/tron/utils'
+import { loadForgeArtifact } from '../../deploy/tron/helpers/loadForgeArtifact'
+import { getEnvironment, getPrivateKey } from '../../utils/utils'
 import type { Environment, ITransactionReceipt } from '../types'
 import { formatGasUsage, formatReceipt } from '../utils/formatter'
 import {
@@ -346,7 +343,7 @@ export const sendCommand = defineCommand({
 
           try {
             // Determine network and environment
-            const environment = await getEnvironment()
+            const environment = getEnvironment()
             const networkName =
               environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
             const fileSuffix =

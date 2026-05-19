@@ -10,11 +10,15 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import type { Account, Address, Hex } from 'viem'
+import { type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
+import { isTronNetworkKey } from '../shared/tron-network-keys'
+import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
+import { reconcileSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -37,8 +41,10 @@ import {
   type IAugmentedSafeTxDocument,
   type ISafeTransaction,
   type ISafeTxDocument,
-  type ViemSafe,
+  type SafeClient,
+  type SafeTxStatus,
 } from './safe-utils'
+import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
 
@@ -148,10 +154,13 @@ const processTxs = async (
    * @param safeTransaction - The transaction to execute
    * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
+  // Returns true if the Safe nonce was consumed on-chain (executed or
+  // reverted with valid signatures). Returns false when the outcome is
+  // unknown ('submitted') — the caller should not advance expectedNonce.
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
-    safeClient: ViemSafe = safe
-  ) {
+    safeClient: SafeClient = safe
+  ): Promise<boolean> {
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
     try {
@@ -166,24 +175,85 @@ const processTxs = async (
 
       consola.success(`✅ Transaction submitted successfully`)
 
-      // Update MongoDB transaction status
+      // Resolve the DB status from on-chain reality. With safeTxGas=0 the
+      // Safe reverts whenever the inner call reverts, so receipt.status is
+      // the authoritative signal — no need to also parse ExecutionSuccess.
+      let nextStatus: SafeTxStatus
+      if (exec.receipt)
+        nextStatus = exec.receipt.status === 'success' ? 'executed' : 'reverted'
+      else if (isTronNetworkKey(network))
+        // Tron lacks synchronous receipts; preserve existing behavior and
+        // mark executed when a hash is returned. Reconciliation does not
+        // currently cover Tron.
+        nextStatus = 'executed'
+      else nextStatus = 'submitted'
+
       await pendingTransactions.updateOne(
-        { safeTxHash: safeTxHash },
-        { $set: { status: 'executed', executionHash: executionHash } }
+        { safeTxHash: { $eq: safeTxHash } },
+        {
+          $set: {
+            status: nextStatus,
+            executionHash,
+            submittedAt: new Date(),
+          },
+        }
       )
 
-      if (exec.receipt)
-        consola.success(
-          `✅ Safe transaction confirmed and recorded in database`
-        )
-      else
-        consola.success(
-          `✅ Safe transaction submitted and recorded in database (confirmation pending)`
+      // Only enqueue a timelock op once the Safe tx is confirmed on-chain.
+      // 'submitted' rows get enqueued by reconcile when it later promotes
+      // them to 'executed'; on 'reverted' the inner schedule never
+      // executed, so nothing to queue.
+      if (nextStatus === 'executed')
+        await enqueueTimelockOpIfApplicable(
+          safeTransaction.data.data,
+          safeTransaction.data.to,
+          safeTxHash,
+          executionHash,
+          chain.id,
+          chain.name
         )
 
+      if (nextStatus === 'executed')
+        consola.success(
+          `✅ Safe transaction confirmed and recorded as executed`
+        )
+      else if (nextStatus === 'reverted') {
+        consola.error(
+          `❌ Safe transaction reverted on-chain — recorded as reverted`
+        )
+        consola.error(
+          `   On-chain nonce has advanced; inspect the receipt for the revert reason.`
+        )
+        globalFailedExecutions.push({
+          chain: chain.name,
+          safeTxHash,
+          error: 'on-chain revert',
+        })
+      } else {
+        consola.warn(
+          `⚠️  Safe transaction submitted but not yet confirmed — recorded as submitted`
+        )
+        consola.warn(
+          `   Reconciliation will resolve the final status on the next run.`
+        )
+        globalTimeoutExecutions.push({
+          chain: chain.name,
+          safeTxHash,
+          error: 'confirmation pending',
+        })
+      }
+
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
-      consola.info(`   - Execution Hash: \u001b[33m${executionHash}\u001b[0m`)
+      const displayHash = exec.displayHash ?? executionHash
+      const explorerSuffix = exec.explorerUrl
+        ? ` \u001b[36m(${exec.explorerUrl})\u001b[0m`
+        : ''
+      consola.info(
+        `   - Execution Hash: \u001b[33m${displayHash}\u001b[0m${explorerSuffix}`
+      )
       consola.log(' ')
+
+      return nextStatus === 'executed' || nextStatus === 'reverted'
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error('❌ Error executing Safe transaction:')
@@ -219,19 +289,57 @@ const processTxs = async (
     }
   }
 
-  // Get current threshold
+  // Get current threshold and on-chain nonce
   let threshold
+  let onChainNonce: bigint
   try {
-    threshold = Number(await safe.getThreshold())
+    ;[threshold, onChainNonce] = await Promise.all([
+      safe.getThreshold().then(Number),
+      safe.getNonce(),
+    ])
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    consola.error(`Failed to get threshold: ${errorMsg}`)
+    consola.error(`Failed to get threshold/nonce: ${errorMsg}`)
     throw new Error(
-      `Could not get threshold for Safe ${safeAddress} on ${network}`
+      `Could not get threshold/nonce for Safe ${safeAddress} on ${network}`
     )
   }
 
-  // Filter and augment transactions with signature status
+  // Reconcile in-flight Safe tx rows against on-chain state before reading
+  // the pending queue. A 'submitted' row from a prior run is promoted to
+  // 'executed'/'reverted' or sent back to 'pending' depending on the
+  // receipt; on-chain executions we missed entirely are back-filled from
+  // the Safe's ExecutionSuccess/ExecutionFailure logs when a nonce gap is
+  // detected. Read-only on-chain — failures are warnings, not throws.
+  const networkKey = network.toLowerCase()
+  if (!isTronNetworkKey(network)) {
+    try {
+      await reconcileSubmittedSafeTxs(
+        pendingTransactions,
+        safe.getPublicClient(),
+        network,
+        chain.id,
+        safeAddress,
+        onChainNonce
+      )
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(`[${network}] Reconcile failed: ${errorMsg}`)
+    }
+
+    // Refresh from MongoDB: Sweep A may have demoted 'submitted' rows back
+    // to 'pending' (those should be processed this run), and Sweep B may
+    // have back-filled 'pending' rows to 'executed'/'reverted' (those
+    // should not be shown to the operator anymore).
+    pendingTxs = await pendingTransactions
+      .find<ISafeTxDocument>({
+        network: { $eq: networkKey },
+        status: { $eq: 'pending' },
+      })
+      .toArray()
+  }
+
+  // Filter and augment transactions with signature status and nonce validation
   const txs = await Promise.all(
     pendingTxs.map(
       async (tx: ISafeTxDocument): Promise<IAugmentedSafeTxDocument> => {
@@ -272,11 +380,24 @@ const processTxs = async (
 
   // Sort transactions by nonce in ascending order to process them in sequence
   // This ensures we handle transactions in the correct order as required by the Safe
+  // Track expected nonce so sequential executions within a single run work correctly
+  let expectedNonce = onChainNonce
   for (const tx of txs.sort((a, b) => {
     if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
     return 0
   })) {
+    // Recompute nonce status dynamically — expectedNonce advances after each successful execution
+    const txNonce = BigInt(tx.safeTx.data.nonce)
+    // 'stale': nonce already used on-chain (proposal was created with a wrong/old nonce, e.g. due to stale RPC)
+    // 'future': nonce not yet reachable (a lower-nonce proposal must execute first)
+    const nonceStatus =
+      txNonce === expectedNonce
+        ? 'current'
+        : txNonce < expectedNonce
+        ? 'stale'
+        : 'future'
+
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
@@ -289,19 +410,44 @@ const processTxs = async (
 
     // Get target name for display
     const targetName = await getTargetName(tx.safeTx.data.to, network)
+    const toAddrDisplay = formatAddressForNetworkCliDisplay(
+      network,
+      tx.safeTx.data.to
+    )
     const toDisplay = targetName
-      ? `${tx.safeTx.data.to} \u001b[33m${targetName}\u001b[0m`
-      : tx.safeTx.data.to
+      ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
+      : toAddrDisplay
+    const toExplorerUrl = buildExplorerAddressUrl(
+      network.toLowerCase(),
+      tx.safeTx.data.to
+    )
+    const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
+    const proposerDisplay = formatAddressForNetworkCliDisplay(
+      network,
+      tx.proposer
+    )
+
+    const nonceColor =
+      nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
+    // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
+    const nonceWarning =
+      nonceStatus === 'stale'
+        ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
+        : nonceStatus === 'future' && tx.canExecute
+        ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
+        : ''
 
     consola.info(`Safe Transaction Details:
-    Nonce:           \u001b[32m${tx.safeTx.data.nonce}\u001b[0m
-    To:              \u001b[32m${toDisplay}\u001b[0m
+    Nonce:           \u001b[${nonceColor}m${
+      tx.safeTx.data.nonce
+    }\u001b[0m${nonceWarning}
+    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
     }\u001b[0m
     Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${tx.proposer}\u001b[0m
+    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m
     Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
     Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
       tx.threshold
@@ -313,6 +459,7 @@ const processTxs = async (
       : undefined
 
     // Determine available actions based on signature status
+    // Execute options are shown regardless of nonce status — GS026 risk is explained at execution time
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
@@ -374,6 +521,86 @@ const processTxs = async (
 
     if (action === 'Do Nothing') continue
 
+    // If user chose an execute action but nonce is not current, warn clearly and confirm
+    const isExecuteAction = [
+      'Execute',
+      'Execute with Deployer',
+      'Sign & Execute',
+      'Sign and Execute With Deployer',
+    ].includes(action)
+
+    if (isExecuteAction && nonceStatus === 'stale') {
+      consola.error('')
+      consola.error('='.repeat(80))
+      consola.error('✗  STALE PROPOSAL — THIS TRANSACTION WILL REVERT')
+      consola.error('='.repeat(80))
+      consola.error(
+        `  This proposal has nonce \u001b[31m${tx.safeTx.data.nonce}\u001b[0m but the Safe's on-chain nonce is already \u001b[31m${expectedNonce}\u001b[0m.`
+      )
+      consola.error(
+        `  Nonce ${tx.safeTx.data.nonce} was already used — this proposal is stale and cannot be executed.`
+      )
+      consola.error(
+        `  Likely cause: the RPC returned a stale nonce when the proposal was created.`
+      )
+      consola.error(
+        `  Fix: delete this proposal and re-run propose-to-safe — it will assign the next valid nonce automatically.`
+      )
+      consola.error('='.repeat(80))
+      consola.error('')
+      consola.info('Execution aborted — proposal is stale')
+      continue
+    }
+
+    if (isExecuteAction && nonceStatus === 'future') {
+      // Check if there is actually a pending proposal for the blocking nonce in the DB
+      const blockingPendingTx = await pendingTransactions.findOne({
+        safeAddress: txSafeAddress,
+        network: network.toLowerCase(),
+        chainId: chain.id,
+        status: 'pending',
+        'safeTx.data.nonce': Number(expectedNonce),
+      })
+
+      consola.warn('')
+      consola.warn('='.repeat(80))
+      consola.warn('⚠  GS026 WARNING — THIS TRANSACTION WILL REVERT')
+      consola.warn('='.repeat(80))
+      consola.warn(
+        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
+      )
+      consola.warn(
+        `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
+      )
+      if (blockingPendingTx) {
+        consola.warn(
+          `  A pending proposal for nonce ${expectedNonce} exists in the database — execute that one first.`
+        )
+      } else {
+        consola.warn(
+          `  There is no pending proposal for nonce ${expectedNonce} in the database.`
+        )
+        consola.warn(
+          `  You need to re-create a proposal with nonce \u001b[33m${expectedNonce}\u001b[0m and execute it first.`
+        )
+      }
+      consola.warn('='.repeat(80))
+      consola.warn('')
+
+      const proceed = await consola.prompt(
+        'Proceed anyway? (will revert with GS026)',
+        {
+          type: 'select',
+          options: ['No — abort execution', 'Yes — execute anyway'],
+        }
+      )
+
+      if (proceed.startsWith('No')) {
+        consola.info('Execution aborted')
+        continue
+      }
+    }
+
     // eslint-disable-next-line require-atomic-updates
     storedResponses[tx.safeTx.data.data] = action
 
@@ -409,7 +636,7 @@ const processTxs = async (
           }
         )
         consola.success('Transaction signed and stored in MongoDB')
-        await executeTransaction(signedTx)
+        if (await executeTransaction(signedTx)) expectedNonce++
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
@@ -471,14 +698,8 @@ const processTxs = async (
           )
 
         // Step 5: Execute with deployer using shared executeTransaction function
-        const executeWithDeployer = async (
-          safeTransaction: ISafeTransaction
-        ) => {
-          consola.info('Executing transaction with deployer wallet...')
-          await executeTransaction(safeTransaction, deployerSafe)
-        }
-
-        await executeWithDeployer(finalTx)
+        consola.info('Executing transaction with deployer wallet...')
+        if (await executeTransaction(finalTx, deployerSafe)) expectedNonce++
       } catch (error) {
         consola.error(
           'Error signing and executing transaction with deployer:',
@@ -489,7 +710,7 @@ const processTxs = async (
     if (action === 'Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
-        await executeTransaction(safeTransaction)
+        if (await executeTransaction(safeTransaction)) expectedNonce++
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
@@ -508,7 +729,8 @@ const processTxs = async (
           txSafeAddress
         )
         consola.info('Executing transaction with deployer wallet...')
-        await executeTransaction(safeTransaction, deployerSafe)
+        if (await executeTransaction(safeTransaction, deployerSafe))
+          expectedNonce++
       } catch (error) {
         consola.error('Error executing with deployer:', error)
       }

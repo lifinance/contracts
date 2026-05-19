@@ -36,10 +36,11 @@ function universalCall() {
     local TRON_ENV
     TRON_ENV=$(getTronEnv "$NETWORK")
     if [[ ${#ARGS[@]} -gt 0 ]]; then
-      bun troncast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --env "$TRON_ENV" 2>&1
+      CONSOLA_LEVEL=3 bun troncast call "$TARGET" "$SIGNATURE" "${ARGS[@]}" --env "$TRON_ENV"
     else
-      bun troncast call "$TARGET" "$SIGNATURE" --env "$TRON_ENV" 2>&1
+      CONSOLA_LEVEL=3 bun troncast call "$TARGET" "$SIGNATURE" --env "$TRON_ENV"
     fi
+    return $?
   else
     local RPC_URL
     RPC_URL=$(getRPCUrl "$NETWORK") || {
@@ -65,13 +66,12 @@ function universalCall() {
 #   TARGET      - Contract address to call
 #   SIGNATURE   - Function signature (e.g., "transfer(address,uint256)")
 #   ARGS        - Optional: Arguments for cast calldata (space-separated, arrays in brackets)
-#   TIMELOCK    - Optional: "true" to wrap in timelock (EVM production only)
+#   TIMELOCK    - Optional: "true" to wrap in timelock scheduleBatch (production proposals)
 #   PRIVATE_KEY_OVERRIDE - Optional: hex key; when set, use instead of getPrivateKey(network, environment)
 #
 # Routing (handled by sendOrPropose):
-#   - Tron (any env): Direct send via troncast (no Safe/timelock support)
-#   - EVM production: Propose to Safe via propose-to-safe.ts (optional timelock)
-#   - EVM staging: Direct send via cast
+#   - Production (unless SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true): Propose to Safe
+#   - Staging / SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: Direct send
 #
 # Example: universalSend "arbitrum" "staging" "$DIAMOND" "setFee(uint256)" "100"
 # Example: universalSend "arbitrum" "production" "$DIAMOND" "batchSet(address[],bytes4[],bool)" '[addr1,addr2] [0x1234] true' "true"
@@ -111,8 +111,8 @@ function universalSend() {
   return $?
 }
 
-# universalSendRaw: Direct send with pre-built calldata (Tron or EVM). Used by sendOrPropose
-# for Tron (any env) and EVM staging. Does not handle EVM production Safe proposal.
+# universalSendRaw: Direct send with pre-built calldata. Used by sendOrPropose. 
+# Does not handle EVM production Safe proposal.
 #
 # Usage: universalSendRaw NETWORK ENVIRONMENT TARGET CALLDATA [PRIVATE_KEY_OVERRIDE]
 #   NETWORK     - Network name (e.g., "arbitrum", "tron")
@@ -160,19 +160,37 @@ function universalSendRaw() {
     echo "Error: universalSendRaw failed to get RPC URL for $NETWORK" >&2
     return 1
   }
+  # Use --async when RPC returns receipts that fail cast's deserialization (e.g. missing feePayer).
+  # Config: castSendAsync in networks.json for the network, or env CAST_SEND_ASYNC=true.
+  local USE_ASYNC="false"
+  if [[ -n "${CAST_SEND_ASYNC:-}" && "$CAST_SEND_ASYNC" == "true" ]]; then
+    USE_ASYNC="true"
+  elif declare -F getCastSendAsync >/dev/null 2>&1; then
+    USE_ASYNC=$(getCastSendAsync "$NETWORK" 2>/dev/null || echo "false")
+  fi
   # Use GAS_ESTIMATE_MULTIPLIER (default 100 from .env) so gas price stays above base fee on L2s
   local MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-100}"
   local GAS_PRICE
   GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
   local GAS_PRICE_BUF=$(( GAS_PRICE * MULTIPLIER / 100 ))
   [[ "$GAS_PRICE_BUF" -lt 1 ]] && GAS_PRICE_BUF=1
+  local CAST_EXTRA=()
+  if [[ "$USE_ASYNC" == "true" ]]; then
+    CAST_EXTRA+=(--async)
+  else
+    CAST_EXTRA+=(--confirmations 1)
+  fi
   cast send "$TARGET" "$CALLDATA" \
     --rpc-url "$RPC_URL" \
     --private-key "$PRIVATE_KEY" \
     --legacy \
     --gas-price "$GAS_PRICE_BUF" \
-    --confirmations 1
-  return $?
+    "${CAST_EXTRA[@]}"
+  local CAST_EXIT=$?
+  if [[ $CAST_EXIT -eq 0 && "$USE_ASYNC" == "true" ]]; then
+    sleep 3
+  fi
+  return $CAST_EXIT
 }
 
 # universalSendValue: Send native token (ETH/TRX) to an address. For EVM value is in wei; for Tron

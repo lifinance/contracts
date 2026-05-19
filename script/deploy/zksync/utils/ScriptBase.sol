@@ -88,16 +88,40 @@ contract ScriptBase is Script, DSTest {
         string memory path,
         string memory key
     ) internal returns (address contractAddress) {
+        return _getConfigContractAddress(path, key, false);
+    }
+
+    // reads an address from a config file and makes sure that the address contains code
+    function _getConfigContractAddress(
+        string memory path,
+        string memory key,
+        bool allowZeroAddress
+    ) internal returns (address contractAddress) {
         // load json file
         string memory json = vm.readFile(path);
 
         // read address
         contractAddress = json.readAddress(key);
 
+        // only allow address(0) values if flag is set accordingly, otherwise revert
+        if (contractAddress == address(0)) {
+            if (allowZeroAddress) return contractAddress;
+            revert(
+                string.concat(
+                    "Found address(0) for key ",
+                    key,
+                    " in file ",
+                    path,
+                    " which is not allowed here"
+                )
+            );
+        }
+
         // check if address contains code
-        if (!LibAsset.isContract(contractAddress))
+        if (!LibAsset.isContract(contractAddress)) {
             revert(
                 string.concat(key, " in file ", path, " is not a contract")
             );
+        }
     }
 }
