@@ -2169,6 +2169,178 @@ function decodeSelectors4byte() {
 }
 
 # =============================================================================
+# UNVERIFIED-CONTRACT ANALYSIS HELPERS (used by /analyze-unverified-contract)
+# =============================================================================
+
+# resolveContractTarget: detect EIP-1967 proxies and resolve to the implementation address.
+# Prints three lines (key=value form, parseable):
+#   target=<address>   the address Heimdall should disassemble (implementation if proxy, else input)
+#   proxy=<address>    the original proxy address (empty if direct contract)
+#   kind=<direct|eip1967|eip1967-beacon>
+#
+# Reads:
+#   - EIP-1967 implementation slot: 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+#   - EIP-1967 beacon slot:         0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50
+#     (if non-zero, calls beacon.implementation() to get the logic address)
+#
+# Usage: resolveContractTarget ADDRESS RPC_URL
+#   ADDRESS - 0x + 40 hex
+#   RPC_URL - JSON-RPC endpoint
+#
+# Returns: 0 on success; 1 on invalid input / missing cast.
+# Example: resolveContractTarget 0xC78283... https://mainnet.base.org
+function resolveContractTarget() {
+  local ADDRESS="${1:-}"
+  local RPC_URL="${2:-}"
+  if ! isValidEvmAddress "$ADDRESS"; then
+    error "resolveContractTarget: invalid address '$ADDRESS'"
+    return 1
+  fi
+  if [[ -z "$RPC_URL" ]]; then
+    error "resolveContractTarget: RPC_URL is required"
+    return 1
+  fi
+  command -v cast >/dev/null 2>&1 || {
+    error "resolveContractTarget: cast (foundry) is required"
+    return 1
+  }
+
+  local IMPL_SLOT="0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+  local BEACON_SLOT="0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"
+  local ZERO_ADDR="0x0000000000000000000000000000000000000000"
+
+  local impl_raw beacon_raw
+  impl_raw=$(cast storage "$ADDRESS" "$IMPL_SLOT" --rpc-url "$RPC_URL" 2>/dev/null || true)
+  beacon_raw=$(cast storage "$ADDRESS" "$BEACON_SLOT" --rpc-url "$RPC_URL" 2>/dev/null || true)
+
+  # Extract low 20 bytes from a 32-byte slot value (top 12 bytes must be zero for a valid address).
+  local impl=""
+  if [[ "$impl_raw" =~ 0x0{24}([0-9a-fA-F]{40}) ]]; then
+    impl="0x${BASH_REMATCH[1]}"
+    [[ "$impl" == "$ZERO_ADDR" ]] && impl=""
+  fi
+
+  local beacon_impl=""
+  if [[ "$beacon_raw" =~ 0x0{24}([0-9a-fA-F]{40}) ]]; then
+    local beacon="0x${BASH_REMATCH[1]}"
+    if [[ "$beacon" != "$ZERO_ADDR" ]]; then
+      beacon_impl=$(cast call "$beacon" 'implementation()(address)' --rpc-url "$RPC_URL" 2>/dev/null || true)
+      [[ "$beacon_impl" == "$ZERO_ADDR" ]] && beacon_impl=""
+    fi
+  fi
+
+  if [[ -n "$impl" ]]; then
+    printf "target=%s\nproxy=%s\nkind=eip1967\n" "$impl" "$ADDRESS"
+  elif [[ -n "$beacon_impl" ]]; then
+    printf "target=%s\nproxy=%s\nkind=eip1967-beacon\n" "$beacon_impl" "$ADDRESS"
+  else
+    printf "target=%s\nproxy=\nkind=direct\n" "$ADDRESS"
+  fi
+}
+
+# extractSelectorsFromOpcodes: extract unique function selectors from a Heimdall opcodes file.
+# Filters out the standard exclusions (0xffffffff sentinel, Panic, Error).
+# Output: one selector per line, 0x + 8 hex lowercase, sorted.
+#
+# Usage: extractSelectorsFromOpcodes OPCODES_FILE
+#   OPCODES_FILE - path to a Heimdall disassemble output file (e.g. opcodes-base-c7828327.txt
+#                  or <heimdall_dir>/disassembled.asm)
+#
+# Returns: 0 on success; 1 if the file is missing.
+# Example: extractSelectorsFromOpcodes opcodes-base-c7828327.txt > opcodes-selectors.md
+function extractSelectorsFromOpcodes() {
+  local INPUT="${1:-}"
+  if [[ -z "$INPUT" ]]; then
+    error "extractSelectorsFromOpcodes: OPCODES_FILE is required"
+    return 1
+  fi
+  if [[ ! -f "$INPUT" ]]; then
+    error "extractSelectorsFromOpcodes: file not found: $INPUT"
+    return 1
+  fi
+  # The Heimdall output uses `PUSH4 0xABCDEF12` or `PUSH4 abcdef12` depending on version — accept both.
+  grep -oE 'PUSH4 (0x)?[[:xdigit:]]{8}' "$INPUT" |
+    awk '{ s = $2; sub(/^0x/, "", s); print "0x" tolower(s) }' |
+    sort -u |
+    grep -v -E '^(0xffffffff|0x4e487b71|0x08c379a0)$' ||
+    true
+}
+
+# generateUnverifiedContractReportSkeleton: emit the markdown skeleton for an analyze-unverified-contract report.
+# Output: markdown to stdout. The caller fills in the body of each section.
+#
+# Usage: generateUnverifiedContractReportSkeleton ADDRESS NETWORK
+#   ADDRESS - 0x + 40 hex
+#   NETWORK - short network name (matches config/networks.json key)
+#
+# Returns: 0 on success; 1 on invalid address.
+# Example: generateUnverifiedContractReportSkeleton 0xC782... base > report-unverified-base-c7828327.md
+function generateUnverifiedContractReportSkeleton() {
+  local ADDRESS="${1:-}"
+  local NETWORK="${2:-}"
+  if ! isValidEvmAddress "$ADDRESS"; then
+    error "generateUnverifiedContractReportSkeleton: invalid address '$ADDRESS'"
+    return 1
+  fi
+  if [[ -z "$NETWORK" ]]; then
+    error "generateUnverifiedContractReportSkeleton: NETWORK is required"
+    return 1
+  fi
+  local SHORT="${ADDRESS:2:8}"
+  SHORT=$(echo "$SHORT" | tr 'A-F' 'a-f')
+  local NETWORK_UPPER
+  NETWORK_UPPER=$(echo "$NETWORK" | tr 'a-z' 'A-Z')
+  local DATE
+  DATE=$(date -u +%Y-%m-%d)
+
+  cat <<EOF
+# Unverified Contract Report — ${NETWORK} / ${ADDRESS}
+
+> Generated by \`/analyze-unverified-contract\` on ${DATE} (UTC).
+
+## 1. Metadata
+
+- **Address**: \`${ADDRESS}\`
+- **Network**: \`${NETWORK}\`
+- **chainId**: <fill in from config/networks.json>
+- **RPC source**: <getRpcUrlFromNetworksJson | env ETH_NODE_URI_${NETWORK_UPPER} | user-supplied>
+- **Analysis date**: ${DATE}
+
+## 2. Input & validation
+
+- <how ADDRESS/NETWORK were obtained — direct args, URL parsed, etc.>
+- <validation result — address format, network resolved, RPC reachable>
+- <proxy detection — kind=direct | eip1967 (impl=0x…) | eip1967-beacon (impl=0x…)>
+
+## 3. Artifacts
+
+| Artifact | Path |
+|---|---|
+| Opcodes | \`opcodes-${NETWORK}-${SHORT}.txt\` |
+| Selectors | \`opcodes-selectors.md\` |
+| Decompile (optional) | \`decompiled-${SHORT}/\` |
+| Storage dump (optional) | \`dump-${SHORT}.json\` |
+| CFG (optional) | \`cfg-${SHORT}.dot\` |
+
+## 4. Selectors
+
+<Full Selector | Signature table once here, OR a reference to opcodes-selectors.md with totals: total=N, resolved=K, unresolved=N-K>
+
+## 5. Interface hints
+
+<which selectors imply which interfaces: ERC165, ERC1271, ERC721/1155 receivers, UUPS/proxy, Safe-style execute, ERC-4337, EIP-712 — concise mapping, no raw selector list (refer to §4)>
+
+## 6. Structure summary
+
+<one-line characterization (e.g. "smart account with ERC1271 and UUPS"), then optional 1–3 bullets if decompile/dump/cfg ran: dispatch pattern, proxy slot layout, dangerous patterns>
+
+## 7. Optional extras
+
+<cast call examples for key selectors, CFG/storage notes, repo comparison vs out/*/*.json methodIdentifiers — skip the section entirely if nothing extra was produced>
+EOF
+}
+
+# =============================================================================
 # EXPORT FUNCTIONS FOR USE IN OTHER SCRIPTS
 # =============================================================================
 
@@ -2208,3 +2380,6 @@ export -f analyzeFailingTx
 export -f transferStagingDiamondOwnership
 export -f decodeSelector4byte
 export -f decodeSelectors4byte
+export -f resolveContractTarget
+export -f extractSelectorsFromOpcodes
+export -f generateUnverifiedContractReportSkeleton

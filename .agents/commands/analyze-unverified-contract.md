@@ -1,140 +1,124 @@
 ---
 name: analyze-unverified-contract
-description: Analyze an unverified contract — validate input, resolve RPC, disassemble with Heimdall, extract and enrich selectors (known/local/cast/4byte), and produce a single well-structured report file with all insights and no duplicate information
-usage: /analyze-unverified-contract <address> <network> | /analyze-unverified-contract <block_explorer_contract_url>
+description: Investigate an unverified smart contract end-to-end — given an address (or block-explorer URL) and a network, resolve the RPC, detect EIP-1967 proxies, disassemble with Heimdall, extract every function selector, enrich them via local artifacts / cast / 4byte.directory, and emit one structured markdown report. Use this skill whenever a user mentions an unverified or unknown contract; pastes an etherscan/basescan/arbiscan/etc. URL with no source; asks "what does this contract do" or "what functions does this expose" for an address with no published source; asks to decompile, disassemble, or "look inside" bytecode; wants to identify a contract's interfaces (ERC-20 / 721 / 1155 / 4337 / 1271 / UUPS / Safe) from bytecode alone; needs to enumerate selectors for an opaque contract; or is chained from /analyze-tx because the target turned out to be unverified. Even partial phrasings like "decompile this proxy" or "I have a contract address but no ABI" should trigger.
+usage: /analyze-unverified-contract <address> <network>  |  /analyze-unverified-contract <block_explorer_contract_url>
 ---
 
-# Analyze Unverified Contract Command
+# Analyze Unverified Contract
 
-> **Usage**: `/analyze-unverified-contract <address> <network>`  
-> **Or**: `/analyze-unverified-contract <block_explorer_contract_url>`
->
-> Examples: `/analyze-unverified-contract 0x36d3CBD83961868398d056EfBf50f5CE15528c0D base` | `/analyze-unverified-contract https://basescan.org/address/0x...`
+**Goal**: turn an unknown address into a self-contained markdown report a reviewer can read in one sitting. Single deliverable: `report-unverified-<network>-<short_addr>.md`.
 
-Execute the workflow below in order. This file contains all context needed for a new context window.
+This file contains everything needed to execute the workflow in a fresh context window.
 
----
+## Conventions
 
-## 1. Input parsing and validation
+Defined once; used throughout.
 
-- **Two arguments** `ADDRESS` and `NETWORK`: use as contract address and network name.
-- **Single argument = URL**: block explorer contract URL. Extract **address** (hex after `/address/` or `/contract/`). Map domain to **network**: etherscan.io→mainnet, basescan.org→base, arbiscan.io→arbitrum, polygonscan.com→polygon, snowtrace.io→avalanche, ftmscan.com→fantom, bscscan.com→bsc, optimistic.etherscan.io→optimism, blockscout.com→(chain-specific). If unknown, ask user for network.
-- **Validate address**: Ensure address is 0x + 40 hex (e.g. repo helper `isValidEvmAddress` from `script/helperFunctions.sh`, or `[[ "$ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]]`). Reject or ask for correction if invalid.
+- **`ADDRESS`** — 0x-prefixed 40-hex EVM address (the user input).
+- **`NETWORK`** — short network name as keyed in [`config/networks.json`](../../config/networks.json) (e.g. `base`, `arbitrum`, `mainnet`).
+- **`TARGET`** — the address Heimdall actually analyzes. Equals `ADDRESS` for direct contracts; equals the resolved implementation for EIP-1967 proxies. Step 3 sets it.
+- **`<short_addr>`** — first 8 hex chars of `ADDRESS`, lowercase. Used in every output filename so multiple analyses in the same checkout don't collide.
+- **Output naming**: `<purpose>-<network>-<short_addr>.<ext>` (e.g. `opcodes-base-c7828327.txt`, `report-unverified-base-c7828327.md`).
 
----
+## Bundled helpers
 
-## 2. RPC URL resolution
+This skill ships four exported bash functions in [`script/playgroundHelpers.sh`](../../script/playgroundHelpers.sh). Source `script/helperFunctions.sh` (provides `isValidEvmAddress`, `getRpcUrlFromNetworksJson`, `error`, `warning`) and then `script/playgroundHelpers.sh`. Then call:
 
-- **Preferred**: From `config/networks.json` — key = network name, field `rpcUrl`. Standalone: `jq -r --arg n "$NETWORK" '.[$n].rpcUrl // empty' config/networks.json` (export `NETWORK` first, or substitute the network name directly). With helpers: source `script/helperFunctions.sh` and use `getRpcUrlFromNetworksJson NETWORK` (reads networks.json).
-- **Alternative**: `getRPCUrl NETWORK` from `script/helperFunctions.sh` (reads `ETH_NODE_URI_<NETWORK>` from env).
-- **Fallback**: If network not in config and env not set, ask user for RPC URL.
+| Function | Replaces | Output |
+|---|---|---|
+| `resolveContractTarget ADDRESS RPC_URL` | Step 3 — manual `cast storage` reads | `target=… proxy=… kind=direct\|eip1967\|eip1967-beacon` (3 lines) |
+| `extractSelectorsFromOpcodes OPCODES_FILE` | Step 5 — manual `grep ǀ awk ǀ sort ǀ grep -v` pipeline | one lowercase selector per line |
+| `decodeSelectors4byte` (and `decodeSelector4byte`) | Step 6.4 — manual API calls | merged selectors file with signatures |
+| `generateUnverifiedContractReportSkeleton ADDRESS NETWORK` | Step 7 — typing out the 7-section template | markdown skeleton to stdout |
 
----
+Prefer the helpers. They're consistent with the rest of `script/playgroundHelpers.sh`, handle edge cases (empty slots, mixed-case hex, duplicate selectors, rate limits), and short-circuit invalid input early.
 
-## 3. Bytecode (optional)
+## Workflow
 
-- **Skip if** only disassemble/decompile: Heimdall accepts `<TARGET>` = address and fetches via RPC; no need to run `cast code` first.
-- **When needed**: To save bytecode to a file (e.g. for other tools or offline use): `cast code "<ADDRESS>" --rpc-url "<RPC_URL>" > bytecode-<short_addr>.bin`
+### 1. Parse and validate input
 
----
+- **Two args** `ADDRESS NETWORK` → use directly.
+- **Single arg = URL** → extract `ADDRESS` from the path (segment after `/address/` or `/contract/`) and derive `NETWORK` from the host. Look up the host in `config/networks.json` (each network entry's `explorerUrl` field) rather than hardcoding a list — the repo supports 60+ networks. For the common cases: `etherscan.io → mainnet`, `basescan.org → base`, `arbiscan.io → arbitrum`, `polygonscan.com → polygon`, `optimistic.etherscan.io → optimism`. If the host doesn't resolve, ask the user.
+- **Validate**: `isValidEvmAddress "$ADDRESS"`. Reject invalid input rather than guessing.
 
-## 4. Heimdall installation check
+### 2. Resolve RPC
 
-- Run `command -v heimdall` (or `which heimdall`).
-- If **not found**: Tell the user: "Heimdall is not installed. Install with: `curl -L https://get.heimdall.rs | bash`, then in a new terminal run `bifrost`." Offer to continue after they install (reference the same HTTPS install URL if they ask how to install). Do **not** proceed with disassemble/decompile until heimdall is available.
+- **Preferred**: `getRpcUrlFromNetworksJson "$NETWORK"` (reads `config/networks.json`).
+- **Alternative**: `getRPCUrl "$NETWORK"` (reads `ETH_NODE_URI_<NETWORK>` from env).
+- **Fallback**: if neither resolves, ask the user. Do not pick a random public RPC — it leaks the investigation to a third party and may rate-limit during Heimdall's bytecode fetch.
 
----
+### 3. Detect proxies and set TARGET
 
-## 5. Heimdall usage (disassemble / decompile)
+```bash
+eval "$(resolveContractTarget "$ADDRESS" "$RPC_URL")"
+# Now $target, $proxy, $kind are set.
+```
 
-- **Proxy check first** (important): before disassembling/decompiling, verify `<ADDRESS>` isn't an EIP-1967 proxy — otherwise you'll analyze the (minimal) proxy bytecode and miss the actual logic.
-  - **Implementation slot** (EIP-1967): `cast storage <ADDRESS> 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url <RPC_URL>`
-  - **Beacon slot** (EIP-1967, beacon proxies): `cast storage <ADDRESS> 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50 --rpc-url <RPC_URL>` — if non-zero, read the beacon's `implementation()` via `cast call <BEACON> "implementation()(address)" --rpc-url <RPC_URL>`.
-  - If either returns a non-zero address (low 20 bytes of the 32-byte slot), **use that implementation address as `<TARGET>`** for the disassemble/decompile steps below. Note in the final report that the input was a proxy and record both the proxy and the resolved implementation address.
-- **Docs**: https://github.com/Jon-Becker/heimdall-rs/wiki/modules  
-- **Shared options**: `-r` / `--rpc-url` = RPC URL; `-o` = output path or `print`. Note: `-d` is **not** shared — it means different things per command (see below).
-- **Disassemble** (bytecode → opcodes): `heimdall disassemble <TARGET> -r <RPC_URL> -o <OUTPUT>` — `<TARGET>` = address, ENS, or bytecode file path. Optional: `-d` / `--decimal-counter` to show the program counter in decimal instead of hex.
-- **Decompile** (bytecode → pseudo-Solidity + ABI): `heimdall decompile <TARGET> -r <RPC_URL> -o <OUTPUT> -d`. Here `-d` / `--default` = non-interactive (auto-select defaults when prompted). Use `--include-sol` and/or `--include-yul` for full output; `--skip-resolving` to skip selector resolution.
-- **Outputs**: e.g. `opcodes-<network>-<short_addr>.txt/` (Heimdall may create a directory; opcodes are in `disassembled.asm` inside) or `opcodes.txt`; optional `decompiled-<short_addr>/`.
-- **More insight**: `heimdall dump <TARGET> -r <RPC_URL>` (storage slots); `heimdall cfg <TARGET> -r <RPC_URL> -o <OUTPUT>` (control-flow graph). Use when summarizing structure or proxy/storage patterns.
+If `$kind` is `eip1967` or `eip1967-beacon`, **set `TARGET=$target`** (the resolved implementation); otherwise `TARGET=$ADDRESS`. Record both `$proxy` and `$target` in §2 of the report.
 
----
+This matters because EIP-1967 proxies hold ~100 bytes of dispatch bytecode and zero application logic — running Heimdall on the proxy itself produces an empty selector list and a misleading report.
 
-## 6. Extract function selectors from opcodes
+### 4. Disassemble / decompile with Heimdall
 
-- **Pattern**: `PUSH4 <8 hex digits>` (e.g. `PUSH4 8388464e`). Match both lowercase and uppercase hex.
-- **Exclude** (selector → signature): `0xffffffff` (sentinel), `0x4e487b71` (Panic(uint256)), `0x08c379a0` (Error(string)).
-- **Extract**: All unique PUSH4 + 8 hex, normalize to `0x` + 8 hex (lowercase), remove duplicates and excluded.
-- **Example**:
+Docs: <https://github.com/Jon-Becker/heimdall-rs/wiki/modules>. Install: `command -v heimdall || curl -L https://get.heimdall.rs | bash`. Don't proceed without it.
 
-  ```bash
-  grep -oE 'PUSH4 [[:xdigit:]]{8}' opcodes.txt | awk '{print "0x" tolower($2)}' | sort -u | grep -v '0xffffffff' | grep -v '0x4e487b71' | grep -v '0x08c379a0'
-  ```
+- **Disassemble** (bytecode → opcodes): `heimdall disassemble "$TARGET" -r "$RPC_URL" -o "opcodes-$NETWORK-$SHORT.txt"`. Optional flag `-d` / `--decimal-counter` — show the program counter in decimal instead of hex. (Different meaning from `-d` in `decompile`.)
+- **Decompile** (bytecode → pseudo-Solidity): `heimdall decompile "$TARGET" -r "$RPC_URL" -o "decompiled-$SHORT/" -d`. Here `-d` / `--default` = non-interactive. Add `--include-sol` / `--include-yul` for richer output; `--skip-resolving` to skip Heimdall's own selector resolution (we do it ourselves in Step 6, more thoroughly).
+- **Output shape**: Heimdall may create a directory containing `disassembled.asm`. Treat that file as the opcodes input for Step 5.
+- **Optional extras** (only if you want richer §6/§7 in the report): `heimdall dump` (storage slots), `heimdall cfg` (control-flow graph), `heimdall inspect <TX_HASH>` (a specific tx through this contract). Link the artifact paths from §3 of the report; don't paste their full output.
 
-- **Output**: Write to `opcodes-selectors.md` (default — `decodeSelectors4byte` with no args reads & updates this file) or `<contract>-selectors.md` (list or table Selector | Signature). If using a non-default filename, pass it explicitly or stream via `--stdin`.
+### 5. Extract selectors
 
----
+```bash
+extractSelectorsFromOpcodes "opcodes-$NETWORK-$SHORT.txt" > opcodes-selectors.md
+```
 
-## 7. Enrich selectors with signatures
+The default output filename matters: Step 6.4's `decodeSelectors4byte` reads `opcodes-selectors.md` when called with no args.
 
-**Use this order for speed**: resolve via known + local + cast first (no network delay), then **always** run the 4byte.directory step for every selector still unresolved after cast.
+### 6. Resolve selector signatures
 
-**7.1 Known selectors** (instant) — 0x01ffc9a7→supportsInterface(bytes4), 0x1626ba7e→isValidSignature(bytes32,bytes), 0x150b7a02→onERC721Received(…), 0xf23a6e61→onERC1155Received(…), 0xbc197c81→onERC1155BatchReceived(…), 0x52d1902d→proxiableUUID(), 0x4f1ef286→upgradeToAndCall(address,bytes), 0x3f707e6b→execute((address,uint256,bytes)[]), 0xb61d27f6→execute(address,uint256,bytes). Add common ERC20/ERC721 (e.g. balanceOf, transfer, approve) if useful.
+**Order matters** — local resolution is free; the API is rate-limited. Run in order, marking each selector as resolved as soon as one source matches.
 
-**7.2 Local repo** (instant) — `out/<ContractName>.sol/<ContractName>.json` → key `methodIdentifiers`. `grep -r "<selector>" out/` or jq over methodIdentifiers.
+1. **Known table** (instant, in-memory): `0x01ffc9a7` supportsInterface(bytes4); `0x1626ba7e` isValidSignature(bytes32,bytes); `0x150b7a02` onERC721Received(...); `0xf23a6e61` onERC1155Received(...); `0xbc197c81` onERC1155BatchReceived(...); `0x52d1902d` proxiableUUID(); `0x4f1ef286` upgradeToAndCall(address,bytes); `0xb61d27f6` execute(address,uint256,bytes); `0x3f707e6b` execute((address,uint256,bytes)[]). Add ERC20/721 standards (balanceOf, transfer, approve, ownerOf) if relevant.
+2. **Local artifacts** (instant): `out/*/<ContractName>.json` → `.methodIdentifiers`. `jq -r '.methodIdentifiers | to_entries[] | "\(.value)\t\(.key)"' out/*.sol/*.json 2>/dev/null | grep -i "<selector-without-0x>"`.
+3. **cast** (fast, no rate limit): `cast 4byte "<selector>"` for each still-unresolved selector.
+4. **4byte.directory** (rate-limited; covers everything else): `decodeSelectors4byte` with no args reads `opcodes-selectors.md` and updates it. Set `FOURBYTE_DELAY=0.5` if you hit 429s.
 
-**7.3 cast** (fast, no rate limit) — `cast 4byte <selector>` returns signature; use for each unresolved selector before hitting the API.
+Merge results into `opcodes-selectors.md` as a table **Selector ǀ Signature** (use `—` for selectors that remain unresolved after all four steps).
 
-**7.4 4byte.directory (mandatory for unresolved)** — For every selector still showing no signature after 7.1–7.3, query 4byte.directory and merge any results into the selectors file. **Preferred**: source `script/helperFunctions.sh` and `script/playgroundHelpers.sh`, then run `decodeSelectors4byte` with no args (reads from `opcodes-selectors.md` by default — will error with "default file not found" if absent) or pass only the unresolved selectors; use `FOURBYTE_DELAY=0.3`–0.5. **Fallback**: if sourcing the repo scripts fails (e.g. in a minimal env), call the API directly: `GET https://www.4byte.directory/api/v1/signatures/?hex_signature=0x<selector>`, parse `results[].text_signature`, use ~0.3s delay between requests, and update the selectors file with any new signatures. Selectors that remain unknown after 4byte stay as "—" in the table.
+**Short-circuit for very large contracts** (>500 selectors — diamonds, NFT marketplaces): if steps 1+2+3 already cover ≥80% of selectors, skip step 4 and note it in the report. The marginal value of resolving the long tail via 4byte is low and the runtime cost is high.
 
-Merge all resolved signatures into the selectors file as table **Selector** | **Signature**.
+### 7. Write the report
 
----
+```bash
+generateUnverifiedContractReportSkeleton "$ADDRESS" "$NETWORK" > "report-unverified-$NETWORK-$SHORT.md"
+```
 
-## 8. Produce a single well-structured report file
+Then fill in the body of each section. The skeleton already has the seven sections (Metadata, Input & validation, Artifacts, Selectors, Interface hints, Structure summary, Optional extras) — see the function definition in `script/playgroundHelpers.sh` for the canonical layout.
 
-**Requirement**: Write exactly one report file that contains all insights in a clear structure and **no duplicate information** (e.g. do not repeat the full selector table in multiple sections).
+**Rule for the whole report: each fact lives in exactly one section.** Selectors go in §4; interface mapping in §5 references §4 by selector group, not by re-listing; artifact paths in §3, never repeated. A reference like "see §4" is fine and preferred over copying.
 
-- **Path**: `report-unverified-<network>-<short_addr>.md` (e.g. `report-unverified-base-36d3cbd8.md`) in the repo root or a dedicated folder (e.g. `docs/analysis/`). Short addr = first 8 hex chars of address (lowercase).
-- **Structure** (use these sections; each piece of information appears only once):
+**Chat summary**: in the conversation, give a one-paragraph summary and the report path. Don't paste the full report back — the user can open the file.
 
-  1. **Metadata** — Contract address, network (and chainId if known), RPC source, analysis date.
-  2. **Input & validation** — How the address/network were obtained (e.g. URL parsed), validation result.
-  3. **Artifacts** — Table or list of paths only: opcodes file, selectors file (with signature table), optional decompile dir, optional dump/cfg paths. No inline duplication of selector table here.
-  4. **Selectors** — Either embed the full Selector | Signature table once in the report, or reference the selectors file and give total count + resolved vs unresolved. Do not repeat the same table elsewhere in the report.
-  5. **Interface hints** — Concise mapping: which selectors imply which interfaces (ERC165, ERC1271, ERC721/1155 receivers, UUPS/proxy, Safe-style execute, ERC-4337, EIP-712, etc.). No raw selector list again; refer to section 4 or the selectors file.
-  6. **Structure summary** — One-line characterization of the contract (e.g. "Smart account with ERC1271 and UUPS"). If decompile or dump/cfg was run, add 1–3 short bullets (dispatch pattern, proxy slot, dangerous patterns) without repeating selector or artifact paths.
-  7. **Optional extras** (only if produced) — Call-flow hints, suggested `cast call` examples for key selectors, storage/CFG notes, repo comparison. Keep brief; reference section 4 for selectors.
+## Failure modes
 
-- **Chat summary**: In the conversation, give a short summary and point to the report file path; do not paste the full report again.
+| What fails | What to do |
+|---|---|
+| `getRpcUrlFromNetworksJson` returns empty | Try `getRPCUrl` (env-based). If still empty, ask the user. Don't pick a public RPC unilaterally — see Step 2. |
+| `cast storage` returns empty / `0x0` | EIP-1967 slot was never written → not a proxy (or uses a non-standard slot). `resolveContractTarget` handles this gracefully and returns `kind=direct`. |
+| Heimdall decompile errors or times out | Disassemble-only is sufficient for selector extraction (Step 5). Skip decompile and note in §6 that decompile was not available. |
+| 4byte returns 429 / network error | `decodeSelector4byte` prints `(no match)` and the loop continues — no abort. Re-run later with `FOURBYTE_DELAY=1.0` to fill in. |
+| Opcodes file is huge (>50k lines) | Don't read it into the chat. §3 of the report keeps the path only. If you need a sample, `head -200`. |
+| `extractSelectorsFromOpcodes` returns 0 selectors | Almost certainly an unresolved proxy. Re-run Step 3 against a different RPC and verify the implementation slot returned a non-zero address. |
+| Token budget pressure on a very large contract | Skip step 6.4 (4byte for unknown selectors) and the optional extras in step 4. The core deliverable (selectors + interface hints + summary) survives without them. |
 
----
+## Repo file reference
 
-## 9. Repo file reference
-
-| Purpose              | Path |
-|----------------------|------|
-| Network list + RPC   | `config/networks.json` (`.rpcUrl`) |
-| getRPCUrl            | `script/helperFunctions.sh` |
-| decodeSelectors4byte (function) | `script/playgroundHelpers.sh` (source after `script/helperFunctions.sh`) |
-| Selectors file       | `opcodes-selectors.md` or `<contract>-selectors.md` |
-| Report file (output) | `report-unverified-<network>-<short_addr>.md` (Section 8) |
-| Heimdall commands    | `script/playground.sh` (commented) |
-
----
-
-## 10. Additional benefits (optional, for maximum insight)
-
-If run, fold the results into the report (Section 8) in the appropriate subsection; do not duplicate elsewhere.
-
-| Benefit | Description |
-|--------|-------------|
-| **Interface detection** | Map selectors → interfaces (Section 8.5). ERC165, ERC1271, ERC721/1155 receivers, UUPS/proxy, Safe-style execute. |
-| **Call-flow hints** | For patterns (e.g. execute + isValidSignature), state which selectors are needed; add to report Section 8.7. |
-| **Decompiled code review** | Note structure (dispatch table, delegatecall targets, storage layout), dangerous patterns, proxy slots; add to report Section 8.6. |
-| **cast call examples** | Suggest `cast call <ADDRESS> "<signature>" [args] --rpc-url <RPC>` for key selectors; add to report Section 8.7. |
-| **Storage / CFG** | `heimdall dump` / `heimdall cfg`; add artifact paths and brief notes to report Sections 8.3 and 8.6. |
-| **Repo comparison** | Compare selector set with `out/*/*.json` methodIdentifiers; add one line to report Section 8.7 if relevant. |
-| **Transaction inspect** | For a specific tx: `heimdall inspect <TX_HASH> -r <RPC> -d`; can be referenced in the report if needed. |
-
-Main deliverable: opcodes file, selectors file (with full table), and **one report file** (Section 8) containing all insights without duplication.
+| Purpose | Path |
+|---|---|
+| Network list + RPC + explorer host | [`config/networks.json`](../../config/networks.json) |
+| EVM helpers (`isValidEvmAddress`, `getRpcUrlFromNetworksJson`, `getRPCUrl`, `error`, `warning`) | [`script/helperFunctions.sh`](../../script/helperFunctions.sh) |
+| All bundled helpers for this skill (`resolveContractTarget`, `extractSelectorsFromOpcodes`, `decodeSelector4byte`, `decodeSelectors4byte`, `generateUnverifiedContractReportSkeleton`) | [`script/playgroundHelpers.sh`](../../script/playgroundHelpers.sh) |
+| Heimdall ad-hoc command notes (commented) | [`script/playground.sh`](../../script/playground.sh) |
+| Selectors file (Step 5 output, Step 6 input/output) | `opcodes-selectors.md` |
+| Final report (Step 7 output) | `report-unverified-<network>-<short_addr>.md` |
