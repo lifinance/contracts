@@ -1,10 +1,11 @@
-# Sync Ledger Clear Signing (ERC-7730)
-# - Purpose: Keep Ledger's `registry/lifi/calldata-LIFIDiamond.json` up to date with this repo's Diamond ABI + deployments
+# Sync Clear Signing (ERC-7730) Registry
+# - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond ABI + deployments
 # - Triggers: manual (`workflow_dispatch`), schedule (daily), and pushes affecting ABI/deployment sources
-# - Key behaviors: clones our fork of LedgerHQ registry, regenerates the JSON, pushes a branch to the fork, and creates/updates a PR upstream
-# - Known limitations: `display.*` is preserved (hand-curated UX); only `context.contract.abi` and `deployments` are updated
+# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON, pushes a branch to the fork, and creates/updates a PR upstream
+# - Known limitations: `display.*` is preserved (hand-curated UX, including `intent` and `interpolatedIntent`); only `context.contract.abi` and `context.contract.deployments` are updated
+# - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
 
-name: Sync Ledger Clear Signing (ERC-7730)
+name: Sync Clear Signing (ERC-7730) Registry
 
 on:
   workflow_dispatch: # allow manual triggering
@@ -50,10 +51,10 @@ jobs:
         env:
           LEDGER_SYNC_TOKEN: ${{ secrets.LEDGER_SYNC_TOKEN }}
           LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
-          LEDGER_UPSTREAM: LedgerHQ/clear-signing-erc7730-registry
+          LEDGER_UPSTREAM: ethereum/clear-signing-erc7730-registry # Ethereum Foundation-hosted (migrated from LedgerHQ in 2026)
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
           SYNC_BRANCH: sync/lifi-erc7730
-          PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json'
+          PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json (abi + deployments)'
         run: |
           set -euo pipefail
 
