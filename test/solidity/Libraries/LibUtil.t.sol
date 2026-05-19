@@ -64,6 +64,30 @@ contract LibUtilTest is Test {
         implementer.revertWith(revertData);
     }
 
+    function test_getRevertMsg_SilentRevertReturnsFallback() public {
+        bytes memory silent = hex"1234";
+
+        assertEq(
+            LibUtil.getRevertMsg(silent),
+            "Transaction reverted silently"
+        );
+    }
+
+    function test_getRevertMsg_DecodesRevertString() public {
+        bytes4 errorSelector = bytes4(keccak256("Error(string)"));
+        bytes memory revertData = abi.encodeWithSelector(
+            errorSelector,
+            "boom"
+        );
+
+        assertEq(LibUtil.getRevertMsg(revertData), "boom");
+    }
+
+    function test_isZeroAddress() public {
+        assertTrue(LibUtil.isZeroAddress(address(0)));
+        assertFalse(LibUtil.isZeroAddress(address(1)));
+    }
+
     function test_revertWithMessage() public {
         bytes memory revertData = abi.encodeWithSelector(
             CustomErrorWithMessage.selector,

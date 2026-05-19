@@ -1911,8 +1911,8 @@ contract PatcherTest is TestBase {
             depositoryData
         );
 
-        bridgeData.minAmount =
-            0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
+        bridgeData
+            .minAmount = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
             bridgeData,
@@ -1921,7 +1921,10 @@ contract PatcherTest is TestBase {
         bridgeData.minAmount = 0;
 
         uint256[] memory offsets = new uint256[](1);
-        offsets[0] = _findMinAmountOffset(calldataWithZero, calldataWithMarker);
+        offsets[0] = _findMinAmountOffset(
+            calldataWithZero,
+            calldataWithMarker
+        );
 
         bytes memory valueGetter = abi.encodeWithSelector(
             priceOracle.calculateMinAmount.selector,
