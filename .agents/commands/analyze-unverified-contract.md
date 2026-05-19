@@ -27,7 +27,7 @@ This skill ships four exported bash functions in [`script/playgroundHelpers.sh`]
 | Function | Replaces | Output |
 |---|---|---|
 | `resolveContractTarget ADDRESS RPC_URL` | Step 3 — manual `cast storage` reads | `target=… proxy=… kind=direct\|eip1967\|eip1967-beacon` (3 lines) |
-| `extractSelectorsFromOpcodes OPCODES_FILE` | Step 5 — manual `grep ǀ awk ǀ sort ǀ grep -v` pipeline | one lowercase selector per line |
+| `extractSelectorsFromOpcodes OPCODES_FILE` | Step 5 — manual `grep \| awk \| sort \| grep -v` pipeline | one lowercase selector per line |
 | `decodeSelectors4byte` (and `decodeSelector4byte`) | Step 6.4 — manual API calls | merged selectors file with signatures |
 | `generateUnverifiedContractReportSkeleton ADDRESS NETWORK` | Step 7 — typing out the 7-section template | markdown skeleton to stdout |
 
@@ -84,7 +84,7 @@ The default output filename matters: Step 6.4's `decodeSelectors4byte` reads `op
 3. **cast** (fast, no rate limit): `cast 4byte "<selector>"` for each still-unresolved selector.
 4. **4byte.directory** (rate-limited; covers everything else): `decodeSelectors4byte` with no args reads `opcodes-selectors.md` and updates it. Set `FOURBYTE_DELAY=0.5` if you hit 429s.
 
-Merge results into `opcodes-selectors.md` as a table **Selector ǀ Signature** (use `—` for selectors that remain unresolved after all four steps).
+Merge results into `opcodes-selectors.md` as a table **Selector | Signature** (use `—` for selectors that remain unresolved after all four steps).
 
 **Short-circuit for very large contracts** (>500 selectors — diamonds, NFT marketplaces): if steps 1+2+3 already cover ≥80% of selectors, skip step 4 and note it in the report. The marginal value of resolving the long tail via 4byte is low and the runtime cost is high.
 
