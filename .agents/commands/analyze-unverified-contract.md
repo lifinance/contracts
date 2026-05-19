@@ -26,7 +26,7 @@ This skill ships four exported bash functions in [`script/playgroundHelpers.sh`]
 
 | Function | Replaces | Output |
 |---|---|---|
-| `resolveContractTarget ADDRESS RPC_URL` | Step 3 — manual `cast storage` reads | `target=… proxy=… kind=direct\|eip1967\|eip1967-beacon` (3 lines) |
+| `resolveContractTarget ADDRESS RPC_URL` | Step 3 — manual `cast storage` / `cast code` reads | `target=… proxy=… kind=direct\|eip1967\|eip1967-beacon\|eip1167` (3 lines) |
 | `extractSelectorsFromOpcodes OPCODES_FILE` | Step 5 — manual `grep \| awk \| sort \| grep -v` pipeline | one lowercase selector per line |
 | `decodeSelectors4byte` (and `decodeSelector4byte`) | Step 6.4 — manual API calls | merged selectors file with signatures |
 | `generateUnverifiedContractReportSkeleton ADDRESS NETWORK` | Step 7 — typing out the 7-section template | markdown skeleton to stdout |
@@ -54,9 +54,9 @@ eval "$(resolveContractTarget "$ADDRESS" "$RPC_URL")"
 # Now $target, $proxy, $kind are set.
 ```
 
-If `$kind` is `eip1967` or `eip1967-beacon`, **set `TARGET=$target`** (the resolved implementation); otherwise `TARGET=$ADDRESS`. Record both `$proxy` and `$target` in §2 of the report.
+If `$kind` is anything other than `direct`, **set `TARGET=$target`** (the resolved implementation); otherwise `TARGET=$ADDRESS`. Record both `$proxy` and `$target` in §2 of the report.
 
-This matters because EIP-1967 proxies hold ~100 bytes of dispatch bytecode and zero application logic — running Heimdall on the proxy itself produces an empty selector list and a misleading report.
+This matters because proxy contracts hold minimal dispatch bytecode and zero application logic — running Heimdall on the proxy itself produces an empty selector list and a misleading report. The helper detects three common proxy patterns in order: EIP-1967 standard (`kind=eip1967`), EIP-1967 beacon (`kind=eip1967-beacon`), and EIP-1167 minimal proxy / OpenZeppelin Clones (`kind=eip1167`). For less-common patterns (EIP-1822 UUPS pre-1967, GnosisSafe, EIP-2535 Diamond), the helper falls back to `kind=direct`. If you suspect one of those is in play and Step 5 yields zero selectors, check storage slot 0 manually or run Heimdall against the diamond directly.
 
 ### 4. Disassemble / decompile with Heimdall
 

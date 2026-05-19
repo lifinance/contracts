@@ -2172,16 +2172,21 @@ function decodeSelectors4byte() {
 # UNVERIFIED-CONTRACT ANALYSIS HELPERS (used by /analyze-unverified-contract)
 # =============================================================================
 
-# resolveContractTarget: detect EIP-1967 proxies and resolve to the implementation address.
+# resolveContractTarget: detect common proxy patterns and resolve to the implementation address.
 # Prints three lines (key=value form, parseable):
 #   target=<address>   the address Heimdall should disassemble (implementation if proxy, else input)
 #   proxy=<address>    the original proxy address (empty if direct contract)
-#   kind=<direct|eip1967|eip1967-beacon>
+#   kind=<direct|eip1967|eip1967-beacon|eip1167>
 #
-# Reads:
-#   - EIP-1967 implementation slot: 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
-#   - EIP-1967 beacon slot:         0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50
-#     (if non-zero, calls beacon.implementation() to get the logic address)
+# Detection order (first match wins; each step costs at most one RPC call):
+#   1. EIP-1967 implementation slot — 0x360894...382bbc
+#   2. EIP-1967 beacon slot — 0xa3f0ad...133d50, then beacon.implementation()
+#   3. EIP-1167 minimal proxy (OpenZeppelin Clones) — bytecode prefix match
+#
+# Not covered (less common / different mechanism, fall back to kind=direct):
+#   - EIP-1822 (UUPS pre-1967)
+#   - GnosisSafe (singleton at slot 0 — heuristic, prone to false positives)
+#   - EIP-2535 Diamond (no single implementation — analyze the diamond directly)
 #
 # Usage: resolveContractTarget ADDRESS RPC_URL
 #   ADDRESS - 0x + 40 hex
@@ -2209,17 +2214,23 @@ function resolveContractTarget() {
   local BEACON_SLOT="0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"
   local ZERO_ADDR="0x0000000000000000000000000000000000000000"
 
-  local impl_raw beacon_raw
+  # Step 1: EIP-1967 implementation slot
+  local impl_raw
   impl_raw=$(cast storage "$ADDRESS" "$IMPL_SLOT" --rpc-url "$RPC_URL" 2>/dev/null || true)
-  beacon_raw=$(cast storage "$ADDRESS" "$BEACON_SLOT" --rpc-url "$RPC_URL" 2>/dev/null || true)
-
   # Extract low 20 bytes from a 32-byte slot value (top 12 bytes must be zero for a valid address).
   local impl=""
   if [[ "$impl_raw" =~ 0x0{24}([0-9a-fA-F]{40}) ]]; then
     impl="0x${BASH_REMATCH[1]}"
     [[ "$impl" == "$ZERO_ADDR" ]] && impl=""
   fi
+  if [[ -n "$impl" ]]; then
+    printf "target=%s\nproxy=%s\nkind=eip1967\n" "$impl" "$ADDRESS"
+    return 0
+  fi
 
+  # Step 2: EIP-1967 beacon slot
+  local beacon_raw
+  beacon_raw=$(cast storage "$ADDRESS" "$BEACON_SLOT" --rpc-url "$RPC_URL" 2>/dev/null || true)
   local beacon_impl=""
   if [[ "$beacon_raw" =~ 0x0{24}([0-9a-fA-F]{40}) ]]; then
     local beacon="0x${BASH_REMATCH[1]}"
@@ -2228,14 +2239,24 @@ function resolveContractTarget() {
       [[ "$beacon_impl" == "$ZERO_ADDR" ]] && beacon_impl=""
     fi
   fi
-
-  if [[ -n "$impl" ]]; then
-    printf "target=%s\nproxy=%s\nkind=eip1967\n" "$impl" "$ADDRESS"
-  elif [[ -n "$beacon_impl" ]]; then
+  if [[ -n "$beacon_impl" ]]; then
     printf "target=%s\nproxy=%s\nkind=eip1967-beacon\n" "$beacon_impl" "$ADDRESS"
-  else
-    printf "target=%s\nproxy=\nkind=direct\n" "$ADDRESS"
+    return 0
   fi
+
+  # Step 3: EIP-1167 minimal proxy (OpenZeppelin Clones)
+  # Runtime bytecode: 0x363d3d373d3d3d363d73<20-byte-impl>5af43d82803e903d91602b57fd5bf3
+  local bytecode
+  bytecode=$(cast code "$ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null || true)
+  if [[ "$bytecode" =~ ^0x363d3d373d3d3d363d73([0-9a-fA-F]{40})5af43d82803e903d91602b57fd5bf3$ ]]; then
+    local clone_impl="0x${BASH_REMATCH[1]}"
+    if [[ "$clone_impl" != "$ZERO_ADDR" ]]; then
+      printf "target=%s\nproxy=%s\nkind=eip1167\n" "$clone_impl" "$ADDRESS"
+      return 0
+    fi
+  fi
+
+  printf "target=%s\nproxy=\nkind=direct\n" "$ADDRESS"
 }
 
 # extractSelectorsFromOpcodes: extract unique function selectors from a Heimdall opcodes file.
