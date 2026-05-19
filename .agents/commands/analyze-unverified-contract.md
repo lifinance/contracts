@@ -25,7 +25,7 @@ Execute the workflow below in order. This file contains all context needed for a
 
 ## 2. RPC URL resolution
 
-- **Preferred**: From `config/networks.json` — key = network name, field `rpcUrl`. Standalone: `jq -r --arg n "base" '.[$n].rpcUrl // empty' config/networks.json`. With helpers: source `script/helperFunctions.sh` and use `getRpcUrlFromNetworksJson NETWORK` (reads networks.json).
+- **Preferred**: From `config/networks.json` — key = network name, field `rpcUrl`. Standalone: `jq -r --arg n "$NETWORK" '.[$n].rpcUrl // empty' config/networks.json` (export `NETWORK` first, or substitute the network name directly). With helpers: source `script/helperFunctions.sh` and use `getRpcUrlFromNetworksJson NETWORK` (reads networks.json).
 - **Alternative**: `getRPCUrl NETWORK` from `script/helperFunctions.sh` (reads `ETH_NODE_URI_<NETWORK>` from env).
 - **Fallback**: If network not in config and env not set, ask user for RPC URL.
 
@@ -48,9 +48,9 @@ Execute the workflow below in order. This file contains all context needed for a
 ## 5. Heimdall usage (disassemble / decompile)
 
 - **Docs**: https://github.com/Jon-Becker/heimdall-rs/wiki/modules  
-- **Shared options**: `-r` / `--rpc-url` = RPC URL; `-o` = output path or `print`; `-d` / `--default` = non-interactive (choose defaults when prompted).
-- **Disassemble** (bytecode → opcodes): `heimdall disassemble <TARGET> -r <RPC_URL> -o <OUTPUT>` — `<TARGET>` = address, ENS, or bytecode file path. Optional: `-d` for decimal program counter.
-- **Decompile** (bytecode → pseudo-Solidity + ABI): `heimdall decompile <TARGET> -r <RPC_URL> -o <OUTPUT> -d`. Use `--include-sol` and/or `--include-yul` for full output; `--skip-resolving` to skip selector resolution.
+- **Shared options**: `-r` / `--rpc-url` = RPC URL; `-o` = output path or `print`. Note: `-d` is **not** shared — it means different things per command (see below).
+- **Disassemble** (bytecode → opcodes): `heimdall disassemble <TARGET> -r <RPC_URL> -o <OUTPUT>` — `<TARGET>` = address, ENS, or bytecode file path. Optional: `-d` / `--decimal-counter` to show the program counter in decimal instead of hex.
+- **Decompile** (bytecode → pseudo-Solidity + ABI): `heimdall decompile <TARGET> -r <RPC_URL> -o <OUTPUT> -d`. Here `-d` / `--default` = non-interactive (auto-select defaults when prompted). Use `--include-sol` and/or `--include-yul` for full output; `--skip-resolving` to skip selector resolution.
 - **Outputs**: e.g. `opcodes-<network>-<short_addr>.txt/` (Heimdall may create a directory; opcodes are in `disassembled.asm` inside) or `opcodes.txt`; optional `decompiled-<short_addr>/`.
 - **More insight**: `heimdall dump <TARGET> -r <RPC_URL>` (storage slots); `heimdall cfg <TARGET> -r <RPC_URL> -o <OUTPUT>` (control-flow graph). Use when summarizing structure or proxy/storage patterns.
 
