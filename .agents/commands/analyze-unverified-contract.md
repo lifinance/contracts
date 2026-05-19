@@ -47,6 +47,10 @@ Execute the workflow below in order. This file contains all context needed for a
 
 ## 5. Heimdall usage (disassemble / decompile)
 
+- **Proxy check first** (important): before disassembling/decompiling, verify `<ADDRESS>` isn't an EIP-1967 proxy — otherwise you'll analyze the (minimal) proxy bytecode and miss the actual logic.
+  - **Implementation slot** (EIP-1967): `cast storage <ADDRESS> 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url <RPC_URL>`
+  - **Beacon slot** (EIP-1967, beacon proxies): `cast storage <ADDRESS> 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50 --rpc-url <RPC_URL>` — if non-zero, read the beacon's `implementation()` via `cast call <BEACON> "implementation()(address)" --rpc-url <RPC_URL>`.
+  - If either returns a non-zero address (low 20 bytes of the 32-byte slot), **use that implementation address as `<TARGET>`** for the disassemble/decompile steps below. Note in the final report that the input was a proxy and record both the proxy and the resolved implementation address.
 - **Docs**: https://github.com/Jon-Becker/heimdall-rs/wiki/modules  
 - **Shared options**: `-r` / `--rpc-url` = RPC URL; `-o` = output path or `print`. Note: `-d` is **not** shared — it means different things per command (see below).
 - **Disassemble** (bytecode → opcodes): `heimdall disassemble <TARGET> -r <RPC_URL> -o <OUTPUT>` — `<TARGET>` = address, ENS, or bytecode file path. Optional: `-d` / `--decimal-counter` to show the program counter in decimal instead of hex.
