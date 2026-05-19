@@ -67,9 +67,11 @@ Cache per-repo (one call per repo). Add the dropped count to the Excluded sectio
 For each non-draft, non-stale active PR:
 
 1. **Find the Slack post.** Search the routed channel:
+
    ```text
    in:#<channel> pull/<NUMBER> from:<@<current-user-slack-id>>
    ```
+
    If no result, mark "not posted for review yet" and surface in the dashboard so the user can decide whether to post.
 
 2. **Read the thread** (`response_format="detailed"`). Walk every reply.
@@ -108,19 +110,23 @@ This is the team-inbox half. Scan the same channel(s) for PRs **not posted by th
 1. List PR-post messages in `#dev-sc-review` from the last 6 weeks (paginate as needed). Each post follows the `<URL> << <title>` convention. Extract `(owner, repo, pr_number, parent_ts, posted_at, slack_author)`.
 2. Drop entries where `slack_author == current_user` (already covered in 1.2).
 3. For each remaining PR, fetch state in parallel:
+
    ```bash
    gh pr view <n> --repo <owner>/<repo> --json \
      author,state,isDraft,reviewDecision,reviews,latestReviews,commits,updatedAt,mergeable
    ```
+
    Drop `state != "OPEN"` or `isDraft == true`.
 4. Reduce against the current user (`me`):
    - `my_last_review` = latest `reviews` entry where `author.login == me` (capture `state`, `submittedAt`).
    - `any_human_review` = any review by a real user (exclude bots: `coderabbitai`, `github-actions`, `*-bot`, `app/*`).
    - `last_commit_ts` = latest `commits[].commit.committedDate`.
    - **Slack thread state** — read with `response_format="detailed"` (mandatory; re-review signals live in Slack, not GitHub). Capture latest author + ts. Detect a re-review signal in any message authored by the PR author *after* `my_last_review.submittedAt`, case-insensitive regex:
+
      ```text
      ready (for|to) re-?review | please re.?review | addressed | updated.*PR | PTAL | fixed @ | all comments addressed | rebased
      ```
+
      If the re-review ping mentions someone else (`@<other>`) but my prior review is still open (COMMENTED / CHANGES_REQUESTED with no follow-up from me), still classify as INBOX-REREVIEW and flag the primary-reviewer ambiguity in the dashboard row.
 
    | Bucket | Condition |
@@ -255,15 +261,19 @@ For **INCOMING-UNREVIEWED**:
 For **INCOMING-REREVIEW**:
 
 - Fetch diff *since my last review*:
+
   ```bash
   gh pr view <n> --json reviews \
     --jq '.reviews[] | select(.author.login=="<me>") | .commit.oid' | tail -1
   gh pr diff <n> --color=never --commit-range <last_review_sha>..HEAD
   ```
+
 - Show filename list + line-count delta; quote the dev's "ready for re-review" message from the Slack thread; list my still-open inline review comments:
+
   ```bash
   gh api repos/<o>/<r>/pulls/<n>/comments
   ```
+
   filtered by `user.login == me` AND `in_reply_to_id == null`.
 - Per-PR offer: (i) open `--web` link to the "Files changed since" view, (ii) spawn sub-agent to verify the dev addressed each of my original comments and report mismatches, (iii) skip.
 
