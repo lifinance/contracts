@@ -100,10 +100,9 @@ function selectorFromSignature(sig: string): string {
 }
 
 function eventSignature(ev: IAbiEvent): string {
-  const inputs =
-    ev.inputs
-      ?.map((p) => `${p.indexed ? 'indexed:' : ''}${canonicalType(p)}`)
-      .join(',') ?? ''
+  // Canonical event signature (used for dedup keys + sort ordering, and safe for
+  // future keccak256 topic-0 derivation): types only, no `indexed` prefix.
+  const inputs = ev.inputs?.map(canonicalType).join(',') ?? ''
   return `${ev.name}(${inputs})`
 }
 
