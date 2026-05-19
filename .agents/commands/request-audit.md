@@ -21,10 +21,6 @@ confirmation.
 | **sujith** | `#dev-sc-audit` | `<@U05GN6XH57T>` | `@Sujith Somraaj` | greeting **before** PR/Commit |
 | **burrasec** | `#dev-sc-audit-burrasec` | `<@U094M720QDP>` | `@Josip Koncurat` | PR/Commit **before** greeting |
 
-> Re-verify the Burrasec ID (`<@U094M720QDP>`) and Sujith ID via Slack admin before relying on
-> either — webhooks paste IDs verbatim, so a wrong ID renders as `@Unknown` or pings the wrong
-> person.
-
 ### .env (one-time per developer)
 
 Convention: a channel `#X` is posted to via env var `WEBHOOK_X` (uppercase, hyphens → underscores).
@@ -49,6 +45,23 @@ gh pr view <PR_NUMBER> --repo lifinance/contracts \
 Extract: `number`, `url`, `title`, `body`, `commits[].oid` (use the **last** entry as
 `latest_commit_oid` — re-run the command with `--json commits` if the array came back empty),
 `files[]`, `labels[]`.
+
+## Step 1a — Fetch linked Linear ticket
+
+PRs in this repo are usually linked to a Linear ticket in the **EXSC** team
+(`https://linear.app/lifi-linear/team/EXSC/all`); the description is high-value audit context
+(motivation, design decisions, scope boundaries). Extract an `EXSC-\d+` identifier from, in
+order:
+
+1. PR body — `EXSC-\d+` token, or a `linear.app/lifi-linear/issue/EXSC-\d+/…` URL.
+2. PR title — same `EXSC-\d+` pattern.
+3. `headRefName` — branch like `feat/exsc-1234-…` (case-insensitive).
+
+If found, fetch with `mcp__claude_ai_Linear__get_issue` (id = `EXSC-1234`). Treat the
+description and comments as another input source for the context paragraph (Step 3). If the
+ticket links a Slack thread, surface it as a default in Step 1b.
+
+If no identifier is found, skip silently — don't ask the user.
 
 ## Step 1b — Always ask for additional context
 
@@ -152,12 +165,12 @@ Scope: {full_scope_list}
 
 ### Composing the context paragraph
 
-The **PR body** defines *what* is in this PR. The **Slack thread** explains *why*. Never let
-the thread expand the described scope beyond what the PR body states.
+The **PR body** defines *what* is in this PR. The **Linear ticket** and **Slack thread**
+explain *why*. Never let either expand the described scope beyond what the PR body states.
 
-Merge both sources into one coherent paragraph:
+Merge all available sources into one coherent paragraph:
 
-1. Root cause / problem (from Slack thread if available, else PR body Summary)
+1. Root cause / problem (Linear ticket or Slack thread if available, else PR body Summary)
 2. What this PR does — be precise about what is and isn't included
 3. Key design decisions or alternatives rejected (only if relevant, keep short)
 4. Urgency / deadline, if applicable
@@ -166,8 +179,8 @@ If the PR body has an explicit "NOT in this PR" / "Explicitly excluded" section,
 boundaries — auditors need to know what's out of scope as much as what's in.
 
 3–7 sentences total, written as prose (not bullets) so it reads naturally in Slack. If the
-Slack thread had a long discussion, extract only the decision-relevant parts; drop
-back-and-forth, emoji reactions, administrative replies.
+Linear ticket or Slack thread had a long discussion, extract only the decision-relevant parts;
+drop back-and-forth, emoji reactions, administrative replies.
 
 **Code style** (applies to webhook posts; the manual-fallback file deliberately uses plain
 text — see Step 6 exit 2). Wrap in backticks every function, variable, contract, repo, error,
