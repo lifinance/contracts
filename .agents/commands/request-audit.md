@@ -100,8 +100,9 @@ Paste a Slack thread URL, write a few sentences, or press Enter to skip.
 implementation trivia), Why / motivation, **NOT in this PR** (exclusions matter as much as
 inclusions), and merge-order / multi-PR sequencing if step N of M.
 
-**Urgency** — flag as urgent if any of: `--urgent` flag passed, PR title/body mentions
-"urgent" / "time pressure" / "blocker" / "ASAP" / "today", or labels include an urgency label.
+**Urgency** — flag as urgent if any of: `--urgent` flag passed, PR title/body/labels mention
+"urgent" / "time pressure" / "blocker" / "ASAP" / "today" or carry an urgency label, the
+Linear ticket has `priority: 1` (Urgent), or the Linear ticket's `dueDate` is within ~3 days.
 
 ## Step 3 — Build the messages
 
