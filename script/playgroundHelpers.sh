@@ -2075,9 +2075,13 @@ function decodeSelector4byte() {
 
   local FOURBYTE_URL="${FOURBYTE_URL:-https://www.4byte.directory/api/v1/signatures}"
   local RESPONSE
-  RESPONSE=$(curl -sS -L "${FOURBYTE_URL}/?hex_signature=${SELECTOR}" 2>/dev/null || echo '{"count":0}')
+  RESPONSE=$(curl -sS -L \
+    --connect-timeout 5 \
+    --max-time 15 \
+    "${FOURBYTE_URL}/?hex_signature=${SELECTOR}" 2>/dev/null || echo '{"count":0}')
   local COUNT
   COUNT=$(echo "$RESPONSE" | jq -r '.count // 0' 2>/dev/null) || COUNT=""
+  # Treat empty / null / "0" / jq-parse-failure as "no match" — avoids falling through into signature extraction on invalid responses.
   if [[ -z "$COUNT" || "$COUNT" == "0" || "$COUNT" == "null" ]]; then
     printf "%s\t%s\n" "$SELECTOR" "(no match)"
     return 0
@@ -2095,7 +2099,7 @@ function decodeSelector4byte() {
 #   --stdin  - Optional: read one selector per line from stdin (0x + 8 hex)
 #   SELECTOR - Optional: one or more selectors; if omitted and not --stdin, read from opcodes-selectors.md
 #
-# Returns: 0 on success; 1 if no selectors or dependency missing
+# Returns: 0 on success or when no selectors are present; 1 on missing dependency or missing default file
 # Example: decodeSelectors4byte 0x8388464e 0x12345678
 # Example: decodeSelectors4byte
 # Example: grep -oE '0x[0-9a-f]{8}' opcodes-selectors.md | decodeSelectors4byte --stdin
@@ -2124,6 +2128,8 @@ function decodeSelectors4byte() {
     for ARG in "$@"; do
       if isValidSelector "$ARG"; then
         SELECTORS+=("$ARG")
+      else
+        warning "decodeSelectors4byte: skipping invalid selector '$ARG'"
       fi
     done
   else
@@ -2151,6 +2157,9 @@ function decodeSelectors4byte() {
     warning "decodeSelectors4byte: no selectors to decode"
     return 0
   fi
+
+  # Deduplicate while preserving first-seen order — avoid redundant API hits when stdin/args/file overlap.
+  mapfile -t SELECTORS < <(printf '%s\n' "${SELECTORS[@]}" | awk '!seen[$0]++')
 
   local SELECTOR
   for SELECTOR in "${SELECTORS[@]}"; do
