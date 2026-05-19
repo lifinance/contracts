@@ -40,6 +40,7 @@ Prefer the helpers. They're consistent with the rest of `script/playgroundHelper
 - **Two args** `ADDRESS NETWORK` → use directly.
 - **Single arg = URL** → extract `ADDRESS` from the path (segment after `/address/` or `/contract/`) and derive `NETWORK` from the host. Look up the host in `config/networks.json` (each network entry's `explorerUrl` field) rather than hardcoding a list — the repo supports 60+ networks. For the common cases: `etherscan.io → mainnet`, `basescan.org → base`, `arbiscan.io → arbitrum`, `polygonscan.com → polygon`, `optimistic.etherscan.io → optimism`. If the host doesn't resolve, ask the user.
 - **Validate**: `isValidEvmAddress "$ADDRESS"`. Reject invalid input rather than guessing.
+- **Set `$SHORT` once** (the first 8 hex chars of `ADDRESS` in lowercase — used by every output filename in steps 4–7): `SHORT="$(printf '%s' "${ADDRESS#0x}" | tr '[:upper:]' '[:lower:]' | cut -c1-8)"`.
 
 ### 2. Resolve RPC
 
