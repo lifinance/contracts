@@ -26,8 +26,6 @@ name: VersionControlAndAuditVerification
 on:
   pull_request:
     types: [opened, edited, synchronize, review_requested, ready_for_review]
-  pull_request_review:
-    types: [submitted]
 
 permissions:
   contents: read # required to fetch repository contents
@@ -38,8 +36,13 @@ jobs:
   version-control:
     if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     runs-on: ubuntu-latest
+    # Key concurrency by PR + head SHA so only redundant runs on the *same* commit
+    # cancel each other. A new commit (synchronize) gets its own group and runs to
+    # completion instead of being cancelled by — or cancelling — runs on the prior SHA.
+    # Without the SHA in the key, GitHub renders the cancelled run as a red "fail"
+    # row in the Checks UI even though nothing actually broke.
     concurrency:
-      group: sc-core-dev-approval-${{ github.event.pull_request.number }}
+      group: sc-core-dev-approval-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
       cancel-in-progress: true
     env:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
