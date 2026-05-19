@@ -75,7 +75,7 @@ Negation patterns (`!src/**/*.s.sol`) are supported in `globs:` (Cursor) but **n
 
 ## No-Duplication, Naming, Size, Cross-References
 
-These constraints are enforced automatically via `010-agents-authoring` (auto-loaded when editing `.agents/` files). See that rule for the full list. Key reminders:
+These constraints are enforced automatically via `010-agents-authoring` (auto-loaded when editing `.agents/rules/*.md` or `.agents/commands/*.md`). See that rule for the full list. Key reminders:
 - Search before adding — pick a single owning file, remove duplicates.
 - Rules define "what/why", not "how"; report CI/tooling suggestions separately.
 - Follow `.agents/README.md` for numbering ranges.

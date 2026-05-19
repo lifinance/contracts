@@ -309,12 +309,14 @@ Reply to the parent message with this (click the reply icon on the parent):
 ---
 ```
 
-Tell the user, naming only the channel(s) that fell back:
+Tell the user, naming only the channel(s) that fell back. Print one line per failed channel,
+substituting `{webhook_var}` with the exact missing env var (`WEBHOOK_DEV_SC_AUDIT` or
+`WEBHOOK_DEV_SC_AUDIT_BURRASEC`):
 
 ```
-⚠️ WEBHOOK_DEV_SC_AUDIT (or WEBHOOK_DEV_SC_AUDIT_BURRASEC) is not set in .env — wrote
-   manual fallback for #{channel} to /tmp/audit-request-{pr_number}.md. Set the env var
-   (URL in 1Password -> Developers Smart Contract -> Webhooks SC Channels) to post automatically next time.
+⚠️ {webhook_var} is not set in .env — wrote manual fallback for #{channel} to
+   /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password -> Developers
+   Smart Contract -> Webhooks SC Channels) to post automatically next time.
 ```
 
 ---

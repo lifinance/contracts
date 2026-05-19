@@ -43,7 +43,7 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 ## Best Practices
 
-All authoring constraints (scoping, size, naming, no-duplication, conventions, cross-references) are enforced automatically by `010-agents-authoring` (activates when editing `.agents/` files).
+All authoring constraints (scoping, size, naming, no-duplication, conventions, cross-references) are enforced automatically by `010-agents-authoring` (activates when editing `.agents/rules/*.md` or `.agents/commands/*.md`).
 
 ## Context Management
 
