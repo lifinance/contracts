@@ -154,25 +154,21 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 
    1. Edit the file.
    2. Create a **dedicated commit** with subject:
-
       ```
       pr-ready: <one-line issue summary> (<file>:<line>)
       ```
-
       Body contains the CR finding excerpt + a one-line rationale. **One finding = one commit.**
    3. Do **not** push. The dev pushes after reviewing the summary.
 
    **Ask bucket** (per-finding consent):
 
    1. Print:
-
       ```
       [N/total] <file>:<line> — <one-line issue summary>
         CR says:   <≤ 80-char excerpt>
         Proposed:  <unified diff, ≤ 15 lines>
       Apply? [y / n / defer / skip-rest]
       ```
-
    2. Wait for explicit answer. `y` → edit + one-commit-per-fix (same format as Auto-apply). `n` / `defer` → record in summary (deferred with rationale). `skip-rest` → record all remaining Ask items as deferred and move to step 6.
    3. Never infer consent. If the user is non-interactive, treat every Ask item as deferred and note it in the summary.
 
