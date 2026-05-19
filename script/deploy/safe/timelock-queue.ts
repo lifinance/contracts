@@ -10,6 +10,7 @@
  *
  */
 
+import { consola } from 'consola'
 import {
   MongoClient,
   type Collection,
@@ -19,6 +20,7 @@ import {
 import {
   decodeFunctionData,
   encodeAbiParameters,
+  getAddress,
   keccak256,
   type Address,
   type Hex,
@@ -330,5 +332,92 @@ export function deserializeScheduleParams(
     predecessor: doc.predecessor,
     salt: doc.salt,
     delay: BigInt(doc.delay),
+  }
+}
+
+/**
+ * Upserts a row into the timelock execution queue when the just-executed Safe
+ * tx scheduled a timelock op. No-op for any other Safe tx.
+ *
+ * Called from two paths: the live execution path in `confirm-safe-tx`, and
+ * the reconciliation pass in `reconcile.ts` when a previously `submitted`
+ * row is promoted to `executed` (or a pending row is back-filled from
+ * on-chain logs). The upsert is keyed by `(network, operationId)` so it is
+ * idempotent across both call sites.
+ *
+ * Errors are logged as warnings only — the Safe tx is already mined and is
+ * the authoritative record. A missed enqueue can be repaired via the
+ * backfill script.
+ *
+ * @param callData - The Safe tx calldata (must be a `scheduleBatch` call to enqueue).
+ * @param to - The target of the Safe tx (the timelock address when applicable).
+ * @param safeTxHash - Safe-side hash of the tx (for traceability).
+ * @param executionHash - On-chain hash of the Safe execution tx.
+ * @param chainId - Numeric chain id of the network.
+ * @param networkName - Network name (lowercased before storage).
+ */
+export async function enqueueTimelockOpIfApplicable(
+  callData: Hex,
+  to: Address,
+  safeTxHash: string,
+  executionHash: string,
+  chainId: number,
+  networkName: string
+): Promise<void> {
+  if (!isScheduleBatchCalldata(callData)) return
+
+  try {
+    const params = decodeScheduleBatch(callData)
+    const operationId = computeOperationIdBatch(
+      params.targets,
+      params.values,
+      params.payloads,
+      params.predecessor,
+      params.salt
+    )
+    const network = networkName.toLowerCase()
+    const timelockAddress = getAddress(to)
+    const serialized = serializeScheduleParams(params)
+    const now = new Date()
+
+    const { client, timelockQueue } = await getTimelockQueueCollection()
+    try {
+      // Filter inlined (not via byOperationId) so static analyzers can see
+      // the $eq wrap directly. The helper is functionally identical and
+      // used unchanged at every other call site.
+      await timelockQueue.updateOne(
+        {
+          network: { $eq: network },
+          operationId: { $eq: operationId },
+        },
+        {
+          $setOnInsert: {
+            operationId,
+            network,
+            chainId,
+            timelockAddress,
+            ...serialized,
+            createdAt: now,
+          },
+          $set: {
+            status: 'queued',
+            safeTxHash,
+            executionHash,
+            updatedAt: now,
+          },
+        },
+        { upsert: true }
+      )
+      consola.success(
+        `Enqueued timelock op ${operationId} for auto-execution on ${network}`
+      )
+    } finally {
+      await client.close()
+    }
+  } catch (error) {
+    consola.warn(
+      'Failed to enqueue timelock op (Safe tx already on-chain; can be re-enqueued via backfill):',
+      error
+    )
   }
 }
