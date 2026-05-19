@@ -1,10 +1,10 @@
 # Markdownlint
 # - lints Markdown files in pull requests against the repo's .markdownlint-cli2.jsonc config
 # - scoped to changed .md files only (via tj-actions/changed-files) so existing markdown is grandfathered
-# - runs on every PR so the required check always reports a status; the job short-circuits when no
-#   .md files are in the diff (see Step 3 below). A previous path-filtered trigger left the required
-#   check stuck on "Expected — Waiting for status to be reported" for PRs that touched no markdown.
-# - hard-fails the job on any structural violation (heading hierarchy, fence/list spacing, empty links, etc.)
+# - hard-fails the lint job on any structural violation (heading hierarchy, fence/list spacing, empty links, etc.)
+# - Path-gated via a dedicated `detect-changes` job. A `markdownlint-required` aggregator job always
+#   reports a final status so this workflow can remain a required check on `main` branch protection
+#   even when the heavy lint job is skipped because no markdown files changed.
 # - known limitations: existing markdown files are not linted retroactively; only modified files in the PR are checked
 
 name: markdownlint
@@ -16,7 +16,31 @@ permissions:
   contents: read # required to fetch repository contents and compute the changed-files diff
 
 jobs:
+  detect-changes:
+    # Determines whether files that can influence the markdownlint outcome were touched.
+    # Always runs (cheap) so the downstream markdownlint-required can report status.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # required by dorny/paths-filter to read changed files on PRs
+    outputs:
+      markdown: ${{ steps.filter.outputs.markdown }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            markdown:
+              - '**/*.md'
+              - '.markdownlint-cli2.jsonc'
+              - '.github/workflows/markdownlint.yml'
+
   lint:
+    needs: detect-changes
+    # Only run the heavy lint job when files that can influence the outcome have changed.
+    if: ${{ needs.detect-changes.outputs.markdown == 'true' }}
     name: lint changed markdown files
     runs-on: ubuntu-latest
     steps:
@@ -33,16 +57,39 @@ jobs:
         with:
           files: '**/*.md'
 
-      # Step 3: Short-circuit if the PR doesn't actually touch any markdown file
-      #         (workflow can be triggered by edits to the config or this file)
-      - name: Skip if no markdown files changed
-        if: steps.changed.outputs.any_changed != 'true'
-        run: echo "No markdown files changed; nothing to lint."
-
-      # Step 4: Lint only the changed files using the repo's .markdownlint-cli2.jsonc
+      # Step 3: Lint only the changed files using the repo's .markdownlint-cli2.jsonc.
+      # Guarded on any_changed because the detect-changes gate can also fire on
+      # edits to the config or this workflow file alone (no .md files changed).
       - name: Run markdownlint-cli2 on changed files
         if: steps.changed.outputs.any_changed == 'true'
         uses: DavidAnson/markdownlint-cli2-action@eb5ca3ab411449c66620fe7f1b3c9e10547144b0 # v18
         with:
           globs: ${{ steps.changed.outputs.all_changed_files }}
           separator: ' '
+
+  markdownlint-required:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `lint changed markdown files`) as the required status check on `main`.
+    needs: [detect-changes, lint]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `lint` would be
+        # `skipped` due to the dependency failure — and treating that `skipped`
+        # as success would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          lint_result="${{ needs.lint.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31mmarkdownlint-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$lint_result" == "success" || "$lint_result" == "skipped" ]]; then
+            echo -e "\033[32mmarkdownlint-required OK (lint=$lint_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31mmarkdownlint-required FAILED (lint=$lint_result)\033[0m" >&2
+          exit 1
