@@ -8,6 +8,7 @@ description: Request development funds from the LI.FI `lifinance/automate-wallet
 ## When to trigger
 
 User says any of:
+
 - "request dev funds" / "request funds for the deployer" / "refill deployer"
 - "request 100 USDC on Base" / "I need 0.5 ETH on Arbitrum"
 - "top up the refund wallet" / "fund pauserWallet on Polygon"
@@ -15,6 +16,7 @@ User says any of:
 - Any natural request that implies opening a PR against `lifinance/automate-wallet-dev-fees`
 
 Skip when:
+
 - User is asking about an existing fund request (read intent — just `gh pr view` it).
 - User wants TRON, BTC, or SUI funding — those aren't supported by the wallet (see [README](https://github.com/lifinance/automate-wallet-dev-fees)). Tell them and stop.
 
@@ -48,11 +50,13 @@ Stop and surface any auth / permission failure to the user — never paper over 
 ## Inputs (parsed from the user's prompt)
 
 Required:
+
 - **amount** — decimal string in **human-readable token units**, **not** atomic units (wei / lamports / smallest-denomination). `"1"` means 1 ETH, not 1 wei. `"100.0"` means 100 USDC, not 100 × 10⁶. Always quoted in JSON — the upstream action parses it as a decimal string and applies the token's `decimals` itself. If the user's prompt is ambiguous (e.g. "send 1000000000000000000" for ETH), **ask for clarification** before proceeding — accidentally requesting 100 ETH instead of 100 USDC equivalent is a real foot-gun.
 - **token** — symbol (`USDC`, `USDT`, `ETH`, `SOL`, etc.) or raw `0x…` address.
 - **chain** — name (`base`, `arbitrum`, `mainnet`, `solana`, …) or chainId.
 
 Optional:
+
 - **recipient** — wallet label (`deployerWallet`, `refundWallet`, `withdrawWallet`, `pauserWallet`, `feeCollectorOwner`, `devWallet`) or raw `0x…` address. **Default: `deployerWallet`.**
 - **description / justification** — free text for the entry's `description` field.
 
@@ -65,6 +69,7 @@ If anything required is missing or ambiguous, ask **once**, concisely. Don't run
 ```bash
 test -f config/global.json && test -f config/networks.json
 ```
+
 If not, ask the user to `cd` into the contracts repo (the skill reads its config for defaults). Don't proceed.
 
 ### 2. Resolve chain → chainId
@@ -76,6 +81,7 @@ jq -r --arg c "<chain-input>" \
 ```
 
 Practical resolution order:
+
 - If input is numeric, treat as chainId and verify it exists in `networks.json`.
 - Else lower-case the input and key-lookup directly.
 - Else fuzzy-match against keys (`arb` → `arbitrum`) — but **confirm with user** before using a fuzzy match.
@@ -197,6 +203,7 @@ PR title: `Request funds: <amount> <token> on <chain> for <short justification>`
 (e.g. `Request funds: 100 USDC on Base for QA testing`)
 
 PR body:
+
 ```markdown
 ## Request
 
@@ -225,6 +232,7 @@ Opened via the `request-dev-funds` Claude Code skill.
 ```
 
 Create with:
+
 ```bash
 gh pr create --repo lifinance/automate-wallet-dev-fees \
   --title "<title>" --body "<body>" --base main --head "$BRANCH"
