@@ -529,6 +529,13 @@
     }
   },
   "Executor": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
     "contractAddresses": {
       "ERC20Proxy": {
         "allowToDeployWithZeroAddress": "false"
