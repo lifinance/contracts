@@ -8,6 +8,7 @@ description: Create a pull request for the current branch: creates a new branch 
 ## When to trigger
 
 User says any of:
+
 - "create PR" / "open PR" / "make a pull request"
 - "push and create PR" / "commit, push and PR"
 - "new branch, commit, push and PR"
@@ -34,11 +35,13 @@ below.
 ### 1. Assess current state
 
 Run `git status` and `git diff HEAD` to understand:
+
 - Current branch name
 - Staged vs unstaged changes
 - Whether a remote branch / open PR already exists (`gh pr view`)
 
 Handle these edge cases before continuing:
+
 - **No changes (clean tree, no staged diff)**: abort with a clear message. There's nothing to PR.
 - **Detached HEAD**: abort and ask the user to check out a branch first.
 - **Already on a feature branch with an open PR**: offer to just commit + push + update the existing PR instead of opening a new one.
@@ -73,13 +76,15 @@ git commit -m "<subject line>"
 Read `.github/pull_request_template.md` verbatim. Fill in:
 
 - **Linear task link**: resolve in this order. Linear's GitHub integration creates the bidirectional auto-link (PR in the ticket's "Links" sidebar; ticket in the PR's "Linked issues" panel) only when at least one of:
+
   - the **branch name** contains the issue ID (e.g. `feat/exsc-327-…`, see step 2), or
   - the PR **title or body** contains a magic keyword + ID — `Fixes EXSC-327`, `Closes EXSC-327`, `Resolves EXSC-327`, or `Ref EXSC-327` (case-insensitive; use `Ref` for partial work that should not auto-close the ticket on merge).
 
   A bare `EXSC-327` mention in the body alone does **not** reliably trigger the link. Prefer the branch-name route; always render the body's Linear line as `Fixes <ID>` (or `Ref <ID>`) as a belt-and-braces measure. No extra Linear MCP call is needed for cross-linking once either condition is satisfied.
+
   1. **Conversation context** — look for any Linear URL or issue ID (e.g. `EXSC-123`) mentioned by the user in this session.
-  2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via `mcp__claude_ai_Linear__list_issues` with `query: "<ID>"`. If found and the ID matches, use it — no further questions.
-  3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query `mcp__claude_ai_Linear__list_issues` with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
+  2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via the Linear MCP `list_issues` tool with `query: "<ID>"`. If found and the ID matches, use it — no further questions.
+  3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query the Linear MCP `list_issues` tool with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
      - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its status is active (`statusType: started` or `unstarted`).
      - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "skip" option). Use `AskUserQuestion` if available; otherwise plain chat.
   4. **Not found** — offer to create a new Linear ticket before falling back. The consent prompt must make **both** side-effects visible up front (ticket creation + local branch rename), so the user knows exactly what they're approving with a single keystroke. Default action is **edit** so the user always sees the proposed title and the proposed new branch name before anything is created or renamed:
@@ -92,14 +97,15 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
        - `e` (default) — show the proposed title (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
        - `y` — create the ticket with the proposed title as-is **and** rename the branch.
        - `s` — skip; proceed without a ticket and leave the branch as-is.
-     - On `y` / `e` (after the user confirms the edited title): call `mcp__claude_ai_Linear__save_issue` with `team: "SmartContract"`, the (edited) title, and a short body summarizing the change + a placeholder for the PR URL. Use the returned ID:
+     - On `y` / `e` (after the user confirms the edited title): call the Linear MCP `save_issue` tool with `team: "SmartContract"`, the (edited) title, and a short body summarizing the change + a placeholder for the PR URL. Use the returned ID:
        - Insert `Fixes <ID>` in the PR body's Linear section.
        - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). The user already consented to this rename via the prompt above.
      - On `s` (user skipped) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link, and do not rename the branch.
+
 - **Why I implemented it this way**: one short paragraph explaining the approach/rationale derived from the diff and conversation context.
 - **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
   - `[x] I have performed a self-review of my code` — tick **only after** you actually walk the full `git diff main...HEAD` and confirm: no leftover debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets/credentials, naming/style matches the surrounding code. Note any findings in the summary; if anything looks off, surface it instead of ticking.
-  - `[x] This pull request is as small as possible and only tackles one problem` — tick **only after** you inspect the commit list (`git log main..HEAD --oneline`) and the file list. Tick if all commits serve a single, coherent concern. Do not tick if the branch mixes unrelated changes, or if it contains iterative fix-up commits that should be squashed (call those out to the user before deciding). Note: `/pr-ready` legitimately introduces additional `pr-ready: …` commits — those do not invalidate "single concern".
+  - `[x] This pull request is as small as possible and only tackles one problem` — tick **only after** you inspect the file list (`git diff --name-only main...HEAD`). Tick if all touched files serve a single, coherent concern. Do not tick if the branch mixes unrelated changes. Ignore commit granularity: GitHub squashes commits on merge, so fix-up / iterative commits are not a reason to withhold the tick. `/pr-ready` may also add `pr-ready: …` commits — also fine.
   - `[x] I have run /pr-ready (local CodeRabbit) on this branch and resolved (or explicitly documented) all findings` — tick **only after** step 7 (Run `/pr-ready`) reports either CLEAN or all remaining findings are documented in the PR body.
   - `[x] I have added tests that cover the functionality` — tick only if tests were actually added in this diff.
   - `[x] For new facets: ...` — tick only if a new facet was added.
@@ -122,9 +128,8 @@ Invoke the sibling skill `/pr-ready` (mandatory per `.agents/rules/099-finish.md
 
 Two integration touchpoints this skill owns:
 
-- **Checkbox**: tick the `[x] I have run /pr-ready …` item from step 5 only if `/pr-ready`
-  reports `Re-run status: CLEAN` or `N remaining (documented)`.
-- **Deferred findings**: if `/pr-ready` produced a non-empty *Deferred* or *Rejected* list,
+- **Checkbox**: tick the `[x] I have run /pr-ready …` item from step 5 only if `/pr-ready` reports `Re-run status: CLEAN` or `N remaining (documented)`.
+- **Deferred findings**: if `/pr-ready` produced a non-empty _Deferred_ or _Rejected_ list,
   append a `## /pr-ready deferred findings` section to the PR body (under "Why I
   implemented it this way") with each item + rationale.
 
@@ -153,6 +158,7 @@ Before pushing or opening a PR, display a summary and wait for explicit approval
 
 ```
 About to create PR on branch `<branch-name>`:
+  (renamed from `<old-branch>` in step 5)        ← show only if step 5 renamed it
 
 Commits (<N>) since main (from `git log main..HEAD --oneline`):
   • <sha>  <subject>                          ← step 4
@@ -163,6 +169,8 @@ Files changed (<N>) (from `git diff --name-only main...HEAD`):
   • <file1>
   • <file2>
   ...
+  ↑ If any file here looks unrelated to the task,
+    answer `n` below and we'll split it into a separate PR.
 
 Self-review:
   • Diff walked: <N> files, <±M> lines
@@ -207,7 +215,10 @@ Print the resulting PR URL to the user.
 ### 12. Offer to post for review
 
 After the PR is created, ask:
-> PR created: <url>. Want me to post it to #dev-sc-review? (`/post-pr-for-review`)
+
+> PR created: <url>. Want me to post it for review? (`/post-pr-for-review`)
+
+`/post-pr-for-review` owns the channel choice — don't name a channel here.
 
 ## Failure modes
 
