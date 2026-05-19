@@ -75,10 +75,10 @@ Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`.
 **Squad label (Route B)**:
 
 ```bash
-gh pr view <N> --repo lifinance/lifi-backend --json labels --jq '.labels[].name'
+gh pr view <N> --repo <owner>/<repo> --json labels --jq '.labels[].name'
 ```
 
-If neither `Expansion` nor `Core` present → `gh pr edit <N> --repo lifinance/lifi-backend --add-label Expansion`. The channel determines the squad — not a judgment call. If user explicitly says it's `Core`, surface the contradiction.
+If neither `Expansion` nor `Core` present → `gh pr edit <N> --repo <owner>/<repo> --add-label Expansion`. The channel determines the squad — not a judgment call. If user explicitly says it's `Core`, surface the contradiction.
 
 ### 3. Gate on pre-flight
 
