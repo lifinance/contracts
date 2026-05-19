@@ -1,9 +1,7 @@
 # Markdownlint
 # - lints Markdown files in pull requests against the repo's .markdownlint-cli2.jsonc config
 # - scoped to changed .md files only (via tj-actions/changed-files) so existing markdown is grandfathered
-# - runs on every PR so the required check always reports a status; the job short-circuits when no
-#   .md files are in the diff (see Step 3 below). A previous path-filtered trigger left the required
-#   check stuck on "Expected — Waiting for status to be reported" for PRs that touched no markdown.
+# - triggered on PRs that touch any .md file, the markdownlint config, or this workflow itself
 # - hard-fails the job on any structural violation (heading hierarchy, fence/list spacing, empty links, etc.)
 # - known limitations: existing markdown files are not linted retroactively; only modified files in the PR are checked
 
@@ -11,6 +9,10 @@ name: markdownlint
 
 on:
   pull_request:
+    paths:
+      - '**/*.md'
+      - '.markdownlint-cli2.jsonc'
+      - '.github/workflows/markdownlint.yml'
 
 permissions:
   contents: read # required to fetch repository contents and compute the changed-files diff
