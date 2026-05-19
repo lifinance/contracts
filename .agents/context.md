@@ -30,7 +30,14 @@ are embedded in rule files.
 | Solhint | `bunx solhint <file>` |
 | Bash syntax | `bash -n <file>` |
 
-## Editing PRs via gh
+## Creating and editing PRs via gh
+
+When creating or editing a PR body, always start from the repo template at
+`.github/pull_request_template.md` (sections, headings, and reviewer checklist
+verbatim). Fill in the Linear task link and "Why I implemented it this way";
+tick only the items in the author checklist that genuinely apply; leave the
+reviewer checklist unchecked. Do not substitute a custom layout (e.g. `## Summary`
++ `## Test plan`) — the template's wording feeds the review process.
 
 Use the REST API to update PR title/body:
 
