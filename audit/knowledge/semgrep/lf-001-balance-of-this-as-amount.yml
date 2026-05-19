@@ -1,0 +1,42 @@
+rules:
+  - id: lf-001-balance-of-this-as-amount
+    languages: [solidity]
+    severity: WARNING
+    message: |
+      `address(this).balance` (or `IERC20(t).balanceOf(address(this))`) used as
+      the transfer amount in a function that should only forward a scoped
+      local amount. This drains the contract's entire balance — including
+      funds belonging to other in-flight users — instead of just the current
+      operation's amount.
+
+      If you genuinely need to sweep, do so behind explicit access control and
+      track the intent in the function name (e.g. `sweep…`). Otherwise pass
+      the operation's `amount` explicitly.
+
+      Source: LF-001 (audit20240201 — LiFiDexAggregator/RouteProcessor4 wrapNative).
+      Pattern: full-balance reads inside per-operation paths.
+    metadata:
+      lf-id: LF-001
+      audit: audit20240201
+      cwe: CWE-841
+    pattern-either:
+      - pattern: |
+          $X.transfer(address(this).balance)
+      - pattern: |
+          $X.send(address(this).balance)
+      - pattern: |
+          $X.call{value: address(this).balance}($Y)
+      - pattern: |
+          IWETH($W).deposit{value: address(this).balance}()
+      - pattern: |
+          IWETH($W).withdraw($T.balanceOf(address(this)))
+    paths:
+      include:
+        - "src/Facets/**"
+        - "src/Periphery/**"
+        - "src/Helpers/**"
+      exclude:
+        - "**/*.t.sol"
+        # Allow under deliberate sweep / refund helpers — convention is to
+        # name them explicitly. Suppress matches inside such files:
+        - "src/Helpers/Withdrawable*.sol"

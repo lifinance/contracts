@@ -1,0 +1,35 @@
+rules:
+  - id: lf-029-shared-modifier-parallel-fields
+    languages: [solidity]
+    severity: WARNING
+    message: |
+      Bridge-specific data struct exposes a `.receiver` field that is read
+      or written without an accompanying `require(bridgeData.receiver ==
+      <specific>.receiver, …)` check. Validation modifiers on the parent
+      `ILiFi.BridgeData` only cover the parent receiver; the bridge-specific
+      receiver — the one actually used by the external protocol — slips
+      through unchecked.
+
+      Either validate equality between the two receivers, or wrap the
+      specific receiver in `LibUtil.validateReceiver(...)` / equivalent.
+
+      Source: LF-029 (audit20241205 — DeBridgeDlnFacet) and recurrences.
+      Pattern: read of `<specific>.receiver` not paired with a guard.
+    metadata:
+      lf-id: LF-029
+      audit: audit20241205
+      cwe: CWE-20
+    patterns:
+      - pattern-either:
+          - pattern: $SD.receiver
+      - pattern-not: $SD.receiver = $X;
+    paths:
+      include:
+        - "src/Facets/**"
+      exclude:
+        - "**/*.t.sol"
+        - "src/Facets/Helpers/**"
+    # The narrow pattern (any read of `.receiver` on a struct named like
+    # the bridge-specific data) is intentionally noisy. EXP-484 tuning
+    # should add `pattern-inside` / `pattern-not-inside` constraints to
+    # exclude functions that already contain the equality check.

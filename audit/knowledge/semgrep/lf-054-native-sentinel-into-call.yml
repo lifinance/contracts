@@ -1,0 +1,30 @@
+rules:
+  - id: lf-054-native-sentinel-into-call
+    languages: [solidity]
+    severity: WARNING
+    message: |
+      Low-level `.call(abi.encodeWithSelector(IERC20.transfer.selector, …))`
+      (or `transferFrom`/`approve`) issued against an `address` variable
+      that may hold the native-asset sentinel (`address(0)` or
+      `0xEeee…EEeE`). On native flows the call resolves to a zero address
+      and silently no-ops or reverts confusingly.
+
+      Branch on `LibAsset.isNativeAsset(asset)` before any ERC20 op and
+      route native through the native code path.
+
+      Source: LF-054 (audit20240201 — LiFiDexAggregator).
+      Pattern: low-level ERC20 selector call on user-asset address.
+    metadata:
+      lf-id: LF-054
+      audit: audit20240201
+      cwe: CWE-754
+    pattern-either:
+      - pattern: $A.call(abi.encodeWithSelector(IERC20.transfer.selector, ...))
+      - pattern: $A.call(abi.encodeWithSelector(IERC20.transferFrom.selector, ...))
+      - pattern: $A.call(abi.encodeWithSelector(IERC20.approve.selector, ...))
+    paths:
+      include:
+        - "src/Libraries/**"
+        - "src/Helpers/**"
+        - "src/Facets/**"
+        - "src/Periphery/**"

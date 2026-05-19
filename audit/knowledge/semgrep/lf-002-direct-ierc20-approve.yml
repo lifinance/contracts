@@ -1,0 +1,39 @@
+rules:
+  - id: lf-002-direct-ierc20-approve
+    languages: [solidity]
+    severity: WARNING
+    message: |
+      Direct `IERC20(...).approve(...)` / `.transfer(...)` / `.transferFrom(...)`
+      on user-supplied tokens breaks for non-standard ERC20 implementations
+      that don't return bool (USDT, BNB), revert on non-zero→non-zero allowance
+      change (USDT), or charge fee-on-transfer.
+
+      Use `SafeERC20.safeTransfer`/`safeTransferFrom`/`forceApprove`
+      (or solady's `SafeTransferLib`) — these handle the non-standard cases.
+
+      Source: LF-002 (audit20240201 — LiFiDexAggregator/RouteProcessor4).
+      Pattern: direct IERC20 call on arbitrary token without SafeERC20 wrap.
+    metadata:
+      lf-id: LF-002
+      audit: audit20240201
+      cwe: CWE-252
+    pattern-either:
+      - pattern: IERC20($T).approve($S, $A)
+      - pattern: IERC20($T).transfer($R, $A)
+      - pattern: IERC20($T).transferFrom($F, $R, $A)
+      - pattern: $TOKEN.approve($S, $A)
+      - pattern: $TOKEN.transfer($R, $A)
+      - pattern: $TOKEN.transferFrom($F, $R, $A)
+    metavariable-pattern:
+      metavariable: $TOKEN
+      patterns:
+        # Only flag when the receiver looks like a token variable
+        - pattern-regex: "(?i).*(token|asset|erc20|currency).*"
+    paths:
+      include:
+        - "src/Facets/**"
+        - "src/Periphery/**"
+        - "src/Libraries/**"
+      exclude:
+        - "**/*.t.sol"
+        - "src/Interfaces/**"

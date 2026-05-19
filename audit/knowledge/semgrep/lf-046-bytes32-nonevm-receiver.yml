@@ -1,0 +1,30 @@
+rules:
+  - id: lf-046-bytes32-nonevm-receiver
+    languages: [solidity]
+    severity: ERROR
+    message: |
+      Receiver field for a non-EVM destination is declared as fixed-size
+      `bytes32`. Non-EVM addresses (Bitcoin tb1q…, Solana base58, …) routinely
+      exceed 32 bytes after hex encoding; bytes32 silently truncates, sending
+      funds to an invalid address.
+
+      Use variable-length `bytes` for non-EVM receivers. If a fixed size is
+      truly required, validate the maximum encoded length explicitly.
+
+      Source: LF-046 (audit20250305 — ChainflipFacet).
+      Pattern: fixed-size receiver type for cross-chain non-EVM destinations.
+    metadata:
+      lf-id: LF-046
+      audit: audit20250305
+      cwe: CWE-130
+    pattern-either:
+      - pattern: bytes32 $RECEIVER;
+      - pattern: bytes32 $RECEIVER = $X;
+    metavariable-regex:
+      metavariable: $RECEIVER
+      regex: "(?i).*(non[_]?evm|nonEvm|destination|btc|bitcoin|solana|cosmos).*receiver.*|.*receiver.*(non[_]?evm|nonEvm|btc|bitcoin|solana|cosmos).*"
+    paths:
+      include:
+        - "src/Facets/**"
+        - "src/Periphery/**"
+        - "src/Interfaces/**"

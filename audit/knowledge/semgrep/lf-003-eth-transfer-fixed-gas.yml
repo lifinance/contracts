@@ -1,0 +1,37 @@
+rules:
+  - id: lf-003-eth-transfer-fixed-gas
+    languages: [solidity]
+    severity: WARNING
+    message: |
+      Use of `.transfer(...)` or `.send(...)` for ETH forwarding caps the gas
+      stipend at 2300, which breaks any receiver whose fallback/receive does
+      meaningful work (proxy patterns, multisigs with logic, hooks). Prefer
+      `(bool ok, ) = recipient.call{value: amount}("");` with a return-value
+      check, or `solady SafeTransferLib.safeTransferETH(...)`.
+
+      Source: LF-003 (audit20240201 — LiFiDexAggregator).
+      Pattern: payable.transfer / send for native-asset payout.
+    metadata:
+      lf-id: LF-003
+      audit: audit20240201
+      cwe: CWE-703
+    patterns:
+      - pattern-either:
+          - pattern: $X.transfer($AMT)
+          - pattern: $X.send($AMT)
+      - metavariable-pattern:
+          metavariable: $X
+          patterns:
+            - pattern-either:
+                - pattern: payable($Y)
+                - pattern: $Y
+          # We don't want to flag IERC20.transfer(...) — only payable address
+          # variants. Tightening below.
+    paths:
+      include:
+        - "src/Facets/**"
+        - "src/Periphery/**"
+        - "src/Helpers/**"
+      exclude:
+        - "src/Interfaces/**"
+        - "**/*.t.sol"

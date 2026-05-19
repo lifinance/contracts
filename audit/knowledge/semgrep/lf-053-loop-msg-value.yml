@@ -1,0 +1,29 @@
+rules:
+  - id: lf-053-loop-msg-value
+    languages: [solidity]
+    severity: ERROR
+    message: |
+      `msg.value` referenced inside what appears to be a loop body or a
+      forwarded `{value: msg.value}` call inside an iterating context.
+      `msg.value` is constant for the whole transaction — using it as a
+      per-item budget lets a caller pay once and "spend" it N times.
+
+      Compute the cumulative requirement outside the loop, or distribute
+      the value explicitly and assert `sum == msg.value` after the loop.
+
+      Source: LF-053 (audit20251119 — LiFiIntentEscrowFacet batch-deposit).
+      Pattern: `{value: msg.value}` invocation pattern, likely inside a
+      loop (the loop context is checked manually during triage).
+    metadata:
+      lf-id: LF-053
+      audit: audit20251119
+      cwe: CWE-682
+    pattern-either:
+      - pattern: "$F{value: msg.value}(...)"
+      - pattern: "$C.$F{value: msg.value}(...)"
+    paths:
+      include:
+        - "src/Facets/**"
+        - "src/Periphery/**"
+      exclude:
+        - "**/*.t.sol"
