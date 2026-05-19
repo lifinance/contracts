@@ -60,5 +60,9 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@obra-superpowers": true,
+    "skill-creator@anthropics-claude-plugins-official": true
   }
 }
