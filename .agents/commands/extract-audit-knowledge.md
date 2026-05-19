@@ -98,12 +98,16 @@ For each kept finding, extract:
 
 ### 6. Apply idempotency
 
-Before inserting a finding, compute its `source_id` and search the existing corpus:
+Before inserting a finding, compute its `source_id` (`<audit_id>::<auditor_label>`) and search the existing corpus. A finding from this audit run is considered "already processed" if **either** of these matches:
 
-- If any existing entry's `status_history[].source_id` matches → **skip insertion** of a new entry. Instead, append a new `status_history` entry to the existing finding (Step 7, "Existing finding")
-- If no match → new entry (Step 7, "New finding")
+- An existing finding's top-level `source_id` equals the computed `source_id` (i.e., the same audit's first-occurrence is already on file), OR
+- An existing finding's `status_history` contains an entry whose reconstructed composite `<audit_id>::<source_label>` equals the computed `source_id` (i.e., this audit's appearance is recorded under a re-audit history of some other finding)
 
-This means re-running the skill on the same audit produces no spurious diffs.
+If either matches → **skip insertion** of a new entry. Instead, append a new `status_history` entry to the matching finding (Step 7, "Existing finding").
+
+If neither matches → new entry (Step 7, "New finding").
+
+Re-running the skill on the same audit therefore produces no spurious diffs: each `status_history` row already carries `audit_id` + `source_label`, which reconstruct the exact composite key used for comparison.
 
 ### 7. Merge into corpus
 
