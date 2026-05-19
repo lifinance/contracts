@@ -2064,7 +2064,7 @@ function transferStagingDiamondOwnership() {
 # Usage: decodeSelector4byte SELECTOR
 #   SELECTOR - bytes4 hex selector (0x + 8 hex chars)
 #
-# Returns: 0; output to stdout
+# Returns: 0 on success, 1 on invalid selector; output to stdout
 # Example: decodeSelector4byte "0x8388464e"
 function decodeSelector4byte() {
   local SELECTOR="${1:-}"
