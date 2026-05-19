@@ -52,16 +52,22 @@ jobs:
       #     fi
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+        uses: ./.github/actions/setup-foundry
 
       - name: Fetch RPC endpoints from MongoDB
         run: |
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
           bun fetch-rpcs
-          # Only inject RPC endpoint variables into the GitHub Actions environment
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
               echo "$line" >> "$GITHUB_ENV"
             fi
           done < ".env"

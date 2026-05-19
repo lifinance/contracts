@@ -27,7 +27,6 @@
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
-- [Relay Facet](./RelayFacet.md)
 - [Ronin Bridge Facet](./RoninBridgeFacet.md)
 - [Squid Facet](./SquidFacet.md)
 - [Standardized Call Facet](./StandardizedCallFacet.md)
@@ -36,11 +35,11 @@
 - [ThorSwap Facet](./ThorSwapFacet.md)
 - [Withdraw Facet](./WithdrawFacet.md)
 
-# Helpers
+## Helpers
 
 - [SwapperV2](./SwapperV2.md)
 
-# Libraries
+## Libraries
 
 - [LibAccess](./LibAccess.md)
 - [LibAllowList](./LibAllowList.md)
@@ -51,7 +50,7 @@
 - [LibSwap](./LibSwap.md)
 - [LibUtil](./LibUtil.md)
 
-# Periphery
+## Periphery
 
 - [ERC20Proxy](./ERC20Proxy.md)
 - [Executor](./Executor.md)

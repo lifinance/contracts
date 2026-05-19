@@ -33,9 +33,13 @@ deployAllContracts() {
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
 
+  # Testnets always send admin txs directly (EOA-owned diamond, no Safe).
+  # The sendOrPropose chokepoint already handles this; the prompt is unnecessary.
+  if isTestnetNetwork "$NETWORK"; then
+    echo "[info] Testnet detected: admin txs will be sent directly to the diamond (no Safe/Timelock)."
   # make sure that proposals are sent to diamond directly (for production deployments)
   # this must run even when starting from later stages
-  if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
+  elif [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
     echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
     echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
     echo "Would you like to set it to true for this execution? (y/n)"
@@ -60,25 +64,11 @@ deployAllContracts() {
       "6) Deploy periphery contracts" \
       "7) Add periphery to diamond" \
       "8) Update whitelist.json and execute sync whitelist script" \
-      "9) Fund PauserWallet" \
+      "9) Fund PauserWallet and DevWallet" \
       "10) Update ERC20Proxy" \
       "11) Run health check only" \
       "12) Ownership transfer to timelock (production only)"
   )
-
-  # make sure that proposals are sent to diamond directly (for production deployments)
-  if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]]; then
-    echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND is unset or set to false in your .env file"
-    echo "This script requires SEND_PROPOSALS_DIRECTLY_TO_DIAMOND to be true for PRODUCTION deployments"
-    echo "Would you like to set it to true for this execution? (y/n)"
-    read -r response || response=""
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-      export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true
-      echo "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND set to true for this execution"
-    else
-      echo "Continuing with SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=false (STAGING deployment???)"
-    fi
-  fi
 
   # Extract the stage number from the selection (e.g. "12) ...")
   # Important: do NOT substring-match "1)" as it would also match "10)", "11)", "12)".
@@ -144,8 +134,8 @@ deployAllContracts() {
       fi
     fi
 
-    # deploy SAFE (production only)
-    if [[ "$ENVIRONMENT" == "production" ]]; then
+    # deploy SAFE (production only; testnets have no Safe)
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       SAFE_ADDRESS=$(getValueFromJSONFile "./config/networks.json" "$NETWORK.safeAddress")
       if [[ -z "$SAFE_ADDRESS" || "$SAFE_ADDRESS" == "null" ]]; then
         echo "Deploying SAFE Proxy instance now (no safeAddress found in networks.json)"
@@ -154,6 +144,8 @@ deployAllContracts() {
       else
         echo "SAFE already deployed for $NETWORK (safeAddress: $SAFE_ADDRESS), skipping deployment."
       fi
+    elif isTestnetNetwork "$NETWORK"; then
+      echo "[info] Skipping Safe deployment for testnet network $NETWORK (EOA-owned diamond, no Safe)"
     else
       echo "[info] Skipping Safe deployment (not required for $ENVIRONMENT environment)"
     fi
@@ -300,23 +292,12 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 8 completed"
   fi
 
-  # Stage 9: Fund PauserWallet
+  # Stage 9: Fund PauserWallet and DevWallet
   if [[ $START_STAGE -le 9 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Fund PauserWallet"
-    # get pauserWallet address
-    local PAUSER_WALLET_ADDRESS
-    PAUSER_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
-    if [[ $? -ne 0 ]]; then
-      error "failed to read pauserWallet address from ./config/global.json"
-      exit 1
-    fi
-    if [[ -z "$PAUSER_WALLET_ADDRESS" || "$PAUSER_WALLET_ADDRESS" == "null" ]]; then
-      error "PauserWallet address not found. Cannot fund PauserWallet"
-      exit 1
-    fi
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Fund PauserWallet and DevWallet"
 
-    # get RPC URL
+    # get RPC URL (shared for both wallet funding steps)
     local RPC_URL
     RPC_URL=$(getRPCUrl "$NETWORK")
     if [[ $? -ne 0 ]]; then
@@ -328,31 +309,82 @@ deployAllContracts() {
       exit 1
     fi
 
-    # get balance in current network
+    local PRIVATE_KEY_TO_USE
+    PRIVATE_KEY_TO_USE=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+    if [[ $? -ne 0 || -z "$PRIVATE_KEY_TO_USE" ]]; then
+      error "could not determine private key for network $NETWORK in $ENVIRONMENT environment"
+      exit 1
+    fi
+
+    # --- Fund PauserWallet ---
+    local PAUSER_WALLET_ADDRESS
+    PAUSER_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
+    if [[ $? -ne 0 ]]; then
+      error "failed to read pauserWallet address from ./config/global.json"
+      exit 1
+    fi
+    if [[ -z "$PAUSER_WALLET_ADDRESS" || "$PAUSER_WALLET_ADDRESS" == "null" ]]; then
+      error "PauserWallet address not found. Cannot fund PauserWallet"
+      exit 1
+    fi
+
     BALANCE=$(cast balance "$PAUSER_WALLET_ADDRESS" --rpc-url "$RPC_URL")
     checkFailure $? "get PauserWallet balance for $PAUSER_WALLET_ADDRESS on $NETWORK"
     echo "PauserWallet Balance: $BALANCE"
 
     if [[ "$BALANCE" == "0" ]]; then
-      echo "PauserWallet balance is 0. How much wei would you like to send to $PAUSER_WALLET_ADDRESS?"
-      read -r FUNDING_AMOUNT || FUNDING_AMOUNT=""
+      local DEFAULT_FUND_AMOUNT=2000000000000000
+      echo "PauserWallet balance is 0. Enter wei to send to $PAUSER_WALLET_ADDRESS (edit or press Enter to confirm default):"
+      FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+      FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
 
-      # Validate that FUNDING_AMOUNT is a non-empty numeric value
-      if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+      # Validate that FUNDING_AMOUNT is a numeric value
+      if ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
         error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
-        exit 1
-      fi
-
-      local PRIVATE_KEY_TO_USE
-      PRIVATE_KEY_TO_USE=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
-      if [[ $? -ne 0 || -z "$PRIVATE_KEY_TO_USE" ]]; then
-        error "could not determine private key for network $NETWORK in $ENVIRONMENT environment"
         exit 1
       fi
 
       echo "Funding PauserWallet $PAUSER_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
       universalCast "sendValue" "$NETWORK" "$ENVIRONMENT" "$PAUSER_WALLET_ADDRESS" "$FUNDING_AMOUNT" "$PRIVATE_KEY_TO_USE"
       checkFailure $? "fund PauserWallet $PAUSER_WALLET_ADDRESS on $NETWORK"
+    fi
+
+    # --- Fund DevWallet ---
+    # DevWallet executes timelock proposals; the timelock only exists on production non-testnet networks.
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
+      local DEV_WALLET_ADDRESS
+      DEV_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "devWallet")
+      if [[ $? -ne 0 ]]; then
+        error "failed to read devWallet address from ./config/global.json"
+        exit 1
+      fi
+      if [[ -z "$DEV_WALLET_ADDRESS" || "$DEV_WALLET_ADDRESS" == "null" ]]; then
+        error "DevWallet address not found. Cannot fund DevWallet"
+        exit 1
+      fi
+
+      BALANCE=$(cast balance "$DEV_WALLET_ADDRESS" --rpc-url "$RPC_URL")
+      checkFailure $? "get DevWallet balance for $DEV_WALLET_ADDRESS on $NETWORK"
+      echo "DevWallet Balance: $BALANCE"
+
+      if [[ "$BALANCE" == "0" ]]; then
+        local DEFAULT_FUND_AMOUNT=2000000000000000
+        echo "DevWallet balance is 0. Enter wei to send to $DEV_WALLET_ADDRESS (edit or press Enter to confirm default):"
+        FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+        FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
+
+        # Validate that FUNDING_AMOUNT is a numeric value
+        if ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+          error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
+          exit 1
+        fi
+
+        echo "Funding DevWallet $DEV_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
+        universalCast "sendValue" "$NETWORK" "$ENVIRONMENT" "$DEV_WALLET_ADDRESS" "$FUNDING_AMOUNT" "$PRIVATE_KEY_TO_USE"
+        checkFailure $? "fund DevWallet $DEV_WALLET_ADDRESS on $NETWORK"
+      fi
+    else
+      echo "[info] Skipping DevWallet funding for $ENVIRONMENT/$NETWORK (no Timelock; only funded on production non-testnet)"
     fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
@@ -378,8 +410,9 @@ deployAllContracts() {
     checkFailure $? "run health check for $NETWORK"
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 11 completed"
 
-    # Pause and ask user if they want to continue with ownership transfer
-    if [[ "$ENVIRONMENT" == "production" ]]; then
+    # Pause and ask user if they want to continue with ownership transfer.
+    # Testnets keep deployerWallet as the owner, so Stage 12 is skipped entirely.
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       echo ""
       echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
       echo "This should only be done if the health check shows only diamond ownership errors."
@@ -392,12 +425,14 @@ deployAllContracts() {
         echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
         return
       fi
+    elif isTestnetNetwork "$NETWORK"; then
+      echo "[info] Testnet network: skipping Stage 12 prompt (no Timelock; deployerWallet remains diamond owner)"
     fi
   fi
 
-  # Stage 12: Ownership transfer to timelock (production only)
+  # Stage 12: Ownership transfer to timelock (production only; skipped on testnet)
   if [[ $START_STAGE -le 12 ]]; then
-    if [[ "$ENVIRONMENT" == "production" ]]; then
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       echo ""
       echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 12: Ownership transfer to timelock (production only)"
 
@@ -444,6 +479,8 @@ deployAllContracts() {
       echo "Acceptance of ownership transfer proposed to multisig ($SAFE_ADDRESS)"
       echo ""
       # ------------------------------------------------------------
+    elif isTestnetNetwork "$NETWORK"; then
+      echo "Stage 12 skipped - testnet networks keep deployerWallet as diamond owner (no Timelock)"
     else
       echo "Stage 12 skipped - ownership transfer to timelock is only for production environment"
     fi

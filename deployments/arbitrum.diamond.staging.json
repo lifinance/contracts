@@ -197,7 +197,7 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0xF158ac0983D6D4eF8Ef65De7B39585B8381Fe570": {
+      "0x6ed89349aC140De341574831A91469bC029209e0": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
       },
@@ -205,25 +205,17 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
-        "Name": "WhitelistRecoveryFacet",
-        "Version": "1.0.2"
-      },
       "0x2B8F8C0Cf809EdbbD1257B4c4f27FdAe318062b1": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
-      "0xFCE93F61dd59E269d8B7ae860874E6BaE8c041EE": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
+      "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": "1.0.2"
       },
       "0x7f36bbFDC188569169Bf917a20a2cdD5b060837D": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
-      },
-      "0x9E56dc590BbedB0dF375a3b1Cac4A54de7AF2657": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
       }
     },
     "Periphery": {

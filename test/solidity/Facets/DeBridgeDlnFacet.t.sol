@@ -56,6 +56,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         addFacet(diamond, address(deBridgeDlnFacet), functionSelectors);
         deBridgeDlnFacet = TestDeBridgeDlnFacet(address(diamond));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         deBridgeDlnFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
@@ -82,6 +85,8 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         );
 
         deBridgeDlnFacet.initDeBridgeDln(cidCfg);
+
+        vm.stopPrank();
 
         setFacetAddressInTestBase(
             address(deBridgeDlnFacet),
@@ -229,7 +234,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
         vm.expectEmit(false, false, false, false); // we don't care about orderId
         emit DlnOrderCreated(
-            0x0000000000000000000000000000000000000000000000000000000000000123
+            0x0000000000000000000000000000000000000000000000000000000000000123 // pre-commit-checker: not a secret
         );
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);

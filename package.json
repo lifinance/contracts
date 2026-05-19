@@ -38,6 +38,7 @@
     "fs-extra": "^10.0.1",
     "husky": "^8.0.1",
     "lint-staged": "^13.2.3",
+    "markdownlint-cli2": "^0.22.1",
     "node-gyp": "^10.2.0",
     "patch-package": "^6.4.7",
     "plop": "^3.1.2",
@@ -56,7 +57,9 @@
   },
   "overrides": {
     "web3": "4.16.0",
-    "handlebars": "4.7.9"
+    "handlebars": "4.7.9",
+    "protobufjs": "7.5.5",
+    "google-gax": "3.1.4"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
@@ -83,6 +86,8 @@
     "lint:js:fix": "eslint \"**/*.{js,ts,tsx}\" --fix",
     "lint:sol": "solhint \"src/**/*.sol\"",
     "lint:sol:fix": "solhint \"src/**/*.sol\" --fix",
+    "lint:md": "markdownlint-cli2 \"**/*.md\"",
+    "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:fix": "bun lint:js:fix && bun lint:sol:fix",
     "lint": "bun lint:js && bun lint:sol",
     "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
@@ -99,7 +104,8 @@
     "prepare": "bun prepare:husky",
     "prepare:husky": "husky install",
     "propose-safe-tx": "bunx tsx ./script/deploy/safe/propose-to-safe.ts",
-    "postinstall": "patch-package && node script/troncast/postinstall-tronweb-fix.mjs",
+    "postinstall": "patch-package && node script/troncast/postinstall-tronweb-fix.mjs && (node script/claude/install.mjs || true)",
+    "claude:install": "node script/claude/install.mjs",
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",
     "test": "forge test --evm-version 'cancun'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
@@ -121,7 +127,7 @@
     "@ledgerhq/hw-transport-node-hid": "^6.29.5",
     "@octokit/rest": "^21.0.1",
     "@safe-global/safe-deployments": "^1.37.32",
-    "@uma/sdk": "^0.22.1",
+    "@uma/sdk": "^0.29.0",
     "@uniswap/permit2-sdk": "^1.3.0",
     "@uniswap/sdk": "^3.0.3",
     "axios": "^1.9.0",
@@ -147,6 +153,9 @@
     "*.sol": [
       "prettier --write",
       "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
+    ],
+    "*.md": [
+      "markdownlint-cli2 --fix"
     ]
   }
 }

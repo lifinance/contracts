@@ -26,6 +26,7 @@ import {
 import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
+  isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
 
 import targetStateImport from './_targetState.json'
@@ -132,6 +133,10 @@ const main = defineCommand({
 
     // Determine if we're working with Tron mainnet
     const isTron = networkLower === 'tron'
+
+    // Testnet networks have an EOA-owned diamond (deployerWallet) with no Safe
+    // multisig or Timelock. Ownership and SAFE checks must reflect that.
+    const isTestnet = isTestnetNetwork(networkLower)
 
     const { default: deployedContracts } = await import(
       `../../deployments/${networkLower}${
@@ -415,6 +420,12 @@ const main = defineCommand({
           (contract) => contract !== 'GasZipPeriphery'
         )
       }
+      // Testnets do not deploy LiFiTimelockController.
+      if (isTestnet) {
+        peripheryToCheck = peripheryToCheck.filter(
+          (contract) => contract !== 'LiFiTimelockController'
+        )
+      }
 
       for (const contract of peripheryToCheck) {
         const isDeployed = await checkAndLogDeployment(
@@ -693,8 +704,9 @@ const main = defineCommand({
       feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
       pauserWalletAddress = getTronWallet('pauserWallet', { tronWeb })
     } else {
+      // Testnets are owned by deployerWallet regardless of environment.
       deployerWallet = getAddress(
-        environment === 'staging'
+        !isTestnet && environment === 'staging'
           ? globalConfig.devWallet
           : globalConfig.deployerWallet
       )
@@ -725,7 +737,8 @@ const main = defineCommand({
         )
       }
 
-      // Check that Diamond is owned by Timelock (skip for staging)
+      // Diamond ownership: Timelock on production, skipped on staging.
+      // (No Tron testnet branch: tronshasta exits earlier and `tron` is type=mainnet.)
       if (environment === 'production') {
         if (deployedContracts.LiFiTimelockController) {
           const timelockAddress = deployedContracts.LiFiTimelockController
@@ -788,8 +801,20 @@ const main = defineCommand({
         )
       }
 
-      // Check that Diamond is owned by Timelock (skip for staging)
-      if (environment === 'production') {
+      // Diamond ownership: Timelock on production, deployerWallet (EOA) on testnet, skipped on staging.
+      // localanvil is a CI smoke-test sandbox where anvil's default account owns the diamond, not deployerWallet.
+      if (isTestnet && networkLower !== 'localanvil') {
+        await checkOwnership(
+          'LiFiDiamond',
+          deployerWallet,
+          deployedContracts,
+          publicClient
+        )
+      } else if (networkLower === 'localanvil') {
+        consola.info(
+          'Skipping diamond ownership check for localanvil (CI sandbox: anvil default account owns the diamond).'
+        )
+      } else if (environment === 'production') {
         if (deployedContracts.LiFiTimelockController) {
           const timelockAddress = deployedContracts.LiFiTimelockController
 
@@ -943,6 +968,10 @@ const main = defineCommand({
     if (isTron) {
       consola.info(
         '\nNote: SAFE configuration checks are not implemented for Tron (EVM-only)'
+      )
+    } else if (isTestnet) {
+      consola.info(
+        '\nSkipping SAFE configuration checks: testnet has no Safe multisig (diamond is EOA-owned).'
       )
     } else if (environment === 'production') {
       //          ╭─────────────────────────────────────────────────────────╮

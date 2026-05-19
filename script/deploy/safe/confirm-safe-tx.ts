@@ -10,12 +10,15 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import type { Account, Address, Hex } from 'viem'
+import { type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
+import { isTronNetworkKey } from '../shared/tron-network-keys'
 import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
 
 import type { ILedgerAccountResult } from './ledger'
+import { reconcileSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -39,7 +42,9 @@ import {
   type ISafeTransaction,
   type ISafeTxDocument,
   type SafeClient,
+  type SafeTxStatus,
 } from './safe-utils'
+import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
 
@@ -149,7 +154,9 @@ const processTxs = async (
    * @param safeTransaction - The transaction to execute
    * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
-  // Returns true if the transaction was mined (receipt received), false if only submitted
+  // Returns true if the Safe nonce was consumed on-chain (executed or
+  // reverted with valid signatures). Returns false when the outcome is
+  // unknown ('submitted') — the caller should not advance expectedNonce.
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
     safeClient: SafeClient = safe
@@ -168,31 +175,85 @@ const processTxs = async (
 
       consola.success(`✅ Transaction submitted successfully`)
 
-      // Update MongoDB transaction status
+      // Resolve the DB status from on-chain reality. With safeTxGas=0 the
+      // Safe reverts whenever the inner call reverts, so receipt.status is
+      // the authoritative signal — no need to also parse ExecutionSuccess.
+      let nextStatus: SafeTxStatus
+      if (exec.receipt)
+        nextStatus = exec.receipt.status === 'success' ? 'executed' : 'reverted'
+      else if (isTronNetworkKey(network))
+        // Tron lacks synchronous receipts; preserve existing behavior and
+        // mark executed when a hash is returned. Reconciliation does not
+        // currently cover Tron.
+        nextStatus = 'executed'
+      else nextStatus = 'submitted'
+
       await pendingTransactions.updateOne(
-        { safeTxHash: safeTxHash },
-        { $set: { status: 'executed', executionHash: executionHash } }
+        { safeTxHash: { $eq: safeTxHash } },
+        {
+          $set: {
+            status: nextStatus,
+            executionHash,
+            submittedAt: new Date(),
+          },
+        }
       )
 
-      if (exec.receipt)
-        consola.success(
-          `✅ Safe transaction confirmed and recorded in database`
+      // Only enqueue a timelock op once the Safe tx is confirmed on-chain.
+      // 'submitted' rows get enqueued by reconcile when it later promotes
+      // them to 'executed'; on 'reverted' the inner schedule never
+      // executed, so nothing to queue.
+      if (nextStatus === 'executed')
+        await enqueueTimelockOpIfApplicable(
+          safeTransaction.data.data,
+          safeTransaction.data.to,
+          safeTxHash,
+          executionHash,
+          chain.id,
+          chain.name
         )
-      else
+
+      if (nextStatus === 'executed')
         consola.success(
-          `✅ Safe transaction submitted and recorded in database (confirmation pending)`
+          `✅ Safe transaction confirmed and recorded as executed`
         )
+      else if (nextStatus === 'reverted') {
+        consola.error(
+          `❌ Safe transaction reverted on-chain — recorded as reverted`
+        )
+        consola.error(
+          `   On-chain nonce has advanced; inspect the receipt for the revert reason.`
+        )
+        globalFailedExecutions.push({
+          chain: chain.name,
+          safeTxHash,
+          error: 'on-chain revert',
+        })
+      } else {
+        consola.warn(
+          `⚠️  Safe transaction submitted but not yet confirmed — recorded as submitted`
+        )
+        consola.warn(
+          `   Reconciliation will resolve the final status on the next run.`
+        )
+        globalTimeoutExecutions.push({
+          chain: chain.name,
+          safeTxHash,
+          error: 'confirmation pending',
+        })
+      }
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       const displayHash = exec.displayHash ?? executionHash
-      consola.info(`   - Execution Hash: \u001b[33m${displayHash}\u001b[0m`)
-      if (exec.explorerUrl)
-        consola.info(
-          `   - Explorer:       \u001b[36m${exec.explorerUrl}\u001b[0m`
-        )
+      const explorerSuffix = exec.explorerUrl
+        ? ` \u001b[36m(${exec.explorerUrl})\u001b[0m`
+        : ''
+      consola.info(
+        `   - Execution Hash: \u001b[33m${displayHash}\u001b[0m${explorerSuffix}`
+      )
       consola.log(' ')
 
-      return !!exec.receipt
+      return nextStatus === 'executed' || nextStatus === 'reverted'
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error('❌ Error executing Safe transaction:')
@@ -242,6 +303,40 @@ const processTxs = async (
     throw new Error(
       `Could not get threshold/nonce for Safe ${safeAddress} on ${network}`
     )
+  }
+
+  // Reconcile in-flight Safe tx rows against on-chain state before reading
+  // the pending queue. A 'submitted' row from a prior run is promoted to
+  // 'executed'/'reverted' or sent back to 'pending' depending on the
+  // receipt; on-chain executions we missed entirely are back-filled from
+  // the Safe's ExecutionSuccess/ExecutionFailure logs when a nonce gap is
+  // detected. Read-only on-chain — failures are warnings, not throws.
+  const networkKey = network.toLowerCase()
+  if (!isTronNetworkKey(network)) {
+    try {
+      await reconcileSubmittedSafeTxs(
+        pendingTransactions,
+        safe.getPublicClient(),
+        network,
+        chain.id,
+        safeAddress,
+        onChainNonce
+      )
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(`[${network}] Reconcile failed: ${errorMsg}`)
+    }
+
+    // Refresh from MongoDB: Sweep A may have demoted 'submitted' rows back
+    // to 'pending' (those should be processed this run), and Sweep B may
+    // have back-filled 'pending' rows to 'executed'/'reverted' (those
+    // should not be shown to the operator anymore).
+    pendingTxs = await pendingTransactions
+      .find<ISafeTxDocument>({
+        network: { $eq: networkKey },
+        status: { $eq: 'pending' },
+      })
+      .toArray()
   }
 
   // Filter and augment transactions with signature status and nonce validation
@@ -322,6 +417,11 @@ const processTxs = async (
     const toDisplay = targetName
       ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
       : toAddrDisplay
+    const toExplorerUrl = buildExplorerAddressUrl(
+      network.toLowerCase(),
+      tx.safeTx.data.to
+    )
+    const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
     const proposerDisplay = formatAddressForNetworkCliDisplay(
       network,
       tx.proposer
@@ -341,7 +441,7 @@ const processTxs = async (
     Nonce:           \u001b[${nonceColor}m${
       tx.safeTx.data.nonce
     }\u001b[0m${nonceWarning}
-    To:              \u001b[32m${toDisplay}\u001b[0m
+    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
     Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
     Operation:       \u001b[32m${
       tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'

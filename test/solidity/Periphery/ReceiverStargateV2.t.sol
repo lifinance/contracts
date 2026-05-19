@@ -42,10 +42,10 @@ contract ReceiverStargateV2Test is TestBase {
         customBlockNumberForForking = 20024274;
         initTestBase();
 
-        erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy), address(this));
+        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER);
+        executor = new Executor(address(erc20Proxy), USER_DIAMOND_OWNER);
         receiver = new ReceiverStargateV2(
-            address(this),
+            USER_DIAMOND_OWNER,
             address(executor),
             STARGATE_TOKEN_MESSAGING_MAINNET,
             ENDPOINT_V2_MAINNET,
@@ -408,7 +408,7 @@ contract ReentrantReceiver {
                     LZ_COMPOSE_NOT_FOUND_SELECTOR,
                     RECEIVED_MESSAGE_HASH, // already received;  indicates reentrancy caught
                     bytes32(
-                        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 // precomputed
+                        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 // precomputed keccak256("") pre-commit-checker: not a secret
                     )
                 ),
                 reason
