@@ -34,7 +34,13 @@
     "MD040": false,                      // language tag on fenced code blocks — low value on prose examples
     "MD041": false                       // first line must be top-level heading — many docs start with frontmatter or prose
   },
-  "globs": ["**/*.md"],
+  // Intentionally empty — callers pass the files to lint via positional CLI args.
+  //   - `bun lint:md` / `lint:md:fix` pass `**/*.md` for full-repo runs (see package.json)
+  //   - `lint-staged` passes individual staged files
+  //   - CI passes only the PR's changed files (see .github/workflows/markdownlint.yml)
+  // markdownlint-cli2 UNIONS config globs with CLI args, so any non-empty `globs` here
+  // would cause CI to lint the whole repo on every PR that touches a .md file.
+  "globs": [],
   "ignores": [
     "node_modules/**",
     "lib/**",
