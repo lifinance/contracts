@@ -35,10 +35,13 @@ Audit: #1806 cooldown ts=1779065876.814329 (2026-05-18 07:57:56 +07, 0.4h ago) â
 
 ```bash
 gh search prs --author=@me --state=open --limit 200 \
+  --owner lifinance --owner lifinance-tron \
   --json url,title,number,repository,createdAt,updatedAt,isDraft
 ```
 
 No `--created` filter â€” pull ALL open PRs (keeping a clean slate is part of the job).
+
+**Scope to LI.FI orgs.** `--owner lifinance --owner lifinance-tron` restricts results to LI.FI repos; without it, `--author=@me` returns every open PR on GitHub (personal forks, OSS contributions, etc.). Extend the `--owner` list if LI.FI publishes PRs under additional orgs.
 
 **Drop archived-repo PRs.** `gh search prs` returns PRs in archived repositories; those can't be merged or acted on. For each unique `repository.nameWithOwner`, check once:
 
