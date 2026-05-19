@@ -76,6 +76,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
 | `review-bounty-report.md` | `/review-bounty-report` | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
+| `pr-ready.md`     | `/pr-ready`                       | Run CodeRabbit locally against current branch and resolve findings — mandatory final step before opening/updating a PR |
 
 ## Transaction Analysis
 

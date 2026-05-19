@@ -18,8 +18,8 @@
  * Examples:
  *   bun run script/utils/analyzeCoverage.ts
  *   bun run script/utils/analyzeCoverage.ts --threshold 95
- *   bun run script/utils/analyzeCoverage.ts --exclude "Libraries/LibBytes,Helpers/ExcessivelySafeCall"
- *   bun run script/utils/analyzeCoverage.ts --threshold 95 --exclude "Libraries/LibBytes"
+ *   bun run script/utils/analyzeCoverage.ts --exclude "Libraries/LibBytes"
+ *   bun run script/utils/analyzeCoverage.ts --threshold 95 --exclude "Libraries/LibBytes,Libraries/LibUtil"
  *
  * Package.json shortcut:
  *   bun okr:contract-coverage-above-90
@@ -70,7 +70,6 @@ const DEFAULT_THRESHOLD = 90.0
 const DEFAULT_EXCLUDED_FOLDERS: string[] = [
   // Add default folders to exclude here if needed
   // Example: "Libraries/LibBytes",
-  // Example: "Helpers/ExcessivelySafeCall",
 ]
 
 /**
