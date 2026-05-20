@@ -29,6 +29,18 @@ WITH_TICKET=$(jq --arg re "$TICKET_RE" '[.[] |
     ([.labels[].name] | any(. == "trivial"))
   )] | length' <<<"$PRS")
 
+# Counted-as-linked PRs that ONLY pass via the `trivial` label (no ticket ID match).
+# Surfaced separately so reviewers can audit whether the carve-out is being misused.
+TRIVIAL_ONLY=$(jq --arg re "$TICKET_RE" '[.[] |
+  select(
+    ([.labels[].name] | any(. == "trivial")) and
+    (.title       | test($re) | not) and
+    (.headRefName | test($re) | not) and
+    ((.body // "") | test($re) | not)
+  )] | length' <<<"$PRS")
+
+VIA_TICKET=$(( WITH_TICKET - TRIVIAL_ONLY ))
+
 if [ "$TOTAL" -eq 0 ]; then
   PCT=100
 else
@@ -53,13 +65,31 @@ OFFENDERS=$(jq -r --arg re "$TICKET_RE" --arg repo "$REPO" '[.[] |
      | map("• <https://github.com/\($repo)/pull/\(.number)|#\(.number)> \(.title) — _\(.author.login)_")
      | join("\n")' <<<"$PRS")
 
+# Full list (no cap) of PRs that only qualified via the `trivial` label, for audit.
+TRIVIAL_LIST=$(jq -r --arg re "$TICKET_RE" --arg repo "$REPO" '[.[] |
+  select(
+    ([.labels[].name] | any(. == "trivial")) and
+    (.title       | test($re) | not) and
+    (.headRefName | test($re) | not) and
+    ((.body // "") | test($re) | not)
+  )] | map("• <https://github.com/\($repo)/pull/\(.number)|#\(.number)> \(.title) — _\(.author.login)_")
+     | join("\n")' <<<"$PRS")
+
 {
   echo "${EMOJI} *Ticket linkage — ${SINCE} → ${UNTIL}*"
   echo "${WITH_TICKET}/${TOTAL} merged PRs linked to a Linear ticket (*${PCT}%*) — target: 80%+"
+  if [ "$TRIVIAL_ONLY" -gt 0 ]; then
+    echo "  ↳ ${VIA_TICKET} via ticket ID, ${TRIVIAL_ONLY} via \`trivial\` label"
+  fi
   if [ "$MISSING" -gt 0 ] && [ -n "$OFFENDERS" ]; then
     echo ""
     echo "Unlinked (top 10):"
     echo "${OFFENDERS}"
+  fi
+  if [ "$TRIVIAL_ONLY" -gt 0 ] && [ -n "$TRIVIAL_LIST" ]; then
+    echo ""
+    echo "\`trivial\`-labelled (audit for misuse):"
+    echo "${TRIVIAL_LIST}"
   fi
 } > /tmp/slack-text.txt
 

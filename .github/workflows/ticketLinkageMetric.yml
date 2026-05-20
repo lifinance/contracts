@@ -1,6 +1,6 @@
 # Monthly ticket-linkage metric
 # - computes % of merged PRs in the previous calendar month that reference a Linear ticket (or carry the `trivial` label)
-# - posts the result to Slack with a top-10 list of unlinked PRs so the number is actionable
+# - posts to Slack with a top-10 list of unlinked PRs + the full list of `trivial`-labelled PRs (for audit of carve-out misuse)
 # - known limitations: regex-only "has ticket" check (no Linear API call); caps PR window at 500 results
 
 name: Ticket Linkage Metric

@@ -41,6 +41,7 @@ month with the % of merged PRs that reference a Linear ticket ID (regex
 Carve-out: PRs labelled `trivial` (typo / doc-only / dep-bump / single-line fix)
 are counted as linked. Use sparingly — the carve-out exists so the metric
 doesn't punish genuinely tiny PRs, not as an opt-out for skipping ticket creation.
+The monthly report lists every `trivial`-only PR by name so misuse is visible.
 
 ## Creating and editing PRs via gh
 
