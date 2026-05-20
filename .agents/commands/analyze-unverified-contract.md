@@ -8,8 +8,6 @@ usage: /analyze-unverified-contract <address> <network>  |  /analyze-unverified-
 
 **Goal**: turn an unknown address into a self-contained markdown report a reviewer can read in one sitting. Single deliverable: `report-unverified-<network>-<short_addr>.md`.
 
-This file contains everything needed to execute the workflow in a fresh context window.
-
 ## Conventions
 
 Defined once; used throughout.
@@ -57,7 +55,7 @@ eval "$(resolveContractTarget "$ADDRESS" "$RPC_URL")"
 
 If `$kind` is anything other than `direct`, **set `TARGET=$target`** (the resolved implementation); otherwise `TARGET=$ADDRESS`. Record both `$proxy` and `$target` in §2 of the report.
 
-This matters because proxy contracts hold minimal dispatch bytecode and zero application logic — running Heimdall on the proxy itself produces an empty selector list and a misleading report. The helper detects three common proxy patterns in order: EIP-1967 standard (`kind=eip1967`), EIP-1967 beacon (`kind=eip1967-beacon`), and EIP-1167 minimal proxy / OpenZeppelin Clones (`kind=eip1167`). For less-common patterns (EIP-1822 UUPS pre-1967, GnosisSafe, EIP-2535 Diamond), the helper falls back to `kind=direct`. If you suspect one of those is in play and Step 5 yields zero selectors, check storage slot 0 manually or run Heimdall against the diamond directly.
+Proxies hold dispatch bytecode only — running Heimdall on the proxy itself yields an empty selector list. The helper covers EIP-1967 standard, EIP-1967 beacon, and EIP-1167 (Clones); for the less-common patterns (EIP-1822 UUPS pre-1967, GnosisSafe, EIP-2535 Diamond) you'll see `kind=direct` and zero selectors in Step 5 — that's your signal to investigate manually (slot 0, `facets()` view, etc.).
 
 ### 4. Disassemble / decompile with Heimdall
 
@@ -112,14 +110,3 @@ Then fill in the body of each section. The skeleton already has the seven sectio
 | Opcodes file is huge (>50k lines) | Don't read it into the chat. §3 of the report keeps the path only. If you need a sample, `head -200`. |
 | `extractSelectorsFromOpcodes` returns 0 selectors | Almost certainly an unresolved proxy. Re-run Step 3 against a different RPC and verify the implementation slot returned a non-zero address. |
 | Token budget pressure on a very large contract | Skip step 6.4 (4byte for unknown selectors) and the optional extras in step 4. The core deliverable (selectors + interface hints + summary) survives without them. |
-
-## Repo file reference
-
-| Purpose | Path |
-|---|---|
-| Network list + RPC + explorer host | [`config/networks.json`](../../config/networks.json) |
-| EVM helpers (`isValidEvmAddress`, `getRpcUrlFromNetworksJson`, `getRPCUrl`, `error`, `warning`) | [`script/helperFunctions.sh`](../../script/helperFunctions.sh) |
-| All bundled helpers for this skill (`resolveContractTarget`, `extractSelectorsFromOpcodes`, `decodeSelector4byte`, `decodeSelectors4byte`, `generateUnverifiedContractReportSkeleton`) | [`script/playgroundHelpers.sh`](../../script/playgroundHelpers.sh) |
-| Heimdall ad-hoc command notes (commented) | [`script/playground.sh`](../../script/playground.sh) |
-| Selectors file (Step 5 output, Step 6 input/output) | `opcodes-selectors.md` |
-| Final report (Step 7 output) | `report-unverified-<network>-<short_addr>.md` |
