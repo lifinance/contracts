@@ -244,7 +244,7 @@ async function main() {
   const allResults = await Promise.all(promises)
   const results = allResults.filter((r): r is IPauseStatusResult => r !== null)
 
-  // Sort: PAUSED first (needs attention), then NOT_PAUSED, ERROR, NO_DIAMOND; alphabetically within each group
+  // Sort: PAUSED first (needs attention), then ERROR, NOT_PAUSED, NO_DIAMOND; alphabetically within each group
   const statusOrder: Record<PauseStatus, number> = {
     PAUSED: 0,
     ERROR: 1,
