@@ -191,6 +191,14 @@ contract ReceiverStargateV2 is
 
             if (cacheGasLeft < recoverGas) {
                 // case 2a: not enough gas left to execute calls
+                // TODO(EXSC-241): route through LibAsset.transferERC20 next
+                // time this file is updated. Reasons: (1) Tron USDT support
+                // (fix lives in contracts-tron fork via LibAsset), and (2)
+                // consistency with the rest of the repo. Not done now because
+                // Stargate V2 is not on Tron; even when it is, the migration
+                // is deferred until EXSC-330 (commit hash stored in deploy
+                // log) makes the resulting bytecode drift recoverable via
+                // re-verification.
                 token.safeTransfer(receiver, amount);
 
                 emit LiFiTransferRecovered(
@@ -210,6 +218,14 @@ contract ReceiverStargateV2 is
                     gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
+                // TODO(EXSC-241): route through LibAsset.transferERC20 next
+                // time this file is updated. Reasons: (1) Tron USDT support
+                // (fix lives in contracts-tron fork via LibAsset), and (2)
+                // consistency with the rest of the repo. Not done now because
+                // Stargate V2 is not on Tron; even when it is, the migration
+                // is deferred until EXSC-330 (commit hash stored in deploy
+                // log) makes the resulting bytecode drift recoverable via
+                // re-verification.
                 token.safeTransfer(receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,
