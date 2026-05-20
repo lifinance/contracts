@@ -42,16 +42,18 @@ TRIVIAL_ONLY=$(jq --arg re "$TICKET_RE" '[.[] |
 VIA_TICKET=$(( WITH_TICKET - TRIVIAL_ONLY ))
 
 if [ "$TOTAL" -eq 0 ]; then
-  PCT=100
+  PCT=0
+  PCT_TEXT="N/A"
+  EMOJI=":information_source:"
 else
   PCT=$(( (WITH_TICKET * 100) / TOTAL ))
+  PCT_TEXT="${PCT}%"
+  if   [ "$PCT" -ge 90 ]; then EMOJI=":white_check_mark:"
+  elif [ "$PCT" -ge 80 ]; then EMOJI=":large_yellow_circle:"
+  else                         EMOJI=":red_circle:"
+  fi
 fi
 MISSING=$(( TOTAL - WITH_TICKET ))
-
-if   [ "$PCT" -ge 90 ]; then EMOJI=":white_check_mark:"
-elif [ "$PCT" -ge 80 ]; then EMOJI=":large_yellow_circle:"
-else                         EMOJI=":red_circle:"
-fi
 
 REPO="${GITHUB_REPOSITORY:-lifinance/contracts}"
 
@@ -77,7 +79,7 @@ TRIVIAL_LIST=$(jq -r --arg re "$TICKET_RE" --arg repo "$REPO" '[.[] |
 
 {
   echo "${EMOJI} *Ticket linkage — ${SINCE} → ${UNTIL}*"
-  echo "${WITH_TICKET}/${TOTAL} merged PRs linked to a Linear ticket (*${PCT}%*) — target: 80%+"
+  echo "${WITH_TICKET}/${TOTAL} merged PRs linked to a Linear ticket (*${PCT_TEXT}*) — target: 80%+"
   if [ "$TRIVIAL_ONLY" -gt 0 ]; then
     echo "  ↳ ${VIA_TICKET} via ticket ID, ${TRIVIAL_ONLY} via \`trivial\` label"
   fi
