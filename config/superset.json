@@ -1,5 +1,6 @@
 {
-  "spokePoolManager": {
+  "poolManager": {
+    "arbitrum": "0xb5d8dC0AD0F2dAD55A3C2E8b27f5Ad888410Fe1E",
     "base": "0x518dDE8eaf5f0A31F0b3d464c705D36A35005b47",
     "unichain": "0x518dDE8eaf5f0A31F0b3d464c705D36A35005b47"
   }

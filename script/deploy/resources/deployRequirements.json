@@ -489,9 +489,9 @@
   },
   "SupersetFacet": {
     "configData": {
-      "_spokePoolManager": {
+      "_poolManager": {
         "configFileName": "superset.json",
-        "keyInConfigFile": ".spokePoolManager.<NETWORK>",
+        "keyInConfigFile": ".poolManager.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       },
       "_wrappedNative": {

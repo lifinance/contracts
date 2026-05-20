@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
+import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -70,11 +71,60 @@ contract MockSupersetSpokePoolManager is ISupersetSpokePoolManager {
     }
 }
 
+/// @dev Hub-side mock — 7-arg ABI matching Superset's `HubPoolManager`.
+contract MockSupersetHubPoolManager is ISupersetHubPoolManager {
+    using SafeERC20 for IERC20;
+
+    struct Call {
+        bytes path;
+        uint256 amountIn;
+        uint256 amountOutMin;
+        address recipient;
+        address fallbackEoA;
+        uint256 deadline;
+        uint32 toEid;
+        uint256 lzFee;
+        address inputToken;
+    }
+
+    Call public lastCall;
+
+    function multiHopSwapWithOutputChain(
+        bytes calldata _path,
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        address _recipient,
+        address _fallbackEoA,
+        uint256 _deadline,
+        uint32 _toEid
+    ) external payable override {
+        address inputToken = address(uint160(uint256(bytes32(_path[0:32]))));
+
+        IERC20(inputToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amountIn
+        );
+
+        lastCall = Call({
+            path: _path,
+            amountIn: _amountIn,
+            amountOutMin: _amountOutMin,
+            recipient: _recipient,
+            fallbackEoA: _fallbackEoA,
+            deadline: _deadline,
+            toEid: _toEid,
+            lzFee: msg.value,
+            inputToken: inputToken
+        });
+    }
+}
+
 contract TestSupersetFacet is SupersetFacet, TestWhitelistManagerBase {
     constructor(
-        ISupersetSpokePoolManager _spokePoolManager,
+        address _poolManager,
         address _wrappedNative
-    ) SupersetFacet(_spokePoolManager, _wrappedNative) {}
+    ) SupersetFacet(_poolManager, _wrappedNative) {}
 }
 
 contract SupersetFacetTest is TestBaseFacet {
@@ -93,7 +143,7 @@ contract SupersetFacetTest is TestBaseFacet {
 
         mockSpoke = new MockSupersetSpokePoolManager();
         supersetFacet = new TestSupersetFacet(
-            ISupersetSpokePoolManager(address(mockSpoke)),
+            address(mockSpoke),
             ADDRESS_WRAPPED_NATIVE
         );
 
@@ -205,28 +255,36 @@ contract SupersetFacetTest is TestBaseFacet {
     // --- Constructor tests ---
 
     function test_CanDeployFacet() public {
-        new SupersetFacet(
-            ISupersetSpokePoolManager(address(mockSpoke)),
-            ADDRESS_WRAPPED_NATIVE
-        );
+        new SupersetFacet(address(mockSpoke), ADDRESS_WRAPPED_NATIVE);
     }
 
-    function testRevert_WhenSpokePoolIsZero() public {
+    function testRevert_WhenPoolManagerIsZero() public {
         vm.expectRevert(InvalidConfig.selector);
 
-        new SupersetFacet(
-            ISupersetSpokePoolManager(address(0)),
-            ADDRESS_WRAPPED_NATIVE
-        );
+        new SupersetFacet(address(0), ADDRESS_WRAPPED_NATIVE);
     }
 
     function testRevert_WhenWrappedNativeIsZero() public {
         vm.expectRevert(InvalidConfig.selector);
 
-        new SupersetFacet(
-            ISupersetSpokePoolManager(address(mockSpoke)),
-            address(0)
+        new SupersetFacet(address(mockSpoke), address(0));
+    }
+
+    function test_IsHubDerivedFromChainId() public {
+        // Non-hub: deploy on the current fork chain (mainnet, id 1)
+        SupersetFacet nonHubFacet = new SupersetFacet(
+            address(mockSpoke),
+            ADDRESS_WRAPPED_NATIVE
         );
+        assertFalse(nonHubFacet.IS_HUB());
+
+        // Hub: switch chainId to Arbitrum before constructing
+        vm.chainId(42161);
+        SupersetFacet hubFacet = new SupersetFacet(
+            address(mockSpoke),
+            ADDRESS_WRAPPED_NATIVE
+        );
+        assertTrue(hubFacet.IS_HUB());
     }
 
     // --- Validation tests ---
@@ -338,5 +396,54 @@ contract SupersetFacetTest is TestBaseFacet {
 
         (, , , , , , , , , , address inputToken) = mockSpoke.lastCall();
         assertEq(inputToken, ADDRESS_WRAPPED_NATIVE);
+    }
+
+    function test_HubBranchForwardsArgsToHubAbi() public {
+        // Switch the EVM chain id BEFORE construction so the facet's
+        // IS_HUB immutable is set to true.
+        vm.chainId(42161);
+
+        MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
+        TestSupersetFacet hubFacet = new TestSupersetFacet(
+            address(mockHub),
+            ADDRESS_WRAPPED_NATIVE
+        );
+
+        // Register the hub facet on a fresh diamond surface — reuse the
+        // existing diamond by replacing the facet selectors.
+        bytes4[] memory selectors = new bytes4[](2);
+        selectors[0] = hubFacet.startBridgeTokensViaSuperset.selector;
+        selectors[1] = hubFacet.swapAndStartBridgeTokensViaSuperset.selector;
+        // Use a vanilla deal/approve flow against the diamond proxy.
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(hubFacet), defaultUSDCAmount);
+
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.bridge = "superset";
+        // destinationChainId must differ from chain id 42161
+        bridgeData.destinationChainId = 130;
+
+        hubFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+
+        (
+            ,
+            uint256 amountIn,
+            ,
+            address recipient,
+            address fallbackEoA,
+            ,
+            uint32 toEid,
+            uint256 lzFee,
+            address inputToken
+        ) = mockHub.lastCall();
+
+        assertEq(amountIn, defaultUSDCAmount);
+        assertEq(recipient, bridgeData.receiver);
+        assertEq(fallbackEoA, validSupersetData.fallbackEoA);
+        assertEq(toEid, validSupersetData.toEid);
+        assertEq(lzFee, validSupersetData.lzFee);
+        assertEq(inputToken, ADDRESS_USDC);
     }
 }

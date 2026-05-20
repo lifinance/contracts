@@ -4,11 +4,21 @@
 
 The Superset Facet bridges tokens through Superset's hub-and-spoke virtual pools.
 Liquidity stays on each spoke chain; pricing and settlement are computed on a
-hub chain (Arbitrum) using Uniswap-V3 math against mirror tokens. The user
-calls `SpokePoolManager.multiHopSwapWithOutputChain` on the source spoke; the
-spoke pulls the input token, forwards a LayerZero request to the hub, the hub
-runs the swap, and on success forwards a delivery message to the destination
-spoke which transfers the output token to the recipient.
+hub chain (Arbitrum) using Uniswap-V3 math against mirror tokens.
+
+The same facet is deployed on **both hub and spoke chains** — it auto-detects the
+role at construction time from `block.chainid` (Arbitrum = hub) and routes to
+the matching Superset entrypoint:
+
+- **Spoke chains** (Base, Unichain) → `SpokePoolManager.multiHopSwapWithOutputChain`
+  (9-arg ABI; includes `refundAddress` + `options` because the source → hub LZ
+  leg is async).
+- **Hub chain** (Arbitrum) → `HubPoolManager.multiHopSwapWithOutputChain`
+  (7-arg ABI; no `refundAddress`/`options` because the hub processes
+  synchronously on its own chain).
+
+On both paths, the destination delivery is a LayerZero message from the hub to
+the destination spoke, which transfers the output token to `bridgeData.receiver`.
 
 ```mermaid
 graph LR;
@@ -59,9 +69,15 @@ struct SupersetData {
 }
 ```
 
-The Superset `SpokePoolManager` address is configured at deploy time as an
-immutable constructor argument and is sourced from `config/superset.json` per
-chain.
+The Superset pool manager address is configured at deploy time as an immutable
+constructor argument and is sourced from `config/superset.json` per chain.
+On Arbitrum it points to `HubPoolManager`; on Base/Unichain it points to
+`SpokePoolManager`. The facet picks the right ABI via its `IS_HUB` immutable.
+
+On the hub branch, `SupersetData.refundAddress` and `SupersetData.options` are
+ignored (the hub has no async failure refund path and no source-side LZ message
+to configure). Backends can leave them as `address(0)` / `""` for hub-origin
+quotes.
 
 ## `fallbackEoA` Constraint
 

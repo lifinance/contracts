@@ -24,9 +24,9 @@ contract DeployScript is DeployScriptBase {
             root,
             "/config/superset.json"
         );
-        address spokePoolManager = _getConfigContractAddress(
+        address poolManager = _getConfigContractAddress(
             supersetPath,
-            string.concat(".spokePoolManager.", network)
+            string.concat(".poolManager.", network)
         );
 
         string memory networksPath = string.concat(
@@ -38,6 +38,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wrappedNativeAddress")
         );
 
-        return abi.encode(spokePoolManager, wrappedNative);
+        return abi.encode(poolManager, wrappedNative);
     }
 }
