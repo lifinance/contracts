@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/scripts/pr-ready-gate.py"
+            "command": "bunx tsx .claude/scripts/pr-ready-gate.ts"
           }
         ]
       }
