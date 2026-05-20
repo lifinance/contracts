@@ -33,4 +33,6 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
           payload: |
-            text: ${{ toJSON(steps.metric.outputs.text) }}
+            {
+              "text": ${{ toJSON(steps.metric.outputs.text) }}
+            }
