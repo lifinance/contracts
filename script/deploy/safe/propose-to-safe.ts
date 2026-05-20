@@ -308,4 +308,6 @@ const main = defineCommand({
   },
 })
 
-runMain(main)
+if (import.meta.main) {
+  runMain(main)
+}
