@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LI.FI Wrapper — Fund Flow (v2)</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --panel: #ffffff;
+    --border: #e2e2e6;
+    --text: #1a1a1f;
+    --muted: #6b7280;
+    --alice: #2563eb;
+    --alice-bg: #eff6ff;
+    --bob: #ea580c;
+    --bob-bg: #fff7ed;
+    --wrap: #7c3aed;
+    --wrap-bg: #f5f3ff;
+    --fee: #db2777;
+    --fee-bg: #fdf2f8;
+    --under: #16a34a;
+    --under-bg: #f0fdf4;
+    --curator: #ca8a04;
+    --curator-bg: #fefce8;
+    --code: #0f172a;
+    --code-bg: #f1f5f9;
+    --step1: #0891b2;
+    --step1-bg: #ecfeff;
+    --step2: #7c3aed;
+    --step2-bg: #f5f3ff;
+    --step3: #db2777;
+    --step3-bg: #fdf2f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 32px 24px 64px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 {
+    font-size: 24px;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+
+  details.section-block { margin-top: 40px; }
+  details.section-block + details.section-block { margin-top: 24px; }
+  summary.section {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 16px;
+    padding: 4px 30px 8px 0;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    list-style: none;
+    position: relative;
+    user-select: none;
+  }
+  summary.section::-webkit-details-marker { display: none; }
+  summary.section::marker { content: ""; }
+  summary.section::after {
+    content: '▼';
+    position: absolute;
+    right: 4px;
+    top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  details:not([open]) > summary.section::after { transform: rotate(-90deg); }
+  details:not([open]) > summary.section { margin-bottom: 0; }
+  h2.section {
+    font-size: 20px;
+    margin: 40px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  .scenario {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    font-size: 14px;
+  }
+  .scenario-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .scenario-item { color: var(--muted); }
+  .scenario-item b { color: var(--text); font-weight: 600; }
+
+  /* Architecture overview */
+  .architecture {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .arch-card {
+    border-radius: 12px;
+    padding: 18px;
+    border: 2px solid;
+    position: relative;
+  }
+  .arch-card.step1 { border-color: var(--step1); background: var(--step1-bg); }
+  .arch-card.step2 { border-color: var(--step2); background: var(--step2-bg); }
+  .arch-card.step3 { border-color: var(--step3); background: var(--step3-bg); }
+  .arch-num {
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: var(--panel);
+    border: 2px solid;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .arch-card.step1 .arch-num { border-color: var(--step1); color: var(--step1); }
+  .arch-card.step2 .arch-num { border-color: var(--step2); color: var(--step2); }
+  .arch-card.step3 .arch-num { border-color: var(--step3); color: var(--step3); }
+  .arch-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 4px 0 8px;
+  }
+  .arch-card.step1 .arch-title { color: var(--step1); }
+  .arch-card.step2 .arch-title { color: var(--step2); }
+  .arch-card.step3 .arch-title { color: var(--step3); }
+  .arch-body { font-size: 12.5px; color: var(--text); }
+  .arch-body .meta {
+    margin-top: 8px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .arch-body .meta b { color: var(--text); }
+
+  .step {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .step-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+  }
+  .step-day {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--code-bg);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .step-tag {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .step-tag.step1 { color: var(--step1); background: var(--step1-bg); }
+  .step-tag.step2 { color: var(--step2); background: var(--step2-bg); }
+  .step-tag.step3 { color: var(--step3); background: var(--step3-bg); }
+  .step-tag.user { color: var(--alice); background: var(--alice-bg); }
+  .step-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .step-desc {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 20px;
+  }
+
+  /* Flow diagram */
+  .flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin: 20px 0;
+  }
+  .actor {
+    border-radius: 10px;
+    padding: 14px;
+    border: 2px solid;
+    display: flex;
+    flex-direction: column;
+    min-height: 140px;
+  }
+  .actor-alice { border-color: var(--alice); background: var(--alice-bg); }
+  .actor-bob { border-color: var(--bob); background: var(--bob-bg); }
+  .actor-wrap { border-color: var(--wrap); background: var(--wrap-bg); }
+  .actor-under { border-color: var(--under); background: var(--under-bg); }
+  .actor-curator { border-color: var(--curator); background: var(--curator-bg); }
+  .actor-dispatcher { border-color: var(--fee); background: var(--fee-bg); }
+
+  .actor-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .actor-alice .actor-label { color: var(--alice); }
+  .actor-bob .actor-label { color: var(--bob); }
+  .actor-wrap .actor-label { color: var(--wrap); }
+  .actor-under .actor-label { color: var(--under); }
+  .actor-curator .actor-label { color: var(--curator); }
+  .actor-dispatcher .actor-label { color: var(--fee); }
+
+  .actor-body {
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--text);
+  }
+  .actor-body .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+  }
+  .actor-body .row b { font-weight: 600; }
+  .actor-body .muted { color: var(--muted); }
+  .actor-body .hl { background: #fef3c7; padding: 1px 4px; border-radius: 3px; }
+
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 100px;
+    padding: 0 8px;
+    position: relative;
+  }
+  .arrow-label {
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--text);
+    background: var(--panel);
+    padding: 2px 6px;
+    margin-bottom: 4px;
+    z-index: 1;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .arrow-label.return { color: var(--muted); }
+
+  /* Sub-fee bucket inside wrapper */
+  .fee-bucket {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1.5px dashed var(--fee);
+    background: var(--fee-bg);
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .fee-bucket .label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--fee);
+    margin-bottom: 4px;
+  }
+
+  /* Math block */
+  .math {
+    background: var(--code-bg);
+    border-left: 3px solid var(--wrap);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    margin: 16px 0;
+    color: var(--code);
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .math .comment { color: var(--muted); }
+  .math .key { color: var(--wrap); font-weight: 600; }
+  .math .step1 { color: var(--step1); font-weight: 600; }
+  .math .step2 { color: var(--step2); font-weight: 600; }
+  .math .step3 { color: var(--step3); font-weight: 600; }
+
+  /* State summary */
+  .summary {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .summary-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  table.balances {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+  }
+  table.balances th, table.balances td {
+    text-align: right;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.balances th:first-child, table.balances td:first-child {
+    text-align: left;
+  }
+  table.balances th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  table.balances .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .d-alice { background: var(--alice); }
+  .d-bob { background: var(--bob); }
+  .d-fee { background: var(--fee); }
+  .d-wrap { background: var(--wrap); }
+  .d-curator { background: var(--curator); }
+
+  .note {
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    margin-top: 12px;
+    color: #78350f;
+  }
+  .note b { color: #92400e; }
+  .note.info {
+    background: #ecfeff;
+    border-left-color: var(--step1);
+    color: #0e7490;
+  }
+  .note.info b { color: #155e75; }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 16px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-item .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .terminology {
+    background: #fef2f2;
+    border-left: 3px solid #dc2626;
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    margin-bottom: 24px;
+    color: #7f1d1d;
+  }
+  .terminology b { color: #991b1b; }
+  .terminology code {
+    background: #fee2e2;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>LI.FI Programmable Vault Wrapper</h1>
+  <div class="subtitle">A visual walkthrough of what the wrapper does, why we're building it, and how funds flow through it.</div>
+
+  <!-- ============== INTRO ============== -->
+  <details class="section-block" open>
+    <summary class="section">Background and how to read this document</summary>
+
+    <div class="step">
+      <div class="step-header">
+        <h2 class="step-title">What we're building</h2>
+      </div>
+      <p class="step-desc" style="margin-bottom: 16px;">The Programmable Vault Wrapper is a new product in LI.FI's Earn vertical. The high-level idea: integrators (fintechs, exchanges, wallets — think Coinbase Earn) want to offer their users yield products backed by existing on-chain yield sources (MetaMorpho, Yearn V3, Aave static aTokens, etc.) — but with extra features layered on top that those underlying vaults don't provide themselves.</p>
+
+      <table class="balances">
+        <tr><th>What integrators want</th><th>Why</th></tr>
+        <tr><td>A configurable performance fee</td><td>Earn revenue on user yield (e.g. 10% perf fee → integrator keeps ~9%, LI.FI keeps ~1%).</td></tr>
+        <tr><td>Optional KYC / whitelist gate</td><td>Regulated partners can require off-chain identity checks before users deposit.</td></tr>
+        <tr><td>Sanctions blacklist</td><td>Block sanctioned addresses (e.g. OFAC list).</td></tr>
+        <tr><td>Emergency deposit pause</td><td>Halt new deposits if something's wrong with the underlying; existing users can always withdraw.</td></tr>
+        <tr><td>Custom branding</td><td>"Coinbase Earn USDC" rather than a generic underlying vault name.</td></tr>
+      </table>
+
+      <p class="step-desc" style="margin-top: 16px;">The wrapper is a thin contract that sits between users and an existing yield source, layers these features on, and otherwise stays out of the way. <b>Yield generation itself doesn't change</b> — the underlying vault keeps doing what it was doing; we just observe its growth and apply a fee to it.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <h2 class="step-title">How to read this document</h2>
+      </div>
+      <p class="step-desc" style="margin-bottom: 16px;">Every section below is collapsible — click any heading to fold it. The intended read order is top to bottom; later sections assume the earlier ones.</p>
+
+      <table class="balances">
+        <tr><th>Section</th><th>What you'll learn</th></tr>
+        <tr><td>1. Primer: ERC-4626 and PPS</td><td>The two foundational concepts the rest of the doc relies on. Skip if you're already comfortable with ERC-4626 vaults.</td></tr>
+        <tr><td>2. How Morpho generates yield</td><td>Concrete example of the underlying we'll wrap throughout — where the yield actually comes from.</td></tr>
+        <tr><td>3. The wrapper's job</td><td>What we add on top, plus a diagram of the layers (user → wrapper → underlying).</td></tr>
+        <tr><td>4. Architecture: three independent steps</td><td>The mental model for how yield, fee accrual, and fee payout work — split into three things instead of one "harvest" step.</td></tr>
+        <tr><td>5. Setup</td><td>What happens when an integrator deploys a new wrapper instance — factory call, params, deployment topology.</td></tr>
+        <tr><td>6. Lifecycle walkthrough</td><td>A complete walkthrough — deposit → yield → fee accrual → second user → withdrawal → fee payout — with concrete numbers at every step.</td></tr>
+        <tr><td>7. Compounded fees</td><td>What happens when the underlying vault ALSO charges its own fee on yield — common in production, since most curated vaults (MetaMorpho, Yearn V3) take a curator fee.</td></tr>
+        <tr><td>8. APY</td><td>What APY actually means, how it's derived from PPS history, where it should be computed (on-chain view vs integrator backend vs UI text), and the multi-layer fee composition between gross borrower interest and the user's effective rate.</td></tr>
+        <tr><td>9. Whitelist / KYC gating</td><td>How the optional KYC gate works, including the share-transfer coupling that closes the OTC-bypass loophole.</td></tr>
+        <tr><td>10. Sanctions + rescue</td><td>What happens when a user gets sanctioned mid-position — the wrapper blocks them, and anyone can call forceWithdraw to return their funds.</td></tr>
+        <tr><td>11. Admin operations</td><td>Two admin levers — perf-fee changes (with the "accrue at old rate first" subtlety) and the deposit pause.</td></tr>
+      </table>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <h2 class="step-title">Example scenario used throughout</h2>
+      </div>
+
+      <table class="balances">
+        <tr><th>Component</th><th>Value</th></tr>
+        <tr><td>Wrapper</td><td>10% performance fee on yield</td></tr>
+        <tr><td>Underlying vault</td><td>MetaMorpho USDC (a real production vault on Ethereum)</td></tr>
+        <tr><td>Underlying starting state</td><td>~50M USDC TVL, already running for months with prior depositors</td></tr>
+        <tr><td>Users</td><td>Alice (first depositor) and Bob (second depositor)</td></tr>
+        <tr><td>Initial deposit</td><td>100 USDC by Alice; 50 USDC by Bob later</td></tr>
+      </table>
+
+      <div class="note">
+        <b>Note on numbers:</b> the "10% yield in 30 days" rate in the walkthrough is accelerated for legibility. Real MetaMorpho USDC vaults earn 3–8% per <i>year</i>, accruing continuously per block. The math is the same either way; we just picked easy round numbers.
+      </div>
+    </div>
+
+  </details>
+
+  <!-- ============== ERC-4626 PRIMER ============== -->
+  <details class="section-block" open>
+    <summary class="section">Primer: ERC-4626, PPS, and <code>totalAssets()</code></summary>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Primer</span>
+      <h2 class="step-title">What is an ERC-4626 vault?</h2>
+    </div>
+    <p class="step-desc">A standardised "yield-bearing pool token." A user deposits a single ERC-20 asset; the vault mints share tokens representing pro-rata ownership of the pool. As the pool earns yield, each share is redeemable for more of the underlying asset than was deposited.</p>
+
+    <div class="math"><span class="comment">// the six functions every ERC-4626 vault must expose</span>
+<span class="key">asset()</span>                                  → IERC20    <span class="comment">// the underlying ERC-20 (e.g. USDC)</span>
+<span class="key">totalAssets()</span>                            → uint256   <span class="comment">// total managed value, denominated in asset()</span>
+<span class="key">convertToShares(assets)</span>                  → uint256   <span class="comment">// assets × supply / totalAssets</span>
+<span class="key">convertToAssets(shares)</span>                  → uint256   <span class="comment">// shares × totalAssets / supply</span>
+<span class="key">deposit(assets, receiver)</span>                → shares    <span class="comment">// pull asset(), mint shares to receiver</span>
+<span class="key">withdraw(assets, receiver, owner)</span>        → shares    <span class="comment">// burn owner's shares, send asset() to receiver</span>
+
+<span class="comment">// plus the corresponding preview*() views, max*() limits, and mint()/redeem() variants</span></div>
+
+    <div class="summary">
+      <div class="summary-title">Why both the underlying AND our wrapper are ERC-4626</div>
+      <table class="balances">
+        <tr><th>Layer</th><th>Why 4626?</th></tr>
+        <tr><td><span class="dot" style="background:var(--under);"></span>MetaMorpho (underlying)</td><td>It's a curated yield vault — pools USDC from many users, lends it via Morpho Blue markets, distributes yield via PPS appreciation. The 4626 standard is the natural fit for this product.</td></tr>
+        <tr><td><span class="dot d-wrap"></span>LI.FI Wrapper</td><td>We want users (and integrators' apps) to interact with our wrapper the same way they'd interact with MetaMorpho directly — same <code>deposit</code> / <code>withdraw</code> / <code>balanceOf</code> interface, but with our fees, KYC, sanctions, pause primitives layered on top. 4626 conformance means any DeFi-aware app that integrates MetaMorpho can integrate us with one address change.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Primer</span>
+      <h2 class="step-title">What is PPS (price per share)?</h2>
+    </div>
+    <p class="step-desc">The most important number in any 4626 vault. PPS answers <i>"how many units of <code>asset()</code> is one share worth right now?"</i></p>
+
+    <div class="math"><span class="comment">// definition — derivable from any 4626 vault</span>
+<span class="key">PPS</span> = totalAssets() / totalSupply()         <span class="comment">// units: asset per share</span>
+
+<span class="comment">// equivalent reads</span>
+<span class="key">PPS</span> = convertToAssets(1e18)                  <span class="comment">// "value of 1 share (in 18-dec units)"</span>
+<span class="key">PPS</span> = previewRedeem(1e18)                    <span class="comment">// includes pending fee dilution if any</span>
+
+<span class="comment">// life of a PPS:</span>
+<span class="comment">//   Day 0 — vault deploys empty:        PPS = 1.0  (by convention; 1 USDC in → 1 share)</span>
+<span class="comment">//   Day 7 — yield accrues:               PPS = 1.001  (each share now worth 1.001 USDC)</span>
+<span class="comment">//   Day 365 at 5% APY:                   PPS = 1.05   (5% growth from baseline)</span>
+<span class="comment">//   On a yield-fee event:                PPS dips slightly (we'll see how, later)</span></div>
+
+    <div class="note info">
+      <b>Key intuition:</b> PPS rises with yield and stays flat without it. It only drops in two narrow cases: (a) the underlying lost value (bad debt, smart-contract loss — abnormal); (b) the vault mints new shares <i>to itself</i> as a fee — supply grows while totalAssets stays the same, so each existing share is worth a fraction less. We'll explain the second case in the Architecture section. From here on we'll abbreviate the two PPSes we care about: <code>PPS_under</code> for the underlying vault, <code>PPS_wrap</code> for our wrapper.
+    </div>
+  </div>
+
+
+  </details>
+
+
+  <details class="section-block" open>
+    <summary class="section">The underlying yield source we'll wrap (MetaMorpho on Morpho)</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">The wrapper itself doesn't generate any yield — it just observes yield generated by whatever ERC-4626 vault it wraps. To make the rest of this document concrete, we need to pick a specific underlying. Throughout the document we use <b>MetaMorpho USDC</b> on Ethereum — a real production vault, ~$50M TVL at time of writing, suitable for regulated-partner products. This section explains what it is and why its yield is observable in the way our wrapper requires.</p>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">What is Morpho? What is MetaMorpho?</h2>
+    </div>
+    <p class="step-desc">Morpho is a lending protocol on Ethereum (and a handful of L2s). It has two layers, and our wrapper sits on top of the upper one:</p>
+
+    <table class="balances">
+      <tr><th>Layer</th><th>What it does</th></tr>
+      <tr><td><b>Morpho Blue</b> (the bottom layer)</td><td>A minimal, immutable lending primitive. Each "market" is a single pair: one asset to borrow against another (e.g. USDC borrowed against wstETH collateral). Borrowers post collateral and take USDC loans; the interest they pay accrues to the lenders supplying that USDC. Hundreds of markets exist independently.</td></tr>
+      <tr><td><b>MetaMorpho</b> (the upper layer, where our wrapper attaches)</td><td>An <i>ERC-4626 vault</i> that pools USDC from many lenders and distributes it across multiple Morpho Blue markets according to a curator's allocation strategy. Each MetaMorpho vault has one asset (e.g. USDC) and one curator (e.g. Gauntlet, Steakhouse). Users see a single yield-bearing position; the curator manages the underlying market allocation behind the scenes.</td></tr>
+    </table>
+
+    <div class="note info">
+      <b>Why MetaMorpho specifically:</b> it's ERC-4626, has live PPS appreciation with no harvest call required, has a large pool of curators offering yield on stables / ETH / BTC pairs, and is widely used in regulated-partner integrations. The same wrapper design works for any underlying that meets those criteria (Yearn V3 vaults, Aave static aTokens, Sky / Spark sUSDS, etc.).
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">How yield reaches us, layer by layer</h2>
+    </div>
+    <p class="step-desc">Borrowers in Morpho Blue markets pay interest each block. That interest grows the value of MetaMorpho's holdings. Our wrapper reads MetaMorpho's value via a single live function call. No "report this period" step exists anywhere in the chain — it's just on-chain math evaluated on demand.</p>
+
+  <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+    <div style="display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; gap: 0; align-items: stretch;">
+      <div class="actor" style="border-color: #475569; background: #f8fafc;">
+        <div class="actor-label" style="color: #475569;">Borrowers</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>Posted collateral</span><b>wstETH, WBTC, …</b></div>
+          <div class="row"><span>Borrowed</span><b>USDC</b></div>
+          <div class="row"><span>Pay interest</span><b>per second</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label" style="font-size: 11px;">USDC interest →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+      </div>
+      <div class="actor" style="border-color: #be185d; background: #fdf2f8;">
+        <div class="actor-label" style="color: #be185d;">Morpho Blue Markets</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>USDC/wstETH</span><b>$80M</b></div>
+          <div class="row"><span>USDC/WBTC</span><b>$50M</b></div>
+          <div class="row muted"><span>totalSupplyAssets</span><b>↑ each block</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label" style="font-size: 11px;">live read</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#cbd5e1" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#cbd5e1"/></svg>
+      </div>
+      <div class="actor actor-under">
+        <div class="actor-label">MetaMorpho USDC</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>asset()</span><b>USDC</b></div>
+          <div class="row"><span>TVL</span><b>50M USDC</b></div>
+          <div class="row"><span>PPS_under</span><b>1.10 ⬆ continuously</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label" style="font-size: 11px;">live read</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#cbd5e1" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#cbd5e1"/></svg>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">LI.FI Wrapper</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>totalAssets()</span><b>= ushares × PPS_under</b></div>
+          <div class="row muted"><span>no harvest needed</span><b></b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="math"><span class="comment">// inside each Morpho Blue market — runs implicitly on every interaction</span>
+<span class="key">elapsed</span>            = block.timestamp − market.lastUpdate
+<span class="key">interestAccrued</span>    = totalBorrowAssets × borrowRate × elapsed
+<span class="key">totalSupplyAssets</span> += interestAccrued − fee     <span class="comment">// supply side gets the lender share</span>
+
+<span class="comment">// MetaMorpho rolls this up across its allocated markets</span>
+<span class="key">MetaMorpho.totalAssets()</span> = Σ market.expectedSupplyAssets(myShares)   <span class="comment">// computed live</span>
+
+<span class="comment">// our wrapper just reads what MetaMorpho reports — no harvest, no oracle</span>
+<span class="key">Wrapper.totalAssets()</span>   = MetaMorpho.convertToAssets(ourMorphoShares)</div>
+
+  <div class="note info">
+    <b>Why no harvest call is needed:</b> Morpho Blue's interest accrual is a pure on-chain math expression — given the borrow rate and elapsed time, the next interest amount is fully determined. <code>expectedSupplyAssets</code> evaluates it on the fly during reads. MetaMorpho's <code>totalAssets()</code> sums these across its allocated markets. Our wrapper inherits this continuity for free. <b>Real-world APYs</b> on these vaults are typically 3–8% per year — yield drips in per block, not in discrete chunks.
+  </div>
+
+  </div>
+  </details>
+
+  <details class="section-block" open>
+    <summary class="section">The wrapper's job — what we add on top</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">We've covered ERC-4626 in general and we've seen how MetaMorpho generates yield. So why build another vault on top of an existing one? The wrapper exists to let an integrator (e.g. a fintech, exchange, or wallet) plug into MetaMorpho's yield with extra features that MetaMorpho itself doesn't offer:</p>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">What the wrapper adds on top of MetaMorpho</h2>
+    </div>
+    <table class="balances">
+      <tr><th>Feature</th><th>Why integrators want it</th></tr>
+      <tr><td>Configurable performance fee</td><td>The integrator earns revenue on yield (e.g. 10%); LI.FI gets a small cut of that.</td></tr>
+      <tr><td>Optional whitelist (KYC gate)</td><td>Regulated partners can require know-your-customer checks before users deposit. <i>KYC</i> = the integrator has verified the user's identity off-chain.</td></tr>
+      <tr><td>Blacklist (sanctions)</td><td>Block sanctioned addresses. Typically backed by an OFAC oracle — OFAC is the US Treasury list of sanctioned entities.</td></tr>
+      <tr><td>Deposit pause</td><td>Allow ops to halt new deposits in an emergency (withdrawals always remain open).</td></tr>
+      <tr><td>Custom branding (name, symbol)</td><td>"Coinbase Earn USDC" rather than the generic underlying vault name.</td></tr>
+    </table>
+  </div>
+
+  <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+    <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px;">Token stack — who holds what, denominated in what</div>
+    <div style="display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 0; align-items: stretch;">
+      <div class="actor actor-alice" style="min-height: auto;">
+        <div class="actor-label">Alice (user)</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>Holds</span><b>wshares</b></div>
+          <div class="row muted"><span>Denominated</span><b>(in USDC)</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label" style="font-size: 11px;">USDC in/out</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="100" y2="10" stroke="#cbd5e1" stroke-width="1.5"/></svg>
+      </div>
+      <div class="actor actor-wrap" style="min-height: auto;">
+        <div class="actor-label">LI.FI Wrapper (ERC-4626)</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span class="hl">asset()</span><b>USDC</b></div>
+          <div class="row"><span>Holds</span><b>Morpho shares</b></div>
+          <div class="row"><span>Issues</span><b>wshares</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label" style="font-size: 11px;">USDC in/out</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="100" y2="10" stroke="#cbd5e1" stroke-width="1.5"/></svg>
+      </div>
+      <div class="actor actor-under" style="min-height: auto;">
+        <div class="actor-label">Morpho Vault (ERC-4626)</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span class="hl">asset()</span><b>USDC</b></div>
+          <div class="row"><span>Holds</span><b>Morpho-Blue positions</b></div>
+          <div class="row"><span>Issues</span><b>Morpho shares</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="note info" style="margin-top: 16px;">
+      <b>Critical:</b> our wrapper's <code>asset()</code> is <b>USDC (the raw ERC-20)</b>, not Morpho-USDC shares. Users deposit USDC and withdraw USDC. The wrapper internally converts USDC ↔ Morpho shares. If we made <code>asset() = Morpho-shares</code>, <code>totalAssets()</code> would count shares (a number that doesn't change as yield accrues) instead of USDC value (which does). Yield would be invisible to us, and the performance fee we charge later would always compute to zero.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">How our wrapper implements <code>totalAssets()</code></h2>
+    </div>
+    <p class="step-desc">Now that we have three layers, here's the bridge between "we hold MetaMorpho shares" and "we report USDC value to users." A single one-line implementation makes everything downstream work.</p>
+
+    <div class="math"><span class="comment">// WrapperVault.sol</span>
+function <span class="key">totalAssets()</span> public view override returns (uint256) {
+    return underlying.convertToAssets(underlying.balanceOf(address(this)));
+    <span class="comment">//                ^                            ^</span>
+    <span class="comment">//      MetaMorpho's math            our mUSDC balance</span>
+    <span class="comment">//</span>
+    <span class="comment">// In English: "ask MetaMorpho how many USDC our mUSDC are worth right now"</span>
+}</div>
+
+    <div class="summary">
+      <div class="summary-title">Properties of this implementation</div>
+      <table class="balances">
+        <tr><th>Property</th><th>Why it matters</th></tr>
+        <tr><td>No caching, no internal counter</td><td>Always returns the latest USDC value — yield drips in continuously via MetaMorpho's own PPS appreciation, and we observe it on every read.</td></tr>
+        <tr><td>Read-only, no state writes</td><td>Cheap to call. ERC-4626's <code>previewRedeem</code>, <code>previewDeposit</code>, etc. can all use this directly.</td></tr>
+        <tr><td>Single-source-of-truth: the underlying</td><td>We never get out of sync with MetaMorpho. If they take a curator fee, we see post-fee value. If they suffer bad debt, we see the loss immediately.</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Compatibility requirement:</b> this only works because the underlying ERC-4626's <code>convertToAssets()</code> returns a continuously-accruing value — yield is already priced in at every block. If the underlying needed an explicit "report this period's yield" call to update its own PPS, our <code>totalAssets()</code> would be stale between those calls. Vetting underlyings for continuous accrual is therefore a hard prerequisite to adding them to the wrapper's allowlist.
+    </div>
+  </div>
+
+  </details>
+
+  <details class="section-block" open>
+    <summary class="section">Architecture: three independent steps</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">Older yield vaults (Yearn V1/V2) used a single <code>harvest()</code> function that both <i>realised pending yield</i> and <i>charged a fee on it</i> in one discrete on-chain event — that's where most "harvest" references in DeFi come from. Our wrapper deliberately splits this into three independent steps, each with a different trigger. The word "harvest" doesn't appear in our codebase at all.</p>
+
+  <div class="architecture">
+    <div class="arch-card step1">
+      <div class="arch-num">1</div>
+      <div class="arch-title">Yield Realization</div>
+      <div class="arch-body">
+        Lives in the underlying ERC-4626's PPS. We just observe it via <code>totalAssets()</code>. Alice can call <code>previewRedeem(myShares)</code> any time and see the up-to-date USDC value of her position — no transaction, no gas, no state change.
+        <div class="meta">
+          <b>Trigger:</b> automatic (off-chain to us)<br>
+          <b>Gas:</b> 0 (no wrapper code runs)<br>
+          <b>Visible:</b> immediately via any read
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card step2">
+      <div class="arch-num">2</div>
+      <div class="arch-title">Fee Accrual</div>
+      <div class="arch-body">
+        <code>_accrueFee()</code> fires <b>before</b> any state-changing user action (deposit/withdraw/mint/redeem/transfer). It mints new shares to the wrapper itself ("fee-shares") proportional to the yield that accrued since the last call. <code>_lastTotalAssets</code> is the checkpoint we compare against. This is why accrual is effectively "continuous" — any user touching the contract pays the fee on whatever yield has accumulated since the previous touch, so the wrapper's PPS is always truthful at the moment of any user action.
+        <div class="meta">
+          <b>Trigger:</b> every state-changing user action<br>
+          <b>Gas:</b> ~10–15k overhead<br>
+          <b>Payer:</b> user (rounding error vs fee captured)
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card step3">
+      <div class="arch-num">3</div>
+      <div class="arch-title">Fee Crystallization</div>
+      <div class="arch-body">
+        <code>collectFees()</code> burns the wrapper's own fee-shares, redeems the equivalent USDC from MetaMorpho, and forwards it to the <code>FeeDispatcher</code> contract that splits 20% LI.FI / 80% integrator.
+        <div class="meta">
+          <b>Trigger:</b> permissionless (anyone can call)<br>
+          <b>Gas:</b> ~80k<br>
+          <b>Payer:</b> caller (compensated by a small reward in basis points, "bps")
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note info">
+    <b>Key insight:</b> step 1 has no on-chain step in our wrapper — it's already done by the underlying. Step 2 happens on every user touch (predictable gas, always-truthful PPS). Step 3 is only cashflow — affects no user's economic balance, just converts the wrapper's own fee-shares into USDC for the treasury.
+  </div>
+
+  <!-- ============== MORPHO YIELD MECHANICS ============== -->
+  </details>
+
+
+  <!-- ============== PHASE 0: FACTORY DEPLOYMENT ============== -->
+  </details>
+
+  <details class="section-block" open>
+    <summary class="section">Setup: integrator deploys a wrapper instance</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">Before any user can deposit, the integrator (e.g. Coinbase Earn) deploys a wrapper instance via the LI.FI <code>VaultFactory</code>. One instance per (integrator, underlying, asset) triple. Two deployment techniques are used:</p>
+  <ul style="color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 16px 20px;">
+    <li><b>BeaconProxy</b> — every wrapper instance is a thin proxy that delegates all calls to one shared implementation contract via a "beacon." Upgrading the beacon's stored implementation atomically upgrades every existing instance (subject to a timelock for safety). One fix, all instances patched.</li>
+    <li><b>CREATE2</b> — a deterministic deployment opcode. Given a salt that includes the integrator + underlying + chain ID, the wrapper instance gets the same address on every chain. Nice property for cross-chain UX.</li>
+  </ul>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Setup</span>
+      <span class="step-tag" style="color: #475569; background: #f1f5f9;">Factory call</span>
+      <h2 class="step-title">Integrator calls <code>factory.createVault(params, salt)</code></h2>
+    </div>
+
+    <div class="flow">
+      <div class="actor" style="border-color: #475569; background: #f8fafc;">
+        <div class="actor-label" style="color: #475569;">Integrator multisig</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>e.g.</span><b>Coinbase Earn</b></div>
+          <div class="row muted"><span>multisig =</span><b>N-of-M Safe wallet</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">createVault(...)</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+      </div>
+      <div class="actor" style="border-color: var(--wrap); background: var(--wrap-bg);">
+        <div class="actor-label" style="color: var(--wrap);">LI.FI VaultFactory</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>beacon</span><b>0xBEACON…</b></div>
+          <div class="row"><span>impl</span><b>WrapperVault v1</b></div>
+          <div class="row"><span>maxFeeBps cap</b></span><b>2000</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">CREATE2 →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+        <div class="arrow-label return">← address</div>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">New BeaconProxy</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>address</span><b>0xWRAP…</b></div>
+          <div class="row"><span>beacon</span><b>0xBEACON…</b></div>
+          <div class="row"><span>state</span><b class="hl">initialized</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="math"><span class="comment">// VaultFactory.createVault — relevant params for the new instance</span>
+struct InitParams {
+    <span class="key">underlying</span>:        IERC4626    = MetaMorpho_USDC (0xdd0f…)   <span class="comment">// immutable post-deploy</span>
+    <span class="key">name</span>:              string      = "Coinbase Earn USDC"
+    <span class="key">symbol</span>:            string      = "cbEarnUSDC"
+    <span class="key">perfFeeBps</span>:        uint256     = 1000                         <span class="comment">// 10%, ≤ factory cap (A10) ≤ _MAX_FEE_BPS (A11)</span>
+    <span class="key">admin</span>:             address     = Coinbase multisig             <span class="comment">// DEFAULT_ADMIN_ROLE</span>
+    <span class="key">feeManager</span>:        address     = Coinbase multisig             <span class="comment">// can change perfFee within cap</span>
+    <span class="key">sanctionsManager</span>:  address     = LI.FI sanctions multisig      <span class="comment">// updates blacklist</span>
+    <span class="key">pauser</span>:            address     = LI.FI ops OR integrator       <span class="comment">// either can pause (deposit-pause only)</span>
+    <span class="key">unpauser</span>:          address     = LI.FI ops OR integrator       <span class="comment">// either can unpause</span>
+    <span class="key">feeDispatcher</span>:     IFeeDispatcher = 0xFEED…                  <span class="comment">// 20% LI.FI / 80% integrator split</span>
+    <span class="key">whitelist</span>:         IWhitelist  = 0xWHIT…  (or address(0))    <span class="comment">// optional KYC gate</span>
+    <span class="key">blacklist</span>:         IBlacklist  = 0xBLOCK…                    <span class="comment">// OFAC sanctions list</span>
+}
+
+<span class="key">salt</span> = keccak256(integrator, underlying, chainLockId, nonce)   <span class="comment">// same-address-across-chains</span></div>
+
+    <div class="math" style="margin-top: 16px;"><span class="comment">// Inside WrapperVault.initialize() — asset() is derived, NOT passed as a param</span>
+function <span class="key">initialize</span>(InitParams calldata p) external initializer {
+    <span class="comment">// ...validation...</span>
+
+    <span class="step1">__ERC4626_init(IERC20(p.underlying.asset()));</span>
+    <span class="comment">//                              ^^^^^^^^^^^</span>
+    <span class="comment">//                  read USDC address straight from MetaMorpho's asset() getter</span>
+    <span class="comment">//                  → wrapper.asset() is now permanently USDC</span>
+
+    <span class="step1">IERC20(p.underlying.asset()).forceApprove(address(p.underlying), type(uint256).max);</span>
+    <span class="comment">//      pre-approve the wrapper to spend its own USDC when depositing into MetaMorpho</span>
+    <span class="comment">//      (one-time approval avoids approving on every user deposit)</span>
+}</div>
+
+    <div class="note info">
+      <b>Why <code>asset()</code> is derived from the underlying, not passed:</b> if the integrator passed asset separately and got it wrong (e.g., passed WETH while pointing at a MetaMorpho USDC vault), every <code>deposit</code> and <code>withdraw</code> would silently fail or behave incorrectly. Deriving it directly from <code>underlying.asset()</code> at init time makes the mismatch impossible by construction. If the integrator wants to wrap MetaMorpho WETH instead, they deploy a separate instance — <code>asset()</code> automatically becomes WETH.
+    </div>
+
+    <div class="summary">
+      <div class="summary-title">After setup</div>
+      <table class="balances">
+        <tr><th>Entity</th><th>Address</th><th>Role</th></tr>
+        <tr><td><span class="dot d-wrap"></span>WrapperVault instance</td><td>0xWRAP…</td><td>BeaconProxy, <code>asset() = USDC</code> (derived from MetaMorpho), ready to accept deposits</td></tr>
+        <tr><td><span class="dot" style="background:#475569;"></span>Beacon</td><td>0xBEACON…</td><td>Holds impl address; upgradable by LI.FI timelock</td></tr>
+        <tr><td><span class="dot d-fee"></span>FeeDispatcher</td><td>0xFEED…</td><td>Receives accumulated fees on every collectFees() call; splits 20% LI.FI / 80% integrator.</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Why BeaconProxy:</b> all instances share one implementation. Bug-fix or feature push goes through the beacon's <code>upgradeTo()</code> (with timelock), and every existing wrapper instance picks it up atomically — no per-instance upgrade flow. (Q4.4)
+    </div>
+  </div>
+
+  <!-- ============== FLOW A: BASELINE ============== -->
+  </details>
+
+  <details class="section-block" open>
+    <summary class="section">Lifecycle: a complete deposit → yield → withdrawal walkthrough</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;"><b>Starting state:</b> MetaMorpho USDC has been running for months — TVL ≈ <b>50M USDC</b>, current <b>PPS_under = 1.10</b> (10% growth baked in from prior depositors). Our wrapper instance was just deployed in Phase 0; it's empty. Alice is about to be its first depositor.</p>
+
+  <!-- DAY 0 -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Day 0</span>
+      <span class="step-tag user">User action</span>
+      <h2 class="step-title">Alice deposits 100 USDC — wrapper's first depositor</h2>
+    </div>
+    <p class="step-desc">Wrapper is empty (PPS_wrap = 1.0). MetaMorpho is not empty — it has 50M USDC TVL and PPS_under = 1.10 from existing depositors. Alice's 100 USDC passes through the wrapper into MetaMorpho, which mints <b>100 / 1.10 ≈ 90.9091 mUSDC shares</b> to the wrapper. The wrapper mints 100 wshares to Alice.</p>
+
+    <div class="flow">
+      <div class="actor actor-alice">
+        <div class="actor-label">Alice</div>
+        <div class="actor-body">
+          <div class="row"><span>USDC</span><b>100 → 0</b></div>
+          <div class="row"><span>wshares</span><b class="hl">0 → 100</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">100 USDC →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+        <div class="arrow-label return">← 100 wshares</div>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">Wrapper (empty → first deposit)</div>
+        <div class="actor-body">
+          <div class="row"><span>totalAssets</span><b>0 → 100</b></div>
+          <div class="row"><span>totalSupply</span><b>0 → 100</b></div>
+          <div class="row"><span>PPS_wrap</span><b>1.000</b></div>
+          <div class="row"><span>mUSDC held</span><b class="hl">0 → 90.9091</b></div>
+          <div class="row muted"><span>_lastTotalAssets</span><b class="hl">100</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">100 USDC →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+        <div class="arrow-label return">← 90.9091 mUSDC</div>
+      </div>
+      <div class="actor actor-under">
+        <div class="actor-label">MetaMorpho USDC (existing 50M vault)</div>
+        <div class="actor-body">
+          <div class="row"><span>PPS_under</span><b>1.100</b></div>
+          <div class="row"><span>TVL</span><b>50.000M → 50.0001M</b></div>
+          <div class="row"><span>total mUSDC</span><b>45.4545M → 45.4546M</b></div>
+          <div class="row"><span>wrapper's mUSDC</span><b class="hl">0 → 90.9091</b></div>
+          <div class="row"><span>wrapper's value</span><b>100 USDC</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note info">
+      <b>Note:</b> Alice owns wshares (in the wrapper), the wrapper owns mUSDC (in MetaMorpho), MetaMorpho owns positions in Morpho Blue markets. Three layers, but Alice only ever sees the top layer — and only ever moves USDC in and USDC out.
+    </div>
+  </div>
+
+  <!-- DAY 30 -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Day 30</span>
+      <span class="step-tag step1">Step 1 · Yield Realization</span>
+      <h2 class="step-title">Morpho borrowers paid interest for 30 days (illustrative 10%) — nobody calls the wrapper</h2>
+    </div>
+    <p class="step-desc">Per-block interest accrual inside Morpho Blue markets pushes PPS_under from 1.10 → 1.21. Our wrapper's mUSDC balance is unchanged (90.9091) but each one is now worth more USDC. <code>totalAssets()</code> reads 110 live; <code>_lastTotalAssets</code> is still 100 because no state-changing call has run.</p>
+
+    <div class="flow">
+      <div class="actor actor-alice">
+        <div class="actor-label">Alice</div>
+        <div class="actor-body">
+          <div class="row"><span>wshares</span><b>100</b></div>
+          <div class="row muted"><span>(idle)</span><b></b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label muted" style="opacity:0.5;">no flow</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="100" y2="10" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 4"/></svg>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">Wrapper</div>
+        <div class="actor-body">
+          <div class="row"><span>totalAssets()</span><b class="hl">→ 110 ⬆</b></div>
+          <div class="row"><span>totalSupply</span><b>100</b></div>
+          <div class="row"><span>PPS_wrap</span><b>1.100</b></div>
+          <div class="row"><span>mUSDC held</span><b>90.9091 (unchanged)</b></div>
+          <div class="row muted"><span>_lastTotalAssets</span><b class="hl">100 (stale)</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label muted" style="opacity:0.5;">no flow</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="100" y2="10" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 4"/></svg>
+      </div>
+      <div class="actor actor-under">
+        <div class="actor-label">MetaMorpho USDC</div>
+        <div class="actor-body">
+          <div class="row"><span>PPS_under</span><b class="hl">1.10 → 1.21 ⬆</b></div>
+          <div class="row"><span>TVL</span><b>~50M → ~55M ⬆</b></div>
+          <div class="row"><span>wrapper's mUSDC</span><b>90.9091</b></div>
+          <div class="row"><span>wrapper's value</span><b class="hl">110 USDC</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note info">
+      <b>Step 1 in action:</b> yield is already realized — no contract code ran on our side. Reads already reflect the new value via <code>convertToAssets()</code>. State will catch up in Step 2 on the next user action.
+    </div>
+  </div>
+
+  <!-- DAY 31 -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Day 31</span>
+      <span class="step-tag step2">Step 2 · Fee Accrual</span>
+      <span class="step-tag user">+ User action</span>
+      <h2 class="step-title">Bob deposits 50 USDC → <code>_accrueFee()</code> fires first</h2>
+    </div>
+    <p class="step-desc">Bob's deposit triggers <code>_accrueFee()</code> <i>before</i> his share math. Fee-shares get minted to <code>address(this)</code>; <code>_lastTotalAssets</code> updates; then Bob enters at the fair post-fee PPS.</p>
+
+    <div class="math"><span class="comment">// _accrueFee() — runs first, on every state-changing call</span>
+<span class="key">delta</span>            = totalAssets() − _lastTotalAssets  = 110 − 100 = <b>10 USDC</b>
+<span class="key">feeUSDC</span>          = delta × 10%                       = <b>1 USDC</b>
+<span class="key">feeShares</span>        = mint X to wrapper s.t.  X / (100 + X) × 110 = 1
+                 ⇒ X ≈ <b>0.917 wshares</b>
+<span class="key">_lastTotalAssets</span> = 110                                <span class="comment">// checkpoint updated</span>
+
+<span class="comment">// then Bob's deposit runs at the fair PPS</span>
+<span class="key">PPS_wrap</span>         = 110 / (100 + 0.917) ≈ 1.0900
+<span class="key">bobShares</span>        = 50 / 1.0900 ≈ <b>45.872 wshares</b></div>
+
+    <div class="flow">
+      <div class="actor actor-bob">
+        <div class="actor-label">Bob</div>
+        <div class="actor-body">
+          <div class="row"><span>USDC</span><b>50 → 0</b></div>
+          <div class="row"><span>wshares</span><b class="hl">0 → 45.872</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">50 USDC →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+        <div class="arrow-label return">← 45.872 wshares</div>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">Wrapper</div>
+        <div class="actor-body">
+          <div class="row"><span>totalAssets</span><b>110 → 160</b></div>
+          <div class="row"><span>totalSupply</span><b>100 → 146.79</b></div>
+          <div class="row"><span>PPS_wrap</span><b>1.0900</b></div>
+          <div class="row"><span>mUSDC held</span><b>90.9091 → 132.231</b></div>
+          <div class="row muted"><span>_lastTotalAssets</span><b class="hl">100 → 110</b></div>
+        </div>
+        <div class="fee-bucket">
+          <div class="label">Fee bucket (wrapper holds)</div>
+          <div>+0.917 wshares ≈ <b>1.00 USDC</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">50 USDC →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+        <div class="arrow-label return">← 41.322 mUSDC</div>
+      </div>
+      <div class="actor actor-under">
+        <div class="actor-label">MetaMorpho USDC</div>
+        <div class="actor-body">
+          <div class="row"><span>PPS_under</span><b>1.21</b></div>
+          <div class="row"><span>wrapper's mUSDC</span><b>90.9091 → 132.231</b></div>
+          <div class="row"><span>wrapper's value</span><b>110 → 160</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="summary-title">State after Day 31</div>
+      <table class="balances">
+        <tr><th>Holder</th><th>wshares</th><th>≈ USDC</th><th>Notes</th></tr>
+        <tr><td><span class="dot d-alice"></span>Alice</td><td>100.000</td><td><b>109.00</b></td><td class="muted">+9.00 = 90% of 10 USDC yield</td></tr>
+        <tr><td><span class="dot d-bob"></span>Bob</td><td>45.872</td><td><b>50.00</b></td><td class="muted">fair entry at post-fee PPS</td></tr>
+        <tr><td><span class="dot d-fee"></span>Wrapper (fee bucket)</td><td>0.917</td><td><b>1.00</b></td><td class="muted">10% of yield, parked as shares</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Why no harvest-sandwich vector:</b> there's no discrete PPS jump to sandwich. Alice's PPS is already diluted by the moment Bob's deposit ends; an attacker who tried "deposit → trigger accrue → withdraw same block" would be the one paying the dilution.
+    </div>
+  </div>
+
+  <!-- DAY 60 -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Day 60</span>
+      <span class="step-tag step2">Step 2 · Fee Accrual</span>
+      <span class="step-tag user">+ User action</span>
+      <h2 class="step-title">Alice withdraws all 100 wshares</h2>
+    </div>
+    <p class="step-desc">Withdraw also calls <code>_accrueFee()</code> first. Assuming no further yield, there's nothing new to accrue. Alice's shares burn for their PPS-denominated underlying value.</p>
+
+    <div class="math"><span class="comment">// _accrueFee() runs (no new yield → no-op)</span>
+<span class="key">delta</span>     = 160 − 160 = 0                  <span class="comment">// totalAssets unchanged since last checkpoint</span>
+<span class="key">feeShares</span> = 0                              <span class="comment">// nothing minted</span>
+
+<span class="comment">// Alice's withdraw</span>
+<span class="key">amountOut</span> = 100 × PPS_wrap = 100 × 1.090 = <b>109.00 USDC</b>
+<span class="key">_lastTotalAssets</span> = totalAssets()  = <b>51</b>      <span class="comment">// re-checkpoint after underlying call</span></div>
+
+    <div class="flow">
+      <div class="actor actor-alice">
+        <div class="actor-label">Alice</div>
+        <div class="actor-body">
+          <div class="row"><span>wshares</span><b>100 → 0</b></div>
+          <div class="row"><span>USDC</span><b class="hl">0 → 109.00</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">← 109 USDC</div>
+        <svg width="100" height="20"><polygon points="0,10 8,4 8,16" fill="#1a1a1f"/><line x1="8" y1="10" x2="100" y2="10" stroke="#1a1a1f" stroke-width="1.5"/></svg>
+        <div class="arrow-label return">100 wshares burned →</div>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">Wrapper</div>
+        <div class="actor-body">
+          <div class="row"><span>totalAssets</span><b>160 → 51</b></div>
+          <div class="row"><span>totalSupply</span><b>146.79 → 46.79</b></div>
+          <div class="row"><span>PPS_wrap</span><b>1.0900</b></div>
+          <div class="row"><span>mUSDC held</span><b>132.231 → 42.149</b></div>
+          <div class="row muted"><span>_lastTotalAssets</span><b class="hl">110 → 51</b></div>
+        </div>
+        <div class="fee-bucket">
+          <div class="label">Fee bucket (unchanged)</div>
+          <div>0.917 wshares ≈ <b>1.00 USDC</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">← 109 USDC</div>
+        <svg width="100" height="20"><polygon points="0,10 8,4 8,16" fill="#1a1a1f"/><line x1="8" y1="10" x2="100" y2="10" stroke="#1a1a1f" stroke-width="1.5"/></svg>
+        <div class="arrow-label return">90.083 mUSDC burned →</div>
+      </div>
+      <div class="actor actor-under">
+        <div class="actor-label">MetaMorpho USDC</div>
+        <div class="actor-body">
+          <div class="row"><span>PPS_under</span><b>1.21</b></div>
+          <div class="row"><span>wrapper's mUSDC</span><b>132.231 → 42.149</b></div>
+          <div class="row"><span>wrapper's value</span><b>160 → 51</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAY 65 -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Day 65</span>
+      <span class="step-tag step3">Step 3 · Fee Crystallization</span>
+      <h2 class="step-title">Anyone calls <code>collectFees()</code> — permissionless</h2>
+    </div>
+    <p class="step-desc">Cashflow realization. The wrapper burns its own fee-shares, redeems the proportional underlying, and forwards USDC to FeeDispatcher (20% LI.FI / 80% integrator). Affects no user's economic balance — only converts wrapper-owned shares into treasury USDC.</p>
+
+    <div class="math"><span class="comment">// collectFees() — separate from user flow</span>
+<span class="key">burn</span>    0.917 wshares from address(this)
+<span class="key">redeem</span>  0.917 × PPS_wrap ≈ <b>1.00 USDC</b> from underlying
+<span class="key">split</span>   0.20 USDC → LI.FI treasury
+        0.80 USDC → integrator treasury</div>
+
+    <div class="flow">
+      <div class="actor actor-wrap">
+        <div class="actor-label">Wrapper</div>
+        <div class="actor-body">
+          <div class="row"><span>totalAssets</span><b>51 → 50</b></div>
+          <div class="row"><span>totalSupply</span><b>46.79 → 45.87</b></div>
+          <div class="row"><span>PPS_wrap</span><b>1.0900</b></div>
+        </div>
+        <div class="fee-bucket">
+          <div class="label">Fee bucket</div>
+          <div>0.917 → <b>0 wshares</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">1 USDC →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+      </div>
+      <div class="actor actor-dispatcher">
+        <div class="actor-label">FeeDispatcher</div>
+        <div class="actor-body">
+          <div class="row"><span>received</span><b>1.00 USDC</b></div>
+          <div class="row muted"><span>split 20/80</span><b></b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">0.20 / 0.80 →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+      </div>
+      <div class="actor" style="border-color: #475569; background: #f8fafc;">
+        <div class="actor-label" style="color: #475569;">Treasuries</div>
+        <div class="actor-body">
+          <div class="row"><span>LI.FI</span><b>+0.20</b></div>
+          <div class="row"><span>Integrator</span><b>+0.80</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Conservation check:</b> Alice 109 + Bob 50 + treasuries 1.00 = 160 USDC = wrapper's totalAssets right after Day 31. No leakage, no double-counting.
+    </div>
+  </div>
+
+  </details>
+
+
+  <!-- ============== FLOW B: COMPOUNDED FEES (Q1.12) ============== -->
+
+  <details class="section-block" open>
+    <summary class="section">When the underlying ALSO charges its own fee (the common case)</summary>
+
+  <div class="terminology">
+    <b>The common case:</b> most production MetaMorpho vaults charge their own curator perf fee (typically 5–15%). Yearn V3 strategies do too. When our wrapper sits on top of one of those, does our perf fee double-charge the user? <b>No.</b> The underlying's fee is already netted out of the PPS that <code>totalAssets()</code> reads — we only see the post-curator-fee yield, and our 10% applies to that net amount. No special handling needed; fees just compose multiplicatively.
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Day 30 (alt)</span>
+      <span class="step-tag step1">Step 1 · Yield Realization</span>
+      <h2 class="step-title">Gross 10% yield, but curator takes 10% inside the underlying</h2>
+    </div>
+    <p class="step-desc">Same starting position: wrapper holds 100 underlying shares, Alice holds 100 wshares. The underlying generates 10 USDC of gross yield, but the curator skims 10% (1 USDC) at the underlying level.</p>
+
+    <div class="math"><span class="comment">// inside the underlying (MetaMorpho) — happens before we see anything</span>
+<span class="key">gross_yield</span>      = 10 USDC                 <span class="comment">// PPS would have gone 1.00 → 1.10</span>
+<span class="key">curator_fee</span>      = 10 × 10% = 1 USDC       <span class="comment">// minted as fee-shares inside underlying</span>
+<span class="key">net_PPS_under</span>    = 1.090                   <span class="comment">// what convertToAssets reports to us</span>
+
+<span class="comment">// our wrapper reads totalAssets() — already net of curator fee</span>
+<span class="key">totalAssets()</span>    = underlying.convertToAssets(100) = <b>109 USDC</b>     <span class="comment">// not 110!</span></div>
+
+    <div class="flow">
+      <div class="actor actor-alice">
+        <div class="actor-label">Alice</div>
+        <div class="actor-body">
+          <div class="row"><span>wshares</span><b>100</b></div>
+          <div class="row muted"><span>(idle)</span><b></b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label muted" style="opacity:0.5;">no flow</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="100" y2="10" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 4"/></svg>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">Wrapper</div>
+        <div class="actor-body">
+          <div class="row"><span>totalAssets()</span><b class="hl">→ 109 ⬆</b></div>
+          <div class="row"><span>totalSupply</span><b>100</b></div>
+          <div class="row"><span>PPS_wrap</span><b>1.090</b></div>
+          <div class="row muted"><span>_lastTotalAssets</span><b>100 (stale)</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label muted" style="opacity:0.5;">no flow</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="100" y2="10" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 4"/></svg>
+      </div>
+      <div class="actor actor-under">
+        <div class="actor-label">Underlying (MetaMorpho)</div>
+        <div class="actor-body">
+          <div class="row"><span>gross PPS</span><b>1.100</b></div>
+          <div class="row"><span class="hl">curator fee-shares</span><b>+0.917</b></div>
+          <div class="row"><span>net PPS</span><b class="hl">1.090</b></div>
+          <div class="row"><span>wrapper's ushares</span><b>100</b></div>
+          <div class="row"><span>wrapper's value</span><b>109 USDC</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note info">
+      <b>Key point:</b> the curator's 10% fee never appears in our accounting. We just read 109 from <code>totalAssets()</code> instead of 110. The underlying does the curator-fee dilution internally; we observe the result.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Day 31 (alt)</span>
+      <span class="step-tag step2">Step 2 · Fee Accrual</span>
+      <span class="step-tag user">+ User action</span>
+      <h2 class="step-title">Bob deposits 50 → <code>_accrueFee()</code> sees 9 USDC of yield (net), takes 10%</h2>
+    </div>
+
+    <div class="math"><span class="comment">// _accrueFee() — exactly the same code, sees post-curator-fee numbers</span>
+<span class="key">delta</span>            = totalAssets() − _lastTotalAssets = 109 − 100 = <b>9 USDC</b>
+<span class="key">feeUSDC</span>          = delta × 10% = <b>0.9 USDC</b>          <span class="comment">// our fee on net yield</span>
+<span class="key">feeShares</span>        = X s.t. X / (100 + X) × 109 = 0.9  ⇒ <b>~0.832 wshares</b>
+<span class="key">_lastTotalAssets</span> = 109</div>
+
+    <div class="summary">
+      <div class="summary-title">Effective economics</div>
+      <table class="balances">
+        <tr><th>Layer</th><th>Yield captured (USDC)</th><th>% of gross</th></tr>
+        <tr><td><span class="dot d-curator"></span>Underlying curator</td><td>1.000</td><td>10.0%</td></tr>
+        <tr><td><span class="dot d-fee"></span>LI.FI wrapper (us)</td><td>0.900</td><td>9.0%</td></tr>
+        <tr><td><span class="dot d-alice"></span>User (Alice)</td><td>8.100</td><td>81.0%</td></tr>
+        <tr><td colspan="3" class="muted" style="font-size:12px;padding-top:8px;">Multiplicative composition: 1 − (1 − 0.10) × (1 − 0.10) = 19% total fee on gross yield. No double-charge — each layer only sees the yield <i>net</i> of the layer below.</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Implementation invariant (Q1.12 takeaway):</b> always set <code>_lastTotalAssets = totalAssets()</code> <i>after</i> the underlying interaction. That way any underlying-side accounting — curator fees, deposit fees, redemption fees — flows through naturally and the next <code>_accrueFee()</code> sees the correct delta.
+    </div>
+  </div>
+
+  </details>
+
+  <details class="section-block" open>
+    <summary class="section">APY — what number the user actually sees</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">Throughout the doc we've talked about <i>yield</i> as something that grows PPS over time. The user-facing version of that is <b>APY</b> — the "X% per year" number in the integrator's app. This section explains what APY is, how it's derived from the data we have, where it should be computed and shown, and how multi-layer fees affect what the user ends up seeing.</p>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">What APY (and APR) actually mean</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">Two related numbers, both annualized:</p>
+
+    <table class="balances">
+      <tr><th>Metric</th><th>Definition</th><th>For our wrapper</th></tr>
+      <tr><td><b>APR</b> — Annual Percentage Rate</td><td>Simple annualized rate of return. Ignores compounding within the year.</td><td>= (PPS_now / PPS_then − 1) × (year / window)</td></tr>
+      <tr><td><b>APY</b> — Annual Percentage Yield</td><td>Compounded annualized rate. Assumes yield is continuously reinvested, which it implicitly is in an ERC-4626 vault (PPS keeps growing).</td><td>= (PPS_now / PPS_then) ^ (year / window) − 1</td></tr>
+    </table>
+
+    <p class="step-desc" style="margin-top: 16px;">For modest yields (single-digit percent), APR and APY differ by less than ~0.2 percentage points. Most user-facing apps display APY; some regulated apps display APR for legal precision.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">How APY is derived from on-chain data</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">An ERC-4626 vault's PPS records the entire yield history — by definition, that's what it tracks. Computing APY requires PPS at two points in time and the elapsed seconds between them.</p>
+
+    <div class="math"><span class="comment">// pseudo-code, computed off-chain or in an on-chain helper view</span>
+<span class="key">pps_old</span>     = wrapper.convertToAssets(1e18) at block T - window
+<span class="key">pps_now</span>     = wrapper.convertToAssets(1e18)                <span class="comment">// current</span>
+<span class="key">elapsed_s</span>   = now - T_old                                  <span class="comment">// in seconds</span>
+
+<span class="key">apr</span>         = (pps_now / pps_old - 1) * (365 days / elapsed_s)
+<span class="key">apy</span>         = (pps_now / pps_old) ** (365 days / elapsed_s) - 1</div>
+
+    <div class="note info">
+      <b>Window choice matters.</b> A 1-day window is noisy (block-level variation can dominate). A 365-day window is too slow to react to rate changes in the underlying. Typical sweet spot is <b>7 or 30 days</b> — long enough to smooth out noise, short enough to track real changes. The integrator picks the window for their display.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">Where can APY be computed?</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">Two options, each with tradeoffs:</p>
+
+    <table class="balances">
+      <tr><th>Where</th><th>How it works</th><th>Tradeoff</th></tr>
+      <tr><td><b>(a) Off-chain in the integrator's backend</b></td><td>Integrator's indexer reads historical <code>totalAssets()</code> from RPC archives or events, computes APR/APY in their own backend, displays in the app.</td><td>Zero on-chain overhead, full control over window/smoothing. Each integrator can compute it slightly differently. <b>Default choice for most integrators.</b></td></tr>
+      <tr><td><b>(b) Marketing fixed number in the UI</b></td><td>App hardcodes "Earn up to 4.5% APY!" regardless of real yield.</td><td>Trivially possible (it's just UI text), but if real yield is 3% and the app says 5%, users feel misled and the integrator eats legal/reputational risk. Not recommended; would only make sense if combined with a guaranteed-rate product, which is a different SC design entirely (Maple/Anchor-style fixed-rate vaults).</td></tr>
+    </table>
+
+    <div class="note">
+      <b>Current recommendation:</b> the smart contract exposes the primitives (<code>totalAssets</code>, <code>convertToAssets(1e18)</code>, <code>perfFeeBps</code>) so option (a) is always available. Production vaults (MetaMorpho, Yearn V3, Sky) don't expose an on-chain APY getter — they all expect this to be computed off-chain. Option (b) is an integrator UI decision, outside SC scope.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <h2 class="step-title">The APY the user actually sees, layer by layer</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">Three fees compose between the borrower's interest payment and the user's net APY. Each layer eats a fraction of the layer above.</p>
+
+    <table class="balances">
+      <tr><th>Layer</th><th>Where it's charged</th><th>Effective APY at this layer</th></tr>
+      <tr><td><b>Gross borrower interest</b></td><td>Inside Morpho Blue markets (borrowers paying rate)</td><td>10.0% (illustrative)</td></tr>
+      <tr><td>− MetaMorpho curator fee (~10%)</td><td>Inside MetaMorpho (curator takes share via virtual-shares dilution)</td><td>9.0% — this is what MetaMorpho's PPS reflects</td></tr>
+      <tr><td>− LI.FI wrapper perf fee (10%)</td><td>Inside our wrapper (we take share via virtual-shares dilution)</td><td>8.1% — this is what our wrapper's PPS reflects</td></tr>
+      <tr><td><b>= User's effective APY</b></td><td>What the integrator should display to Alice</td><td><b>8.1%</b></td></tr>
+    </table>
+
+    <p class="step-desc" style="margin-top: 16px;">Of the 10.0% gross yield, the user keeps 8.1% (81%), the underlying curator gets 1.0% (10%), the integrator gets 0.72% (8% — they keep 80% of the wrapper fee), and LI.FI gets 0.18% (2% — 20% of the wrapper fee).</p>
+
+    <div class="math"><span class="comment">// in code: only the bottom number is directly observable via PPS history</span>
+<span class="key">user_apy</span>          = (wrapper.PPS_now / wrapper.PPS_7d_ago) ^ (52/1) - 1
+
+<span class="comment">// the gross and intermediate numbers are derivable if you also read MetaMorpho's PPS history</span>
+<span class="key">underlying_net_apy</span> = (metaMorpho.PPS_now / metaMorpho.PPS_7d_ago) ^ (52/1) - 1
+<span class="key">wrapper_fee_drag</span>   = underlying_net_apy * perfFeeBps / 10_000</div>
+  </div>
+
+
+  </details>
+
+  <details class="section-block" open>
+    <summary class="section">Whitelist / KYC gating</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">Some integrators (regulated fintechs, exchanges) need users to clear an off-chain identity check before depositing. The wrapper supports an optional on-chain whitelist that backs this requirement. When the whitelist is enabled, two things change simultaneously by design:</p>
+
+  <ul style="color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 20px 20px;">
+    <li><b>Deposits and mints are gated</b> — only whitelisted addresses can call <code>deposit()</code> / <code>mint()</code>.</li>
+    <li><b>Share transfers are blocked</b> — wshares become non-transferable. Without this, a whitelisted user could simply <code>transfer()</code> their wshares to anyone after the fact, defeating the gate.</li>
+  </ul>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Setup</span>
+      <h2 class="step-title">Integrator deploys with whitelist enabled</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">The integrator's app (Coinbase, etc.) runs the KYC check off-chain. After approval it adds the user's address to an on-chain <code>Whitelist</code> contract referenced by the wrapper. Alice clears KYC; Charlie doesn't.</p>
+
+    <table class="balances">
+      <tr><th>User</th><th>KYC status (off-chain)</th><th>Whitelist contract entry</th></tr>
+      <tr><td><span class="dot d-alice"></span>Alice</td><td>passed</td><td>added → <code>isAllowed(alice) == true</code></td></tr>
+      <tr><td><span class="dot" style="background:#475569;"></span>Charlie</td><td>not run</td><td>absent → <code>isAllowed(charlie) == false</code></td></tr>
+    </table>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Try</span>
+      <span class="step-tag user">User action</span>
+      <h2 class="step-title">Charlie tries to deposit directly — reverts</h2>
+    </div>
+
+    <div class="math"><span class="comment">// Wrapper.deposit() internals</span>
+function deposit(uint256 assets, address receiver) {
+    require(<span class="key">whitelist.isAllowed(msg.sender)</span>, "AddressNotWhitelisted");
+    require(<span class="key">whitelist.isAllowed(receiver)</span>, "AddressNotWhitelisted");
+    <span class="comment">// ... rest of deposit logic ...</span>
+}
+
+<span class="comment">// Charlie calls deposit(100 USDC, charlie):</span>
+<span class="step3">↳ revert AddressNotWhitelisted(charlie)</span></div>
+
+    <div class="note">
+      <b>What this stops:</b> Charlie cannot deposit USDC into the wrapper. Deposit fails before any state change.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Try</span>
+      <span class="step-tag user">OTC bypass attempt</span>
+      <h2 class="step-title">Alice tries to OTC her wshares to Charlie — also reverts</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">Without share-transfer gating, the whitelist would be trivially bypassable: Alice could deposit, then sell her wshares to Charlie off-chain (Venmo, OTC desk) and call <code>vault.transfer(charlie, 100)</code>. Charlie would now hold the yield-bearing position without passing KYC. Coupling whitelist-on to non-transferable closes this loophole.</p>
+
+    <div class="math"><span class="comment">// Wrapper._update() (transfer hook)</span>
+function _update(address from, address to, uint256 value) internal override {
+    if (whitelistActive() && !isMintOrBurn(from, to)) {
+        <span class="key">revert TransfersDisabled();</span>
+    }
+    super._update(from, to, value);
+}
+
+<span class="comment">// Alice calls transfer(charlie, 100):</span>
+<span class="step3">↳ revert TransfersDisabled()</span></div>
+
+    <div class="note info">
+      <b>Mint/burn still work:</b> the gate fires only on user→user transfers. Internal mints (deposit) and burns (withdraw, fee crystallization) bypass the check because their "other side" is <code>address(0)</code> or the wrapper itself.
+    </div>
+  </div>
+
+  </details>
+
+
+  <details class="section-block" open>
+    <summary class="section">Sanctions blacklist + permissionless rescue</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">Separate from the optional KYC whitelist, the wrapper always carries a blacklist hook for sanctions compliance. The blacklist is normally backed by an OFAC oracle (Chainalysis or similar) plus an internal admin-managed list for edge cases. Two questions need answers when a user gets added mid-position:</p>
+
+  <ul style="color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 20px 20px;">
+    <li>What stops them from depositing more?</li>
+    <li>What about funds they already have inside? Sanctions compliance means we can't keep accepting their interactions, but we also don't want to permanently freeze their funds — that creates legal and reputational risk.</li>
+  </ul>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">T+1</span>
+      <h2 class="step-title">Alice has 100 wshares (worth 109 USDC). She gets added to the blacklist.</h2>
+    </div>
+    <p class="step-desc">An admin (or an automated OFAC sync) adds Alice's address to the <code>Blacklist</code> contract. The wrapper reads from this contract on every state-changing call.</p>
+
+    <div class="math"><span class="comment">// State after blacklist update</span>
+blacklist.isBlocked(alice)  == true
+alice.balanceOf(wrapper)    == 100 wshares (worth ~109 USDC)</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Try</span>
+      <span class="step-tag user">Alice's actions</span>
+      <h2 class="step-title">All of Alice's own calls now revert</h2>
+    </div>
+
+    <div class="math"><span class="comment">// Wrapper checks blacklist at every entry point</span>
+function deposit(...) {
+    require(<span class="key">!blacklist.isBlocked(msg.sender)</span>);   <span class="step3">↳ revert AddressBlocked</span>
+}
+function withdraw(...) {
+    require(<span class="key">!blacklist.isBlocked(msg.sender)</span>);   <span class="step3">↳ revert AddressBlocked</span>
+}
+function transfer(...) {
+    require(<span class="key">!blacklist.isBlocked(msg.sender)</span>);   <span class="step3">↳ revert AddressBlocked</span>
+}</div>
+
+    <div class="note">
+      <b>What this means for Alice:</b> she can no longer move her own funds. If we stopped here, her 109 USDC would be permanently stuck — bad outcome.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Rescue</span>
+      <span class="step-tag step3">Permissionless</span>
+      <h2 class="step-title">Anyone calls <code>forceWithdraw(alice)</code></h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">A permissionless rescue function exists specifically for this case. Anyone (the integrator, a watcher script, even Alice's lawyer) can call it. It burns all of Alice's wshares and sends the underlying USDC back to her wallet. The wrapper has now disengaged from her without freezing her funds.</p>
+
+    <div class="flow">
+      <div class="actor" style="border-color: #475569; background: #f8fafc;">
+        <div class="actor-label" style="color: #475569;">Caller (anyone)</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>identity</span><b>doesn't matter</b></div>
+          <div class="row muted"><span>cost</span><b>~gas only</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">forceWithdraw(alice)</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+      </div>
+      <div class="actor actor-wrap">
+        <div class="actor-label">Wrapper</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>burns alice's wshares</span><b>100 → 0</b></div>
+          <div class="row"><span>withdraws underlying</span><b>~109 USDC</b></div>
+          <div class="row muted"><span>sends to alice's wallet</span><b>(not caller)</b></div>
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-label">~109 USDC →</div>
+        <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
+      </div>
+      <div class="actor actor-alice">
+        <div class="actor-label">Alice's wallet</div>
+        <div class="actor-body" style="font-size: 12px;">
+          <div class="row"><span>USDC received</span><b class="hl">+109</b></div>
+          <div class="row muted"><span>(now off our books)</span><b></b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note info">
+      <b>Why permissionless rescue is safe:</b> the function only sends underlying to Alice herself, not to the caller. There's no way to steal funds by calling it. The only thing the caller "gets" is forcing a position closure they otherwise couldn't trigger.
+    </div>
+
+    <div class="note">
+      <b>Edge case — OFAC vs internal blacklist:</b> if Alice is sanctioned by the OFAC oracle (not just our internal list), the rescue is typically gated — sending the underlying back to her wallet might itself be a sanctioned transfer. Real implementations layer this: internal-only blocks get the rescue, OFAC-sanctioned positions get a freeze that only sanctions-cleared admin actions can move.
+    </div>
+  </div>
+
+  </details>
+
+
+  <details class="section-block" open>
+    <summary class="section">Admin operations: fee changes and pause</summary>
+
+  <p class="step-desc" style="margin-bottom: 16px;">Two admin levers worth understanding in detail. Both have a non-obvious property that's important for correctness.</p>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Admin</span>
+      <span class="step-tag step2">Fee change</span>
+      <h2 class="step-title">Integrator drops the perf fee from 10% → 5%</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">The subtle requirement: between the previous fee-accrual checkpoint and the rate change, some yield has accrued at the OLD rate. If we change the rate first and then accrue, the new rate would retroactively apply to that old yield — under-charging users or over-charging them depending on direction. The fix is to accrue at the old rate first, then change the rate.</p>
+
+    <div class="math"><span class="comment">// Wrapper.setPerfFee</span>
+function setPerfFee(uint256 newBps) external onlyRole(FEE_MANAGER) {
+    require(newBps <= MAX_FEE_BPS);
+
+    <span class="step2">_accrueFee();</span>           <span class="comment">// 1) crystallise pending fee at OLD rate (10%)</span>
+    <span class="key">perfFeeBps = newBps;</span>      <span class="comment">// 2) NOW the rate flips to 5%</span>
+                                <span class="comment">// 3) subsequent yield will accrue at 5%</span>
+}</div>
+
+    <table class="balances">
+      <tr><th>Phase</th><th>perfFeeBps</th><th>What gets fee'd at this rate</th></tr>
+      <tr><td>Before call</td><td>1000 (10%)</td><td>—</td></tr>
+      <tr><td>Inside _accrueFee()</td><td>1000 (10%)</td><td>All yield since the last accrual</td></tr>
+      <tr><td>After perfFeeBps = 500</td><td>500 (5%)</td><td>All yield from this point on</td></tr>
+    </table>
+
+    <div class="note info">
+      <b>Why the order matters:</b> without the accrue-first step, a fee cut would retroactively apply to historical yield (integrator loses revenue they'd already earned). A fee hike would do the opposite (users get charged retroactively). Either way is unfair and breaks the property that "the fee in effect <i>when</i> the yield happened is what gets charged."
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-day">Admin</span>
+      <span class="step-tag step2">Pause</span>
+      <h2 class="step-title">Pauser halts deposits (withdrawals stay open)</h2>
+    </div>
+    <p class="step-desc" style="margin-bottom: 16px;">Used when something is wrong with the underlying (e.g. MetaMorpho looks like it might suffer bad debt, or there's a question mark on a downstream Morpho Blue market) and we want to stop new users from entering until things are clarified. <b>Withdrawals are never pausable</b> — existing users must always be able to exit.</p>
+
+    <table class="balances">
+      <tr><th>Operation</th><th>Before pause</th><th>After pause</th></tr>
+      <tr><td><code>deposit()</code> / <code>mint()</code></td><td>✓ allowed</td><td>✗ revert <code>DepositsPaused()</code></td></tr>
+      <tr><td><code>withdraw()</code> / <code>redeem()</code></td><td>✓ allowed</td><td>✓ still allowed</td></tr>
+      <tr><td><code>transfer()</code> (if whitelist off)</td><td>✓ allowed</td><td>✓ still allowed</td></tr>
+      <tr><td><code>collectFees()</code></td><td>✓ allowed</td><td>✓ still allowed</td></tr>
+      <tr><td><code>forceWithdraw()</code></td><td>✓ allowed (if blocked)</td><td>✓ still allowed</td></tr>
+    </table>
+
+    <div class="math" style="margin-top: 16px;"><span class="comment">// Wrapper.pauseDeposits / unpauseDeposits</span>
+function pauseDeposits() external onlyRole(PAUSER) {
+    depositPaused = true;
+}
+function unpauseDeposits() external onlyRole(UNPAUSER) {
+    depositPaused = false;
+}
+
+<span class="comment">// Note: distinct roles by design (PAUSER vs UNPAUSER) so that pausing</span>
+<span class="comment">// is easy / fast but unpausing requires a more deliberate process.</span></div>
+  </div>
+
+  </details>
+
+  <div class="legend">
+    <div class="legend-item"><span class="dot d-alice"></span>Alice (depositor)</div>
+    <div class="legend-item"><span class="dot d-bob"></span>Bob (second depositor)</div>
+    <div class="legend-item"><span class="dot d-wrap"></span>Wrapper</div>
+    <div class="legend-item"><span class="dot d-fee"></span>Fee bucket / dispatcher</div>
+    <div class="legend-item"><span class="dot d-curator"></span>Curator (underlying)</div>
+    <div class="legend-item"><span class="dot" style="background:var(--under);"></span>Underlying ERC-4626</div>
+  </div>
+
+</div>
+</body>
+</html>
