@@ -17,6 +17,37 @@ DIAMOND_IS_PAUSED_SELECTOR="0x0149422e"
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=10
 
+# RPC pacing for read calls. Send retries use MAX_ATTEMPTS above (intentionally
+# larger). Some public RPCs throttle reads aggressively (~1 call per few seconds),
+# so we pace and retry transient failures.
+RPC_MAX_ATTEMPTS=5
+RPC_RETRY_SLEEP_SECONDS=3
+RPC_CALL_DELAY_SECONDS=1
+
+# rpcCallWithRetry: Run an RPC-touching command up to $RPC_MAX_ATTEMPTS times with
+# $RPC_RETRY_SLEEP_SECONDS between failures. Captures stdout+stderr; prints last
+# response so the caller can capture it. Returns 0 on first success, 1 if exhausted.
+# Usage: VAR=$(rpcCallWithRetry "label" cast balance "$ADDR" --rpc-url "$RPC")
+function rpcCallWithRetry() {
+  local LABEL="$1"
+  shift
+  local ATTEMPT=1
+  local OUT=""
+  while [ "$ATTEMPT" -le "$RPC_MAX_ATTEMPTS" ]; do
+    if OUT=$("$@" 2>&1); then
+      printf "%s" "$OUT"
+      return 0
+    fi
+    if [ "$ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
+      echo "[retry] $LABEL attempt $ATTEMPT failed, sleeping ${RPC_RETRY_SLEEP_SECONDS}s..." >&2
+      sleep "$RPC_RETRY_SLEEP_SECONDS"
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+  done
+  printf "%s" "$OUT"
+  return 1
+}
+
 # Staging workflow: 4 networks to validate universalCast routing across a representative set
 STAGING_NETWORKS=("bsc" "arbitrum" "optimism" "base")
 
@@ -63,8 +94,24 @@ function handleNetwork() {
     echo "[network: $NETWORK] diamond address found in deploy log file: $DIAMOND_ADDRESS"
   fi
 
-  # check if the diamond is already paused by calling owner() function and analyzing the response
-  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
+  # check if the diamond is already paused by calling owner() function and analyzing the response.
+  # Retry if the response is neither a clean address nor a recognized pause selector, since that
+  # indicates a transient RPC/rate-limit issue rather than an unambiguous answer.
+  local RESPONSE=""
+  local PRE_PAUSE_CHECK_ATTEMPT=1
+  while [ "$PRE_PAUSE_CHECK_ATTEMPT" -le "$RPC_MAX_ATTEMPTS" ]; do
+    RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
+    if [[ "$RESPONSE" == 0x* ]] \
+      || [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* ]] \
+      || [[ "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      break
+    fi
+    if [ "$PRE_PAUSE_CHECK_ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
+      echo "[network: $NETWORK] pre-pause owner() returned unclear response (attempt $PRE_PAUSE_CHECK_ATTEMPT/$RPC_MAX_ATTEMPTS), retrying in ${RPC_RETRY_SLEEP_SECONDS}s..."
+      sleep "$RPC_RETRY_SLEEP_SECONDS"
+    fi
+    PRE_PAUSE_CHECK_ATTEMPT=$((PRE_PAUSE_CHECK_ATTEMPT + 1))
+  done
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
@@ -76,11 +123,16 @@ function handleNetwork() {
       return 0
   else
       # Handle other RPC or network errors
-      error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
+      error "[network: $NETWORK] RPC or network error while checking if diamond is paused after $RPC_MAX_ATTEMPTS attempts: $RESPONSE"
   fi
 
-  # ensure PauserWallet has positive balance
-  BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
+  # ensure PauserWallet has positive balance (wrap in retry: balance reads can fail under throttling)
+  sleep "$RPC_CALL_DELAY_SECONDS"
+  if ! BALANCE_PAUSER_WALLET=$(rpcCallWithRetry "[$NETWORK] cast balance pauser" cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL"); then
+    error "[network: $NETWORK] failed to read PauserWallet balance after $RPC_MAX_ATTEMPTS attempts: $BALANCE_PAUSER_WALLET"
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
+  fi
   if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
     error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -89,8 +141,15 @@ function handleNetwork() {
     echo "[network: $NETWORK] balance pauser wallet: $BALANCE_PAUSER_WALLET"
   fi
 
-  # this fails currently since the EmergencyPauseFacet is not yet deployed to all diamonds
-  DIAMOND_PAUSER_WALLET=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "pauserWallet() returns (address)")
+  # read on-chain registered pauser (wrap in retry: this is the call that historically
+  # failed on chains where EmergencyPauseFacet wasn't yet deployed; with the facet now
+  # in place, transient failures are RPC throttling rather than missing selectors)
+  sleep "$RPC_CALL_DELAY_SECONDS"
+  if ! DIAMOND_PAUSER_WALLET=$(rpcCallWithRetry "[$NETWORK] pauserWallet()" universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "pauserWallet() returns (address)"); then
+    error "[network: $NETWORK] failed to read pauserWallet() after $RPC_MAX_ATTEMPTS attempts: $DIAMOND_PAUSER_WALLET"
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
+  fi
 
   # compare addresses in lowercase format
   if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
@@ -125,19 +184,32 @@ function handleNetwork() {
     return 1
   fi
 
-  # try to call the diamond
-  OWNER=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)")
+  # final pause check: owner() must revert with DiamondIsPaused.
+  # Match the robust pattern used in the pre-flight check above: capture stdout+stderr
+  # and inspect the string for the DiamondIsPaused selector. Relying on $? alone is
+  # brittle - some RPCs return slightly stale state right after the pause tx is mined
+  # (read-after-write lag), so cast may succeed and exit 0 even though the diamond is
+  # in fact paused. Retries cushion that lag.
+  local FINAL_CHECK_ATTEMPT=1
+  local RESPONSE=""
+  sleep "$RPC_CALL_DELAY_SECONDS"
+  while [ "$FINAL_CHECK_ATTEMPT" -le "$RPC_MAX_ATTEMPTS" ]; do
+    RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
+    if [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      success "[network: $NETWORK] diamond ($DIAMOND_ADDRESS) successfully paused"
+      echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+      return 0
+    fi
+    if [ "$FINAL_CHECK_ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
+      echo "[network: $NETWORK] final pause check returned unclear response (attempt $FINAL_CHECK_ATTEMPT/$RPC_MAX_ATTEMPTS), retrying in ${RPC_RETRY_SLEEP_SECONDS}s..."
+      sleep "$RPC_RETRY_SLEEP_SECONDS"
+    fi
+    FINAL_CHECK_ATTEMPT=$((FINAL_CHECK_ATTEMPT + 1))
+  done
 
-  # check if last call was successful and throw error if it was (it should not be successful, we expect the diamond to be paused now)
-  if [ $? -eq 0 ]; then
-    error "[network: $NETWORK] final pause check failed - please check the status of diamond ($DIAMOND_ADDRESS) manually"
-    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-    return 1
-  else
-    success "[network: $NETWORK] diamond ($DIAMOND_ADDRESS) successfully paused"
-    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-    return 0
-  fi
+  error "[network: $NETWORK] final pause check failed after $RPC_MAX_ATTEMPTS attempts - please check the status of diamond ($DIAMOND_ADDRESS) manually (last response: $RESPONSE)"
+  echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+  return 1
 }
 
 function printStatus() {
@@ -159,8 +231,22 @@ function printStatus() {
   # get diamond address for this network
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "staging" "LiFiDiamond")
 
-  # check if the diamond is paused by calling owner() function and analyzing the response
-  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
+  # check if the diamond is paused by calling owner() function and analyzing the response.
+  # Retry on unclear responses (transient RPC/throttling) so the summary doesn't misreport state.
+  local RESPONSE=""
+  local STATUS_ATTEMPT=1
+  while [ "$STATUS_ATTEMPT" -le "$RPC_MAX_ATTEMPTS" ]; do
+    RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
+    if [[ "$RESPONSE" == 0x* ]] \
+      || [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* ]] \
+      || [[ "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      break
+    fi
+    if [ "$STATUS_ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
+      sleep "$RPC_RETRY_SLEEP_SECONDS"
+    fi
+    STATUS_ATTEMPT=$((STATUS_ATTEMPT + 1))
+  done
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
@@ -170,7 +256,7 @@ function printStatus() {
       success "[network: $NETWORK] diamond paused."
   else
       # Handle other RPC or network errors
-      error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
+      error "[network: $NETWORK] RPC or network error while checking if diamond is paused after $RPC_MAX_ATTEMPTS attempts: $RESPONSE"
   fi
 }
 

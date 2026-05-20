@@ -216,6 +216,10 @@
       "0x7f36bbFDC188569169Bf917a20a2cdD5b060837D": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
