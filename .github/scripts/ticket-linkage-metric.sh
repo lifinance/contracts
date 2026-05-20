@@ -64,7 +64,7 @@ OFFENDERS=$(jq -r --arg re "$TICKET_RE" --arg repo "$REPO" '[.[] |
      ((.body // "") | test($re)) or
      ([.labels[].name] | any(. == "trivial"))) | not
   )] | .[0:10]
-     | map("• <https://github.com/\($repo)/pull/\(.number)|#\(.number)> \(.title) — _\(.author.login)_")
+     | map("• <https://github.com/\($repo)/pull/\(.number)|#\(.number)> \((.title // "") | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;")) — _\(.author.login)_")
      | join("\n")' <<<"$PRS")
 
 # Full list (no cap) of PRs that only qualified via the `trivial` label, for audit.
@@ -74,7 +74,7 @@ TRIVIAL_LIST=$(jq -r --arg re "$TICKET_RE" --arg repo "$REPO" '[.[] |
     (.title       | test($re) | not) and
     (.headRefName | test($re) | not) and
     ((.body // "") | test($re) | not)
-  )] | map("• <https://github.com/\($repo)/pull/\(.number)|#\(.number)> \(.title) — _\(.author.login)_")
+  )] | map("• <https://github.com/\($repo)/pull/\(.number)|#\(.number)> \((.title // "") | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;")) — _\(.author.login)_")
      | join("\n")' <<<"$PRS")
 
 {
