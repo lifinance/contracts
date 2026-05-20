@@ -101,7 +101,7 @@ for NETWORK in "${NETWORKS[@]}"; do
     error "[network: $NETWORK] failed to read pauser balance after $MAX_ATTEMPTS attempts: $PAUSER_BAL"
     exit 1
   fi
-  if [[ "$PAUSER_BAL" -ge "$WEI_SKIP_THRESHOLD" ]]; then
+  if [[ $(echo "$PAUSER_BAL >= $WEI_SKIP_THRESHOLD" | bc) -eq 1 ]]; then
     echo "[network: $NETWORK] pauser already holds $PAUSER_BAL wei (>= \$$USD_SKIP_THRESHOLD). Skipping - no sender check needed."
     echo ""
     sleep "$RPC_CALL_DELAY_SECONDS"
@@ -149,7 +149,7 @@ for NETWORK in "${NETWORKS[@]}"; do
     PREFLIGHT_OK=false
   fi
 
-  if [[ "$BALANCE" -lt "$REQUIRED" ]]; then
+  if [[ $(echo "$BALANCE < $REQUIRED" | bc) -eq 1 ]]; then
     error "  insufficient sender balance (have $BALANCE, need >= $REQUIRED)"
     PREFLIGHT_OK=false
   fi
@@ -177,7 +177,7 @@ for NETWORK in "${NETWORKS[@]}"; do
   fi
   echo "[network: $NETWORK] pauser balance before: $PAUSER_BAL_BEFORE wei"
 
-  if [[ "$PAUSER_BAL_BEFORE" -ge "$WEI_SKIP_THRESHOLD" ]]; then
+  if [[ $(echo "$PAUSER_BAL_BEFORE >= $WEI_SKIP_THRESHOLD" | bc) -eq 1 ]]; then
     echo "[network: $NETWORK] pauser already holds >= \$$USD_SKIP_THRESHOLD ($PAUSER_BAL_BEFORE wei). Skipping send."
     echo "<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<"
     echo ""
