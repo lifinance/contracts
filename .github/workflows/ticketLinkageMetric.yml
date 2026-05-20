@@ -27,12 +27,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/ticket-linkage-metric.sh
 
-      - name: Post to Slack
+      - name: Post to Slack SC-general
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          # NOTE: pointing at DANIEL_TEST for the first scheduled run to validate output;
-          # follow-up PR swaps to SLACK_WEBHOOK_SC_GENERAL once verified end-to-end.
-          webhook: ${{ secrets.SLACK_WEBHOOK_DANIEL_TEST }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
           payload: |
             text: ${{ toJSON(steps.metric.outputs.text) }}
