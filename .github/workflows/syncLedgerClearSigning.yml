@@ -38,7 +38,12 @@ permissions:
 jobs:
   sync-ledger:
     concurrency:
-      group: sync-ledger-clear-signing
+      # Key by event so a manual workflow_dispatch (especially dry_run) can't
+      # cancel an in-progress scheduled or push-triggered production sync.
+      # cancel-in-progress is still per-group: multiple dry-runs cancel each
+      # other, multiple push-triggered runs cancel each other, but the two
+      # never cross-cancel.
+      group: sync-ledger-clear-signing-${{ github.event_name }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
@@ -113,7 +118,12 @@ jobs:
             git --no-pager diff --stat
             echo ""
             echo -e "\033[33m[dry-run] Full diff (truncated to first 200 lines):\033[0m"
-            git --no-pager diff -- "${LEDGER_FILE_PATH}" | head -200
+            # `sed -n '1,200p'` (not `head -200`) consumes the whole stream:
+            # with `set -euo pipefail` (line 77 above) `head` closes its stdin
+            # after 200 lines, which sends SIGPIPE to `git diff` and fails the
+            # step. First-run dry-runs have a multi-thousand-line diff (101
+            # display.formats entries), so this matters in practice.
+            git --no-pager diff -- "${LEDGER_FILE_PATH}" | sed -n '1,200p'
             echo ""
             echo -e "\033[33m[dry-run] Skipping commit/push/PR-create/Slack. Done.\033[0m"
             exit 0
