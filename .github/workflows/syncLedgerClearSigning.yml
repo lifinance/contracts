@@ -1,8 +1,8 @@
 # Sync Clear Signing (ERC-7730) Registry
-# - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond ABI + deployments
-# - Triggers: manual (`workflow_dispatch`), schedule (daily), and pushes affecting ABI/deployment sources
-# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON, pushes a branch to the fork, and creates/updates a PR upstream
-# - Known limitations: `display.*` is preserved (hand-curated UX, including `intent` and `interpolatedIntent`); only `context.contract.abi` and `context.contract.deployments` are updated
+# - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond ABI + deployments AND with the `display.formats` proposal at `config/clearSigningProposal.json`.
+# - Triggers: monthly cron (safety net), push to facets/deployments/proposal (fast path), and manual.
+# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
+# - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
 
 name: Sync Clear Signing (ERC-7730) Registry
@@ -10,14 +10,20 @@ name: Sync Clear Signing (ERC-7730) Registry
 on:
   workflow_dispatch: # allow manual triggering
   schedule:
-    - cron: '0 3 * * *' # daily at 03:00 UTC
+    # Monthly safety net at 03:00 UTC on the 1st. Push-based triggers below
+    # handle the fast path (new facet/deployment lands -> sync within minutes).
+    - cron: '0 3 1 * *'
   push:
+    branches:
+      - main # only sync on what's actually been merged
     paths:
-      - 'src/Facets/**'
-      - 'src/Libraries/**'
-      - 'deployments/**'
-      - 'config/networks.json'
+      - 'src/Facets/**' # new/changed facets -> new/changed selectors
+      - 'src/Libraries/**' # struct definitions used by facets
+      - 'deployments/**' # new deployment addresses
+      - 'config/networks.json' # chain metadata used by deployments resolver
+      - 'config/clearSigningProposal.json' # the display.formats source of truth
       - 'tasks/generateLedgerClearSigning.ts'
+      - 'tasks/buildClearSigningProposal.ts'
       - '.github/workflows/syncLedgerClearSigning.yml'
 
 permissions:
@@ -49,6 +55,7 @@ jobs:
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
 
       - name: Sync Ledger registry file (push to fork)
+        id: sync # exposes PR_URL as step output for the Slack notification step
         env:
           LEDGER_SYNC_TOKEN: ${{ secrets.LEDGER_SYNC_TOKEN }}
           LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
@@ -135,13 +142,46 @@ jobs:
           fi
 
           ##### Always print PR link to workflow logs (when there were changes)
+          ##### and expose it as a step output so the Slack notification step can read it.
           PR_URL="${EXISTING_PR_URL:-}"
           if [ -z "${PR_URL}" ]; then
             PR_URL="$(resolve_pr_url)"
           fi
           if [ -n "${PR_URL}" ]; then
             echo -e "\033[32mPR URL: ${PR_URL}\033[0m"
+            echo "pr_url=${PR_URL}" >> "${GITHUB_OUTPUT}"
+            ##### `pr_was_created` distinguishes a fresh PR from a re-push to an
+            ##### existing one — we only want to ping Slack for new PRs to avoid
+            ##### channel noise on every monthly re-run that produces no upstream diff.
+            if [ -z "${EXISTING_PR_URL}" ]; then
+              echo "pr_was_created=true" >> "${GITHUB_OUTPUT}"
+            else
+              echo "pr_was_created=false" >> "${GITHUB_OUTPUT}"
+            fi
           else
             echo -e "\033[31mError: unable to resolve PR URL after create/edit\033[0m"
             exit 1
           fi
+
+      - name: Notify Slack on new upstream PR
+        # Only ping the channel for *new* PRs against the registry; re-pushes
+        # to an already-open PR are silent (otherwise the monthly cron would
+        # spam the channel with no-news updates).
+        # Webhook secret is checked inside the script — `if:` cannot read
+        # step-level `env`, and `secrets.*` in `if:` is fragile across forks
+        # / dependabot contexts. In-script check is robust everywhere.
+        if: steps.sync.outputs.pr_was_created == 'true'
+        env:
+          SLACK_WEBHOOK_SC_GENERAL: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          PR_URL: ${{ steps.sync.outputs.pr_url }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_SC_GENERAL:-}" ]; then
+            echo "SLACK_WEBHOOK_SC_GENERAL not set — skipping notification (this is OK in forks / first-run before the secret is configured)."
+            exit 0
+          fi
+          payload=$(jq -nc --arg pr "${PR_URL}" \
+            '{text: "🪪 New ERC-7730 clear-signing PR opened against `ethereum/clear-signing-erc7730-registry`: \($pr) — please review."}')
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            -d "${payload}" "${SLACK_WEBHOOK_SC_GENERAL}" >/dev/null
+          echo "Slack notified."

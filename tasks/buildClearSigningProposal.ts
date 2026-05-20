@@ -96,6 +96,85 @@ interface IFormatEntry {
   fields: IField[]
 }
 
+// ---------- template-fit validation ----------
+//
+// The generator's templates encode assumptions about the diamond's function
+// shapes: every canonical bridge function takes `_bridgeData` (LiFi.BridgeData)
+// as its first parameter, every swap-and-bridge also takes `_swapData[]`
+// (LibSwap.SwapData[]) as its second. The templates emit field paths against
+// those exact struct shapes. If a new function lands with a different shape,
+// silent template application would produce paths that don't resolve in
+// wallets — i.e., clear-signing that shows wrong information.
+//
+// These tables encode the shapes the templates rely on. validateTuple checks
+// real ABI inputs against them. main() aborts on any mismatch.
+
+const BRIDGE_DATA_FIELDS: Record<string, string> = {
+  transactionId: 'bytes32',
+  bridge: 'string',
+  integrator: 'string',
+  referrer: 'address',
+  sendingAssetId: 'address',
+  receiver: 'address',
+  minAmount: 'uint',
+  destinationChainId: 'uint',
+  hasSourceSwaps: 'bool',
+  hasDestinationCall: 'bool',
+}
+
+const SWAP_DATA_FIELDS: Record<string, string> = {
+  callTo: 'address',
+  approveTo: 'address',
+  sendingAssetId: 'address',
+  receivingAssetId: 'address',
+  fromAmount: 'uint',
+  callData: 'bytes',
+  requiresDeposit: 'bool',
+}
+
+function validateTuple(
+  components: { name: string; type: string }[] | undefined,
+  expected: Record<string, string>,
+  paramLabel: string
+): string | null {
+  if (!components) return `${paramLabel}: missing components (not a tuple?)`
+  for (const [name, typePrefix] of Object.entries(expected)) {
+    const found = components.find((c) => c.name === name)
+    if (!found) return `${paramLabel}: missing component "${name}"`
+    if (!found.type.startsWith(typePrefix))
+      return `${paramLabel}: component "${name}" has type "${found.type}", expected prefix "${typePrefix}"`
+  }
+  return null
+}
+
+function validateStartFn(fn: IAbiFn): string | null {
+  const first = fn.inputs[0]
+  if (!first || first.name !== '_bridgeData' || !first.type.startsWith('tuple'))
+    return `expected first param "_bridgeData" of tuple type; got name="${first?.name}" type="${first?.type}"`
+  return validateTuple(
+    first.components as { name: string; type: string }[] | undefined,
+    BRIDGE_DATA_FIELDS,
+    '_bridgeData'
+  )
+}
+
+function validateSwapAndStartFn(fn: IAbiFn): string | null {
+  const startErr = validateStartFn(fn)
+  if (startErr) return startErr
+  const second = fn.inputs[1]
+  if (
+    !second ||
+    second.name !== '_swapData' ||
+    !second.type.startsWith('tuple[]')
+  )
+    return `expected second param "_swapData" of tuple[] type; got name="${second?.name}" type="${second?.type}"`
+  return validateTuple(
+    second.components as { name: string; type: string }[] | undefined,
+    SWAP_DATA_FIELDS,
+    '_swapData'
+  )
+}
+
 const HIDDEN_BRIDGE_FIELDS: IField[] = [
   { path: '_bridgeData.transactionId', label: 'Transaction Id', visible: 'never' },
   { path: '_bridgeData.bridge', label: 'Bridge', visible: 'never' },
@@ -396,13 +475,22 @@ SWAP_TEMPLATES.swapTokensGeneric = {
 function main() {
   const fns = collectFns()
   const out: Record<string, IFormatEntry> = {}
-  const skipped: string[] = []
+  // Hard-fail on any user-facing function the generator can't confidently
+  // template. Silent skips would let a new facet land with no clear-signing,
+  // or worse, with the wrong template silently emitting paths that resolve to
+  // the wrong field. Either is the exact failure mode ERC-7730 is meant to
+  // prevent. The CI gate (see .github/workflows/verifyClearSigning.yml) wires
+  // this exit code into the PR-merge gate.
+  const failures: string[] = []
+
   for (const fn of fns) {
     const sig = signature(fn)
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
       if (!tpl) {
-        skipped.push(`${sig}  // no swap template`)
+        failures.push(
+          `${sig}\n      reason: no SWAP_TEMPLATES entry for "${fn.name}"\n      fix:    add a hardcoded entry in tasks/buildClearSigningProposal.ts SWAP_TEMPLATES with the right intent/interpolatedIntent/fields for this signature.`
+        )
         continue
       }
       out[sig] = tpl
@@ -410,8 +498,8 @@ function main() {
       // Packed/Min variants encode args differently and are typically only
       // signed by relayer infrastructure, not end users. Emit a static intent
       // only; full interpolation would require per-facet calldata decoders
-      // (each packed variant has its own bespoke layout) and is deferred to
-      // a follow-up once we know which variants wallets actually surface.
+      // (each packed variant has its own bespoke layout). Deferred until we
+      // see wallet demand for full decoding here.
       const facet = bridgeFacetName(fn.name)
       const tag = variantTag(fn.name)
       out[sig] = {
@@ -419,19 +507,45 @@ function main() {
         fields: [],
       }
     } else if (fn.name.startsWith('swapAndStartBridgeTokensVia')) {
+      const err = validateSwapAndStartFn(fn)
+      if (err) {
+        failures.push(
+          `${sig}\n      reason: shape mismatch — ${err}\n      fix:    align the facet's _bridgeData/_swapData struct with LiFi.BridgeData / LibSwap.SwapData (canonical), OR teach buildClearSigningProposal.ts about the new shape.`
+        )
+        continue
+      }
       out[sig] = buildSwapAndStartFormat(fn)
     } else if (fn.name.startsWith('startBridgeTokensVia')) {
+      const err = validateStartFn(fn)
+      if (err) {
+        failures.push(
+          `${sig}\n      reason: shape mismatch — ${err}\n      fix:    align the facet's _bridgeData struct with LiFi.BridgeData (canonical), OR teach buildClearSigningProposal.ts about the new shape.`
+        )
+        continue
+      }
       out[sig] = buildStartFormat(fn)
     } else {
-      skipped.push(`${sig}  // unrecognized prefix`)
+      failures.push(
+        `${sig}\n      reason: unrecognized prefix — function name "${fn.name}" doesn't match any classifier (startBridgeTokensVia / swapAndStartBridgeTokensVia / swapTokens / *Packed / *Min).\n      fix:    if this is a user-facing entry-point, add a new classifier branch in buildClearSigningProposal.ts main(). If not, narrow the collectFns() regex to exclude it.`
+      )
     }
+  }
+
+  if (failures.length > 0) {
+    console.error(
+      `\n❌ buildClearSigningProposal: ${failures.length} function(s) could not be templated.\n`
+    )
+    for (const f of failures) console.error(`   - ${f}\n`)
+    console.error(
+      'Generator refuses to write a partial proposal. The CI gate (verifyClearSigning) will fail until every user-facing function is covered.\n'
+    )
+    process.exit(1)
   }
 
   const payload = {
     $note:
       'ERC-7730 display.formats entries for the LIFI Diamond, generated by tasks/buildClearSigningProposal.ts from Foundry artifacts. Source of truth for clear-signing UX strings; consumed by tasks/generateLedgerClearSigning.ts when that generator is configured to merge display.formats into the registry payload.',
     $count: Object.keys(out).length,
-    $skipped: skipped,
     formats: out,
   }
   // Deliberately no `$generatedAt`: git already records when the file changed,
@@ -441,7 +555,6 @@ function main() {
   fs.mkdirSync(path.dirname(TARGET), { recursive: true })
   fs.writeFileSync(TARGET, `${JSON.stringify(payload, null, 2)}\n`)
   console.log(`Wrote ${Object.keys(out).length} entries to ${TARGET}`)
-  if (skipped.length) console.log(`Skipped:\n  ${skipped.join('\n  ')}`)
 }
 
 main()
