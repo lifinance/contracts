@@ -21,10 +21,6 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.2"
       },
-      "0x32aAa3d5a7541E2c845B00b6EEd5B9bdb8df7320": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
-      },
       "0x843A1AA0131CBD55F188de709806B8046848E392": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
