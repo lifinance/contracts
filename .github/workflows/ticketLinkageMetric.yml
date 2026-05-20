@@ -38,3 +38,15 @@ jobs:
             {
               "text": ${{ toJSON(steps.metric.outputs.text) }}
             }
+
+      # Silent missed reports defeat the purpose of a monthly forcing function — surface failures in the same channel.
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":warning: ticket-linkage metric run failed: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
+            }
