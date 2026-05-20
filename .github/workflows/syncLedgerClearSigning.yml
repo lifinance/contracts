@@ -34,6 +34,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           submodules: recursive
+          persist-credentials: false # do not leave repo auth on the runner for later steps; sync uses LEDGER_SYNC_TOKEN explicitly
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2

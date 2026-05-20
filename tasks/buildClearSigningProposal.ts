@@ -246,12 +246,12 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
       { path: '_swapData.requiresDeposit', label: 'Swap Data Requires Deposit', visible: 'never' },
     ],
   },
-  swapTokensSingleV3ERC20ToNative: undefined as unknown as FormatEntry,
-  swapTokensSingleV3NativeToERC20: undefined as unknown as FormatEntry,
-  swapTokensMultipleV3ERC20ToERC20: undefined as unknown as FormatEntry,
-  swapTokensMultipleV3ERC20ToNative: undefined as unknown as FormatEntry,
-  swapTokensMultipleV3NativeToERC20: undefined as unknown as FormatEntry,
-  swapTokensGeneric: undefined as unknown as FormatEntry,
+  swapTokensSingleV3ERC20ToNative: undefined as unknown as IFormatEntry,
+  swapTokensSingleV3NativeToERC20: undefined as unknown as IFormatEntry,
+  swapTokensMultipleV3ERC20ToERC20: undefined as unknown as IFormatEntry,
+  swapTokensMultipleV3ERC20ToNative: undefined as unknown as IFormatEntry,
+  swapTokensMultipleV3NativeToERC20: undefined as unknown as IFormatEntry,
+  swapTokensGeneric: undefined as unknown as IFormatEntry,
 }
 // Derivation: same as ERC20ToERC20 but for Native variants the `fromAmount`
 // (or the @.value for the legacy descriptor) is replaced. We just reproduce
