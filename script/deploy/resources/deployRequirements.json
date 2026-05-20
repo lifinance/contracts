@@ -487,6 +487,20 @@
       }
     }
   },
+  "SupersetFacet": {
+    "configData": {
+      "_spokePoolManager": {
+        "configFileName": "superset.json",
+        "keyInConfigFile": ".spokePoolManager.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "networks.json",
+        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "SynapseBridgeFacet": {
     "configData": {
       "_synapseRouter": {
