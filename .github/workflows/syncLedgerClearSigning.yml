@@ -9,6 +9,12 @@ name: Sync Clear Signing (ERC-7730) Registry
 
 on:
   workflow_dispatch: # allow manual triggering
+    inputs:
+      dry_run:
+        description: 'Run the full sync but do not push branch, do not open PR upstream, do not notify Slack. Use for first-run validation and any post-change verification before risking a real upstream PR.'
+        type: boolean
+        required: false
+        default: false
   schedule:
     # Monthly safety net at 03:00 UTC on the 1st. Push-based triggers below
     # handle the fast path (new facet/deployment lands -> sync within minutes).
@@ -63,8 +69,19 @@ jobs:
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
           SYNC_BRANCH: sync/lifi-erc7730
           PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json (abi + deployments)'
+          # Dry-run only applies on workflow_dispatch. Cron + push triggers always
+          # run for real (DRY_RUN evaluates to '' in those contexts, falling
+          # through the [ "$DRY_RUN" = "true" ] guards).
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
+
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            echo -e "\033[33m=== DRY-RUN MODE ===\033[0m"
+            echo "Will: clone fork, regenerate descriptor, print diff."
+            echo "Will NOT: commit, push, open/update upstream PR, notify Slack."
+            echo ""
+          fi
 
           if [ -z "${LEDGER_SYNC_TOKEN:-}" ]; then
             echo -e "\033[31mError: LEDGER_SYNC_TOKEN secret missing\033[0m"
@@ -87,6 +104,18 @@ jobs:
           cd ledger-registry
           if [ -z "$(git status --porcelain)" ]; then
             echo -e "\033[32mNo changes detected. Nothing to sync.\033[0m"
+            exit 0
+          fi
+
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            echo -e "\033[33m[dry-run] Would commit + push to ${LEDGER_FORK}@${SYNC_BRANCH} and open/update PR against ${LEDGER_UPSTREAM}.\033[0m"
+            echo -e "\033[33m[dry-run] Diff that would be pushed:\033[0m"
+            git --no-pager diff --stat
+            echo ""
+            echo -e "\033[33m[dry-run] Full diff (truncated to first 200 lines):\033[0m"
+            git --no-pager diff -- "${LEDGER_FILE_PATH}" | head -200
+            echo ""
+            echo -e "\033[33m[dry-run] Skipping commit/push/PR-create/Slack. Done.\033[0m"
             exit 0
           fi
 
