@@ -21,7 +21,7 @@
 import { consola } from 'consola'
 import {
   createPublicClient,
-  formatEther,
+  formatUnits,
   getAddress,
   http,
   parseAbi,
@@ -226,13 +226,17 @@ async function probePauseStatus(
  * Read the pauser wallet's native balance.
  * Works on Tron via TronGrid's JSON-RPC bridge (viem's `getBalance` maps to
  * `eth_getBalance`, which the bridge proxies to the TRX balance in SUN).
+ * Tron native currency (TRX) uses 6 decimals, not 18 — format accordingly so
+ * a 1 TRX balance isn't shown as 1e-12 and falsely flagged as zero.
  */
 async function readBalance(
   publicClient: ReturnType<typeof createPublicClient>,
-  address: Address
+  address: Address,
+  networkName: string
 ): Promise<{ balance: bigint; formatted: string }> {
   const balance = await publicClient.getBalance({ address })
-  return { balance, formatted: formatEther(balance) }
+  const decimals = isTronNetworkKey(networkName) ? 6 : 18
+  return { balance, formatted: formatUnits(balance, decimals) }
 }
 
 /**
@@ -360,7 +364,8 @@ async function checkNetworkEmergencyPause(
     try {
       const { balance, formatted } = await readBalance(
         publicClient,
-        result.pauserWalletOnChain
+        result.pauserWalletOnChain,
+        networkName
       )
       result.balance = balance
       result.formattedBalance = formatted
