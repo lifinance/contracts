@@ -2,6 +2,7 @@
  * Checks the pause status of all production LiFiDiamond contracts across EVM networks.
  * Use before/after emergency pause operations to confirm the expected state.
  * Detection: owner() succeeds → NOT PAUSED; reverts with DiamondIsPaused() (0x0149422e) → PAUSED.
+ * Also reads pauserWallet() from each diamond and flags mismatches against config/global.json.
  */
 
 import { consola } from 'consola'
@@ -15,6 +16,7 @@ import {
 
 import 'dotenv/config'
 
+import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
 import {
   EnvironmentEnum,
@@ -30,9 +32,14 @@ import {
 } from '../../utils/viemScriptHelpers'
 
 const OWNER_ABI = parseAbi(['function owner() view returns (address)'])
+const PAUSER_WALLET_ABI = parseAbi([
+  'function pauserWallet() view returns (address)',
+])
 
 // DiamondIsPaused() custom error selector
 const DIAMOND_IS_PAUSED_SELECTOR = '0x0149422e'
+
+const EXPECTED_PAUSER_WALLET = getAddress(globalConfig.pauserWallet)
 
 type PauseStatus = 'PAUSED' | 'NOT_PAUSED' | 'NO_DIAMOND' | 'ERROR'
 
@@ -41,6 +48,8 @@ interface IPauseStatusResult {
   chainId: number
   diamondAddress: string | null
   status: PauseStatus
+  pauserWallet: string | null
+  pauserWalletMatchesGlobal: boolean | null
   error?: string
 }
 
@@ -91,6 +100,8 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: null,
       status: 'NO_DIAMOND',
+      pauserWallet: null,
+      pauserWalletMatchesGlobal: null,
     }
   }
 
@@ -104,14 +115,32 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: checksummedAddress,
       status: 'ERROR',
+      pauserWallet: null,
+      pauserWalletMatchesGlobal: null,
       error: 'No RPC URL',
     }
   }
 
-  try {
-    const chain = getViemChainForNetworkName(networkName)
-    const publicClient = createPublicClient({ chain, transport: http(rpcUrl) })
+  const chain = getViemChainForNetworkName(networkName)
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) })
 
+  // Read pauserWallet() separately — it may still revert when diamond is paused
+  let pauserWallet: string | null = null
+  let pauserWalletMatchesGlobal: boolean | null = null
+  try {
+    const raw = await publicClient.readContract({
+      address: checksummedAddress,
+      abi: PAUSER_WALLET_ABI,
+      functionName: 'pauserWallet',
+    })
+    pauserWallet = getAddress(raw as string)
+    pauserWalletMatchesGlobal =
+      pauserWallet.toLowerCase() === EXPECTED_PAUSER_WALLET.toLowerCase()
+  } catch {
+    // Reverts when diamond is paused or facet not installed — left as null
+  }
+
+  try {
     await publicClient.readContract({
       address: checksummedAddress,
       abi: OWNER_ABI,
@@ -123,6 +152,8 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: checksummedAddress,
       status: 'NOT_PAUSED',
+      pauserWallet,
+      pauserWalletMatchesGlobal,
     }
   } catch (error: unknown) {
     const errStr = String(error)
@@ -135,6 +166,8 @@ async function checkNetworkPauseStatus(
         chainId: networkConfig.chainId,
         diamondAddress: checksummedAddress,
         status: 'PAUSED',
+        pauserWallet,
+        pauserWalletMatchesGlobal,
       }
     }
 
@@ -144,6 +177,8 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: checksummedAddress,
       status: 'ERROR',
+      pauserWallet,
+      pauserWalletMatchesGlobal,
       error: msg.length > 70 ? `${msg.substring(0, 67)}...` : msg,
     }
   }
@@ -163,10 +198,13 @@ function printTable(results: IPauseStatusResult[]) {
     ...displayResults.map((r) => r.network.length)
   )
   const addrWidth = 42 // checksummed EVM address length
+  const pauserWidth = 44 // address + match indicator
 
   const header = `${'Network'.padEnd(networkWidth)} | ${'Chain ID'.padStart(
     8
-  )} | ${'Diamond Address'.padEnd(addrWidth)} | Status`
+  )} | ${'Diamond Address'.padEnd(addrWidth)} | ${'Pauser Wallet'.padEnd(
+    pauserWidth
+  )} | Status`
   console.log('\n' + header)
   console.log('-'.repeat(header.length + 4))
 
@@ -188,11 +226,27 @@ function printTable(results: IPauseStatusResult[]) {
         statusStr = `ERROR: ${r.error ?? 'unknown'}`
     }
 
+    let pauserStr: string
+    if (r.pauserWallet === null) {
+      pauserStr = 'N/A'.padEnd(pauserWidth)
+    } else {
+      const matchIndicator =
+        r.pauserWalletMatchesGlobal === true
+          ? ' ✓'
+          : r.pauserWalletMatchesGlobal === false
+          ? ' ✗ MISMATCH'
+          : ''
+      pauserStr = `${r.pauserWallet}${matchIndicator}`.padEnd(pauserWidth)
+    }
+
     const addr = (r.diamondAddress ?? '').padEnd(addrWidth)
     const line = `${r.network.padEnd(networkWidth)} | ${String(
       r.chainId
-    ).padStart(8)} | ${addr} | ${statusStr}`
-    console.log(`${getColorCode(color)}${line}${getColorCode('reset')}`)
+    ).padStart(8)} | ${addr} | ${pauserStr} | ${statusStr}`
+
+    // Highlight pauser mismatch rows in yellow regardless of pause status
+    const lineColor = r.pauserWalletMatchesGlobal === false ? 'yellow' : color
+    console.log(`${getColorCode(lineColor)}${line}${getColorCode('reset')}`)
   }
 
   console.log('-'.repeat(header.length + 4))
@@ -203,24 +257,41 @@ function printTable(results: IPauseStatusResult[]) {
   ).length
   const errors = displayResults.filter((r) => r.status === 'ERROR').length
   const skipped = results.filter((r) => r.status === 'NO_DIAMOND').length
+  const pauserMismatch = displayResults.filter(
+    (r) => r.pauserWalletMatchesGlobal === false
+  ).length
 
   console.log(`\nSummary (${displayResults.length} networks with diamonds):`)
   if (paused > 0)
     console.log(
-      `  ${getColorCode('red')}PAUSED:     ${paused}${getColorCode('reset')}`
+      `  ${getColorCode('red')}PAUSED:          ${paused}${getColorCode(
+        'reset'
+      )}`
     )
   console.log(
-    `  ${getColorCode('green')}NOT PAUSED: ${notPaused}${getColorCode('reset')}`
+    `  ${getColorCode('green')}NOT PAUSED:      ${notPaused}${getColorCode(
+      'reset'
+    )}`
   )
+  if (pauserMismatch > 0)
+    console.log(
+      `  ${getColorCode(
+        'yellow'
+      )}PAUSER MISMATCH: ${pauserMismatch} (expected ${EXPECTED_PAUSER_WALLET})${getColorCode(
+        'reset'
+      )}`
+    )
   if (errors > 0)
     console.log(
-      `  ${getColorCode('yellow')}ERRORS:     ${errors}${getColorCode('reset')}`
+      `  ${getColorCode('yellow')}ERRORS:          ${errors}${getColorCode(
+        'reset'
+      )}`
     )
   if (skipped > 0)
     console.log(
-      `  ${getColorCode('dim')}NO DIAMOND: ${skipped} (not shown)${getColorCode(
-        'reset'
-      )}`
+      `  ${getColorCode(
+        'dim'
+      )}NO DIAMOND:      ${skipped} (not shown)${getColorCode('reset')}`
     )
   console.log('')
 }
