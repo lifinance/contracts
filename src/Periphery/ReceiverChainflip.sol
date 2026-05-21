@@ -131,6 +131,14 @@ contract ReceiverChainflip is ILiFi, WithdrawablePeriphery {
             {
                 return;
             } catch {
+                // TODO(EXSC-241): route through LibAsset.transferERC20 next
+                // time this file is updated. Reasons: (1) Tron USDT support
+                // (fix lives in contracts-tron fork via LibAsset), and (2)
+                // consistency with the rest of the repo. Not done now because
+                // Chainflip does not support Tron; even when it does, the
+                // migration is deferred until EXSC-330 (commit hash stored in
+                // deploy log) makes the resulting bytecode drift recoverable
+                // via re-verification.
                 actualAssetId.safeTransfer(receiver, amount);
                 emit LiFiTransferRecovered(
                     _transactionId,

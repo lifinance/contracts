@@ -8,6 +8,7 @@ description: Start work on a Linear ticket — fetches the issue, creates a prop
 ## When to trigger
 
 User says any of:
+
 - "start ticket EXSC-282" / "start linear ticket" / "start <ID>"
 - "begin work on <ID>" / "let's start <ID>" / "pick up <ID>"
 - `/start-ticket <ID-or-URL>`
@@ -36,6 +37,7 @@ Linear team prefix maps to the repo where work happens. Keep this list close to 
 If the team prefix isn't in the table, ask the user which repo before proceeding. Don't guess.
 
 **Finding the local clone** — try in order, stop at first hit:
+
 1. The default path above.
 2. `~/Projects/<repo-name>`, `~/Code/<repo-name>`, `~/dev/<repo-name>`, `~/src/<repo-name>`.
 3. `find ~/Documents ~/Projects ~/Code ~/dev ~/src -maxdepth 4 -type d -name "<repo-name>"` (case-sensitive).
@@ -51,6 +53,7 @@ If the team prefix isn't in the table, ask the user which repo before proceeding
 ### 2. Fetch the issue from Linear
 
 Use Linear MCP `get_issue` with the parsed ID. Pull these fields:
+
 - `id`, `identifier`, `title`, `state.name`, `assignee`, `team.key`, `url`
 - `attachments` / `gitBranches` (if exposed) — to detect existing linked branches
 
@@ -76,6 +79,7 @@ If none of these apply, continue.
 Format: `feature/<lowercase-id>-<slugified-title>` — this matches the workspace-configured Linear branch format (`feature/identifier-title`) so the integration auto-links on first push.
 
 Slugification rules (apply in order):
+
 1. Lowercase the title.
 2. Replace any run of non-alphanumeric characters with a single `-`.
 3. Trim leading/trailing `-`.
@@ -83,6 +87,7 @@ Slugification rules (apply in order):
 5. Drop the trailing `-` if truncation created one.
 
 Examples:
+
 - `EXSC-282` + "Earn Monetization v2: Custom Vault Wrapper Design & Estimate" → `feature/exsc-282-earn-monetization-v2-custom-vault-wrapper-design`
 - `COM-14` + "Fix flaky test in route resolver" → `feature/com-14-fix-flaky-test-in-route-resolver`
 
@@ -99,6 +104,7 @@ git status --porcelain
 ```
 
 If `git status --porcelain` returns anything, **stop**. Show the user the dirty state and ask what to do:
+
 - "Stash and proceed" → `git stash push -m "auto-stash before <ID>"`, then continue.
 - "Commit on current branch first" → exit and let them handle it.
 - "Proceed anyway" (rare) → continue but warn the branch will inherit the working changes.
@@ -119,20 +125,20 @@ Use `origin/main` for all repos in the mapping above. If a repo uses a different
 ### 6. Move the Linear ticket to In Progress
 
 Use Linear MCP `save_issue` with:
-- `id`: the issue ID from step 2
-- `state`: the team's "In Progress" state ID
 
-To find the state ID: call `list_issue_statuses` for the team once and cache mentally for this turn. Match by `name == "In Progress"` (case-sensitive; LI.FI's convention). If no exact match, surface the available states and ask.
+- `id`: the issue ID from step 2
+- `state`: `"In Progress"` (the MCP resolves state names server-side against the issue's team)
+
+If the call fails because the name doesn't resolve (e.g. a team uses a non-standard label), fall back to `list_issue_statuses` for the team, surface the available states, and ask the user which one to use.
 
 Skip if the ticket is already In Progress (idempotent — don't error).
 
 ### 7. Assign to the current user
 
 Use Linear MCP `save_issue` with:
-- `id`: the issue ID
-- `assignee`: the current user
 
-To resolve "current user": call Linear MCP for the authenticated user's ID (via `read_me` or equivalent in the connected MCP). Don't hardcode an email or user ID in this skill — the skill should work for any teammate who installs it.
+- `id`: the issue ID
+- `assignee`: `"me"` (the MCP resolves this to the authenticated user — don't hardcode an email or user ID so the skill works for any teammate who installs it)
 
 Skip if the ticket is already assigned to the current user. If assigned to someone else, follow the rule from step 3 — only reassign if the user confirmed takeover.
 
