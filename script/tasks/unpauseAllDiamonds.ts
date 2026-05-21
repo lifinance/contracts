@@ -58,7 +58,10 @@ const main = defineCommand({
 
     if (args.networks) {
       const requested = new Set(
-        args.networks.split(',').map((n: string) => n.trim())
+        args.networks
+          .split(',')
+          .map((n: string) => n.trim())
+          .filter((n) => n.length > 0)
       )
       activeNetworks = activeNetworks.filter((n) => requested.has(n.name))
       const found = new Set(activeNetworks.map((n) => n.name))
