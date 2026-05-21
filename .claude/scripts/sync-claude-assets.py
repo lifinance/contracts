@@ -93,6 +93,8 @@ def save_registry(reg: dict) -> None:
 
 def any_asset_changed_since(stamp_ts: float, assets: list) -> bool:
     for a in assets:
+        if a.get("sync_mode", "auto") != "auto":
+            continue
         src = CLAUDE_DIR / a["local_path"]
         if not src.exists():
             continue
@@ -278,6 +280,13 @@ def create_draft_pr(repo: str, branch: str, asset_name: str) -> Optional[int]:
 
 def sync_asset(asset: dict, asset_idx: int, registry: dict) -> List[str]:
     name = asset["name"]
+    # sync_mode controls whether auto-push is allowed. Default is "auto" for
+    # backward compatibility with v1 registry entries that have no mode field.
+    # "snapshot" entries are managed via /skill-drift-review (skill-drift-check.py);
+    # "local-only" entries are never mirrored.
+    mode = asset.get("sync_mode", "auto")
+    if mode != "auto":
+        return [f"⏸  {name}: sync_mode={mode}, skipping auto-push"]
     src = CLAUDE_DIR / asset["local_path"]
     if not src.exists():
         return [f"⚠️  {name}: local_path {src} missing"]
