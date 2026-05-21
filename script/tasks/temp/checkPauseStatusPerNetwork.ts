@@ -1,5 +1,6 @@
 /**
- * Checks the pause status of all production LiFiDiamond contracts across EVM networks.
+ * Checks the pause status of all production LiFiDiamond contracts across all networks,
+ * including Tron (via TronGrid's JSON-RPC endpoint).
  * Use before/after emergency pause operations to confirm the expected state.
  * Columns per network:
  *   - Pause status (owner() call): NOT PAUSED ✓ | PAUSED ⛔ | ERROR
@@ -30,6 +31,7 @@ import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { getRPCEnvVarName } from '../../utils/utils'
 import {
+  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
   isTestnetNetwork,
 } from '../../utils/viemScriptHelpers'
@@ -93,8 +95,6 @@ async function checkNetworkPauseStatus(
   if (networkConfig.status !== 'active') return null
   // Skip testnets — production diamonds only
   if (isTestnetNetwork(networkName)) return null
-  // Skip Tron — needs separate tooling (troncast), not viem
-  if (isTronNetworkKey(networkName)) return null
 
   let diamondAddress: string | null = null
 
@@ -138,7 +138,23 @@ async function checkNetworkPauseStatus(
   }
 
   const chain = getViemChainForNetworkName(networkName)
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) })
+  // TronGrid's root URL serves Tron's native HTTP API; viem needs the /jsonrpc suffix.
+  // getTransportConfigFromRpcUrl also injects the TRONGRID_API_KEY header when present.
+  const effectiveRpcUrl =
+    isTronNetworkKey(networkName) &&
+    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
+      ? `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
+      : rpcUrl
+  const {
+    url: transportUrl,
+    fetchOptions,
+    retryCount,
+    retryDelay,
+  } = getTransportConfigFromRpcUrl(effectiveRpcUrl)
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(transportUrl, { fetchOptions, retryCount, retryDelay }),
+  })
 
   // Check on-chain whether EmergencyPauseFacet is installed by asking
   // DiamondLoupe if the pauserWallet() selector has a registered facet.
