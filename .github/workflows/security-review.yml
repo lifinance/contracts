@@ -1,0 +1,195 @@
+# Security Review — Stage 1 (deterministic static analysis)
+# - Runs Slither, Aderyn, and Semgrep in parallel on every non-draft PR that
+#   touches src/** or audit/knowledge/** (rule changes re-trigger).
+# - Each tool emits SARIF; results are uploaded to GitHub Code Scanning with
+#   a per-tool category so they appear inline in the PR diff and aggregate in
+#   the Security tab.
+# - Advisory only in this stage (EXP-480) — the status check is published but
+#   intentionally NOT registered as a required check on branch protection. The
+#   AI triage stage (EXP-483) will add Stages 2 + 3 and the enforcement gate
+#   ships in EXP-485 after the baseline-noise tuning of EXP-484.
+# - Custom Semgrep rules live under audit/knowledge/semgrep/ (seeded in EXP-479).
+#   New rules added there are picked up automatically on the next run.
+# - Each job uses `continue-on-error: true` so a single tool failing (e.g. pip
+#   rate limit, slither dep resolution) does not mask findings from the others.
+
+name: Security Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/**'
+      - 'audit/knowledge/**'
+
+permissions:
+  contents: read # required to fetch repository contents (read-only default)
+
+# Cancel in-flight runs for the same PR when a new commit lands — saves CI minutes
+# and avoids racing SARIF uploads to the same Code Scanning analysis.
+concurrency:
+  group: security-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  slither:
+    # Slither: static analyzer for Solidity. Detects ~90 vulnerability classes
+    # out of the box. The official crytic/slither-action runs in a Docker
+    # container and emits SARIF directly.
+    name: slither
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    continue-on-error: true # advisory mode (EXP-480)
+    permissions:
+      contents: read
+      security-events: write # required to upload SARIF to GitHub Code Scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Run Slither
+        uses: crytic/slither-action@b52cc1cbfee9ca3e8722dd5224299d16c9a6b80f # v0.4.2
+        id: slither
+        with:
+          target: '.'
+          sarif: slither.sarif
+          fail-on: none # advisory mode: emit findings but do not fail the job
+          slither-args: --exclude-informational --exclude-low
+
+      - name: Upload Slither SARIF
+        # Run even if the slither step recorded findings (Slither exits non-zero
+        # on findings when fail-on != none; with fail-on=none it should always
+        # exit 0, but uploading conditionally keeps the workflow robust).
+        if: always() && hashFiles('slither.sarif') != ''
+        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
+        with:
+          sarif_file: slither.sarif
+          category: slither
+
+  aderyn:
+    # Aderyn: Cyfrin's Rust-based Solidity static analyzer. Native SARIF
+    # output (the file extension determines the report format).
+    name: aderyn
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    continue-on-error: true # advisory mode (EXP-480)
+    permissions:
+      contents: read
+      security-events: write # required to upload SARIF to GitHub Code Scanning
+    env:
+      ADERYN_VERSION: aderyn-v0.6.8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Foundry
+        # Required so Aderyn can resolve remappings and compile contracts.
+        uses: ./.github/actions/setup-foundry
+
+      - name: Install Aderyn
+        # Pinned to a specific release tag (env.ADERYN_VERSION). The installer
+        # script is fetched from the immutable release URL; bumping the version
+        # is a single-line change to the env block above.
+        # TODO(EXP-484): verify installer sha256 against a pinned hash before
+        # executing — Slither/Semgrep run in their own containers but Aderyn
+        # installs into the runner. See global.standards #supply-chain.
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            "https://github.com/cyfrin/aderyn/releases/download/${ADERYN_VERSION}/aderyn-installer.sh" \
+            -o /tmp/aderyn-installer.sh
+          bash /tmp/aderyn-installer.sh
+          # The installer drops the binary under $HOME/.local/share/aderyn/ and
+          # symlinks it into $HOME/.local/bin/. Prepend to PATH for later steps.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run Aderyn
+        # `--output <file>.sarif` selects SARIF format by extension.
+        # Aderyn auto-detects Foundry/Hardhat from the project root.
+        run: aderyn --output aderyn.sarif .
+
+      - name: Upload Aderyn SARIF
+        if: always() && hashFiles('aderyn.sarif') != ''
+        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
+        with:
+          sarif_file: aderyn.sarif
+          category: aderyn
+
+  semgrep:
+    # Semgrep: runs the custom LI.FI rules under audit/knowledge/semgrep/
+    # (seeded in EXP-479). Each rule encodes a structural pattern from a
+    # confirmed past finding — the corpus grows as new findings are confirmed
+    # (EXP-487 feedback loop).
+    name: semgrep
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    continue-on-error: true # advisory mode (EXP-480)
+    permissions:
+      contents: read
+      security-events: write # required to upload SARIF to GitHub Code Scanning
+    env:
+      # Pinned to a Semgrep release that has been validated against the rule
+      # corpus. Bump by updating the version + revalidating the rules with
+      # `semgrep --validate --config audit/knowledge/semgrep`.
+      SEMGREP_VERSION: '1.117.0'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.1.1
+        with:
+          python-version: '3.12'
+
+      - name: Install Semgrep
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}"
+          semgrep --version
+
+      - name: Skip if no custom rules
+        # Graceful fallback: if audit/knowledge/semgrep/ is empty (or only
+        # contains README.md), skip the run entirely rather than emit an
+        # empty SARIF.
+        id: ruleset
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          rules=(audit/knowledge/semgrep/*.yml audit/knowledge/semgrep/*.yaml)
+          if [[ ${#rules[@]} -eq 0 ]]; then
+            echo "no_rules=true" >> "$GITHUB_OUTPUT"
+            echo -e "\033[33mNo custom rules under audit/knowledge/semgrep/; skipping.\033[0m"
+          else
+            echo "no_rules=false" >> "$GITHUB_OUTPUT"
+            echo -e "\033[32mFound ${#rules[@]} custom rule file(s).\033[0m"
+          fi
+
+      - name: Run Semgrep (custom LI.FI rules)
+        if: steps.ruleset.outputs.no_rules == 'false'
+        # `--sarif --output=semgrep.sarif` writes SARIF.
+        # `--metrics=off` to avoid Semgrep usage telemetry.
+        # `--error` is not used — advisory mode means findings emit SARIF and
+        # the job stays green.
+        run: |
+          set -euo pipefail
+          semgrep scan \
+            --config=audit/knowledge/semgrep \
+            --sarif \
+            --output=semgrep.sarif \
+            --metrics=off \
+            src/
+
+      - name: Upload Semgrep SARIF
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
