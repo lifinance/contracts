@@ -15,7 +15,6 @@ import {
   http,
   parseAbi,
   toFunctionSelector,
-  type Address,
 } from 'viem'
 
 import 'dotenv/config'
@@ -29,6 +28,7 @@ import {
 } from '../../common/types'
 import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { getRPCEnvVarName } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
@@ -120,7 +120,10 @@ async function checkNetworkPauseStatus(
     }
   }
 
-  const checksummedAddress = getAddress(diamondAddress) as Address
+  const checksummedAddress = normalizeAddressForNetwork(
+    networkName,
+    diamondAddress
+  )
   const rpcEnvVarName = getRPCEnvVarName(networkName)
   const rpcUrl = process.env[rpcEnvVarName] ?? networkConfig.rpcUrl
 
