@@ -46,10 +46,37 @@ const main = defineCommand({
       type: 'string',
       description: 'Names of the facet(s) to be blacklisted',
     },
+    networks: {
+      type: 'string',
+      description:
+        'Optional comma-separated list of network names to process (default: all active networks). Example: --networks gnosis,moonbeam,rootstock',
+    },
   },
   async run({ args }) {
     const blacklist = args.blacklist
-    const activeNetworks = getAllActiveNetworks()
+    let activeNetworks = getAllActiveNetworks()
+
+    if (args.networks) {
+      const requested = new Set(
+        args.networks.split(',').map((n: string) => n.trim())
+      )
+      activeNetworks = activeNetworks.filter((n) => requested.has(n.name))
+      const found = new Set(activeNetworks.map((n) => n.name))
+      const missing = [...requested].filter((n) => !found.has(n))
+      if (missing.length > 0)
+        consola.warn(
+          `Networks not found in active list (skipped): ${missing.join(', ')}`
+        )
+      if (activeNetworks.length === 0) {
+        consola.error('No matching active networks found. Exiting.')
+        process.exit(1)
+      }
+      consola.info(
+        `Restricted to networks: ${activeNetworks
+          .map((n) => n.name)
+          .join(', ')}`
+      )
+    }
     const testnets = activeNetworks.filter((n) => isTestnetNetwork(n.id))
     const mainnets = activeNetworks.filter((n) => !isTestnetNetwork(n.id))
 
