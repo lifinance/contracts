@@ -1,8 +1,10 @@
 /**
  * Checks the pause status of all production LiFiDiamond contracts across EVM networks.
  * Use before/after emergency pause operations to confirm the expected state.
- * Detection: owner() succeeds → NOT PAUSED; reverts with DiamondIsPaused() (0x0149422e) → PAUSED.
- * Also reads pauserWallet() from each diamond and flags mismatches against config/global.json.
+ * Columns per network:
+ *   - Pause status (owner() call): NOT PAUSED ✓ | PAUSED ⛔ | ERROR
+ *   - EmergencyPauseFacet installed (DiamondLoupe.facetAddress on-chain): ✓ / ✗ NOT INSTALLED
+ *   - Pauser wallet (on-chain pauserWallet()): address + ✓/✗ match against config/global.json
  */
 
 import { consola } from 'consola'
@@ -11,6 +13,7 @@ import {
   getAddress,
   http,
   parseAbi,
+  toFunctionSelector,
   type Address,
 } from 'viem'
 
@@ -35,11 +38,19 @@ const OWNER_ABI = parseAbi(['function owner() view returns (address)'])
 const PAUSER_WALLET_ABI = parseAbi([
   'function pauserWallet() view returns (address)',
 ])
+const DIAMOND_LOUPE_ABI = parseAbi([
+  'function facetAddress(bytes4 _functionSelector) view returns (address facetAddress_)',
+])
 
 // DiamondIsPaused() custom error selector
 const DIAMOND_IS_PAUSED_SELECTOR = '0x0149422e'
 
+// Selector of pauserWallet() — used to probe DiamondLoupe for EmergencyPauseFacet installation
+const PAUSER_WALLET_SELECTOR = toFunctionSelector('pauserWallet()')
+
 const EXPECTED_PAUSER_WALLET = getAddress(globalConfig.pauserWallet)
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 type PauseStatus = 'PAUSED' | 'NOT_PAUSED' | 'NO_DIAMOND' | 'ERROR'
 
@@ -48,6 +59,7 @@ interface IPauseStatusResult {
   chainId: number
   diamondAddress: string | null
   status: PauseStatus
+  emergencyPauseFacetInstalled: boolean | null
   pauserWallet: string | null
   pauserWalletMatchesGlobal: boolean | null
   error?: string
@@ -67,7 +79,9 @@ function getColorCode(
 }
 
 /**
- * Checks whether the production diamond on a single network is paused.
+ * Checks whether the production diamond on a single network is paused,
+ * whether EmergencyPauseFacet is installed, and whether the registered
+ * pauserWallet matches config/global.json.
  * Returns null for inactive or testnet networks.
  * @param networkName - The network key from networks.json
  * @param networkConfig - The network configuration object
@@ -100,6 +114,7 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: null,
       status: 'NO_DIAMOND',
+      emergencyPauseFacetInstalled: null,
       pauserWallet: null,
       pauserWalletMatchesGlobal: null,
     }
@@ -115,6 +130,7 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: checksummedAddress,
       status: 'ERROR',
+      emergencyPauseFacetInstalled: null,
       pauserWallet: null,
       pauserWalletMatchesGlobal: null,
       error: 'No RPC URL',
@@ -124,20 +140,38 @@ async function checkNetworkPauseStatus(
   const chain = getViemChainForNetworkName(networkName)
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) })
 
-  // Read pauserWallet() separately — it may still revert when diamond is paused
+  // Check on-chain whether EmergencyPauseFacet is installed by asking
+  // DiamondLoupe if the pauserWallet() selector has a registered facet.
+  let emergencyPauseFacetInstalled: boolean | null = null
+  try {
+    const facetAddr = await publicClient.readContract({
+      address: checksummedAddress,
+      abi: DIAMOND_LOUPE_ABI,
+      functionName: 'facetAddress',
+      args: [PAUSER_WALLET_SELECTOR as `0x${string}`],
+    })
+    emergencyPauseFacetInstalled =
+      (facetAddr as string).toLowerCase() !== ZERO_ADDRESS
+  } catch {
+    // DiamondLoupe call failed — treat as unknown
+  }
+
+  // Read pauserWallet() — only meaningful when EmergencyPauseFacet is installed
   let pauserWallet: string | null = null
   let pauserWalletMatchesGlobal: boolean | null = null
-  try {
-    const raw = await publicClient.readContract({
-      address: checksummedAddress,
-      abi: PAUSER_WALLET_ABI,
-      functionName: 'pauserWallet',
-    })
-    pauserWallet = getAddress(raw as string)
-    pauserWalletMatchesGlobal =
-      pauserWallet.toLowerCase() === EXPECTED_PAUSER_WALLET.toLowerCase()
-  } catch {
-    // Reverts when diamond is paused or facet not installed — left as null
+  if (emergencyPauseFacetInstalled) {
+    try {
+      const raw = await publicClient.readContract({
+        address: checksummedAddress,
+        abi: PAUSER_WALLET_ABI,
+        functionName: 'pauserWallet',
+      })
+      pauserWallet = getAddress(raw as string)
+      pauserWalletMatchesGlobal =
+        pauserWallet.toLowerCase() === EXPECTED_PAUSER_WALLET.toLowerCase()
+    } catch {
+      // Unexpected — facet is installed but call reverted (e.g. diamond paused)
+    }
   }
 
   try {
@@ -152,6 +186,7 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: checksummedAddress,
       status: 'NOT_PAUSED',
+      emergencyPauseFacetInstalled,
       pauserWallet,
       pauserWalletMatchesGlobal,
     }
@@ -166,6 +201,7 @@ async function checkNetworkPauseStatus(
         chainId: networkConfig.chainId,
         diamondAddress: checksummedAddress,
         status: 'PAUSED',
+        emergencyPauseFacetInstalled,
         pauserWallet,
         pauserWalletMatchesGlobal,
       }
@@ -177,6 +213,7 @@ async function checkNetworkPauseStatus(
       chainId: networkConfig.chainId,
       diamondAddress: checksummedAddress,
       status: 'ERROR',
+      emergencyPauseFacetInstalled,
       pauserWallet,
       pauserWalletMatchesGlobal,
       error: msg.length > 70 ? `${msg.substring(0, 67)}...` : msg,
@@ -198,13 +235,15 @@ function printTable(results: IPauseStatusResult[]) {
     ...displayResults.map((r) => r.network.length)
   )
   const addrWidth = 42 // checksummed EVM address length
-  const pauserWidth = 44 // address + match indicator
+  const facetWidth = 18 // "EmPauseFacet" column
+  const pauserWidth = 54 // address + match indicator
 
-  const header = `${'Network'.padEnd(networkWidth)} | ${'Chain ID'.padStart(
-    8
-  )} | ${'Diamond Address'.padEnd(addrWidth)} | ${'Pauser Wallet'.padEnd(
-    pauserWidth
-  )} | Status`
+  const header =
+    `${'Network'.padEnd(networkWidth)} | ${'Chain ID'.padStart(8)}` +
+    ` | ${'Diamond Address'.padEnd(addrWidth)}` +
+    ` | ${'EmPauseFacet'.padEnd(facetWidth)}` +
+    ` | ${'Pauser Wallet'.padEnd(pauserWidth)}` +
+    ` | Status`
   console.log('\n' + header)
   console.log('-'.repeat(header.length + 4))
 
@@ -226,9 +265,18 @@ function printTable(results: IPauseStatusResult[]) {
         statusStr = `ERROR: ${r.error ?? 'unknown'}`
     }
 
+    const facetStr =
+      r.emergencyPauseFacetInstalled === null
+        ? 'N/A'.padEnd(facetWidth)
+        : r.emergencyPauseFacetInstalled
+        ? '✓ installed'.padEnd(facetWidth)
+        : '✗ NOT INSTALLED'.padEnd(facetWidth)
+
     let pauserStr: string
     if (r.pauserWallet === null) {
-      pauserStr = 'N/A'.padEnd(pauserWidth)
+      pauserStr = (r.emergencyPauseFacetInstalled ? 'N/A' : '—').padEnd(
+        pauserWidth
+      )
     } else {
       const matchIndicator =
         r.pauserWalletMatchesGlobal === true
@@ -240,12 +288,15 @@ function printTable(results: IPauseStatusResult[]) {
     }
 
     const addr = (r.diamondAddress ?? '').padEnd(addrWidth)
-    const line = `${r.network.padEnd(networkWidth)} | ${String(
-      r.chainId
-    ).padStart(8)} | ${addr} | ${pauserStr} | ${statusStr}`
+    const line =
+      `${r.network.padEnd(networkWidth)} | ${String(r.chainId).padStart(8)}` +
+      ` | ${addr} | ${facetStr} | ${pauserStr} | ${statusStr}`
 
-    // Highlight pauser mismatch rows in yellow regardless of pause status
-    const lineColor = r.pauserWalletMatchesGlobal === false ? 'yellow' : color
+    // Highlight rows that need attention: facet missing or pauser mismatch
+    const needsAttention =
+      r.emergencyPauseFacetInstalled === false ||
+      r.pauserWalletMatchesGlobal === false
+    const lineColor = needsAttention ? 'yellow' : color
     console.log(`${getColorCode(lineColor)}${line}${getColorCode('reset')}`)
   }
 
@@ -257,6 +308,9 @@ function printTable(results: IPauseStatusResult[]) {
   ).length
   const errors = displayResults.filter((r) => r.status === 'ERROR').length
   const skipped = results.filter((r) => r.status === 'NO_DIAMOND').length
+  const facetMissing = displayResults.filter(
+    (r) => r.emergencyPauseFacetInstalled === false
+  ).length
   const pauserMismatch = displayResults.filter(
     (r) => r.pauserWalletMatchesGlobal === false
   ).length
@@ -264,26 +318,34 @@ function printTable(results: IPauseStatusResult[]) {
   console.log(`\nSummary (${displayResults.length} networks with diamonds):`)
   if (paused > 0)
     console.log(
-      `  ${getColorCode('red')}PAUSED:          ${paused}${getColorCode(
+      `  ${getColorCode('red')}PAUSED:            ${paused}${getColorCode(
         'reset'
       )}`
     )
   console.log(
-    `  ${getColorCode('green')}NOT PAUSED:      ${notPaused}${getColorCode(
+    `  ${getColorCode('green')}NOT PAUSED:        ${notPaused}${getColorCode(
       'reset'
     )}`
   )
+  if (facetMissing > 0)
+    console.log(
+      `  ${getColorCode(
+        'yellow'
+      )}FACET NOT INSTALLED: ${facetMissing} — EmergencyPauseFacet missing on these networks${getColorCode(
+        'reset'
+      )}`
+    )
   if (pauserMismatch > 0)
     console.log(
       `  ${getColorCode(
         'yellow'
-      )}PAUSER MISMATCH: ${pauserMismatch} (expected ${EXPECTED_PAUSER_WALLET})${getColorCode(
+      )}PAUSER MISMATCH:   ${pauserMismatch} (expected ${EXPECTED_PAUSER_WALLET})${getColorCode(
         'reset'
       )}`
     )
   if (errors > 0)
     console.log(
-      `  ${getColorCode('yellow')}ERRORS:          ${errors}${getColorCode(
+      `  ${getColorCode('yellow')}ERRORS:            ${errors}${getColorCode(
         'reset'
       )}`
     )
@@ -291,7 +353,7 @@ function printTable(results: IPauseStatusResult[]) {
     console.log(
       `  ${getColorCode(
         'dim'
-      )}NO DIAMOND:      ${skipped} (not shown)${getColorCode('reset')}`
+      )}NO DIAMOND:        ${skipped} (not shown)${getColorCode('reset')}`
     )
   console.log('')
 }
