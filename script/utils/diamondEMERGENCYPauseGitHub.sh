@@ -83,7 +83,6 @@ function handleNetwork() {
     echo "[network: $NETWORK] balance pauser wallet: $BALANCE_PAUSER_WALLET"
   fi
 
-  # this fails currently since the EmergencyPauseFacet is not yet deployed to all diamonds
   DIAMOND_PAUSER_WALLET=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "pauserWallet() returns (address)")
 
   # compare addresses in lowercase format
