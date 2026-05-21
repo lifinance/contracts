@@ -240,7 +240,7 @@ async function checkNetworkPauseStatus(
   }
 }
 
-function printTable(results: IPauseStatusResult[]) {
+function printTable(results: IPauseStatusResult[]): void {
   // Only display networks that have a diamond deployed
   const displayResults = results.filter((r) => r.status !== 'NO_DIAMOND')
 
@@ -297,12 +297,10 @@ function printTable(results: IPauseStatusResult[]) {
         pauserWidth
       )
     } else {
-      const matchIndicator =
-        r.pauserWalletMatchesGlobal === true
-          ? ' ✓'
-          : r.pauserWalletMatchesGlobal === false
-          ? ' ✗ MISMATCH'
-          : ''
+      let matchIndicator = ''
+      if (r.pauserWalletMatchesGlobal === true) matchIndicator = ' ✓'
+      else if (r.pauserWalletMatchesGlobal === false)
+        matchIndicator = ' ✗ MISMATCH'
       pauserStr = `${r.pauserWallet}${matchIndicator}`.padEnd(pauserWidth)
     }
 
@@ -377,7 +375,7 @@ function printTable(results: IPauseStatusResult[]) {
   console.log('')
 }
 
-async function main() {
+async function main(): Promise<void> {
   consola.info(
     'Checking production diamond pause status across all networks...'
   )
