@@ -105,7 +105,7 @@ Classify into a likely-disposition bucket:
 
 ### 1.4 Classify others' PRs in the review channel (incoming inbox)
 
-This is the team-inbox half. Scan the same channel(s) for PRs **not posted by the current user**.
+This is the team-inbox half. **Scope: smart-contract reviews only.** The user reviews SC PRs, not backend PRs — only scan `#dev-sc-review`. Never include `#dev-backend-expansion-review` (or any other backend channel) in the incoming inbox, even though it's used for routing the user's *outgoing* backend PRs in 1.2.
 
 1. List PR-post messages in `#dev-sc-review` from the last 6 weeks (paginate as needed). Each post follows the `<URL> << <title>` convention. Extract `(owner, repo, pr_number, parent_ts, posted_at, slack_author)`.
 2. Drop entries where `slack_author == current_user` (already covered in 1.2).
