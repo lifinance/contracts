@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # this script is designed to be called by a Github action
-# it can only pause the main STAGING diamond on BSC network
+# it pauses the main STAGING diamonds on the networks listed in STAGING_NETWORKS
+# below. Mirrors `diamondEMERGENCYPauseGitHub.sh` (prod) by routing all cast-like
+# operations through `universalCast` so the staging end-to-end test exercises
+# the same helper code path that prod uses.
 # for all other actions the diamondEMERGENCYPauseStaging.sh script should be called
 # via scriptMaster.sh in local CLI for more flexibility
 
@@ -14,8 +17,8 @@ DIAMOND_IS_PAUSED_SELECTOR="0x0149422e"
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=10
 
-# Staging workflow: only BSC
-STAGING_NETWORK="bsc"
+# Staging workflow: 4 networks to validate universalCast routing across a representative set
+STAGING_NETWORKS=("bsc" "arbitrum" "optimism" "base")
 
 # Define function to handle each network operation
 function handleNetwork() {
@@ -54,14 +57,14 @@ function handleNetwork() {
   # get diamond address for this network
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "staging" "LiFiDiamond")
   if [[ $? -ne 0 ]]; then
-    error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
+    error "[network: $NETWORK] could not find diamond address in STAGING deploy log. Cannot continue for this network."
     return 1
   else
     echo "[network: $NETWORK] diamond address found in deploy log file: $DIAMOND_ADDRESS"
   fi
 
   # check if the diamond is already paused by calling owner() function and analyzing the response
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
@@ -87,7 +90,7 @@ function handleNetwork() {
   fi
 
   # this fails currently since the EmergencyPauseFacet is not yet deployed to all diamonds
-  DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
+  DIAMOND_PAUSER_WALLET=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "pauserWallet() returns (address)")
 
   # compare addresses in lowercase format
   if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
@@ -104,7 +107,7 @@ function handleNetwork() {
     echo ""
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PRIV_KEY_ADDRESS (attempt: $ATTEMPTS)"
     echo ""
-    cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
+    universalCast "send" "$NETWORK" "staging" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET"
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
@@ -123,7 +126,7 @@ function handleNetwork() {
   fi
 
   # try to call the diamond
-  OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() external returns (address)" --rpc-url "$RPC_URL")
+  OWNER=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)")
 
   # check if last call was successful and throw error if it was (it should not be successful, we expect the diamond to be paused now)
   if [ $? -eq 0 ]; then
@@ -157,7 +160,7 @@ function printStatus() {
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "staging" "LiFiDiamond")
 
   # check if the diamond is paused by calling owner() function and analyzing the response
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  local RESPONSE=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "owner() returns (address)" 2>&1)
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
@@ -172,8 +175,8 @@ function printStatus() {
 }
 
 function main {
-  # create array with network/s for which the script should be executed (STAGING: BSC only)
-  local NETWORKS=("$STAGING_NETWORK")
+  # create array with networks for which the script should be executed (STAGING set)
+  local NETWORKS=("${STAGING_NETWORKS[@]}")
 
   echo "networks found: ${NETWORKS[@]}"
 

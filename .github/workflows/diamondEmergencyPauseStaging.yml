@@ -1,10 +1,10 @@
-name: EMERGENCY >> Pause BSC STAGING diamond
+name: EMERGENCY >> Pause STAGING diamonds (multi-network test)
 
 on:
   workflow_dispatch:
     inputs:
       warning:
-        description: "By clicking the next button you are pausing the BSC STAGING diamond. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
+        description: "By clicking the next button you are pausing the STAGING diamonds on bsc/arbitrum/optimism/base. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
         required: true
 
 permissions:
@@ -85,4 +85,4 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
           payload: |
-            text: 'TEST TEST TEST ATTENTION - the emergency diamond pause action was just executed on BSC STAGING by ${{ github.actor }}'
+            text: 'TEST TEST TEST ATTENTION - the emergency diamond pause action was just executed on STAGING (bsc/arbitrum/optimism/base) by ${{ github.actor }}'

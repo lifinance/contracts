@@ -725,7 +725,7 @@ const main = defineCommand({
       if (environment === 'production') {
         await checkOwnershipTron(
           'ERC20Proxy',
-          deployerWallet,
+          refundWallet,
           deployedContracts,
           tronRpcUrl,
           tronWeb,
@@ -788,11 +788,11 @@ const main = defineCommand({
           client: publicClient,
         })
         const erc20ProxyOwner = await erc20ProxyContract.read.owner()
-        if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
+        if (getAddress(erc20ProxyOwner) !== getAddress(refundWallet))
           logError(
             `ERC20Proxy owner is ${getAddress(
               erc20ProxyOwner
-            )}, expected ${getAddress(deployerWallet)}`
+            )}, expected ${getAddress(refundWallet)}`
           )
         else consola.success('ERC20Proxy owner is correct')
       } else {
