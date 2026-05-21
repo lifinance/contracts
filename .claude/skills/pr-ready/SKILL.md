@@ -84,13 +84,23 @@ coderabbit review --help   # confirms the subcommand is available
 
 2. **Run the review**
 
+   Capture the pre-fix HEAD first — it's needed later for scoped re-runs:
+
    ```bash
-   coderabbit review --base origin/main --plain
+   PRE_FIX_HEAD=$(git rev-parse HEAD)
+   coderabbit review --base origin/main --plain | tee /tmp/cr-pr-ready.log
    ```
 
    - `--base origin/main` ensures the diff matches what GitHub CI will see. Swap for the actual base branch (`origin/develop`, `origin/master`, …) if the repo doesn't use `main`.
    - `--plain` produces a stable, machine-parseable output that agents can consume.
    - First run on a branch can take a few minutes; subsequent runs on the same diff are cached.
+
+   **Check for limited / free-CLI mode.** If the output contains `limited/free CLI behavior` or `could not match … to an installed organization`, the CodeRabbit GitHub app is not installed on this repo. Two consequences:
+
+   - **No cloud safety net.** Cloud CR runs from the same app, so it will *not* review the PR either. This local pass is the only review.
+   - **Tight rate limits.** Limited mode rate-limits aggressively; expect "Rate limit exceeded" after 2–3 reviews on the same branch. Plan accordingly — favour fewer, broader passes over many small ones.
+
+   Surface this prominently in the final summary and, separately, suggest installing the CodeRabbit app on the repo so future PRs get both local and cloud coverage.
 
 3. **Classify findings** into three buckets
 
@@ -163,11 +173,39 @@ coderabbit review --help   # confirms the subcommand is available
 
    Never write to repo rules files from inside `/pr-ready`. Promotion is a separate, explicit step.
 
-6. **Re-run until clean**
+6. **Conditional, scoped re-run** (at most one)
 
-   After all approved fixes are applied, re-run `coderabbit review --base origin/main --plain` until the output is either:
+   The original "re-run until clean" mandate burned cycles (and limited-mode rate-limits) on passes that couldn't surface new findings, because the fixes themselves were comment-only. Replace it with a single, scoped pass — gated by what was actually changed.
+
+   **Skip the re-run entirely if** any of the following hold:
+   - The initial pass produced zero findings (nothing to re-verify).
+   - Every applied fix was Auto-apply-bucket (comments / docs / unused imports). Those classes can't introduce new findings worth catching; cloud CR will sweep up anything missed.
+   - The CLI is in limited mode AND has already returned "Rate limit exceeded" or is close to it.
+
+   **Run exactly one scoped pass if** any Ask-bucket fix touched logic, control flow, signatures, or anything outside comments/imports. Use `--base-commit` to limit the diff to the fix commits only:
+
+   ```bash
+   coderabbit review --base origin/main --base-commit "$PRE_FIX_HEAD" --plain
+   ```
+
+   Where `$PRE_FIX_HEAD` was captured in step 2 before any `pr-ready:` commits were created. This restricts the review surface to just the diff between the pre-fix state and HEAD — fast, cheap on the rate limiter, and high-signal (every line CR sees was added by the pr-ready pass).
+
+   **Retroactive fallback** if step 2 didn't capture `$PRE_FIX_HEAD` (e.g. the skill was invoked partway through):
+
+   ```bash
+   PRE_FIX_HEAD=$(git log --grep '^pr-ready:' origin/main..HEAD --reverse --format=%H | head -1)~1
+   ```
+
+   Scope it to `origin/main..HEAD` so old `pr-ready:` commits already on main don't get picked up.
+
+   **Hard cap: one re-run.** If the scoped pass surfaces new findings, classify and apply them with the same Auto-apply / Ask / Reject rules, but **do not run a third pass.** Cloud CR is the safety net for anything that slips after that — unless you're in limited mode (see step 2), in which case document the remaining findings in the PR body and let a human reviewer decide.
+
+   **Skip the re-run if you'd hit the rate limit.** In limited mode, after ~2 reviews on the same branch the CLI returns "Rate limit exceeded". If that happens, do not retry — document and move on.
+
+   Acceptance criteria for proceeding to step 7:
    - empty / "no findings", or
-   - contains only items explicitly deferred/rejected (record those in the PR description).
+   - only items explicitly deferred / rejected (record those in the PR description), or
+   - re-run was correctly skipped per the rules above (note "re-run skipped: all fixes Auto-apply" in the summary).
 
 7. **Clear the gate marker**
 
@@ -183,7 +221,7 @@ coderabbit review --help   # confirms the subcommand is available
 
 8. **Open or update the PR**
 
-   `gh pr create` for a new PR, `gh pr ready <num>` to flip a draft, or `git push` for updates. Cloud CodeRabbit will still run in CI as a safety net — but it should now find little to nothing.
+   `gh pr create` for a new PR, `gh pr ready <num>` to flip a draft, or `git push` for updates. Cloud CodeRabbit will still run in CI as a safety net — but it should now find little to nothing. **Exception**: in limited mode (step 2), there is no cloud safety net; flag this in the PR body so the human reviewer knows.
 
 ## Output / Reporting Format (mandatory final summary)
 
@@ -214,7 +252,8 @@ Repeat patterns (<N>) — candidates for promotion:
   "<short tag>"  seen in <K> branches  — suggested scope: <glob>
   ...
 
-Re-run status: <CLEAN | N remaining (documented)>
+Mode:           <full | limited (no cloud safety net — install CR on this repo)>
+Re-run status:  <CLEAN | skipped (all Auto-apply) | scoped clean | N remaining (documented) | not run (rate-limited)>
 Gate marker:    written to <gitdir>/PR_READY_OK at <ISO>
 
 Quick audit:  git log --oneline <base>..HEAD -- $(git diff --name-only <base>..HEAD)
@@ -233,7 +272,9 @@ Do not claim "PR-ready" until the re-run shows no actionable findings, and do no
 
 Before declaring a PR ready:
 
-- [ ] `coderabbit review --base <base> --plain` exit clean OR remaining findings explicitly documented in the PR body.
+- [ ] Initial `coderabbit review --base <base> --plain` ran (re-run only if step 6 conditions required it).
+- [ ] Re-run, if performed, was scoped via `--base-commit "$PRE_FIX_HEAD"` and ran at most once.
+- [ ] Limited mode (if any) is flagged in both the summary block and the PR body.
 - [ ] Every applied fix is its own `pr-ready:` commit, visible in `git log` and individually revertable.
 - [ ] No `git commit --amend`, `git rebase -i`, or `git push --force` used during the session.
 - [ ] Dev has read the **Auto-applied** section of the summary and is OK with each entry (or `git revert`-ed the ones they aren't).
