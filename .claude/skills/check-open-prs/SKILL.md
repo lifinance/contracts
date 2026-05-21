@@ -121,22 +121,30 @@ This is the team-inbox half. **Scope: smart-contract reviews only.** The user re
    - `my_last_review` = latest `reviews` entry where `author.login == me` (capture `state`, `submittedAt`).
    - `any_human_review` = any review by a real user (exclude bots: `coderabbitai`, `github-actions`, `*-bot`, `app/*`).
    - `last_commit_ts` = latest `commits[].commit.committedDate`.
-   - **Slack thread state** — read with `response_format="detailed"` (mandatory; re-review signals live in Slack, not GitHub). Capture latest author + ts. Detect a re-review signal in any message authored by the PR author *after* `my_last_review.submittedAt`, case-insensitive regex:
+   - **Slack thread state** — read with `response_format="detailed"` (mandatory; re-review signals live in Slack, not GitHub). Walk every reply. Capture:
+     - `slack_last_human_ts` / `slack_last_human_author` — the most recent reply by a real user (skip bots / Linear / GitHub apps).
+     - `author_rereview_signal` — true iff there is a message authored by the **PR author** *after* `my_last_review.submittedAt` whose text matches the case-insensitive regex:
 
-     ```text
-     ready (for|to) re-?review | please re.?review | addressed | updated.*PR | PTAL | fixed @ | all comments addressed | rebased
-     ```
+       ```text
+       ready (for|to) re-?review | please re.?review | addressed | updated.*PR | PTAL | fixed @ | all comments addressed | rebased
+       ```
 
-     If the re-review ping mentions someone else (`@<other>`) but my prior review is still open (COMMENTED / CHANGES_REQUESTED with no follow-up from me), still classify as INBOX-REREVIEW and flag the primary-reviewer ambiguity in the dashboard row.
+   The author must explicitly hand the PR back. Two things that DO NOT make it INBOX-REREVIEW:
+
+   - **New commits with no Slack signal.** Authors push WIP all the time; commits alone don't mean they're ready for another look. Wait for the explicit signal.
+   - **A re-review ping that I responded to.** If `slack_last_human_author == me`, the ball is in the author's court (they owe a reply or another push + ping). Drop from REREVIEW until they re-engage.
+
+   If the re-review ping mentions someone else (`@<other>`) but my prior review is still open (COMMENTED / CHANGES_REQUESTED with no follow-up from me), still classify as INBOX-REREVIEW and flag the primary-reviewer ambiguity in the dashboard row.
 
    | Bucket | Condition |
    |---|---|
    | **INBOX-UNREVIEWED** | `my_last_review` is null AND `any_human_review` is false — no human has reviewed yet |
-   | **INBOX-REREVIEW** | `my_last_review.state ∈ {COMMENTED, CHANGES_REQUESTED}` AND (`last_commit_ts > my_last_review.submittedAt` OR slack re-review signal after my review) |
+   | **INBOX-REREVIEW** | `my_last_review.state ∈ {COMMENTED, CHANGES_REQUESTED}` AND `author_rereview_signal` is true AND `slack_last_human_author != me` (i.e. the author re-pinged and I haven't replied yet) |
    | **WAITING-ON-OTHERS** | `any_human_review` true but `my_last_review` null — someone else owns it |
+   | **WAITING-ON-AUTHOR** | `my_last_review.state ∈ {COMMENTED, CHANGES_REQUESTED}` AND either no author re-review signal yet, OR `slack_last_human_author == me` (I asked a question / left feedback and the author hasn't come back) |
    | **DONE-BY-ME** | `my_last_review.state == APPROVED` OR my review exists with no new activity since |
 
-   Only INBOX-UNREVIEWED and INBOX-REREVIEW appear in the dashboard. Drop the others; note their counts in the summary so the user knows the scan was exhaustive.
+   Only INBOX-UNREVIEWED and INBOX-REREVIEW appear in the dashboard. Drop WAITING-ON-OTHERS, WAITING-ON-AUTHOR, and DONE-BY-ME; note their counts in the summary so the user knows the scan was exhaustive.
 
 5. Sort INBOX-UNREVIEWED by `posted_at` ascending (oldest first = most painful for the author). Sort INBOX-REREVIEW by `my_last_review.submittedAt` ascending (oldest open feedback first).
 
