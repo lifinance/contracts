@@ -136,6 +136,16 @@
         "selector": "0xa816ca92",
         "signature": "unwrapWstETHToStETH(uint256)"
       }
+    ],
+    "OutputValidator": [
+      {
+        "selector": "0x27444dab",
+        "signature": "validateERC20Output(address,uint256,address)"
+      },
+      {
+        "selector": "0x5d865df2",
+        "signature": "validateNativeOutput(uint256,address)"
+      }
     ]
   }
 }
