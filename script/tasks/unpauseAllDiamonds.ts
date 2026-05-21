@@ -140,7 +140,7 @@ const main = defineCommand({
     }
 
     // Pass 2: production mainnets — propose to Safe. Initialize Safe / Mongo only now.
-    const privateKey = getPrivateKey('SAFE_SIGNER_PRIVATE_KEY')
+    const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
     const senderAddress = privateKeyToAccount(`0x${privateKey}`).address
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
