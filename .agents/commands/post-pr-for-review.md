@@ -51,9 +51,9 @@ Parse `owner/repo/pull/N` from URL or `gh pr view`. Extract `title`, `url`, `num
 
 ### 2. Pre-flight
 
-Three checks, all required:
+Two blocking checks plus one workflow branch:
 
-- **Unresolved review threads** — REST lacks `isResolved`; use GraphQL:
+- **Unresolved review threads** (blocking) — REST lacks `isResolved`; use GraphQL:
 
   ```bash
   gh api graphql -f query='
@@ -70,9 +70,9 @@ Three checks, all required:
 
   Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`.
 
-- **Failing CI** (`gh pr checks <N>`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore any check whose name ends in `(pull_request_review)` — those are review-gated workflows that haven't fired yet; posting is what triggers them, so blocking would be circular. Match on the suffix only — `version-control`, `audit-verification`, and some `protect-*` checks appear in both push and `(pull_request_review)` forms; only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
+- **Failing CI** (blocking, `gh pr checks <N>`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore any check whose name ends in `(pull_request_review)` — those are review-gated workflows that haven't fired yet; posting is what triggers them, so blocking would be circular. Match on the suffix only — `version-control`, `audit-verification`, and some `protect-*` checks appear in both push and `(pull_request_review)` forms; only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
 
-- **Draft status** — if drafted, offer `gh pr ready <N>`; confirm first.
+- **Draft status** (workflow branch) — if drafted, offer `gh pr ready <N>`; confirm first.
 
 ### 3. Gate on pre-flight
 
