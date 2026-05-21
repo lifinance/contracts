@@ -309,11 +309,13 @@ function printTable(results: IPauseStatusResult[]): void {
       `${r.network.padEnd(networkWidth)} | ${String(r.chainId).padStart(8)}` +
       ` | ${addr} | ${facetStr} | ${pauserStr} | ${statusStr}`
 
-    // Highlight rows that need attention: facet missing or pauser mismatch
+    // PAUSED is the headline signal — it must always stay red. For non-PAUSED
+    // rows, downgrade to yellow when the facet is missing or the pauser wallet
+    // doesn't match config; the in-row ✗ markers carry the specifics.
     const needsAttention =
       r.emergencyPauseFacetInstalled === false ||
       r.pauserWalletMatchesGlobal === false
-    const lineColor = needsAttention ? 'yellow' : color
+    const lineColor = r.status !== 'PAUSED' && needsAttention ? 'yellow' : color
     console.log(`${getColorCode(lineColor)}${line}${getColorCode('reset')}`)
   }
 
