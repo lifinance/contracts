@@ -621,12 +621,13 @@ const NON_USER_FACING_NAMES = new Set([
 ])
 
 function isKnownNonUserFacing(fn: IAbiFn): boolean {
-  // Zero-input functions are Solidity-generated getters for `public` state
-  // variables / constants (e.g. `spokePool()`, `ACROSS_CHAIN_ID_SOLANA()`,
-  // `pendingOwner()`). They're views, never signed by users — skip wholesale.
-  // A user-facing bridging or swap function always takes at least one input.
-  if (fn.inputs.length === 0) return true
   const name = fn.name
+  // Zero-input functions are usually Solidity-generated getters for `public`
+  // state variables / constants (e.g. `spokePool()`, `ACROSS_CHAIN_ID_SOLANA()`,
+  // `pendingOwner()`) — skip those. The exception is `*Packed` / `*Min` bridge
+  // variants: they declare no ABI params but read `msg.data` manually, so they
+  // are user-facing entry-points despite having `inputs.length === 0`.
+  if (fn.inputs.length === 0 && !/(Packed|Min)$/u.test(name)) return true
   if (NON_USER_FACING_NAMES.has(name)) return true
   for (const prefix of NON_USER_FACING_PREFIXES)
     if (name.startsWith(prefix)) return true
