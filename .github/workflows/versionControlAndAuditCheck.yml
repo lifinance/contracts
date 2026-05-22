@@ -25,9 +25,14 @@ name: VersionControlAndAuditVerification
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, review_requested, ready_for_review]
-  pull_request_review:
-    types: [submitted]
+    types: [opened, synchronize, review_requested, ready_for_review]
+    # `pull_request_review` is intentionally not a trigger: this check is a pure
+    # function of the PR diff, so review events can't change the outcome and
+    # only create same-SHA duplicate runs that show up as cancelled (red) rows.
+    # `edited` is also intentionally omitted: this workflow updates the PR title
+    # itself via `gh pr edit`, which re-triggers an `edited` event on the same
+    # SHA and cancels the run in progress. Human title edits don't change the
+    # contract diff, and the next `synchronize` would catch any real change.
 
 permissions:
   contents: read # required to fetch repository contents
