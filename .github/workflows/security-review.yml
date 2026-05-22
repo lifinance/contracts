@@ -228,10 +228,12 @@ jobs:
         run: |
           set -euo pipefail
           # Three-dot diff = changes on HEAD since branching from base.
-          git diff --no-color "$BASE_SHA...$HEAD_SHA" > "$DIFF_FILE"
-          git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -E '^src/' > "$PR_FILES" || true
-          echo "::group::PR diff stat"
-          git diff --shortstat "$BASE_SHA...$HEAD_SHA"
+          # Scope to src/ so test-heavy PRs don't trip the 5000-line guardrail
+          # in the skill (Track B reviews src/ only anyway).
+          git diff --no-color "$BASE_SHA...$HEAD_SHA" -- src/ > "$DIFF_FILE"
+          git diff --name-only "$BASE_SHA...$HEAD_SHA" -- src/ > "$PR_FILES" || true
+          echo "::group::PR diff stat (src/ only)"
+          git diff --shortstat "$BASE_SHA...$HEAD_SHA" -- src/
           echo "::endgroup::"
           echo "::group::Changed src/ files ($(wc -l < "$PR_FILES"))"
           cat "$PR_FILES" || true

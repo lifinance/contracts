@@ -33,7 +33,7 @@ posts as one sticky PR comment.
 | `${SARIF_DIR}/slither.sarif` | Stage 1 slither job                   | May be empty if Slither errored                 |
 | `${SARIF_DIR}/aderyn.sarif`  | Stage 1 aderyn job                    | "                                                |
 | `${SARIF_DIR}/semgrep.sarif` | Stage 1 semgrep job                   | "                                                |
-| `${DIFF_FILE}`             | `git diff origin/main...HEAD`           | The PR's diff against the merge base            |
+| `${DIFF_FILE}`             | `git diff <base>...<head> -- src/`      | PR diff against merge base, scoped to `src/`    |
 | `${PR_FILES}`               | Newline-delimited list of changed src/ files | Used to scope `by-area/*.md` loading      |
 
 ### Cached (stable across PRs — prompt-cacheable)
