@@ -54,11 +54,14 @@ function rpcCallWithRetry() {
     fi
     ATTEMPT=$((ATTEMPT + 1))
   done
-  # On exhaustion, surface stderr to the caller so error messages have context.
+  # On exhaustion, surface diagnostic context to the caller. Prefer stderr
+  # (cleaner), but fall back to stdout when stderr was empty - some wrapped
+  # helpers (e.g. universalCall) merge cast's stderr into stdout via 2>&1
+  # internally, so the revert reason / RPC error ends up in OUT, not ERR_FILE.
   local LAST_ERR
   LAST_ERR=$(< "$ERR_FILE")
   rm -f "$ERR_FILE"
-  printf "%s" "$LAST_ERR"
+  printf "%s" "${LAST_ERR:-$OUT}"
   return 1
 }
 
@@ -70,7 +73,9 @@ function handleNetwork() {
   echo ""
   echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start network $1 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
   local NETWORK=$1
-  local PRIVATE_KEY=$2
+  # Renamed from `PRIVATE_KEY` to avoid shadowing the `.env` PRIVATE_KEY global
+  # (per .agents/rules/300-bash.md "No local shadowing of .env globals").
+  local PAUSER_PRIVATE_KEY=$2
 
 
   # skip any non-prod networks
@@ -82,7 +87,7 @@ function handleNetwork() {
   esac
 
   # convert the provided private key of the pauser wallet (from github) to an address
-  PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY")
+  PRIV_KEY_ADDRESS=$(cast wallet address "$PAUSER_PRIVATE_KEY")
 
   # get RPC URL for given network using helper function
   RPC_KEY=$(getRPCEnvVarName "$NETWORK")
@@ -201,19 +206,26 @@ function handleNetwork() {
     sleep "$RPC_RETRY_SLEEP_SECONDS"      # back-off before next attempt
   done
 
-  # check if call was executed successfully or used all attempts
+  # If all our send attempts failed, do NOT short-circuit to failure - the
+  # on-chain state below is the source of truth. Another caller (a parallel
+  # pauser, a manual safe tx, an incident-response runbook) may have already
+  # paused the diamond, in which case our sends would revert with
+  # DiamondIsPaused, causing the loop above to exhaust even though the
+  # diamond is correctly paused. Falling through to the final-pause check
+  # lets the chain decide.
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS" ]; then
-    error "[network: $NETWORK] failed to pause diamond ($DIAMOND_ADDRESS)"
-    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-    return 1
+    warning "[network: $NETWORK] all $MAX_ATTEMPTS pause-send attempts failed - verifying on-chain state before declaring failure"
   fi
 
-  # final pause check: owner() must revert with DiamondIsPaused.
-  # Match the robust pattern used in the pre-flight check above: capture stdout+stderr
-  # and inspect the string for the DiamondIsPaused selector. Relying on $? alone is
-  # brittle - some RPCs return slightly stale state right after the pause tx is mined
-  # (read-after-write lag), so cast may succeed and exit 0 even though the diamond is
-  # in fact paused. Retries cushion that lag.
+  # Final pause check: owner() must revert with DiamondIsPaused. universalCall
+  # internally merges cast's stderr into stdout (universalCast.sh:51), so the
+  # revert reason ends up in the captured stream and we inspect it for the
+  # DiamondIsPaused selector. Relying on $? alone is brittle - some RPCs
+  # return slightly stale state right after the pause tx is mined
+  # (read-after-write lag), so cast may succeed and exit 0 even though the
+  # diamond is in fact paused. Retries cushion that lag. This loop is the
+  # canonical truth source for whether the diamond ended up paused
+  # (regardless of who paused it).
   local FINAL_CHECK_ATTEMPT=1
   local FINAL_CHECK_RESPONSE=""
   sleep "$RPC_CALL_DELAY_SECONDS"
@@ -239,12 +251,7 @@ function handleNetwork() {
 function printStatus() {
   local NETWORK="$1"
 
-  # get RPC URL for given network using helper function
-  local RPC_KEY=$(getRPCEnvVarName "$NETWORK")
-  # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
-  eval "RPC_URL=\$$RPC_KEY"
-
-    # skip any non-prod networks
+  # skip any non-prod networks
   case "$NETWORK" in
     "bsc-testnet" | "localanvil" | "sepolia" | "mumbai" | "lineatest")
       echo "skipping $NETWORK (Testnet)"
@@ -296,29 +303,45 @@ function main {
   echo "Watch out for red and green colored entries as they mark endpoints of each network thread"
   echo "A summary will be printed after all jobs/networks have been completed"
 
-  # go through all networks and start background tasks for each network (to execute in parallel)
-  RETURN=0
+  # Launch handleNetwork in parallel and capture PIDs explicitly. We rely on
+  # PIDs (not `jobs -p` after a no-arg `wait`) because the latter returns an
+  # empty list once jobs have been reaped, which silently swallows per-network
+  # failures. Each network's work happens in its own subshell so a failure on
+  # one diamond does NOT abort the others - aggregation only happens after
+  # every job has finished.
+  local -a PIDS=()
   for NETWORK in "${NETWORKS[@]}"; do
       handleNetwork "$NETWORK" "$PRIVATE_KEY_PAUSER_WALLET" &
+      PIDS+=("$!")
   done
 
-  # Wait for all background jobs to finish
-  wait
-  # Check exit status of each background job
-  for JOB in $(jobs -p); do
-    wait $JOB || RETURN=1
+  # Aggregate exit codes: if ANY network failed, surface that as the script's
+  # exit code so the GitHub Actions workflow turns red. Aggregation does NOT
+  # short-circuit - we wait for every job even after we've seen a failure.
+  local RETURN=0
+  for PID in "${PIDS[@]}"; do
+    wait "$PID" || RETURN=1
   done
 
   echo "-------------------------------------------------------------------------------------"
   echo "--------------------------------ALL JOBS DONE----------------------------------------"
   echo "-------------------------------------------------------------------------------------"
   echo "[info] all jobs completed, now going through all networks again to print their status"
-  # run through all networks to print a easy-to-read summary
+  # Run through all networks to print an easy-to-read summary. Wait on them
+  # explicitly so the summary block is complete before main returns - without
+  # this, the parent script can exit while printStatus children are still
+  # writing, truncating the summary on-call uses to triage.
+  local -a STATUS_PIDS=()
   for NETWORK in "${NETWORKS[@]}"; do
       printStatus "$NETWORK" &
+      STATUS_PIDS+=("$!")
+  done
+  for PID in "${STATUS_PIDS[@]}"; do
+    wait "$PID" || true
   done
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPauseStagingGitHub completed"
+  return "$RETURN"
 }
 
 # call main function with all parameters the script was called with
