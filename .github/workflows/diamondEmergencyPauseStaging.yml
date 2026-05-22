@@ -79,7 +79,7 @@ jobs:
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET_STAGING }}
 
-      - name: Send Reminder to Slack SC-general Channel
+      - name: Notify Slack SC-general channel of pause execution
         # always() so the alert fires even when the pause script exits non-zero
         # (per-network isolation now lets the script partially succeed and still
         # return 1 — on-call must still be paged in that case).
