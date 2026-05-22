@@ -103,8 +103,18 @@ Step 3's pre-flight is the real safety net; step 4 is content-check only.
 
 ### 5. Auto-merge
 
+First, fetch merge state — `--auto` consumes immediately on a fully-approved + green PR, which would merge the PR before step 6 posts to Slack (leaving the team a "please review" message for an already-merged PR):
+
 ```bash
-gh pr merge <N> --repo lifinance/contracts --auto --squash
+state=$(gh pr view <N> --repo lifinance/contracts \
+  --json mergeStateStatus --jq '.mergeStateStatus')
+
+if [ "$state" = "CLEAN" ]; then
+  # PR would merge instantly under --auto. Skip and ask the user:
+  # "PR is already mergeable; not enabling auto-merge so reviewers can still see it. Merge now instead?"
+else
+  gh pr merge <N> --repo lifinance/contracts --auto --squash
+fi
 ```
 
 Squash is LI.FI's default for `lifinance/contracts`.
@@ -113,7 +123,6 @@ Silently log + continue on:
 
 - Already enabled → no-op.
 - "Auto-merge is not enabled for this repository" → skip with a one-line note.
-- Already mergeable → do NOT auto-merge before posting; surface: "PR is already mergeable; not enabling auto-merge so reviewers can still see it. Merge now instead?"
 - Any other `gh` error → surface verbatim, ask.
 
 Opt-out: invoking message contains "without auto-merge" / "no auto-merge" / "manual merge" → skip.
