@@ -160,6 +160,54 @@ New rules go under `audit/knowledge/semgrep/lf-NNN-<name>.yml`. Each rule:
 
 See `audit/knowledge/semgrep/README.md` for the rule conventions.
 
+## Audit-knowledge coverage (EXP-481)
+
+Every audit listed in `audit/auditLog.json` should also have findings
+extracted into `audit/knowledge/findings.json`. The
+`/lifi-pr-review` pipeline (Stage 2) uses that corpus as cached context
+for the AI triage — a missing audit means the security agent silently
+loses access to prior findings from that report.
+
+### How it stays in sync
+
+Two layers:
+
+1. **Local automation (the easy path)** — When you add an audit via
+   `/add-audit`, Step 9 chains into `/extract-audit-knowledge <audit_id>`
+   automatically. The PDF, the auditLog entry, and the corpus update all
+   land in the same commit / PR.
+
+2. **CI guard (the safety net)** —
+   `.github/workflows/audit-knowledge-coverage.yml` runs on every PR that
+   touches `audit/auditLog.json`, `audit/reports/**`, or
+   `audit/knowledge/findings.json`. It computes which audit IDs are
+   **new in this PR** (via `git diff base..head`) and runs
+   `script/tasks/checkAuditKnowledgeCoverage.ts --new-audits …` to verify
+   each one has corresponding entries in `findings.json`. The PR is
+   blocked if a new audit was logged without a corpus update.
+
+### Why "delta-only"
+
+Pre-existing drift (audits logged before EXP-481 that never made it into
+the corpus) is **not** blocked. Backfilling those is EXP-479 follow-up
+work, not the responsibility of every passing PR. Run the check without
+`--new-audits` to see the full drift state:
+
+```bash
+bun script/tasks/checkAuditKnowledgeCoverage.ts
+```
+
+This is informational — useful when triaging the backfill queue, not for
+day-to-day PR review.
+
+### Escape hatch
+
+If you must merge an audit PR without immediate extraction (e.g., the PDF
+is unusually large and the extraction skill is timing out), invoke
+`/add-audit --skip-extract` and open a follow-up Linear ticket to extract
+the corpus separately. The CI check will block the original PR until the
+follow-up lands, so this is deliberately mildly painful.
+
 ## Bumping the Trail of Bits skills
 
 The ToB skills are vendored as a git submodule at

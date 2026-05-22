@@ -1,7 +1,7 @@
 ---
 name: add-audit
-description: Add an audit report to the audit log by parsing a pasted PDF file
-usage: /add-audit
+description: Add an audit report to the audit log by parsing a pasted PDF file, then refresh the security-review knowledge corpus.
+usage: /add-audit [--skip-extract]
 ---
 
 # Add Audit Report Command
@@ -16,6 +16,12 @@ This command processes a PDF audit report and automatically:
 2. Generates the correct filename according to naming conventions
 3. Updates `audit/auditLog.json` with the new audit entry
 4. **MANDATORY**: Locates and saves the PDF file to `audit/reports/` with the correct filename
+5. **Refreshes the security-review knowledge corpus** by chaining into
+   `/extract-audit-knowledge` (EXP-481). This keeps `audit/knowledge/findings.json`
+   + the markdown projections in lock-step with new audits, so the PR-time
+   security review (EXP-483) can reference findings from this audit
+   immediately. Skippable via `--skip-extract` for two-step workflows
+   (e.g., audit landed but reviewer wants to read the PDF before extraction).
 
 ## How to Use
 
@@ -155,6 +161,40 @@ When `/add-audit` is invoked with a pasted PDF:
      Please verify the commit hash is correct by clicking the link above.
      ```
 
+9. **Refresh the audit-knowledge corpus** (EXP-481):
+
+   This step keeps `audit/knowledge/` in sync with `audit/auditLog.json` so
+   the security-review pipeline (EXP-483) can reference findings from the
+   new audit on the next PR run.
+
+   - **Default behavior (recommended)**: after the user has verified the
+     metadata in step 8, invoke `/extract-audit-knowledge <audit_id>` with
+     the just-generated audit ID. The skill will read the PDF, extract
+     findings into `audit/knowledge/findings.json`, regenerate
+     `lessons.md` and the relevant `by-area/*.md` projections, and report
+     the new findings count.
+
+   - **Skip path (`--skip-extract`)**: if the user invoked
+     `/add-audit --skip-extract`, do NOT chain into extraction. Instead,
+     print a reminder:
+
+     ```
+     Knowledge corpus NOT refreshed (--skip-extract).
+     Before merging this PR, run /extract-audit-knowledge <audit_id> and
+     commit the resulting audit/knowledge/ changes — otherwise the
+     audit-knowledge-coverage CI check will block the merge.
+     ```
+
+   - **Failure handling**: if `/extract-audit-knowledge` errors (e.g., PDF
+     is corrupted, extraction context exceeded), the audit log entry from
+     step 7 stays intact. Surface the extraction error to the user and
+     ask them to either retry, fix the PDF, or proceed with
+     `--skip-extract` (in which case the CI check will catch the gap).
+
+   - **Cost note**: extraction typically uses $0.20–0.50 in Anthropic API
+     tokens for a single audit. This runs in the developer's local Claude
+     Code session — no CI billing.
+
 ## Validation Checklist
 
 Before finalizing, validate all of the following:
@@ -169,6 +209,7 @@ Before finalizing, validate all of the following:
 - [ ] **Audit ID**: Unique, no duplicates (check existing `audits` section)
 - [ ] **Filename**: Follows naming convention, doesn't already exist in `audit/reports/`
 - [ ] **PDF file saved**: File exists at `audit/reports/<generated-filename>.pdf` with size > 0 bytes
+- [ ] **Knowledge corpus refreshed** (unless `--skip-extract`): `/extract-audit-knowledge <audit_id>` completed and the resulting `audit/knowledge/` files are staged for commit. Validate with `bun script/tasks/checkAuditKnowledgeCoverage.ts --new-audits <audit_id>` (must exit 0).
 
 ## Error Handling
 
