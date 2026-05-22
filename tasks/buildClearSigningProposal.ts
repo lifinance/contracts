@@ -620,7 +620,13 @@ const NON_USER_FACING_NAMES = new Set([
   'executeCallAndWithdraw', // operator-only utility
 ])
 
-function isKnownNonUserFacing(name: string): boolean {
+function isKnownNonUserFacing(fn: IAbiFn): boolean {
+  // Zero-input functions are Solidity-generated getters for `public` state
+  // variables / constants (e.g. `spokePool()`, `ACROSS_CHAIN_ID_SOLANA()`,
+  // `pendingOwner()`). They're views, never signed by users — skip wholesale.
+  // A user-facing bridging or swap function always takes at least one input.
+  if (fn.inputs.length === 0) return true
+  const name = fn.name
   if (NON_USER_FACING_NAMES.has(name)) return true
   for (const prefix of NON_USER_FACING_PREFIXES)
     if (name.startsWith(prefix)) return true
@@ -644,7 +650,7 @@ function main() {
     // helpers). Keeping the skip-list here rather than at collection time
     // means new user-facing verbs not in either the templates or the skip
     // list still fall through to the failure branch below.
-    if (isKnownNonUserFacing(fn.name)) continue
+    if (isKnownNonUserFacing(fn)) continue
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
       if (!tpl) {
