@@ -2176,17 +2176,21 @@ function decodeSelectors4byte() {
 # Prints three lines (key=value form, parseable):
 #   target=<address>   the address Heimdall should disassemble (implementation if proxy, else input)
 #   proxy=<address>    the original proxy address (empty if direct contract)
-#   kind=<direct|eip1967|eip1967-beacon|eip1167>
+#   kind=<direct|eip1967|eip1967-beacon|eip1167|diamond>
+#     For kind=diamond, `target` is `<facet1>,<facet2>,…` (comma-separated)
+#     and `proxy` is the diamond address itself.
 #
 # Detection order (first match wins; each step costs at most one RPC call):
 #   1. EIP-1967 implementation slot — 0x360894...382bbc
 #   2. EIP-1967 beacon slot — 0xa3f0ad...133d50, then beacon.implementation()
 #   3. EIP-1167 minimal proxy (OpenZeppelin Clones) — bytecode prefix match
+#   4. EIP-2535 Diamond — cast call facets() returns non-empty (address,bytes4[])[]
+#      For diamonds, `target` is a comma-separated list of facet addresses; the
+#      caller is expected to iterate Steps 4–7 of the workflow once per facet.
 #
 # Not covered (less common / different mechanism, fall back to kind=direct):
 #   - EIP-1822 (UUPS pre-1967)
 #   - GnosisSafe (singleton at slot 0 — heuristic, prone to false positives)
-#   - EIP-2535 Diamond (no single implementation — analyze the diamond directly)
 #
 # Usage: resolveContractTarget ADDRESS RPC_URL
 #   ADDRESS - 0x + 40 hex
@@ -2256,12 +2260,36 @@ function resolveContractTarget() {
     fi
   fi
 
+  # Step 4: EIP-2535 Diamond — facets() returns (address facetAddress, bytes4[] selectors)[].
+  # Non-revert + non-empty array ⇒ diamond. Parse facet addresses; selectors are 8-hex (bytes4)
+  # so the 40-hex address regex won't collide with them.
+  local diamond_raw
+  diamond_raw=$(cast call "$ADDRESS" 'facets()(tuple(address,bytes4[])[])' --rpc-url "$RPC_URL" 2>/dev/null || true)
+  if [[ -n "$diamond_raw" && "$diamond_raw" != "0x" && "$diamond_raw" != "[]" ]]; then
+    local facets_csv
+    facets_csv=$(printf '%s' "$diamond_raw" | grep -oE '0x[0-9a-fA-F]{40}' | awk 'BEGIN{ORS=","}{print tolower($0)}' | sed 's/,$//')
+    if [[ -n "$facets_csv" ]]; then
+      printf "target=%s\nproxy=%s\nkind=diamond\n" "$facets_csv" "$ADDRESS"
+      return 0
+    fi
+  fi
+
   printf "target=%s\nproxy=\nkind=direct\n" "$ADDRESS"
 }
 
 # extractSelectorsFromOpcodes: extract unique function selectors from a Heimdall opcodes file.
 # Filters out the standard exclusions (0xffffffff sentinel, Panic, Error).
 # Output: one selector per line, 0x + 8 hex lowercase, sorted.
+#
+# Caveat — false positives: `PUSH4` matches every 4-byte constant in the bytecode, not just
+# the contract's own function selectors. Common false positives:
+#   - Interface IDs checked inside `supportsInterface(bytes4)` (e.g. 0x80ac58cd = ERC-721) —
+#     the contract is *asking about* the interface, not exposing it.
+#   - Selectors of OTHER contracts the code calls (router → token.transfer, etc.).
+#   - 4-byte literals from `keccak256(...)` or domain separators.
+# Vet the resolved signatures in §5 of the report before claiming the contract implements
+# them. A reliable signal: selectors that appear in the function-dispatch jump table
+# (typically near the entrypoint, paired with EQ + JUMPI) are real entrypoints.
 #
 # Usage: extractSelectorsFromOpcodes OPCODES_FILE
 #   OPCODES_FILE - path to a Heimdall disassemble output file (e.g. opcodes-base-c7828327.txt
@@ -2331,7 +2359,7 @@ function generateUnverifiedContractReportSkeleton() {
 
 - <how ADDRESS/NETWORK were obtained — direct args, URL parsed, etc.>
 - <validation result — address format, network resolved, RPC reachable>
-- <proxy detection — kind=direct | eip1967 (impl=0x…) | eip1967-beacon (impl=0x…)>
+- <proxy detection — kind=direct | eip1967 (impl=0x…) | eip1967-beacon (impl=0x…) | eip1167 (impl=0x…) | diamond (facets=0x…,0x…,…)>
 
 ## 3. Artifacts
 
@@ -2349,7 +2377,7 @@ function generateUnverifiedContractReportSkeleton() {
 
 ## 5. Interface hints
 
-<which selectors imply which interfaces: ERC165, ERC1271, ERC721/1155 receivers, UUPS/proxy, Safe-style execute, ERC-4337, EIP-712 — concise mapping, no raw selector list (refer to §4)>
+<which selectors imply which interfaces: ERC165, ERC1271, ERC721/1155 receivers, UUPS/proxy, Safe-style execute, ERC-4337, EIP-712 — concise mapping, no raw selector list (refer to §4). Vet false positives before claiming the contract implements an interface: interface IDs passed to supportsInterface(bytes4) and selectors of external contracts the code calls are picked up by PUSH4 extraction but are NOT entrypoints of this contract. Reliable signal = selector appears in the dispatch jump table (EQ + JUMPI near entrypoint); unreliable = selector appears only as a mid-function 4-byte literal.>
 
 ## 6. Structure summary
 

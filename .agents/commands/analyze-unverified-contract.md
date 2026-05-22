@@ -24,7 +24,7 @@ This skill ships four exported bash functions in [`script/playgroundHelpers.sh`]
 
 | Function | Replaces | Output |
 |---|---|---|
-| `resolveContractTarget ADDRESS RPC_URL` | Step 3 — manual `cast storage` / `cast code` reads | `target=… proxy=… kind=direct\|eip1967\|eip1967-beacon\|eip1167` (3 lines) |
+| `resolveContractTarget ADDRESS RPC_URL` | Step 3 — manual `cast storage` / `cast code` / `cast call facets()` reads | `target=… proxy=… kind=direct\|eip1967\|eip1967-beacon\|eip1167\|diamond` (3 lines). For `kind=diamond`, `target` is `<facet1>,<facet2>,…` (comma-separated). |
 | `extractSelectorsFromOpcodes OPCODES_FILE` | Step 5 — manual `grep \| awk \| sort \| grep -v` pipeline | one lowercase selector per line |
 | `decodeSelectors4byte` (and `decodeSelector4byte`) | Step 6.4 — manual API calls | merged selectors file with signatures |
 | `generateUnverifiedContractReportSkeleton ADDRESS NETWORK` | Step 7 — typing out the 7-section template | markdown skeleton to stdout |
@@ -53,9 +53,9 @@ eval "$(resolveContractTarget "$ADDRESS" "$RPC_URL")"
 # Now $target, $proxy, $kind are set.
 ```
 
-If `$kind` is anything other than `direct`, **set `TARGET=$target`** (the resolved implementation); otherwise `TARGET=$ADDRESS`. Record both `$proxy` and `$target` in §2 of the report.
+If `$kind` is `direct`, set `TARGET=$ADDRESS`. If `$kind` is `eip1967`, `eip1967-beacon`, or `eip1167`, set `TARGET=$target` (the resolved implementation). If `$kind` is `diamond`, **iterate** — split `$target` on commas and run Steps 4–7 once per facet, writing artifacts as `opcodes-$NETWORK-$SHORT-<facet_short>.txt` etc., then aggregate the per-facet selector tables into a single §4 in the report. Record `$proxy` (the diamond / proxy address) and `$target` (impl or facet list) in §2.
 
-Proxies hold dispatch bytecode only — running Heimdall on the proxy itself yields an empty selector list. The helper covers EIP-1967 standard, EIP-1967 beacon, and EIP-1167 (Clones); for the less-common patterns (EIP-1822 UUPS pre-1967, GnosisSafe, EIP-2535 Diamond) you'll see `kind=direct` and zero selectors in Step 5 — that's your signal to investigate manually (slot 0, `facets()` view, etc.).
+Proxies hold dispatch bytecode only — running Heimdall on the proxy itself yields an empty selector list. The helper covers EIP-1967 standard, EIP-1967 beacon, EIP-1167 (Clones), and EIP-2535 (Diamond); for the less-common patterns (EIP-1822 UUPS pre-1967, GnosisSafe) you'll see `kind=direct` and zero selectors in Step 5 — that's your signal to investigate manually (slot 0, custom proxy slots, etc.).
 
 ### 4. Disassemble / decompile with Heimdall
 
@@ -73,6 +73,8 @@ extractSelectorsFromOpcodes "opcodes-$NETWORK-$SHORT.txt" > opcodes-selectors.md
 ```
 
 The default output filename matters: Step 6.4's `decodeSelectors4byte` reads `opcodes-selectors.md` when called with no args.
+
+**Caveat — false positives.** `PUSH4` matches every 4-byte constant in bytecode, not just this contract's selectors. Common false positives: interface IDs passed to `supportsInterface(bytes4)` (e.g. `0x80ac58cd` = ERC-721 — the contract is *asking about* the interface, not exposing it); selectors of external contracts the code calls (e.g. `token.transfer` from a router); 4-byte literals from `keccak256(...)`. Vet resolved signatures in §5 of the report — selectors that appear in the dispatch jump table (paired with `EQ` + `JUMPI` near the entrypoint) are real entrypoints; selectors that only appear once, embedded mid-function, are likely false positives. For diamonds, use the `facets()` return as the authoritative selector → facet mapping and treat the opcode-extracted set as a secondary signal only.
 
 ### 6. Resolve selector signatures
 
