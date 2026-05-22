@@ -195,7 +195,7 @@ function handleNetwork() {
     echo ""
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PRIV_KEY_ADDRESS (attempt: $ATTEMPTS)"
     echo ""
-    universalCast "send" "$NETWORK" "staging" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET"
+    universalCast "send" "$NETWORK" "staging" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PAUSER_PRIVATE_KEY"
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
