@@ -80,9 +80,15 @@ jobs:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
       - name: Send Reminder to Slack SC-general Channel
+        # always() so the alert fires even when the pause script exits non-zero.
+        # The staging script (this PR) now legitimately exits 1 on partial
+        # success; backporting the same alerting guarantee here keeps prod
+        # incident response from going silent if/when prod adopts the same
+        # per-network-isolation behavior.
+        if: ${{ always() }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
           payload: |
-            text: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
+            text: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }} (status: ${{ job.status }})'
