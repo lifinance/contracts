@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Vendored third-party content — excluded from language stats and diffs by default
+.claude/vendor/** linguist-vendored

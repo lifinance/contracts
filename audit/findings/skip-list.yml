@@ -1,0 +1,132 @@
+# LI.FI static-analysis rule skip list
+#
+# Suppresses categorically noisy rules from Stage 1 static tools BEFORE
+# any AI verification (fp-check) runs. This keeps the per-finding cost
+# of the AI triage down by eliminating known false-positive classes
+# without wasting LLM calls on them.
+#
+# Use this for *rule-level* suppression. Use audit/findings/waived.yml
+# for *finding-level* suppression (specific file:line).
+#
+# Sourced from docs/security-review-baseline.md (EXP-482 noise baseline).
+# Tuning is tracked in EXP-484.
+#
+# Schema:
+#   - tool: slither | aderyn | semgrep
+#     rule: <rule-id from the tool>
+#     action: drop | demote
+#     rationale: |
+#       Multi-line justification. Required.
+#     review_ticket: EXP-NNN (optional — link to a tuning ticket)
+
+# ---- Slither ------------------------------------------------------------
+
+- tool: slither
+  rule: naming-convention
+  action: drop
+  rationale: |
+    Style check, not security. LI.FI follows a documented naming
+    convention (see .agents/rules/) that doesn't match slither's
+    built-in expectations.
+
+- tool: slither
+  rule: too-many-digits
+  action: drop
+  rationale: |
+    Style check. LI.FI uses unprefixed large literals in fixed-point
+    math (e.g., 1e18) which slither flags but is the standard idiom.
+
+- tool: slither
+  rule: assembly
+  action: demote
+  rationale: |
+    Inline assembly is used deliberately in LibAsset, LibBytes, and
+    select facets for gas / packed-encoding reasons. Demote to note
+    but keep visible so reviewers see context.
+
+- tool: slither
+  rule: low-level-calls
+  action: demote
+  rationale: |
+    Low-level calls are intentional in bridge facets (delegatecall to
+    bridge SDKs is the integration pattern). Demote to note; reviewer
+    judgment required per call site.
+
+- tool: slither
+  rule: reentrancy-events
+  action: demote
+  rationale: |
+    Event ordering after external calls is acceptable when the call
+    itself is the trusted bridge integration. Demote to note.
+
+# Slither rule candidates flagged by the EXP-483 dry-run (PR #1550) but
+# not yet promoted to the skip list — pending real-data review (EXP-484):
+#
+# - uninitialized-local: Solidity auto-zero-initializes; the declared-
+#   then-conditionally-assigned pattern is intentional in our facets.
+#   ⚠️ Currently still goes through fp-check.
+# - missing-zero-check: many constructor params are documented as
+#   "can be address(0) on chains where upstream is unavailable".
+#   ⚠️ Currently still goes through fp-check.
+# - divide-before-multiply: matches our (a * BASE) / b fixed-point
+#   idiom (which is correctly multiply-before-divide); slither's AST
+#   match is over-broad.
+#   ⚠️ Currently still goes through fp-check.
+
+# ---- Aderyn -------------------------------------------------------------
+
+- tool: aderyn
+  rule: todo
+  action: drop
+  rationale: |
+    TODO comments are project-managed, not security findings.
+
+- tool: aderyn
+  rule: unused-import
+  action: drop
+  rationale: |
+    Style check; covered by solhint in the regular lint pipeline.
+
+- tool: aderyn
+  rule: state-variable-could-be-immutable
+  action: drop
+  rationale: |
+    Storage-vs-immutable trade-offs are deployment-specific (some
+    facets need post-deploy updates via timelock). Not security.
+
+- tool: aderyn
+  rule: state-variable-could-be-constant
+  action: drop
+  rationale: |
+    Same reasoning as could-be-immutable.
+
+- tool: aderyn
+  rule: centralization-risk
+  action: drop
+  rationale: |
+    LI.FI uses admin keys and timelocked governance by design. The
+    centralization is documented in docs/governance.md; flagging it
+    on every PR is pure noise.
+
+- tool: aderyn
+  rule: push-zero-opcode
+  action: demote
+  rationale: |
+    PUSH0 support depends on EVM target version configured in
+    foundry.toml. LI.FI deploys to many chains with mixed EVM
+    versions; this is handled at build-config level, not facet code.
+
+# ---- Semgrep (LI.FI custom rules from audit/knowledge/semgrep/) ---------
+
+# Semgrep findings come from our own LF-NNN-derived rules. We don't
+# suppress them here — if a rule is too noisy, fix the rule in
+# audit/knowledge/semgrep/ rather than suppress.
+#
+# Open tuning items (EXP-484):
+# - lf-046-bytes32-nonevm-receiver — over-broad for protocols that
+#   natively use bytes32 receivers (Across V4, LayerZero, Wormhole).
+#   Needs `metavariable-pattern` scoping to non-EVM destinations only.
+# - lf-029-shared-modifier-parallel-fields — matches signed-payload-
+#   binding patterns where _bridgeData.receiver is included in
+#   keccak256(abi.encode(...)) for EIP-712. Needs `pattern-not-inside`
+#   to exclude.

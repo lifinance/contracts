@@ -16,6 +16,14 @@ Before the workflow can run for the first time, a repo admin must:
 
 ## Architecture
 
+The pipeline is intentionally **a thin LI.FI layer over open-source security
+skills**. Pashov's audit teams and Trail of Bits have published Claude Code
+skills that encode best-in-class security-review methodology (per-finding
+verification with gate reviews, diff-aware code analysis, variant hunting,
+etc.). Reinventing those in-house would be wasted effort. The LI.FI value-
+add is the audit history (LF-NNN corpus + Semgrep rules derived from it)
+and the CI/Code-Scanning plumbing.
+
 ```
                   ┌─────────── Stage 1: deterministic ────────────┐
                   │  Slither    Aderyn    Semgrep (LI.FI rules)   │
@@ -24,15 +32,21 @@ Before the workflow can run for the first time, a repo admin must:
                   │   slither.sarif  aderyn.sarif  semgrep.sarif  │
                   └─────────────────┬─────────────────────────────┘
                                     │
-                  ┌─────────────────▼─── Stage 2: AI triage ──────┐
-                  │  lifi-pr-review (claude-code-action)          │
-                  │    Track A: triage via 4-gate FP filter       │
-                  │    Track B: review the PR diff for new risks  │
-                  │    Inputs: SARIF + diff + audit/knowledge/    │
-                  │    Output: curated.sarif + summary.md         │
-                  └─────────────────┬─────────────────────────────┘
-                                    │
-                  ┌─────────────────▼─── Stage 3: publish ────────┐
+   ┌──────────────────────────────  Stage 2: AI orchestration ────────────┐
+   │  lifi-pr-review (claude-code-action)                                  │
+   │    LI.FI layer (this repo, MIT/LGPL):                                 │
+   │       • applies skip-list + waivers                                   │
+   │       • injects LF-NNN corpus + by-area context                       │
+   │       • normalizes ToB skills' output → curated.sarif + summary.md    │
+   │                                                                       │
+   │    ToB layer (vendored CC-BY-SA-4.0 at .claude/vendor/tob-skills/):   │
+   │       • audit-context-building  ← bottom-up baseline understanding    │
+   │       • differential-review     ← diff-scoped review (7 phases)        │
+   │       • fp-check                ← per-finding TP/FP verification      │
+   │       • variant-analysis        ← sibling-bug hunt on confirmed TPs   │
+   └─────────────────┬─────────────────────────────────────────────────────┘
+                     │
+                  ┌──▼── Stage 3: publish ───────────────────────┐
                   │  upload curated.sarif → Code Scanning         │
                   │  sticky PR comment with summary.md            │
                   │  status check: advisory (EXP-485 flips)       │
@@ -41,12 +55,13 @@ Before the workflow can run for the first time, a repo admin must:
 
 Per-stage detail, source, and ownership:
 
-| Stage | Where it runs                                      | Source of truth                                 | Ticket  |
-| ----- | -------------------------------------------------- | ----------------------------------------------- | ------- |
-| 1     | 3 parallel jobs in `.github/workflows/security-review.yml` | Tool releases + `audit/knowledge/semgrep/*.yml` | EXP-480 |
-| 2     | `lifi-pr-review` job (depends on Stage 1)          | `.agents/commands/lifi-pr-review.md` skill      | EXP-483 |
-| 3     | Steps inside the `lifi-pr-review` job              | Same workflow file                              | EXP-483 |
-| corpus| `audit/knowledge/` (committed)                     | `.agents/commands/extract-audit-knowledge.md`   | EXP-478, EXP-479 |
+| Stage | Where it runs                                              | Source of truth                                       | Ticket           |
+| ----- | ---------------------------------------------------------- | ----------------------------------------------------- | ---------------- |
+| 1     | 3 parallel jobs in `.github/workflows/security-review.yml` | Tool releases + `audit/knowledge/semgrep/*.yml`       | EXP-480          |
+| 2 (LI.FI layer)| `lifi-pr-review` job                              | `.agents/commands/lifi-pr-review.md` skill            | EXP-483          |
+| 2 (ToB layer)  | Same job, invoked by the LI.FI orchestrator       | `.claude/vendor/tob-skills/` (CC-BY-SA-4.0, see NOTICE) | upstream (pinned) |
+| 3     | Steps inside the `lifi-pr-review` job                      | Same workflow file                                    | EXP-483          |
+| corpus| `audit/knowledge/` (committed)                             | `.agents/commands/extract-audit-knowledge.md`         | EXP-478, EXP-479 |
 
 ## Triggers
 
@@ -142,17 +157,55 @@ New rules go under `audit/knowledge/semgrep/lf-NNN-<name>.yml`. Each rule:
 
 See `audit/knowledge/semgrep/README.md` for the rule conventions.
 
+## Bumping the Trail of Bits skills
+
+The ToB skills are vendored as a git submodule at
+`.claude/vendor/tob-skills/` pinned to a specific SHA. To bump:
+
+```bash
+# 1. Check the upstream changelog
+gh api repos/trailofbits/skills/commits --jq '.[0:10].[]|{sha, msg: .commit.message|split("\n")[0]}'
+
+# 2. Bump to a specific SHA
+cd .claude/vendor/tob-skills
+git fetch origin
+git checkout <new-sha>
+cd -
+
+# 3. Update the pinned SHA in NOTICE
+# 4. Verify the symlinks still resolve
+ls -la .claude/plugins/
+
+# 5. Re-run the dry-run on a sample PR
+#    (see "Local dry-run" section below)
+
+# 6. Commit:
+git add .claude/vendor/tob-skills NOTICE
+git commit -m "chore(security-review): bump tob-skills to <new-sha-short>"
+```
+
+Bump deliberately — when there's a fix/feature we need or after a
+security advisory. Not opportunistically. Major bumps (any change to
+fp-check's gate count, differential-review's phase structure, or the
+sub-agent interfaces) require a re-run of EXP-482's noise baseline to
+catch regressions in our false-positive rate.
+
 ## Cost & runtime
 
 | Stage | Typical runtime | Cost (per PR) |
 | ----- | --------------- | ------------- |
 | 1     | 1–3 min         | free (CI)     |
-| 2     | 30–60 s         | $0.05–$0.40   |
+| 2     | 1–4 min         | $0.10–$1.60   |
 | 3     | <10 s           | free          |
 
-Steady-state per-PR API cost is dominated by Track A re-reading the audit
-knowledge corpus. Prompt caching brings it down ~90% in normal operation
-once cached.
+Stage 2 cost increased vs. the pre-refactor estimate because `fp-check`
+is a per-finding invocation and `variant-analysis` adds a hunt phase on
+each confirmed TP. The trade-off is much higher precision (six gates
+vs. our previous four) and built-in variant detection.
+
+Steady-state per-PR API cost is dominated by re-reading the audit
+knowledge corpus + the ToB skill files. Prompt caching brings it down
+~70% in normal operation once warm.
 
 For PRs >30 changed src/ files (rare), Stage 2 self-skips with a "PR too
 large for AI triage" notice and Stage 1 SARIF remains visible. Request a

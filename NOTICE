@@ -1,0 +1,37 @@
+LI.FI Contracts — Third-Party Notices
+=====================================
+
+This repository is licensed under LGPL-3.0 (see LICENSE).
+
+It includes vendored third-party content that retains its own license.
+This NOTICE file satisfies the attribution requirements of those licenses.
+
+
+Trail of Bits — Skills (Claude Code plugins)
+--------------------------------------------
+
+Vendored at: .claude/vendor/tob-skills/
+Upstream:    https://github.com/trailofbits/skills
+Pinned SHA:  a56045e9ae00b3506cacefea0f672aab0a1a6e3c (2026-05-05)
+License:     Creative Commons Attribution-ShareAlike 4.0 International
+             (CC-BY-SA-4.0)
+License URL: https://creativecommons.org/licenses/by-sa/4.0/
+
+Authors include (per upstream): Trail of Bits, Maciej Domanski,
+Omar Inuwa, Axel Mierczuk, and other contributors. See the upstream
+repository's commit history for the complete authorship record.
+
+Plugins used by this repository's /lifi-pr-review skill:
+  - audit-context-building
+  - differential-review
+  - fp-check
+  - semgrep-rule-creator
+  - variant-analysis
+
+Modifications: none. The vendored content is included verbatim at the
+pinned commit. LI.FI's wrapper skill at .agents/commands/lifi-pr-review.md
+invokes these plugins as external dependencies; it is not a derivative
+work of any individual plugin's documentation. Any future modification
+of files inside .claude/vendor/tob-skills/ would create a derivative
+work licensed under CC-BY-SA-4.0; prefer wrapper-level customization
+in our own skill files instead.

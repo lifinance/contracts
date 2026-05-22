@@ -202,6 +202,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          # Required for .claude/vendor/tob-skills (ToB skills plugins
+          # invoked by the /lifi-pr-review skill — fp-check,
+          # differential-review, audit-context-building, etc.).
+          submodules: recursive
 
       - name: Prepare workspace
         run: |
@@ -250,19 +254,28 @@ jobs:
           prompt: |
             Run the /lifi-pr-review skill from .claude/skills/lifi-pr-review/.
 
-            Inputs are already on disk:
+            The skill is a thin LI.FI orchestrator over Trail of Bits' open-source
+            Claude Code skills, vendored at .claude/vendor/tob-skills/ and exposed
+            via symlinks at .claude/plugins/{audit-context-building,differential-review,
+            fp-check,variant-analysis,semgrep-rule-creator}. Invoke those skills
+            as the skill instructs — do NOT reimplement their logic inline.
+
+            Inputs already on disk:
               SARIF_DIR  = ${{ env.SARIF_DIR }}    (slither.sarif, semgrep.sarif — either may be missing)
-              DIFF_FILE  = ${{ env.DIFF_FILE }}    (the PR diff, base..head)
+              DIFF_FILE  = ${{ env.DIFF_FILE }}    (the PR diff, base..head, scoped to src/)
               PR_FILES   = ${{ env.PR_FILES }}     (changed src/ files, one per line)
-              audit/knowledge/  is in the checked-out repo
+              audit/knowledge/                     (LF-NNN corpus — pass to audit-context-building)
+              audit/findings/                      (waived.yml, skip-list.yml)
 
             Write deliverables to ${{ env.OUT_DIR }}/:
               curated.sarif  — final SARIF (valid even when zero findings)
               summary.md     — sticky PR comment content
-              status.json    — counts + cost telemetry
+              status.json    — counts + tob_skill_versions
 
             Apply the skill's full workflow, including the cost guardrail in
             Step 1. Do NOT modify any file outside ${{ env.OUT_DIR }}.
+            Do NOT modify any file inside .claude/vendor/tob-skills/ (CC-BY-SA-4.0
+            — see NOTICE).
 
       - name: Upload curated SARIF to Code Scanning
         if: hashFiles(format('{0}/curated.sarif', env.OUT_DIR)) != ''

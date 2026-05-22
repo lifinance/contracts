@@ -25,3 +25,7 @@
 [submodule "lib/Permit2"]
 	path = lib/Permit2
 	url = https://github.com/Uniswap/Permit2
+[submodule ".claude/vendor/tob-skills"]
+	path = .claude/vendor/tob-skills
+	url = https://github.com/trailofbits/skills.git
+	branch = main
