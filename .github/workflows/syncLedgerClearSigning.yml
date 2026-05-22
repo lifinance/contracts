@@ -95,12 +95,29 @@ jobs:
 
           echo -e "\033[32mCloning fork: ${LEDGER_FORK}\033[0m"
           rm -rf ledger-registry
-          git clone "https://x-access-token:${LEDGER_SYNC_TOKEN}@github.com/${LEDGER_FORK}.git" ledger-registry
-
+          # Clone without baking the PAT into remote.origin.url. A token in the
+          # URL persists in `.git/config` and would surface via any later
+          # `git remote -v` / `git config -l` / verbose git invocation. Set an
+          # auth header instead — same effect, token never on disk.
+          git clone "https://github.com/${LEDGER_FORK}.git" ledger-registry
           cd ledger-registry
+          git config "http.https://github.com/.extraheader" "AUTHORIZATION: bearer ${LEDGER_SYNC_TOKEN}"
+
           git remote add upstream "https://github.com/${LEDGER_UPSTREAM}.git"
           git fetch upstream --prune
-          git checkout -B "${SYNC_BRANCH}" "upstream/master"
+
+          # Resolve upstream default branch dynamically. EF has been migrating
+          # repos from `master` to `main`; if this one flips and we hardcoded
+          # `master`, `git checkout -B` would silently fail and drift would
+          # accumulate. Resolving once also covers the `gh pr` invocations below.
+          UPSTREAM_DEFAULT_BRANCH="$(GH_TOKEN="${LEDGER_SYNC_TOKEN}" gh api "repos/${LEDGER_UPSTREAM}" --jq .default_branch)"
+          if [ -z "${UPSTREAM_DEFAULT_BRANCH:-}" ]; then
+            echo -e "\033[31mError: could not resolve default branch for ${LEDGER_UPSTREAM}\033[0m"
+            exit 1
+          fi
+          echo -e "\033[32mUpstream default branch: ${UPSTREAM_DEFAULT_BRANCH}\033[0m"
+
+          git checkout -B "${SYNC_BRANCH}" "upstream/${UPSTREAM_DEFAULT_BRANCH}"
           cd ..
 
           echo -e "\033[32mRegenerating ${LEDGER_FILE_PATH} (abi + deployments + display.formats merge; metadata preserved)...\033[0m"
@@ -146,7 +163,7 @@ jobs:
           ##### Resolve existing PR (if any) by head ref.
           ##### Use API query since `gh pr list --head` can be inconsistent with OWNER:BRANCH.
           resolve_pr_url() {
-            gh api "repos/${LEDGER_UPSTREAM}/pulls?state=open&head=${HEAD_REF}&base=master" --jq '.[0].html_url' 2>/dev/null || true
+            gh api "repos/${LEDGER_UPSTREAM}/pulls?state=open&head=${HEAD_REF}&base=${UPSTREAM_DEFAULT_BRANCH}" --jq '.[0].html_url' 2>/dev/null || true
           }
 
           EXISTING_PR_URL="$(resolve_pr_url)"
@@ -173,7 +190,7 @@ jobs:
 
             ##### If a PR already exists, `gh pr create` exits non-zero; treat as non-fatal and resolve via list.
             if gh pr create --repo "${LEDGER_UPSTREAM}" \
-              --base master \
+              --base "${UPSTREAM_DEFAULT_BRANCH}" \
               --head "${HEAD_REF}" \
               --title "${PR_TITLE}" \
               --body "${PR_BODY}" >/dev/null; then

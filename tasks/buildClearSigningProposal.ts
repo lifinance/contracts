@@ -59,23 +59,23 @@ function collectFns(): IAbiFn[] {
   const fnNames = new Set<string>()
   const out: Record<string, IAbiFn> = {}
 
-  const facetFiles = fs
-    .readdirSync(facetsDir)
-    .filter((f) => f.endsWith('.sol'))
+  const facetFiles = fs.readdirSync(facetsDir).filter((f) => f.endsWith('.sol'))
   for (const f of facetFiles) {
     const artifact = path.join(OUT_DIR, f, f.replace(/\.sol$/u, '.json'))
     if (!fs.existsSync(artifact)) continue
     const json = JSON.parse(fs.readFileSync(artifact, 'utf8')) as {
       abi: IAbiFn[]
     }
+    // No name-prefix allow-list here: collect every public function the facet
+    // exposes, and let main() classify. If a new user-facing entry-point lands
+    // (e.g. `executeIntent`) without a matching template AND without a matching
+    // skip-list entry, the unrecognized-prefix branch in main() fires and CI
+    // fails loudly — instead of silently shipping a descriptor that omits the
+    // new selector. (Previously the allow-list `^(startBridgeTokensVia|...)`
+    // here silently dropped any unrecognized name before classification,
+    // making the strict failure unreachable. See PR #1821 review.)
     for (const item of json.abi ?? []) {
       if (item.type !== 'function') continue
-      if (
-        !/^(startBridgeTokensVia|swapAndStartBridgeTokensVia|swapTokens)/u.test(
-          item.name
-        )
-      )
-        continue
       const sig = signature(item)
       if (out[sig]) continue
       out[sig] = item
@@ -181,15 +181,27 @@ function validateSwapAndStartFn(fn: IAbiFn): string | null {
 }
 
 const HIDDEN_BRIDGE_FIELDS: IField[] = [
-  { path: '_bridgeData.transactionId', label: 'Transaction Id', visible: 'never' },
+  {
+    path: '_bridgeData.transactionId',
+    label: 'Transaction Id',
+    visible: 'never',
+  },
   { path: '_bridgeData.bridge', label: 'Bridge', visible: 'never' },
   { path: '_bridgeData.integrator', label: 'Integrator', visible: 'never' },
   { path: '_bridgeData.referrer', label: 'Referrer', visible: 'never' },
-  { path: '_bridgeData.hasSourceSwaps', label: 'Has Source Swaps', visible: 'never' },
-  { path: '_bridgeData.hasDestinationCall', label: 'Has Destination Call', visible: 'never' },
+  {
+    path: '_bridgeData.hasSourceSwaps',
+    label: 'Has Source Swaps',
+    visible: 'never',
+  },
+  {
+    path: '_bridgeData.hasDestinationCall',
+    label: 'Has Destination Call',
+    visible: 'never',
+  },
 ]
 
-const RECEIVER_FIELD: IField= {
+const RECEIVER_FIELD: IField = {
   path: '_bridgeData.receiver',
   label: 'Recipient',
   format: 'addressName',
@@ -197,7 +209,7 @@ const RECEIVER_FIELD: IField= {
   visible: 'always',
 }
 
-const CHAIN_FIELD: IField= {
+const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
   // No first-class "chainId" formatter in ERC-7730 v2; raw uint is rendered as-is.
@@ -212,8 +224,11 @@ function bridgeFacetName(fnName: string): string {
   const m = fnName.match(
     /^(?:startBridgeTokensVia|swapAndStartBridgeTokensVia)(.+)$/u
   )
-  if (!m) return fnName
-  return m[1].replace(/(ERC20|Native)?(Packed|Min)?$/u, '').trim() || m[1]
+  if (!m || !m[1]) return fnName
+  const captured = m[1]
+  return (
+    captured.replace(/(ERC20|Native)?(Packed|Min)?$/u, '').trim() || captured
+  )
 }
 
 function variantTag(fnName: string): string | null {
@@ -225,8 +240,8 @@ function variantTag(fnName: string): string | null {
   const layer = /HopL1/u.test(fnName)
     ? 'L1'
     : /HopL2/u.test(fnName)
-      ? 'L2'
-      : null
+    ? 'L2'
+    : null
   const bits: string[] = []
   if (layer) bits.push(layer)
   if (native) bits.push('native')
@@ -286,10 +301,26 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
       CHAIN_FIELD,
       RECEIVER_FIELD,
       ...HIDDEN_BRIDGE_FIELDS,
-      { path: '_swapData.[].callData', label: 'Swap Data Call Data', visible: 'never' },
-      { path: '_swapData.[].callTo', label: 'Swap Data Call To', visible: 'never' },
-      { path: '_swapData.[].approveTo', label: 'Swap Data Approve To', visible: 'never' },
-      { path: '_swapData.[].requiresDeposit', label: 'Swap Data Requires Deposit', visible: 'never' },
+      {
+        path: '_swapData.[].callData',
+        label: 'Swap Data Call Data',
+        visible: 'never',
+      },
+      {
+        path: '_swapData.[].callTo',
+        label: 'Swap Data Call To',
+        visible: 'never',
+      },
+      {
+        path: '_swapData.[].approveTo',
+        label: 'Swap Data Approve To',
+        visible: 'never',
+      },
+      {
+        path: '_swapData.[].requiresDeposit',
+        label: 'Swap Data Requires Deposit',
+        visible: 'never',
+      },
     ],
   }
 }
@@ -326,8 +357,16 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
       { path: '_transactionId', label: 'Transaction Id', visible: 'never' },
       { path: '_integrator', label: 'Integrator', visible: 'never' },
       { path: '_referrer', label: 'Referrer', visible: 'never' },
-      { path: '_swapData.callData', label: 'Swap Data Call Data', visible: 'never' },
-      { path: '_swapData.requiresDeposit', label: 'Swap Data Requires Deposit', visible: 'never' },
+      {
+        path: '_swapData.callData',
+        label: 'Swap Data Call Data',
+        visible: 'never',
+      },
+      {
+        path: '_swapData.requiresDeposit',
+        label: 'Swap Data Requires Deposit',
+        visible: 'never',
+      },
     ],
   },
   swapTokensSingleV3ERC20ToNative: undefined as unknown as IFormatEntry,
@@ -342,7 +381,10 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
 // the existing descriptor's field shape and append `interpolatedIntent`.
 
 SWAP_TEMPLATES.swapTokensSingleV3ERC20ToNative = {
-  ...SWAP_TEMPLATES.swapTokensSingleV3ERC20ToERC20,
+  // Cast: the ERC20ToERC20 entry is the literal object above and always present
+  // at this point. Required because `Record<string, T>` indexed access returns
+  // `T | undefined` under `noUncheckedIndexedAccess`.
+  ...(SWAP_TEMPLATES.swapTokensSingleV3ERC20ToERC20 as IFormatEntry),
 }
 SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
   intent: 'Swap',
@@ -367,10 +409,22 @@ SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
     { path: '_transactionId', label: 'Transaction Id', visible: 'never' },
     { path: '_integrator', label: 'Integrator', visible: 'never' },
     { path: '_referrer', label: 'Referrer', visible: 'never' },
-    { path: '_swapData.callData', label: 'Swap Data Call Data', visible: 'never' },
+    {
+      path: '_swapData.callData',
+      label: 'Swap Data Call Data',
+      visible: 'never',
+    },
     { path: '_swapData.callTo', label: 'Swap Data Call To', visible: 'never' },
-    { path: '_swapData.approveTo', label: 'Swap Data Approve To', visible: 'never' },
-    { path: '_swapData.requiresDeposit', label: 'Swap Data Requires Deposit', visible: 'never' },
+    {
+      path: '_swapData.approveTo',
+      label: 'Swap Data Approve To',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.requiresDeposit',
+      label: 'Swap Data Requires Deposit',
+      visible: 'never',
+    },
   ],
 }
 SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
@@ -402,14 +456,31 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
     { path: '_transactionId', label: 'Transaction Id', visible: 'never' },
     { path: '_integrator', label: 'Integrator', visible: 'never' },
     { path: '_referrer', label: 'Referrer', visible: 'never' },
-    { path: '_swapData.[].callData', label: 'Swap Data Call Data', visible: 'never' },
-    { path: '_swapData.[].callTo', label: 'Swap Data Call To', visible: 'never' },
-    { path: '_swapData.[].approveTo', label: 'Swap Data Approve To', visible: 'never' },
-    { path: '_swapData.[].requiresDeposit', label: 'Swap Data Requires Deposit', visible: 'never' },
+    {
+      path: '_swapData.[].callData',
+      label: 'Swap Data Call Data',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[].callTo',
+      label: 'Swap Data Call To',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[].approveTo',
+      label: 'Swap Data Approve To',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[].requiresDeposit',
+      label: 'Swap Data Requires Deposit',
+      visible: 'never',
+    },
   ],
 }
 SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToNative = {
-  ...SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20,
+  // See note on the SingleV3 variant above re. the cast.
+  ...(SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 as IFormatEntry),
 }
 SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
   intent: 'Swap',
@@ -434,10 +505,26 @@ SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
     { path: '_transactionId', label: 'Transaction Id', visible: 'never' },
     { path: '_integrator', label: 'Integrator', visible: 'never' },
     { path: '_referrer', label: 'Referrer', visible: 'never' },
-    { path: '_swapData.[0].callData', label: 'Swap Data Call Data', visible: 'never' },
-    { path: '_swapData.[0].callTo', label: 'Swap Data Call To', visible: 'never' },
-    { path: '_swapData.[0].approveTo', label: 'Swap Data Approve To', visible: 'never' },
-    { path: '_swapData.[0].requiresDeposit', label: 'Swap Data Requires Deposit', visible: 'never' },
+    {
+      path: '_swapData.[0].callData',
+      label: 'Swap Data Call Data',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[0].callTo',
+      label: 'Swap Data Call To',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[0].approveTo',
+      label: 'Swap Data Approve To',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[0].requiresDeposit',
+      label: 'Swap Data Requires Deposit',
+      visible: 'never',
+    },
   ],
 }
 SWAP_TEMPLATES.swapTokensGeneric = {
@@ -470,11 +557,74 @@ SWAP_TEMPLATES.swapTokensGeneric = {
     { path: '_transactionId', label: 'Transaction Id', visible: 'never' },
     { path: '_integrator', label: 'Integrator', visible: 'never' },
     { path: '_referrer', label: 'Referrer', visible: 'never' },
-    { path: '_swapData.[].callData', label: 'Swap Data Call Data', visible: 'never' },
-    { path: '_swapData.[].callTo', label: 'Swap Data Call To', visible: 'never' },
-    { path: '_swapData.[].approveTo', label: 'Swap Data Approve To', visible: 'never' },
-    { path: '_swapData.[].requiresDeposit', label: 'Swap Data Requires Deposit', visible: 'never' },
+    {
+      path: '_swapData.[].callData',
+      label: 'Swap Data Call Data',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[].callTo',
+      label: 'Swap Data Call To',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[].approveTo',
+      label: 'Swap Data Approve To',
+      visible: 'never',
+    },
+    {
+      path: '_swapData.[].requiresDeposit',
+      label: 'Swap Data Requires Deposit',
+      visible: 'never',
+    },
   ],
+}
+
+// Functions on the diamond that intentionally don't carry a clear-signing entry.
+// Explicit, not pattern-coincidental: a new user-facing verb (e.g. `executeIntent`)
+// must either get a template above OR be added here with a justification.
+// Anything that matches neither hits the unrecognized-prefix failure in main()
+// and blocks the PR via verifyClearSigning.yml.
+const NON_USER_FACING_PREFIXES = [
+  'init', // initCelerCircleBridge, initHop, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
+  'register', // registerBridge, registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
+  'set', // setApprovalFor*, setCanExecute, setContractSelectorWhitelist, setDeBridgeChainId — owner/admin config
+  'get', // getDeBridgeChainId, getDestinationChainsValue, getPeripheryContract, getStorage, getWhitelistedSelectorsForContract, getAllContractSelectorPairs — view-only
+  'is', // isContractSelectorWhitelisted, isQuoteConsumed — view-only
+  'extract', // extractBridgeData, extractData, extractGenericSwapParameters, extractMainParameters, extractNonEVMAddress, extractSwapData — pure calldata helpers
+  'validate', // validateCalldata, validateDestinationCalldata — pure
+  'batchSet', // batchSetContractSelectorWhitelist — owner-only config
+  'encode_', // encode_startBridgeTokensVia*Packed — off-chain helpers, not signed by users
+  'decode_', // decode_startBridgeTokensVia*Packed — off-chain helpers, not signed by users
+]
+const NON_USER_FACING_NAMES = new Set([
+  // Diamond / ownership / admin one-offs
+  'owner',
+  'facets',
+  'facetAddress',
+  'facetAddresses',
+  'facetFunctionSelectors',
+  'supportsInterface',
+  'diamondCut',
+  'removeFacet',
+  'transferOwnership',
+  'cancelOwnershipTransfer',
+  'confirmOwnershipTransfer',
+  'pauseDiamond',
+  'unpauseDiamond',
+  'addressCanExecuteMethod',
+  // Admin/relayer-only; users do not sign these directly. If a wallet integration
+  // ever wants clear-signing for owner-side recovery flows, classify and remove.
+  'withdraw', // WithdrawFacet — owner-only recovery
+  'triggerRefund', // CBridge refund — admin-side
+  'executeCallAndWithdraw', // operator-only utility
+])
+
+function isKnownNonUserFacing(name: string): boolean {
+  if (NON_USER_FACING_NAMES.has(name)) return true
+  for (const prefix of NON_USER_FACING_PREFIXES)
+    if (name.startsWith(prefix)) return true
+  return false
 }
 
 function main() {
@@ -490,6 +640,11 @@ function main() {
 
   for (const fn of fns) {
     const sig = signature(fn)
+    // Skip known non-user-facing functions explicitly (admin, init, view,
+    // helpers). Keeping the skip-list here rather than at collection time
+    // means new user-facing verbs not in either the templates or the skip
+    // list still fall through to the failure branch below.
+    if (isKnownNonUserFacing(fn.name)) continue
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
       if (!tpl) {
@@ -531,7 +686,7 @@ function main() {
       out[sig] = buildStartFormat(fn)
     } else {
       failures.push(
-        `${sig}\n      reason: unrecognized prefix — function name "${fn.name}" doesn't match any classifier (startBridgeTokensVia / swapAndStartBridgeTokensVia / swapTokens / *Packed / *Min).\n      fix:    if this is a user-facing entry-point, add a new classifier branch in buildClearSigningProposal.ts main(). If not, narrow the collectFns() regex to exclude it.`
+        `${sig}\n      reason: unrecognized prefix — function name "${fn.name}" doesn't match any classifier (startBridgeTokensVia / swapAndStartBridgeTokensVia / swapTokens / *Packed / *Min) and isn't in the explicit non-user-facing skip-list.\n      fix:    if this is a user-facing entry-point, add a new classifier branch in buildClearSigningProposal.ts main(). If not, add it to NON_USER_FACING_NAMES / NON_USER_FACING_PREFIXES at the top of main() with a one-line justification.`
       )
     }
   }
