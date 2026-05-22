@@ -112,6 +112,10 @@
   "sei": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
+  "somnia": {
+    "relayReceiver": "0xbf05bdaff9b80cf511f89069410af2d7b1897471",
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "soneium": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },

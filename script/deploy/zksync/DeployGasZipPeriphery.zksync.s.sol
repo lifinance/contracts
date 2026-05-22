@@ -40,14 +40,18 @@ contract DeployScript is DeployScriptBase {
 
         address liFiDiamond = _getConfigContractAddress(path, ".LiFiDiamond");
 
-        // get network's SAFE address to become contract owner for potential fund withdrawals
-        path = string.concat(root, "/config/networks.json");
-
-        address safeAddress = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".safeAddress")
+        // refundWallet becomes contract owner for potential fund withdrawals
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
         );
 
-        return abi.encode(gasZipRouter, liFiDiamond, safeAddress);
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
+
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+
+        return abi.encode(gasZipRouter, liFiDiamond, refundWalletAddress);
     }
 }

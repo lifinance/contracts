@@ -11,6 +11,14 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { WETH } from "solady/tokens/WETH.sol";
 import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 
+// TODO(EXSC-241): next time this file is updated, route ERC20 transfers
+//                 through LibAsset instead of SafeTransferLib for codebase
+//                 consistency (the rest of the periphery is moving that
+//                 way). Deferred now because bumping this contract drifts
+//                 the repo from deployed bytecode on chains where it's
+//                 already live. Re-enable once EXSC-330 (commit hash
+//                 stored in deploy log) makes that drift recoverable via
+//                 re-verification.
 /// @title TokenWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens

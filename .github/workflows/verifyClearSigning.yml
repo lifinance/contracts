@@ -1,0 +1,70 @@
+# Verify Clear-Signing Proposal is Current
+# - Purpose: block PRs that change facets / the generator / the proposal JSON without keeping `config/clearSigningProposal.json` in sync with the generator's output. Also blocks PRs that introduce a user-facing function the generator can't template.
+# - Triggers: pull_request on src/Facets/**, tasks/buildClearSigningProposal.ts, config/clearSigningProposal.json, and the workflow itself
+# - Key behaviors: builds forge artifacts, runs `tasks/buildClearSigningProposal.ts` (strict-by-default; exits non-zero on unrecognized or shape-mismatched functions), then `git diff --exit-code` on the committed JSON
+# - Failure modes (and remedy):
+#     - Generator exited non-zero: a user-facing function doesn't match a template. Either align the facet's struct shape with LiFi.BridgeData / LibSwap.SwapData, or extend the generator (`tasks/buildClearSigningProposal.ts`) to handle the new shape.
+#     - Diff non-empty: `config/clearSigningProposal.json` is stale relative to the generator's current output. Run `bunx tsx tasks/buildClearSigningProposal.ts` locally and commit the result.
+# - Note: this workflow is the human-in-the-loop. The auto-sync workflow (`syncLedgerClearSigning.yml`) trusts that this gate has passed before main.
+
+name: Verify Clear-Signing Proposal
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/Facets/**'
+      - 'tasks/buildClearSigningProposal.ts'
+      - 'config/clearSigningProposal.json'
+      - '.github/workflows/verifyClearSigning.yml'
+
+permissions:
+  contents: read # required to fetch repository contents
+
+jobs:
+  verify-clear-signing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+          persist-credentials: false # gate does not need repo auth on the runner
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+
+      - name: Build contracts (generate Foundry artifacts)
+        run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
+
+      - name: Run clear-signing generator (strict mode)
+        # `tasks/buildClearSigningProposal.ts` exits non-zero on any user-facing
+        # function it can't confidently template (unrecognized prefix, struct
+        # shape mismatch, swapTokens variant without a hardcoded template).
+        # That failure is the "you added a facet without a clear-signing plan"
+        # signal — the PR cannot merge until either the facet's struct matches
+        # the canonical shape or the generator is extended to handle the new
+        # shape.
+        run: bunx tsx tasks/buildClearSigningProposal.ts
+
+      - name: Verify config/clearSigningProposal.json is up-to-date
+        # The generator just wrote a fresh proposal. If it differs from the
+        # committed copy, the PR forgot to regenerate after a relevant change.
+        # `--exit-code` makes `git diff` return non-zero on any diff; the
+        # explicit verbose diff in the error path gives the dev a copy-pasteable
+        # remedy.
+        run: |
+          if ! git diff --exit-code config/clearSigningProposal.json; then
+            echo -e "\n\033[31m❌ config/clearSigningProposal.json is stale.\033[0m"
+            echo -e "\033[33mRun this locally and commit the result:\033[0m"
+            echo "  bunx tsx tasks/buildClearSigningProposal.ts"
+            echo "  git add config/clearSigningProposal.json"
+            exit 1
+          fi
+          echo -e "\033[32m✓ proposal is current\033[0m"

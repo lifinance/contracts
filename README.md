@@ -1,4 +1,4 @@
-[![Forge](https://github.com/lifinance/contracts/actions/workflows/forge.yml/badge.svg)](https://github.com/lifinance/contracts/actions/workflows/forge.yml)
+[![Forge](https://github.com/lifinance/contracts/actions/workflows/forge-unit-tests.yml/badge.svg)](https://github.com/lifinance/contracts/actions/workflows/forge-unit-tests.yml)
 
 # LI.FI Smart Contracts
 
@@ -157,7 +157,7 @@ contracts
 
 - Node.js (v18 or later)
 - Bun (latest version)
-- Foundry (latest version)
+- Foundry (pinned via `.foundry-version`)
 - Git
 - Cursor IDE (recommended) or VSCode
 
@@ -177,7 +177,15 @@ bun i
 forge install
 ```
 
-3. Set up environment variables:
+3. Install the pinned Foundry version:
+
+```bash
+foundryup --install "$(cat .foundry-version)"
+```
+
+The pre-commit hook and CI verify that your installed `forge` matches `.foundry-version` and refuse to run on mismatch. To bump the pin, change `.foundry-version` in a PR — every workflow and dev environment picks it up automatically.
+
+4. Set up environment variables:
 
 ```bash
 cp .env.example .env

@@ -1,0 +1,19 @@
+{
+  "_comment": "Pinned Claude Code marketplaces + plugins. Source of truth for script/claude/install.mjs. settings.json's extraKnownMarketplaces / enabledPlugins are CLI-managed (the CLI strips pinned SHAs when it normalizes them) — pins live here so they survive CLI rewrites and are tamper-evident in code review.",
+  "marketplaces": {
+    "obra-superpowers": {
+      "repo": "obra/superpowers",
+      "ref": "v5.1.0",
+      "sha": "f2cbfbefebbfef77321e4c9abc9e949826bea9d7"
+    },
+    "anthropics-claude-plugins-official": {
+      "repo": "anthropics/claude-plugins-official",
+      "ref": "main",
+      "sha": "61b760aafc986e7eb2577a86163407b7d83b5471"
+    }
+  },
+  "plugins": [
+    "superpowers@obra-superpowers",
+    "skill-creator@anthropics-claude-plugins-official"
+  ]
+}

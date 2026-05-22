@@ -1,0 +1,60 @@
+# Composite action: install pinned foundry + verify (with caching)
+# - Reads .foundry-version from the checked-out repo
+# - Installs foundry at that version via foundry-rs/foundry-toolchain
+# - Restores ~/.foundry / ~/.svm (solc downloads) and cache/ + out/ (forge build artifacts)
+#   between runs to skip redundant downloads and recompilation.
+# - Verifies the installed binary matches the pin (catches action regressions or input typos)
+# Used by every workflow that needs forge/cast/anvil so a single pin source
+# (.foundry-version) flows everywhere.
+name: Setup Foundry
+description: Install pinned foundry from .foundry-version, restore solc + forge build caches, and verify the installed binary matches.
+
+runs:
+  using: composite
+  steps:
+    - name: Read pinned foundry version
+      id: pin
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="$(tr -d '[:space:]' < .foundry-version)"
+        if [ -z "$version" ]; then
+          echo "::error::.foundry-version is empty"
+          exit 1
+        fi
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Foundry toolchain state (svm + foundryup)
+      # Restored before the install step so foundry-toolchain can detect an existing
+      # matching install and skip the download on a cache hit. Version is folded into
+      # the cache key so a foundry bump invalidates the cache automatically and we
+      # never mix solc binaries across foundry versions.
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          ~/.foundry
+          ~/.svm
+        key: foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml') }}
+        restore-keys: |
+          foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
+      with:
+        version: ${{ steps.pin.outputs.version }}
+
+    - name: Cache forge build artifacts (cache/, out/)
+      # Key on every input that influences compilation. A cache miss falls back to
+      # a clean build with no behavior change.
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          cache
+          out
+        key: forge-build-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml', 'remappings.txt', 'src/**', 'test/**', 'lib/**') }}
+        restore-keys: |
+          forge-build-${{ runner.os }}-${{ steps.pin.outputs.version }}-
+
+    - name: Verify foundry version
+      shell: bash
+      run: bash script/utils/verify-foundry-version.sh
