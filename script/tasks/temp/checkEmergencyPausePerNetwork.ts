@@ -83,7 +83,7 @@ interface IEmergencyPauseStatus {
   environment: Environment
   chainId: number
   diamondAddress: Address | null
-  selectors: Record<SelectorName, boolean> | null
+  selectors: Record<SelectorName, boolean | null> | null
   hasEmergencyPauseFacet: boolean | null
   pauserWalletOnChain: Address | null
   pauserWalletExpected: Address
@@ -333,14 +333,16 @@ async function checkNetworkEmergencyPause(
   await sleep()
 
   if (pause.status === 'PAUSED') {
-    // A DiamondIsPaused() revert from owner() is itself proof EmergencyPauseFacet
-    // is installed — pauseDiamond() can only be reached through it, and its own
-    // four selectors stay routed (the facet excludes itself from the redirect).
+    // DiamondIsPaused() proves EmergencyPauseFacet was installed at pause time,
+    // but the loupe is unreachable so individual selectors can't be re-verified
+    // here — a later diamondCut could have removed removeFacet/unpauseDiamond/
+    // pauserWallet. Mark facet-installed as true, leave per-selector flags
+    // unknown so drift stays visible instead of being papered over.
     result.selectors = {
-      pauseDiamond: true,
-      removeFacet: true,
-      unpauseDiamond: true,
-      pauserWallet: true,
+      pauseDiamond: null,
+      removeFacet: null,
+      unpauseDiamond: null,
+      pauserWallet: null,
     }
     result.hasEmergencyPauseFacet = true
   } else
@@ -364,8 +366,9 @@ async function checkNetworkEmergencyPause(
   await sleep()
 
   // pauserWallet() stays callable while paused (its selector is never redirected),
-  // so attempt it whenever EmergencyPauseFacet appears installed.
-  if (result.selectors?.pauserWallet)
+  // so attempt it whenever EmergencyPauseFacet appears installed — including the
+  // PAUSED branch where per-selector flags are intentionally left unknown.
+  if (pause.status === 'PAUSED' || result.selectors?.pauserWallet === true)
     try {
       const raw = (await publicClient.readContract({
         address: diamond,
