@@ -1,0 +1,182 @@
+# LI.FI Security Review Pipeline
+
+> Tracker: [EXP-440](https://linear.app/lifi-linear/issue/EXP-440).
+> This document is the operational manual for the automated security review
+> that runs on every PR. Read this before you waive a finding, override the
+> check, or add new rules.
+
+## Setup (one-time, per repo)
+
+Before the workflow can run for the first time, a repo admin must:
+
+1. **Create a GitHub Environment** named `security-review` (Settings → Environments → New environment). This isolates the Anthropic credentials.
+2. **Add `ANTHROPIC_API_KEY`** as an _environment secret_ on that environment (not a plain repo secret).
+3. **Enable GitHub Code Scanning** (Settings → Code security and analysis → Code scanning). The Stage 1 + curated SARIF uploads require it.
+4. (Optional, recommended) Add required reviewers on the environment so the AI triage step can't run without approval on forks.
+
+## Architecture
+
+```
+                  ┌─────────── Stage 1: deterministic ────────────┐
+                  │  Slither    Aderyn    Semgrep (LI.FI rules)   │
+                  │     │         │           │                   │
+                  │     ▼         ▼           ▼                   │
+                  │   slither.sarif  aderyn.sarif  semgrep.sarif  │
+                  └─────────────────┬─────────────────────────────┘
+                                    │
+                  ┌─────────────────▼─── Stage 2: AI triage ──────┐
+                  │  lifi-pr-review (claude-code-action)          │
+                  │    Track A: triage via 4-gate FP filter       │
+                  │    Track B: review the PR diff for new risks  │
+                  │    Inputs: SARIF + diff + audit/knowledge/    │
+                  │    Output: curated.sarif + summary.md         │
+                  └─────────────────┬─────────────────────────────┘
+                                    │
+                  ┌─────────────────▼─── Stage 3: publish ────────┐
+                  │  upload curated.sarif → Code Scanning         │
+                  │  sticky PR comment with summary.md            │
+                  │  status check: advisory (EXP-485 flips)       │
+                  └───────────────────────────────────────────────┘
+```
+
+Per-stage detail, source, and ownership:
+
+| Stage | Where it runs                                      | Source of truth                                 | Ticket  |
+| ----- | -------------------------------------------------- | ----------------------------------------------- | ------- |
+| 1     | 3 parallel jobs in `.github/workflows/security-review.yml` | Tool releases + `audit/knowledge/semgrep/*.yml` | EXP-480 |
+| 2     | `lifi-pr-review` job (depends on Stage 1)          | `.agents/commands/lifi-pr-review.md` skill      | EXP-483 |
+| 3     | Steps inside the `lifi-pr-review` job              | Same workflow file                              | EXP-483 |
+| corpus| `audit/knowledge/` (committed)                     | `.agents/commands/extract-audit-knowledge.md`   | EXP-478, EXP-479 |
+
+## Triggers
+
+The workflow runs on every `pull_request` (opened, synchronize, reopened,
+ready_for_review) that modifies files matching:
+
+- `src/**`
+- `audit/knowledge/**` (custom rule changes re-trigger so the new rules run on the same PR)
+
+Draft PRs are skipped. The workflow is also `concurrency`-grouped per PR so
+new commits cancel stale in-flight runs.
+
+## How to read the output
+
+Three surfaces present results:
+
+1. **Inline annotations** in the "Files changed" tab — one per surviving
+   finding at the exact line. Sourced from `curated.sarif`.
+2. **A single sticky PR comment** posted by `claude-code-action` (re-edited
+   on each push). Summary table + top findings + tools-that-contributed.
+3. **GitHub Code Scanning Security tab** — historic view across all PRs,
+   dedup'd via `partialFingerprints.primaryLocationLineHash`.
+
+Severity mapping in the table:
+
+| Severity | Action                                  | Status check (EXP-485) |
+| -------- | --------------------------------------- | ---------------------- |
+| Critical | Must fix before merge                   | fail                   |
+| High     | Must fix before merge                   | fail                   |
+| Medium   | Should fix; merge with reviewer sign-off | pass                   |
+| Low      | Could fix; informational                | pass                   |
+| Info     | FYI                                     | pass                   |
+
+Until EXP-485 ships, the status check is **advisory** — failing means "look
+at me," not "blocked from merging".
+
+## Waiver workflow
+
+When a finding is a confirmed false positive — repeatable, no security
+impact, won't get better with rule tightening — add a waiver to
+`audit/findings/waived.yml`.
+
+### Process
+
+1. Open a separate PR adding the waiver entry (don't waive in the same PR
+   that introduced the code; reviewers should see the finding once before
+   it's suppressed).
+2. Fill in **all required fields**, especially `rationale` and `expires`.
+3. Get approval from a member of `@smartcontract_core` or above.
+4. Once merged, the next workflow run on any branch will skip the matching
+   finding.
+
+### Don't waive when …
+
+- The rule is too noisy in general — fix the rule under
+  `audit/knowledge/semgrep/` (Semgrep) or open an EXP-484 follow-up for
+  Slither/Aderyn config tuning. Don't suppress per-finding.
+- The finding is real but accepted as an admin-only risk — leave it. It's
+  documented as "centralization-risk by design" elsewhere.
+- The tool will probably fix this in the next release — let it.
+
+### Quarterly review
+
+Per the EXP-485 runbook, the security lead reviews every entry in
+`waived.yml` each quarter. Expired waivers are deleted; near-expiry ones
+either get extended (with fresh rationale) or removed.
+
+## Override path (security emergency)
+
+If a real exploit is being hot-fixed and the security review is blocking the
+merge:
+
+1. Open the PR as a **draft** first — Stage 2 runs but doesn't gate.
+2. Get explicit Slack approval from `@smartcontract_core_lead` (or named
+   alternate).
+3. Move to ready-for-review and merge with the override label.
+4. **Within 24 hours**, open the follow-up that addresses any remaining
+   findings or adds a documented waiver.
+
+This is an escape hatch, not a workflow. Three uses in a rolling 90 days
+triggers a process review.
+
+## Adding a custom Semgrep rule
+
+New rules go under `audit/knowledge/semgrep/lf-NNN-<name>.yml`. Each rule:
+
+- Must have a stable id (`lf-NNN-<short-name>`) cross-referencing an LF-NNN
+  finding in `audit/knowledge/findings.json`.
+- Must pass `semgrep --validate --config audit/knowledge/semgrep` locally
+  before commit.
+- Should include `# TODO(EXP-484): …` if the precision is known-low so
+  EXP-484 can revisit.
+
+See `audit/knowledge/semgrep/README.md` for the rule conventions.
+
+## Cost & runtime
+
+| Stage | Typical runtime | Cost (per PR) |
+| ----- | --------------- | ------------- |
+| 1     | 1–3 min         | free (CI)     |
+| 2     | 30–60 s         | $0.05–$0.40   |
+| 3     | <10 s           | free          |
+
+Steady-state per-PR API cost is dominated by Track A re-reading the audit
+knowledge corpus. Prompt caching brings it down ~90% in normal operation
+once cached.
+
+For PRs >30 changed src/ files (rare), Stage 2 self-skips with a "PR too
+large for AI triage" notice and Stage 1 SARIF remains visible. Request a
+manual security review for those.
+
+## Troubleshooting
+
+| Symptom                                          | Cause / fix                                                                       |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Stage 2 fails with "ANTHROPIC_API_KEY not set"  | The secret hasn't been provisioned — check repo secrets                            |
+| Sticky comment isn't updating                    | `claude-code-action` checks comment id; deleting the existing comment recreates it |
+| Too many findings on a small PR                  | Probably hit a noisy Slither rule. Open an EXP-484-tag issue; don't waive each one |
+| Inline annotations missing but Security tab has them | Code Scanning indexing lag; usually settles within 5 min                        |
+| AI triage flagged something obviously wrong      | First, check if it cites an LF-NNN — if so, the past finding's recognition_signal needs tightening. Open a follow-up PR to `audit/knowledge/findings.json`. |
+
+## Related
+
+- `EXP-440` — parent ticket with the full design
+- `EXP-478` — `extract-audit-knowledge` skill
+- `EXP-479` — corpus + seed Semgrep rules
+- `EXP-480` — Stage 1 workflow
+- `EXP-482` — noise baseline ([docs/security-review-baseline.md](security-review-baseline.md))
+- `EXP-483` — this skill + Stages 2 + 3 workflow
+- `EXP-484` — tune precision, retire waivers
+- `EXP-485` — flip from advisory to enforcing
+- `EXP-486` — nightly full-repo Pashov scan
+- `EXP-487` — auto-generate Semgrep rules from confirmed findings

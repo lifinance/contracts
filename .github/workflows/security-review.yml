@@ -1,17 +1,25 @@
-# Security Review — Stage 1 (deterministic static analysis)
-# - Runs Slither and Semgrep in parallel on every non-draft PR that touches
-#   src/** or audit/knowledge/** (rule changes re-trigger).
-# - Each tool emits SARIF; results are uploaded to GitHub Code Scanning with
-#   a per-tool category so they appear inline in the PR diff and aggregate in
-#   the Security tab.
-# - Advisory only in this stage (EXP-480) — the status check is published but
-#   intentionally NOT registered as a required check on branch protection. The
-#   AI triage stage (EXP-483) will add Stages 2 + 3 and the enforcement gate
-#   ships in EXP-485 after the baseline-noise tuning of EXP-484.
-# - Custom Semgrep rules live under audit/knowledge/semgrep/ (seeded in EXP-479).
-#   New rules added there are picked up automatically on the next run.
-# - Each job uses `continue-on-error: true` so a single tool failing (e.g. pip
-#   rate limit, slither dep resolution) does not mask findings from the others.
+# Security Review — Stages 1 + 2 + 3 (deterministic static analysis + AI triage + publish)
+# - Stage 1: Slither and Semgrep run in parallel on every non-draft PR
+#   touching src/** or audit/knowledge/**. Each emits SARIF to Code Scanning
+#   (raw findings visible immediately) AND uploads it as an artifact so Stage 2
+#   can consume it.
+# - Stage 2 (EXP-483): the lifi-pr-review job depends on Stage 1, downloads the
+#   SARIF artifacts, and invokes the /lifi-pr-review skill via
+#   anthropics/claude-code-action. The skill triages static findings through
+#   Pashov's 4-gate FP filter (Track A) AND reviews the PR diff for new risks
+#   (Track B), referencing audit/knowledge/ as cached context. Output:
+#   curated.sarif + summary.md.
+# - Stage 3 (EXP-483): the lifi-pr-review job's final steps upload curated.sarif
+#   to Code Scanning (category "ai-triage") and post/update a sticky PR comment
+#   with the summary. Status check remains advisory until EXP-485 flips it.
+# - Custom Semgrep rules live under audit/knowledge/semgrep/ (seeded in EXP-479);
+#   new rules are picked up automatically on the next run.
+# - Each Stage 1 job uses `continue-on-error: true` so a single tool failing
+#   (pip rate limit, slither dep resolution) does not mask findings from the
+#   others. Stage 2 also runs `continue-on-error: true` and `if: always()` so
+#   that triage runs on whatever SARIF Stage 1 produced.
+# - See docs/security-review.md for the operational manual (waivers, override
+#   path, etc.).
 
 name: Security Review
 
@@ -68,6 +76,15 @@ jobs:
         with:
           sarif_file: slither.sarif
           category: slither
+
+      - name: Archive Slither SARIF for Stage 2
+        # Stage 2 (lifi-pr-review) downloads this artifact to triage findings.
+        if: always() && hashFiles('slither.sarif') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: stage1-slither-sarif
+          path: slither.sarif
+          retention-days: 7
 
   semgrep:
     # Semgrep: runs the custom LI.FI rules under audit/knowledge/semgrep/
@@ -141,3 +158,149 @@ jobs:
         with:
           sarif_file: semgrep.sarif
           category: semgrep
+
+      - name: Archive Semgrep SARIF for Stage 2
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: stage1-semgrep-sarif
+          path: semgrep.sarif
+          retention-days: 7
+
+  lifi-pr-review:
+    # Stages 2 + 3 (EXP-483): triage Stage 1 SARIF + review the diff for new
+    # risks via Claude, emit curated SARIF + sticky PR summary comment.
+    #
+    # Runs after all three Stage 1 jobs regardless of their success — if a
+    # tool failed and produced no SARIF, the triage proceeds with whatever's
+    # available. `continue-on-error: true` keeps the overall workflow advisory.
+    name: lifi-pr-review
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    # Dedicated environment so ANTHROPIC_API_KEY is scoped as an environment
+    # secret (not a plain repo secret) and can carry additional protections
+    # (required reviewers, branch restrictions) configured in repo settings.
+    # The `security-review` environment must exist in the repo settings; see
+    # docs/security-review.md § "Setup".
+    environment: security-review
+    continue-on-error: true # advisory mode (EXP-483); EXP-485 flips this
+    needs: [slither, semgrep]
+    permissions:
+      contents: read
+      pull-requests: write # post/update the sticky summary comment
+      security-events: write # upload curated.sarif to Code Scanning
+    env:
+      SARIF_DIR: /tmp/sarif
+      DIFF_FILE: /tmp/diff.patch
+      PR_FILES: /tmp/pr_files.txt
+      OUT_DIR: /tmp/output
+      # Comment marker the github-script step uses to find an existing comment.
+      COMMENT_MARKER: '<!-- lifi-pr-review:summary -->'
+    steps:
+      - name: Checkout (full history for diff against base)
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare workspace
+        run: |
+          set -euo pipefail
+          mkdir -p "$SARIF_DIR" "$OUT_DIR"
+
+      - name: Download Stage 1 SARIF artifacts
+        # Best-effort: if a Stage 1 job failed before uploading its artifact,
+        # download is allowed to skip that one (continue-on-error per artifact
+        # is achieved by `if: always()` on the upload step combined with the
+        # downloader's own missing-artifact tolerance below).
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ env.SARIF_DIR }}
+          pattern: 'stage1-*-sarif'
+          merge-multiple: true # flatten so all *.sarif end up directly under SARIF_DIR
+
+      - name: Build PR diff context
+        # The lifi-pr-review skill consumes diff + changed-files list to scope
+        # its Track B review and to decide which by-area/*.md files to load.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Three-dot diff = changes on HEAD since branching from base.
+          git diff --no-color "$BASE_SHA...$HEAD_SHA" > "$DIFF_FILE"
+          git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -E '^src/' > "$PR_FILES" || true
+          echo "::group::PR diff stat"
+          git diff --shortstat "$BASE_SHA...$HEAD_SHA"
+          echo "::endgroup::"
+          echo "::group::Changed src/ files ($(wc -l < "$PR_FILES"))"
+          cat "$PR_FILES" || true
+          echo "::endgroup::"
+
+      - name: Run /lifi-pr-review (Stage 2 — AI triage + diff review)
+        # The skill file is at .claude/skills/lifi-pr-review/SKILL.md (already
+        # checked out). claude-code-action loads it automatically. The prompt
+        # below is the invocation directive — all logic lives in the skill.
+        uses: anthropics/claude-code-action@12310e4417c3473095c957cb311b3cf59a38d659 # v1.0.99
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: false # workflow posts the comment in a separate step for control
+          prompt: |
+            Run the /lifi-pr-review skill from .claude/skills/lifi-pr-review/.
+
+            Inputs are already on disk:
+              SARIF_DIR  = ${{ env.SARIF_DIR }}    (slither.sarif, semgrep.sarif — either may be missing)
+              DIFF_FILE  = ${{ env.DIFF_FILE }}    (the PR diff, base..head)
+              PR_FILES   = ${{ env.PR_FILES }}     (changed src/ files, one per line)
+              audit/knowledge/  is in the checked-out repo
+
+            Write deliverables to ${{ env.OUT_DIR }}/:
+              curated.sarif  — final SARIF (valid even when zero findings)
+              summary.md     — sticky PR comment content
+              status.json    — counts + cost telemetry
+
+            Apply the skill's full workflow, including the cost guardrail in
+            Step 1. Do NOT modify any file outside ${{ env.OUT_DIR }}.
+
+      - name: Upload curated SARIF to Code Scanning
+        if: hashFiles(format('{0}/curated.sarif', env.OUT_DIR)) != ''
+        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
+        with:
+          sarif_file: ${{ env.OUT_DIR }}/curated.sarif
+          category: ai-triage
+
+      - name: Post / update sticky PR summary comment
+        if: always()
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        env:
+          SUMMARY_PATH: ${{ env.OUT_DIR }}/summary.md
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = process.env.COMMENT_MARKER;
+            let body;
+            if (fs.existsSync(process.env.SUMMARY_PATH)) {
+              body = `${marker}\n${fs.readFileSync(process.env.SUMMARY_PATH, 'utf8')}`;
+            } else {
+              body = `${marker}\n## 🛡️ Security Review\n\n_Stage 2 (AI triage) did not produce a summary — Stage 1 SARIF is still visible in the Security tab._`;
+            }
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              core.info(`Updated existing comment ${existing.id}`);
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              core.info('Created new summary comment');
+            }
+
+      - name: Archive curated outputs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lifi-pr-review-output
+          path: ${{ env.OUT_DIR }}/
+          retention-days: 7
+          if-no-files-found: ignore

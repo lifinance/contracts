@@ -1,0 +1,34 @@
+# LI.FI security-review false-positive waivers
+#
+# Each entry suppresses a finding that the static tools or AI triage
+# repeatedly flag but the team has explicitly accepted. Waivers are a last
+# resort — prefer fixing the underlying issue or tightening the rule first.
+#
+# Schema (one entry per finding):
+#   - id:              Stable identifier; convention: <TOOL>-<RULE>-<FILE>-L<LINE>
+#                      Used so re-runs don't duplicate this waiver
+#     rule:            The rule id as emitted by the tool (e.g. "missing-zero-check")
+#     tool:            slither | aderyn | semgrep | track-b
+#     file:            Path relative to repo root
+#     line:            Line number, or omit for whole-file waivers
+#     rationale:       Why this is OK; ≥1 sentence explaining the accepted risk
+#     signed_off_by:   GitHub @handle of the approver (must be in @smartcontract_core or above)
+#     expires:         ISO date when this waiver auto-removes (mandatory; max 1 year out)
+#                      Quarterly review per EXP-485 runbook re-verifies waivers
+#
+# Example (commented out — uncomment if you actually want to seed):
+#
+# - id: SLITHER-MISSING-ZERO-CHECK-ACROSSFACET-L47
+#   rule: missing-zero-check
+#   tool: slither
+#   file: src/Facets/AcrossFacet.sol
+#   line: 47
+#   rationale: |
+#     _wrappedNative is set in the constructor and validated by integration
+#     tests; a zero-address here would break deployment immediately, not in
+#     production. Accepting because constructor-only path with deploy-time
+#     coverage.
+#   signed_off_by: '@security-team-lead'
+#   expires: 2027-01-01
+
+waivers: []
