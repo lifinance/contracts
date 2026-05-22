@@ -49,25 +49,23 @@
 
 # ---- Semgrep (LI.FI custom rules) ---------------------------------------
 
-# Semgrep findings come from our own LF-NNN-derived rules. We don't suppress
-# them here — when a rule is systematically too noisy, fix the rule in
-# audit/knowledge/semgrep/ rather than suppress per-finding.
+# Semgrep findings come from our own LF-NNN-derived rules. We don't
+# suppress them here — when a rule is systematically too noisy, fix the
+# rule pattern in audit/knowledge/semgrep/ rather than suppress per-finding.
 #
-# Open EXP-484 tuning items (rule patterns to tighten, not suppress here):
+# Closed under EXP-484 (commits in feature/exp-483-lifi-pr-review-skill):
+# - lf-046-bytes32-nonevm-receiver — restructured to use `patterns:` AND-
+#   conjunction so the metavariable-regex constraint is actually applied;
+#   tightened regex to only match names containing "nonEvm/btc/bitcoin"
+#   + "receiver". Solana removed (Solana addresses safely fit in 32 bytes).
+# - lf-029-shared-modifier-parallel-fields — excludes reads inside
+#   keccak256/abi.encode/abi.encodePacked (signature binding), inside
+#   equality/inequality checks (the guard), and inside
+#   LibUtil.validateReceiver(...). Also excludes _bridgeData.receiver
+#   (canonical parent — only flags bridge-SPECIFIC structs).
+# - lf-053-loop-msg-value — requires an enclosing for/while/do-while
+#   loop. Eliminates the single-swap FP class.
 #
-# - lf-046-bytes32-nonevm-receiver — over-broad for protocols that natively
-#   use bytes32 receivers (CCTP, Across V4, LayerZero, Wormhole). Needs
-#   `metavariable-pattern` scoping to non-EVM destinations only.
-#   Evidence: PR #1731 (PolymerCCTP) hit 4 FPs at lines 28, 43, 45, 214.
-#
-# - lf-029-shared-modifier-parallel-fields — matches signed-payload-binding
-#   patterns where _bridgeData.receiver is included in
-#   keccak256(abi.encode(...)) for EIP-712, AND matches code-path
-#   divergence inside if/else (not a parallel-field bug). Needs
-#   `pattern-not-inside` to exclude.
-#   Evidence: PR #1731 hit 4 FPs at lines 194, 196, 203, 255 (all in
-#   if/else branches, not parallel reads).
-#
-# - lf-053-loop-msg-value — matches single-swap `.call{value: msg.value}`
-#   sites (not in loops). Pattern should require an enclosing for/while.
-#   Evidence: PR #1715 hit 1 FP at line 172 (single-swap entry function).
+# Validation: total semgrep findings across PR #1715/#1731/#1711 dropped
+# from 19 → 3 (84%). Remaining 3 are legitimate concerns routed to
+# fp-check.
