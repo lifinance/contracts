@@ -111,5 +111,5 @@ jobs:
           # cleanly without YAML's single-quote escaping.
           payload: |
             {
-              "text": "ATTENTION - the emergency diamond pause action was just executed on PROD by ${{ github.actor }} — ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }} — ${{ steps.jobinfo.outputs.url }}"
+              "text": "ATTENTION - PROD emergency-pause workflow was triggered by ${{ github.actor }} — ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }} — ${{ steps.jobinfo.outputs.url }}"
             }
