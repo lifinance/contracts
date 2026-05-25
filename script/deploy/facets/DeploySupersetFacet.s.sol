@@ -29,15 +29,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".poolManager.", network)
         );
 
-        string memory networksPath = string.concat(
-            root,
-            "/config/networks.json"
-        );
-        address wrappedNative = _getConfigContractAddress(
-            networksPath,
-            string.concat(".", network, ".wrappedNativeAddress")
-        );
-
-        return abi.encode(poolManager, wrappedNative);
+        return abi.encode(poolManager);
     }
 }

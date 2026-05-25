@@ -114,6 +114,11 @@ destination spoke. Both `refundAddress` and `receiver` must be addresses the
 end user can recover funds from; smart-wallet users should consider their
 recovery path before bridging.
 
+## Native Source Asset
+
+Superset does not support native as a source asset, so the facet rejects it.
+Both entry points apply the shared `noNativeAsset` modifier.
+
 ## Destination Calldata
 
 Superset does not relay arbitrary destination calldata. The facet rejects

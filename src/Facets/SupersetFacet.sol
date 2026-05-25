@@ -12,10 +12,6 @@ import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
-interface IWETH {
-    function deposit() external payable;
-}
-
 /// @title SupersetFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Bridges stablecoins via Superset's hub-and-spoke virtual pools
@@ -24,6 +20,7 @@ interface IWETH {
 ///         the facet is deployed on the hub chain or on a spoke chain. The branch
 ///         is selected by `IS_HUB`, derived once at construction time from
 ///         `block.chainid`. Storage layout is identical across deployments.
+///         Native source asset is not supported because Superset does not support it.
 ///         This contract is not intended to custody user funds. Any balance held
 ///         is transient during a single transaction and should not persist across calls.
 /// @custom:version 1.0.0
@@ -50,10 +47,6 @@ contract SupersetFacet is
     /// @notice True when this facet was deployed on Superset's hub chain (Arbitrum).
     // solhint-disable-next-line immutable-vars-naming
     bool public immutable IS_HUB;
-
-    /// @notice Wrapped-native (WETH) token address on the current chain.
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable WRAPPED_NATIVE;
 
     /// Types ///
 
@@ -92,8 +85,7 @@ contract SupersetFacet is
     /// @notice Thrown when `fallbackEoA` is a contract (i.e. has bytecode).
     error InvalidFallbackEoA(address fallbackEoA);
 
-    /// @notice Thrown when `msg.value` does not cover the declared `lzFee`
-    ///         (plus `minAmount` for native bridges).
+    /// @notice Thrown when `msg.value` does not cover the declared `lzFee`.
     error InsufficientNativeValue();
 
     /// @notice Thrown when `SupersetData.path` is shorter than the minimum encoding
@@ -104,13 +96,11 @@ contract SupersetFacet is
 
     /// @param _poolManager Superset `HubPoolManager` on Arbitrum or `SpokePoolManager` on
     ///        a spoke chain. The facet auto-detects role via `block.chainid`.
-    /// @param _wrappedNative Wrapped-native token address on the current chain.
-    constructor(address _poolManager, address _wrappedNative) {
-        if (_poolManager == address(0) || _wrappedNative == address(0)) {
+    constructor(address _poolManager) {
+        if (_poolManager == address(0)) {
             revert InvalidConfig();
         }
         POOL_MANAGER = _poolManager;
-        WRAPPED_NATIVE = _wrappedNative;
         IS_HUB = block.chainid == ARBITRUM_CHAIN_ID;
     }
 
@@ -128,11 +118,15 @@ contract SupersetFacet is
         nonReentrant
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
         _validateSupersetData(_bridgeData, _supersetData);
-        _enforceNativeValue(_bridgeData, _supersetData);
+
+        if (msg.value < _supersetData.lzFee) {
+            revert InsufficientNativeValue();
+        }
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -158,6 +152,7 @@ contract SupersetFacet is
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
     {
         _validateSupersetData(_bridgeData, _supersetData);
 
@@ -183,7 +178,8 @@ contract SupersetFacet is
 
     /// Internal Methods ///
 
-    /// @dev Validates Superset-specific data. Reverts on misconfiguration.
+    /// @dev Validates Superset-specific data. Native source asset is rejected
+    ///      by the `noNativeAsset` modifier on each external entry.
     /// @param _bridgeData Core LI.FI bridge data
     /// @param _supersetData Superset-specific parameters
     function _validateSupersetData(
@@ -208,42 +204,16 @@ contract SupersetFacet is
         }
     }
 
-    /// @dev Enforces that msg.value covers lzFee (and minAmount for native bridges).
-    ///      Only called from the bridge-only entry; the swap variant reserves lzFee
-    ///      via `_depositAndSwap`, which itself fails if msg.value is insufficient.
-    function _enforceNativeValue(
-        ILiFi.BridgeData calldata _bridgeData,
-        SupersetData calldata _supersetData
-    ) internal view {
-        uint256 required = _supersetData.lzFee;
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            required += _bridgeData.minAmount;
-        }
-        if (msg.value < required) {
-            revert InsufficientNativeValue();
-        }
-    }
-
-    /// @dev Bridge execution: wraps native if needed, approves, calls Superset's
-    ///      hub or spoke pool manager depending on `IS_HUB`.
+    /// @dev Bridge execution: approves the pool manager, then calls the hub or spoke
+    ///      ABI depending on `IS_HUB`.
     /// @param _bridgeData Core LI.FI bridge data
     /// @param _supersetData Superset-specific parameters
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         SupersetData memory _supersetData
     ) internal {
-        address inputToken = _bridgeData.sendingAssetId;
-
-        if (LibAsset.isNativeAsset(inputToken)) {
-            // Superset's pool manager pulls tokens via `safeTransferFrom`, so
-            // native must be wrapped locally. The path's first omniTokenId must
-            // map to WETH on this chain in Superset's `OmniTokenAddressBook`.
-            IWETH(WRAPPED_NATIVE).deposit{ value: _bridgeData.minAmount }();
-            inputToken = WRAPPED_NATIVE;
-        }
-
         LibAsset.maxApproveERC20(
-            IERC20(inputToken),
+            IERC20(_bridgeData.sendingAssetId),
             POOL_MANAGER,
             _bridgeData.minAmount
         );

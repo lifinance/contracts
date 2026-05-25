@@ -6,7 +6,7 @@ import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
 import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidNonEVMReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -45,8 +45,6 @@ contract MockSupersetSpokePoolManager is ISupersetSpokePoolManager {
         uint32 _toEid,
         bytes calldata _options
     ) external payable override {
-        // Decode the first omniTokenId in the path as a local-token address
-        // (low 20 bytes). Tests embed the real token address there.
         address inputToken = address(uint160(uint256(bytes32(_path[0:32]))));
 
         IERC20(inputToken).safeTransferFrom(
@@ -121,10 +119,7 @@ contract MockSupersetHubPoolManager is ISupersetHubPoolManager {
 }
 
 contract TestSupersetFacet is SupersetFacet, TestWhitelistManagerBase {
-    constructor(
-        address _poolManager,
-        address _wrappedNative
-    ) SupersetFacet(_poolManager, _wrappedNative) {}
+    constructor(address _poolManager) SupersetFacet(_poolManager) {}
 }
 
 contract SupersetFacetTest is TestBaseFacet {
@@ -142,10 +137,7 @@ contract SupersetFacetTest is TestBaseFacet {
         initTestBase();
 
         mockSpoke = new MockSupersetSpokePoolManager();
-        supersetFacet = new TestSupersetFacet(
-            address(mockSpoke),
-            ADDRESS_WRAPPED_NATIVE
-        );
+        supersetFacet = new TestSupersetFacet(address(mockSpoke));
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = supersetFacet
@@ -177,8 +169,6 @@ contract SupersetFacetTest is TestBaseFacet {
 
         bridgeData.bridge = "superset";
         bridgeData.destinationChainId = 130; // Unichain
-        // Native balance assertions in TestBaseFacet account for `addToMessageValue`
-        // on top of `defaultNativeAmount`; the LZ fee is what we pay extra.
         addToMessageValue = LZ_FEE;
 
         validSupersetData = SupersetFacet.SupersetData({
@@ -200,94 +190,86 @@ contract SupersetFacetTest is TestBaseFacet {
         });
     }
 
-    /// @dev Swap path encoding wrapper for native bridges (input = WETH).
-    function _supersetDataForNative()
-        internal
-        view
-        returns (SupersetFacet.SupersetData memory s)
-    {
-        s = validSupersetData;
-        s.path = abi.encodePacked(
-            bytes32(uint256(uint160(ADDRESS_WRAPPED_NATIVE))),
-            bytes3(uint24(500)),
-            bytes32(uint256(2))
-        );
-    }
-
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        SupersetFacet.SupersetData memory data = isNative
-            ? _supersetDataForNative()
-            : validSupersetData;
-
-        uint256 value = isNative
-            ? bridgeData.minAmount + data.lzFee
-            : data.lzFee;
-
-        supersetFacet.startBridgeTokensViaSuperset{ value: value }(
-            bridgeData,
-            data
-        );
+    function initiateBridgeTxWithFacet(bool) internal override {
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
     }
 
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        // `isNative` in the base test refers to whether the user supplied native
-        // as the *source* asset (msg.value). The token we end up bridging is
-        // `bridgeData.sendingAssetId`; that's what the path's first omniTokenId
-        // must resolve to.
-        SupersetFacet.SupersetData memory data = bridgeData.sendingAssetId ==
-            address(0)
-            ? _supersetDataForNative()
-            : validSupersetData;
-
         uint256 value = isNative
-            ? swapData[0].fromAmount + data.lzFee
-            : data.lzFee;
+            ? swapData[0].fromAmount + validSupersetData.lzFee
+            : validSupersetData.lzFee;
 
         supersetFacet.swapAndStartBridgeTokensViaSuperset{ value: value }(
             bridgeData,
             swapData,
-            data
+            validSupersetData
         );
+    }
+
+    // --- Native source asset is intentionally unsupported (see facet NatSpec) ---
+
+    function testBase_CanBridgeNativeTokens() public override {
+        // Facet rejects native source asset; covered by `testRevert_NativeAssetNotSupported_Bridge`.
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        // Facet rejects native source asset; covered by `testRevert_NativeAssetNotSupported_SwapAndBridge`.
     }
 
     // --- Constructor tests ---
 
     function test_CanDeployFacet() public {
-        new SupersetFacet(address(mockSpoke), ADDRESS_WRAPPED_NATIVE);
+        new SupersetFacet(address(mockSpoke));
     }
 
     function testRevert_WhenPoolManagerIsZero() public {
         vm.expectRevert(InvalidConfig.selector);
 
-        new SupersetFacet(address(0), ADDRESS_WRAPPED_NATIVE);
-    }
-
-    function testRevert_WhenWrappedNativeIsZero() public {
-        vm.expectRevert(InvalidConfig.selector);
-
-        new SupersetFacet(address(mockSpoke), address(0));
+        new SupersetFacet(address(0));
     }
 
     function test_IsHubDerivedFromChainId() public {
         // Non-hub: deploy on the current fork chain (mainnet, id 1)
-        SupersetFacet nonHubFacet = new SupersetFacet(
-            address(mockSpoke),
-            ADDRESS_WRAPPED_NATIVE
-        );
+        SupersetFacet nonHubFacet = new SupersetFacet(address(mockSpoke));
         assertFalse(nonHubFacet.IS_HUB());
 
         // Hub: switch chainId to Arbitrum before constructing
         vm.chainId(42161);
-        SupersetFacet hubFacet = new SupersetFacet(
-            address(mockSpoke),
-            ADDRESS_WRAPPED_NATIVE
-        );
+        SupersetFacet hubFacet = new SupersetFacet(address(mockSpoke));
         assertTrue(hubFacet.IS_HUB());
     }
 
     // --- Validation tests ---
+
+    function testRevert_NativeAssetNotSupported_Bridge() public {
+        vm.startPrank(USER_SENDER);
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        vm.expectRevert(NativeAssetNotSupported.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: bridgeData.minAmount + validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
+    function testRevert_NativeAssetNotSupported_SwapAndBridge() public {
+        vm.startPrank(USER_SENDER);
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = 1 ether;
+        setDefaultSwapDataSingleDAItoETH();
+
+        vm.expectRevert(NativeAssetNotSupported.selector);
+
+        supersetFacet.swapAndStartBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, swapData, validSupersetData);
+    }
 
     function testRevert_FallbackEoAIsContract() public {
         vm.startPrank(USER_SENDER);
@@ -382,39 +364,14 @@ contract SupersetFacetTest is TestBaseFacet {
         assertEq(inputToken, ADDRESS_USDC);
     }
 
-    function test_NativeIsWrappedToWETH() public {
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
-        SupersetFacet.SupersetData
-            memory nativeData = _supersetDataForNative();
-
-        vm.startPrank(USER_SENDER);
-
-        supersetFacet.startBridgeTokensViaSuperset{
-            value: bridgeData.minAmount + nativeData.lzFee
-        }(bridgeData, nativeData);
-
-        (, , , , , , , , , , address inputToken) = mockSpoke.lastCall();
-        assertEq(inputToken, ADDRESS_WRAPPED_NATIVE);
-    }
-
     function test_HubBranchForwardsArgsToHubAbi() public {
         // Switch the EVM chain id BEFORE construction so the facet's
         // IS_HUB immutable is set to true.
         vm.chainId(42161);
 
         MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
-        TestSupersetFacet hubFacet = new TestSupersetFacet(
-            address(mockHub),
-            ADDRESS_WRAPPED_NATIVE
-        );
+        TestSupersetFacet hubFacet = new TestSupersetFacet(address(mockHub));
 
-        // Register the hub facet on a fresh diamond surface — reuse the
-        // existing diamond by replacing the facet selectors.
-        bytes4[] memory selectors = new bytes4[](2);
-        selectors[0] = hubFacet.startBridgeTokensViaSuperset.selector;
-        selectors[1] = hubFacet.swapAndStartBridgeTokensViaSuperset.selector;
-        // Use a vanilla deal/approve flow against the diamond proxy.
         vm.startPrank(USER_SENDER);
         usdc.approve(address(hubFacet), defaultUSDCAmount);
 

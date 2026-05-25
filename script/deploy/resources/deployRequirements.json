@@ -493,11 +493,6 @@
         "configFileName": "superset.json",
         "keyInConfigFile": ".poolManager.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
-      },
-      "_wrappedNative": {
-        "configFileName": "networks.json",
-        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
-        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
