@@ -70,6 +70,7 @@ jobs:
 
     services:
       mongo:
+        # pre-commit-checker: not a secret — sha256 image digest pin for supply-chain integrity, not a credential
         image: mongo:7@sha256:43fddee7e532a920f3dfdee9e8f4834398c155c26bcb92d790cc1cd3c630fc40 # mongo:7
         ports:
           - 27017:27017
@@ -104,6 +105,7 @@ jobs:
         run: |
           set -euo pipefail
           GUM_VERSION=0.14.5
+          # pre-commit-checker: not a secret — publisher-published sha256 checksum for the gum release tarball
           EXPECTED_SHA256=fd1a34711ae724eb2a6c1a3209d57078d529575a03316e699054f2f5d3bcb2ba
           curl -fsSLo /tmp/gum.deb "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_amd64.deb"
           echo "${EXPECTED_SHA256}  /tmp/gum.deb" | sha256sum -c -
