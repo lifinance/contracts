@@ -18,13 +18,10 @@ DIAMOND_IS_PAUSED_SELECTOR="0x0149422e"
 MAX_ATTEMPTS=10
 
 # RPC pacing for read calls. Send retries use MAX_ATTEMPTS above (intentionally
-# larger). Some public RPCs throttle reads aggressively (~1 call per few seconds),
-# so we pace and retry transient failures.
-#
-# Why staging-only (and not in diamondEMERGENCYPauseGitHub.sh): prod uses paid
-# RPCs that don't throttle under normal load. If prod RPCs ever start throttling
-# during incident-induced load spikes (exactly when this script runs), this
-# pacing should be back-ported.
+# larger). RPCs can throttle reads under load — paid tiers included, and
+# especially under the kind of incident-response load this script runs under.
+# So we pace and retry transient failures. The follow-up PR brings the prod
+# mirror script (diamondEMERGENCYPauseGitHub.sh) to parity with this one.
 RPC_MAX_ATTEMPTS=5
 RPC_RETRY_SLEEP_SECONDS=3
 RPC_CALL_DELAY_SECONDS=1
