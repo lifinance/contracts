@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       warning:
-        description: "By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
+        description: "By clicking the next button you are pausing all PRODUCTION diamonds. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
         required: true
 
 permissions:
@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
 
       - name: Install dev dependencies
         run: bun install
@@ -33,7 +33,7 @@ jobs:
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
         if: ${{ inputs.warning == 'UNDERSTOOD' }}
         id: authenticate-user
-        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
         with:
           username: ${{ github.actor }}
           organization: lifinance
@@ -75,8 +75,7 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Pause Diamond
-        run: |
-          ./script/utils/diamondEMERGENCYPauseGitHub.sh
+        run: bash script/utils/diamondEMERGENCYPauseGitHub.sh
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
