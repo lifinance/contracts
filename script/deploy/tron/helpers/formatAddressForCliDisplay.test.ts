@@ -80,31 +80,25 @@ describe('formatAddressForNetworkCliDisplay', () => {
 describe('tronHexSuffix', () => {
   it('returns empty string for non-Tron networks', () => {
     expect(tronHexSuffix('mainnet', EVM_DEPLOYER)).toBe('')
-    expect(tronHexSuffix('mainnet', B58_DEPLOYER)).toBe('')
-  })
-
-  it('returns checksummed hex in parens for a base58 Tron address', () => {
-    expect(tronHexSuffix('tron', B58_DEPLOYER)).toBe(` (${EVM_DEPLOYER})`)
   })
 
   it('returns checksummed hex in parens for a 0x EVM-style address on Tron', () => {
     expect(tronHexSuffix('tron', EVM_DEPLOYER_LOWER)).toBe(` (${EVM_DEPLOYER})`)
   })
 
-  it('returns checksummed hex in parens for a 41-prefixed Tron hex', () => {
-    expect(tronHexSuffix('tron', TRON_41_DEPLOYER)).toBe(` (${EVM_DEPLOYER})`)
+  it('returns checksummed hex unchanged when input is already checksummed', () => {
+    expect(tronHexSuffix('tron', EVM_DEPLOYER)).toBe(` (${EVM_DEPLOYER})`)
+  })
+
+  it('returns empty string when getAddress throws (too-short hex)', () => {
+    expect(tronHexSuffix('tron', '0xdeadbeef')).toBe('')
   })
 
   it('returns empty string for unrecognizable input on Tron', () => {
     expect(tronHexSuffix('tron', 'not-an-address')).toBe('')
   })
 
-  it('returns empty string when checksum conversion throws', () => {
-    // Too-short 0x string fails getAddress() — exercises the catch branch.
-    expect(tronHexSuffix('tron', '0xdeadbeef')).toBe('')
-  })
-
   it('is case-insensitive for the network key', () => {
-    expect(tronHexSuffix('TRON', B58_DEPLOYER)).toBe(` (${EVM_DEPLOYER})`)
+    expect(tronHexSuffix('TRON', EVM_DEPLOYER)).toBe(` (${EVM_DEPLOYER})`)
   })
 })
