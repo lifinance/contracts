@@ -13,9 +13,7 @@ import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -29,9 +27,8 @@ import {
   getFacetSelectors,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
-import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
-
+import { planAndProposeFacetUpdates } from './propose-facet-update'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 async function deployAndRegisterNEARIntentsFacet(options: {
@@ -97,22 +94,14 @@ async function deployAndRegisterNEARIntentsFacet(options: {
 
     await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    const nearIntentsConfig = await Bun.file('config/nearintents.json').json()
+    const globalConfig = await Bun.file('config/global.json').json()
     const envKey =
       environment === EnvironmentEnum.production ? 'production' : 'staging'
-    const networkConfig = nearIntentsConfig[envKey]
 
-    if (!networkConfig)
-      throw new Error(
-        `Configuration for '${envKey}' not found in config/nearintents.json`
-      )
-
-    const backendSignerRaw = networkConfig.backendSigner
+    const backendSignerRaw = globalConfig.backendSigner?.[envKey]
 
     if (!backendSignerRaw)
-      throw new Error(
-        `backendSigner not found for '${envKey}' in config/nearintents.json`
-      )
+      throw new Error(`backendSigner.${envKey} not found in config/global.json`)
 
     const backendSigner = tronAddressToHex(tronWeb, backendSignerRaw)
 
@@ -188,14 +177,11 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     )
 
     if (!dryRun)
-      await proposeDiamondCut({
-        facetName: 'NEARIntentsFacet',
-        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
-        diamondAddress,
-        network: network,
-      })
+      await planAndProposeFacetUpdates({ facetNames: ['NEARIntentsFacet'] })
     else
-      consola.info('Dry run - skipping diamondCut proposal for NEARIntentsFacet')
+      consola.info(
+        'Dry run - skipping diamondCut proposal for NEARIntentsFacet'
+      )
 
     printDeploymentSummary(deploymentResults, dryRun)
 

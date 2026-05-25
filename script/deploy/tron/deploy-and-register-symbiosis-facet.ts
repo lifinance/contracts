@@ -5,7 +5,6 @@ import {
   TronContractDeployer,
   createTronWeb,
   evmHexToTronBase58,
-  tronAddressToHex,
   type ITronDeploymentConfig,
   type TronTvmNetworkName,
 } from '@lifi/tron-devkit'
@@ -14,9 +13,7 @@ import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -30,9 +27,8 @@ import {
   getFacetSelectors,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
-import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
-
+import { planAndProposeFacetUpdates } from './propose-facet-update'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 /**
@@ -210,12 +206,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     )
 
     if (!dryRun)
-      await proposeDiamondCut({
-        facetName: 'SymbiosisFacet',
-        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
-        diamondAddress,
-        network: network,
-      })
+      await planAndProposeFacetUpdates({ facetNames: ['SymbiosisFacet'] })
     else
       consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
 

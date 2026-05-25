@@ -16,12 +16,20 @@ import {
   getTronWebCodecFullHostForNetwork,
   getTronWebCodecOnlyForNetwork,
   loadForgeArtifact,
+  tronAddressLikeToBase58,
   tronAddressToHex,
+  tronZeroAddressBase58,
   tryTronFacetLoupeAddressToBase58,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
-import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
+import {
+  decodeFunctionResult,
+  parseAbi,
+  type Abi,
+  type Address,
+  type Hex,
+} from 'viem'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { sleep } from '../../utils/delay'
@@ -33,6 +41,7 @@ import {
   saveContractAddress,
   updateDiamondJson,
 } from '../../utils/utils'
+import type { IOnChainFacet } from '../shared/buildDiamondCut'
 import {
   INITIAL_CALL_DELAY,
   MAX_RETRIES,
@@ -475,6 +484,83 @@ export async function registerFacetToDiamond(
     consola.error(`Registration failed:`, error.message)
     return { success: false, error: error.message }
   }
+}
+
+/**
+ * Reads the on-chain DiamondLoupe state of a Tron diamond.
+ *
+ * Calls `IDiamondLoupe.facets()` via TronWeb and normalises each entry to the
+ * chain-agnostic {@link IOnChainFacet} shape consumed by `buildDiamondCut`
+ * (EVM-20 hex address + lowercase `0x` 4-byte selectors).
+ *
+ * Returns `[]` when the Loupe is not registered yet (first-time bootstrap),
+ * so callers can treat that case as "everything is Add".
+ *
+ * @param tronWeb - TronWeb instance (any signer/codec — only used for codec + RPC).
+ * @param diamondAddressBase58 - Diamond contract address in Tron base58 form.
+ * @param diamondLoupeAbi - DiamondLoupeFacet ABI (loaded from Forge artifact by caller).
+ */
+export async function readDiamondFacets(
+  tronWeb: TronWeb,
+  diamondAddressBase58: string,
+  diamondLoupeAbi: Abi
+): Promise<IOnChainFacet[]> {
+  // TronWeb requires a defaultAddress to be set for `.call()` even on read-only
+  // view methods — it sends `owner_address` to triggerConstantContract. When a
+  // caller passes a read-only TronWeb (no private key), set a placeholder so
+  // the call doesn't fail with "owner_address isn't set".
+  if (!tronWeb.defaultAddress.base58)
+    tronWeb.setAddress(tronZeroAddressBase58(tronWeb))
+
+  // TronWeb's own AbiFragment shape is narrower than viem's Abi (e.g. it requires
+  // `name`/`outputs` on every fragment); cast to satisfy the runtime signature
+  // without leaking `any` into the public API.
+  const diamond = tronWeb.contract(
+    diamondLoupeAbi as unknown as Parameters<TronWeb['contract']>[0],
+    diamondAddressBase58
+  )
+
+  let raw: unknown
+  try {
+    raw = await diamond.facets().call()
+  } catch (error: unknown) {
+    // Loupe not yet wired up — treat as empty diamond.
+    const message = error instanceof Error ? error.message : String(error)
+    consola.warn(
+      `readDiamondFacets: facets() call failed (${message}). Treating diamond as empty.`
+    )
+    return []
+  }
+
+  // TronWeb wraps return values: when the call returns a single tuple/array,
+  // it surfaces as `[result]`. Unwrap to the facets list (matches the pattern
+  // already used by `verifyFacetRegistration` and `register-facets-to-diamond`).
+  const rawArr = raw as unknown[]
+  const entries = (Array.isArray(rawArr[0]) ? rawArr[0] : rawArr) as unknown[][]
+
+  const result: IOnChainFacet[] = []
+  for (const entry of entries) {
+    const rawAddr = entry[0] as string
+    const rawSelectors = entry[1] as string[]
+    // `tronAddressLikeToBase58` handles all three Loupe address formats
+    // (already-base58, 0x-hex, or 41-hex); `tryTronFacetLoupeAddressToBase58`
+    // falls back to the raw string on error, which then breaks tronAddressToHex.
+    let base58: string
+    try {
+      base58 = tronAddressLikeToBase58(tronWeb, rawAddr)
+    } catch {
+      consola.warn(
+        `readDiamondFacets: could not normalise Loupe address ${rawAddr}; skipping`
+      )
+      continue
+    }
+    const evmHex = tronAddressToHex(tronWeb, base58) as Address
+    const selectors = rawSelectors.map((s) =>
+      (s.startsWith('0x') ? s : `0x${s}`).toLowerCase()
+    ) as Hex[]
+    result.push({ address: evmHex, selectors })
+  }
+  return result
 }
 
 /**

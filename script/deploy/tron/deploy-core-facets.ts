@@ -15,23 +15,19 @@ import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
-  saveDiamondDeployment,
   getEnvironment,
   checkExistingDeployment,
   confirmDeployment,
   printDeploymentSummary,
   displayNetworkInfo,
-  updateDiamondJsonBatch,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
-
+import { planAndProposeFacetUpdates } from './propose-facet-update'
 import {
   deployContractWithLogging,
   validateBalance,
@@ -73,7 +69,10 @@ async function getConstructorArgs(
       )
 
     // Convert to base58 for display purposes only
-    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnlyForNetwork(network), nativeAddress)
+    const tronBase58 = evmHexToTronBase58(
+      getTronWebCodecOnlyForNetwork(network),
+      nativeAddress
+    )
 
     consola.info(
       `Using native token address: ${tronBase58} (hex: ${nativeAddress})`
@@ -331,23 +330,11 @@ async function deployCoreFacetsImpl(options: {
       )
 
       deploymentResults.push(result)
-
-      if (result.status === 'success' && result.address)
-        if (!options.dryRun) {
-          // Note: deployContractWithLogging already handles saving addresses and logging
-          // Save diamond-specific deployment info
-          await saveDiamondDeployment(network, result.address, facetAddresses)
-
-          // Update diamond JSON files
-          const facetEntries = Object.entries(facetAddresses).map(
-            ([name, data]) => ({
-              name,
-              address: data.address,
-              version: data.version,
-            })
-          )
-          await updateDiamondJsonBatch(facetEntries, network)
-        }
+      // NB: tron.diamond.json must mirror on-chain Loupe state, not deploy
+      // intent — see `script/helperFunctions.sh:updateDiamondLogForNetwork`
+      // for the EVM convention. For Tron, that re-sync should run after the
+      // Safe → Timelock diamondCut executes (NOT here). Writing to the file
+      // from this script previously masked the missing-proposal bug.
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -362,19 +349,58 @@ async function deployCoreFacetsImpl(options: {
       })
     }
 
-  // If diamond already existed, still update the diamond JSON with facet addresses
-  if (existingDiamond.exists && existingDiamond.address && !options.dryRun) {
-    // Update diamond JSON files
-    const facetEntries = Object.entries(facetAddresses).map(([name, data]) => ({
-      name,
-      address: data.address,
-      version: data.version,
-    }))
-    await updateDiamondJsonBatch(facetEntries, network)
-  }
-
   // Use new utility for summary
   printDeploymentSummary(deploymentResults, options.dryRun)
+
+  // Propose diamondCut updates for any facets that were just deployed (or
+  // redeployed) against an existing diamond. First-time bootstrap (diamond
+  // deployed in THIS run) is still owned by the deployer wallet at this
+  // point, so the operator should use `register-facets-to-diamond.ts`
+  // directly rather than going through Safe → Timelock.
+  const diamondWasJustCreated = deploymentResults.some(
+    (r) => r.contract === diamondName && r.status === 'success'
+  )
+  const successfulFacets = deploymentResults
+    .filter((r) => r.status === 'success' && r.contract !== diamondName)
+    .map((r) => r.contract)
+
+  if (successfulFacets.length === 0) {
+    consola.info(
+      'No facets were newly deployed in this run — nothing to propose.'
+    )
+  } else if (diamondWasJustCreated) {
+    consola.warn(
+      `\nNew LiFiDiamond was deployed in this run — deployer still owns it. ` +
+        `Run \`register-facets-to-diamond.ts\` to wire facets directly ` +
+        `(no Safe proposal needed yet). Facets pending registration: ` +
+        successfulFacets.join(', ')
+    )
+  } else
+    try {
+      consola.info(
+        `\nProposing diamondCut for ${successfulFacets.length} facet(s) ` +
+          `via Safe → Timelock: ${successfulFacets.join(', ')}`
+      )
+      await planAndProposeFacetUpdates({
+        facetNames: successfulFacets,
+        dryRun: options.dryRun,
+      })
+      consola.success(
+        options.dryRun
+          ? 'Dry-run complete — no proposal written.'
+          : 'Proposal stored in MongoDB. Continue with `confirm-safe-tx.ts` to sign and schedule.'
+      )
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      consola.error(`Propose step failed: ${errorMessage}`)
+      consola.error(
+        `Facets are deployed but NOT yet wired. ` +
+          `Re-run propose-facet-update.ts manually: ` +
+          successfulFacets.map((f) => `--facet ${f}`).join(' ')
+      )
+      process.exit(1)
+    }
 
   // Exit with appropriate code
   const hasFailures = deploymentResults.some((r) => r.status === 'failed')

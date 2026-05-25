@@ -23,9 +23,7 @@ import { consola } from 'consola'
 
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import {
   getEnvVar,
@@ -43,12 +41,12 @@ import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
-
 import {
   REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
   REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
 } from './constants.js'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
+import { planAndProposePeripheryRegistration } from './propose-periphery-registration'
 import { getTronWallet } from './tronUtils.js'
 
 /**
@@ -401,8 +399,18 @@ async function deployAndRegisterPeripheryImpl(options: {
             const artifact = await loadForgeArtifact('Executor')
             const version = await getContractVersion('Executor')
 
+            // In a dry-run, the deployer's simulated deployment returns the
+            // placeholder string `TXXX…` (T + 33 X's). It fails base58 checksum
+            // in `tronAddressToHex` and isn't a real on-chain address — so
+            // prefer the on-disk deployment log when the in-memory value is
+            // that placeholder. Real (non-dry-run) deployments return a valid
+            // base58 here and take the first branch unchanged.
+            const inMemoryErc20Proxy = deployedContracts['ERC20Proxy']
+            const isDryRunPlaceholder =
+              typeof inMemoryErc20Proxy === 'string' &&
+              /^T[X]{33}$/.test(inMemoryErc20Proxy)
             const erc20ProxyAddress =
-              deployedContracts['ERC20Proxy'] ||
+              (!isDryRunPlaceholder && inMemoryErc20Proxy) ||
               (await getContractAddress(network, 'ERC20Proxy'))
             if (!erc20ProxyAddress)
               throw new Error('ERC20Proxy address not found')
@@ -967,7 +975,46 @@ async function deployAndRegisterPeripheryImpl(options: {
       '\n Registering periphery contracts with PeripheryRegistryFacet...'
     )
 
-    if (!dryRun) {
+    // Production: the Diamond is owned by Timelock+Safe — direct
+    // `registerPeripheryContract` would revert with `LibDiamond: Must be
+    // contract owner`. Route each registration through Safe → Timelock so
+    // governance signs and schedules them.
+    if (!dryRun && environment === EnvironmentEnum.production) {
+      const successfulContracts = Object.entries(deployedContracts)
+        .filter(
+          ([name, addr]) =>
+            name !== 'LiFiTimelockController' && addr && addr !== 'FAILED'
+        )
+        .map(([name]) => name)
+      if (successfulContracts.length === 0)
+        consola.info(
+          'No successfully deployed periphery contracts to propose for registration.'
+        )
+      else
+        try {
+          await planAndProposePeripheryRegistration({
+            contractNames: successfulContracts,
+            dryRun: false,
+          })
+          consola.success(
+            'Proposals stored in MongoDB. Sign + schedule via ' +
+              '`confirm-safe-tx.ts`; execute via ' +
+              '`execute-pending-timelock-tx.ts` once the timelock delay elapses.'
+          )
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error)
+          consola.error(`Propose step failed: ${message}`)
+          consola.error(
+            'Contracts deployed but NOT yet registered. Re-run ' +
+              'propose-periphery-registration.ts manually: ' +
+              successfulContracts.map((c) => `--contract ${c}`).join(' ')
+          )
+        }
+    }
+
+    // Staging/testnet: deployer wallet still owns the Diamond — direct
+    // registration is correct here (no governance in the path).
+    if (!dryRun && environment !== EnvironmentEnum.production) {
       // Load the PeripheryRegistryFacet ABI to interact with the diamond
       const peripheryRegistryArtifact = await loadForgeArtifact(
         'PeripheryRegistryFacet'
