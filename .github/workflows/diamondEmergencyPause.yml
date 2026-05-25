@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read # required to fetch repository contents
+  actions: read # required to resolve the current job ID for the Slack deep-link
 
 jobs:
   diamond-emergency-pause:
@@ -19,7 +20,7 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-      
+
       - name: Install dev dependencies
         run: bun install
 
@@ -79,10 +80,37 @@ jobs:
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
-      - name: Send Reminder to Slack SC-general Channel
+      # Resolve a deep-link to the current job's log view so the Slack message
+      # lets on-call open logs in one click. Falls back to the run-level URL if
+      # the API call fails so the notification still contains a usable link.
+      - name: Resolve current job URL
+        if: ${{ always() }}
+        id: jobinfo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          job_id=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq ".jobs[] | select(.name == \"${{ github.job }}\") | .id" 2>/dev/null || true)
+          if [[ -n "${job_id}" ]]; then
+            url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${job_id}"
+          else
+            url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack SC-general channel of pause execution
+        # always() so the alert fires even when the pause script exits non-zero
+        # (per-network isolation now lets the script partially succeed and still
+        # return 1 — on-call must still be paged in that case).
+        if: ${{ always() }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
+          # JSON payload so the inline ternary for status emoji interpolates
+          # cleanly without YAML's single-quote escaping.
           payload: |
-            text: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
+            {
+              "text": "ATTENTION - the emergency diamond pause action was just executed on PROD by ${{ github.actor }} — ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }} — ${{ steps.jobinfo.outputs.url }}"
+            }
