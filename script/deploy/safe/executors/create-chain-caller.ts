@@ -4,10 +4,11 @@
  * Picks the implementation from `networkName` via {@link isTronNetworkKey} so callers do not branch on chain type.
  */
 
-import { isTronNetworkKey, type TronTvmNetworkName } from '@lifi/tron-devkit'
+import { type TronTvmNetworkName } from '@lifi/tron-devkit'
 import type { Account, PublicClient, WalletClient } from 'viem'
 
 import type { IChainCaller } from '../../../common/types'
+import { isTronNetworkKey } from '../../shared/tron-network-keys'
 
 export interface ICreateChainCallerParams {
   networkName: string

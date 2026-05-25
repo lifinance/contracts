@@ -6,11 +6,11 @@
 
 import {
   getTronWebCodecOnlyForNetwork,
-  isTronNetworkKey,
   tronAddressToHex,
 } from '@lifi/tron-devkit'
 import { getAddress, type Address } from 'viem'
 
+import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
 
 /**
  * Normalize a contract address from config or Mongo for viem RPC usage.

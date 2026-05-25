@@ -1,7 +1,6 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
@@ -40,6 +39,7 @@ import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
 import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
@@ -705,7 +705,6 @@ export function addressToBytes32RightPadded(address: string): `0x${string}` {
   const hex = address.replace(/^0x/, '').toLowerCase()
   return `0x${hex.padEnd(64, '0')}`
 }
-
 
 /**
  * Normalize a private key to ensure it starts with "0x".

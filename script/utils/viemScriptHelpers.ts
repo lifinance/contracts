@@ -7,10 +7,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import readline from 'readline'
 
-import {
-  applyTronGridViemTransportExtras,
-  isTronNetworkKey,
-} from '@lifi/tron-devkit'
+import { applyTronGridViemTransportExtras } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { defineChain, encodeFunctionData, parseAbi, type Chain } from 'viem'
@@ -22,6 +19,7 @@ import {
   type INetworksObject,
   type SupportedChain,
 } from '../common/types'
+import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
 
 import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'

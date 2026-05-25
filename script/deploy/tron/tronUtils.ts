@@ -42,7 +42,6 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
-
 import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
 import type { IDiamondRegistrationResult } from './types'
 
@@ -217,7 +216,9 @@ export async function deployContractWithLogging(
       contract: contractName,
       address: result.contractAddress,
       txId: result.transactionId,
-      cost: result.actualCost.trxCost,
+      // TronWeb's fromSun() inside @lifi/tron-devkit can return a string at runtime
+      // despite the declared `number` type — coerce so downstream `.toFixed()` works.
+      cost: Number(result.actualCost.trxCost),
       version,
       status: 'success',
     }
