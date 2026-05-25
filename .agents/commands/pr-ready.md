@@ -126,10 +126,11 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 2. **Run the review**
 
    ```bash
-   coderabbit review --base origin/main --plain
+   coderabbit review --base origin/main --type committed --plain
    ```
 
    - `--base origin/main` ensures the diff matches what GitHub CI will see.
+   - `--type committed` scopes the review to the PR diff. The CLI default is `all`, which also reviews uncommitted edits and untracked working-tree files — that produces findings on unrelated local scratch files and is noisy. The committed scope matches what cloud CodeRabbit reviews on the PR.
    - `--plain` produces a stable, machine-parseable output that agents can consume.
    - First run on a branch can take a few minutes; subsequent runs on the same diff are cached.
 
@@ -154,21 +155,25 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 
    1. Edit the file.
    2. Create a **dedicated commit** with subject:
+
       ```
       pr-ready: <one-line issue summary> (<file>:<line>)
       ```
+
       Body contains the CR finding excerpt + a one-line rationale. **One finding = one commit.**
    3. Do **not** push. The dev pushes after reviewing the summary.
 
    **Ask bucket** (per-finding consent):
 
    1. Print:
+
       ```
       [N/total] <file>:<line> — <one-line issue summary>
         CR says:   <≤ 80-char excerpt>
         Proposed:  <unified diff, ≤ 15 lines>
       Apply? [y / n / defer / skip-rest]
       ```
+
    2. Wait for explicit answer. `y` → edit + one-commit-per-fix (same format as Auto-apply). `n` / `defer` → record in summary (deferred with rationale). `skip-rest` → record all remaining Ask items as deferred and move to step 6.
    3. Never infer consent. If the user is non-interactive, treat every Ask item as deferred and note it in the summary.
 
@@ -202,7 +207,7 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 
 6. **Re-run until clean**
 
-   After all approved fixes are applied, run `coderabbit review --base origin/main --plain` again until the output is either:
+   After all approved fixes are applied, run `coderabbit review --base origin/main --type committed --plain` again until the output is either:
    - empty / "no findings", or
    - contains only items explicitly deferred/rejected (record those in the PR description).
 
@@ -272,7 +277,7 @@ Do not claim "PR-ready" until the re-run shows no actionable findings, and do no
 
 Before declaring a PR ready:
 
-- [ ] `coderabbit review --base origin/main --plain` exit clean OR remaining findings explicitly documented in the PR body.
+- [ ] `coderabbit review --base origin/main --type committed --plain` exit clean OR remaining findings explicitly documented in the PR body.
 - [ ] Every applied fix (auto-applied or ask-applied) is its own `pr-ready:` commit, visible in `git log` and individually revertible.
 - [ ] No `git commit --amend`, `git rebase -i`, or `git push --force` used during the session.
 - [ ] Dev has read the **Auto-applied** section of the summary and is OK with each entry (or `git revert`-ed the ones they aren't).
