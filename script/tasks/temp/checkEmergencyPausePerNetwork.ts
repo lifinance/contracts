@@ -83,7 +83,7 @@ interface IEmergencyPauseStatus {
   environment: Environment
   chainId: number
   diamondAddress: Address | null
-  selectors: Record<SelectorName, boolean> | null
+  selectors: Record<SelectorName, boolean | null> | null
   hasEmergencyPauseFacet: boolean | null
   pauserWalletOnChain: Address | null
   pauserWalletExpected: Address
@@ -323,26 +323,52 @@ async function checkNetworkEmergencyPause(
     transport: http(transportUrl, { fetchOptions, retryCount, retryDelay }),
   })
 
-  try {
-    const selectors = await checkSelectorsRegistered(publicClient, diamond)
-    result.selectors = selectors
-    result.hasEmergencyPauseFacet =
-      selectors.pauseDiamond &&
-      selectors.removeFacet &&
-      selectors.unpauseDiamond &&
-      selectors.pauserWallet
-  } catch (error: unknown) {
-    result.errors.push(
-      `Selector check failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    )
-    result.hasEmergencyPauseFacet = false
-  }
+  // Probe pause state first: when the diamond is paused, the loupe itself is
+  // redirected to EmergencyPauseFacet's fallback (DiamondIsPaused), so the
+  // selector probe below would return false negatives for all four selectors.
+  const pause = await probePauseStatus(publicClient, diamond)
+  result.pauseStatus = pause.status
+  if (pause.error) result.errors.push(pause.error)
 
   await sleep()
 
-  if (result.selectors?.pauserWallet)
+  if (pause.status === 'PAUSED') {
+    // DiamondIsPaused() proves EmergencyPauseFacet was installed at pause time,
+    // but the loupe is unreachable so individual selectors can't be re-verified
+    // here — a later diamondCut could have removed removeFacet/unpauseDiamond/
+    // pauserWallet. Mark facet-installed as true, leave per-selector flags
+    // unknown so drift stays visible instead of being papered over.
+    result.selectors = {
+      pauseDiamond: null,
+      removeFacet: null,
+      unpauseDiamond: null,
+      pauserWallet: null,
+    }
+    result.hasEmergencyPauseFacet = true
+  } else
+    try {
+      const selectors = await checkSelectorsRegistered(publicClient, diamond)
+      result.selectors = selectors
+      result.hasEmergencyPauseFacet =
+        selectors.pauseDiamond &&
+        selectors.removeFacet &&
+        selectors.unpauseDiamond &&
+        selectors.pauserWallet
+    } catch (error: unknown) {
+      result.errors.push(
+        `Selector check failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      result.hasEmergencyPauseFacet = false
+    }
+
+  await sleep()
+
+  // pauserWallet() stays callable while paused (its selector is never redirected),
+  // so attempt it whenever EmergencyPauseFacet appears installed — including the
+  // PAUSED branch where per-selector flags are intentionally left unknown.
+  if (pause.status === 'PAUSED' || result.selectors?.pauserWallet === true)
     try {
       const raw = (await publicClient.readContract({
         address: diamond,
@@ -373,12 +399,6 @@ async function checkNetworkEmergencyPause(
       result.balanceError =
         error instanceof Error ? error.message : String(error)
     }
-
-  await sleep()
-
-  const pause = await probePauseStatus(publicClient, diamond)
-  result.pauseStatus = pause.status
-  if (pause.error) result.errors.push(pause.error)
 
   return result
 }
